@@ -12,6 +12,7 @@
 @inject IMediator Mediator
 @inject Microsoft.Extensions.Localization.IStringLocalizer<TextosDocumentos> TextosDocumento
 @inject IServiceProvider ServiceProvider
+@inject Microsoft.Extensions.Logging.ILogger<DocumentoWorkspacePanel> Logger
 
 @if (_cargando)
 {
@@ -135,6 +136,12 @@ else
                 {
                     <EstadoCargando Filas="3" />
                 }
+                else if (_errorValidacion)
+                {
+                    <EstadoVacio Titulo="@TextosDocumento["ValidacionOficialErrorTitulo"]" Descripcion="Intenta nuevamente en unos segundos.">
+                        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarValidacionAsync">Reintentar</Boton></Accion>
+                    </EstadoVacio>
+                }
                 else if (_validacion is null)
                 {
                     <EstadoVacio Titulo="Sin validación automática" Descripcion="Este documento no ha pasado por la validación de documento oficial — su tipo no tiene perfil oficial asignado, o el análisis todavía no ha terminado." />
@@ -217,7 +224,7 @@ else
         _ => null,
     };
     private ValidacionOficialDocumentoDto? _validacion;
-    private bool _cargando = true, _cargandoValidacion = true, _error, _editandoInformacion, _guardandoInformacion;
+    private bool _cargando = true, _cargandoValidacion = true, _errorValidacion, _error, _editandoInformacion, _guardandoInformacion;
     private string _fechaEmisionEditada = string.Empty, _fechaVencimientoEditada = string.Empty, _comentariosEditados = string.Empty;
     private bool _noCaducaEditado;
     private readonly InstantaneaFormulario _instantaneaInformacion = new();
@@ -246,7 +253,7 @@ else
     private void ReiniciarParaNuevaEntidad()
     {
         _generacion++; _cargaCabecera++; _cargaValidacion++;
-        _detalle = null; _validacion = null; _error = false; _cargando = true; _cargandoValidacion = true;
+        _detalle = null; _validacion = null; _errorValidacion = false; _error = false; _cargando = true; _cargandoValidacion = true;
         _editandoInformacion = false; _guardandoInformacion = false; _mensajeErrorInformacion = null;
         // El panel se reutiliza al cambiar de documento: una reclamación abierta era la
         // del documento anterior y no puede quedarse abierta contra otro titular.
@@ -273,9 +280,15 @@ else
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
         {
-            if (carga == _cargaCabecera) _error = true;
+            // El panel se cerró: no es un fallo.
+        }
+        catch (Exception ex)
+        {
+            if (carga != _cargaCabecera) return;
+            _error = true;
+            Logger.LogError(ex, "No se pudo cargar la ficha del Documento {DocumentoId}.", id);
         }
         finally
         {
@@ -286,14 +299,24 @@ else
     private async Task CargarValidacionAsync()
     {
         var carga = ++_cargaValidacion; var id = EntidadId;
-        _cargandoValidacion = true;
+        _cargandoValidacion = true; _errorValidacion = false;
         try
         {
             var validacion = await Mediator.Send(new ObtenerValidacionOficialDocumentoQuery(id), _cancelacion);
             if (carga != _cargaValidacion) return;
             _validacion = validacion;
         }
-        catch (Exception) { }
+        catch (OperationCanceledException) when (_cancelacion.IsCancellationRequested)
+        {
+            // El panel se cerró: no es un fallo.
+        }
+        catch (Exception ex)
+        {
+            // Sin esto «Sin validación automática» sería indistinguible de una lectura fallida.
+            if (carga != _cargaValidacion) return;
+            _errorValidacion = true;
+            Logger.LogError(ex, "No se pudo leer la validación oficial del Documento {DocumentoId}.", id);
+        }
         finally
         {
             if (carga == _cargaValidacion) _cargandoValidacion = false;

@@ -12,6 +12,8 @@ namespace CaeManager.Web.Features.Bandeja.Pages;
 public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
 
     [SupplyParameterFromQuery(Name = "tipo")]
     public string? TipoInicial { get; set; }
@@ -250,9 +252,10 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
             // Una carga superada que falla no es un error de la vigente: no
             // puede tapar su resultado con el estado de error.
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _errorCarga = true;
+            Logger.LogError(ex, "La cola de trabajo no pudo cargarse.");
         }
         finally
         {
