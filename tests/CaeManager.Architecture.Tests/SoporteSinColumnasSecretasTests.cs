@@ -18,6 +18,14 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
+/// <c>SoporteSinColumnasSecretasRestantes</c> hizo lo mismo con <c>Contrasena</c> de
+/// <c>CanalesGestionDocumental</c>, <c>CredencialesAccesoEmpresa</c> y <c>CredencialesAccesoSubcontrata</c>,
+/// <c>ClientState</c> de <c>SuscripcionesWebhook</c>, <c>TokenAcceso</c> de <c>LineasWhatsApp</c> y
+/// <c>UltimoError</c> de <c>ConexionesIntegracion</c>; <c>AccesosPlataformaCaeEmpresa</c> ya no se concedía.
+/// <c>AspNetUsers</c> no está: <c>UserManager</c> materializa la cuenta entera en Sesión Privilegiada.
+/// </para>
+///
+/// <para>
 /// Solo cuenta el <c>Up</c>: el <c>Down</c> de la propia migración vuelve a conceder lo que retiró, que es
 /// lo que debe hacer. Las migraciones anteriores (la línea base) quedan cubiertas porque la que retira va
 /// después; que esa migración siga retirando lo comprueba el segundo test. Lo que hay en la base migrada,
@@ -28,9 +36,33 @@ public class SoporteSinColumnasSecretasTests
 {
     private const string MigracionQueRetira = "20261030120000_SoporteSinLecturaDeCredenciales";
 
+    private const string MigracionQueRetiraElResto = "20261030200000_SoporteSinColumnasSecretasRestantes";
+
     private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "CredencialesIntegracion"];
 
-    private static readonly string[] ColumnasSecretasDeClavesApi = ["HashClave"];
+    /// <summary>
+    /// Tablas que Soporte TALVEG lee por columnas, con la columna que nunca se le concede. Las de
+    /// <c>SoporteSinColumnasSecretasRestantes</c> y <c>AccesosPlataformaCaeEmpresa</c>, que
+    /// <c>AnadePlataformaCaeDeClienteEmpresarial</c> ya le retiró entera.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> ColumnasSecretasPorTabla = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ClavesApi"] = ["HashClave"],
+        ["CanalesGestionDocumental"] = ["Contrasena"],
+        ["CredencialesAccesoEmpresa"] = ["Contrasena"],
+        ["CredencialesAccesoSubcontrata"] = ["Contrasena"],
+        ["AccesosPlataformaCaeEmpresa"] = ["Contrasena"],
+        ["SuscripcionesWebhook"] = ["ClientState"],
+        ["LineasWhatsApp"] = ["TokenAcceso"],
+        ["ConexionesIntegracion"] = ["UltimoError"],
+    };
+
+    /// <summary>Lo que retira <see cref="MigracionQueRetiraElResto"/>: grant de tabla fuera, columnas sin el secreto.</summary>
+    private static readonly string[] TablasQueRetiraElResto =
+    [
+        "CanalesGestionDocumental", "CredencialesAccesoEmpresa", "CredencialesAccesoSubcontrata",
+        "SuscripcionesWebhook", "LineasWhatsApp", "ConexionesIntegracion",
+    ];
 
     /// <summary>
     /// Una sentencia <c>GRANT … ON … TO …</c>, terminada en <c>;</c> o en el final del literal C# que la
@@ -62,6 +94,20 @@ public class SoporteSinColumnasSecretasTests
     [InlineData("""GRANT SELECT ON TABLE public."AspNetUserTokens" TO cae_app_runtime;""", false)]
     [InlineData("""GRANT EXECUTE ON FUNCTION public.app_sesion_vigente(uuid, uuid) TO cae_app_runtime, cae_app_soporte;""", false)]
     [InlineData("""GRANT cae_app_soporte TO cae_app_runtime;""", false)]
+    [InlineData("""GRANT SELECT ON TABLE public."CanalesGestionDocumental" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "Contrasena") ON TABLE public."CredencialesAccesoEmpresa" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "Contrasena") ON TABLE public."CredencialesAccesoSubcontrata" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ON public."AccesosPlataformaCaeEmpresa" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "ClientState") ON TABLE public."SuscripcionesWebhook" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "TokenAcceso") ON TABLE public."LineasWhatsApp" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "UltimoError") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "Nombre", "Estado") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;""", false)]
+    [InlineData("""GRANT SELECT ("Id", "PhoneNumberId") ON TABLE public."LineasWhatsApp" TO cae_app_soporte;""", false)]
+    [InlineData("""GRANT SELECT ("Id"), SELECT ("Contrasena") ON TABLE public."CanalesGestionDocumental" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id"), UPDATE ON TABLE public."CanalesGestionDocumental" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id"), REFERENCES ("Usuario") ON TABLE public."CanalesGestionDocumental" TO cae_app_soporte;""", false)]
+    [InlineData("""GRANT SELECT ("Id", "ContrasenaCambiadaEnUtc") ON TABLE public."AccesosPlataformaCaeEmpresa" TO cae_app_soporte;""", false)]
     public void El_detector_reconoce_las_concesiones_prohibidas(string sql, bool infractora)
     {
         // Sin esto, un detector que no marcara nada dejaría el test principal en verde.
@@ -78,7 +124,7 @@ public class SoporteSinColumnasSecretasTests
         // sobre un conjunto vacío.
         concesiones.Where(c => string.CompareOrdinal(c.Migracion, MigracionQueRetira) < 0)
             .Select(c => TablaDe(c.Objeto))
-            .Should().Contain(["AspNetUserTokens", "CredencialesIntegracion", "ClavesApi"]);
+            .Should().Contain(["AspNetUserTokens", "CredencialesIntegracion", "ClavesApi", .. TablasQueRetiraElResto]);
 
         var infractoras = concesiones
             .Where(c => string.CompareOrdinal(c.Migracion, MigracionQueRetira) >= 0)
@@ -87,7 +133,9 @@ public class SoporteSinColumnasSecretasTests
             .ToList();
 
         infractoras.Should().BeEmpty(
-            "Soporte TALVEG no lee tokens de Identity, tokens de integraciones ni hashes de claves API; " +
+            "Soporte TALVEG no lee tokens de Identity, tokens de integraciones, hashes de claves API, " +
+            "contraseñas de plataformas y portales, el ClientState de los webhooks, el token de WhatsApp " +
+            "ni el último error de las conexiones; " +
             "si una lectura de Sesión Privilegiada necesita una columna de esas tablas, se concede por columna " +
             "y nunca la secreta");
     }
@@ -100,6 +148,26 @@ public class SoporteSinColumnasSecretasTests
         foreach (var tabla in new[] { "AspNetUserTokens", "CredencialesIntegracion", "ClavesApi" })
             Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
                 .Should().BeTrue($"el Up de {MigracionQueRetira} retira todo privilegio de cae_app_soporte sobre {tabla}");
+    }
+
+    [Fact]
+    public void La_migracion_que_retira_el_resto_retira_el_grant_de_tabla_y_concede_columnas_sin_el_secreto()
+    {
+        var up = Up(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraElResto + ".cs")));
+        var concesiones = ConcesionesASoporteEn(MigracionQueRetiraElResto, up).ToList();
+
+        foreach (var tabla in TablasQueRetiraElResto)
+        {
+            Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+                .Should().BeTrue($"el Up de {MigracionQueRetiraElResto} retira el grant de tabla de cae_app_soporte sobre {tabla}");
+
+            // Control positivo: la tabla se sigue leyendo por columnas (las consultas de Sesión
+            // Privilegiada proyectan), no se queda ciega.
+            concesiones.Should().Contain(c => TablaDe(c.Objeto) == tabla && c.Privilegios.StartsWith("SELECT (", StringComparison.Ordinal),
+                $"{tabla} conserva SELECT por columnas para las proyecciones de Sesión Privilegiada");
+        }
+
+        concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 
     private static bool EsInfractora((string Migracion, string Privilegios, string Objeto) concesion)
@@ -119,16 +187,22 @@ public class SoporteSinColumnasSecretasTests
         if (TablasSinNingunaColumna.Contains(tabla, StringComparer.OrdinalIgnoreCase))
             return true;
 
-        if (!string.Equals(tabla, "ClavesApi", StringComparison.OrdinalIgnoreCase))
+        if (!ColumnasSecretasPorTabla.TryGetValue(tabla, out var secretas))
             return false;
 
-        // Un privilegio sin lista de columnas es de tabla entera, hash incluido.
-        var columnas = Regex.Match(concesion.Privilegios, @"\((?<columnas>[^)]*)\)");
-        if (!columnas.Success)
+        // Un privilegio sin lista de columnas es de tabla entera, secreto incluido. Con varios
+        // privilegios («SELECT ("Id"), SELECT ("Contrasena")») cuenta cada lista, y uno sin lista
+        // («SELECT ("Id"), UPDATE») alcanza a la tabla entera.
+        var privilegios = Regex.Split(concesion.Privilegios, @",(?![^(]*\))");
+        if (privilegios.Any(p => !p.Contains('(')))
             return true;
 
-        return ColumnasSecretasDeClavesApi.Any(secreta =>
-            columnas.Groups["columnas"].Value.Contains(secreta, StringComparison.OrdinalIgnoreCase));
+        // Por nombre entre comillas o suelto: "Contrasena" no debe casar con "ContrasenaCambiadaEnUtc".
+        var nombres = Regex.Matches(concesion.Privilegios, @"\((?<columnas>[^)]*)\)")
+            .SelectMany(m => m.Groups["columnas"].Value.Split(','))
+            .Select(c => c.Trim().Trim('"'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return secretas.Any(nombres.Contains);
     }
 
     private static IEnumerable<(string Migracion, string Privilegios, string Objeto)> ConcesionesASoporte()

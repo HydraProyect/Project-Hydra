@@ -24,14 +24,14 @@ public class SegundoFactorDeCuentasIdentity(
     public Task<EstadoSegundoFactor?> ObtenerEstadoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var usuario = await CargarEnFrescoAsync(usuarioId);
-            if (usuario is null) return null;
-
-            // Solo AspNetUsers: este estado también se lee bajo cae_app_soporte (restablecimiento
-            // por Soporte TALVEG), que no tiene privilegios sobre AspNetUserTokens.
-            return new EstadoSegundoFactor(
-                usuario.TenantId,
-                await userManager.GetTwoFactorEnabledAsync(usuario));
+            // Esta lectura también se ejecuta en Sesión Privilegiada (restablecimiento de la
+            // 2FA por Soporte TALVEG). Proyectar lee solo AspNetUsers.TenantId y TwoFactorEnabled,
+            // sin traer PasswordHash ni SecurityStamp, y sin seguimiento lee siempre el estado
+            // vigente en la base, que es lo que hacía CargarEnFrescoAsync.
+            return await contexto.Users.AsNoTracking()
+                .Where(u => u.Id == usuarioId)
+                .Select(u => new EstadoSegundoFactor(u.TenantId, u.TwoFactorEnabled))
+                .FirstOrDefaultAsync(cancellationToken);
         }, cancellationToken);
 
     public Task<Result<IReadOnlyList<string>>> GenerarCodigosRecuperacionAsync(
