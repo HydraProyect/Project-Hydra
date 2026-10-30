@@ -17,10 +17,18 @@ public static class Policies
     /// <summary>
     /// Vale tanto una sesión interactiva (cookie) como el token de la
     /// extensión de navegador — para lo que ambas superficies necesitan
-    /// servir, hoy la descarga del PDF de un Documento. No es una política
-    /// «más permisiva»: cada esquema sigue trayendo el rol y el tenant reales
-    /// de su usuario, y el alcance de cartera se aplica después igual en los
-    /// dos casos.
+    /// servir, hoy la lista de acreditaciones y «Lo he enviado». No es una
+    /// política «más permisiva»: cada esquema sigue trayendo el rol y el
+    /// tenant reales de su usuario, y el alcance de cartera se aplica después
+    /// igual en los dos casos.
     /// </summary>
     public const string SesionOExtension = "SesionOExtension";
+
+    /// <summary>
+    /// Solo el token de la extensión de navegador, sin cookie: la entrega del
+    /// archivo de una Acreditación, que no tiene sentido en una pestaña de
+    /// TALVEG. Fija el esquema que autentica, no lo que el resto de la petición
+    /// traiga: una cookie de selección que llegue a su lado se sigue leyendo.
+    /// </summary>
+    public const string SoloExtension = "SoloExtension";
 }

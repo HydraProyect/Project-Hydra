@@ -51,6 +51,10 @@
     <value>Desplega {0}</value>
     <comment>Nombre accesible del botón que despliega el detalle de una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="TipoAccesoEntregaExtension" xml:space="preserve">
+    <value>Lliurament a l'extensió</value>
+    <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el archivo se entregó a la extensión de navegador.</comment>
+  </data>
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Obrir el panell de {0}</value>
   </data>

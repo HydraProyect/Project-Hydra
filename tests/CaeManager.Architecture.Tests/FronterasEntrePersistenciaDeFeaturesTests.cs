@@ -505,6 +505,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
+        // La entrega del archivo a la extensión hace las mismas preguntas que «Lo he enviado» y que la lista.
+        ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "ICentrosQueryContext"),
+        ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ICentrosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IClientesQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IEmpresasQueryContext"),

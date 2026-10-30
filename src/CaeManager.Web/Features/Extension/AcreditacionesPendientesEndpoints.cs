@@ -28,8 +28,7 @@ public static class AcreditacionesPendientesEndpoints
             var proveedores = await mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true, IncluirDominios: true), cancellationToken);
             return Results.Ok(proveedores);
         })
-        // Misma política que /documentos/{id}/archivo (PR #484): sesión
-        // interactiva o token de extensión, nunca clave de API de tenant. No
+        // Sesión interactiva o token de extensión, nunca clave de API de tenant. No
         // relaja nada — el alcance por cartera lo sigue imponiendo
         // IAlcanceDatosService dentro de la query con el rol real de quien
         // pide, que para la extensión es el del usuario que emitió el token.
