@@ -44,12 +44,10 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
     /// Lo que AccionCrossTenant necesita del servidor: un POST del navegador con
     /// antiforgery y un returnUrl profundo, con query, aterriza en esa pantalla
     /// exacta con la organización ya activa (contrato § 8). Que el componente
-    /// emita ese formulario lo fijan los tests bUnit de Mi trabajo Gen2. Aquí no
-    /// se pulsa una fila real porque la siembra E2E no tiene ningún Gestor CAE
-    /// con cartera en varias organizaciones: el Administrador opera las
-    /// delegadas con su rol de origen y sin cartera (regla del 2026-10-20, ver
-    /// AlcanceRolesTests), no como Gestor CAE con cartera, y la siembra de
-    /// Dirección, que sí la tiene, está apagada en E2E a propósito.
+    /// emita ese formulario lo fijan los tests bUnit de Mi trabajo Gen2. Aquí se fija solo el POST;
+    /// la fila real, abierta con teclado y con cartera en dos Tenants, la recorre GestorCaeCarteraMultiTenantTests
+    /// (Gestor CAE de un Operador CAE externo con Asignación de Cartera, no el Administrador, que opera las delegadas
+    /// sin cartera: regla del 2026-10-20, ver AlcanceRolesTests).
     /// </summary>
     [Fact]
     public async Task El_POST_cross_Tenant_con_returnUrl_profundo_aterriza_en_esa_pantalla_con_la_organizacion_activa()

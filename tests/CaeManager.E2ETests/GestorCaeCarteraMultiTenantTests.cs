@@ -111,6 +111,56 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     private static ILocator ListaDeTrabajadoresMontada(IPage page) =>
         page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias");
 
+    /// <summary>
+    /// ACC-1 / M-40 de punta a punta: el Gestor CAE con cartera en dos Tenants beneficiarios recorre Mi trabajo
+    /// solo con teclado. Foco en el control de la fila de un Tenant que no está activo, Espacio abre el detalle y
+    /// Enter sobre la acción del detalle hace el POST real a /cuenta/cliente-activo y aterriza en la acreditación
+    /// con ese Tenant ya activo. Las filas nombran a los dos Tenants: la cola es la de toda la cartera.
+    /// </summary>
+    [Fact]
+    public async Task El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle()
+    {
+        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
+        var rechazadaB = await IdAcreditacionAsync(TrabajadorB, estado: 3);
+
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
+        Assert.NotEqual(tenantB, await Ayudas.TenantActivoIdAsync(page));
+
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
+        await FiltrarColaAsync(page, TrabajadorA, esperaEnFrio: true);
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
+        await FiltrarColaAsync(page, TrabajadorB);
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeRechazada)).ToBeVisibleAsync();
+
+        // La fila no es un control: el único enfocable para abrirla es su botón, y no contiene a las acciones.
+        var abrir = AbrirDeFila(page, TenantBeneficiarioB, BadgeRechazada);
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeRechazada).Locator("button[data-fila-abrir] button, button[data-fila-abrir] form")).ToHaveCountAsync(0);
+        await abrir.FocusAsync();
+        await Expect(abrir).ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("Space");
+        var detalle = page.Locator(".mi-trabajo-detalle");
+        await Expect(detalle).ToBeVisibleAsync();
+        await Expect(detalle.Locator(".mi-trabajo-detalle-sujeto")).ToContainTextAsync("Ledesma");
+
+        // Actuar desde el detalle, también con teclado.
+        var vueltaEsperada = Uri.EscapeDataString($"/mi-trabajo?q={Uri.EscapeDataString(TrabajadorB)}");
+        var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaB}&volver={vueltaEsperada}";
+        var accion = detalle.Locator("form[data-accion-cross-tenant] button[type=submit]");
+        var cambio = await Ayudas.EnviarCambioDeTenantYEsperarRecargaAsync(page, async () =>
+        {
+            await accion.FocusAsync();
+            await page.Keyboard.PressAsync("Enter");
+        });
+        Assert.InRange(cambio.Status, 300, 399);
+        Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
+        await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+    }
+
     [Fact]
     public async Task El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()
     {
@@ -271,8 +321,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // la ausencia del Tenant de fuera diga algo.
         await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
         await page.Locator(".mi-trabajo-plegar-todas").ClickAsync();
-        await Expect(page.Locator("div[role=button][aria-label$='· " + TenantBeneficiarioA + "']")).Not.ToHaveCountAsync(0);
-        await Expect(page.Locator("div[role=button][aria-label$='· " + TenantFueraDeCartera + "']")).ToHaveCountAsync(0);
+        await Expect(page.Locator("button[data-fila-abrir][aria-label$='· " + TenantBeneficiarioA + "']")).Not.ToHaveCountAsync(0);
+        await Expect(page.Locator("button[data-fila-abrir][aria-label$='· " + TenantFueraDeCartera + "']")).ToHaveCountAsync(0);
 
         // La cola filtrada por un Trabajador de la cartera encuentra filas: control positivo del filtro.
         await FiltrarColaAsync(page, TrabajadorA);
@@ -445,7 +495,13 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
     /// <summary>Fila de Mi trabajo de un Tenant beneficiario con ese badge (aria-label = «{Título} · {Tenant}»).</summary>
     private static ILocator FilaMiTrabajo(IPage page, string tenant, string badge) =>
-        page.Locator($"div[role=button][aria-label$='· {tenant}']").Filter(new() { HasText = badge });
+        page.Locator(".mi-trabajo-fila")
+            .Filter(new() { Has = page.Locator($"button[data-fila-abrir][aria-label$='· {tenant}']") })
+            .Filter(new() { HasText = badge });
+
+    /// <summary>El control de teclado de esa fila: un botón real hermano de las acciones (ACC-1), no un contenedor role=button.</summary>
+    private static ILocator AbrirDeFila(IPage page, string tenant, string badge) =>
+        FilaMiTrabajo(page, tenant, badge).Locator("button[data-fila-abrir]");
 
     /// <summary>
     /// Filtra la cola por texto. Una búsqueda activa anula los pliegues por Tenant

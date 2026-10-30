@@ -306,17 +306,17 @@
                                     {
                                         @foreach (var fila in lote.Filas)
                                         {
-                                            <div @key="claves.De((fila.TenantId, fila.Item.Id))" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))" role="button" tabindex="0"
-                                                 aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")"
+                                            <div @key="claves.De((fila.TenantId, fila.Item.Id))" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))"
                                                  @onclick="() => AbrirDetalle(fila)">
-                                                <span class="mi-trabajo-fila-cuerpo">
+                                                <button type="button" class="mi-trabajo-fila-cuerpo" data-fila-abrir
+                                                        aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")">
                                                     <span class="mi-trabajo-fila-linea">
                                                         <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
                                                         <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
                                                         <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(fila.Item)</span>
                                                     </span>
                                                     <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
-                                                </span>
+                                                </button>
                                                 <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
                                                     @if (fila.Item.Fecha is { } fecha)
                                                     {
