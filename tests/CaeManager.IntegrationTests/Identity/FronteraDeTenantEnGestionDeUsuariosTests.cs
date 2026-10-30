@@ -1,7 +1,6 @@
-using Microsoft.AspNetCore.WebUtilities;
-using System.Text;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
@@ -25,6 +24,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting.Internal;
@@ -430,7 +430,10 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var usuario = new ApplicationUser
             {
-                UserName = "sso-sin-rol@x.test", Email = "sso-sin-rol@x.test", NombreCompleto = "SSO sin rol", TenantId = _tenantPropio,
+                UserName = "sso-sin-rol@x.test",
+                Email = "sso-sin-rol@x.test",
+                NombreCompleto = "SSO sin rol",
+                TenantId = _tenantPropio,
             };
             (await usuarios.CreateAsync(usuario)).Succeeded.Should().BeTrue();
             (await usuarios.AddLoginAsync(usuario, new UserLoginInfo("Microsoft", "sso-sin-rol", "Microsoft"))).Succeeded
