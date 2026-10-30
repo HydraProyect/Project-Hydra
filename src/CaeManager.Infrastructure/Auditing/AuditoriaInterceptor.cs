@@ -146,6 +146,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
 
+        // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
+        // SoporteSinLecturaDeCredenciales y SoporteSinColumnasSecretasRestantes;
+        // OWASP ASVS 4.0.3 V1.4.3 y V2.10.4): sin esto, Soporte TALVEG las
+        // leería en RegistrosAuditoria, que sí tiene concedido. HashClave es el
+        // SHA-256 de la clave de API; UltimoError, el texto del proveedor al fallar.
+        [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],
+        [typeof(ConexionIntegracion)] = [nameof(ConexionIntegracion.UltimoError)],
+
         // DEC-9 (propietario, 2026-09-02): a diferencia de las entradas de
         // arriba, estas tres propiedades no son secretos cifrados en reposo —
         // son CONTENIDO. El rastro de auditoría existe para decir quién cambió
