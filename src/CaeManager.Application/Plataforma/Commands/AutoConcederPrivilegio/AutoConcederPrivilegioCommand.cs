@@ -44,9 +44,12 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// ADR-011 § 8.5.7 acepta la auto-concesión mientras el equipo de plataforma
 /// sea unipersonal, con la autoría registrada desde el primer día; la
 /// segregación de funciones —que una segunda persona apruebe— llega cuando haya
-/// equipo. Y el <c>WITH CHECK</c> de RLS (F2b-5) no se toca: sigue admitiendo
-/// solo filas que nombren a <c>app.usuario_id</c>, que es exactamente lo que
-/// esta operación produce.
+/// equipo. La base impone la misma matriz por su cuenta: desde
+/// <c>PartePoliticaConcesionesPorOperacion</c>, la política
+/// <c>privilegio_autoconcesion</c> solo admite una fila propia y global que sea
+/// <c>SoporteLectura</c> ordinaria con fin (si ya tienes <c>AdminPlataforma</c>
+/// vigente) o la <c>AdminPlataforma</c> fundacional (si eres la raíz y el
+/// bootstrap no está consumido).
 /// </para>
 /// </summary>
 /// <param name="Capacidad">Qué podrá hacer la sesión que se abra bajo esta concesión.</param>
@@ -199,6 +202,13 @@ public class AutoConcederPrivilegioCommandHandler(
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.RaizDeBootstrap(usuarioId, ahora, vigenciaHasta: null);
 
+        // Un solo SaveChanges con un acoplamiento que conviene saber: la política
+        // privilegio_autoconcesion exige el bootstrap SIN consumir al insertar la
+        // concesión, y funciona porque EF Core ejecuta los comandos independientes
+        // ordenados por tabla (ConcesionesPrivilegio antes que
+        // EstadoBootstrapPlataforma). Si se añade una relación entre las dos
+        // tablas o cambia ese orden, el arranque falla cerrado con 42501;
+        // ConcesionesPrivilegioPorOperacionBajoRuntimeTests lo vigila.
         estado.Consumir(ahora);
         writer.AnadirConcesion(concesion);
         await unitOfWork.SaveChangesAsync(cancellationToken);
