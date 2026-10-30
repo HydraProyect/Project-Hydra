@@ -680,7 +680,9 @@ builder.Services.AddHealthChecks()
             sp.GetService<TimeProvider>() ?? TimeProvider.System,
             sp.GetRequiredService<ILogger<CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck>>()),
         failureStatus: null,
-        tags: null));
+        tags: null))
+    // M-43: plantilla CAE completa sin configurar = Degraded (200), nunca Unhealthy: no impide servir.
+    .AddCheck<CaeManager.Infrastructure.Importacion.PlantillaCaeCompletaHealthCheck>("plantilla-cae-completa");
 
 // El nombre comercial se resuelve una sola vez, antes de que nada lo pinte.
 // Sin configuración se queda en el histórico; ver CaeManager.Application.Common.Marca.

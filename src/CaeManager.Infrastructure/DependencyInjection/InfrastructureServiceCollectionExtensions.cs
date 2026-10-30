@@ -908,6 +908,9 @@ public static class InfrastructureServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<LimitadorAnalisisImportacion>();
         services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
+        // Sin ValidateOnStart a propósito: un entorno que no usa la plantilla CAE completa tiene que poder arrancar.
+        // La ausencia se hace visible en /salud y en la pantalla de Importación.
+        services.AddSingleton<IPlantillaCaeCompletaConfigurada, PlantillaCaeCompletaConfigurada>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();

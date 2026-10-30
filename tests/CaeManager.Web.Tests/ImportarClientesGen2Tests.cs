@@ -334,6 +334,14 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     private readonly AlmacenUsuariosVacio _usuarios = new();
 
+    private sealed class PlantillaCaeConfiguradaFalsa(bool configurada) : IPlantillaCaeCompletaConfigurada
+    {
+        public bool EstaConfigurada => configurada;
+    }
+
+    /// <summary>Por defecto la plantilla CAE completa está configurada; un test puede apagarla en <c>antesDeRenderizar</c>.</summary>
+    private bool _plantillaCaeConfigurada = true;
+
     /// <param name="antesDeRenderizar">Corre con los servicios ya registrados y la página aún sin inicializar.</param>
     private (IRenderedComponent<PaginaImportacion> Cut, MediadorControlado Mediador) Renderizar(
         Escenario escenario, string url = "importacion?plantilla=clientes", Action? antesDeRenderizar = null)
@@ -343,6 +351,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(TenantImportacion));
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddSingleton<IPlantillaCaeCompletaConfigurada>(_ => new PlantillaCaeConfiguradaFalsa(_plantillaCaeConfigurada));
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();

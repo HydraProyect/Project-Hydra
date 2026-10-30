@@ -71,6 +71,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
     {
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<CaeManager.Application.Importacion.IPlantillaCaeCompletaConfigurada>(_ => new PlantillaCaeConfiguradaSiempre());
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
@@ -129,6 +130,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
     {
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<CaeManager.Application.Importacion.IPlantillaCaeCompletaConfigurada>(_ => new PlantillaCaeConfiguradaSiempre());
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
@@ -169,4 +171,9 @@ public class ImportarDocumentosGen2Tests : BunitContext
     }
 
     private static string Texto(IElement elemento) => Regex.Replace(elemento.TextContent, @"\s+", " ").Trim();
+}
+
+file sealed class PlantillaCaeConfiguradaSiempre : CaeManager.Application.Importacion.IPlantillaCaeCompletaConfigurada
+{
+    public bool EstaConfigurada => true;
 }
