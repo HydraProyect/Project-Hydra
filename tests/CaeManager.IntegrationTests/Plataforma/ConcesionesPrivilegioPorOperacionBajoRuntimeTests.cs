@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
+using CaeManager.Application.Plataforma.Commands.RevocarConcesionPrivilegio;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -124,6 +126,75 @@ public class ConcesionesPrivilegioPorOperacionBajoRuntimeTests : IAsyncLifetime
     }
 
     // ── Alta de fila propia ────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_comando_revoca_bajo_runtime_y_audita_al_actor_real(bool beneficiario)
+    {
+        var concesionId = await SembrarSoporteLecturaAsync();
+        var actor = beneficiario ? _beneficiario : _admin;
+        await using (var contexto = CrearContexto(actor, auditar: ActorAuditoria.Normal(actor)))
+        {
+            var handler = new RevocarConcesionPrivilegioCommandHandler(contexto, contexto, Usuario(actor));
+            var resultado = await handler.Handle(new(concesionId), CancellationToken.None);
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var comprobacion = CrearContexto(actor, cadena: _cadenaConexion);
+        var concesion = await comprobacion.ConcesionesPrivilegio.SingleAsync(c => c.Id == concesionId);
+        concesion.Estado.Should().Be(EstadoConcesionPrivilegio.Revocada);
+        var auditoria = await comprobacion.RegistrosAuditoria.SingleAsync(a =>
+            a.EntidadTipo == nameof(ConcesionPrivilegio) && a.EntidadId == concesionId && a.Accion == "Modificado");
+        auditoria.TenantId.Should().Be(_tenantPlataforma);
+        auditoria.UsuarioId.Should().Be(actor);
+        auditoria.ActorRealUsuarioId.Should().Be(actor);
+        using var datos = System.Text.Json.JsonDocument.Parse(auditoria.DatosDespues!);
+        datos.RootElement.GetProperty("Estado").GetInt32().Should().Be((int)EstadoConcesionPrivilegio.Revocada);
+    }
+
+    [Fact]
+    public async Task La_auditoria_de_la_revocacion_separa_al_actor_real_del_usuario_simulado()
+    {
+        var concesionId = await SembrarSoporteLecturaAsync();
+        var actorReal = Guid.NewGuid();
+        var actor = new ActorAuditoria(actorReal, _beneficiario, TipoViaAcceso.Normal, null);
+        await using (var contexto = CrearContexto(_beneficiario, auditar: actor))
+        {
+            var handler = new RevocarConcesionPrivilegioCommandHandler(contexto, contexto, Usuario(_beneficiario));
+            (await handler.Handle(new(concesionId), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        }
+
+        await using var comprobacion = CrearContexto(_beneficiario, cadena: _cadenaConexion);
+        var auditoria = await comprobacion.RegistrosAuditoria.SingleAsync(a =>
+            a.EntidadTipo == nameof(ConcesionPrivilegio) && a.EntidadId == concesionId && a.Accion == "Modificado");
+        auditoria.UsuarioId.Should().Be(_beneficiario);
+        auditoria.ActorRealUsuarioId.Should().Be(actorReal);
+    }
+
+    [Fact]
+    public async Task El_comando_no_revoca_una_concesion_invisible_bajo_runtime()
+    {
+        var concesionId = await SembrarSoporteLecturaAsync();
+        await using var contexto = CrearContexto(_sinAutoridad, auditar: ActorAuditoria.Normal(_sinAutoridad));
+        var handler = new RevocarConcesionPrivilegioCommandHandler(contexto, contexto, Usuario(_sinAutoridad));
+        var resultado = await handler.Handle(new(concesionId), CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.RevocacionNoPermitida");
+        (await EstadoComoPropietarioAsync(concesionId)).Should().Be("Vigente");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_comando_no_revoca_AdminPlataforma_aunque_la_politica_lo_admita(bool beneficiario)
+    {
+        var actor = beneficiario ? _admin : _raiz;
+        await using var contexto = CrearContexto(actor, auditar: ActorAuditoria.Normal(actor));
+        var handler = new RevocarConcesionPrivilegioCommandHandler(contexto, contexto, Usuario(actor));
+        var resultado = await handler.Handle(new(_concesionDelAdmin), CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.AdminPlataformaNoRevocable");
+        (await EstadoComoPropietarioAsync(_concesionDelAdmin)).Should().Be("Vigente");
+    }
 
     [Theory]
     [InlineData("BootstrapPlataforma")]
@@ -475,6 +546,21 @@ VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now(),
         return (bool)(await comando.ExecuteScalarAsync())!;
     }
 
+    /// <summary>
+    /// Una concesión revocable por el comando, sembrada como propietario: <c>SoporteLectura</c> de
+    /// <c>_beneficiario</c>, concedida por <c>_admin</c>.
+    /// </summary>
+    private async Task<Guid> SembrarSoporteLecturaAsync()
+    {
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
+            _beneficiario, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _admin);
+        await using var contexto = CrearContexto(_admin, cadena: _cadenaConexion);
+        contexto.ConcesionesPrivilegio.Add(concesion);
+        await contexto.SaveChangesAsync();
+        return concesion.Id;
+    }
+
     private CurrentUserServiceFalso Usuario(Guid usuario) =>
         new(usuario, rol: null, tenantOrigenId: _tenantPlataforma, tieneDobleFactorActivo: true);
 
@@ -482,14 +568,16 @@ VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now(),
     /// Por defecto conecta como <c>cae_app_runtime</c>, con el contexto RLS firmado del usuario. Solo
     /// la siembra y las comprobaciones pasan la cadena del propietario.
     /// </summary>
-    private CaeManagerDbContext CrearContexto(Guid usuario, string? cadena = null)
+    private CaeManagerDbContext CrearContexto(Guid usuario, string? cadena = null, ActorAuditoria? auditar = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenantPlataforma };
-        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var constructor = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(
                 cadena ?? BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
-                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(
+                npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
+        if (auditar is { } actor)
+            constructor.AddInterceptors(new AuditoriaInterceptor(new ActorFijo(actor)));
+        var options = constructor.AddInterceptors(
                 new TenantSelladoInterceptor(tenantActual),
                 new TenantRlsConnectionInterceptor(
                     tenantActual, new SinClienteSeleccionado(), Usuario(usuario),
@@ -505,6 +593,12 @@ VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now(),
         typeof(Domain.Common.Entity).GetProperty(nameof(Domain.Common.Entity.Id))!.SetValue(tenant, id);
         if (esPlataforma) tenant.MarcarComoPlataforma();
         return tenant;
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
     private sealed class SinClienteSeleccionado : IClienteActivoSeleccionado
