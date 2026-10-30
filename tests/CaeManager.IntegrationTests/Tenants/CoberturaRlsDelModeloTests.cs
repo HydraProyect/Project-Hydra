@@ -225,7 +225,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// da respuestas contrarias en los dos casos: allí hay lectores sistémicos
     /// legítimos que eximir (el backfill y la retirada de un Tenant de demo; el job
     /// de expiración no, que corre como cae_app_runtime); aquí hay un solo lector,
-    /// siempre bajo sesión de usuario, y ningún escritor.
+    /// siempre bajo sesión de usuario, y los únicos escritores son esa misma
+    /// sesión con la forma exacta que admite cada política de escritura.
     ///
     /// Esta categoría era, hasta F2b-5, la lista de "RLS pendiente por
     /// dependencia arquitectónica". Dejó de serlo cuando quedó claro que la
@@ -726,9 +727,12 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                 "bajo sesión de usuario, y ningún escritor. Sin FORCE la política no ataría al rol propietario de " +
                 "la tabla, el de las migraciones y la identidad de bootstrap");
 
-            string[] esperadas = tabla == "SesionesPrivilegiadas"
-                ? [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo]
-                : [PoliticaPrivilegio];
+            string[] esperadas = tabla switch
+            {
+                "SesionesPrivilegiadas" => [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo],
+                "ConcesionesPrivilegio" => [PoliticaPrivilegio, .. PoliticasDeEscrituraDeConcesiones.Select(p => p.Nombre)],
+                _ => [PoliticaPrivilegio],
+            };
             e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(esperadas,
                 $"{tabla} tiene que llevar exactamente esas políticas y ninguna otra");
 
@@ -756,9 +760,71 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                     "autenticada — no existe ni debe existir app.usuario_plataforma_id, que incrustaría una " +
                     "afirmación de privilegio en la sesión");
 
+            if (tabla == "ConcesionesPrivilegio")
+            {
+                // Desde PartePoliticaConcesionesPorOperacion la de lectura es solo eso: cada escritura
+                // tiene su política, afirmada en Las_concesiones_de_privilegio_tienen_una_politica_por_escritura.
+                politica.Comando.Should().Be('r', "privilegio_del_usuario de ConcesionesPrivilegio solo lee");
+                politica.WithCheck.Should().BeNull();
+                continue;
+            }
+
             politica.WithCheck.Should().NotBeNull()
                 .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()",
                     "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
+        }
+    }
+
+    /// <summary>
+    /// Las escrituras de <c>ConcesionesPrivilegio</c>, una política por operación
+    /// (<c>PartePoliticaConcesionesPorOperacion</c>, OWASP ASVS 4.0.3 V4.1.1 y V4.1.3). <c>Menciona</c>
+    /// son fragmentos que su <c>WITH CHECK</c> tiene que contener; <c>SoloUsing</c>, los de su
+    /// <c>USING</c> (la fila de partida de un <c>UPDATE</c>).
+    /// </summary>
+    private static readonly (string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeConcesiones =
+    [
+        ("privilegio_autoconcesion", 'a',
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "EstadoBootstrapPlataforma", "BootstrapPlataforma", "SoporteLectura"], []),
+        ("privilegio_cierre_de_vigente", 'w', ["app_ctx_usuario_id()", "Revocada", "Expirada"], ["Vigente"]),
+        ("privilegio_concesion_a_tercero", 'a',
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "VigenciaHasta"], []),
+    ];
+
+    /// <summary>
+    /// <b>Ninguna política de DELETE ni FOR ALL, y es una aserción</b>: una concesión es el rastro de
+    /// quién tuvo autoridad, se cierra y no se borra; y una política permisiva FOR ALL se combinaría con
+    /// OR con las de escritura y devolvería la rama de fila propia sin límites que la auditoría del
+    /// 2026-10-29 encontró.
+    /// </summary>
+    [Fact]
+    public async Task Las_concesiones_de_privilegio_tienen_una_politica_por_escritura()
+    {
+        var estado = await LeerEstadoRlsAsync(["ConcesionesPrivilegio"]);
+
+        estado.Should().ContainKey("ConcesionesPrivilegio");
+        var e = estado["ConcesionesPrivilegio"];
+
+        using var _ = new AssertionScope();
+
+        e.Politicas.Should().NotContain(p => p.Comando == 'd' || p.Comando == '*',
+            "sin DELETE ni FOR ALL: retirar autoridad es cerrarla, y FOR ALL reabriría la fila propia sin límites");
+
+        foreach (var (nombre, comando, menciona, soloUsing) in PoliticasDeEscrituraDeConcesiones)
+        {
+            var politica = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            politica.Should().NotBeNull($"{nombre} tiene que existir");
+            if (politica is null) continue;
+
+            politica.Comando.Should().Be(comando, $"{nombre} cubre una sola operación");
+            politica.Permisiva.Should().BeTrue();
+
+            foreach (var fragmento in menciona)
+                politica.WithCheck.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el WITH CHECK de {nombre} acota la fila de llegada");
+
+            foreach (var fragmento in soloUsing)
+                politica.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el USING de {nombre} acota la fila de partida");
         }
     }
 

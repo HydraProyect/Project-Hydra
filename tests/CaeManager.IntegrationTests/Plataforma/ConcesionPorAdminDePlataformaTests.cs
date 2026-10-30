@@ -294,12 +294,16 @@ VALUES (@usuario, 'AdminPlataforma', 'Vigente', now() - interval '1 minute', NUL
         // él. Cualificar aquí dirige el INSERT a la tabla real a propósito,
         // que es lo que el test necesita ejercitar (que la FUNCIÓN interna,
         // no este INSERT, ignore la tabla falsa).
+        //
+        // Con fin de vigencia y origen ordinario, como ConcesionPrivilegio.SobreTenants desde
+        // ConcederPrivilegioCommand: desde PartePoliticaConcesionesPorOperacion la política de alta
+        // a otra persona no admite otra forma.
         comando.CommandText = @"
 INSERT INTO public.""ConcesionesPrivilegio""
-    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"",
-     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"")
-VALUES (@id, @beneficiario, @capacidad, @global, now(), 'Vigente', @concedidaPor,
-        'Aprovisionamiento inicial (test)', now(), gen_random_uuid());";
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
+VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days', 'Vigente', @concedidaPor,
+        'Aprovisionamiento inicial (test)', now(), gen_random_uuid(), 'Ordinaria');";
         comando.Parameters.AddWithValue("id", id);
         comando.Parameters.AddWithValue("beneficiario", beneficiario);
         comando.Parameters.AddWithValue("capacidad", capacidad);

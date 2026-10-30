@@ -85,7 +85,7 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
         }
 
         // Las sesiones las abre Soporte TALVEG por el camino real, bajo runtime.
-        var concesionId = await AutoconcederGlobalComoRuntimeAsync();
+        var concesionId = await SembrarSoporteLecturaGlobalAsync();
         _sesionSobreA = await AbrirComoRuntimeAsync(concesionId, _tenantA, "Revisar la incidencia 42", "TCK-42");
         _sesionSobreB = await AbrirComoRuntimeAsync(concesionId, _tenantB, "Revisar la incidencia 77", null);
     }
@@ -244,9 +244,11 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
         return (await contexto.SesionesPrivilegiadas.SingleAsync(s => s.Id == sesionId)).EstaAbierta;
     }
 
-    private async Task<Guid> AutoconcederGlobalComoRuntimeAsync()
+    private async Task<Guid> SembrarSoporteLecturaGlobalAsync()
     {
-        await using var contexto = CrearContexto(_tenantPlataforma, _tecnico);
+        // Sembrada como propietario: bajo runtime la auto-concesión exige AdminPlataforma vigente
+        // (privilegio_autoconcesion), y aquí solo hace falta la concesión de SoporteLectura.
+        await using var contexto = CrearContexto(_tenantPlataforma, _tecnico, cadena: _cadenaConexion);
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);
