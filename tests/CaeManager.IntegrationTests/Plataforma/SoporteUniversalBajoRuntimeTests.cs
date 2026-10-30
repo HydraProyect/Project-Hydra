@@ -160,11 +160,12 @@ public class SoporteUniversalBajoRuntimeTests : IAsyncLifetime
 
     private async Task<Guid> AutoconcederGlobalComoRuntimeAsync()
     {
-        // Control positivo de los CHECK: la forma admitida entra bajo runtime.
+        // Control positivo de los CHECK: la forma admitida entra bajo runtime. El inicio va un minuto
+        // atrás para abrir sesión sin carrera de relojes, y dentro de la ventana de la política de alta.
         await using var contexto = CrearContexto(_tenantPlataforma);
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
-            _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);
+            _tecnico, ahora.AddMinutes(-1), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);
         contexto.ConcesionesPrivilegio.Add(concesion);
         await contexto.SaveChangesAsync();
         return concesion.Id;
