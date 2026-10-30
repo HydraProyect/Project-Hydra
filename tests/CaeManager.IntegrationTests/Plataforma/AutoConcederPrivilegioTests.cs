@@ -98,6 +98,22 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_tope_que_acepta_el_validador_tambien_lo_acepta_el_dominio()
+    {
+        (await ArrancarAsync()).EsExitoso.Should().BeTrue();
+
+        var resultado = await EjecutarAsync(dias: ConcesionPrivilegio.MaximoDiasDeVigencia);
+
+        resultado.EsExitoso.Should().BeTrue();
+        await using var contexto = CrearContexto();
+        var concesion = await contexto.ConcesionesPrivilegio
+            .SingleAsync(c => c.Capacidad == CapacidadPrivilegio.SoporteLectura);
+        concesion.VigenciaHasta!.Value.Should().BeCloseTo(
+            concesion.VigenciaDesde.AddDays(ConcesionPrivilegio.MaximoDiasDeVigencia), TimeSpan.FromMilliseconds(1),
+            "PostgreSQL guarda microsegundos, así que la resta exacta se pierde al redondear");
+    }
+
+    [Fact]
     public async Task La_concesion_creada_habilita_de_verdad_la_apertura()
     {
         // Desde A2, emitir SoporteLectura exige AdminPlataforma vigente: la
@@ -376,7 +392,7 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
 
     private async Task<Domain.Common.Result<Guid>> EjecutarAsync(
         Guid? tenantOrigen = null, bool dobleFactor = true,
-        CapacidadPrivilegio? capacidad = null, Guid? usuario = null)
+        CapacidadPrivilegio? capacidad = null, Guid? usuario = null, int dias = 7)
     {
         await using var contexto = CrearContexto();
 
@@ -394,7 +410,7 @@ public class AutoConcederPrivilegioTests : IAsyncLifetime
         return await handler.Handle(
             new AutoConcederPrivilegioCommand(
                 capacidad ?? CapacidadPrivilegio.SoporteLectura,
-                DiasDeVigencia: 7),
+                DiasDeVigencia: dias),
             CancellationToken.None);
     }
 

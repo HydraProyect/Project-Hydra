@@ -64,21 +64,12 @@ public record AutoConcederPrivilegioCommand(
 
 public class AutoConcederPrivilegioCommandValidator : AbstractValidator<AutoConcederPrivilegioCommand>
 {
-    /// <summary>
-    /// Días máximos de vigencia de la concesión. Más generoso que la ventana de
-    /// una sesión (DEC-43: 4 horas) porque son cosas distintas: la concesión
-    /// dice durante cuánto tiempo <i>podrías</i> abrir sesiones; la ventana,
-    /// cuánto dura cada una. Noventa días no cambia con DEC-43: la decisión
-    /// recorta la activación puntual, no la vigencia de la capacidad concedida.
-    /// </summary>
-    public const int MaximoDiasDeVigencia = 90;
-
     public AutoConcederPrivilegioCommandValidator()
     {
         // La concesión raíz de AdminPlataforma nace sin fecha de fin y no usa este dato.
         RuleFor(c => c.DiasDeVigencia)
-            .InclusiveBetween(1, MaximoDiasDeVigencia)
-            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.")
+            .InclusiveBetween(1, ConcesionPrivilegio.MaximoDiasDeVigencia)
+            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {ConcesionPrivilegio.MaximoDiasDeVigencia} días.")
             .When(c => c.Capacidad != CapacidadPrivilegio.AdminPlataforma);
 
         // Restricción de producto, no invariante de seguridad, y conviene

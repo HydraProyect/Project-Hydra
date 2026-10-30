@@ -71,20 +71,13 @@ public class ConcederPrivilegioCommandValidatorTests
         validador.Validate(Comando(dias: 91)).IsValid.Should().BeFalse();
     }
 
-    /// <summary>
-    /// Mismo motivo que <c>VentanaDePrivilegioCuatroHorasTests</c> para las
-    /// ventanas de sesión: los dos comandos de concesión viven en el mismo
-    /// dominio de decisión —cuánto puede vivir una concesión de plataforma—
-    /// aunque su constante esté deliberadamente duplicada, no compartida, para
-    /// no acoplar los dos comandos entre sí.
-    /// </summary>
     [Fact]
-    public void Los_dos_techos_de_vigencia_son_el_mismo_valor_aunque_esten_duplicados()
+    public void La_autoconcesion_acepta_el_tope_y_rechaza_un_dia_mas()
     {
-        ConcederPrivilegioCommandValidator.MaximoDiasDeVigencia.Should().Be(
-            AutoConcederPrivilegioCommandValidator.MaximoDiasDeVigencia,
-            "auto-concesión y concesión a un tercero son la misma decisión de producto vista desde dos " +
-            "comandos; si divergen aquí, alguien cambió uno sin mirar el otro");
+        var validador = new AutoConcederPrivilegioCommandValidator();
+
+        validador.Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, 90)).IsValid.Should().BeTrue();
+        validador.Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, 91)).IsValid.Should().BeFalse();
     }
 }
 
