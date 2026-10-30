@@ -90,7 +90,7 @@ public static class EmpresasEndpoints
                 CriteriosExportacion.Desde(
                     ("listado", "empresas"),
                     ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
-                    ("estado", CriteriosExportacion.SoloNombres(estado)),
+                    ("estado", CriteriosExportacion.EstadosDocumentalesAplicados(estado)),
                     ("cliente", clienteEmpresarialId?.ToString())),
                 cancellationToken);
         }

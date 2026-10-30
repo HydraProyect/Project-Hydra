@@ -216,12 +216,13 @@ public class ExportacionesDeListadosEstado4aTests
         var registro = new RegistroFalso();
 
         if (listado == "Empresas")
-            await EmpresasEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: "Vencido,01234567Z");
+            await EmpresasEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: "Vencido,01234567Z,Garcia,4");
         else
-            await SubcontratasEndpoints.ExportarAsync(mediador, tenant, registro, Textos, default, estado: "Vencido,01234567Z", nivel: "12345678");
+            await SubcontratasEndpoints.ExportarAsync(mediador, tenant, registro, Textos, default, estado: "Vencido,01234567Z,Garcia,4", nivel: "12345678");
 
         registro.Registros.Should().ContainSingle().Which.Criterios.Should().BeEquivalentTo(
-            new Dictionary<string, string> { ["listado"] = listado.ToLowerInvariant() });
+            new Dictionary<string, string> { ["listado"] = listado.ToLowerInvariant(), ["estado"] = "Vencido" },
+            "solo consta el estado que la consulta reconoce: ni el texto libre, aunque sean solo letras, ni un número");
     }
 
     [Theory]
@@ -235,13 +236,16 @@ public class ExportacionesDeListadosEstado4aTests
         var estado = listado == "Clientes" ? "Vencido,01234567Z" : "Vigente,01234567Z";
 
         if (listado == "Clientes")
-            await ClientesEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: estado);
+            await ClientesEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: estado, orden: "Nombre", desc: true, critico: true);
         else
-            await CentrosEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: estado);
+            await CentrosEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: estado, orden: "Nombre", desc: true);
 
         var criterios = registro.Registros.Should().ContainSingle().Subject.Criterios;
         criterios.Values.Should().NotContain(v => v.Contains("01234567Z"));
         criterios["estado"].Should().Be(listado == "Clientes" ? "Vencido" : "Vigente");
+        criterios["orden"].Should().Be("Nombre");
+        criterios["desc"].Should().Be("true");
+        if (listado == "Clientes") criterios["critico"].Should().Be("true");
     }
 
     [Fact]

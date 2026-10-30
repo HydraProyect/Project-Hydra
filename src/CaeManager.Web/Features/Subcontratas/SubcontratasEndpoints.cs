@@ -128,7 +128,7 @@ public static class SubcontratasEndpoints
                     ("listado", "subcontratas"),
                     ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
                     ("nivel", Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelAplicado) && Enum.IsDefined(nivelAplicado) ? nivelAplicado.ToString() : null),
-                    ("estado", CriteriosExportacion.SoloNombres(estado)),
+                    ("estado", CriteriosExportacion.EstadosDocumentalesAplicados(estado)),
                     ("contratadapor", Guid.TryParse(contratadapor, out var contratanteAplicado) ? contratanteAplicado.ToString() : null)),
                 cancellationToken);
         }
