@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.WebUtilities;
+using System.Text;
 using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
@@ -466,7 +468,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         {
             var generado = await CrearCuentas(emision.ServiceProvider).GenerarTokenActivacionAsync(cuentaId);
             generado.EsExitoso.Should().BeTrue();
-            token = generado.Valor;
+            // El puerto lo devuelve en Base64Url para el enlace; Identity verifica el token en claro.
+            token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(generado.Valor));
         }
 
         using (var ambito = _servicios.CreateScope())
