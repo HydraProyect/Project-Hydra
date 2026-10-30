@@ -1292,6 +1292,20 @@ public class GestionCuentasCommandsTests
         promocion.CambiosDeRol.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Operador_CAE_externo_cuenta_el_rol_efectivo_en_el_Tenant_beneficiario_no_el_de_origen()
+    {
+        // Administrador en su Operador CAE externo, Dirección CAE donde opera: Dirección CAE nunca.
+        var promocion = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+
+        var resultado = await new EditarUsuarioCommandHandler(promocion, new ActorConRolesDistintos("Administrador", "DireccionCae"),
+                EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), HayOtroAdministrador, PorAsignacionDeOperacion)
+            .Handle(Edicion("Administrador"), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador);
+        promocion.CambiosDeRol.Should().BeEmpty();
+    }
+
     // ---------- Último Administrador del Tenant (decisión 2026-10-30) ----------
 
     [Theory]
@@ -1463,6 +1477,15 @@ public class GestionCuentasCommandsTests
             Llamadas.Add($"hayOtro:{tenantId}:{usuarioIdExcluido}");
             return Task.FromResult(respuestas[Math.Min(_consultas++, respuestas.Length - 1)]);
         }
+    }
+
+    private sealed class ActorConRolesDistintos(string rolOrigen, string rolEfectivo) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Actor);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(rolOrigen);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rolEfectivo);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(OtroTenant);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private sealed class OperaPorAsignacionFija(bool operaPorAsignacion) : IEncargoDeAdministracionActual
