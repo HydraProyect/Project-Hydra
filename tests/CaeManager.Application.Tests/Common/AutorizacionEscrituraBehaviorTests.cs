@@ -51,6 +51,8 @@ public class AutorizacionEscrituraBehaviorTests
     private record FalsoComandoDeAprovisionamiento : ICommand, IComandoDeAprovisionamiento;
     private record FalsoComandoDeRestablecimiento : ICommand, IComandoDeRestablecimientoSegundoFactor;
 
+    private record FalsoComandoDeConcesionAdministrador : ICommand, IComandoDeConcesionAdministrador;
+
     private record FalsoComandoDeRevocacion : ICommand, IComandoDeRevocacionOperadorCaeExterno;
 
     // Autoservicio: escribe solo datos del propio usuario.
@@ -354,6 +356,76 @@ public class AutorizacionEscrituraBehaviorTests
             new FalsoComandoDeRestablecimiento(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         resultado.Error!.Codigo.Should().Be("Autorizacion.RestablecimientoFueraDelTenantObjetivo");
+    }
+
+    // ── Decisión del 2026-10-30: la sesión de concesión de Administrador por Plataforma ──
+
+    [Fact]
+    public async Task ConcesionAdministrador_deja_pasar_su_comando_marcado_dentro_del_tenant_objetivo()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeConcesionAdministrador, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.ConcesionAdministrador, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeConcesionAdministrador(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("con rol efectivo nulo: la sesión no da rol de negocio, da un acto");
+    }
+
+    [Fact]
+    public async Task ConcesionAdministrador_bloquea_cualquier_otro_comando_incluido_el_de_revocacion()
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var sesion = SesionCon(CapacidadPrivilegio.ConcesionAdministrador, tenantObjetivo);
+
+        var normal = await new AutorizacionEscrituraBehavior<FalsoCommand, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+        var revocacion = await new AutorizacionEscrituraBehavior<FalsoComandoDeRevocacion, Result>(
+                new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+                new SesionPrivilegiadaActualFalsa(sesion), new TenantActualFalso(tenantObjetivo))
+            .Handle(new FalsoComandoDeRevocacion(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        normal.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDeLaConcesionAdministrador");
+        revocacion.Error!.Codigo.Should().Be("Autorizacion.ComandoFueraDeLaConcesionAdministrador",
+            "una capacidad no es la llave de los comandos de otra");
+    }
+
+    [Fact]
+    public async Task ConcesionAdministrador_bloquea_su_comando_fuera_del_tenant_objetivo()
+    {
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeConcesionAdministrador, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol: null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.ConcesionAdministrador, Guid.NewGuid())),
+            new TenantActualFalso(Guid.NewGuid()));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeConcesionAdministrador(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Autorizacion.ConcesionAdministradorFueraDelTenantObjetivo");
+    }
+
+    [Theory]
+    [InlineData(CapacidadPrivilegio.SoporteLectura, "Autorizacion.SesionPrivilegiadaSoloLectura")]
+    [InlineData(CapacidadPrivilegio.Aprovisionamiento, "Autorizacion.ComandoFueraDelAprovisionamiento")]
+    [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor, "Autorizacion.ComandoFueraDelRestablecimiento")]
+    [InlineData(CapacidadPrivilegio.RevocacionOperadorCaeExterno, "Autorizacion.ComandoFueraDeLaRevocacion")]
+    public async Task El_comando_de_ConcesionAdministrador_no_pasa_con_otra_capacidad(CapacidadPrivilegio capacidad, string codigo)
+    {
+        var tenantObjetivo = Guid.NewGuid();
+        var behavior = new AutorizacionEscrituraBehavior<FalsoComandoDeConcesionAdministrador, Result>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"),
+            new SesionPrivilegiadaActualFalsa(SesionCon(capacidad, tenantObjetivo)),
+            new TenantActualFalso(tenantObjetivo));
+
+        var resultado = await behavior.Handle(
+            new FalsoComandoDeConcesionAdministrador(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be(codigo);
     }
 
     // ── Enmienda de ADR-004 § 12.2 (2026-10-26): la sesión de revocación por Soporte ──

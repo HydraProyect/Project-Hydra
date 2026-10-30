@@ -440,6 +440,11 @@ public class UsosDeEsPlataformaCongeladosTests
         // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
         // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
         // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261030220000_PlataformaConcedeAdministrador.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "doc-comment, comentario y predicados de app_conceder_administrador_por_plataforma (decisión del " +
+                "2026-10-30; ADR-011 § 8.7.3): el actor debe pertenecer a un Tenant de plataforma y el Tenant objetivo no " +
+                "serlo. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +

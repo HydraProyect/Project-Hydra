@@ -51,7 +51,8 @@ namespace CaeManager.Application.Common;
 /// punto 3: una sesión con capacidad <c>RestablecimientoSegundoFactor</c> deja pasar
 /// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y una con
 /// <c>RevocacionOperadorCaeExterno</c> solo un
-/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, cada una solo en su Tenant
+/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/> y <c>ConcesionAdministrador</c> solo
+/// un <see cref="IComandoDeConcesionAdministrador"/>, cada una solo en su Tenant
 /// objetivo. Ninguna es camino de escritura —la conexión sigue con el rol de solo
 /// lectura—: el acto lo ejecuta una función de la base que repite las
 /// comprobaciones.
@@ -172,6 +173,24 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
                 if (tenantActual.TenantId != sesion.TenantObjetivoId)
                     return CrearRespuestaFallo<TResponse>(Error.Crear(
                         "Autorizacion.RevocacionFueraDelTenantObjetivo",
+                        "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
+
+                return await next(cancellationToken);
+            }
+
+            // Tercera capacidad acotada (decisión del 2026-10-30): conceder Administrador en un
+            // Tenant ya existente. Un solo comando, solo en el Tenant objetivo, y la escritura la
+            // hace app_conceder_administrador_por_plataforma, no esta conexión.
+            if (sesion.Capacidad == CapacidadPrivilegio.ConcesionAdministrador)
+            {
+                if (request is not IComandoDeConcesionAdministrador)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ComandoFueraDeLaConcesionAdministrador",
+                        "Esta sesión solo permite conceder Administrador en la organización."));
+
+                if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ConcesionAdministradorFueraDelTenantObjetivo",
                         "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
                 return await next(cancellationToken);
