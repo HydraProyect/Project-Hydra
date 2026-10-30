@@ -57,13 +57,37 @@ public partial class ImportarClientesGen2Tests
             }
         };
         var (cut, _) = Renderizar(escenario);
-        using var ocupado = await cut.Services.GetRequiredService<LimitadorAnalisisImportacion>().IntentarEntrarAsync();
+        using var ocupado = await cut.Services.GetRequiredService<LimitadorAnalisisImportacion>().IntentarEntrarAsync(TenantImportacion);
         ocupado.Should().NotBeNull();
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "datos.xlsx", "datos");
 
         cut.Find(".alerta-formulario").TextContent.Should().Contain("demasiados análisis");
         analizado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_tenant_resuelto_se_rechaza_sin_reservar_hueco_y_sin_llamar_al_analisis()
+    {
+        Services.Configure<OpcionesLimitesImportacion>(o => { o.AnalisisConcurrentes = 1; o.EsperaSegundos = 0; });
+        var analizado = false;
+        var escenario = new Escenario
+        {
+            Interceptar = peticion =>
+            {
+                analizado |= peticion is AnalizarPlantillaClientesQuery;
+                return null;
+            }
+        };
+        var (cut, _) = Renderizar(escenario);
+        ((TenantEfectivoDePrueba)cut.Services.GetRequiredService<ITenantActual>()).TenantId = null;
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+        await Subir(cut, "datos.xlsx", "datos");
+
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("con qué organización trabajas");
+        analizado.Should().BeFalse();
+        using var libre = await cut.Services.GetRequiredService<LimitadorAnalisisImportacion>().IntentarEntrarAsync(Guid.NewGuid());
+        libre.Should().NotBeNull("rechazar por falta de Tenant no debe ocupar el único hueco global");
     }
 
     [Fact]
@@ -80,7 +104,7 @@ public partial class ImportarClientesGen2Tests
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "datos.xlsx", "datos");
 
-        using var libre = await cut.Services.GetRequiredService<LimitadorAnalisisImportacion>().IntentarEntrarAsync();
+        using var libre = await cut.Services.GetRequiredService<LimitadorAnalisisImportacion>().IntentarEntrarAsync(TenantImportacion);
         libre.Should().NotBeNull("el permiso del análisis fallido debe haberse devuelto");
     }
 

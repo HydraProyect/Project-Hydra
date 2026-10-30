@@ -71,6 +71,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
     {
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
@@ -128,6 +129,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
     {
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
