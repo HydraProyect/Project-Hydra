@@ -44,7 +44,15 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// una vigencia mayor se sigue leyendo y no deja sin acceso a nadie. Una
     /// concesión sin fin no entra en este cálculo: en producción solo nace así
     /// la fundacional (<see cref="RaizDeBootstrap"/>), y bajo RLS las políticas
-    /// de INSERT exigen fin en el resto de caminos. Este tope no está en la base.
+    /// de INSERT exigen fin en el resto de caminos.
+    /// </para>
+    ///
+    /// <para>
+    /// La base impone el mismo tope al crear: las políticas de INSERT
+    /// <c>privilegio_autoconcesion</c> y <c>privilegio_concesion_a_tercero</c>
+    /// escriben estos 90 días como 2160 horas
+    /// (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>). Si cambia este valor,
+    /// cambian allí con una migración.
     /// </para>
     /// </summary>
     public const int MaximoDiasDeVigencia = 90;

@@ -49,7 +49,9 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// <c>privilegio_autoconcesion</c> solo admite una fila propia y global que sea
 /// <c>SoporteLectura</c> ordinaria con fin (si ya tienes <c>AdminPlataforma</c>
 /// vigente) o la <c>AdminPlataforma</c> fundacional (si eres la raíz y el
-/// bootstrap no está consumido).
+/// bootstrap no está consumido). Con fin, además, dentro del tope de vigencia y
+/// con el inicio junto al momento del alta
+/// (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>).
 /// </para>
 /// </summary>
 /// <param name="Capacidad">Qué podrá hacer la sesión que se abra bajo esta concesión.</param>

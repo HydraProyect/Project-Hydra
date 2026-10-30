@@ -849,6 +849,20 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     }
 
     /// <summary>
+    /// <see cref="ConcesionPrivilegio.MaximoDiasDeVigencia"/> en horas y la ventana del inicio: 2160
+    /// horas exactas, no <c>'90 days'</c>, que en un <c>timestamptz</c> es aritmética de calendario y
+    /// depende de la zona horaria de la sesión (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>). Se
+    /// calcula de la constante: subir el tope del dominio sin migrar las políticas se pone rojo aquí.
+    /// Va antes de la lista que lo usa porque los campos estáticos se inicializan en orden de texto.
+    /// </summary>
+    private static readonly string[] TopeDeVigenciaEnElAlta =
+    [
+        $"'{ConcesionPrivilegio.MaximoDiasDeVigencia * 24}:00:00'::interval",
+        "VigenciaDesde",
+        "'00:05:00'::interval",
+    ];
+
+    /// <summary>
     /// Las escrituras de <c>ConcesionesPrivilegio</c>, una política por operación
     /// (<c>PartePoliticaConcesionesPorOperacion</c>, OWASP ASVS 4.0.3 V4.1.1 y V4.1.3). <c>Menciona</c>
     /// son fragmentos que su <c>WITH CHECK</c> tiene que contener; <c>SoloUsing</c>, los de su
@@ -857,10 +871,12 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     private static readonly (string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeConcesiones =
     [
         ("privilegio_autoconcesion", 'a',
-            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "EstadoBootstrapPlataforma", "BootstrapPlataforma", "SoporteLectura"], []),
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "EstadoBootstrapPlataforma", "BootstrapPlataforma", "SoporteLectura",
+                .. TopeDeVigenciaEnElAlta], []),
         ("privilegio_cierre_de_vigente", 'w', ["app_ctx_usuario_id()", "Revocada", "Expirada"], ["Vigente"]),
         ("privilegio_concesion_a_tercero", 'a',
-            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "VigenciaHasta"], []),
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "VigenciaHasta",
+                .. TopeDeVigenciaEnElAlta], []),
     ];
 
     /// <summary>

@@ -124,7 +124,8 @@ public class ConcesionesSoloPorActoExplicitoTests
             "para cualquiera. Autorizado por las migraciones RlsConcesionPorAdminDePlataforma y " +
             "RestablecimientoSegundoFactorPorSoporte, SoporteRevocaOperadorCaeExterno y PlataformaConcedeAdministrador, que amplían el WITH CHECK de RLS para admitir " +
             "exactamente esta forma; PartePoliticaConcesionesPorOperacion la deja en su propia política de INSERT " +
-            "(privilegio_concesion_a_tercero) y la acota además a vigente, de origen ordinario, con fin y a nombre de otra persona.",
+            "(privilegio_concesion_a_tercero) y la acota además a vigente, de origen ordinario, con fin y a nombre de otra persona; " +
+            "TopeVigenciaConcesionEnPoliticasDeAlta añade el tope de vigencia y la ventana del inicio.",
     };
 
     [Fact]

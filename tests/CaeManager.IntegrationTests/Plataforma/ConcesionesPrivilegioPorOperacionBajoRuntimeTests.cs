@@ -35,6 +35,13 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// <c>UPDATE</c> de <c>EstadoBootstrapPlataforma</c> antes del <c>INSERT</c>, este test se pondría
 /// rojo.
 /// </para>
+///
+/// <para>
+/// Migración <c>TopeVigenciaConcesionEnPoliticasDeAlta</c> (V4.1.1 y V11.1.3): las dos puertas de alta
+/// imponen en la base el tope del dominio y una ventana sobre el inicio, sin alcanzar a la fundacional
+/// sin fin ni a las filas anteriores al tope. La mitad de control positivo es en el tope exacto, con la
+/// medida del dominio, y dentro de la ventana.
+/// </para>
 /// </summary>
 public class ConcesionesPrivilegioPorOperacionBajoRuntimeTests : IAsyncLifetime
 {
@@ -45,6 +52,8 @@ public class ConcesionesPrivilegioPorOperacionBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _admin = Guid.NewGuid();
     private readonly Guid _sinAutoridad = Guid.NewGuid();
     private readonly Guid _beneficiario = Guid.NewGuid();
+
+    private static readonly TimeSpan TopeDeVigencia = TimeSpan.FromDays(ConcesionPrivilegio.MaximoDiasDeVigencia);
 
     private Guid _concesionDelAdmin;
 
@@ -297,6 +306,165 @@ public class ConcesionesPrivilegioPorOperacionBajoRuntimeTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
+    // ── Tope de vigencia al crear (TopeVigenciaConcesionEnPoliticasDeAlta) ─
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task En_el_tope_exacto_entra(bool autoconcesion)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        await InsertarAltaAsync(conexion, autoconcesion, TimeSpan.Zero, TopeDeVigencia);
+
+        (await ContarConcesionesDeLaPuertaAsync(autoconcesion)).Should().Be(1,
+            "90 días exactos es lo que admite el dominio: el tope de la base no puede ser más estrecho");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task La_vigencia_maxima_de_la_aplicacion_pasa_la_politica(bool autoconcesion)
+    {
+        // La misma fábrica y el mismo escritor que los dos comandos, con DateTime de .NET: el tope se
+        // compara en microsegundos y la medida del dominio tiene que caber tal cual.
+        var ahora = DateTime.UtcNow;
+        var concesion = autoconcesion
+            ? ConcesionPrivilegio.SoporteLecturaGlobal(
+                _admin, ahora, ahora.AddDays(ConcesionPrivilegio.MaximoDiasDeVigencia), concedidaPorUsuarioId: _admin)
+            : ConcesionPrivilegio.SobreTenants(
+                _beneficiario, CapacidadPrivilegio.Aprovisionamiento, [_tenantObjetivo],
+                ahora, ahora.AddDays(ConcesionPrivilegio.MaximoDiasDeVigencia),
+                concedidaPorUsuarioId: _admin, motivoConcesion: "Alta del Tenant objetivo");
+
+        await using var contexto = CrearContexto(_admin);
+        new PlataformaWriter(contexto).AnadirConcesion(concesion);
+        await contexto.SaveChangesAsync();
+
+        (await ContarComoPropietarioAsync(concesion.Id)).Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(true, 86400)]
+    [InlineData(false, 86400)]
+    [InlineData(true, 1)]
+    [InlineData(false, 1)]
+    public async Task Por_encima_del_tope_se_rechaza_por_politica(bool autoconcesion, int segundosDeMas)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var accion = async () => await InsertarAltaAsync(
+            conexion, autoconcesion, TimeSpan.Zero, TopeDeVigencia + TimeSpan.FromSeconds(segundosDeMas));
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "el tope de 90 días vive también en la base, con la misma medida que el dominio");
+    }
+
+    [Theory]
+    [InlineData(true, -1440)]
+    [InlineData(false, -1440)]
+    [InlineData(true, -6)]
+    [InlineData(false, -6)]
+    [InlineData(true, 6)]
+    [InlineData(false, 6)]
+    [InlineData(true, 525600)]
+    [InlineData(false, 525600)]
+    public async Task Un_inicio_fuera_de_la_ventana_se_rechaza_por_politica(bool autoconcesion, int minutosDesdeAhora)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var accion = async () => await InsertarAltaAsync(
+            conexion, autoconcesion, TimeSpan.FromMinutes(minutosDesdeAhora), TimeSpan.FromDays(7));
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "el tope se mide desde el inicio, y el inicio tiene que estar junto al momento del alta");
+    }
+
+    [Theory]
+    [InlineData(true, -4)]
+    [InlineData(false, -4)]
+    [InlineData(true, 4)]
+    [InlineData(false, 4)]
+    public async Task Un_inicio_dentro_de_la_ventana_entra(bool autoconcesion, int minutosDesdeAhora)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        await InsertarAltaAsync(conexion, autoconcesion, TimeSpan.FromMinutes(minutosDesdeAhora), TimeSpan.FromDays(7));
+
+        (await ContarConcesionesDeLaPuertaAsync(autoconcesion)).Should().Be(1,
+            "la ventana cubre el desfase de relojes y los reintentos de SaveChanges con el mismo inicio");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-525600)]
+    public async Task La_fundacional_sin_fin_sigue_admitida_como_antes(int minutosDesdeAhora)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_raiz);
+
+        await InsertarConVigenciaAsync(
+            conexion, _raiz, _raiz, "AdminPlataforma", TimeSpan.FromMinutes(minutosDesdeAhora), duracion: null,
+            esAlcanceGlobal: true, origen: "BootstrapPlataforma");
+
+        (await ContarFundacionalesAsync(_raiz)).Should().Be(1,
+            "sin fin no hay nada que medir desde el inicio: la condición del tope no aplica a esta fila");
+    }
+
+    [Fact]
+    public async Task Una_fundacional_con_fin_sobre_el_tope_se_rechaza()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_raiz);
+
+        var accion = async () => await InsertarConVigenciaAsync(
+            conexion, _raiz, _raiz, "AdminPlataforma", TimeSpan.Zero, TopeDeVigencia + TimeSpan.FromDays(1),
+            esAlcanceGlobal: true, origen: "BootstrapPlataforma");
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "ConcesionPrivilegio.RaizDeBootstrap aplica el mismo tope cuando se le da un fin");
+    }
+
+    [Fact]
+    public async Task Una_fila_historica_sobre_el_tope_se_sigue_leyendo_y_cerrando_bajo_runtime()
+    {
+        var historica = Guid.NewGuid();
+        await using (var propietario = new NpgsqlConnection(_cadenaConexion))
+        {
+            await propietario.OpenAsync();
+            await using var sembrar = propietario.CreateCommand();
+            sembrar.CommandText = @"
+INSERT INTO public.""ConcesionesPrivilegio""
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
+VALUES (@id, @beneficiario, 'SoporteLectura', true, now() - interval '1 day', now() + interval '400 days',
+        'Vigente', @concedidaPor, 'Fila anterior al tope (test)', now() - interval '1 day', gen_random_uuid(), 'Ordinaria');";
+            sembrar.Parameters.AddWithValue("id", historica);
+            sembrar.Parameters.AddWithValue("beneficiario", _beneficiario);
+            sembrar.Parameters.AddWithValue("concedidaPor", _admin);
+            await sembrar.ExecuteNonQueryAsync();
+        }
+
+        await using var conexion = await AbrirRestringidaComoAsync(_beneficiario);
+
+        await using (var leer = conexion.CreateCommand())
+        {
+            leer.CommandText = @"SELECT count(*) FROM public.""ConcesionesPrivilegio"" WHERE ""Id"" = @id;";
+            leer.Parameters.AddWithValue("id", historica);
+            (await leer.ExecuteScalarAsync()).Should().Be(1L, "el tope limita lo que nace, no lo que ya existe");
+        }
+
+        await using var cerrar = conexion.CreateCommand();
+        cerrar.CommandText =
+            @"UPDATE public.""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada', ""VigenciaHasta"" = now() WHERE ""Id"" = @id;";
+        cerrar.Parameters.AddWithValue("id", historica);
+
+        (await cerrar.ExecuteNonQueryAsync()).Should().Be(1,
+            "una fila por encima del tope tiene que poder cerrarse: por eso el tope es política de INSERT y no CHECK de tabla");
+        (await EstadoComoPropietarioAsync(historica)).Should().Be("Revocada");
+    }
+
     // ── UPDATE y DELETE ────────────────────────────────────────────────────
 
     [Fact]
@@ -509,6 +677,64 @@ VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now(),
         comando.Parameters.AddWithValue("origen", origen);
         await comando.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// Una concesión con la forma exacta que admite cada puerta de alta: la autoconcesión de
+    /// <c>SoporteLectura</c> o la concesión a otra persona. Lo único que varía es la vigencia, así que
+    /// un rechazo solo puede venir de la condición del tope.
+    /// </summary>
+    private Task InsertarAltaAsync(NpgsqlConnection conexion, bool autoconcesion, TimeSpan inicio, TimeSpan duracion) =>
+        autoconcesion
+            ? InsertarConVigenciaAsync(conexion, _admin, _admin, "SoporteLectura", inicio, duracion, esAlcanceGlobal: true)
+            : InsertarConVigenciaAsync(conexion, _beneficiario, _admin, "Aprovisionamiento", inicio, duracion, esAlcanceGlobal: false);
+
+    /// <summary>
+    /// <paramref name="inicio"/> es relativo a <c>now()</c> y <paramref name="duracion"/> al inicio. Se
+    /// pasan en segundos por <c>make_interval(secs)</c> para que sean duraciones exactas: un
+    /// <see cref="TimeSpan"/> llegaría como días, que es justo la aritmética de calendario que la
+    /// política evita.
+    /// </summary>
+    private static async Task InsertarConVigenciaAsync(
+        NpgsqlConnection conexion, Guid beneficiario, Guid concedidaPor, string capacidad,
+        TimeSpan inicio, TimeSpan? duracion, bool esAlcanceGlobal, string origen = "Ordinaria")
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"
+INSERT INTO public.""ConcesionesPrivilegio""
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
+VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now() + make_interval(secs => @inicio),
+        now() + make_interval(secs => @inicio) + make_interval(secs => @duracion),
+        'Vigente', @concedidaPor, 'Escritura por debajo del dominio (test)', now(), gen_random_uuid(), @origen);";
+        comando.Parameters.AddWithValue("beneficiario", beneficiario);
+        comando.Parameters.AddWithValue("capacidad", capacidad);
+        comando.Parameters.AddWithValue("global", esAlcanceGlobal);
+        comando.Parameters.AddWithValue("inicio", inicio.TotalSeconds);
+        comando.Parameters.Add(new NpgsqlParameter("duracion", NpgsqlTypes.NpgsqlDbType.Double)
+        {
+            Value = duracion is { } valor ? valor.TotalSeconds : DBNull.Value,
+        });
+        comando.Parameters.AddWithValue("concedidaPor", concedidaPor);
+        comando.Parameters.AddWithValue("origen", origen);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private Task<long> ContarConcesionesDeLaPuertaAsync(bool autoconcesion) =>
+        ContarNuevasComoPropietarioAsync(autoconcesion ? _admin : _beneficiario, autoconcesion ? "SoporteLectura" : "Aprovisionamiento");
+
+    private async Task<long> ContarNuevasComoPropietarioAsync(Guid beneficiario, string capacidad)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            @"SELECT count(*) FROM ""ConcesionesPrivilegio"" WHERE ""UsuarioPlataformaId"" = @beneficiario AND ""Capacidad"" = @capacidad;";
+        comando.Parameters.AddWithValue("beneficiario", beneficiario);
+        comando.Parameters.AddWithValue("capacidad", capacidad);
+        return (long)(await comando.ExecuteScalarAsync())!;
+    }
+
+    private Task<long> ContarFundacionalesAsync(Guid raiz) => ContarNuevasComoPropietarioAsync(raiz, "AdminPlataforma");
 
     private async Task EjecutarComoPropietarioAsync(string sql, Guid id)
     {
