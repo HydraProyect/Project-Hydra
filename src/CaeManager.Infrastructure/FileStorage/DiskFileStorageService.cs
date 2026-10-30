@@ -31,11 +31,9 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// El fichero se lee entero en memoria para cifrar/descifrar — no hay API de
 /// streaming en <see cref="IDataProtector"/> y los documentos de este
 /// sistema están acotados a 10 MB (ver <c>LimitesArchivoSubido.TamanoMaximoBytes</c>
-/// en Application), así que el coste es aceptable y coherente con
-/// cómo el resto del código ya maneja archivos subidos. Lo que se carga al
-/// guardar descuenta del presupuesto de memoria del proceso
-/// (<see cref="IPresupuestoMemoriaDocumentos"/>) mientras vive: muchas escrituras a
-/// la vez esperan su turno o se rechazan, no agotan la memoria de la réplica.
+/// en Application). Las lecturas y escrituras descuentan del presupuesto de memoria
+/// del proceso (<see cref="IPresupuestoMemoriaDocumentos"/>); la lectura conserva
+/// su reserva hasta que se cierra el flujo devuelto.
 ///
 /// <b>Formato versionado (v2)</b>: todo archivo nuevo se escribe con la marca
 /// <c>CAEBLOBv2</c> delante del payload protegido. Existe para deshacer una
@@ -315,9 +313,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         if (rutaCompleta is null || _tenantActual.TenantId is not { } tenantId || !File.Exists(rutaCompleta))
             throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
-
-        return new MemoryStream(Descifrar(bytesDisco, identificador, tenantId), writable: false);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -339,9 +335,62 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         if (rutaCompleta is null || !File.Exists(rutaCompleta))
             throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantPropietarioId, cancellationToken);
+    }
 
-        return new MemoryStream(Descifrar(bytesDisco, identificador, tenantPropietarioId), writable: false);
+    /// <summary>
+    /// Reserva el pico de la lectura (disco, copias del descifrado y claro: el mismo factor que el
+    /// guardado) antes de abrir el fichero, para no retener su handle mientras espera hueco, y lo
+    /// lee con la longitud medida antes de reservar: si el fichero cambiara entre medias, el
+    /// descifrado falla cerrado. Tras descifrar, la reserva baja a lo que de verdad retiene el
+    /// flujo mientras se sirve —el claro—, para que una descarga lenta no bloquee el pico entero.
+    /// </summary>
+    private async Task<Stream> AbrirReservandoAsync(string ruta, string identificador, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var longitud = new FileInfo(ruta).Length;
+        if (longitud > Array.MaxLength)
+            throw new InvalidOperationException("El archivo es demasiado grande para abrirse.");
+
+        var reserva = await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * longitud + MargenCifradoBytes, cancellationToken);
+        try
+        {
+            var bytes = new byte[longitud];
+            await using (var archivo = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.Asynchronous))
+                await archivo.ReadExactlyAsync(bytes, cancellationToken);
+
+            var claro = Descifrar(bytes, identificador, tenantId);
+            reserva.ReducirA(claro.LongLength + MargenCifradoBytes);
+            return new FlujoConReserva(claro, reserva);
+        }
+        catch
+        {
+            reserva.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// El claro descifrado, de solo lectura, con la reserva que lo cubre: la devuelve al cerrarse,
+    /// una sola vez aunque se cierre por <see cref="Stream.Dispose()"/> y por
+    /// <see cref="Stream.DisposeAsync"/> (<see cref="ReservaMemoriaDocumentos.Dispose"/> es idempotente).
+    /// El finalizador es solo la red: un llamador que olvidara cerrar el flujo dejaría el presupuesto
+    /// del proceso mermado para siempre; cerrado, <see cref="Stream.Close"/> lo suprime.
+    /// </summary>
+    private sealed class FlujoConReserva(byte[] contenido, ReservaMemoriaDocumentos reserva) : MemoryStream(contenido, writable: false)
+    {
+        ~FlujoConReserva() => reserva.Dispose();
+
+        protected override void Dispose(bool disposing)
+        {
+            try { base.Dispose(disposing); }
+            finally { reserva.Dispose(); }
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            try { await base.DisposeAsync(); }
+            finally { reserva.Dispose(); }
+        }
     }
 
     public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)

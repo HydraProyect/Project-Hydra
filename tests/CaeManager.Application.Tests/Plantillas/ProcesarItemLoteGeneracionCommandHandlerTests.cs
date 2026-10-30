@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Plantillas;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Plantillas;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plantillas.Commands.ProcesarItemLoteGeneracion;
 using CaeManager.Application.Tests.Clientes;
@@ -58,6 +59,30 @@ public class ProcesarItemLoteGeneracionCommandHandlerTests
         item.Error.Should().Be("No encontramos al trabajador.");
         lote.ItemsFallidos.Should().Be(1);
         lote.Estado.Should().Be(EstadoLoteGeneracion.CompletadoConErrores);
+    }
+
+    /// <summary>
+    /// S-C-3 (OWASP API4:2023): sin hueco en el presupuesto de memoria de documentos la generación no guardó
+    /// nada; el elemento queda fallido con el motivo, no pendiente para siempre, y el lote puede terminar.
+    /// </summary>
+    [Fact]
+    public async Task Sin_hueco_en_el_presupuesto_de_memoria_marca_el_item_fallido_en_vez_de_dejarlo_pendiente()
+    {
+        var lote = CrearLote();
+        var lotes = new LoteGeneracionDocumentoRepositorioFalso();
+        lotes.Agregar(lote);
+        var item = new ItemGeneracionDocumento(lote.Id, Guid.NewGuid());
+        var items = new ItemGeneracionDocumentoRepositorioFalso();
+        items.Agregar(item);
+        var mediator = new MediatorFalso { Excepcion = new PresupuestoMemoriaAgotadoException() };
+        var handler = new ProcesarItemLoteGeneracionCommandHandler(items, lotes, mediator, new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(new ProcesarItemLoteGeneracionCommand(item.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        item.Estado.Should().Be(EstadoItemGeneracion.Fallido);
+        item.Error.Should().Be(PresupuestoMemoriaAgotadoException.MensajeUsuario);
+        lote.ItemsFallidos.Should().Be(1);
     }
 
     [Fact]

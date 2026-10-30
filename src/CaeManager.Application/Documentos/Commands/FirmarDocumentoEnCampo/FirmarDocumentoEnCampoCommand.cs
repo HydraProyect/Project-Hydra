@@ -163,10 +163,15 @@ public class FirmarDocumentoEnCampoCommandHandler(
         var firmanteNombre = nombres.GetValueOrDefault(firmanteUsuarioId, string.Empty);
         var firmanteRol = await currentUserService.ObtenerRolEfectivoAsync() ?? string.Empty;
 
-        await using var flujoOriginal = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-        using var memoriaOriginal = new MemoryStream();
-        await flujoOriginal.CopyToAsync(memoriaOriginal, cancellationToken);
-        var pdfOriginal = memoriaOriginal.ToArray();
+        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
+        // cerrarse, y el GuardarAsync de abajo reserva por su cuenta.
+        byte[] pdfOriginal;
+        await using (var flujoOriginal = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken))
+        {
+            using var memoriaOriginal = new MemoryStream();
+            await flujoOriginal.CopyToAsync(memoriaOriginal, cancellationToken);
+            pdfOriginal = memoriaOriginal.ToArray();
+        }
 
         var firmadoEnUtc = DateTime.UtcNow;
         var contenidoFirmado = estampador.Estampar(

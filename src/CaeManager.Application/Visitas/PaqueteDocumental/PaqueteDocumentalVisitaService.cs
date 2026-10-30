@@ -221,7 +221,10 @@ public class PaqueteDocumentalVisitaService(
     /// archivo no puede viajar y no compite por el puesto. Cada grupo conserva todas sus
     /// copias vigentes en orden de preferencia: si el archivo de la primera no se puede
     /// abrir en el almacenamiento, <see cref="ConstruirZipAsync"/> prueba la siguiente —
-    /// sigue siendo un documento por titular y tipo, y nunca uno vencido.
+    /// sigue siendo un documento por titular y tipo, y nunca uno vencido. Sin hueco en el
+    /// presupuesto de memoria de documentos (<see cref="PresupuestoMemoriaAgotadoException"/>)
+    /// o con la operación cancelada no se prueba otra copia: el paquete entero falla, porque
+    /// saltarse documentos daría por completo un paquete al que le faltan.
     /// </para>
     ///
     /// <para>
@@ -290,7 +293,7 @@ public class PaqueteDocumentalVisitaService(
                     {
                         contenido = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not PresupuestoMemoriaAgotadoException and not OperationCanceledException)
                     {
                         // Solo el tipo de la excepcion: su mensaje arrastra la clave del fichero.
                         logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental de la visita ({TipoExcepcion}).", documento.Id, ex.GetType().Name);

@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.FirmarDocumentoEnCampo;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerEmpresasConSelloGuardado;
@@ -232,6 +233,11 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
             await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
             _trazoIniciado = false;
             await CargarAsync();
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria del proceso: aviso y la firma sigue en el lienzo para reintentar.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
         }
         finally
         {

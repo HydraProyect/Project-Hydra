@@ -81,10 +81,13 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
 
         var identificador = await Servicio(presupuesto).GuardarAsync(new FlujoSinLongitud(contenido), "foto.jpg");
 
-        await using var abierto = await Servicio(presupuesto).AbrirAsync(identificador);
-        using var leido = new MemoryStream();
-        await abierto.CopyToAsync(leido);
-        leido.ToArray().Should().Equal(contenido);
+        await using (var abierto = await Servicio(presupuesto).AbrirAsync(identificador))
+        {
+            using var leido = new MemoryStream();
+            await abierto.CopyToAsync(leido);
+            leido.ToArray().Should().Equal(contenido);
+        }
+
         presupuesto.Pedidos.Should().BeGreaterThan(2, "sin longitud declarada se reserva a medida que crece");
         presupuesto.PedidoAcumulado.Should().BeGreaterThanOrEqualTo(contenido.Length);
         presupuesto.Interno.Reservado.Should().Be(0);
@@ -110,12 +113,97 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
 
         var identificador = await Servicio(presupuesto).GuardarAsync(new FlujoQueMienteLongitud(contenido, 1024), "largo.pdf");
 
-        await using var abierto = await Servicio(presupuesto).AbrirAsync(identificador);
-        using var leido = new MemoryStream();
-        await abierto.CopyToAsync(leido);
-        leido.ToArray().Should().Equal(contenido, "lo que llega de más también se reserva y se guarda");
+        await using (var abierto = await Servicio(presupuesto).AbrirAsync(identificador))
+        {
+            using var leido = new MemoryStream();
+            await abierto.CopyToAsync(leido);
+            leido.ToArray().Should().Equal(contenido, "lo que llega de más también se reserva y se guarda");
+        }
+
         presupuesto.PedidoAcumulado.Should().BeGreaterThanOrEqualTo(2L * contenido.Length);
         presupuesto.Interno.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Abrir_conserva_la_reserva_hasta_cerrar_y_devuelve_los_bytes()
+    {
+        var presupuesto = Presupuesto();
+        var contenido = Contenido(12345);
+        var servicio = Servicio(presupuesto);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(contenido), "archivo.pdf");
+        var contado = new PresupuestoContado(presupuesto);
+        var flujo = await Servicio(contado).AbrirAsync(identificador);
+        contado.PedidoAcumulado.Should().BeGreaterThanOrEqualTo(3L * contenido.Length, "se reserva el pico del descifrado antes de leer");
+        presupuesto.Reservado.Should().BeGreaterThan(contenido.Length)
+            .And.BeLessThan(2L * contenido.Length, "tras descifrar el flujo retiene solo el claro");
+        using var copia = new MemoryStream();
+        await flujo.CopyToAsync(copia);
+        copia.ToArray().Should().Equal(contenido);
+        await flujo.DisposeAsync();
+        flujo.Dispose();
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_descarga_interrumpida_devuelve_la_reserva_al_cerrar()
+    {
+        var presupuesto = Presupuesto();
+        var servicio = Servicio(presupuesto);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(Contenido(4096)), "archivo.pdf");
+        var descargar = async () =>
+        {
+            await using var flujo = await servicio.AbrirAsync(identificador);
+            var cabecera = new byte[100];
+            await flujo.ReadExactlyAsync(cabecera);
+            throw new IOException("descarga interrumpida");
+        };
+        await descargar.Should().ThrowExactlyAsync<IOException>();
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Abrir_original_inbound_reserva_y_devuelve_los_bytes()
+    {
+        var presupuesto = Presupuesto();
+        var servicio = Servicio(presupuesto);
+        var contenido = Contenido(4096);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(contenido), "archivo.pdf");
+        var archivo = new CaeManager.Application.ContratosAcceso.LecturaInbound.ArchivoInboundDto(Guid.NewGuid(), _tenant, identificador, false);
+        await using (var flujo = await servicio.AbrirOriginalAsync(archivo))
+        {
+            presupuesto.Reservado.Should().BeGreaterThan(0);
+            using var copia = new MemoryStream();
+            await flujo.CopyToAsync(copia);
+            copia.ToArray().Should().Equal(contenido);
+        }
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Abrir_devuelve_la_reserva_si_falla_el_descifrado()
+    {
+        var presupuesto = Presupuesto();
+        var servicio = Servicio(presupuesto);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(Contenido(1024)), "archivo.pdf");
+        var ruta = FicherosEnDisco().Should().ContainSingle().Subject;
+        var bytes = await File.ReadAllBytesAsync(ruta);
+        bytes[^1] ^= 1;
+        await File.WriteAllBytesAsync(ruta, bytes);
+        var abrir = () => servicio.AbrirAsync(identificador);
+        await abrir.Should().ThrowExactlyAsync<InvalidDataException>();
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Abrir_sin_hueco_rechaza_sin_perder_la_reserva()
+    {
+        var presupuesto = Presupuesto(maximo: 4 * 1024 * 1024, esperaMs: 100);
+        var servicio = Servicio(presupuesto);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(Contenido(1024)), "archivo.pdf");
+        using var ocupado = await presupuesto.ReservarAsync(presupuesto.Maximo);
+        var abrir = () => servicio.AbrirAsync(identificador);
+        await abrir.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(presupuesto.Maximo);
     }
 
     /// <summary>Se puede posicionar, pero declara menos de lo que entrega.</summary>

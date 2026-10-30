@@ -1329,6 +1329,11 @@ app.UseHttpsRedirection();
 // las cabeceras han de ir en cualquier respuesta, incluidas las de error.
 app.UseCabecerasSeguridad();
 
+// Detrás de las cabeceras de seguridad, para que el 503 las conserve (ver
+// PresupuestoMemoriaAgotadoExtensions): sin hueco en el presupuesto de memoria de
+// documentos se responde 503 con Retry-After, no 500.
+app.UsePresupuestoMemoriaAgotadoComo503();
+
 // Opciones registradas arriba (Configure<RequestLocalizationOptions>).
 app.UseRequestLocalization();
 
