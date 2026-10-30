@@ -138,7 +138,7 @@ else
                 }
                 else if (_errorValidacion)
                 {
-                    <EstadoVacio Titulo="No pudimos comprobar la validación del documento" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="@TextosDocumento["ValidacionOficialErrorTitulo"]" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarValidacionAsync">Reintentar</Boton></Accion>
                     </EstadoVacio>
                 }
