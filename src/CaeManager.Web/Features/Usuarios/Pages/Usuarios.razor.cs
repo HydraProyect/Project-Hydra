@@ -2080,6 +2080,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _usuarioActualEsAdministrador && usuario.DosFactoresActivo && !usuario.EsOperadorDelegado
         && usuario.Id != _usuarioActualId;
 
+    /// <summary>
+    /// Solo presentación, espejo de
+    /// <see cref="AutoridadSobreCuentas.VerificarActivacionDeCuentaAdministradorAsync"/>: el
+    /// enlace de activación de una cuenta pendiente Administrador —o sin rol, que se lista
+    /// con «—»— solo lo reenvía o corrige un Administrador. A Dirección CAE no se le ofrece
+    /// un botón que el servidor iba a rechazar al pulsarlo.
+    /// </summary>
+    private bool PuedeOfrecerEnlaceDeActivacion(UsuarioListaDto usuario) =>
+        _usuarioActualEsAdministrador
+        || (usuario.Rol != Roles.Administrador && AutoridadSobreCuentas.RolesExistentes.Contains(usuario.Rol));
+
     private void PedirRestablecerSegundoFactor(UsuarioListaDto usuario)
     {
         if (!_restableciendoSegundoFactor) _usuarioARestablecerSegundoFactor = usuario;

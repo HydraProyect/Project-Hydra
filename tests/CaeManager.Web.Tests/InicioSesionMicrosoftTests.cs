@@ -25,20 +25,17 @@ public class InicioSesionMicrosoftTests
 {
     [Theory]
     [InlineData("sin-mfa", false)]
-    [InlineData("sin-mfa-vinculo-nuevo", false)]
     [InlineData("sin-cuenta", false)]
     [InlineData("invitada", false)]
     [InlineData("sin-mfa", true)]
     public async Task El_callback_rechaza_la_cookie_externa_de_prueba_o_manipulada(string caso, bool manipulada)
     {
-        // «sin-mfa-vinculo-nuevo»: la cuenta del Tenant destino se halla por correo y no
-        // tiene identidad de Microsoft, así que el callback llega a VincularCuentaExistente.
-        // Es el único caso en que guardar el vínculo antes del segundo factor sería posible.
+        // La primera vinculación (cuenta hallada por correo) ya no se rechaza: va al TOTP
+        // o a su alta, ver La_primera_vinculacion_nunca_entra_directa_ni_guarda_el_vinculo.
         var cuenta = new ApplicationUser { TenantId = TenantDestino };
         var usuarios = new UsuariosConVinculos
         {
             DuenaDeLaIdentidad = caso is "sin-mfa" or "invitada" ? cuenta : null,
-            CuentaPorCorreo = caso == "sin-mfa-vinculo-nuevo" ? cuenta : null,
         };
         var vigilancia = new VigilanciaDePrueba();
         var builder = WebApplication.CreateSlimBuilder();
@@ -84,7 +81,7 @@ public class InicioSesionMicrosoftTests
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var error = manipulada || caso == "invitada" ? "fallo" : caso == "sin-mfa-vinculo-nuevo" ? "sin-mfa" : caso;
+        var error = manipulada || caso == "invitada" ? "fallo" : caso;
         respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
         usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
         respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
@@ -94,9 +91,120 @@ public class InicioSesionMicrosoftTests
             && c.Split(';')[0].Split('=', 2)[1].Length > 0,
             "ningún rechazo emite una sesión de aplicación");
         vigilancia.Resultados.Should().Equal(manipulada ? [] :
-            [caso.StartsWith("sin-mfa", StringComparison.Ordinal)
+            [caso == "sin-mfa"
                 ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado
                 : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
+        await app.StopAsync();
+    }
+
+    /// <summary>
+    /// Primera vinculación (decisión de 2026-10-28, ASVS 4.0.3 V2.1 y V3.7.1): la cuenta del
+    /// Tenant destino se halla por correo y no tiene identidad de Microsoft. Nunca hay sesión
+    /// directa ni se guarda el vínculo en el callback. Sin TOTP ni MFA de Microsoft, rechazo.
+    /// Con MFA y sin TOTP, sin reautenticación se repite el desafío con prompt=login; con ella, la
+    /// cookie de dos pasos lleva la marca del alta. Con TOTP, se pide sin reautenticar.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, true, false)]
+    public async Task La_primera_vinculacion_nunca_entra_directa_ni_guarda_el_vinculo(bool mfaMicrosoft, bool totp, bool reautenticada)
+    {
+        var opciones = OpcionesCompletas();
+        var autorizacion = $"https://login.microsoftonline.com/{opciones.TenantId}/oauth2/v2.0/authorize";
+        var usuarios = new UsuariosConVinculos { CuentaPorCorreo = new ApplicationUser { TenantId = TenantDestino }, TotpActivado = totp };
+        var vigilancia = new VigilanciaDePrueba();
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ExternalScheme)
+            .AddCookie(IdentityConstants.TwoFactorUserIdScheme)
+            .AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, o =>
+            {
+                InicioSesionMicrosoft.Configurar(o, opciones);
+                o.Configuration = new OpenIdConnectConfiguration
+                {
+                    Issuer = $"https://login.microsoftonline.com/{opciones.TenantId}/v2.0",
+                    AuthorizationEndpoint = autorizacion,
+                    TokenEndpoint = $"https://login.microsoftonline.com/{opciones.TenantId}/oauth2/v2.0/token",
+                };
+            });
+        builder.Services.AddIdentityCore<ApplicationUser>().AddSignInManager();
+        builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
+        builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
+        builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.MapIdentityEndpoints();
+        // Solo el arnés emite esta cookie sintética: con la marca, como la deja el desafío
+        // con prompt=login al volver de Microsoft.
+        app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
+        {
+            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
+                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", mfaMicrosoft ? "mfa" : "pwd"));
+            var propiedades = new AuthenticationProperties();
+            propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
+            if (reautenticada)
+                propiedades.Items[InicioSesionMicrosoft.ItemReautenticacion] = "1";
+            await contexto.SignInAsync(IdentityConstants.ExternalScheme, principal, propiedades);
+        });
+        app.MapGet("/leer-dos-pasos", async (HttpContext contexto) =>
+        {
+            var principal = (await contexto.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Principal;
+            return InicioSesionMicrosoft.VinculoPendiente(principal) is null ? "sin-vinculo"
+                : InicioSesionMicrosoft.AltaTotpPendiente(principal) ? "alta" : "vinculo";
+        });
+        await app.StartAsync();
+        using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
+        using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(app.Urls.Single()) };
+        using var emision = await cliente.GetAsync("/externa-de-prueba");
+        using var peticion = new HttpRequestMessage(HttpMethod.Get, "/cuenta/microsoft-callback?returnUrl=%2Fdocumentos");
+        peticion.Headers.Add("Cookie", emision.Headers.GetValues("Set-Cookie").Single().Split(';')[0]);
+
+        using var respuesta = await cliente.SendAsync(peticion);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        usuarios.LlamadasAlta.Should().Be(0, "el callback nunca guarda el vínculo de una primera vinculación");
+        respuesta.Headers.TryGetValues("Set-Cookie", out var cookiesRespuesta);
+        var cookies = (cookiesRespuesta ?? []).ToList();
+        cookies.Should().NotContain(c =>
+            c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0,
+            "una primera vinculación nunca emite sesión de aplicación en el callback");
+        var dosPasos = cookies.SingleOrDefault(c => c.StartsWith(".AspNetCore.Identity.TwoFactorUserId=", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0);
+
+        if (!totp && !mfaMicrosoft)
+        {
+            respuesta.Headers.Location!.OriginalString.Should().Be("/cuenta/iniciar-sesion?errorSso=sin-mfa",
+                "una contraseña de Entra sola no registra un factor nuevo en la cuenta");
+            dosPasos.Should().BeNull();
+            await app.StopAsync();
+            return;
+        }
+
+        if (!totp && !reautenticada)
+        {
+            var destino = respuesta.Headers.Location!;
+            destino.GetLeftPart(UriPartial.Path).Should().Be(autorizacion, "sin reautenticación se repite el desafío");
+            QueryHelpers.ParseQuery(destino.Query)["prompt"].ToString().Should().Be("login");
+            dosPasos.Should().BeNull("sin reautenticación no se deja nada pendiente");
+            vigilancia.Resultados.Should().BeEmpty();
+            await app.StopAsync();
+            return;
+        }
+
+        respuesta.Headers.Location!.OriginalString.Should().Be("/cuenta/verificar-2fa?ReturnUrl=%2Fdocumentos");
+        dosPasos.Should().NotBeNull();
+        using var lectura = new HttpRequestMessage(HttpMethod.Get, "/leer-dos-pasos");
+        lectura.Headers.Add("Cookie", dosPasos!.Split(';')[0]);
+        using var leida = await cliente.SendAsync(lectura);
+        (await leida.Content.ReadAsStringAsync()).Should().Be(totp ? "vinculo" : "alta");
+        vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.SegundoFactorRequerido]);
         await app.StopAsync();
     }
 
@@ -389,15 +497,59 @@ public class InicioSesionMicrosoftTests
         InicioSesionMicrosoft.DecidirSegundoFactor(mfa, totp, vinculoNuevo: false).Should().Be(esperado);
     }
 
+    // Decisión de 2026-10-28 (ASVS 4.0.3 V2.1): la primera vinculación exige siempre el TOTP
+    // de TALVEG y nunca hay sesión directa. Sin TOTP, el alta exige la MFA de Microsoft.
     [Theory]
     [InlineData(true, true, SegundoFactorMicrosoft.PedirTotp)]
     [InlineData(false, true, SegundoFactorMicrosoft.PedirTotp)]
-    [InlineData(true, false, SegundoFactorMicrosoft.SesionDirecta)]
+    [InlineData(true, false, SegundoFactorMicrosoft.DarDeAltaTotp)]
     [InlineData(false, false, SegundoFactorMicrosoft.RechazarSinSegundoFactor)]
-    public void Un_vinculo_nuevo_a_una_cuenta_con_TOTP_pasa_por_el_TOTP_aunque_haya_MFA_de_Microsoft(
+    public void La_primera_vinculacion_exige_siempre_el_TOTP_de_TALVEG_y_sin_el_lo_da_de_alta(
         bool mfa, bool totp, SegundoFactorMicrosoft esperado)
     {
         InicioSesionMicrosoft.DecidirSegundoFactor(mfa, totp, vinculoNuevo: true).Should().Be(esperado);
+    }
+
+    [Fact]
+    public void Solo_el_desafio_con_reautenticacion_lleva_la_marca_que_abre_el_alta()
+    {
+        var conReautenticacion = InicioSesionMicrosoft.PropiedadesDesafio("/documentos", reautenticar: true);
+        conReautenticacion.Should().BeOfType<Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectChallengeProperties>()
+            .Which.Prompt.Should().Be(OpenIdConnectPrompt.Login);
+        InicioSesionMicrosoft.VieneDeReautenticacion(conReautenticacion).Should().BeTrue();
+        conReautenticacion.RedirectUri.Should().Be("/cuenta/microsoft-callback?returnUrl=%2Fdocumentos");
+
+        var sin = InicioSesionMicrosoft.PropiedadesDesafio("/documentos", reautenticar: false);
+        InicioSesionMicrosoft.VieneDeReautenticacion(sin).Should().BeFalse();
+        sin.Items.Should().NotContainKey(InicioSesionMicrosoft.ItemReautenticacion);
+        InicioSesionMicrosoft.VieneDeReautenticacion(null).Should().BeFalse();
+
+        var otroValor = new AuthenticationProperties();
+        otroValor.Items[InicioSesionMicrosoft.ItemReautenticacion] = "0";
+        InicioSesionMicrosoft.VieneDeReautenticacion(otroValor).Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_marca_del_alta_solo_viaja_con_un_vinculo_pendiente_de_Microsoft()
+    {
+        var id = Guid.NewGuid();
+        var vinculo = new UserLoginInfo(IdentityEndpointsExtensions.EsquemaMicrosoft, "sub-1", "Microsoft");
+
+        InicioSesionMicrosoft.AltaTotpPendiente(InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(id, vinculo, altaTotp: true))
+            .Should().BeTrue();
+        InicioSesionMicrosoft.AltaTotpPendiente(InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(id, vinculo))
+            .Should().BeFalse("una cuenta con TOTP solo lo verifica");
+        InicioSesionMicrosoft.AltaTotpPendiente(null).Should().BeFalse();
+
+        var sinVinculo = () => InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(id, null, altaTotp: true);
+        sinVinculo.Should().Throw<ArgumentException>("el alta previa solo existe en una primera vinculación");
+
+        // La cookie de dos pasos del inicio con contraseña no es de Microsoft: la marca no cuenta.
+        var identidad = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
+        identidad.AddClaim(new Claim(ClaimTypes.Name, id.ToString()));
+        identidad.AddClaim(new Claim(InicioSesionMicrosoft.TipoClaimVinculoPendiente, "sub-1"));
+        identidad.AddClaim(new Claim(InicioSesionMicrosoft.TipoClaimAltaTotpPendiente, "1"));
+        InicioSesionMicrosoft.AltaTotpPendiente(new ClaimsPrincipal(identidad)).Should().BeFalse();
     }
 
     [Fact]
@@ -583,7 +735,9 @@ public class InicioSesionMicrosoftTests
 
         public override Task<ApplicationUser?> FindByEmailAsync(string email) => Task.FromResult(CuentaPorCorreo);
 
-        public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(false);
+        public bool TotpActivado { get; init; }
+
+        public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(TotpActivado);
 
         public override Task<IdentityResult> AddLoginAsync(ApplicationUser user, UserLoginInfo login)
         {

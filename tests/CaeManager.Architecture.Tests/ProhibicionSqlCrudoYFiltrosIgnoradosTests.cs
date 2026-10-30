@@ -443,6 +443,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
+        // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,
+        // que el runtime no puede ejecutar). Mismo régimen que el de cartera: no lee ni
+        // escribe filas, va parametrizado y exige transacción abierta.
+        [("src/CaeManager.Infrastructure/Persistence/AdministradoresDelTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+
         // ASVS V2.8.4: el último paso TOTP aceptado de la cuenta se guarda con una comparación e
         // intercambio atómica (INSERT … ON CONFLICT DO UPDATE … WHERE valor = el leído), para que dos
         // envíos simultáneos del mismo código o dos réplicas no lo acepten los dos. EF Core no tiene
