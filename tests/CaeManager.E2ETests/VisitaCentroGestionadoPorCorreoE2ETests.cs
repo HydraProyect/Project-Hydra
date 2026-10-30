@@ -148,9 +148,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
         await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
         await enlaceFicha.ClickAsync();
-        await page.WaitForURLAsync(
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        await Assertions.Expect(page).ToHaveURLAsync(
             new System.Text.RegularExpressions.Regex(@"/trabajadores/[0-9a-fA-F-]{36}(\?.*)?$"),
-            new PageWaitForURLOptions { Timeout = 15_000 });
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
 
         // En la ficha, pestaña Centros: el Centro llega plegado; se despliega y se pulsa el «Gestionar» del
         // documento que falta, que abre «Nuevo documento» con el Trabajador y el tipo ya elegidos.

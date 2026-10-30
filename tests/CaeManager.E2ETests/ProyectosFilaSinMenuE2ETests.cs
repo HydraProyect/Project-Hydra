@@ -154,7 +154,8 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await panel.Locator("button.cerrar-panel-proyecto").ClickAsync();
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(PaginaProyecto);
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(PaginaProyecto, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
     }
 

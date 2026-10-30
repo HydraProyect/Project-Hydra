@@ -89,7 +89,8 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await Expect(panel).ToHaveCountAsync(0);
         await page.Locator("table tbody tr.fila-pulsable").First.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/documentos/tipos/[0-9a-f-]{36}$"));
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(new Regex(@"/documentos/tipos/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator("h1")).Not.ToHaveCountAsync(0);
     }
 
