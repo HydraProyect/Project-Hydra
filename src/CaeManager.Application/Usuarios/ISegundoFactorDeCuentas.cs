@@ -77,8 +77,14 @@ public interface ISegundoFactorDeCuentas
 
 /// <param name="TenantId">Tenant propietario de la cuenta.</param>
 /// <param name="Activo">Si la verificación en dos pasos está activada.</param>
-/// <param name="CodigosRecuperacionRestantes">Códigos sin usar.</param>
-public record EstadoSegundoFactor(Guid TenantId, bool Activo, int CodigosRecuperacionRestantes);
+/// <remarks>
+/// Sin el recuento de códigos de recuperación a propósito: ese dato vive en
+/// <c>AspNetUserTokens</c>, y el estado también se lee desde una Sesión Privilegiada
+/// (restablecimiento por Soporte TALVEG), cuya conexión lleva <c>cae_app_soporte</c>,
+/// que no tiene ningún privilegio sobre esa tabla (migración
+/// <c>SoporteSinLecturaDeCredenciales</c>).
+/// </remarks>
+public record EstadoSegundoFactor(Guid TenantId, bool Activo);
 
 /// <param name="DosFactoresActivo">Si la verificación en dos pasos está activada:
 /// sin ella no hay nada que restablecer.</param>
