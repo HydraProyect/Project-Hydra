@@ -15,12 +15,12 @@ public class PresupuestoMemoriaDocumentosTests
 {
     private const long Maximo = 1000;
 
-    private static PresupuestoMemoriaDocumentos Crear(TimeSpan? espera = null) =>
+    private static PresupuestoMemoriaDocumentos Crear(TimeSpan? espera = null, TimeProvider? reloj = null) =>
         new(Options.Create(new OpcionesPresupuestoMemoriaDocumentos
         {
             MaximoBytes = Maximo,
             EsperaMaxima = espera ?? TimeSpan.FromSeconds(10)
-        }), TimeProvider.System);
+        }), reloj ?? TimeProvider.System);
 
     [Fact]
     public async Task Reservar_descuenta_y_desechar_devuelve_una_sola_vez()
@@ -108,15 +108,18 @@ public class PresupuestoMemoriaDocumentosTests
     [Fact]
     public async Task Al_vencer_la_primera_de_la_cola_se_conceden_las_que_esperaban_detras()
     {
-        // La pequeña llega bastante después: vence mucho más tarde que la grande, así
-        // que solo puede salir por la concesión que deja libre la grande al vencer.
-        var presupuesto = Crear(TimeSpan.FromMilliseconds(400));
+        // Reloj manual: solo vence la espera de la grande; la de la pequeña no vence
+        // nunca, así que solo puede salir por la concesión que deja libre la grande.
+        var reloj = new RelojManual();
+        var presupuesto = Crear(TimeSpan.FromSeconds(10), reloj);
         using var ocupado = await presupuesto.ReservarAsync(600);
 
         var grande = presupuesto.ReservarAsync(700).AsTask();
-        await Task.Delay(250);
         var pequena = presupuesto.ReservarAsync(100).AsTask();
+        reloj.Temporizadores.Should().Be(2, "control: cada espera arma su vencimiento");
         pequena.IsCompleted.Should().BeFalse("control: cabría, pero espera detrás de la grande");
+
+        reloj.Vencer(0);
 
         await grande.Awaiting(t => t).Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
         using var reservaPequena = await pequena.WaitAsync(TimeSpan.FromSeconds(5));
@@ -187,6 +190,57 @@ public class PresupuestoMemoriaDocumentosTests
             "con menos, una operación sobre un archivo de 10 MiB esperaría a su propia reserva");
         new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.Zero }.SonValidas().Should().BeFalse();
         new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.FromHours(1) }.SonValidas().Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Reloj que no vence nada solo: cada espera acotada registra su temporizador y el
+    /// test decide cuál vence, sin depender de lo rápido que vaya la máquina.
+    /// </summary>
+    private sealed class RelojManual : TimeProvider
+    {
+        private readonly List<Temporizador> _temporizadores = [];
+
+        public int Temporizadores
+        {
+            get { lock (_temporizadores) return _temporizadores.Count; }
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var temporizador = new Temporizador(callback, state);
+            lock (_temporizadores)
+                _temporizadores.Add(temporizador);
+            return temporizador;
+        }
+
+        public void Vencer(int indice)
+        {
+            Temporizador temporizador;
+            lock (_temporizadores)
+                temporizador = _temporizadores[indice];
+            temporizador.Disparar();
+        }
+
+        private sealed class Temporizador(TimerCallback callback, object? state) : ITimer
+        {
+            private int _desechado;
+
+            public void Disparar()
+            {
+                if (Volatile.Read(ref _desechado) == 0)
+                    callback(state);
+            }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+            public void Dispose() => Interlocked.Exchange(ref _desechado, 1);
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     private static void InterlockedMax(ref long objetivo, long valor)
