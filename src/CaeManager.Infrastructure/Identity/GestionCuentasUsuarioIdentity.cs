@@ -256,7 +256,7 @@ public class GestionCuentasUsuarioIdentity(
     /// </summary>
     private async Task RotarSelloSiPuedeTenerSesionAsync(ApplicationUser usuario)
     {
-        if (true || !await EsPendienteAsync(usuario))
+        if (!await EsPendienteAsync(usuario))
             usuario.RotarSelloDeSeguridad();
     }
 
