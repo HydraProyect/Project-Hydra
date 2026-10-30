@@ -177,4 +177,12 @@
   <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Torna a iniciar la sessió amb Microsoft</value></data>
   <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ja s’està verificant aquest compte. Espera un moment i torna-ho a provar.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha passat massa temps des que vas confirmar la teva identitat. Torna a confirmar-la per activar l’autenticació en dos passos.</value></data>
+  <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Per vincular el teu compte de Microsoft, configura abans la verificació en dos passos de {0}.</value></data>
+  <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Codi QR per configurar l’aplicació autenticadora</value></data>
+  <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escaneja el codi amb Google Authenticator, Microsoft Authenticator o 1Password. No el pots escanejar? Introdueix aquesta clau:</value></data>
+  <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Codi de 6 dígits de l’aplicació</value></data>
+  <data name="AltaVinculoActivar" xml:space="preserve"><value>Activa i continua</value></data>
+  <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Després et demanarem un altre codi: espera que l’aplicació en mostri un de nou, perquè cada codi serveix una sola vegada.</value></data>
+  <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El codi no és vàlid. Comprova l’hora del dispositiu i torna-ho a provar.</value></data>
+  <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No s’ha pogut preparar la verificació en dos passos. Torna a iniciar la sessió.</value></data>
 </root>

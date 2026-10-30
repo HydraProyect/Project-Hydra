@@ -37,11 +37,11 @@ public class InicioSesionMicrosoftNoCreaCuentasTests
     }
 
     /// <summary>
-    /// Vínculo tras el segundo factor (D-2): el callback guarda el vínculo directo una
-    /// sola vez y después de desviar al TOTP, y <c>LoginCon2fa</c> guarda el pendiente
-    /// en sus dos caminos de éxito (código de la aplicación y de recuperación). Las
-    /// pruebas de <c>DecidirSegundoFactor</c> no verían un vínculo movido antes del
-    /// desvío ni una página que dejara de completarlo.
+    /// Vínculo tras el TOTP de TALVEG (decisión de 2026-10-28): el callback nunca guarda
+    /// el vínculo —la primera vinculación siempre sale hacia el TOTP— y <c>LoginCon2fa</c>
+    /// guarda el pendiente en sus dos caminos de éxito (código de la aplicación y de
+    /// recuperación). Las pruebas de <c>DecidirSegundoFactor</c> no verían un vínculo
+    /// directo que volviera al callback ni una página que dejara de completarlo.
     /// </summary>
     [Fact]
     public void El_vinculo_se_guarda_solo_tras_el_segundo_factor()
@@ -54,19 +54,32 @@ public class InicioSesionMicrosoftNoCreaCuentasTests
             "el vínculo nuevo es exactamente el de la decisión de vincular por correo");
         sinEspacios.Should().MatchRegex(@"DecidirSegundoFactor\([^;]*,vinculoNuevo\);",
             "la decisión del segundo factor recibe si el vínculo es nuevo");
-        callback.Should().Contain("PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null)",
+        callback.Should().Contain("PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null, altaTotp)",
             "el desvío al TOTP de un vínculo nuevo deja la identidad pendiente en la cookie de dos pasos");
 
-        sinEspacios.Split("AddLoginAsync(").Length.Should().Be(2, "el callback guarda un único vínculo directo");
+        sinEspacios.Should().NotContain("AddLoginAsync(", "el callback no guarda vínculos: la primera vinculación pasa siempre por el TOTP");
         sinEspacios.Should().NotContain("CompletarVinculoPendienteAsync(",
             "el vínculo que espera al TOTP lo guarda solo LoginCon2fa, nunca el callback");
-        callback.IndexOf("AddLoginAsync(", StringComparison.Ordinal).Should().BeGreaterThan(
-            callback.IndexOf("return Results.LocalRedirect(verificacion);", StringComparison.Ordinal),
-            "el vínculo directo va después de salir hacia el TOTP, nunca dentro de ese desvío");
-        callback.IndexOf("return Results.LocalRedirect(verificacion);", StringComparison.Ordinal).Should().BeGreaterThan(0);
+        var desvio = callback.IndexOf("return Results.LocalRedirect(verificacion);", StringComparison.Ordinal);
+        desvio.Should().BeGreaterThan(0);
+        var sesionDirecta = callback.IndexOf("SignInWithClaimsAsync(", StringComparison.Ordinal);
+        sesionDirecta.Should().BeGreaterThan(desvio, "la sesión directa va después de salir hacia el TOTP");
+        SinEspacios(callback[desvio..sesionDirecta]).Should().Contain(
+            "if(vinculoNuevo){awaitsignInManager.SignOutAsync();returnResults.LocalRedirect(",
+            "un vínculo nuevo nunca llega a la sesión directa");
 
         var pagina = LimpiadorDeComentarios.Quitar(
             File.ReadAllText(Absoluta("src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor")), razor: true);
+
+        // Sin TOTP activado no se verifica nada: TwoFactorAuthenticatorSignInAsync no lo
+        // mira, y un código de la clave del alta vincularía sin activar el TOTP.
+        var sinPagina = SinEspacios(pagina);
+        sinPagina.Should().Contain("if(Entradaisnull||_usuarioPendienteisnull||_altaTotp)return;",
+            "el código de la aplicación no se verifica durante el alta");
+        sinPagina.Should().Contain("if(EntradaRecuperacionisnull||_usuarioPendienteisnull||_altaTotp)return;",
+            "el código de recuperación no se verifica durante el alta");
+        sinPagina.Should().Contain("elseif(!awaitSignInManager.UserManager.GetTwoFactorEnabledAsync(_usuarioPendiente))",
+            "la inicialización mira si el TOTP está activado antes de enseñar la verificación");
 
         var llamadas = Posiciones(pagina, "await CompletarVinculoPendienteAsync(");
         llamadas.Should().HaveCount(2,
