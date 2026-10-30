@@ -2375,6 +2375,28 @@ public partial class UsuariosGen2Tests : BunitContext
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
             (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true), RolesIdentidad.GestorCae));
 
+    /// <summary>
+    /// Espejo de presentación de <c>VerificarActivacionDeCuentaAdministradorAsync</c>: el servidor
+    /// lo rechazaría al pulsar. Con la cuenta pendiente de otro rol la misma Dirección CAE sí los ve.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_no_ve_reenviar_ni_corregir_en_un_Administrador_sin_activar()
+    {
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez", pendienteActivacion: true), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true), RolesIdentidad.GestorCae));
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+
+        await AbrirMenuAsync(cut, "marta.r@talveg.es");
+        Fila(cut, "marta.r@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().NotContain(["Reenviar correo de activación", "Corregir correo"]);
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().Contain(["Reenviar correo de activación", "Corregir correo"]);
+    }
+
     [Fact]
     public async Task Corregir_correo_solo_se_ofrece_para_una_cuenta_pendiente_de_activacion()
     {
