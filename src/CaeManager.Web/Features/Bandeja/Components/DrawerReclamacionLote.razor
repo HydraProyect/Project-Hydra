@@ -26,6 +26,7 @@
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject Microsoft.Extensions.Logging.ILogger<DrawerReclamacionLote> Logger
 
 <DrawerFormulario HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote"
                   Guardando="_enviando" MostrarGuardar="@(_paso == Paso.Seleccion)" TextoGuardar="Continuar" TextoCancelar="Cancelar"
@@ -386,9 +387,10 @@
             _fueraVentana = ids.Count(id => !cubiertos.Contains(id) && !ajenos.Contains(id));
             PrepararRevision();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _paso = Paso.Error;
+            Logger.LogError(ex, "El drawer de reclamación en lote no pudo preparar los lotes.");
         }
     }
 

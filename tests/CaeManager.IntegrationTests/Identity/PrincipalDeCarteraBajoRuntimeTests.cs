@@ -491,7 +491,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             return new CambiarActivacionUsuarioCommandHandler(
                     cuentas, usuario, sp.GetRequiredService<ITenantActual>(),
                     new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
-                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio)
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio,
+                    new AdministradoresDelTenant(contexto, directorio))
                 .Handle(new CambiarActivacionUsuarioCommand(_gestorA, Activar: false), CancellationToken.None);
         });
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
