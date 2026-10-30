@@ -123,10 +123,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         AND s."InicioEnUtc" <= v_ahora
                         AND s."ExpiraEnUtc" > v_ahora
                         AND c."UsuarioPlataformaId" = v_actor
+                        AND c."Capacidad" = 'ConcesionAdministrador'
                         AND c."Estado" = 'Vigente'
+                        AND c."EsAlcanceGlobal" = false
                         AND c."VigenciaDesde" <= v_ahora
                         AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora)
                         AND c."ConcedidaPorUsuarioId" IS NOT NULL
+                        AND c."ConcedidaPorUsuarioId" <> c."UsuarioPlataformaId"
                         AND EXISTS (
                             SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
                             WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant))
@@ -140,6 +143,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                       SELECT 1 FROM public."AspNetUsers" a
                       JOIN public."Tenants" tp ON tp."Id" = a."TenantId"
                       WHERE a."Id" = v_actor AND tp."EsPlataforma")
+                    OR EXISTS (
+                      SELECT 1 FROM public."Tenants" t WHERE t."Id" = v_tenant AND t."EsPlataforma")
                   THEN
                     RETURN 'sesion_no_autorizada';
                   END IF;
@@ -150,6 +155,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   PERFORM 1
                   FROM public."AspNetUsers" u
                   WHERE u."Id" = p_usuario
+                    AND u."TenantId" = v_tenant
+                    AND (u."LockoutEnd" IS NULL OR u."LockoutEnd" <= v_ahora + interval '365 days')
                   FOR UPDATE;
                   IF NOT FOUND THEN
                     RETURN 'cuenta_no_encontrada';
@@ -157,12 +164,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                   -- Fila y luego candado, como app_serializar_alta_de_administrador, y los roles
                   -- se leen ya bajo él.
+                  PERFORM public.app_bloquear_administradores_de_tenant(v_tenant);
 
                   -- La espera puede ser larga: lo que se cerró, revocó o caducó mientras tanto ya
                   -- no ampara el acto. Sin FOR SHARE: con FORCE RLS exigiría además las políticas de
                   -- UPDATE de estas tablas. Cada sentencia ve aquí lo confirmado hasta ese momento.
                   v_ahora := clock_timestamp();
-                  IF false AND NOT EXISTS (
+                  IF NOT EXISTS (
                       SELECT 1
                       FROM public."SesionesPrivilegiadas" s
                       JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
@@ -196,6 +204,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   -- Con la fila ya tomada y una lectura nueva, para ver un acceso externo que se
                   -- enlazó mientras se esperaba.
                   SELECT (u."PasswordHash" IS NOT NULL AND u."PasswordHash" <> '')
+                         OR EXISTS (SELECT 1 FROM public."AspNetUserLogins" l WHERE l."UserId" = u."Id")
                     INTO v_puede_tener_sesion
                   FROM public."AspNetUsers" u
                   WHERE u."Id" = p_usuario;
@@ -210,7 +219,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   UPDATE public."AspNetUsers"
                   SET "CoordinadorUsuarioId" = NULL,
                       "ClienteId" = NULL,
-                      "SecurityStamp" = CASE WHEN true
+                      "SecurityStamp" = CASE WHEN v_puede_tener_sesion
                         THEN upper(replace(gen_random_uuid()::text, '-', '')) ELSE "SecurityStamp" END,
                       "ConcurrencyStamp" = gen_random_uuid()::text
                   WHERE "Id" = p_usuario;
