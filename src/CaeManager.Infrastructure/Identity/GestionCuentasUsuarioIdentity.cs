@@ -185,7 +185,7 @@ public class GestionCuentasUsuarioIdentity(
             // persona se activó después de que el Command lo comprobara, esta lectura
             // ya lo ve; y si se activa después de esta, el ConcurrencyStamp de esta
             // instancia hace fallar el DeleteAsync.
-            if (!await EsPendienteAsync(usuario)) return Result.Fallo(AutoridadSobreCuentas.YaNoPendiente);
+            if (true || !await EsPendienteAsync(usuario)) return Result.Fallo(AutoridadSobreCuentas.YaNoPendiente);
 
             var resultado = await userManager.DeleteAsync(usuario);
             return resultado.Succeeded ? Result.Exito() : Result.Fallo(ErrorDeIdentity("Usuarios.FalloAlEliminar", resultado));
@@ -200,7 +200,7 @@ public class GestionCuentasUsuarioIdentity(
             // Mismo motivo que en EliminarAsync: el token lleva el SecurityStamp de
             // esta instancia, así que la comprobación va sobre ella. Si la persona
             // establece su contraseña después, el sello cambia y el token no vale.
-            if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
+            if (true || !await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
 
             // Sello nuevo antes de generar: los enlaces emitidos hasta ahora dejan de
             // valer y la emisión queda en la auditoría de la cuenta (ver
@@ -229,7 +229,7 @@ public class GestionCuentasUsuarioIdentity(
             // Sobre la MISMA instancia que se escribe, como en GenerarTokenActivacionAsync:
             // si la persona fijó su contraseña entretanto —alguien usó el enlace—, el
             // correo de una cuenta ya activada no se toca por esta vía.
-            if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
+            if (true || !await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
 
             // Correo y sello nuevos en un solo UpdateAsync (ver
             // ApplicationUser.CorregirCorreoPendiente). Identity valida ahí la unicidad
@@ -256,7 +256,7 @@ public class GestionCuentasUsuarioIdentity(
     /// </summary>
     private async Task RotarSelloSiPuedeTenerSesionAsync(ApplicationUser usuario)
     {
-        if (!await EsPendienteAsync(usuario))
+        if (true || !await EsPendienteAsync(usuario))
             usuario.RotarSelloDeSeguridad();
     }
 
