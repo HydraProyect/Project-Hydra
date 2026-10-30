@@ -438,8 +438,8 @@ builder.Services.AddAuthorization(options =>
         .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
 
-    // Lo que sirve tanto a una pestaña de Hydra como a la extensión: la
-    // descarga del PDF de un Documento. Ambos esquemas explícitos porque el
+    // Lo que sirve tanto a una pestaña de Hydra como a la extensión: la lista
+    // de acreditaciones y «Lo he enviado». Ambos esquemas explícitos porque el
     // FallbackPolicy no fija ninguno y aceptaría solo el de por defecto.
     //
     // Extension va PRIMERO a propósito. Cuando una política nombra varios
@@ -451,6 +451,11 @@ builder.Services.AddAuthorization(options =>
         .AddAuthenticationSchemes(
             ExtensionAuthenticationSchemeOptions.NombreEsquema,
             IdentityConstants.ApplicationScheme)
+        .RequireAuthenticatedUser());
+
+    // La entrega del archivo a la extensión: solo su token, nunca la cookie.
+    options.AddPolicy(Policies.SoloExtension, policy => policy
+        .AddAuthenticationSchemes(ExtensionAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
 
     // DEC-36 (REC-099): "Administrador del Tenant propietario, mediante
@@ -474,11 +479,17 @@ var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPor
 // Nunca por debajo del cupo por clave: un techo menor haría inalcanzable el cupo de una sola clave.
 var rateLimitPorMinutoPorIp = Math.Max(
     builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 3000), rateLimitPorMinuto);
+// La entrega de archivos a la extensión: 30 peticiones al minuto son 15 documentos,
+// más de lo que una persona pone a mano en un formulario de una plataforma CAE.
+var rateLimitEntregaExtensionPorMinuto = builder.Configuration.GetValue("RateLimiting:Extension:LimitePorMinuto", 30);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy(LimitadorApiPublica.Politica, httpContext =>
         LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto));
+    options.AddPolicy(LimitadorEntregaExtension.Politica, httpContext =>
+        LimitadorEntregaExtension.ParticionPorUsuario(httpContext, rateLimitEntregaExtensionPorMinuto,
+            httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
 });
 
 // Los enums viajan por JSON como CADENA, no como número. Sin esto salían
@@ -1424,6 +1435,7 @@ app.MapSesionSoporteEndpoints();
 app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
+app.MapEntregaArchivoExtensionEndpoints();
 app.MapVistaVocabularioPreviewEndpoints();
 app.MapVistaDemoEndpoints();
 app.MapConectarMicrosoft365Endpoints();

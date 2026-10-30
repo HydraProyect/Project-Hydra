@@ -23,8 +23,9 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtensi
 /// Mismo alcance que «Marcar subido» (<see cref="AcreditacionSubible"/>: el Centro del canal tiene que estar entre los
 /// que gestiona quien pide y el Documento en su cartera; lo demás sale como «no encontrada») y la misma regla de la
 /// rechazada sin versión nueva. Además exige
-/// el proveedor activo (MVP2 § 14.5, kill switch remoto): la extensión ya lo comprueba antes de poner el archivo, y esta
-/// es la segunda línea, para que TALVEG nunca anote una subida por un conector que se apagó entre medias.
+/// el proveedor activo (MVP2 § 14.5, kill switch remoto): el servidor ya lo comprobó antes de entregar el archivo
+/// (<c>PrepararEntregaArchivoExtensionQuery</c>), y esta es la segunda línea, para que TALVEG nunca anote una subida por
+/// un conector que se apagó entre medias.
 /// </para>
 ///
 /// <para>
@@ -87,7 +88,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
         if (!ReglaSubidaAcreditacion.PermiteSubir(acreditacion))
             return Result.Fallo<CambioEstadoAnotadoDto>(AcreditacionSubible.RechazadaSinVersionNueva);
 
-        if (!await ProveedorActivoAsync(acreditacion.CanalGestionDocumentalId, cancellationToken))
+        if (!await PortalDelCanalAcreditacion.ProveedorActivoAsync(
+                acreditacion.CanalGestionDocumentalId, centrosContext, proveedoresContext, cancellationToken))
             return Result.Fallo<CambioEstadoAnotadoDto>(Error.Crear(
                 CodigoConectorInactivo, "Este conector está desactivado temporalmente."));
 
@@ -96,7 +98,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
             return Result.Fallo<CambioEstadoAnotadoDto>(Error.Crear(
                 CodigoPortalNoDeclarado, "La extensión no indicó en qué portal puso el documento. Actualiza la extensión e inténtalo de nuevo."));
 
-        if (!await PortalEsDelProveedorAsync(acreditacion.CanalGestionDocumentalId, host, cancellationToken))
+        if (!await PortalDelCanalAcreditacion.HostEsDelProveedorAsync(
+                acreditacion.CanalGestionDocumentalId, host, centrosContext, proveedoresContext, cancellationToken))
             return Result.Fallo<CambioEstadoAnotadoDto>(Error.Crear(
                 CodigoPortalAjeno, await MensajePortalAjenoAsync(acreditacion.CanalGestionDocumentalId, cancellationToken)));
 
@@ -108,61 +111,18 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
         return Result.Exito(new CambioEstadoAnotadoDto(cambio.Id, acreditacion.Version));
     }
 
-    private async Task<bool> PortalEsDelProveedorAsync(Guid canalGestionDocumentalId, string host, CancellationToken cancellationToken)
-    {
-        var proveedorId = await centrosContext.CanalesGestionDocumental
-            .Where(c => c.Id == canalGestionDocumentalId)
-            .Select(c => c.ProveedorPlataformaCaeId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (proveedorId is null) return false; // sin Proveedor no hay dominios con los que comparar
-
-        var dominios = await proveedoresContext.DominiosProveedorPlataformaCae
-            .Where(d => d.ProveedorPlataformaCaeId == proveedorId.Value)
-            .Select(d => d.Dominio)
-            .ToListAsync(cancellationToken);
-
-        return dominios.Any(dominio => ResolucionProveedorPlataformaCaeService.CoincideHost(host, dominio));
-    }
-
     /// <summary>
-    /// El detalle que ve la persona al anotar en un portal que no es el de su documento. Nombra la Plataforma CAE
-    /// correcta solo con el nombre del catálogo global (<c>ProveedorPlataformaCae</c>): nada de la acreditación,
-    /// del Trabajador ni del Tenant. Sin Proveedor de catálogo en el canal no hay nombre que dar y sale el genérico.
+    /// El detalle que ve la persona al anotar en un portal que no es el de su documento. Sin nombre del Proveedor en el
+    /// catálogo sale el genérico.
     /// </summary>
     private async Task<string> MensajePortalAjenoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
     {
-        const string generico = "Este documento es de otra Plataforma CAE: no se puede anotar como enviado en este portal.";
+        var nombre = await PortalDelCanalAcreditacion.NombreProveedorAsync(
+            canalGestionDocumentalId, centrosContext, proveedoresContext, cancellationToken);
 
-        var proveedorId = await centrosContext.CanalesGestionDocumental
-            .Where(c => c.Id == canalGestionDocumentalId)
-            .Select(c => c.ProveedorPlataformaCaeId)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (proveedorId is null) return generico;
-
-        var nombre = await proveedoresContext.ProveedoresPlataformaCae
-            .Where(p => p.Id == proveedorId.Value)
-            .Select(p => p.Nombre)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        return string.IsNullOrWhiteSpace(nombre)
-            ? generico
+        return nombre is null
+            ? "Este documento es de otra Plataforma CAE: no se puede anotar como enviado en este portal."
             : $"Este documento es de otra Plataforma CAE: debe subirse en la Plataforma CAE {nombre}, no se puede anotar como enviado en este portal.";
-    }
-
-    private async Task<bool> ProveedorActivoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
-    {
-        var proveedorId = await centrosContext.CanalesGestionDocumental
-            .Where(c => c.Id == canalGestionDocumentalId)
-            .Select(c => c.ProveedorPlataformaCaeId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (proveedorId is null) return true; // sin proveedor de catálogo, nada que apagar
-
-        return await proveedoresContext.ProveedoresPlataformaCae
-            .Where(p => p.Id == proveedorId.Value)
-            .Select(p => p.Activo)
-            .SingleOrDefaultAsync(cancellationToken);
     }
 }
 

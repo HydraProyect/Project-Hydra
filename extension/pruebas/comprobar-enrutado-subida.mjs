@@ -75,11 +75,24 @@ let dominiosDelProveedor = ["nalandaglobal.com"];
 let solapadosDelProveedor = [];
 let estadoDeLaSubida = 200;
 let problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
-const llamadas = []; // {url, metodo, cuerpo}
+let estadoDeLaEntrega = 200;
+let estadoDelArchivo = 200;
+let problemaDeLaEntrega = { detail: "Este conector está desactivado temporalmente." };
+const llamadas = []; // {url, metodo, cuerpo, ticket, credenciales}
 const CAMBIO = "33333333-3333-3333-3333-333333333333";
 const VERSION = "44444444-4444-4444-4444-444444444444";
 globalThis.fetch = async (url, opciones = {}) => {
-  llamadas.push({ url: String(url), metodo: opciones.method ?? "GET", cuerpo: opciones.body });
+  llamadas.push({
+    url: String(url), metodo: opciones.method ?? "GET", cuerpo: opciones.body,
+    ticket: opciones.headers?.["X-Ticket-Entrega"], credenciales: opciones.credentials,
+  });
+  if (String(url).endsWith("/entrega"))
+    return {
+      ok: estadoDeLaEntrega < 300, status: estadoDeLaEntrega, type: "basic",
+      json: async () => estadoDeLaEntrega < 300 ? { ticket: "ticket-del-arnes", expiraEnUtc: "2026-10-30T10:00:00Z" } : problemaDeLaEntrega,
+    };
+  if (String(url).endsWith("/archivo") && estadoDelArchivo >= 300)
+    return { ok: false, status: estadoDelArchivo, type: "basic", json: async () => problemaDeLaEntrega };
   if (String(url).endsWith("/subida/deshacer"))
     return { ok: true, status: 204, type: "basic", json: async () => { throw new Error("sin cuerpo"); } };
   if (String(url).endsWith("/subida"))
@@ -239,6 +252,53 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
   const sinLista = await pedirSubida({ tab: { id: 7 } });
   comprobar("no coloca el fichero si no se puede releer la lista", sinLista?.ok === false && !entregas.some(e => e.accion === "inyectarArchivo"));
   listaFalla = false;
+}
+
+// --- Entrega del archivo: el servidor es la autoridad y el archivo sale por la Acreditación ----
+{
+  const ACREDITACION_ENTREGA = "22222222-2222-2222-2222-222222222222";
+  const pedidasDeArchivo = () => llamadas.filter((l) => l.url.endsWith("/archivo"));
+  const sinInyeccion = () => !entregas.some((e) => e.accion === "inyectarArchivo");
+
+  conectar(dentroDeOchoHoras);
+  entregas.length = 0; llamadas.length = 0;
+  const bien = await pedirSubida({ tab: { id: 7 } });
+  const posts = llamadas.filter((l) => l.url.endsWith("/entrega"));
+  comprobar("pide el ticket con el host de la pestaña", bien?.ok === true && posts.length === 1
+    && posts[0].url.endsWith(`/extension/acreditaciones/${ACREDITACION_ENTREGA}/entrega`)
+    && JSON.parse(posts[0].cuerpo).dominioPortal === "app.nalandaglobal.com", JSON.stringify(posts));
+  comprobar("y recoge el archivo con ese ticket y sin cookies", pedidasDeArchivo().length === 1
+    && pedidasDeArchivo()[0].ticket === "ticket-del-arnes" && pedidasDeArchivo()[0].credenciales === "omit");
+  comprobar("nunca por la ruta de Documento", !llamadas.some((l) => l.url.includes("/documentos/")));
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION_ENTREGA });
+
+  entregas.length = 0; llamadas.length = 0;
+  estadoDeLaEntrega = 409;
+  const apagado = await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaEntrega = 200;
+  comprobar("un 409 de la entrega muestra el detalle y no pide el archivo ni lo inyecta",
+    apagado?.ok === false && apagado.error.includes("desactivado") && pedidasDeArchivo().length === 0 && sinInyeccion(), JSON.stringify(apagado));
+
+  entregas.length = 0; llamadas.length = 0;
+  estadoDeLaEntrega = 429;
+  const deprisa = await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaEntrega = 200;
+  comprobar("un 429 pide esperar, sin desconectar", deprisa?.ok === false && deprisa.error.includes("Espera un minuto") && Boolean(almacen.token) && sinInyeccion());
+
+  entregas.length = 0; llamadas.length = 0;
+  estadoDelArchivo = 404;
+  problemaDeLaEntrega = null;
+  const caducado = await pedirSubida({ tab: { id: 7 } });
+  estadoDelArchivo = 200;
+  problemaDeLaEntrega = { detail: "Este conector está desactivado temporalmente." };
+  comprobar("un fallo al recoger el archivo no inyecta nada", caducado?.ok === false && sinInyeccion(), JSON.stringify(caducado));
+
+  // La lista obsoleta se resuelve antes de sacar el archivo de TALVEG.
+  entregas.length = 0; llamadas.length = 0;
+  subible = false;
+  await pedirSubida({ tab: { id: 7 } });
+  subible = true;
+  comprobar("lo que ya no se puede subir ni siquiera pide ticket", !llamadas.some((l) => l.url.endsWith("/entrega")));
 }
 
 // --- «Lo he enviado» (E1, D-4): poner el archivo NO anota nada en TALVEG ----

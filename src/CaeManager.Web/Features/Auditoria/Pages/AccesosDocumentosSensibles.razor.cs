@@ -5,9 +5,11 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Auditoria.Pages;
 
@@ -30,6 +32,7 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
 
     /// <summary>
     /// Identity no encuentra el Id. La RLS de AspNetUsers (P1-M1) deja ver en este
@@ -204,8 +207,13 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
         _ => TonoBadge.Neutro
     };
 
-    private static string TextoTipoAcceso(TipoAccesoDocumentoSensible tipo) =>
-        tipo == TipoAccesoDocumentoSensible.VersionAnterior ? "Versión anterior" : "Apertura";
+    private string TextoTipoAcceso(TipoAccesoDocumentoSensible tipo) =>
+        tipo switch
+        {
+            TipoAccesoDocumentoSensible.VersionAnterior => "Versión anterior",
+            TipoAccesoDocumentoSensible.EntregaExtension => Textos["TipoAccesoEntregaExtension"],
+            _ => "Apertura",
+        };
 
     /// <summary>«Sesión privilegiada» gana: es el único contexto en ámbar.</summary>
     private static string TextoContexto(AccesoDocumentoSensibleDto acceso) =>

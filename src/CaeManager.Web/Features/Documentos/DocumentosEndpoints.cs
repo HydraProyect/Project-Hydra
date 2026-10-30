@@ -11,6 +11,8 @@ using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Net.Http.Headers;
 
 namespace CaeManager.Web.Features.Documentos;
@@ -24,19 +26,13 @@ public static class DocumentosEndpoints
 {
     public static IEndpointRouteBuilder MapDocumentosEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        // Solo sesión interactiva: el iframe del visor y los enlaces «Ver PDF». La extensión de navegador
+        // no entra por aquí con su token: recibe el archivo por /extension/acreditaciones/{id}/archivo,
+        // ligado a una Acreditación pendiente, con límite de ritmo y kill switch comprobados en el servidor
+        // (EntregaArchivoExtensionEndpoints). ObtenerDocumentoPorIdQuery filtra por Tenant y por alcance de
+        // cartera con el rol real de quien pide.
         endpoints.MapGet("/documentos/{id:guid}/archivo", ServirArchivoAsync)
-        // Único endpoint que la extensión de navegador necesita de este
-        // fichero: sin el PDF no puede subir nada a la plataforma CAE, y
-        // obligar al gestor a descargarlo primero a su disco es justo la
-        // fricción que la extensión existe para quitar.
-        //
-        // La política NO relaja nada. ObtenerDocumentoPorIdQuery sigue
-        // filtrando por tenant y por alcance de cartera con el rol real de
-        // quien pide, que en el caso de la extensión es el del usuario que
-        // emitió el token, no un rol fijo. Y RegistrarSiSensibleAsync (DEC-36)
-        // sigue disparando: por primera vez con un actor de verdad detrás,
-        // cosa que una clave de API de tenant no habría podido dar.
-        .RequireAuthorization(Policies.SesionOExtension);
+            .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
 
         // Solo se enlaza desde /importacion (Importacion.razor: Roles = Administrador)
         // — mismo motivo que el RequireAuthorization de /clientes/plantilla.xlsx,
@@ -165,60 +161,12 @@ public static class DocumentosEndpoints
         IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
         CancellationToken cancellationToken)
     {
-        DocumentoDetalleDto? documento;
-        try
-        {
-            documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
-        }
-        catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
-        {
-            return ErroresLecturaSensible.Responder(contexto, ex, id,
-                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
-        }
-        if (documento?.ArchivoUrl is null)
-            return Results.NotFound();
+        var abierto = await AbrirConRegistroAsync(
+            id, TipoAccesoDocumentoSensible.Apertura, contexto, mediator, almacenamiento, registroAcceso, fabricaRegistro, cancellationToken);
+        if (abierto.Rechazo is not null)
+            return abierto.Rechazo;
 
-        CabecerasArchivoSensible.ProhibirCache(contexto);
-
-        // DEC-36 (REC-099): se abre primero y se registra después de que
-        // AbrirAsync confirme que el archivo existe — si el blob no
-        // estuviera (storage inconsistente), no queda un registro de un
-        // acceso que nunca entregó contenido (Codex, HO-099-01).
-        Stream flujo;
-        try
-        {
-            flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-        }
-        catch (FileNotFoundException)
-        {
-            // El Documento existe y dice tener adjunto, pero el almacén no lo tiene: 404, como los
-            // demás endpoints de contenido (AuditoriaEndpoints, LogoTenantEndpoints), y no la
-            // excepción sin controlar. A diferencia de ellos se avisa, porque aquí es una
-            // inconsistencia que alguien tiene que mirar. El aviso lleva el Id del Documento y no la
-            // excepción ni la clave del fichero: la ruta del almacén no sale ni en la respuesta ni
-            // en el registro.
-            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogWarning(
-                "El Documento {DocumentoId} tiene adjunto registrado pero su fichero no está en el almacén; se responde 404.",
-                documento.Id);
-            return Results.NotFound();
-        }
-
-        // Falla en cerrado: ningún rechazo ni fallo de registro entrega contenido.
-        try
-        {
-            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
-        }
-        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
-        {
-            await flujo.DisposeAsync();
-            return ErroresLecturaSensible.Responder(contexto, ex, documento.Id,
-                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
-        }
-        catch
-        {
-            await flujo.DisposeAsync();
-            throw;
-        }
+        var documento = abierto.Documento!;
 
         // Se muestra en el navegador, no se descarga: VisorDocumento lo incrusta en un <iframe> y los
         // enlaces «Ver PDF» lo abren en una pestaña. Pasar el nombre a Results.File como
@@ -248,7 +196,75 @@ public static class DocumentosEndpoints
         // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
         // lectura por rangos que sí lo haría exige un formato cifrado por
         // bloques, pendiente de decisión.
-        return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
+        return Results.File(abierto.Flujo!, "application/pdf", enableRangeProcessing: true);
+    }
+
+    /// <summary>
+    /// Lo que comparte todo lo que sirve el archivo vigente de un Documento (esta ruta y la entrega a la extensión):
+    /// lectura con alcance, apertura y registro de acceso. Devuelve el flujo abierto y el Documento, o la respuesta de
+    /// rechazo.
+    /// </summary>
+    internal static async Task<(Stream? Flujo, DocumentoDetalleDto? Documento, IResult? Rechazo)> AbrirConRegistroAsync(
+        Guid id, TipoAccesoDocumentoSensible tipoAcceso, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+        IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
+        CancellationToken cancellationToken)
+    {
+        DocumentoDetalleDto? documento;
+        try
+        {
+            documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
+        {
+            return (null, null, ErroresLecturaSensible.Responder(contexto, ex, id,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!)));
+        }
+        if (documento?.ArchivoUrl is null)
+            return (null, null, Results.NotFound());
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+
+        // DEC-36 (REC-099): se abre primero y se registra después de que
+        // AbrirAsync confirme que el archivo existe — si el blob no
+        // estuviera (storage inconsistente), no queda un registro de un
+        // acceso que nunca entregó contenido (Codex, HO-099-01).
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            // El Documento existe y dice tener adjunto, pero el almacén no lo tiene: 404, como los
+            // demás endpoints de contenido (AuditoriaEndpoints, LogoTenantEndpoints), y no la
+            // excepción sin controlar. A diferencia de ellos se avisa, porque aquí es una
+            // inconsistencia que alguien tiene que mirar. El aviso lleva el Id del Documento y no la
+            // excepción ni la clave del fichero: la ruta del almacén no sale ni en la respuesta ni
+            // en el registro.
+            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogWarning(
+                "El Documento {DocumentoId} tiene adjunto registrado pero su fichero no está en el almacén; se responde 404.",
+                documento.Id);
+            return (null, null, Results.NotFound());
+        }
+
+        // Falla en cerrado: ningún rechazo ni fallo de registro entrega contenido.
+        try
+        {
+            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, tipoAcceso, cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            await flujo.DisposeAsync();
+            return (null, null, ErroresLecturaSensible.Responder(contexto, ex, documento.Id,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!)));
+        }
+        catch
+        {
+            await flujo.DisposeAsync();
+            throw;
+        }
+
+        return (flujo, documento, null);
     }
 
 }
