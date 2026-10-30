@@ -16,16 +16,17 @@ public class LimitesImportacionTests
     [Fact]
     public async Task Semaforo_limita_espera_libera_y_respeta_cancelacion()
     {
+        var tenant = Guid.NewGuid();
         using var limitador = new LimitadorAnalisisImportacion(Options.Create(new OpcionesLimitesImportacion { AnalisisConcurrentes = 1, EsperaSegundos = 0 }));
-        var permiso = await limitador.IntentarEntrarAsync();
+        var permiso = await limitador.IntentarEntrarAsync(tenant);
         permiso.Should().NotBeNull();
-        (await limitador.IntentarEntrarAsync()).Should().BeNull();
+        (await limitador.IntentarEntrarAsync(tenant)).Should().BeNull();
         using var cancelado = new CancellationTokenSource();
         cancelado.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => limitador.IntentarEntrarAsync(cancelado.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => limitador.IntentarEntrarAsync(tenant, cancelado.Token));
         permiso!.Dispose();
         permiso.Dispose();
-        using var siguiente = await limitador.IntentarEntrarAsync();
+        using var siguiente = await limitador.IntentarEntrarAsync(tenant);
         siguiente.Should().NotBeNull();
     }
 
@@ -222,6 +223,8 @@ public class LimitesImportacionTests
     {
         new OpcionesLimitesImportacion().EsValida().Should().BeTrue();
         new OpcionesLimitesImportacion { AnalisisConcurrentes = 0 }.EsValida().Should().BeFalse();
+        new OpcionesLimitesImportacion { AnalisisConcurrentesPorTenant = 0 }.EsValida().Should().BeFalse();
+        new OpcionesLimitesImportacion { AnalisisConcurrentesPorTenant = 3 }.EsValida().Should().BeFalse();
         new OpcionesLimitesImportacion { EsperaSegundos = int.MaxValue }.EsValida().Should().BeFalse();
         new OpcionesLimitesImportacion { MaximoCeldasPorLibro = 0 }.EsValida().Should().BeFalse();
     }

@@ -565,6 +565,7 @@
     <value>Ver los documentos importados</value>
   </data>
   <data name="ErrorAnalisisOcupado" xml:space="preserve"><value>Hay demasiados análisis de importación en curso. Inténtalo de nuevo en unos momentos.</value></data>
+  <data name="ErrorAnalisisSinTenant" xml:space="preserve"><value>No se ha podido determinar con qué organización trabajas en esta sesión. Vuelve a iniciar sesión e inténtalo de nuevo.</value></data>
   <data name="ErrorLimiteFilas" xml:space="preserve"><value>El archivo supera el máximo de filas permitido por hoja.</value></data>
   <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El archivo supera el máximo de celdas permitido.</value></data>
 </root>

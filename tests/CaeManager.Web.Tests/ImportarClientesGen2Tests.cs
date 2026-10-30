@@ -125,6 +125,12 @@ public partial class ImportarClientesGen2Tests : BunitContext
         /// <summary>Si devuelve una tarea, la petición espera a que el test la complete y después se responde como siempre.</summary>
         public Func<object, Task?> Retener { get; set; } = _ => null;
 
+        /// <summary>
+        /// Lo retenido ignora el token, como un handler que no observa la cancelación a tiempo: la respuesta llega tarde
+        /// aunque el análisis se haya descartado, y es la guarda de versión la que impide pintarla.
+        /// </summary>
+        public bool RetenerIgnoraCancelacion { get; set; }
+
         public PlanImportacionDto Plan<TConsulta>(
             string contenido, IEnumerable<ClienteCentroImportadoDto> clientesCentros,
             IEnumerable<ItemImportacionDto>? omitidos = null, IEnumerable<EmpresaImportadaDto>? empresas = null)
@@ -174,7 +180,10 @@ public partial class ImportarClientesGen2Tests : BunitContext
                 return await ConCancelacion(respuesta, token);
 
             if (Retener(peticion) is { } puerta)
-                await ConCancelacion(Esperar(puerta), token);
+            {
+                if (RetenerIgnoraCancelacion) await puerta;
+                else await ConCancelacion(Esperar(puerta), token);
+            }
 
             return ResponderAhora(peticion);
 
@@ -332,6 +341,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(TenantImportacion));
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
@@ -345,6 +355,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var cut = Render<PaginaImportacion>();
         return (cut, mediador);
     }
+
+    private static readonly Guid TenantImportacion = Guid.NewGuid();
 
     private static readonly string[] OrdenPlantillas = ["cae", "clientes", "combinada", "documentos"];
 
@@ -776,7 +788,9 @@ public partial class ImportarClientesGen2Tests : BunitContext
     [Fact]
     public async Task Un_analisis_anterior_que_termina_tarde_no_pinta_su_plan()
     {
-        var escenario = new Escenario();
+        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
@@ -784,11 +798,14 @@ public partial class ImportarClientesGen2Tests : BunitContext
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery q
             ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "A" ? puertaA.Task : puertaB.Task
             : null;
-        var (cut, _) = Renderizar(escenario);
+        var (cut, mediador) = Renderizar(escenario);
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "a.xlsx", "A");
         var subidaB = Subir(cut, "b.xlsx", "B");
+        cut.WaitForAssertion(() => mediador.Recibidas
+            .Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery && r.Token.IsCancellationRequested,
+                "el análisis descartado recibe la cancelación aunque la ignore"));
         puertaB.SetResult();
         await subidaB;
         cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
@@ -803,9 +820,37 @@ public partial class ImportarClientesGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Reemplazar_el_archivo_cancela_el_analisis_anterior_y_le_devuelve_su_hueco()
+    {
+        // Configuración por defecto (un análisis por Tenant): si el descartado retuviera su hueco, b.xlsx esperaría
+        // hasta agotar la espera y acabaría en «demasiados análisis».
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
+        var puertaA = Puerta();
+        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q && Encoding.UTF8.GetString(q.ContenidoArchivo) == "A"
+            ? puertaA.Task
+            : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        var subidaA = Subir(cut, "a.xlsx", "A");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Subir(cut, "b.xlsx", "B");
+        await subidaA;
+
+        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+        cut.FindAll(".alerta-formulario").Should().BeEmpty();
+        mediador.Recibidas.First(r => r.Peticion is AnalizarPlantillaClientesQuery).Token.IsCancellationRequested
+            .Should().BeTrue("el análisis de a.xlsx se cancela al reemplazar el archivo");
+        puertaA.Task.IsCompleted.Should().BeFalse("el hueco se devolvió por la cancelación, no porque a.xlsx terminara");
+    }
+
+    [Fact]
     public async Task Un_analisis_anterior_que_falla_tarde_no_pinta_su_error_ni_para_el_progreso_del_vigente()
     {
-        var escenario = new Escenario();
+        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
         var puertaB = Puerta();
