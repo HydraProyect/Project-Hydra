@@ -44,7 +44,8 @@ namespace CaeManager.Application.Usuarios;
 /// (<see cref="VerificarConcesionDeAdministradorAsync"/>), y por la misma razón solo un
 /// Administrador emite o corrige el enlace de activación de una cuenta Administrador
 /// pendiente (<see cref="VerificarActivacionDeCuentaAdministradorAsync"/>). Dirección CAE
-/// gestiona el resto de cuentas.
+/// gestiona el resto de cuentas. Y nadie deja al Tenant sin Administrador
+/// (<see cref="VerificarQueNoEsElUltimoAdministradorAsync"/>).
 /// </para>
 /// </summary>
 public static class AutoridadSobreCuentas
@@ -99,6 +100,15 @@ public static class AutoridadSobreCuentas
     /// a sí mismos: conceder Propiedad no es una capacidad del plano Operación.
     ///
     /// <para>
+    /// «Un Administrador» incluye, por decisión del propietario del mismo día (segunda
+    /// entrada), al Administrador del Operador CAE externo que opera el Tenant beneficiario
+    /// por una Asignación de Operación vigente: su rol efectivo allí es su perfil de origen
+    /// (decisión del 2026-10-20) y concede Administrador en ese Tenant. La Dirección CAE,
+    /// el Coordinador CAE y el Gestor CAE de ese Operador CAE externo, no. Lo fijan
+    /// <c>GestionCuentasCommandsTests</c> («Operador_CAE_externo_…»).
+    /// </para>
+    ///
+    /// <para>
     /// Es una regla de rol, no de Tenant: se compone con
     /// <see cref="RolesReservadosAlTenantDeOrigen"/>, que decide en qué Context Workspace
     /// puede concederse. Solo se evalúa cuando el guardado concede el rol: conservar el
@@ -110,6 +120,42 @@ public static class AutoridadSobreCuentas
         rolConcedido == Administrador && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
             ? Result.Fallo(SoloUnAdministradorConcedeAdministrador)
             : Result.Exito();
+
+    public static readonly Error UltimoAdministrador = Error.Crear(
+        "Usuarios.UltimoAdministrador",
+        "Es el único Administrador de la organización, y la organización no puede quedarse sin ninguno. " +
+        "Antes tiene que haber otro Administrador.");
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-30: un Tenant no se queda sin Administrador. Se
+    /// rechaza degradar, desactivar o eliminar la cuenta si es Administrador y el Tenant no
+    /// tiene otro (<see cref="IAdministradoresDelTenant.HayOtroAdministradorAsync"/>; una
+    /// cuenta pendiente de activación cuenta, en los dos lados: el último Administrador
+    /// aún sin activar tampoco se elimina). Vale para cualquiera, también para el propio
+    /// Administrador sobre su cuenta. La otra mitad de la decisión es la vía de Plataforma
+    /// para reponer un Administrador.
+    ///
+    /// <para>
+    /// Se llama dentro de la transacción que escribe y toma antes el candado de los
+    /// Administradores del Tenant: dos retiradas simultáneas no pueden verse la una a la otra
+    /// como «el otro Administrador». Una cuenta que no es Administrador pasa sin tocar la base;
+    /// sin Tenant activo no hay a quién preguntar y falla cerrada.
+    /// </para>
+    /// </summary>
+    public static async Task<Result> VerificarQueNoEsElUltimoAdministradorAsync(
+        CuentaUsuario cuenta, Guid? tenantActivo, IAdministradoresDelTenant administradores,
+        CancellationToken cancellationToken)
+    {
+        if (!cuenta.Roles.Contains(Administrador))
+            return Result.Exito();
+        if (tenantActivo is not { } tenantId)
+            return Result.Fallo(UltimoAdministrador);
+
+        await administradores.BloquearAsync(tenantId, cancellationToken);
+        return await administradores.HayOtroAdministradorAsync(tenantId, cuenta.Id, cancellationToken)
+            ? Result.Exito()
+            : Result.Fallo(UltimoAdministrador);
+    }
 
     public static readonly Error SoloUnAdministradorActivaAdministrador = Error.Crear(
         "Usuarios.SoloUnAdministradorActivaAdministrador",

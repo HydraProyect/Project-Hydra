@@ -327,6 +327,17 @@ public partial class UsuariosGen2Tests : BunitContext
             operacion(cancellationToken);
     }
 
+    /// <summary>
+    /// La regla del último Administrador se prueba en Application y contra PostgreSQL; aquí
+    /// siempre hay otro.
+    /// </summary>
+    private sealed class OtroAdministradorSiempre : CaeManager.Application.Usuarios.IAdministradoresDelTenant
+    {
+        public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> HayOtroAdministradorAsync(Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+    }
+
     /// <summary>El candado de cartera se prueba contra PostgreSQL; aquí no protege nada.</summary>
     private sealed class SinBloqueoCartera : CaeManager.Application.Clientes.IBloqueoCarteraUsuario
     {
@@ -733,14 +744,16 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera).Handle(q, ct),
             ObtenerCarteraDeGestorCaeQuery q => await new ObtenerCarteraDeGestorCaeQueryHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
-            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
+            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
+                new OtroAdministradorSiempre()).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
-            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre()).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),

@@ -186,6 +186,10 @@
                                     @* Sin deshabilitar visualmente durante el envío: mismo criterio que
                                        Desactivar/Reactivar — ItemMenuAccion no admite eso, la guarda
                                        contra doble clic vive dentro de ReenviarCredencialesAsync. *@
+                                    @* El enlace de un Administrador pendiente (o de una cuenta sin rol)
+                                       solo lo emite un Administrador: ver PuedeOfrecerEnlaceDeActivacion. *@
+                                    @if (PuedeOfrecerEnlaceDeActivacion(usuario))
+                                    {
                                     <ItemMenuAccion OnClick="() => ReenviarCredencialesAsync(usuario)">
                                         Reenviar correo de activación
                                     </ItemMenuAccion>
@@ -195,6 +199,7 @@
                                     <ItemMenuAccion OnClick="() => AbrirCorregirCorreo(usuario)">
                                         @TextosUsuarios["CorregirCorreoAccion"]
                                     </ItemMenuAccion>
+                                    }
                                     <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminacion(usuario)">
                                         Eliminar
                                     </ItemMenuAccion>
@@ -270,10 +275,13 @@
                 <div class="aviso-pendiente-activacion" role="group" aria-label="@TextosUsuarios["PendienteAvisoTitulo"]">
                     <p class="aviso-pendiente-titulo">@TextosUsuarios["PendienteAvisoTitulo"]</p>
                     <p class="texto-ayuda-campo">@TextosUsuarios["PendienteAvisoTexto"]</p>
+                    @if (PuedeOfrecerEnlaceDeActivacion(ficha))
+                    {
                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                            Cargando="_generandoEnlaceNuevo" Deshabilitado="_guardando" OnClick="GenerarEnlaceNuevoAsync">
                         @TextosUsuarios["GenerarEnlaceNuevo"]
                     </Boton>
+                    }
                 </div>
             }
         }

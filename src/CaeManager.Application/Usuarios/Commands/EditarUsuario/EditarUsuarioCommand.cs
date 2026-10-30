@@ -28,6 +28,12 @@ namespace CaeManager.Application.Usuarios.Commands.EditarUsuario;
 /// </para>
 ///
 /// <para>
+/// <b>Último Administrador</b> (decisión del 2026-10-30): degradar al único Administrador
+/// del Tenant se rechaza, también si es la propia cuenta de quien edita
+/// (<see cref="AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync"/>).
+/// </para>
+///
+/// <para>
 /// <b>Sesión abierta</b> (SEG-1, auditoría 2026-10-29): cambiar el rol rota el sello de
 /// seguridad de la cuenta en la misma escritura (<see cref="IGestionCuentasUsuario.CambiarRolAsync"/>),
 /// así que la cookie y el circuito ya abiertos dejan de valer en su próxima
@@ -74,6 +80,7 @@ public class EditarUsuarioCommandHandler(
     ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
     IAsignacionAutomaticaDePrincipal asignacionAutomatica,
+    IAdministradoresDelTenant administradores,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<EditarUsuarioCommand, Result>
 {
@@ -129,6 +136,14 @@ public class EditarUsuarioCommandHandler(
         var actorEsAdministrador = await currentUserService.ObtenerRolEfectivoAsync() == AutoridadSobreCuentas.Administrador;
         var eraAdministrador = cuenta.Roles.Contains(AutoridadSobreCuentas.Administrador);
 
+        // Degradar al último Administrador: se rechaza antes de guardar nada. Es una lectura
+        // sin candado; la que decide se repite con él dentro de la transacción del rol.
+        var retiraAdministrador = eraAdministrador && request.Rol != AutoridadSobreCuentas.Administrador;
+        if (retiraAdministrador
+            && (tenantActual.TenantId is not { } tenantDeLaCuenta
+                || !await administradores.HayOtroAdministradorAsync(tenantDeLaCuenta, cuenta.Id, cancellationToken)))
+            return Result.Fallo(AutoridadSobreCuentas.UltimoAdministrador);
+
         bool permiso;
         if (request.Rol != AutoridadSobreCuentas.Administrador)
         {
@@ -173,6 +188,13 @@ public class EditarUsuarioCommandHandler(
         ResultadoCambioRol cambio = null!;
         var escrita = await transaccion.EjecutarAsync(async ct =>
         {
+            var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
+                cuenta, tenantActual.TenantId, administradores, ct);
+            if (quedaAdministrador.EsFallido)
+                return Result.Fallo(Error.Crear(
+                    quedaAdministrador.Error.Codigo,
+                    $"Los datos se guardaron, pero no pudimos cambiar el rol. {quedaAdministrador.Error.Mensaje}"));
+
             cambio = await cuentas.CambiarRolAsync(request.UsuarioId, request.Rol, ct);
             if (cambio.Desenlace != DesenlaceCambioRol.Cambiado || !puedeSerElegible)
                 return Result.Exito();

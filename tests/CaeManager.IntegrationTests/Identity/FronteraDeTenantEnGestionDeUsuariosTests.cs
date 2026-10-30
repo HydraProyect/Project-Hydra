@@ -330,7 +330,9 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(sp.GetRequiredService<CaeManagerDbContext>(), administrador),
-                sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>())
+                sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>(),
+                new CaeManager.Infrastructure.Persistence.AdministradoresDelTenant(
+                    sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<DirectorioUsuariosTenant>()))
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -648,10 +650,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             object respuesta = request switch
             {
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
-                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, cancellationToken),
+                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                    cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
-                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio,
+                    new OtroAdministradorSiempre()).Handle(c, cancellationToken),
+                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -707,5 +711,16 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     {
         public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La regla del último Administrador, sin candado: este mediador no abre transacción. Aquí
+    /// siempre hay otro Administrador; la regla se prueba en <c>UltimoAdministradorBajoRuntimeTests</c>.
+    /// </summary>
+    private sealed class OtroAdministradorSiempre : CaeManager.Application.Usuarios.IAdministradoresDelTenant
+    {
+        public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> HayOtroAdministradorAsync(Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
     }
 }

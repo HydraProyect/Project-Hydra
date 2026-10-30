@@ -17,6 +17,12 @@ namespace CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 /// (revisión de Codex): <c>AsignacionCartera.UsuarioId</c> no lleva FK hacia la
 /// cuenta, y la baja la dejaría apuntando a un Id sin cuenta resoluble.
 /// </para>
+///
+/// <para>
+/// Ni la del último Administrador del Tenant, aunque siga sin activar (decisión del
+/// 2026-10-30, <see cref="AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync"/>):
+/// la comprobación y el borrado van en una transacción, con el candado de los Administradores.
+/// </para>
 /// </summary>
 public record EliminarUsuarioPendienteCommand(Guid UsuarioId) : ICommand;
 
@@ -24,6 +30,8 @@ public class EliminarUsuarioPendienteCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
+    ITransaccionDeComando transaccion,
+    IAdministradoresDelTenant administradores,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<EliminarUsuarioPendienteCommand, Result>
 {
@@ -61,8 +69,17 @@ public class EliminarUsuarioPendienteCommandHandler(
         if (await cuentas.TieneVinculoOperativoAsync(request.UsuarioId, cancellationToken))
             return Result.Fallo(CarteraVigente);
 
-        var resultado = await cuentas.EliminarAsync(request.UsuarioId, cancellationToken);
-        if (resultado.EsExitoso || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo)
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
+                cuenta, tenantActual.TenantId, administradores, ct);
+            return quedaAdministrador.EsFallido
+                ? quedaAdministrador
+                : await cuentas.EliminarAsync(request.UsuarioId, ct);
+        }, cancellationToken);
+        if (resultado.EsExitoso
+            || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo
+            || resultado.Error.Codigo == AutoridadSobreCuentas.UltimoAdministrador.Codigo)
             return resultado;
 
         // Se activó entre la comprobación de arriba y la escritura: mismo desenlace.

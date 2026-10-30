@@ -20,6 +20,12 @@ namespace CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 /// </para>
 ///
 /// <para>
+/// No se desactiva al último Administrador del Tenant (decisión del 2026-10-30,
+/// <see cref="AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync"/>), dentro de
+/// la misma transacción y antes del candado de cartera.
+/// </para>
+///
+/// <para>
 /// Desactivar toma el candado exclusivo de cartera de la cuenta dentro de una transacción
 /// (<see cref="IBloqueoCarteraUsuario"/>, revisión Codex de FS-25): una reasignación o el
 /// alta de un Cliente empresarial en curso para esa cuenta termina antes, y los que lleguen
@@ -55,6 +61,7 @@ public class CambiarActivacionUsuarioCommandHandler(
     ICatalogoIncorporacionCartera catalogo,
     IDirectorioDestinosCartera directorioDestinos,
     IDirectorioUsuariosService directorioUsuarios,
+    IAdministradoresDelTenant administradores,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<CambiarActivacionUsuarioCommand, Result>
 {
@@ -87,7 +94,14 @@ public class CambiarActivacionUsuarioCommandHandler(
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             if (!request.Activar)
+            {
+                var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
+                    cuenta, tenantActual.TenantId, administradores, ct);
+                if (quedaAdministrador.EsFallido)
+                    return quedaAdministrador;
+
                 await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
+            }
             var cambio = await cuentas.CambiarActivacionAsync(request.UsuarioId, request.Activar, ct);
             if (cambio.EsFallido)
                 return cambio;
