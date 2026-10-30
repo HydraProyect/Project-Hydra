@@ -13,10 +13,11 @@ namespace CaeManager.Application.Integraciones.Commands.GuardarConexionPlataform
 /// propietario.
 ///
 /// <para>
-/// Solo un Administrador del propio Tenant propietario: es la llave contractual del Tenant con un
-/// tercero, y el rol efectivo descarta a un Gestor CAE del Operador CAE externo en un Workspace
-/// operativo derivado. <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/> deniega toda
-/// Sesión Privilegiada y <see cref="IEscrituraDeDatosDeCredencial"/> exige el segundo factor.
+/// Solo un Administrador del propio Tenant propietario, nunca el del Operador CAE externo que lo opera
+/// (<see cref="AutoridadSobreConexionPlataformaCae"/>): es la llave contractual del Tenant con un tercero.
+/// <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/> deniega toda Sesión Privilegiada,
+/// <see cref="IEscrituraDeDatosDeCredencial"/> exige el segundo factor y un Encargo de administración no
+/// alcanza a este acto (<c>ActosExcluidosDelEncargo</c>).
 /// </para>
 /// </summary>
 public record GuardarConexionPlataformaCaeCommand(Guid ProveedorPlataformaCaeId, string Nombre, string SecretoApi)
@@ -39,12 +40,12 @@ public class GuardarConexionPlataformaCaeCommandHandler(
     IConexionPlataformaCaeRepository conexiones,
     IProveedorPlataformaCaeRepository proveedores,
     ICurrentUserService usuarioActual,
-    IUnitOfWork unitOfWork)
+    ITenantActual tenantActual)
     : IRequestHandler<GuardarConexionPlataformaCaeCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(GuardarConexionPlataformaCaeCommand request, CancellationToken cancellationToken)
     {
-        if (await usuarioActual.ObtenerRolEfectivoAsync() != "Administrador")
+        if (!await AutoridadSobreConexionPlataformaCae.EsAdministradorDelTenantPropietarioAsync(usuarioActual, tenantActual))
             return Result.Fallo<Guid>(Error.Crear(
                 "ConexionPlataformaCae.SinPermiso", "Solo un Administrador puede guardar esta conexión."));
 
@@ -62,13 +63,18 @@ public class GuardarConexionPlataformaCaeCommandHandler(
             conexiones.Agregar(conexion);
         }
 
+        // Un salto de línea pegado con la clave daría un rechazo de la plataforma difícil de diagnosticar.
+        var secreto = request.SecretoApi.Trim();
         var credencial = await conexiones.ObtenerCredencialAsync(conexion.Id, cancellationToken);
         if (credencial is null)
-            conexiones.AgregarCredencial(new CredencialConexionPlataformaCae(conexion.Id, request.SecretoApi, DateTime.UtcNow));
+            conexiones.AgregarCredencial(new CredencialConexionPlataformaCae(conexion.Id, secreto, DateTime.UtcNow));
         else
-            credencial.Rotar(request.SecretoApi, DateTime.UtcNow);
+            credencial.Rotar(secreto, DateTime.UtcNow);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        if (!await conexiones.GuardarCambiosAsync(cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "ConexionPlataformaCae.Conflicto", "Otra persona acaba de guardar esta conexión. Vuelve a intentarlo."));
+
         return conexion.Id;
     }
 }

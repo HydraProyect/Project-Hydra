@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
@@ -11,14 +12,20 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// La única puerta hacia un <see cref="IConectorPlataformaCae"/>. Decide, en este orden y fallando en
 /// cerrado (OWASP ASVS 4.0.3 V4.1.5), si una operación puede salir hacia la plataforma:
 /// <list type="number">
+/// <item>No hay transacción abierta: un rollback borraría el uso de una llamada que ya salió, y una
+/// estrategia de reintentos la repetiría (V7.2.2).</item>
 /// <item>Hay Tenant resuelto y no es una Sesión Privilegiada: un Actor de Plataforma TALVEG nunca opera
 /// con la credencial de un Tenant (V4.1.3).</item>
 /// <item>La conexión, y la Acreditación o el Trabajador, son del Tenant propietario actual, leídos bajo
 /// los filtros de Tenant y RLS con la identidad efectiva de la petición, y la Acreditación es de la
 /// misma plataforma que la conexión (V4.2.1). Decisión del 2026-10-30, punto 5: nunca con las
 /// credenciales de otro.</item>
-/// <item>El kill switch de la plataforma, en el catálogo global.</item>
-/// <item>El Add-on de subida automática del Tenant y su estado comercial.</item>
+/// <item>Quien pide tiene rol efectivo con escritura en ese Tenant: una coordenada de contexto no es
+/// autoridad, y una Asignación de Operación revocada deja el rol en null aunque el circuito conserve
+/// la selección (V4.1.3). Sin usuario solo opera un proceso de fondo dentro de un
+/// <see cref="AmbitoTenantExplicito"/>.</item>
+/// <item>El kill switch de la plataforma, en el catálogo global, leído de la base en cada operación.</item>
+/// <item>El Add-on de subida automática del Tenant, su estado comercial y que no esté suspendido.</item>
 /// <item>Hay credencial y hay conector registrado.</item>
 /// </list>
 ///
@@ -29,8 +36,15 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// </para>
 ///
 /// <para>
-/// No decide el alcance de cartera ni el rol de quien pide la operación: eso es de cada Command que la
-/// dispare, como en <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>. Tampoco
+/// Si el cierre del uso no se puede guardar, la llamada ya salió: el resultado se devuelve, y el uso se
+/// queda EnCurso con su clave de idempotencia y un error en el log con su Id. Reconciliar esos usos es
+/// del incremento de cola.
+/// </para>
+///
+/// <para>
+/// El llamador no puede tener cambios pendientes en su contexto: la puerta guarda con el mismo
+/// <see cref="IUnitOfWork"/> antes de la llamada. No decide el alcance de cartera: eso es de cada Command
+/// que la dispare, como en <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>. Tampoco
 /// guarda lo que devuelve la plataforma en la Acreditación: es del incremento de cola y lectura
 /// programada.
 /// </para>
@@ -77,7 +91,7 @@ public class OperacionesConectorPlataformaCae(
         if (acreditacion is null)
             return Result.Fallo<EstadoDocumentoEnPlataforma>(NoDisponible);
 
-        return await EjecutarAsync(acceso, operacion, acreditacionId, trabajadorId: null, cancellationToken, (conector, credencial, ct) =>
+        return await EjecutarAsync(acceso, operacion, acreditacionId, trabajadorId: null, claveIdempotencia: null, cancellationToken, (conector, credencial, ct) =>
             conector.LeerEstadoDocumentoAsync(credencial, new SolicitudLecturaEstado(acreditacion.Id, acreditacion.DocumentoId), ct));
     }
 
@@ -96,14 +110,14 @@ public class OperacionesConectorPlataformaCae(
             return Result.Fallo<ReferenciaEnPlataforma>(NoDisponible);
         }
 
-        if (string.IsNullOrWhiteSpace(trabajador.Dni))
+        if (string.IsNullOrWhiteSpace(trabajador.Dni) || !ClaveValida(claveIdempotencia))
         {
             await DenegarAsync(acceso.Conexion.Id, operacion, null, trabajadorId, MotivoUsoConector.DatosInsuficientes, cancellationToken);
             return Result.Fallo<ReferenciaEnPlataforma>(NoDisponible);
         }
 
         var solicitud = new SolicitudAltaTrabajador(trabajador.Id, trabajador.Nombre, trabajador.Apellidos, trabajador.Dni, claveIdempotencia);
-        return await EjecutarAsync(acceso, operacion, acreditacionId: null, trabajadorId, cancellationToken, (conector, credencial, ct) =>
+        return await EjecutarAsync(acceso, operacion, acreditacionId: null, trabajadorId, claveIdempotencia, cancellationToken, (conector, credencial, ct) =>
             conector.DarDeAltaTrabajadorAsync(credencial, solicitud, ct));
     }
 
@@ -119,19 +133,23 @@ public class OperacionesConectorPlataformaCae(
         if (acreditacion is null)
             return Result.Fallo<ReferenciaEnPlataforma>(NoDisponible);
 
-        if (string.IsNullOrWhiteSpace(acreditacion.ArchivoUrl))
+        if (string.IsNullOrWhiteSpace(acreditacion.ArchivoUrl) || !ClaveValida(claveIdempotencia))
         {
             await DenegarAsync(acceso.Conexion.Id, operacion, acreditacionId, null, MotivoUsoConector.DatosInsuficientes, cancellationToken);
             return Result.Fallo<ReferenciaEnPlataforma>(NoDisponible);
         }
 
-        return await EjecutarAsync(acceso, operacion, acreditacionId, trabajadorId: null, cancellationToken, async (conector, credencial, ct) =>
+        return await EjecutarAsync(acceso, operacion, acreditacionId, trabajadorId: null, claveIdempotencia, cancellationToken, async (conector, credencial, ct) =>
         {
             await using var contenido = await archivos.AbrirAsync(acreditacion.ArchivoUrl, ct);
             return await conector.SubirDocumentoAsync(
                 credencial, new SolicitudSubidaDocumento(acreditacion.Id, acreditacion.DocumentoId, contenido, claveIdempotencia), ct);
         });
     }
+
+    private static bool ClaveValida(string claveIdempotencia) =>
+        !string.IsNullOrWhiteSpace(claveIdempotencia)
+        && claveIdempotencia.Length <= UsoConexionPlataformaCae.LongitudMaximaClaveIdempotencia;
 
     private sealed record AccesoAutorizado(
         Guid TenantId, ConexionPlataformaCae Conexion, IConectorPlataformaCae Conector, CredencialApiConector Credencial);
@@ -140,9 +158,17 @@ public class OperacionesConectorPlataformaCae(
     private async Task<AccesoAutorizado?> AutorizarAsync(
         Guid conexionId, OperacionConectorPlataformaCae operacion, Guid? acreditacionId, Guid? trabajadorId, CancellationToken cancellationToken)
     {
+        if (conexiones.HayTransaccionAbierta)
+        {
+            logger.LogError(
+                "Operación {Operacion} con la conexión {ConexionId} denegada: hay una transacción abierta.",
+                operacion, conexionId);
+            return null;
+        }
+
         // En Sesión Privilegiada tampoco se podría escribir el uso: cae_app_soporte no tiene INSERT.
         if (tenantActual.TenantId is not { } tenantId
-            || await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
+            || await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not null)
         {
             logger.LogWarning(
                 "Operación {Operacion} con la conexión {ConexionId} denegada: sin Tenant resuelto o en Sesión Privilegiada.",
@@ -160,7 +186,13 @@ public class OperacionesConectorPlataformaCae(
             return null;
         }
 
-        var proveedor = await proveedores.ObtenerPorIdAsync(conexion.ProveedorPlataformaCaeId, cancellationToken);
+        if (!await TieneAutoridadAsync())
+        {
+            await DenegarAsync(conexion.Id, operacion, acreditacionId, trabajadorId, MotivoUsoConector.SinAutoridad, cancellationToken);
+            return null;
+        }
+
+        var proveedor = await proveedores.ObtenerInterruptoresConectorAsync(conexion.ProveedorPlataformaCaeId, cancellationToken);
         var motivo = await MotivoDeDenegacionAsync(proveedor, tenantId, cancellationToken);
         if (motivo is { } denegacion)
         {
@@ -176,8 +208,8 @@ public class OperacionesConectorPlataformaCae(
             return null;
         }
 
-        var credencial = await conexiones.ObtenerCredencialAsync(conexion.Id, cancellationToken);
-        if (credencial is null || credencial.TenantId != tenantId)
+        var credencial = await LeerCredencialAsync(conexion.Id, operacion, cancellationToken);
+        if (credencial is null || credencial.TenantId != tenantId || string.IsNullOrWhiteSpace(credencial.SecretoApi))
         {
             await DenegarAsync(conexion.Id, operacion, acreditacionId, trabajadorId, MotivoUsoConector.SinCredencial, cancellationToken);
             return null;
@@ -186,8 +218,34 @@ public class OperacionesConectorPlataformaCae(
         return new AccesoAutorizado(tenantId, conexion, conector, new CredencialApiConector(credencial.SecretoApi));
     }
 
+    private async Task<bool> TieneAutoridadAsync()
+    {
+        if (await usuarioActual.ObtenerUsuarioActualIdAsync() is null)
+            return AmbitoTenantExplicito.TenantIdActual is not null;
+
+        var rol = await usuarioActual.ObtenerRolEfectivoAsync();
+        return rol is not null && AutorizacionEscrituraBehavior<object, object>.RolesConEscritura.Contains(rol);
+    }
+
+    // Un anillo de Data Protection que no descifra se trata como una conexión sin credencial, con su rastro.
+    private async Task<CredencialParaConector?> LeerCredencialAsync(
+        Guid conexionId, OperacionConectorPlataformaCae operacion, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await conexiones.LeerCredencialAsync(conexionId, cancellationToken);
+        }
+        catch (CryptographicException)
+        {
+            logger.LogError(
+                "La credencial de la conexión {ConexionId} no se pudo descifrar en la operación {Operacion}.",
+                conexionId, operacion);
+            return null;
+        }
+    }
+
     private async Task<MotivoUsoConector?> MotivoDeDenegacionAsync(
-        ProveedorPlataformaCae? proveedor, Guid tenantId, CancellationToken cancellationToken)
+        InterruptoresConectorProveedor? proveedor, Guid tenantId, CancellationToken cancellationToken)
     {
         if (proveedor is not { Activo: true, ConectorApiActivo: true })
             return MotivoUsoConector.PlataformaDesactivada;
@@ -195,6 +253,9 @@ public class OperacionesConectorPlataformaCae(
         var habilitacion = await conexiones.ObtenerHabilitacionComercialAsync(tenantId, cancellationToken);
         if (habilitacion is not { AddOnSubidaAutomaticaActivo: true })
             return MotivoUsoConector.AddOnInactivo;
+
+        if (habilitacion.Estado != EstadoTenant.Activo)
+            return MotivoUsoConector.TenantSuspendido;
 
         return habilitacion.EstadoComercial is EstadoComercialTenant.SoloLectura or EstadoComercialTenant.Suspendida
             ? MotivoUsoConector.EstadoComercialRestringido
@@ -225,22 +286,35 @@ public class OperacionesConectorPlataformaCae(
         MotivoUsoConector motivo, CancellationToken cancellationToken)
     {
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
-        conexiones.RegistrarUso(UsoConexionPlataformaCae.Denegar(
-            conexionId, operacion, usuarioId, acreditacionId, trabajadorId, motivo, DateTime.UtcNow));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await GuardarUsoNuevoAsync(
+            UsoConexionPlataformaCae.Denegar(conexionId, operacion, usuarioId, acreditacionId, trabajadorId, motivo, DateTime.UtcNow),
+            cancellationToken);
+    }
+
+    private async Task GuardarUsoNuevoAsync(UsoConexionPlataformaCae uso, CancellationToken cancellationToken)
+    {
+        conexiones.RegistrarUso(uso);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            conexiones.DescartarUso(uso);
+            throw;
+        }
     }
 
     private async Task<Result<T>> EjecutarAsync<T>(
-        AccesoAutorizado acceso, OperacionConectorPlataformaCae operacion, Guid? acreditacionId, Guid? trabajadorId,
+        AccesoAutorizado acceso, OperacionConectorPlataformaCae operacion, Guid? acreditacionId, Guid? trabajadorId, string? claveIdempotencia,
         CancellationToken cancellationToken,
         Func<IConectorPlataformaCae, CredencialApiConector, CancellationToken, Task<ResultadoConector<T>>> llamada)
         where T : notnull
     {
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
         var uso = UsoConexionPlataformaCae.Iniciar(
-            acceso.Conexion.Id, operacion, usuarioId, acreditacionId, trabajadorId, DateTime.UtcNow);
-        conexiones.RegistrarUso(uso);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            acceso.Conexion.Id, operacion, usuarioId, acreditacionId, trabajadorId, DateTime.UtcNow, claveIdempotencia);
+        await GuardarUsoNuevoAsync(uso, cancellationToken);
 
         try
         {
@@ -253,7 +327,7 @@ public class OperacionesConectorPlataformaCae(
             }
 
             uso.FinalizarConExito(DateTime.UtcNow);
-            await unitOfWork.SaveChangesAsync(CancellationToken.None);
+            await GuardarCierreAsync(uso);
             return resultado.Valor;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -264,8 +338,8 @@ public class OperacionesConectorPlataformaCae(
         catch (Exception ex) when (uso.Resultado == ResultadoUsoConector.EnCurso)
         {
             // Solo el tipo: el mensaje de una excepción HTTP puede llevar la URL con la credencial
-            // o la respuesta de la plataforma (OWASP ASVS 4.0.3 V7.1.1). El Id es el del uso, que
-            // sí se puede buscar (V7.4.1).
+            // o la respuesta de la plataforma (OWASP ASVS 4.0.3 V7.1.1). El Id del uso permite
+            // encontrar su fila desde el log.
             logger.LogError(
                 "Fallo inesperado ({TipoExcepcion}) en la operación {Operacion}, uso {UsoId}.",
                 ex.GetType().Name, operacion, uso.Id);
@@ -274,10 +348,27 @@ public class OperacionesConectorPlataformaCae(
         }
     }
 
-    // Sin el token de la petición: la llamada ya salió, y su rastro se cierra aunque se cancele.
     private async Task CerrarConFalloAsync(UsoConexionPlataformaCae uso, MotivoUsoConector motivo)
     {
         uso.FinalizarConFallo(motivo, DateTime.UtcNow);
-        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        await GuardarCierreAsync(uso);
+    }
+
+    // Sin el token de la petición: la llamada ya salió, y su rastro se cierra aunque se cancele. No lanza,
+    // porque un fallo aquí no cambia lo que hizo la plataforma; descartar el uso evita que su cierre
+    // pendiente rompa el siguiente guardado del mismo ámbito.
+    private async Task GuardarCierreAsync(UsoConexionPlataformaCae uso)
+    {
+        try
+        {
+            await unitOfWork.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            conexiones.DescartarUso(uso);
+            logger.LogError(
+                "No se pudo guardar el cierre del uso {UsoId} ({TipoExcepcion}): queda EnCurso.",
+                uso.Id, ex.GetType().Name);
+        }
     }
 }

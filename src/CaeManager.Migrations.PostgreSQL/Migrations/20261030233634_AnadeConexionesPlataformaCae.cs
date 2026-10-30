@@ -84,6 +84,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     UsuarioId = table.Column<Guid>(type: "uuid", nullable: true),
                     AcreditacionId = table.Column<Guid>(type: "uuid", nullable: true),
                     TrabajadorId = table.Column<Guid>(type: "uuid", nullable: true),
+                    ClaveIdempotencia = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     IniciadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     FinalizadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
@@ -298,7 +299,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // metadatos (OWASP ASVS 4.0.3 V2.10.4, V4.1.3).
             //
             // UsosConexionPlataformaCae: sin DELETE y con UPDATE solo de las tres columnas del cierre; la
-            // política restrictiva impide reescribir un uso ya cerrado (V7.1.1, V7.2.2).
+            // política restrictiva impide reescribir un uso ya cerrado o insertar uno que finja una llamada
+            // exitosa, y los CHECK fijan el enumerado y la coherencia del cierre (V7.1.1, V7.2.2).
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."ConexionesPlataformaCae" ENABLE ROW LEVEL SECURITY;
@@ -327,6 +329,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AS RESTRICTIVE FOR UPDATE
                     USING ("Resultado" = 'EnCurso')
                     WITH CHECK ("Resultado" <> 'EnCurso' AND "FinalizadoEnUtc" IS NOT NULL);
+                CREATE POLICY solo_nace_abierto_o_denegado ON public."UsosConexionPlataformaCae"
+                    AS RESTRICTIVE FOR INSERT
+                    WITH CHECK ("Resultado" IN ('EnCurso', 'Denegado'));
+                ALTER TABLE public."UsosConexionPlataformaCae"
+                    ADD CONSTRAINT "CK_UsosConexionPlataformaCae_Resultado"
+                        CHECK ("Resultado" IN ('EnCurso', 'Exito', 'Fallo', 'Denegado')),
+                    ADD CONSTRAINT "CK_UsosConexionPlataformaCae_Cierre"
+                        CHECK (("Resultado" = 'EnCurso') = ("FinalizadoEnUtc" IS NULL)),
+                    ADD CONSTRAINT "CK_UsosConexionPlataformaCae_Motivo"
+                        CHECK (("Resultado" IN ('Denegado', 'Fallo')) = ("Motivo" IS NOT NULL));
                 REVOKE ALL ON TABLE public."UsosConexionPlataformaCae" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT SELECT, INSERT ON TABLE public."UsosConexionPlataformaCae" TO cae_app_runtime;
                 GRANT UPDATE ("Resultado", "Motivo", "FinalizadoEnUtc") ON TABLE public."UsosConexionPlataformaCae" TO cae_app_runtime;

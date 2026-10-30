@@ -55,6 +55,7 @@ public class UsoConexionPlataformaCaeConfiguration : IEntityTypeConfiguration<Us
         builder.Property(u => u.Operacion).HasConversion<string>().IsRequired().HasMaxLength(40);
         builder.Property(u => u.Resultado).HasConversion<string>().IsRequired().HasMaxLength(20);
         builder.Property(u => u.Motivo).HasConversion<string>().HasMaxLength(40);
+        builder.Property(u => u.ClaveIdempotencia).HasMaxLength(UsoConexionPlataformaCae.LongitudMaximaClaveIdempotencia);
 
         builder.HasIndex(u => new { u.TenantId, u.ConexionPlataformaCaeId, u.IniciadoEnUtc });
 

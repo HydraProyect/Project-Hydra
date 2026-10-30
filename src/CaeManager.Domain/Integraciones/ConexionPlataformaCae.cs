@@ -10,7 +10,7 @@ namespace CaeManager.Domain.Integraciones;
 ///
 /// <para>
 /// El nombre distingue dos conexiones del mismo Tenant propietario con la misma plataforma, que son
-/// legítimas (<c>ARQUITECTURA-INTEGRACIONES.md</c> § 3). La credencial vive aparte, en
+/// legítimas (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 3). La credencial vive aparte, en
 /// <see cref="CredencialConexionPlataformaCae"/>, para que Soporte TALVEG pueda leer esta tabla sin
 /// llegar al secreto. Retirar la conexión la marca como eliminada; la credencial se borra de verdad.
 /// </para>

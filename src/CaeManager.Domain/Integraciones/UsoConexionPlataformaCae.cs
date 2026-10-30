@@ -35,6 +35,8 @@ public enum MotivoUsoConector
     ObjetoNoEncontrado,
     ObjetoDeOtraPlataforma,
     DatosInsuficientes,
+    SinAutoridad,
+    TenantSuspendido,
     CredencialRechazada,
     NoEncontradoEnPlataforma,
     RechazadoPorPlataforma,
@@ -53,6 +55,8 @@ public enum MotivoUsoConector
 /// </summary>
 public class UsoConexionPlataformaCae : EntidadConTenant
 {
+    public const int LongitudMaximaClaveIdempotencia = 200;
+
     public Guid ConexionPlataformaCaeId { get; private set; }
     public OperacionConectorPlataformaCae Operacion { get; private set; }
     public ResultadoUsoConector Resultado { get; private set; }
@@ -64,6 +68,9 @@ public class UsoConexionPlataformaCae : EntidadConTenant
     /// <summary>Lo que se pidió, sin clave foránea: una denegación puede nombrar un Id que no existe o que este Tenant no ve.</summary>
     public Guid? AcreditacionId { get; private set; }
     public Guid? TrabajadorId { get; private set; }
+
+    /// <summary>La que se envió a la plataforma: si un uso se queda EnCurso, permite reconciliarlo con ella. Null en una lectura.</summary>
+    public string? ClaveIdempotencia { get; private set; }
 
     public DateTime IniciadoEnUtc { get; private set; }
     public DateTime? FinalizadoEnUtc { get; private set; }
@@ -87,8 +94,13 @@ public class UsoConexionPlataformaCae : EntidadConTenant
     }
 
     public static UsoConexionPlataformaCae Iniciar(
-        Guid conexionId, OperacionConectorPlataformaCae operacion, Guid? usuarioId, Guid? acreditacionId, Guid? trabajadorId, DateTime ahoraUtc) =>
-        new(conexionId, operacion, usuarioId, acreditacionId, trabajadorId, ahoraUtc) { Resultado = ResultadoUsoConector.EnCurso };
+        Guid conexionId, OperacionConectorPlataformaCae operacion, Guid? usuarioId, Guid? acreditacionId, Guid? trabajadorId, DateTime ahoraUtc,
+        string? claveIdempotencia = null) =>
+        new(conexionId, operacion, usuarioId, acreditacionId, trabajadorId, ahoraUtc)
+        {
+            Resultado = ResultadoUsoConector.EnCurso,
+            ClaveIdempotencia = claveIdempotencia,
+        };
 
     public static UsoConexionPlataformaCae Denegar(
         Guid conexionId, OperacionConectorPlataformaCae operacion, Guid? usuarioId, Guid? acreditacionId, Guid? trabajadorId,

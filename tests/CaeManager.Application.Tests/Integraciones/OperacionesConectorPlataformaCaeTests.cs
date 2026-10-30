@@ -38,10 +38,13 @@ public class OperacionesConectorPlataformaCaeTests
 
     private SesionPrivilegiadaActiva? _sesionPrivilegiada;
     private Guid? _tenantActual;
+    private string? _rol = "GestorCae";
+    private Guid? _usuarioActual;
 
     public OperacionesConectorPlataformaCaeTests()
     {
         _tenantActual = _tenant;
+        _usuarioActual = _usuario;
 
         _proveedor = new ProveedorPlataformaCae(ConectorPlataformaCaeFalso.Codigo, "Plataforma de prueba");
         _proveedor.ActivarConectorApi();
@@ -66,7 +69,7 @@ public class OperacionesConectorPlataformaCaeTests
     private OperacionesConectorPlataformaCae Crear(params IConectorPlataformaCae[] conectores) => new(
         _conexiones, _proveedores, conectores.Length == 0 ? [_conector] : conectores,
         new SesionFalsa(() => _sesionPrivilegiada), new TenantFalso(() => _tenantActual),
-        new CurrentUserServiceFalso(_usuario), _archivos, _unitOfWork, _logger);
+        new CurrentUserServiceFalso(_usuarioActual, _rol), _archivos, _unitOfWork, _logger);
 
     private Task<Result<EstadoDocumentoEnPlataforma>> LeerAsync() =>
         Crear().LeerEstadoDocumentoAsync(_conexion.Id, _acreditacion);
@@ -354,6 +357,136 @@ public class OperacionesConectorPlataformaCaeTests
     }
 
     [Fact]
+    public async Task Con_una_transaccion_abierta_no_sale_la_llamada_ni_se_escribe_el_uso()
+    {
+        _conexiones.HayTransaccionAbierta = true;
+
+        (await LeerAsync()).EsExitoso.Should().BeFalse();
+
+        _conector.Llamadas.Should().Be(0);
+        _unitOfWork.VecesGuardado.Should().Be(0, "un rollback borraría ese rastro");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    public async Task Sin_rol_efectivo_con_escritura_no_opera_aunque_el_circuito_conserve_el_Tenant(string? rol)
+    {
+        _rol = rol;
+
+        DebeDenegarSinLlamar(await LeerAsync(), MotivoUsoConector.SinAutoridad);
+    }
+
+    [Fact]
+    public async Task Sin_usuario_y_fuera_de_un_ambito_explicito_no_opera()
+    {
+        _usuarioActual = null;
+
+        (await LeerAsync()).EsExitoso.Should().BeFalse();
+
+        _conector.Llamadas.Should().Be(0);
+        _conexiones.Usos.Should().ContainSingle().Which.Motivo.Should().Be(MotivoUsoConector.SinAutoridad);
+    }
+
+    [Fact]
+    public async Task Un_proceso_de_fondo_opera_dentro_de_su_ambito_explicito()
+    {
+        _usuarioActual = null;
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
+
+        (await LeerAsync()).EsExitoso.Should().BeTrue();
+
+        _conector.Llamadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_Tenant_suspendido_no_opera_aunque_su_suscripcion_este_activa()
+    {
+        _conexiones.Habilitacion = new HabilitacionComercialConector(true, EstadoComercialTenant.Activa, EstadoTenant.Suspendido);
+
+        DebeDenegarSinLlamar(await LeerAsync(), MotivoUsoConector.TenantSuspendido);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Un_secreto_en_blanco_es_una_conexion_sin_credencial(string secreto)
+    {
+        _conexiones.Credenciales.Clear();
+        var credencial = DelTenant(new CredencialConexionPlataformaCae(_conexion.Id, "provisional", DateTime.UtcNow), _tenant);
+        typeof(CredencialConexionPlataformaCae).GetProperty(nameof(CredencialConexionPlataformaCae.SecretoApi))!.SetValue(credencial, secreto);
+        _conexiones.AgregarCredencial(credencial);
+
+        DebeDenegarSinLlamar(await LeerAsync(), MotivoUsoConector.SinCredencial);
+    }
+
+    [Fact]
+    public async Task Una_credencial_que_no_se_descifra_deja_rastro_y_no_llama()
+    {
+        _conexiones.ExcepcionAlLeerCredencial = new System.Security.Cryptography.CryptographicException("anillo perdido");
+
+        DebeDenegarSinLlamar(await LeerAsync(), MotivoUsoConector.SinCredencial);
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error);
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task Una_clave_de_idempotencia_invalida_se_deniega(string? clave)
+    {
+        var demasiadoLarga = new string('x', UsoConexionPlataformaCae.LongitudMaximaClaveIdempotencia + 1);
+
+        DebeDenegarSinLlamar(
+            await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, clave ?? demasiadoLarga), MotivoUsoConector.DatosInsuficientes);
+    }
+
+    [Fact]
+    public async Task El_uso_conserva_la_clave_de_idempotencia_para_poder_reconciliarlo()
+    {
+        await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, "clave-3");
+
+        _conexiones.Usos.Single().ClaveIdempotencia.Should().Be("clave-3");
+    }
+
+    [Fact]
+    public async Task Si_el_uso_no_se_guarda_se_descarta_para_no_romper_el_siguiente_guardado()
+    {
+        _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException("base caída");
+
+        var leer = LeerAsync;
+
+        await leer.Should().ThrowAsync<InvalidOperationException>();
+        _conexiones.Descartados.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_no_se_guarda_el_cierre_devuelve_el_resultado_descarta_el_uso_y_avisa_con_su_Id()
+    {
+        // La plataforma ya recibió la llamada: lanzar haría que el llamador la repitiera.
+        _conector.AlLlamar = () => _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException($"fallo {Secreto}");
+
+        var resultado = await LeerAsync();
+
+        resultado.EsExitoso.Should().BeTrue();
+        var uso = _conexiones.Descartados.Should().ContainSingle().Subject;
+        var error = _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error).Subject;
+        error.Mensaje.Should().Contain(uso.Id.ToString()).And.NotContain(Secreto);
+    }
+
+    [Fact]
+    public async Task Si_no_se_guarda_el_cierre_de_un_fallo_se_devuelve_el_fallo_de_plataforma()
+    {
+        _conector.Fallo = new MotivoUsoConectorFalso(MotivoUsoConector.PlataformaNoDisponible);
+        _conector.AlLlamar = () => _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException("base caída");
+
+        var resultado = await LeerAsync();
+
+        resultado.EsExitoso.Should().BeFalse();
+        _conexiones.Descartados.Should().ContainSingle();
+    }
+    [Fact]
     public void Ni_la_credencial_ni_el_trabajador_se_imprimen()
     {
         new CredencialApiConector(Secreto).ToString().Should().NotContain(Secreto);
@@ -362,7 +495,9 @@ public class OperacionesConectorPlataformaCaeTests
 
     private sealed class SesionFalsa(Func<SesionPrivilegiadaActiva?> sesion) : ISesionPrivilegiadaActual
     {
-        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion());
+        // La lectura memoizada no vale para decidir: si la puerta la usara, ninguna Sesión Privilegiada la pararía.
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion());
     }

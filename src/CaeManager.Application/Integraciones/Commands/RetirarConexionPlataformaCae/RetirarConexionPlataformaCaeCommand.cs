@@ -16,13 +16,14 @@ public record RetirarConexionPlataformaCaeCommand(Guid ConexionId) : ICommand, I
 public class RetirarConexionPlataformaCaeCommandHandler(
     IConexionPlataformaCaeRepository conexiones,
     ICurrentUserService usuarioActual,
+    ITenantActual tenantActual,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RetirarConexionPlataformaCaeCommand, Result>
 {
     public async Task<Result> Handle(RetirarConexionPlataformaCaeCommand request, CancellationToken cancellationToken)
     {
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null || await usuarioActual.ObtenerRolEfectivoAsync() != "Administrador")
+        if (usuarioId is null || !await AutoridadSobreConexionPlataformaCae.EsAdministradorDelTenantPropietarioAsync(usuarioActual, tenantActual))
             return Result.Fallo(Error.Crear(
                 "ConexionPlataformaCae.SinPermiso", "Solo un Administrador puede retirar esta conexión."));
 

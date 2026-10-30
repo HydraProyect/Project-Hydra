@@ -10,6 +10,10 @@ public class ConexionPlataformaCaeRepositorioFalso : IConexionPlataformaCaeRepos
     public List<AcreditacionParaConector> Acreditaciones { get; } = [];
     public List<TrabajadorParaConector> Trabajadores { get; } = [];
     public HabilitacionComercialConector? Habilitacion { get; set; }
+    public List<UsoConexionPlataformaCae> Descartados { get; } = [];
+    public bool HayTransaccionAbierta { get; set; }
+    public bool ConflictoAlGuardar { get; set; }
+    public Exception? ExcepcionAlLeerCredencial { get; set; }
 
     public Task<ConexionPlataformaCae?> ObtenerAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conexiones.FirstOrDefault(c => c.Id == id && !c.EstaEliminado));
@@ -19,6 +23,15 @@ public class ConexionPlataformaCaeRepositorioFalso : IConexionPlataformaCaeRepos
 
     public Task<CredencialConexionPlataformaCae?> ObtenerCredencialAsync(Guid conexionId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Credenciales.FirstOrDefault(c => c.ConexionPlataformaCaeId == conexionId));
+
+    public Task<CredencialParaConector?> LeerCredencialAsync(Guid conexionId, CancellationToken cancellationToken = default)
+    {
+        if (ExcepcionAlLeerCredencial is { } excepcion)
+            throw excepcion;
+
+        return Task.FromResult(Credenciales.Where(c => c.ConexionPlataformaCaeId == conexionId)
+            .Select(c => new CredencialParaConector(c.TenantId, c.SecretoApi)).FirstOrDefault());
+    }
 
     public Task<AcreditacionParaConector?> ObtenerAcreditacionAsync(Guid acreditacionId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Acreditaciones.FirstOrDefault(a => a.Id == acreditacionId));
@@ -36,4 +49,8 @@ public class ConexionPlataformaCaeRepositorioFalso : IConexionPlataformaCaeRepos
     public void QuitarCredencial(CredencialConexionPlataformaCae credencial) => Credenciales.Remove(credencial);
 
     public void RegistrarUso(UsoConexionPlataformaCae uso) => Usos.Add(uso);
+
+    public void DescartarUso(UsoConexionPlataformaCae uso) => Descartados.Add(uso);
+
+    public Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default) => Task.FromResult(!ConflictoAlGuardar);
 }

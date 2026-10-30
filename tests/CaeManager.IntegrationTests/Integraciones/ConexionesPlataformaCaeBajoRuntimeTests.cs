@@ -1,9 +1,13 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
+using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -200,25 +204,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Bajo_runtime_la_puerta_niega_la_conexion_de_otro_Tenant_sin_llamar_y_deja_rastro_en_la_propia()
     {
-        var conector = new ConectorQueCuenta();
-        await using (var propietario = new NpgsqlConnection(_cadenaConexion))
-        {
-            await propietario.OpenAsync();
-            await using var comando = propietario.CreateCommand();
-            comando.CommandText = """
-                UPDATE "ProveedoresPlataformaCae" SET "ConectorApiActivo" = true WHERE "Id" = @proveedor;
-                UPDATE "Tenants" SET "AddOnSubidaAutomaticaActivo" = true, "EstadoComercial" = 'Activa' WHERE "Id" IN (@a, @b);
-                """;
-            comando.Parameters.AddWithValue("proveedor", Proveedor);
-            comando.Parameters.AddWithValue("a", _tenantA);
-            comando.Parameters.AddWithValue("b", _tenantB);
-            await comando.ExecuteNonQueryAsync();
-
-            await using var codigo = propietario.CreateCommand();
-            codigo.CommandText = "SELECT \"Codigo\" FROM \"ProveedoresPlataformaCae\" WHERE \"Id\" = @proveedor;";
-            codigo.Parameters.AddWithValue("proveedor", Proveedor);
-            conector.CodigoProveedor = (string)(await codigo.ExecuteScalarAsync())!;
-        }
+        var conector = await HabilitarYCrearConectorAsync();
 
         await using (var contextoB = CrearContexto(_tenantB))
         {
@@ -242,13 +228,183 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         uso.Motivo.Should().Be(MotivoUsoConector.ObjetoNoEncontrado);
     }
 
+    [Fact]
+    public async Task Bajo_runtime_una_llamada_con_exito_queda_cerrada_con_su_clave()
+    {
+        var conector = await HabilitarYCrearConectorAsync();
+        var trabajador = await SembrarTrabajadorAsync(_tenantA);
+
+        await using var contexto = CrearContexto(_tenantA);
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, "clave-1");
+
+        resultado.EsExitoso.Should().BeTrue();
+        conector.Llamadas.Should().Be(1);
+        conector.UltimaCredencial.Should().Be(Secreto);
+
+        await using var lectura = CrearContexto(_tenantA);
+        var uso = await lectura.UsosConexionPlataformaCae.SingleAsync();
+        uso.Resultado.Should().Be(ResultadoUsoConector.Exito);
+        uso.ClaveIdempotencia.Should().Be("clave-1");
+        uso.FinalizadoEnUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Bajo_runtime_el_Trabajador_de_otro_Tenant_con_conexion_propia_se_niega_sin_llamar()
+    {
+        var conector = await HabilitarYCrearConectorAsync();
+        var ajeno = await SembrarTrabajadorAsync(_tenantB);
+
+        await using var contexto = CrearContexto(_tenantA);
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, ajeno, "clave-1");
+
+        resultado.EsExitoso.Should().BeFalse();
+        conector.Llamadas.Should().Be(0);
+        (await contexto.UsosConexionPlataformaCae.SingleAsync()).Motivo.Should().Be(MotivoUsoConector.ObjetoNoEncontrado);
+    }
+
+    [Fact]
+    public async Task El_kill_switch_corta_aunque_el_proveedor_ya_este_seguido_en_el_contexto()
+    {
+        var conector = await HabilitarYCrearConectorAsync();
+        var trabajador = await SembrarTrabajadorAsync(_tenantA);
+
+        await using var contexto = CrearContexto(_tenantA);
+        var seguido = await contexto.ProveedoresPlataformaCae.SingleAsync(p => p.Id == Proveedor);
+        seguido.ConectorApiActivo.Should().BeTrue("control: se apaga después de cargarlo");
+
+        await EjecutarComoPropietarioAsync("UPDATE \"ProveedoresPlataformaCae\" SET \"ConectorApiActivo\" = false WHERE \"Id\" = @id;", Proveedor);
+
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, "clave-1");
+
+        resultado.EsExitoso.Should().BeFalse();
+        conector.Llamadas.Should().Be(0);
+        (await contexto.UsosConexionPlataformaCae.SingleAsync()).Motivo.Should().Be(MotivoUsoConector.PlataformaDesactivada);
+    }
+
+    [Fact]
+    public async Task Guardar_y_retirar_recorren_todo_su_camino_bajo_runtime_y_el_nombre_se_reutiliza()
+    {
+        var usuario = new CurrentUserServiceFalso(_usuario, rol: "Administrador", tenantOrigenId: _tenantA);
+        var tenantActual = new TenantActualAmbiental { TenantId = _tenantA };
+
+        await using (var contexto = CrearContexto(_tenantA))
+        {
+            var guardar = new GuardarConexionPlataformaCaeCommandHandler(
+                new ConexionPlataformaCaeRepository(contexto), new ProveedorPlataformaCaeRepository(contexto), usuario, tenantActual);
+            var rotada = await guardar.Handle(new(Proveedor, "Acuerdo A", "rotado"), default);
+            rotada.Valor.Should().Be(_conexionA, "mismo nombre y plataforma: rota, no duplica");
+        }
+
+        await using (var contexto = CrearContexto(_tenantA))
+        {
+            (await contexto.CredencialesConexionPlataformaCae.SingleAsync()).SecretoApi.Should().Be("rotado");
+
+            var retirar = new RetirarConexionPlataformaCaeCommandHandler(
+                new ConexionPlataformaCaeRepository(contexto), usuario, tenantActual, contexto);
+            (await retirar.Handle(new(_conexionA), default)).EsExitoso.Should().BeTrue();
+        }
+
+        await using (var contexto = CrearContexto(_tenantA))
+        {
+            (await contexto.CredencialesConexionPlataformaCae.CountAsync()).Should().Be(0);
+
+            var guardar = new GuardarConexionPlataformaCaeCommandHandler(
+                new ConexionPlataformaCaeRepository(contexto), new ProveedorPlataformaCaeRepository(contexto), usuario, tenantActual);
+            var nueva = await guardar.Handle(new(Proveedor, "Acuerdo A", "nuevo"), default);
+            nueva.EsExitoso.Should().BeTrue();
+            nueva.Valor.Should().NotBe(_conexionA);
+        }
+    }
+
+    [Fact]
+    public async Task Perder_la_carrera_por_el_nombre_devuelve_conflicto_y_deja_el_contexto_limpio()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var repositorio = new ConexionPlataformaCaeRepository(contexto);
+        var duplicada = new ConexionPlataformaCae(Proveedor, "Acuerdo A");
+        repositorio.Agregar(duplicada);
+
+        (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
+
+        contexto.ChangeTracker.Entries().Should().NotContain(e => e.Entity == duplicada);
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("Exito", "now()", "NULL")]
+    [InlineData("Fallo", "now()", "'Inesperado'")]
+    public async Task La_aplicacion_no_inserta_un_uso_ya_cerrado(string resultado, string finalizado, string motivo)
+    {
+        await using var conexion = await AbrirComoRuntimeAsync(_tenantA);
+
+        await DebeDenegarAsync(conexion, $"""
+            INSERT INTO "UsosConexionPlataformaCae" ("Id", "ConexionPlataformaCaeId", "Operacion", "Resultado", "Motivo", "IniciadoEnUtc", "FinalizadoEnUtc", "TenantId")
+            VALUES (gen_random_uuid(), '{_conexionA}', 'SubirDocumento', '{resultado}', {motivo}, now(), {finalizado}, '{_tenantA}');
+            """);
+    }
+
+    [Theory]
+    [InlineData("'Inventado'", "NULL", "NULL", "CK_UsosConexionPlataformaCae_Resultado")]
+    [InlineData("'EnCurso'", "now()", "NULL", "CK_UsosConexionPlataformaCae_Cierre")]
+    [InlineData("'Denegado'", "now()", "NULL", "CK_UsosConexionPlataformaCae_Motivo")]
+    public async Task La_base_rechaza_un_uso_incoherente(string resultado, string finalizado, string motivo, string restriccion)
+    {
+        await using var propietario = new NpgsqlConnection(_cadenaConexion);
+        await propietario.OpenAsync();
+        await using var comando = propietario.CreateCommand();
+        comando.CommandText = $"""
+            INSERT INTO "UsosConexionPlataformaCae" ("Id", "ConexionPlataformaCaeId", "Operacion", "Resultado", "Motivo", "IniciadoEnUtc", "FinalizadoEnUtc", "TenantId")
+            VALUES (gen_random_uuid(), '{_conexionA}', 'SubirDocumento', {resultado}, {motivo}, now(), {finalizado}, '{_tenantA}');
+            """;
+
+        var insertar = () => comando.ExecuteNonQueryAsync();
+
+        var fallo = (await insertar.Should().ThrowAsync<PostgresException>()).Which;
+        fallo.SqlState.Should().Be("23514");
+        fallo.ConstraintName.Should().Be(restriccion);
+    }
+
+    private async Task<ConectorQueCuenta> HabilitarYCrearConectorAsync()
+    {
+        await EjecutarComoPropietarioAsync("UPDATE \"ProveedoresPlataformaCae\" SET \"ConectorApiActivo\" = true WHERE \"Id\" = @id;", Proveedor);
+        await EjecutarComoPropietarioAsync("UPDATE \"Tenants\" SET \"AddOnSubidaAutomaticaActivo\" = true, \"EstadoComercial\" = 'Activa' WHERE \"Id\" = @id;", _tenantA);
+        await EjecutarComoPropietarioAsync("UPDATE \"Tenants\" SET \"AddOnSubidaAutomaticaActivo\" = true, \"EstadoComercial\" = 'Activa' WHERE \"Id\" = @id;", _tenantB);
+
+        await using var propietario = new NpgsqlConnection(_cadenaConexion);
+        await propietario.OpenAsync();
+        await using var codigo = propietario.CreateCommand();
+        codigo.CommandText = "SELECT \"Codigo\" FROM \"ProveedoresPlataformaCae\" WHERE \"Id\" = @id;";
+        codigo.Parameters.AddWithValue("id", Proveedor);
+        return new ConectorQueCuenta { CodigoProveedor = (string)(await codigo.ExecuteScalarAsync())! };
+    }
+
+    private async Task EjecutarComoPropietarioAsync(string sql, Guid id)
+    {
+        await using var propietario = new NpgsqlConnection(_cadenaConexion);
+        await propietario.OpenAsync();
+        await using var comando = propietario.CreateCommand();
+        comando.CommandText = sql;
+        comando.Parameters.AddWithValue("id", id);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private async Task<Guid> SembrarTrabajadorAsync(Guid tenant)
+    {
+        await using var contexto = CrearContexto(tenant, _cadenaConexion);
+        var empresa = new Empresa("Empresa S.L.");
+        contexto.Empresas.Add(empresa);
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "12345678Z");
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+        return trabajador.Id;
+    }
     private OperacionesConectorPlataformaCae CrearPuerta(CaeManagerDbContext contexto, Guid tenant, IConectorPlataformaCae conector) => new(
         new ConexionPlataformaCaeRepository(contexto),
         new ProveedorPlataformaCaeRepository(contexto),
         [conector],
         new SinSesionPrivilegiada(),
         new TenantActualAmbiental { TenantId = tenant },
-        new CurrentUserServiceFalso(_usuario, tenantOrigenId: tenant),
+        new CurrentUserServiceFalso(_usuario, rol: "GestorCae", tenantOrigenId: tenant),
         new SinArchivos(),
         contexto,
         NullLogger<OperacionesConectorPlataformaCae>.Instance);
@@ -345,6 +501,8 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
 
         public int Llamadas { get; private set; }
 
+        public string? UltimaCredencial { get; private set; }
+
         public Task<ResultadoConector<EstadoDocumentoEnPlataforma>> LeerEstadoDocumentoAsync(
             CredencialApiConector credencial, SolicitudLecturaEstado solicitud, CancellationToken cancellationToken)
         {
@@ -353,8 +511,12 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         }
 
         public Task<ResultadoConector<ReferenciaEnPlataforma>> DarDeAltaTrabajadorAsync(
-            CredencialApiConector credencial, SolicitudAltaTrabajador solicitud, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CredencialApiConector credencial, SolicitudAltaTrabajador solicitud, CancellationToken cancellationToken)
+        {
+            Llamadas++;
+            UltimaCredencial = credencial.Revelar();
+            return Task.FromResult(ResultadoConector<ReferenciaEnPlataforma>.Exito(new ReferenciaEnPlataforma("ref-1")));
+        }
 
         public Task<ResultadoConector<ReferenciaEnPlataforma>> SubirDocumentoAsync(
             CredencialApiConector credencial, SolicitudSubidaDocumento solicitud, CancellationToken cancellationToken) =>

@@ -7653,6 +7653,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("AcreditacionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ClaveIdempotencia")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("ConexionPlataformaCaeId")
                         .HasColumnType("uuid");
 
