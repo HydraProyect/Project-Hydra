@@ -38,6 +38,14 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// <c>ConexionesIntegracion</c>. Los listados de conexiones y de líneas de WhatsApp, que Soporte TALVEG abre
 /// en Sesión Privilegiada, siguen funcionando sin el último error.
 /// </para>
+///
+/// <para>
+/// Y para lo que venga: toda columna de <c>public</c> con nombre de secreto que <c>cae_app_soporte</c> lea
+/// falla aquí salvo que se justifique que no es secreta. <c>AspNetUsers.PasswordHash</c> y
+/// <c>AspNetUsers.SecurityStamp</c> sí lo son y Soporte TALVEG aún los lee: es deuda abierta, fijada aparte.
+/// La detección es solo por nombre: en verde no prueba que Soporte TALVEG no lea ningún secreto, porque no ve
+/// uno guardado en una columna con otro nombre ni dentro de un texto.
+/// </para>
 /// </summary>
 public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
 {
@@ -119,6 +127,98 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     // ── En el catálogo ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Soporte_no_lee_columnas_con_nombres_de_secretos_fuera_de_las_excepciones()
+    {
+        var patrones = new[]
+        {
+            "Hash", "Secret", "Secreto", "Token", "Clave", "Password", "Contrasena", "Stamp", "Cifrad", "Credencial", "PrivateKey",
+        };
+
+        // Solo columnas que NO son secretas aunque su nombre lo parezca. Un secreto real no entra aquí.
+        var noSecretas = new HashSet<(string Tabla, string Columna)>
+        {
+            // Booleano que obliga a cambiar la contraseña en el siguiente acceso; no la contiene.
+            ("AspNetUsers", "DebeCambiarContrasena"),
+            // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
+            ("AspNetUsers", "ConcurrencyStamp"),
+            // Identity usa el sello del rol para detectar escrituras concurrentes, no para autenticar.
+            ("AspNetRoles", "ConcurrencyStamp"),
+            // Huella SHA-256 del archivo procesado, mostrada en la auditoría de extracción de IA.
+            ("AuditoriasExtraccionIa", "HashSha256"),
+            // Huella SHA-256 del archivo, parte de la clave de la caché de extracción de IA.
+            ("ExtraccionesIaCache", "HashSha256"),
+            // Huella SHA-256 del PDF firmado que se incluye en la consulta de firmas en campo.
+            ("FirmasEnCampoDocumento", "HashSha256Pdf"),
+            // Huella reservada del documento impreso: hoy siempre vacía, y nunca una credencial.
+            ("DocumentosGenerados", "HashSha256Impreso"),
+            // Huella SHA-256 del archivo original, para detectar una versión idéntica de la plantilla.
+            ("PlantillasDocumentoVersion", "HashSha256ArchivoOriginal"),
+            // Identificadores de las cajas que determinan su orden en la ficha.
+            ("OrdenesCajasFicha", "Claves"),
+            // Identificador del archivo del logo; abrirlo exige el Tenant activo, no conocerlo.
+            ("Tenants", "LogoArchivoClave"),
+        };
+
+        // Secretos reales que Soporte TALVEG aún lee: no son excepciones sino deuda de seguridad abierta.
+        // Se fijan aquí para que la lista no crezca y para que retirarlos obligue a borrarlos de ella.
+        // La revocación no es de una línea: UserManager materializa la cuenta entera en Sesión Privilegiada
+        // (ver SoporteSinColumnasSecretasRestantes).
+        var deudaDeSecretosLegibles = new HashSet<(string Tabla, string Columna)>
+        {
+            ("AspNetUsers", "PasswordHash"),
+            ("AspNetUsers", "SecurityStamp"),
+        };
+
+        // Lo que las migraciones ya retiraron: los patrones tienen que seguir viéndolo.
+        var secretosRevocados = new[]
+        {
+            ("AccesosPlataformaCaeEmpresa", "Contrasena"),
+            ("CanalesGestionDocumental", "Contrasena"),
+            ("ClavesApi", "HashClave"),
+            ("CredencialesAccesoEmpresa", "Contrasena"),
+            ("CredencialesAccesoSubcontrata", "Contrasena"),
+            ("CredencialesIntegracion", "AccessToken"),
+            ("CredencialesIntegracion", "RefreshToken"),
+            ("LineasWhatsApp", "TokenAcceso"),
+        };
+
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """
+            SELECT c.relname, a.attname,
+                   has_column_privilege('cae_app_soporte', c.oid, a.attnum, 'SELECT')
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+              AND a.attnum > 0 AND NOT a.attisdropped;
+            """;
+
+        var columnas = new List<(string Tabla, string Columna, bool Legible)>();
+        await using var lector = await comando.ExecuteReaderAsync();
+        while (await lector.ReadAsync())
+            columnas.Add((lector.GetString(0), lector.GetString(1), lector.GetBoolean(2)));
+
+        var candidatas = columnas
+            .Where(c => patrones.Any(p => c.Columna.Contains(p, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var legibles = candidatas.Where(c => c.Legible).Select(c => (c.Tabla, c.Columna)).ToHashSet();
+        var noLegibles = candidatas.Where(c => !c.Legible).Select(c => (c.Tabla, c.Columna)).ToHashSet();
+
+        noLegibles.Should().Contain(secretosRevocados,
+            "control del instrumento: cada secreto revocado aparece entre las candidatas y sin SELECT");
+        legibles.Should().Contain(("AspNetRoles", "ConcurrencyStamp"),
+            "control del instrumento: detecta una columna existente con SELECT");
+        noSecretas.Except(legibles).Should().BeEmpty(
+            "una excepción que ya no existe o ya no se lee se quita de la lista: no puede quedar para tapar otra columna");
+
+        legibles.Except(noSecretas).Should().BeEquivalentTo(deudaDeSecretosLegibles,
+            "Soporte TALVEG no debe leer columnas con nombre de secreto: cada una se revoca, o se justifica que no es "
+            + "secreta. Si la deuda de AspNetUsers ya se revocó, se borra de la lista");
+    }
 
     [Theory]
     [InlineData("AspNetUserTokens")]
