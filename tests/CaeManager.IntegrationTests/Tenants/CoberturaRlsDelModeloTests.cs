@@ -1,4 +1,6 @@
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -729,9 +731,13 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
             string[] esperadas = tabla switch
             {
-                "SesionesPrivilegiadas" => [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo],
+                "SesionesPrivilegiadas" =>
+                [
+                    PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo,
+                    .. PoliticasDeEscrituraDeTablasHijas.Where(p => p.Tabla == tabla).Select(p => p.Nombre),
+                ],
                 "ConcesionesPrivilegio" => [PoliticaPrivilegio, .. PoliticasDeEscrituraDeConcesiones.Select(p => p.Nombre)],
-                _ => [PoliticaPrivilegio],
+                _ => [PoliticaPrivilegio, .. PoliticasDeEscrituraDeTablasHijas.Where(p => p.Tabla == tabla).Select(p => p.Nombre)],
             };
             e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(esperadas,
                 $"{tabla} tiene que llevar exactamente esas políticas y ninguna otra");
@@ -760,18 +766,85 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                     "autenticada — no existe ni debe existir app.usuario_plataforma_id, que incrustaría una " +
                     "afirmación de privilegio en la sesión");
 
-            if (tabla == "ConcesionesPrivilegio")
-            {
-                // Desde PartePoliticaConcesionesPorOperacion la de lectura es solo eso: cada escritura
-                // tiene su política, afirmada en Las_concesiones_de_privilegio_tienen_una_politica_por_escritura.
-                politica.Comando.Should().Be('r', "privilegio_del_usuario de ConcesionesPrivilegio solo lee");
-                politica.WithCheck.Should().BeNull();
-                continue;
-            }
+            // Desde PartePoliticaConcesionesPorOperacion (ConcesionesPrivilegio) y
+            // PartePoliticasHijasDeConcesionPorOperacion (las dos tablas hijas) la de lectura es solo eso:
+            // cada escritura tiene su política, afirmada en Las_concesiones_de_privilegio_tienen_una_politica_por_escritura
+            // y Las_tablas_hijas_de_la_concesion_tienen_una_politica_por_escritura.
+            politica.Comando.Should().Be('r', $"privilegio_del_usuario de {tabla} solo lee");
+            politica.WithCheck.Should().BeNull();
+        }
+    }
 
-            politica.WithCheck.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()",
-                    "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
+    /// <summary>
+    /// Las escrituras de <c>TenantsAlcanzadosPorConcesion</c> y <c>SesionesPrivilegiadas</c>, una
+    /// política por operación (<c>PartePoliticasHijasDeConcesionPorOperacion</c>, OWASP ASVS 4.0.3
+    /// V4.1.3 y V4.2.1). Mismo formato que <see cref="PoliticasDeEscrituraDeConcesiones"/>.
+    /// </summary>
+    private static readonly (string Tabla, string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeTablasHijas =
+    [
+        ("TenantsAlcanzadosPorConcesion", "alcance_por_quien_concede", 'a',
+            ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente"], []),
+        ("SesionesPrivilegiadas", "sesion_privilegiada_apertura", 'a',
+            ["app_ctx_usuario_id()", "UsuarioPlataformaId", "TenantsAlcanzadosPorConcesion", "TenantObjetivoId", "Vigente",
+             "VigenciaHasta", "UsuarioSimuladoId", "04:00:00", "00:05:00"], []),
+        ("SesionesPrivilegiadas", "sesion_privilegiada_cierre", 'w',
+            ["app_ctx_usuario_id()", "\"CerradaEnUtc\" IS NOT NULL", "00:05:00"], ["\"CerradaEnUtc\" IS NULL"]),
+    ];
+
+    /// <summary>
+    /// <b>Ninguna política de DELETE ni FOR ALL en las tablas hijas, y es una aserción</b>: la fila de
+    /// alcance la escribe solo quien concede y una Sesión Privilegiada es el rastro de quién entró en
+    /// qué Tenant. Una permisiva FOR ALL se combinaría con OR con las de escritura y devolvería al
+    /// titular la ampliación de su propia concesión a cualquier Tenant. Y la apertura de sesión
+    /// nombra cada capacidad que <see cref="CapacidadesQuePuedenAbrirSesion"/> admite, para que la lista
+    /// de C# y la de la base no diverjan en silencio.
+    /// </summary>
+    [Fact]
+    public async Task Las_tablas_hijas_de_la_concesion_tienen_una_politica_por_escritura()
+    {
+        var estado = await LeerEstadoRlsAsync(["TenantsAlcanzadosPorConcesion", "SesionesPrivilegiadas"]);
+
+        using var _ = new AssertionScope();
+
+        foreach (var tabla in new[] { "TenantsAlcanzadosPorConcesion", "SesionesPrivilegiadas" })
+        {
+            estado.Should().ContainKey(tabla);
+            if (!estado.TryGetValue(tabla, out var e)) continue;
+
+            e.Politicas.Should().NotContain(p => p.Comando == 'd' || p.Comando == '*',
+                $"{tabla} sin DELETE ni FOR ALL: una FOR ALL reabriría la escritura del titular");
+            if (tabla == "TenantsAlcanzadosPorConcesion")
+                e.Politicas.Should().NotContain(p => p.Comando == 'w',
+                    "ninguna fila de alcance cambia de Tenant después de concederse");
+        }
+
+        foreach (var (tabla, nombre, comando, menciona, soloUsing) in PoliticasDeEscrituraDeTablasHijas)
+        {
+            if (!estado.TryGetValue(tabla, out var e)) continue;
+            var politica = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            politica.Should().NotBeNull($"{nombre} tiene que existir en {tabla}");
+            if (politica is null) continue;
+
+            politica.Comando.Should().Be(comando, $"{nombre} cubre una sola operación");
+            politica.Permisiva.Should().BeTrue();
+
+            foreach (var fragmento in menciona)
+                politica.WithCheck.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el WITH CHECK de {nombre} acota la fila de llegada");
+
+            foreach (var fragmento in soloUsing)
+                politica.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el USING de {nombre} acota la fila de partida");
+        }
+
+        var apertura = estado.TryGetValue("SesionesPrivilegiadas", out var sesiones)
+            ? sesiones.Politicas.FirstOrDefault(p => p.Nombre == "sesion_privilegiada_apertura")
+            : null;
+        foreach (var capacidad in Enum.GetValues<CapacidadPrivilegio>())
+        {
+            var nombrada = apertura?.WithCheck?.Contains($"'{capacidad}'", StringComparison.Ordinal) ?? false;
+            nombrada.Should().Be(CapacidadesQuePuedenAbrirSesion.Admite(capacidad),
+                $"la apertura de sesión en la base admite {capacidad} si y solo si CapacidadesQuePuedenAbrirSesion lo admite");
         }
     }
 
