@@ -182,4 +182,11 @@
   <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Volver a iniciar sesión con Microsoft</value></data>
   <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ya se está verificando esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
+  <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Para vincular tu cuenta de Microsoft, configura antes la verificación en dos pasos de {0}.</value></data>
+  <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Código QR para configurar la aplicación autenticadora</value></data>
+  <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escanea el código con Google Authenticator, Microsoft Authenticator o 1Password. ¿No puedes escanearlo? Introduce esta clave:</value></data>
+  <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Código de 6 dígitos de la aplicación</value></data>
+  <data name="AltaVinculoActivar" xml:space="preserve"><value>Activar y continuar</value></data>
+  <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.</value></data>
+  <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No se pudo preparar la verificación en dos pasos. Vuelve a iniciar sesión.</value></data>
 </root>

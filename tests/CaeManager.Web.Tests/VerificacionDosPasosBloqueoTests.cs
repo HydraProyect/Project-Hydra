@@ -217,6 +217,101 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         cut.Find("[role=alert]").TextContent.Should().Contain("Introduce un código de recuperación.");
     }
 
+    // ── Primera vinculación de Microsoft sin TOTP (decisión de 2026-10-28) ─────
+
+    /// <summary>
+    /// TwoFactorAuthenticatorSignInAsync no mira si el TOTP está activado: sin esta guarda,
+    /// una clave sin activar serviría para entrar. Sin marca de alta no hay nada que verificar.
+    /// </summary>
+    [Fact]
+    public void Sin_TOTP_activado_y_sin_marca_de_alta_no_se_ofrece_verificar()
+    {
+        _signIn.Usuarios.TotpActivado = false;
+
+        var cut = Render<LoginCon2fa>();
+
+        cut.FindAll("#codigo").Should().BeEmpty();
+        cut.FindAll("#codigo-alta").Should().BeEmpty();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/iniciar-sesion");
+    }
+
+    [Fact]
+    public async Task Con_marca_de_alta_se_ensena_una_clave_nueva_y_no_la_verificacion()
+    {
+        _signIn.Usuarios.TotpActivado = false;
+
+        var cut = RenderizarAlta("GET");
+
+        cut.FindAll("#codigo").Should().BeEmpty("durante el alta no se verifica ni se vincula");
+        cut.FindAll("#codigo-alta").Should().ContainSingle();
+        _signIn.Usuarios.Reinicios.Should().Be(1, "una clave de un alta abandonada no se reutiliza");
+
+        await EnviarCodigoAltaAsync(cut, "000000");
+
+        cut.Find("[role=alert]").Should().NotBeNull();
+        _signIn.Usuarios.Activaciones.Should().Be(0, "un código incorrecto no activa el TOTP");
+        _signIn.Usuarios.Vinculos.Should().BeEmpty();
+
+        await EnviarCodigoAltaAsync(cut, UsuariosConBloqueoFalso.CodigoValido);
+
+        _signIn.Usuarios.Activaciones.Should().Be(1);
+        _signIn.Usuarios.Vinculos.Should().BeEmpty("el vínculo se guarda solo al superar la verificación");
+        _signIn.LlamadasVerificacion.Should().Be(0, "activar no emite sesión");
+    }
+
+    [Fact]
+    public void El_POST_del_alta_no_cambia_la_clave_enseñada()
+    {
+        _signIn.Usuarios.TotpActivado = false;
+
+        RenderizarAlta("POST");
+
+        _signIn.Usuarios.Reinicios.Should().Be(0, "cambiarla invalidaría el código que se está enviando");
+    }
+
+    [Fact]
+    public async Task Superado_el_TOTP_del_alta_se_vincula_y_se_termina_en_la_pagina_de_la_2FA()
+    {
+        _signIn.Resultado = SignInResult.Success;
+        var cut = RenderizarAlta("POST");
+
+        await EnviarCodigoAsync(cut);
+
+        _signIn.Usuarios.Vinculos.Should().ContainSingle().Which.ProviderKey.Should().Be("sub-1");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa",
+            "los códigos de recuperación nacen con la 2FA y necesitan la sesión recién emitida");
+    }
+
+    private IRenderedComponent<LoginCon2fa> RenderizarAlta(string metodo)
+    {
+        var principal = InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(Guid.NewGuid(),
+            new UserLoginInfo(IdentityEndpointsExtensions.EsquemaMicrosoft, "sub-1", "Microsoft"), altaTotp: true);
+        var contexto = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IAuthenticationService>(new AutenticacionDosPasosFalsa(principal))
+                .BuildServiceProvider(),
+        };
+        contexto.Request.Method = metodo;
+        return Render<LoginCon2fa>(p => p.AddCascadingValue(contexto));
+    }
+
+    private static async Task EnviarCodigoAltaAsync(IRenderedComponent<LoginCon2fa> cut, string codigo)
+    {
+        await cut.Find("#codigo-alta").ChangeAsync(new ChangeEventArgs { Value = codigo });
+        await cut.Find("form").SubmitAsync();
+    }
+
+    private sealed class AutenticacionDosPasosFalsa(System.Security.Claims.ClaimsPrincipal principal) : IAuthenticationService
+    {
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
+            Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, scheme ?? string.Empty)));
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task SignInAsync(HttpContext context, string? scheme, System.Security.Claims.ClaimsPrincipal principal, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+    }
+
     private IRenderedComponent<LoginCon2fa> RenderizarModoRecuperacion()
     {
         Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/verificar-2fa?modo=recuperacion");
@@ -336,7 +431,48 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         public int? BloquearTrasFallos { get; set; }
         public bool RegistroFalla { get; set; }
 
+        // Quien llega a la verificación tiene el TOTP activado, salvo la primera vinculación
+        // de Microsoft que aún lo tiene que dar de alta.
+        public bool TotpActivado { get; set; } = true;
+        public int Reinicios { get; private set; }
+        public int Activaciones { get; private set; }
+        public List<UserLoginInfo> Vinculos { get; } = [];
+        public const string ClaveAutenticador = "JBSWY3DPEHPK3PXP";
+        public const string CodigoValido = "654321";
+
         public override Task<bool> IsLockedOutAsync(ApplicationUser user) => Task.FromResult(Bloqueado);
+
+        public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(TotpActivado);
+
+        public override Task<IdentityResult> ResetAuthenticatorKeyAsync(ApplicationUser user)
+        {
+            Reinicios++;
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        public override Task<string?> GetAuthenticatorKeyAsync(ApplicationUser user) => Task.FromResult<string?>(ClaveAutenticador);
+
+        public override Task<bool> VerifyTwoFactorTokenAsync(ApplicationUser user, string tokenProvider, string token) =>
+            Task.FromResult(token == CodigoValido);
+
+        public override Task<IdentityResult> SetTwoFactorEnabledAsync(ApplicationUser user, bool enabled)
+        {
+            Activaciones++;
+            TotpActivado = enabled;
+            return Task.FromResult(IdentityResult.Success);
+        }
+
+        public override Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user) =>
+            Task.FromResult<IList<UserLoginInfo>>([.. Vinculos]);
+
+        public override Task<ApplicationUser?> FindByLoginAsync(string loginProvider, string providerKey) =>
+            Task.FromResult<ApplicationUser?>(null);
+
+        public override Task<IdentityResult> AddLoginAsync(ApplicationUser user, UserLoginInfo login)
+        {
+            Vinculos.Add(login);
+            return Task.FromResult(IdentityResult.Success);
+        }
 
         public override Task<IdentityResult> AccessFailedAsync(ApplicationUser user)
         {

@@ -201,13 +201,13 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
-            // Segundo factor (D-2), antes de vincular: una identidad que no lo supera
-            // no deja vínculo. Si Microsoft no acreditó la MFA, el TOTP de TALVEG por
-            // el mismo paso que el inicio con contraseña (LoginCon2fa). Sin TOTP
-            // configurado no se emite sesión: el alta del TOTP exige una sesión ya
-            // emitida (MainLayout la fuerza solo a Administradores, y después). Un
-            // vínculo nuevo a una cuenta con TOTP pasa siempre por el TOTP, también
-            // con MFA de Microsoft, y se guarda solo al superarlo (ver DecidirSegundoFactor).
+            // Segundo factor, antes de vincular: una identidad que no lo supera no deja
+            // vínculo. La primera vinculación exige siempre el TOTP de TALVEG, también
+            // con MFA de Microsoft (decisión de 2026-10-28, ASVS 4.0.3 V2.1); si la cuenta
+            // aún no lo tiene, lo da de alta antes, tras reautenticarse en Microsoft
+            // (V3.7.1). Con la identidad ya vinculada rige D-2: si Microsoft no acreditó
+            // la MFA, el TOTP de TALVEG por el mismo paso que el inicio con contraseña
+            // (LoginCon2fa), y sin TOTP configurado no se emite sesión. Ver DecidirSegundoFactor.
             var vinculoNuevo = decision == DecisionCuentaMicrosoft.VincularCuentaExistente;
             var segundoFactor = InicioSesionMicrosoft.DecidirSegundoFactor(
                 InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(infoExterna.Principal, opcionesAzureAd.Value.ContextoAutenticacionMfa),
@@ -223,18 +223,32 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-mfa");
             }
 
-            if (segundoFactor == SegundoFactorMicrosoft.PedirTotp)
+            if (segundoFactor is SegundoFactorMicrosoft.PedirTotp or SegundoFactorMicrosoft.DarDeAltaTotp)
             {
+                // Primera vinculación de una cuenta sin TOTP: el alta de un factor exige
+                // autenticación reciente (ASVS 4.0.3 V3.7.1). Si esta vuelta no viene de un
+                // desafío con prompt=login, se repite con él y la persona vuelve a introducir
+                // sus credenciales en Microsoft. La marca viaja protegida en el state: este
+                // callback no la acepta de la URL.
+                var altaTotp = segundoFactor == SegundoFactorMicrosoft.DarDeAltaTotp;
+                if (altaTotp && !InicioSesionMicrosoft.VieneDeReautenticacion(infoExterna.AuthenticationProperties))
+                {
+                    await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+                    return InicioSesionMicrosoft.Desafiar(returnUrl, reautenticar: true);
+                }
+
                 // Sin vincular todavía: un vínculo nuevo viaja en la cookie de dos
                 // pasos, con el Id de la cuenta, y LoginCon2fa lo guarda solo al
-                // superar el TOTP. La sesión la emite Identity al verificar el código,
-                // con el proveedor externo, y SignInManagerCuentaDesactivada le pone la
-                // marca de inicio con SSO.
+                // superar el TOTP; con altaTotp, LoginCon2fa activa antes el TOTP. La
+                // sesión la emite Identity al verificar el código, con el proveedor
+                // externo, y SignInManagerCuentaDesactivada le pone la marca de inicio con SSO.
                 await httpContext.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
-                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null));
+                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null, altaTotp));
                 await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                    .LogInformation("Login SSO correcto sin MFA de Microsoft, pendiente del TOTP de TALVEG: {UsuarioId}", usuario.Id);
+                    .LogInformation(altaTotp
+                        ? "Primera vinculación de Microsoft sin TOTP de TALVEG, pendiente de su alta: {UsuarioId}"
+                        : "Login SSO correcto, pendiente del TOTP de TALVEG: {UsuarioId}", usuario.Id);
                 await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.SegundoFactorRequerido);
 
                 var verificacion = "/cuenta/verificar-2fa";
@@ -243,19 +257,12 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect(verificacion);
             }
 
-            // El vínculo se guarda antes de entrar y su resultado se mira: antes se
-            // ignoraba, y una identidad que no quedaba vinculada entraba igual.
-            if (decision == DecisionCuentaMicrosoft.VincularCuentaExistente)
+            // Sesión directa solo con la identidad ya vinculada: la primera vinculación
+            // pasa siempre por el TOTP (arriba) y se guarda en LoginCon2fa.
+            if (vinculoNuevo)
             {
-                var resultadoVinculo = await userManager.AddLoginAsync(usuario, infoExterna);
-                if (!resultadoVinculo.Succeeded)
-                {
-                    logger.LogError(
-                        "No se pudo vincular la identidad de Microsoft a la cuenta {UsuarioId}: {Errores}",
-                        usuario.Id, string.Join(" ", resultadoVinculo.Errors.Select(e => e.Description)));
-                    await signInManager.SignOutAsync();
-                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-                }
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
             await signInManager.SignInWithClaimsAsync(usuario, isPersistent: true,

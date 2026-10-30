@@ -11,8 +11,6 @@
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
-@using System.Text
-@using System.Text.Encodings.Web
 @using CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
@@ -24,7 +22,6 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using MediatR
-@using QRCoder
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -264,11 +261,6 @@
         ? ReturnUrl!
         : _dosFactoresObligatorio ? RedireccionLocal.DestinoTrasLogin(null) : "/";
 
-    // Dentro de @code no hay interpolacion de Razor: el literal "@Marca.Nombre" llegaba tal cual
-    // a la URI del TOTP. Y Marca.Nombre se fija desde la configuracion al arrancar, asi que se
-    // lee al usarse y no al cargar el tipo.
-    private static string Emisor => Marca.Nombre;
-
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
 
@@ -460,25 +452,9 @@
             claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         }
 
-        _claveCompartida = FormatearClave(claveSinFormato!);
-        _uriOtpAuth = GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato!);
-        _qrCodeDataUri = GenerarQrCodeDataUri(_uriOtpAuth);
-    }
-
-    /// <summary>
-    /// PNG generado en el propio proceso (PngByteQRCode, sin System.Drawing
-    /// — evita depender de libgdiplus dentro del contenedor Linux del
-    /// Dockerfile) y embebido como data URI: nada de la clave viaja a
-    /// ningún servicio externo para dibujar el código.
-    /// </summary>
-    private static string GenerarQrCodeDataUri(string uriOtpAuth)
-    {
-        using var generador = new QRCodeGenerator();
-        using var datosQr = generador.CreateQrCode(uriOtpAuth, QRCodeGenerator.ECCLevel.M);
-        var qrCode = new PngByteQRCode(datosQr);
-        var bytesPng = qrCode.GetGraphic(10);
-
-        return $"data:image/png;base64,{Convert.ToBase64String(bytesPng)}";
+        _claveCompartida = ClaveAutenticadorTotp.FormatearClave(claveSinFormato!);
+        _uriOtpAuth = ClaveAutenticadorTotp.GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato!);
+        _qrCodeDataUri = ClaveAutenticadorTotp.GenerarQrCodeDataUri(_uriOtpAuth);
     }
 
     private async Task VerificarAsync()
@@ -612,34 +588,6 @@
             Textos["CodigosFicheroCabecera", Marca.Nombre, _usuario?.Email ?? string.Empty] + "\n" +
             Textos["CodigosUnSoloUso"] + "\n\n" +
             string.Join("\n", _codigosRecuperacion ?? []));
-
-    /// <summary>
-    /// Agrupa la clave de 4 en 4 caracteres para que sea más fácil de leer
-    /// y transcribir a mano — mismo formato que usa la plantilla oficial de
-    /// ASP.NET Core Identity para esta misma pantalla.
-    /// </summary>
-    private static string FormatearClave(string claveSinFormato)
-    {
-        var resultado = new StringBuilder();
-        var posicion = 0;
-        while (posicion + 4 < claveSinFormato.Length)
-        {
-            resultado.Append(claveSinFormato.AsSpan(posicion, 4)).Append(' ');
-            posicion += 4;
-        }
-        if (posicion < claveSinFormato.Length)
-            resultado.Append(claveSinFormato.AsSpan(posicion));
-
-        return resultado.ToString().ToLowerInvariant();
-    }
-
-    private static string GenerarUriOtpAuth(string email, string claveSinFormato) =>
-        string.Format(
-            System.Globalization.CultureInfo.InvariantCulture,
-            "otpauth://totp/{0}:{1}?secret={2}&issuer={0}&digits=6",
-            UrlEncoder.Default.Encode(Emisor),
-            UrlEncoder.Default.Encode(email),
-            claveSinFormato);
 
     private sealed class DatosEntrada
     {
