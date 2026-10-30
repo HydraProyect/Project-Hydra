@@ -27,18 +27,41 @@ public sealed class PresupuestoMemoriaAgotadoComo503Tests
             // Lo que el endpoint fijó antes de fallar no sale en el 503.
             contexto.Response.Headers.ContentDisposition = "attachment; filename=secreto.pdf";
             contexto.Response.ContentType = "application/pdf";
+            contexto.Response.Headers["Strict-Transport-Security"] = "valor del endpoint";
             throw new PresupuestoMemoriaAgotadoException();
-        }, paginasEstado);
+        }, paginasEstado, hsts: "max-age=31536000");
 
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
         contexto.Response.Headers.RetryAfter.ToString().Should().Be(PresupuestoMemoriaAgotadoExtensions.SegundosReintento);
         contexto.Response.Headers.ContentSecurityPolicy.ToString().Should().Contain("frame-ancestors 'none'");
         contexto.Response.Headers.XContentTypeOptions.ToString().Should().Be("nosniff");
+        contexto.Response.Headers["X-Frame-Options"].ToString().Should().Be("DENY");
+        contexto.Response.Headers["Permissions-Policy"].ToString().Should().Be("camera=(), microphone=(), geolocation=(), payment=()");
+        contexto.Response.Headers["Referrer-Policy"].ToString().Should().Be("strict-origin-when-cross-origin");
+        contexto.Response.Headers["Pragma"].ToString().Should().Be("no-cache");
+        contexto.Response.Headers["Strict-Transport-Security"].ToString().Should().Be("max-age=31536000");
         contexto.Response.Headers.CacheControl.ToString().Should().Contain("no-store");
         contexto.Response.Headers.ContentDisposition.Should().BeEmpty("lo que escribió el endpoint se descarta");
         contexto.Response.ContentType.Should().StartWith("text/plain");
         Cuerpo(contexto).Should().Be(PresupuestoMemoriaAgotadoException.MensajeUsuario);
         paginasEstado.Enabled.Should().BeFalse("el 503 no se reejecuta como «no encontrado»");
+    }
+
+    [Fact]
+    public async Task El_503_no_hereda_la_incrustacion_ni_el_HSTS_que_fijo_el_endpoint()
+    {
+        var contexto = await EjecutarAsync(contexto =>
+        {
+            // El endpoint permitió incrustarse y escribió HSTS antes de fallar: nada de eso sale en el 503.
+            contexto.PermitirIncrustacionEnMismoOrigen();
+            contexto.Response.Headers["Strict-Transport-Security"] = "valor del endpoint";
+            throw new PresupuestoMemoriaAgotadoException();
+        });
+
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        contexto.Response.Headers["X-Frame-Options"].ToString().Should().Be("DENY");
+        contexto.Response.Headers.ContentSecurityPolicy.ToString().Should().Contain("frame-ancestors 'none'");
+        contexto.Response.Headers.ContainsKey("Strict-Transport-Security").Should().BeFalse("no había HSTS a la entrada");
     }
 
     [Fact]
@@ -91,7 +114,7 @@ public sealed class PresupuestoMemoriaAgotadoComo503Tests
         Cuerpo(contexto).Should().Be("contenido");
     }
 
-    private static async Task<DefaultHttpContext> EjecutarAsync(Func<HttpContext, Task> terminal, PaginasEstado? paginasEstado = null)
+    private static async Task<DefaultHttpContext> EjecutarAsync(Func<HttpContext, Task> terminal, PaginasEstado? paginasEstado = null, string? hsts = null)
     {
         var servicios = new ServiceCollection().AddLogging().BuildServiceProvider();
         var app = new ApplicationBuilder(servicios);
@@ -102,6 +125,8 @@ public sealed class PresupuestoMemoriaAgotadoComo503Tests
 
         var contexto = new DefaultHttpContext { RequestServices = servicios };
         contexto.Response.Body = new MemoryStream();
+        if (hsts is not null)
+            contexto.Response.Headers["Strict-Transport-Security"] = hsts;
         if (paginasEstado is not null)
             contexto.Features.Set<IStatusCodePagesFeature>(paginasEstado);
         await pipeline(contexto);

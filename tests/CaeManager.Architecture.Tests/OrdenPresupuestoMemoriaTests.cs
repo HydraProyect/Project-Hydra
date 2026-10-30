@@ -8,8 +8,9 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// El 503 por presupuesto de memoria agotado (<c>UsePresupuestoMemoriaAgotadoComo503</c>) ha de ir
-/// detrás de <c>UseCabecerasSeguridad</c> en la tubería de <c>Program.cs</c>: si fuese antes, la
-/// respuesta 503 saldría sin las cabeceras de seguridad. El comportamiento lo prueba
+/// detrás de <c>UseCabecerasSeguridad</c> en la tubería de <c>Program.cs</c>: así el 503 se traduce sobre la respuesta que esas
+/// cabeceras ya dejaron y solo reaplica lo suyo (ver <c>PresupuestoMemoriaAgotadoExtensions</c>). El
+/// comportamiento lo prueba
 /// <c>PresupuestoMemoriaAgotadoComo503Tests</c> (Web.Tests); este trinquete solo vigila el orden del
 /// cableado. Se lee el árbol sintáctico de <c>Program.cs</c>, no el texto: un cambio de formato, de
 /// nombre de la variable del builder o un comentario que mencione las llamadas no lo rompe.
