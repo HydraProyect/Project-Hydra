@@ -179,7 +179,10 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         await fila.Locator("a.boton-360-pagina").ClickAsync();
 
-        await page.WaitForURLAsync(PaginaVisita);
+        // Con la aserción de URL, no con WaitForURLAsync: la navegación mejorada de Blazor no es un documento
+        // nuevo y la espera de «load» de WaitForURLAsync caducaba a los 30 s aunque la página ya hubiera cambiado
+        // (mismo arreglo que ClientesFilaSinMenuE2ETests, #1525).
+        await Expect(page).ToHaveURLAsync(PaginaVisita, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator("[data-pieza=cabecera-identidad]")).ToBeVisibleAsync();
         await Expect(PanelVisita(page)).ToHaveCountAsync(0);
     }
