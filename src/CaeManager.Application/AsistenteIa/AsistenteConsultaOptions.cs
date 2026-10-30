@@ -10,9 +10,11 @@ public class AsistenteConsultaOptions
     public int MaxCaracteresHistorial { get; set; } = 40000;
     public int MaxPreguntasUsuario { get; set; } = 30;
     public int MaxPreguntasTenant { get; set; } = 300;
+    // Por defecto, como máximo 30 propuestas por Tenant y hora; cada propuesta puede hacer dos llamadas.
+    public int MaxPropuestasTenant { get; set; } = 30;
     public TimeSpan VentanaCuota { get; set; } = TimeSpan.FromHours(1);
 
     public bool EsValida() => MaxCaracteresPregunta > 0 && MaxTurnosHistorial > 0
         && MaxCaracteresHistorial >= MaxCaracteresPregunta && MaxPreguntasUsuario > 0
-        && MaxPreguntasTenant > 0 && VentanaCuota > TimeSpan.Zero;
+        && MaxPreguntasTenant > 0 && MaxPropuestasTenant > 0 && VentanaCuota > TimeSpan.Zero;
 }

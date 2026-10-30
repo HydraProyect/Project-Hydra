@@ -1,3 +1,4 @@
+using CaeManager.Application.AsistenteIa;
 using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Decisiones;
 using CaeManager.Application.AsistenteIa.Ordenes;
@@ -7,6 +8,7 @@ using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Common;
 using FluentAssertions;
 using MediatR;
+using Microsoft.Extensions.Options;
 using Q = CaeManager.Application.AsistenteIa.Candidatos.ObtenerCandidatosAsistenteQueryHandler;
 
 namespace CaeManager.Application.Tests.AsistenteIa;
@@ -26,6 +28,127 @@ public class ProponerPlanAsistenteQueryHandlerTests
     private static readonly Guid TrabajadorB = Guid.NewGuid();
 
     private const string Orden = "Visita de Ana Ruiz a Nave Norte el 5 de octubre";
+
+    [Fact]
+    public async Task La_propuesta_consume_cuota_por_Tenant_y_la_siguiente_se_rechaza_sin_llamar_al_proveedor()
+    {
+        var opciones = Options.Create(new AsistenteConsultaOptions { MaxPropuestasTenant = 1 });
+        var limitador = new LimitadorConsultaIa(opciones, TimeProvider.System);
+        var decisiones = new DecisionesFalsas(ordenId: null);
+
+        var primera = await Handler(decisiones, limitador: limitador).Handle(new(Orden), default);
+        var segunda = await Handler(decisiones, limitador: limitador).Handle(new(Orden), default);
+        var otroTenant = await Handler(decisiones, pantalla: TenantB, limitador: limitador).Handle(new(Orden), default);
+
+        primera.EsExitoso.Should().BeTrue();
+        segunda.EsFallido.Should().BeTrue();
+        segunda.Error.Codigo.Should().Be("AsistenteIa.CuotaTenant");
+        segunda.Error.Mensaje.Should().Be(TextosConsulta.Obtener("CuotaTenant"));
+        otroTenant.EsExitoso.Should().BeTrue();
+        decisiones.Clasificaciones.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Una_propuesta_que_llama_dos_veces_al_proveedor_consume_una_sola_reserva()
+    {
+        var limitador = new LimitadorConsultaIa(
+            Options.Create(new AsistenteConsultaOptions { MaxPropuestasTenant = 2 }), TimeProvider.System);
+        var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro,
+            new SeleccionCandidatoDto(Q.CampoCentro, CentroA, 92));
+
+        var primera = await Handler(decisiones, limitador: limitador).Handle(new(Orden), default);
+        decisiones.Solicitadas.Should().NotBeNull("la primera propuesta clasifica y además selecciona candidatos");
+        var segunda = await Handler(decisiones, limitador: limitador).Handle(new(Orden), default);
+        var tercera = await Handler(decisiones, limitador: limitador).Handle(new(Orden), default);
+
+        primera.EsExitoso.Should().BeTrue();
+        segunda.EsExitoso.Should().BeTrue();
+        tercera.Error.Codigo.Should().Be("AsistenteIa.CuotaTenant");
+        decisiones.Clasificaciones.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task La_cuota_de_propuestas_se_libera_al_pasar_la_ventana()
+    {
+        var reloj = new RelojFalso();
+        var limitador = new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions
+        {
+            MaxPropuestasTenant = 1,
+            VentanaCuota = TimeSpan.FromMinutes(10),
+        }), reloj);
+        var decisiones = new DecisionesFalsas(ordenId: null);
+
+        (await Handler(decisiones, limitador: limitador).Handle(new(Orden), default)).EsExitoso.Should().BeTrue();
+        reloj.Avanzar(TimeSpan.FromMinutes(9));
+        (await Handler(decisiones, limitador: limitador).Handle(new(Orden), default)).EsFallido.Should().BeTrue();
+        reloj.Avanzar(TimeSpan.FromMinutes(1));
+        (await Handler(decisiones, limitador: limitador).Handle(new(Orden), default)).EsExitoso.Should().BeTrue();
+
+        decisiones.Clasificaciones.Should().Be(2);
+    }
+
+    [Fact]
+    public void La_cuota_de_propuestas_esta_separada_de_la_de_la_Consulta()
+    {
+        var limitador = new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions
+        {
+            MaxPreguntasTenant = 1,
+            MaxPropuestasTenant = 1,
+        }), TimeProvider.System);
+
+        limitador.IntentarReservarPropuesta(TenantA).Should().BeNull();
+        limitador.IntentarReservar(Guid.NewGuid(), TenantA).Should().BeNull("la propuesta no gasta la cuota de la Consulta");
+        limitador.IntentarReservarPropuesta(TenantA)!.Codigo.Should().Be("AsistenteIa.CuotaTenant");
+        limitador.IntentarReservar(Guid.NewGuid(), TenantA)!.Codigo.Should().Be("AsistenteIa.CuotaTenant");
+    }
+
+    [Fact]
+    public async Task Un_rechazo_por_instruccion_o_por_cartera_no_gasta_cuota()
+    {
+        LimitadorConsultaIa Limitador() => new(
+            Options.Create(new AsistenteConsultaOptions { MaxPropuestasTenant = 1 }), TimeProvider.System);
+        var sinInstruccionEnPantalla = Limitador();
+        var carteraIncompleta = Limitador();
+        var decisiones = new DecisionesFalsas(CatalogoOrdenesAsistente.VisitaPuntualACentro);
+
+        var pantalla = await Handler(decisiones, habilitados: [TenantB], limitador: sinInstruccionEnPantalla)
+            .Handle(new(Orden), default);
+        var cartera = await Handler(decisiones, mediator: new MediatorFalso(DosTenants(), habilitados: [TenantA]),
+            limitador: carteraIncompleta).Handle(new(Orden), default);
+
+        pantalla.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        cartera.EsFallido.Should().BeTrue();
+        decisiones.Clasificaciones.Should().Be(0);
+        sinInstruccionEnPantalla.IntentarReservarPropuesta(TenantA).Should().BeNull("la cuota se reserva después de comprobar la instrucción");
+        carteraIncompleta.IntentarReservarPropuesta(TenantA).Should().BeNull("la cuota se reserva después de comprobar la cartera");
+    }
+
+    [Fact]
+    public async Task Las_reservas_de_propuesta_concurrentes_no_superan_el_limite()
+    {
+        var limitador = new LimitadorConsultaIa(
+            Options.Create(new AsistenteConsultaOptions { MaxPropuestasTenant = 10 }), TimeProvider.System);
+
+        var resultados = await Task.WhenAll(Enumerable.Range(0, 100)
+            .Select(_ => Task.Run(() => limitador.IntentarReservarPropuesta(TenantA))));
+
+        resultados.Count(r => r is null).Should().Be(10);
+    }
+
+    [Fact]
+    public async Task Sin_Tenant_efectivo_no_se_reserva_cuota_ni_se_llama_al_proveedor()
+    {
+        var limitador = new LimitadorConsultaIa(
+            Options.Create(new AsistenteConsultaOptions { MaxPropuestasTenant = 1 }), TimeProvider.System);
+        var decisiones = new DecisionesFalsas(ordenId: null);
+
+        var vacio = await Handler(decisiones, pantalla: Guid.Empty, habilitados: [Guid.Empty, TenantA, TenantB], limitador: limitador)
+            .Handle(new(Orden), default);
+
+        vacio.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion");
+        decisiones.Clasificaciones.Should().Be(0);
+        limitador.IntentarReservarPropuesta(Guid.Empty).Should().BeNull("el rechazo no consumió ninguna reserva");
+    }
 
     [Fact]
     public async Task Sin_instruccion_en_el_Tenant_de_la_pantalla_no_se_llama_al_proveedor()
@@ -193,9 +316,11 @@ public class ProponerPlanAsistenteQueryHandlerTests
     }
 
     private static ProponerPlanAsistenteQueryHandler Handler(
-        DecisionesFalsas decisiones, Guid? pantalla = null, Guid[]? habilitados = null, MediatorFalso? mediator = null) =>
+        DecisionesFalsas decisiones, Guid? pantalla = null, Guid[]? habilitados = null, MediatorFalso? mediator = null,
+        LimitadorConsultaIa? limitador = null) =>
         new(mediator ?? new MediatorFalso(DosTenants(), habilitados), decisiones,
-            new InstruccionPorTenant(habilitados ?? [TenantA, TenantB]), new TenantActualFalso(pantalla ?? TenantA));
+            new InstruccionPorTenant(habilitados ?? [TenantA, TenantB]), new TenantActualFalso(pantalla ?? TenantA),
+            limitador ?? new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions()), TimeProvider.System));
 
     private static CandidatosAsistenteDto DosTenants() => new(
         [new(TenantA, "Tenant A", true), new(TenantB, "Tenant B", false)],
@@ -227,6 +352,13 @@ public class ProponerPlanAsistenteQueryHandlerTests
                 ? Result.Fallo<IReadOnlyList<SeleccionCandidatoDto>>(error)
                 : Result.Exito<IReadOnlyList<SeleccionCandidatoDto>>(selecciones));
         }
+    }
+
+    private sealed class RelojFalso : TimeProvider
+    {
+        private DateTimeOffset _ahora = new(2026, 10, 30, 12, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => _ahora;
+        public void Avanzar(TimeSpan tiempo) => _ahora += tiempo;
     }
 
     private sealed class InstruccionPorTenant(Guid[] habilitados) : IInstruccionTratamientoIaService
