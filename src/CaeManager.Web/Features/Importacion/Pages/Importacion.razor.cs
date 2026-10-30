@@ -429,8 +429,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             // Página retirada: nadie va a leer el historial.
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogWarning(ex, "Importación no pudo leer el historial de importaciones.");
             if (version == _versionHistorial)
                 _historial = [];
         }
