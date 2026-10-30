@@ -51,8 +51,20 @@ public class ObtenerDocumentosGeneradosQueryHandler(
         if (empresaIdsVisibles is not null)
             consulta = consulta.Where(d => d.EmpresaId == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value));
 
+        // Proyecta a propósito: Soporte TALVEG no tiene CodigoSeguroVerificacion, y materializar
+        // la entidad daría 42501 en Sesión Privilegiada.
         var generados = await consulta
             .OrderByDescending(d => d.GeneradoEnUtc)
+            .Select(d => new
+            {
+                d.Id,
+                d.DocumentoId,
+                d.PlantillaDocumentoVersionId,
+                d.TrabajadorId,
+                d.EmpresaId,
+                d.GeneradoEnUtc,
+                d.Estado,
+            })
             .ToListAsync(cancellationToken);
 
         if (generados.Count == 0)

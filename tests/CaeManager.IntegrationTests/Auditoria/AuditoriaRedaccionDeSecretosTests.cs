@@ -1,11 +1,14 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -219,6 +222,37 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 
         registro.DatosDespues.Should().NotContain(TokenAccesoSecreto);
         registro.DatosDespues.Should().Contain("\"TokenAcceso\":\"***\"");
+    }
+
+    [Fact]
+    public async Task El_codigo_seguro_de_un_documento_generado_no_aparece_en_claro_en_la_auditoria()
+    {
+        const string codigoSeguroSecreto = "CODIGO-SEGURO-no-debe-aparecer-en-claro";
+
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var empresa = new Empresa("Empresa de prueba S.L.", "B10380194");
+            var plantilla = new PlantillaDocumento(
+                OrigenPlantilla.Externa, "Plantilla de prueba", AmbitoAplicacion.Empresa, FormatoOrigenPlantilla.PdfVisual, tipo.Id);
+            var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "plantilla-de-prueba.pdf", new string('a', 64));
+            contexto.AddRange(tipo, empresa, plantilla, version);
+            await contexto.SaveChangesAsync();
+
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+            var generado = new DocumentoGenerado(
+                version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, empresaId: empresa.Id);
+            contexto.AddRange(documento, generado);
+            // Ninguna generación rellena el código todavía: se escribe como lo hará la primera
+            // plantilla de origen TalvegPropio.
+            contexto.Entry(generado).Property(d => d.CodigoSeguroVerificacion).CurrentValue = codigoSeguroSecreto;
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(DocumentoGenerado));
+
+        registro.DatosDespues.Should().NotContain(codigoSeguroSecreto);
+        registro.DatosDespues.Should().Contain("\"CodigoSeguroVerificacion\":\"***\"");
     }
 
     [Fact]
