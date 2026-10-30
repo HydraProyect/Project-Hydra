@@ -243,6 +243,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     // historial). La importación NO lo recibe: una escritura ya enviada se deja
     // terminar y registrar en el historial en vez de cortarla a medias.
     private readonly CancellationTokenSource _ciclo = new();
+
+    // Token del análisis vigente, ligado a _ciclo; DescartarAnalisis lo cancela para que el descartado devuelva su hueco.
+    private CancellationTokenSource? _cicloAnalisis;
     private bool _desechada;
 
     protected override void OnInitialized()
@@ -522,6 +525,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// <summary>Invalida el análisis en vuelo (si lo hay) y todo lo que colgaba de un plan.</summary>
     private void DescartarAnalisis()
     {
+        // Cancelar, además de invalidar la versión: el análisis descartado devuelve su hueco del limitador (y el cupo
+        // de su Tenant) en vez de retenerlo hasta terminar un trabajo que ya nadie va a pintar.
+        _cicloAnalisis?.Cancel();
+        _cicloAnalisis = null;
         _versionAnalisis++;
         _analizando = false;
         _nombreArchivo = null;
@@ -570,11 +577,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _nombreArchivo = archivo.Name;
         StateHasChanged();
 
+        // Un token por análisis, ligado al de la página: lo cancela tanto retirar la página como descartar el análisis.
+        using var cicloAnalisis = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token);
+        _cicloAnalisis = cicloAnalisis;
+        var token = cicloAnalisis.Token;
         try
         {
-            await using var flujo = archivo.OpenReadStream(plantilla.TamanoMaximoBytes, _ciclo.Token);
+            await using var flujo = archivo.OpenReadStream(plantilla.TamanoMaximoBytes, token);
             using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria, _ciclo.Token);
+            await flujo.CopyToAsync(memoria, token);
             var contenido = memoria.ToArray();
             if (version != _versionAnalisis) return;
 
@@ -588,7 +599,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
                 return;
             }
 
-            using var permiso = await Limitador.IntentarEntrarAsync(tenantPropietarioId, _ciclo.Token);
+            using var permiso = await Limitador.IntentarEntrarAsync(tenantPropietarioId, token);
             if (version != _versionAnalisis) return;
             if (permiso is null)
             {
@@ -601,16 +612,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             switch (plantilla.Id)
             {
                 case "cae":
-                    planSimple = await Mediator.Send(new AnalizarImportacionExcelQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarImportacionExcelQuery(contenido), token);
                     break;
                 case IdPlantillaClientes:
-                    planSimple = await Mediator.Send(new AnalizarPlantillaClientesQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarPlantillaClientesQuery(contenido), token);
                     break;
                 case "documentos":
-                    planSimple = await Mediator.Send(new AnalizarPlantillaDocumentosQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarPlantillaDocumentosQuery(contenido), token);
                     break;
                 case "combinada":
-                    planCombinada = await Mediator.Send(new AnalizarPlantillaCombinadaQuery(contenido), _ciclo.Token);
+                    planCombinada = await Mediator.Send(new AnalizarPlantillaCombinadaQuery(contenido), token);
                     break;
             }
 
@@ -618,9 +629,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             _planSimple = planSimple;
             _planCombinada = planCombinada;
         }
-        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // Página retirada con el análisis en vuelo: no hay a quién pintarlo.
+            // Página retirada o análisis descartado con el análisis en vuelo: no hay a quién pintarlo.
         }
         catch (LimiteHojaImportacionException ex)
         {
@@ -644,6 +655,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         }
         finally
         {
+            if (ReferenceEquals(_cicloAnalisis, cicloAnalisis))
+                _cicloAnalisis = null;
             if (version == _versionAnalisis)
                 _analizando = false;
         }
