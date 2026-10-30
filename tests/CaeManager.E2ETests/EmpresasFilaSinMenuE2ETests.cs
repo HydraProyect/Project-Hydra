@@ -81,7 +81,8 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"));
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
 
         // De vuelta en la lista, el lápiz de la cabecera del panel entra en edición. Va el

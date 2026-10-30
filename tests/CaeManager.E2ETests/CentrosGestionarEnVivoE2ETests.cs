@@ -203,7 +203,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await enlaceFicha.ClickAsync();
         var rutaFicha = new System.Text.RegularExpressions.Regex(
             @"/trabajadores/(?<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(\?.*)?$");
-        await page.WaitForURLAsync(rutaFicha, new PageWaitForURLOptions { Timeout = 15_000 });
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        await Assertions.Expect(page).ToHaveURLAsync(rutaFicha, new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
         Assert.True(Guid.TryParse(rutaFicha.Match(page.Url).Groups["id"].Value, out _),
             $"La acción debería llevar a /trabajadores/{{guid}}, pero la URL es {page.Url}.");
 

@@ -140,7 +140,8 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         await fila.Locator("a.boton-360-pagina").ClickAsync();
 
-        await page.WaitForURLAsync(new Regex(@"/vehiculos/[0-9a-f-]{36}$"));
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(new Regex(@"/vehiculos/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
     }
 
