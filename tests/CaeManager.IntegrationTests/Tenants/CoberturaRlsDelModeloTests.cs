@@ -786,16 +786,16 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente"], []),
         ("SesionesPrivilegiadas", "sesion_privilegiada_apertura", 'a',
             ["app_ctx_usuario_id()", "UsuarioPlataformaId", "TenantsAlcanzadosPorConcesion", "TenantObjetivoId", "Vigente",
-             "VigenciaHasta", "UsuarioSimuladoId", "04:00:00"], []),
+             "VigenciaHasta", "UsuarioSimuladoId", "04:00:00", "00:05:00"], []),
         ("SesionesPrivilegiadas", "sesion_privilegiada_cierre", 'w',
-            ["app_ctx_usuario_id()", "\"CerradaEnUtc\" IS NOT NULL"], ["\"CerradaEnUtc\" IS NULL"]),
+            ["app_ctx_usuario_id()", "\"CerradaEnUtc\" IS NOT NULL", "00:05:00"], ["\"CerradaEnUtc\" IS NULL"]),
     ];
 
     /// <summary>
     /// <b>Ninguna política de DELETE ni FOR ALL en las tablas hijas, y es una aserción</b>: la fila de
     /// alcance la escribe solo quien concede y una Sesión Privilegiada es el rastro de quién entró en
     /// qué Tenant. Una permisiva FOR ALL se combinaría con OR con las de escritura y devolvería al
-    /// beneficiario la ampliación de su propia concesión a cualquier Tenant. Y la apertura de sesión
+    /// titular la ampliación de su propia concesión a cualquier Tenant. Y la apertura de sesión
     /// nombra cada capacidad que <see cref="CapacidadesQuePuedenAbrirSesion"/> admite, para que la lista
     /// de C# y la de la base no diverjan en silencio.
     /// </summary>
@@ -812,7 +812,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             if (!estado.TryGetValue(tabla, out var e)) continue;
 
             e.Politicas.Should().NotContain(p => p.Comando == 'd' || p.Comando == '*',
-                $"{tabla} sin DELETE ni FOR ALL: una FOR ALL reabriría la escritura del beneficiario");
+                $"{tabla} sin DELETE ni FOR ALL: una FOR ALL reabriría la escritura del titular");
             if (tabla == "TenantsAlcanzadosPorConcesion")
                 e.Politicas.Should().NotContain(p => p.Comando == 'w',
                     "ninguna fila de alcance cambia de Tenant después de concederse");
