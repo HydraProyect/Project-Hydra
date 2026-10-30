@@ -73,11 +73,17 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         if (!opciones.Value.Activa)
             return Result.Exito(SinDeteccion(adjunto.Id));
 
-        await using var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken);
-        using var memoria = new MemoryStream();
-        await flujo.CopyToAsync(memoria, cancellationToken);
+        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
+        // cerrarse, y no tiene por qué retenerla durante la llamada al proveedor de extracción.
+        byte[] contenido;
+        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        {
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria, cancellationToken);
+            contenido = memoria.ToArray();
+        }
 
-        var resultado = await router.ProcesarAsync(memoria.ToArray(), adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
+        var resultado = await router.ProcesarAsync(contenido, adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(resultado.Error);
 
