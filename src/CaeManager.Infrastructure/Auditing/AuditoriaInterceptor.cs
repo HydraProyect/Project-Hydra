@@ -148,7 +148,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
 
         // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
         // SoporteSinLecturaDeCredenciales y SoporteSinColumnasSecretasRestantes;
-        // OWASP ASVS 4.0.3 V1.4.3 y V2.10.4): sin esto, Soporte TALVEG las
+        // OWASP ASVS 4.0.3 V4.1.3 y V2.10.4): sin esto, Soporte TALVEG las
         // leería en RegistrosAuditoria, que sí tiene concedido. HashClave es el
         // SHA-256 de la clave de API; UltimoError, el texto del proveedor al fallar.
         [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],

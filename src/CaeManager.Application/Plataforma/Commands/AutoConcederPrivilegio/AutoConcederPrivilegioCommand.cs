@@ -55,7 +55,8 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// <param name="Capacidad">Qué podrá hacer la sesión que se abra bajo esta concesión.</param>
 /// <param name="DiasDeVigencia">
 /// Cuánto vive la concesión. Distinto de la ventana de cada sesión. Para
-/// SoporteLectura es además el plazo de renovación de la llave universal.
+/// SoporteLectura es además el plazo de renovación de la llave universal;
+/// para AdminPlataforma se ignora porque la concesión raíz no tiene fecha de fin.
 /// </param>
 public record AutoConcederPrivilegioCommand(
     CapacidadPrivilegio Capacidad,
@@ -74,9 +75,11 @@ public class AutoConcederPrivilegioCommandValidator : AbstractValidator<AutoConc
 
     public AutoConcederPrivilegioCommandValidator()
     {
+        // La concesión raíz de AdminPlataforma nace sin fecha de fin y no usa este dato.
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
-            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.");
+            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.")
+            .When(c => c.Capacidad != CapacidadPrivilegio.AdminPlataforma);
 
         // Restricción de producto, no invariante de seguridad, y conviene
         // distinguirlo: la seguridad de que una sesión no escriba no depende de

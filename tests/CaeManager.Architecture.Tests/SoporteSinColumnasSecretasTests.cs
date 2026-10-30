@@ -5,7 +5,7 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <b>Ninguna migración concede a <c>cae_app_soporte</c> las columnas secretas</b> (OWASP ASVS 4.0.3
-/// V1.4.3 y V2.10.4).
+/// V4.1.3 y V2.10.4).
 ///
 /// <para>
 /// <c>cae_app_soporte</c> es el rol de la conexión en Sesión Privilegiada. La migración

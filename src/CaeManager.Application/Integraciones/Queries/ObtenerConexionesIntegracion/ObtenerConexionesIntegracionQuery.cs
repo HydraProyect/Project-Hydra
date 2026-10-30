@@ -26,7 +26,7 @@ public record ConexionIntegracionListaDto(
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
 /// devuelve el proveedor al fallar, y <c>cae_app_soporte</c> no tiene <c>SELECT</c> sobre esa columna
-/// (migración <c>SoporteSinColumnasSecretasRestantes</c>; OWASP ASVS 4.0.3 V1.4.3). Con una sola consulta,
+/// (migración <c>SoporteSinColumnasSecretasRestantes</c>; OWASP ASVS 4.0.3 V4.1.3). Con una sola consulta,
 /// Soporte TALVEG no vería el listado. La señal es la coordenada en bruto
 /// (<c>IClienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada</c>) y no <c>ISesionPrivilegiadaActual</c>:
 /// es con la que <c>TenantRlsConnectionInterceptor</c> adopta el rol, también con la sesión ya caducada.
