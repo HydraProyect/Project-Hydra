@@ -155,10 +155,15 @@ public class GenerarDocumentoIndividualCommandHandler(
             .Where(e => e.Tipo != TipoElementoPlantilla.Firma)
             .ToDictionary(e => e, e => ResolverValor(e, request.ValoresManuales, empresa, trabajador, centro, cliente, contactosPorRol, ahoraUtc));
 
-        using var flujoOriginal = await almacenamientoArchivos.AbrirAsync(version.ArchivoOriginalUrl, cancellationToken);
-        using var memoria = new MemoryStream();
-        await flujoOriginal.CopyToAsync(memoria, cancellationToken);
-        var contenidoOriginal = memoria.ToArray();
+        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
+        // cerrarse, y el GuardarAsync de abajo reserva por su cuenta.
+        byte[] contenidoOriginal;
+        await using (var flujoOriginal = await almacenamientoArchivos.AbrirAsync(version.ArchivoOriginalUrl, cancellationToken))
+        {
+            using var memoria = new MemoryStream();
+            await flujoOriginal.CopyToAsync(memoria, cancellationToken);
+            contenidoOriginal = memoria.ToArray();
+        }
 
         if (!ValidadorFirmaArchivo.EsDocumentoValido(contenidoOriginal, "plantilla.pdf"))
             return Fallo("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajePlantillaNoValida);

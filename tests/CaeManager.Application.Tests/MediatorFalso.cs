@@ -13,9 +13,14 @@ public class MediatorFalso : IMediator
     public List<object> Enviados { get; } = [];
     public object? Respuesta { get; set; }
 
+    /// <summary>Si se informa, el Send tipado la lanza en vez de devolver <see cref="Respuesta"/>.</summary>
+    public Exception? Excepcion { get; set; }
+
     public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
         Enviados.Add(request);
+        if (Excepcion is not null)
+            return Task.FromException<TResponse>(Excepcion);
         return Task.FromResult((TResponse)Respuesta!);
     }
 

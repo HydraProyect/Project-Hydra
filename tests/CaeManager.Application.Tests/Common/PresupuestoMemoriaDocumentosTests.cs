@@ -144,6 +144,40 @@ public class PresupuestoMemoriaDocumentosTests
     }
 
     [Fact]
+    public async Task Reducir_devuelve_lo_que_sobra_y_concede_a_quien_esperaba()
+    {
+        var presupuesto = Crear();
+        var reserva = await presupuesto.ReservarAsync(Maximo);
+        var esperando = presupuesto.ReservarAsync(600).AsTask();
+        await Task.Delay(50);
+        esperando.IsCompleted.Should().BeFalse("control: no cabe mientras la primera retiene el presupuesto entero");
+
+        reserva.ReducirA(400);
+        using var concedida = await esperando.WaitAsync(TimeSpan.FromSeconds(5));
+
+        reserva.Bytes.Should().Be(400);
+        presupuesto.Reservado.Should().Be(1000);
+        reserva.Dispose();
+        presupuesto.Reservado.Should().Be(600, "al desecharla devuelve solo lo que le quedaba");
+    }
+
+    [Fact]
+    public async Task Reducir_nunca_amplia_y_tras_desechar_no_devuelve_de_mas()
+    {
+        var presupuesto = Crear();
+        using var otra = await presupuesto.ReservarAsync(300);
+        var reserva = await presupuesto.ReservarAsync(500);
+
+        reserva.ReducirA(800);
+        reserva.Bytes.Should().Be(500, "reducir por encima de lo reservado no amplía");
+
+        reserva.Dispose();
+        reserva.ReducirA(0);
+        reserva.Dispose();
+        presupuesto.Reservado.Should().Be(300, "lo de otra reserva sigue descontado: nada se devolvió dos veces");
+    }
+
+    [Fact]
     public async Task Cancelar_la_espera_la_saca_de_la_cola_sin_descontar()
     {
         var presupuesto = Crear();

@@ -17,6 +17,10 @@ public interface IVerificadorArchivoAlmacenado
     /// topes de entradas y de bytes descomprimidos. Una clave inexistente, de otro Tenant o cuyo
     /// contenido no supera la comprobación de integridad del almacenamiento es «no válido», nunca una excepción.
     /// </summary>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">
+    /// No hubo hueco en el presupuesto de memoria de documentos para abrirlo: es saturación transitoria, no un
+    /// archivo no válido, así que se propaga para que quien llama avise y deje reintentar.
+    /// </exception>
     Task<bool> EsDocumentoValidoAsync(string archivoUrl, CancellationToken cancellationToken = default);
 }
 

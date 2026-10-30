@@ -11,6 +11,14 @@ public interface IFileStorageService
     /// <summary>Guarda el contenido y devuelve un identificador opaco para recuperarlo después.</summary>
     Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Abre el archivo descifrado. El flujo devuelto retiene memoria del presupuesto del proceso
+    /// (<see cref="IPresupuestoMemoriaDocumentos"/>) hasta que se cierra: quien lo abre lo cierra
+    /// en todos los caminos (<c>await using</c>, o <c>Results.File</c>, que lo cierra al servirlo),
+    /// y conviene cerrarlo en cuanto se ha copiado.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">No existe o no es del Tenant activo.</exception>
+    /// <exception cref="PresupuestoMemoriaAgotadoException">Sin hueco en el presupuesto de memoria: transitorio.</exception>
     Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default);
 
     /// <summary>

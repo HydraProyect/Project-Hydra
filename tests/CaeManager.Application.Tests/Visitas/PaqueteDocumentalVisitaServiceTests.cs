@@ -387,6 +387,23 @@ public class PaqueteDocumentalVisitaServiceTests
         aviso.Mensaje.Should().Contain(ilegible.Id.ToString()).And.NotContain(ilegible.ArchivoUrl!);
     }
 
+    /// <summary>
+    /// S-C-3 (OWASP API4:2023): sin hueco en el presupuesto de memoria no se prueba la copia siguiente ni se
+    /// salta el documento, porque eso daría por completo un paquete al que le faltan; el paquete entero falla.
+    /// </summary>
+    [Fact]
+    public async Task Sin_hueco_en_el_presupuesto_de_memoria_el_paquete_falla_entero_en_vez_de_saltarse_documentos()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "elegida");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "reserva");
+        _almacenamiento.ExcepcionAlAbrir = new PresupuestoMemoriaAgotadoException();
+
+        var construir = ConstruirAsync;
+
+        await construir.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("No se pudo abrir"));
+    }
+
     [Fact]
     public async Task El_aviso_de_sin_confirmar_refleja_lo_que_viajo_si_la_elegida_no_se_pudo_abrir()
     {

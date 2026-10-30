@@ -44,25 +44,22 @@ public static class LogoTenantEndpoints
         if (logo is null)
             return Results.NotFound();
 
-        byte[] png;
+        Stream flujo;
         try
         {
-            // El blob está cifrado con la clave del Tenant propietario y en su carpeta: se lee dentro
-            // de su ámbito, que la query acaba de autorizar, y solo para este blob (I13).
+            // El blob está cifrado con la clave del Tenant propietario y en su carpeta: se abre (y se
+            // descifra) dentro de su ámbito, que la query acaba de autorizar, y solo para este blob (I13).
             using (AmbitoTenantExplicito.Establecer(id))
-            {
-                await using var flujo = await almacenamiento.AbrirAsync(logo.ArchivoClave, cancellationToken);
-                using var memoria = new MemoryStream();
-                await flujo.CopyToAsync(memoria, cancellationToken);
-                png = memoria.ToArray();
-            }
+                flujo = await almacenamiento.AbrirAsync(logo.ArchivoClave, cancellationToken);
         }
         catch (FileNotFoundException)
         {
             return Results.NotFound();
         }
 
+        // Sin copia intermedia: Results.File escribe el flujo y lo cierra, y con él devuelve su
+        // reserva del presupuesto de memoria de documentos.
         contexto.Response.Headers.ContentDisposition = "inline";
-        return Results.File(png, "image/png");
+        return Results.File(flujo, "image/png");
     }
 }

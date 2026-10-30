@@ -539,6 +539,11 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             else
                 Toasts.Mostrar("Documento generado.", TonoToast.Exito);
         }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria: no se generó nada y el formulario conserva lo escrito.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+        }
         finally
         {
             _generando = false;
@@ -622,6 +627,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             Toasts.Mostrar(
                 $"Lote terminado: {TotalCompletadosLote} generado(s), {TotalConAvisosLote} con avisos, {TotalFallidosLote} con error.",
                 TotalFallidosLote == 0 && TotalConAvisosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Red de seguridad: cada elemento ya registra la saturación como fallo propio
+            // (ProcesarItemLoteGeneracionCommandHandler); aquí solo llega si ocurre fuera de ellos.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
         }
         finally
         {

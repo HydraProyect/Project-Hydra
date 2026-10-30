@@ -66,7 +66,9 @@ public sealed class OpcionesPresupuestoMemoriaDocumentos
 /// <summary>
 /// Contabilidad por proceso de los bytes de documento cargados en memoria
 /// (<see cref="OpcionesPresupuestoMemoriaDocumentos"/>). Cada punto que va a cargar
-/// un documento entero reserva antes y desecha la reserva en un <c>finally</c>.
+/// un documento entero reserva antes y desecha la reserva en un <c>finally</c>, salvo las
+/// lecturas del almacenamiento (<see cref="IFileStorageService.AbrirAsync"/>): el flujo
+/// descifrado que devuelven lleva su reserva y la devuelve al cerrarse.
 /// </summary>
 public interface IPresupuestoMemoriaDocumentos
 {
@@ -81,31 +83,67 @@ public interface IPresupuestoMemoriaDocumentos
     ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Bytes reservados del presupuesto; <see cref="Dispose"/> los devuelve una sola vez.</summary>
+/// <summary>
+/// Bytes reservados del presupuesto; <see cref="Dispose"/> devuelve lo que quede una sola vez, y
+/// <see cref="ReducirA"/> devuelve antes la parte que ya no se usa.
+/// </summary>
 public sealed class ReservaMemoriaDocumentos : IDisposable
 {
     private readonly PresupuestoMemoriaDocumentos? _presupuesto;
-    private int _devuelta;
+    private long _bytes;
 
     internal ReservaMemoriaDocumentos(PresupuestoMemoriaDocumentos? presupuesto, long bytes)
     {
         _presupuesto = presupuesto;
-        Bytes = bytes;
+        _bytes = bytes;
     }
 
-    /// <summary>Lo que descuenta del presupuesto: lo pedido, recortado al presupuesto entero.</summary>
-    public long Bytes { get; }
+    /// <summary>
+    /// Lo que descuenta ahora del presupuesto: lo pedido, recortado al presupuesto entero, menos lo
+    /// que ya se devolvió.
+    /// </summary>
+    public long Bytes => Interlocked.Read(ref _bytes);
+
+    /// <summary>
+    /// Devuelve al presupuesto lo que pase de <paramref name="bytes"/>, para quien retiene el
+    /// documento más allá de su pico (un flujo descifrado que aún se está sirviendo). Nunca amplía la
+    /// reserva; sobre una reserva ya desechada no hace nada.
+    /// </summary>
+    public void ReducirA(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        while (true)
+        {
+            var actual = Interlocked.Read(ref _bytes);
+            if (bytes >= actual)
+                return;
+            if (Interlocked.CompareExchange(ref _bytes, bytes, actual) == actual)
+            {
+                _presupuesto?.Devolver(actual - bytes);
+                return;
+            }
+        }
+    }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _devuelta, 1) == 0)
-            _presupuesto?.Devolver(Bytes);
+        var restante = Interlocked.Exchange(ref _bytes, 0);
+        if (restante > 0)
+            _presupuesto?.Devolver(restante);
     }
 }
 
-/// <summary>No hubo hueco en el presupuesto de memoria de documentos dentro de la espera máxima.</summary>
-public sealed class PresupuestoMemoriaAgotadoException()
-    : Exception("El servidor tiene demasiados documentos en memoria ahora mismo; vuelve a intentarlo en unos segundos.");
+/// <summary>
+/// No hubo hueco en el presupuesto de memoria de documentos dentro de la espera máxima. Es
+/// transitorio: una petición HTTP la recibe como 503 con <c>Retry-After</c> y una pantalla
+/// Blazor como aviso con <see cref="MensajeUsuario"/>, nunca como fallo sin controlar.
+/// </summary>
+public sealed class PresupuestoMemoriaAgotadoException() : Exception(MensajeUsuario)
+{
+    /// <summary>Lo que ve el usuario: no lleva datos del documento ni del Tenant.</summary>
+    public const string MensajeUsuario =
+        "El servidor tiene demasiados documentos en memoria ahora mismo; vuelve a intentarlo en unos segundos.";
+}
 
 /// <inheritdoc cref="IPresupuestoMemoriaDocumentos"/>
 public sealed class PresupuestoMemoriaDocumentos : IPresupuestoMemoriaDocumentos
