@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
@@ -21,25 +20,20 @@ namespace CaeManager.IntegrationTests.Identity;
 /// <summary>
 /// Reproduce en aislamiento el hallazgo de
 /// <c>SelectorTemaTests.El_tema_elegido_se_aplica_al_documento_y_sobrevive_a_la_recarga</c>
-/// (CI 2026-09-12, runs 34704233652 y 34712092934): <c>SelectorTema</c> carga
-/// <c>ApplicationUser</c> una sola vez en <c>OnInitializedAsync</c> y lo guarda
-/// mucho después, cuando el usuario por fin toca el selector. Si entre medias
-/// otra escritura sobre la misma cuenta —<c>ActividadUsuarioService</c> toca
-/// <c>UltimaActividadUtc</c> en cada carga de página, con su propio
-/// <c>UserManager.UpdateAsync</c>, ver <c>ApplicationUser.UltimaActividadUtc</c>—
-/// renueva <c>ConcurrencyStamp</c>, el guardado del tema con la entidad
-/// obsoleta falla: <c>UserStore</c> de Identity atrapa
-/// <c>DbUpdateConcurrencyException</c> y devuelve un <see cref="IdentityResult"/>
-/// fallido sin lanzar. La versión anterior de <c>CambiarTemaAsync</c>
-/// descartaba ese resultado — la preferencia se perdía en silencio y una
-/// recarga posterior (nuevo circuito, nueva lectura) revertía al tema previo,
+/// (CI 2026-09-12, runs 34704233652 y 34712092934): <c>SelectorTema</c> lee la
+/// cuenta una sola vez en <c>OnInitializedAsync</c> y guarda mucho después,
+/// cuando el usuario por fin toca el selector. Entre medias otra escritura
+/// sobre la misma cuenta —<c>ActividadUsuarioService</c> toca
+/// <c>UltimaActividadUtc</c> en cada carga de página— renueva
+/// <c>ConcurrencyStamp</c>, y la preferencia no debe perderse en silencio: una
+/// recarga posterior (nuevo circuito, nueva lectura) revertiría al tema previo,
 /// justo el síntoma que capturó el E2E.
 ///
 /// <para>
 /// Por qué no bUnit: no hace falta renderer — <c>CambiarTemaAsync</c> no llama
 /// a <c>StateHasChanged</c> ni depende del árbol de renderizado, solo de
-/// <c>UserManager</c> real (para que <c>ConcurrencyStamp</c> se comporte como
-/// en producción) y del propio flujo de datos. Mismo patrón que
+/// <c>PreferenciasCuentaPropia</c> real (para que <c>ConcurrencyStamp</c> se
+/// comporte como en producción) y del propio flujo de datos. Mismo patrón que
 /// <c>FronteraDeTenantEnGestionDeUsuariosTests</c>: se instancia el componente
 /// real, se inyectan sus dependencias por reflexión y se invoca el método
 /// privado bajo prueba.
@@ -48,7 +42,6 @@ namespace CaeManager.IntegrationTests.Identity;
 public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
-    private readonly RetenedorDelPrimerGuardado _retenedor = new();
     private ServiceProvider _servicios = null!;
     private Guid _usuarioId;
 
@@ -64,11 +57,10 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(new SinTenantActual());
 
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(_retenedor));
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
 
         servicios.AddScoped<PuertaAccesoDatos>();
-        servicios.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        servicios.AddScoped<IPreferenciasCuentaPropia, PreferenciasCuentaPropia>();
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddEntityFrameworkStores<CaeManagerDbContext>();
@@ -99,15 +91,14 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         using var ambitoCircuito = _servicios.CreateScope();
         var selectorTema = CrearSelectorTema(ambitoCircuito.ServiceProvider, _usuarioId);
 
-        // Arranca el componente: carga _usuario una vez, como en un circuito
+        // Arranca el componente: lee la cuenta una vez, como en un circuito
         // real recién conectado.
         await InvocarOnInitializedAsync(selectorTema);
 
         // La escritura concurrente que dispara el hallazgo: otra parte de la
         // misma app (en producción, ActividadUsuarioService desde MainLayout)
         // toca la cuenta con SU PROPIO UserManager, renovando
-        // ConcurrencyStamp en la base. El _usuario en memoria del selector no
-        // se entera.
+        // ConcurrencyStamp en la base. El selector no se entera.
         using (var ambitoActividad = _servicios.CreateScope())
         {
             var userManagerActividad = ambitoActividad.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -117,8 +108,8 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
                 "la propia escritura de 'actividad' que provoca la carrera tiene que guardarse sin problema");
         }
 
-        // El usuario elige "oscuro" en un selector cuyo _usuario ya está
-        // obsoleto frente a la fila real.
+        // El usuario elige "oscuro" en un selector que leyó la cuenta antes de
+        // esa escritura.
         await InvocarCambiarTemaAsync(selectorTema, "oscuro");
 
         using var ambitoVerificacion = _servicios.CreateScope();
@@ -369,8 +360,8 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
     /// Con la cuenta borrada todo guardado falla, y cada intento fallido deja
     /// avisos en el registro: se cuentan por intento (medido antes, con un
     /// selector aparte y un solo cambio) para observar CUÁNTOS intentos hubo.
-    /// <b>La ventana es determinista</b>: el primer guardado se retiene DENTRO
-    /// de <c>SavingChangesAsync</c> (<see cref="RetenedorDelPrimerGuardado"/>)
+    /// <b>La ventana es determinista</b>: el primer guardado se retiene a la
+    /// entrada del puerto (<see cref="PreferenciasConPrimerGuardadoRetenido"/>)
     /// hasta que el test ha registrado las dos elecciones posteriores, así que
     /// no depende de lo que tarde el <c>UPDATE</c> en ninguna máquina.
     /// </para>
@@ -388,7 +379,9 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
 
         var registro = new RegistroQueCuentaAvisos();
         using var ambito = _servicios.CreateScope();
-        var selectorTema = CrearSelectorTema(ambito.ServiceProvider, _usuarioId, registro);
+        var retenido = new PreferenciasConPrimerGuardadoRetenido(
+            ambito.ServiceProvider.GetRequiredService<IPreferenciasCuentaPropia>());
+        var selectorTema = CrearSelectorTema(ambito.ServiceProvider, _usuarioId, registro, retenido);
         await InvocarOnInitializedAsync(selectorTema);
 
         await BorrarLaCuentaAsync();
@@ -397,13 +390,12 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
         var avisosPorIntento = registroBase.Avisos;
         avisosPorIntento.Should().BeGreaterThan(0, "un guardado fallido tiene que dejar rastro para poder contarlo");
 
-        _retenedor.RetenerElPrimerGuardado();
         var primero = InvocarCambiarTemaAsync(selectorTema, "oscuro");
-        await _retenedor.EsperarQueElPrimerGuardadoEstePendienteAsync(TimeSpan.FromSeconds(30));
+        await retenido.EsperarQueElPrimerGuardadoEstePendienteAsync(TimeSpan.FromSeconds(30));
 
         await InvocarCambiarTemaAsync(selectorTema, "claro");
         await InvocarCambiarTemaAsync(selectorTema, "oscuro");
-        _retenedor.LiberarElPrimerGuardado();
+        retenido.LiberarElPrimerGuardado();
         await primero.WaitAsync(TimeSpan.FromSeconds(30));
 
         registro.Avisos.Should().BeGreaterThanOrEqualTo(2 * avisosPorIntento,
@@ -421,34 +413,35 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Retiene el primer <c>SaveChanges</c> que llegue tras <see cref="RetenerElPrimerGuardado"/>
-    /// hasta <see cref="LiberarElPrimerGuardado"/>: permite sostener un
-    /// guardado EN VUELO mientras el test lanza otros cambios. Sin armar, no
-    /// hace nada. Precedente: <c>RestablecerYCambiarContrasenaTests</c>
-    /// registra interceptores propios en el mismo <c>AddDbContext</c>.
+    /// Retiene el primer guardado del tema hasta <see cref="LiberarElPrimerGuardado"/>: permite sostener
+    /// un guardado EN VUELO mientras el test lanza otros cambios.
     /// </summary>
-    private sealed class RetenedorDelPrimerGuardado : SaveChangesInterceptor
+    private sealed class PreferenciasConPrimerGuardadoRetenido(IPreferenciasCuentaPropia interno) : IPreferenciasCuentaPropia
     {
-        private volatile TaskCompletionSource<bool>? _puerta;
+        private readonly TaskCompletionSource<bool> _puerta = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _pendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public void RetenerElPrimerGuardado() =>
-            _puerta = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public void LiberarElPrimerGuardado() => _puerta!.TrySetResult(true);
+        public void LiberarElPrimerGuardado() => _puerta.TrySetResult(true);
 
         public Task EsperarQueElPrimerGuardadoEstePendienteAsync(TimeSpan limite) =>
             _pendiente.Task.WaitAsync(limite);
 
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        public async Task<ResultadoEscrituraCuenta> GuardarTemaAsync(Guid usuarioId, TemaPreferido tema, CancellationToken ct = default)
         {
-            var puerta = _puerta;
-            if (puerta is not null && _pendiente.TrySetResult(true))
-                await puerta.Task.WaitAsync(cancellationToken);
+            if (_pendiente.TrySetResult(true))
+                await _puerta.Task.WaitAsync(ct);
 
-            return result;
+            return await interno.GuardarTemaAsync(usuarioId, tema, ct);
         }
+
+        public Task<PreferenciasDeCuenta?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default) =>
+            interno.ObtenerAsync(usuarioId, ct);
+
+        public Task<ResultadoEscrituraCuenta> GuardarIdiomaAsync(Guid usuarioId, IdiomaPreferido idioma, CancellationToken ct = default) =>
+            interno.GuardarIdiomaAsync(usuarioId, idioma, ct);
+
+        public Task<ResultadoEscrituraCuenta> RegistrarActividadAsync(Guid usuarioId, DateTime instanteUtc, CancellationToken ct = default) =>
+            interno.RegistrarActividadAsync(usuarioId, instanteUtc, ct);
     }
 
     private sealed class RegistroQueCuentaAvisos : ILogger<SelectorTema>
@@ -484,13 +477,12 @@ public class SelectorTemaGuardadoTrasEscrituraConcurrenteTests : IAsyncLifetime
     }
 
     private static SelectorTema CrearSelectorTema(
-        IServiceProvider servicios, Guid usuarioId, ILogger<SelectorTema>? registro = null)
+        IServiceProvider servicios, Guid usuarioId, ILogger<SelectorTema>? registro = null,
+        IPreferenciasCuentaPropia? preferencias = null)
     {
         var selectorTema = new SelectorTema();
 
-        EscribirPropiedadInyectada(selectorTema, "UserManager", servicios.GetRequiredService<UserManager<ApplicationUser>>());
-        EscribirPropiedadInyectada(selectorTema, "PuertaAccesoDatos", servicios.GetRequiredService<PuertaAccesoDatos>());
-        EscribirPropiedadInyectada(selectorTema, "Desenganchador", servicios.GetRequiredService<IDesenganchadorDeEntidadesRastreadas>());
+        EscribirPropiedadInyectada(selectorTema, "Preferencias", preferencias ?? servicios.GetRequiredService<IPreferenciasCuentaPropia>());
         EscribirPropiedadInyectada(selectorTema, "Logger", registro ?? servicios.GetRequiredService<ILogger<SelectorTema>>());
         EscribirPropiedadInyectada(selectorTema, "AuthenticationStateProvider", new AutenticacionFalsa(usuarioId));
 

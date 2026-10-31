@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Security.Claims;
-using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Recursos;
@@ -9,7 +8,6 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -145,30 +143,30 @@ public class LocalizacionInfraestructuraTests
     [Fact]
     public async Task Con_el_catalan_apagado_cambiar_a_ca_ES_se_rechaza_sin_tocar_la_cuenta_ni_la_cookie()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+            "ca-ES", "/", contexto, preferencias, Textos(), SinCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<BadRequest>();
-        usuarios.IntentosDeGuardado.Should().Be(0, "la preferencia guardada no se toca");
+        preferencias.IntentosDeGuardado.Should().Be(0, "la preferencia guardada no se toca");
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
     }
 
     [Fact]
     public async Task Con_el_catalan_apagado_cambiar_a_es_ES_sigue_funcionando()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "es-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+            "es-ES", "/", contexto, preferencias, Textos(), SinCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<RedirectHttpResult>();
-        usuarios.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Espanol);
+        preferencias.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Espanol);
         UnicoSetCookie(contexto).Should().StartWith(".AspNetCore.Culture=c%3Des-ES%7Cuic%3Des-ES;");
     }
 
@@ -178,12 +176,12 @@ public class LocalizacionInfraestructuraTests
     [InlineData("/documentos", "/documentos")]
     public async Task Cambiar_de_idioma_vuelve_sin_la_marca_de_un_solo_uso_del_login(string returnUrl, string esperado)
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "es-ES", returnUrl, contexto, usuarios, new DesenganchadorFalso(), Textos(), SinCatalan, NullLogger.Instance);
+            "es-ES", returnUrl, contexto, preferencias, Textos(), SinCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be(esperado);
     }
@@ -247,14 +245,15 @@ public class LocalizacionInfraestructuraTests
     [Fact]
     public async Task Cambiar_persiste_el_idioma_y_solo_entonces_escribe_la_cookie()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/documentos?pestana=pendientes", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
+            "ca-ES", "/documentos?pestana=pendientes", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
 
-        usuarios.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Catalan);
+        preferencias.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Catalan);
+        preferencias.Cuentas.Should().ContainSingle().Which.Should().Be(usuarioId, "solo se escribe la cuenta de la sesión");
         resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/documentos?pestana=pendientes");
         UnicoSetCookie(contexto).Should().StartWith(".AspNetCore.Culture=c%3Dca-ES%7Cuic%3Dca-ES;");
     }
@@ -262,11 +261,11 @@ public class LocalizacionInfraestructuraTests
     [Fact]
     public async Task Un_returnUrl_externo_se_sanea_a_la_raiz()
     {
-        var usuario = NuevoUsuario();
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "//atacante.example", contexto, new UsuariosFalsos(usuario), new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
+            "ca-ES", "//atacante.example", contexto, new PreferenciasFalsas(), Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/");
     }
@@ -274,64 +273,48 @@ public class LocalizacionInfraestructuraTests
     [Fact]
     public async Task Un_idioma_fuera_de_la_lista_blanca_se_rechaza_sin_tocar_la_cuenta_ni_la_cookie()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "en-US", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
+            "en-US", "/", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<BadRequest>();
-        usuarios.IntentosDeGuardado.Should().Be(0);
+        preferencias.IntentosDeGuardado.Should().Be(0);
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
     }
 
     [Fact]
     public async Task Sin_usuario_autenticado_no_se_toca_nada()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas();
         var contexto = new DefaultHttpContext();
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
+            "ca-ES", "/", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
 
         resultado.Should().BeOfType<UnauthorizedHttpResult>();
-        usuarios.IntentosDeGuardado.Should().Be(0);
+        preferencias.IntentosDeGuardado.Should().Be(0);
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task Un_conflicto_de_concurrencia_se_reintenta_una_vez_sobre_la_fila_recargada()
+    /// <summary>La escritura real y su reintento se miden en <c>PreferenciasCuentaPropiaTests</c>.</summary>
+    [Theory]
+    [InlineData(ResultadoEscrituraCuenta.Conflicto)]
+    [InlineData(ResultadoEscrituraCuenta.CuentaNoVisible)]
+    public async Task Si_la_cuenta_no_llega_a_guardarse_no_hay_cookie_ni_respuesta_de_exito(ResultadoEscrituraCuenta fallo)
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario) { ConflictosPendientes = 1 };
-        var desenganchador = new DesenganchadorFalso();
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas { Resultado = fallo };
+        var contexto = ContextoAutenticado(usuarioId);
 
         var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, desenganchador, Textos(), ConCatalan, NullLogger.Instance);
+            "ca-ES", "/", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
 
-        usuarios.IntentosDeGuardado.Should().Be(2);
-        desenganchador.Desenganchados.Should().ContainSingle().Which.Should().BeSameAs(usuario,
-            "sin desenganchar, FindByIdAsync devolvería la misma instancia obsoleta del mapa de identidad");
-        usuarios.Guardados.Should().ContainSingle().Which.Should().Be(IdiomaPreferido.Catalan);
-        resultado.Should().BeOfType<RedirectHttpResult>();
-        UnicoSetCookie(contexto).Should().Contain("ca-ES");
-    }
-
-    [Fact]
-    public async Task Si_los_dos_intentos_fallan_no_hay_cookie_ni_respuesta_de_exito()
-    {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario) { ConflictosPendientes = 2 };
-        var contexto = ContextoAutenticado(usuario.Id);
-
-        var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
-
-        usuarios.IntentosDeGuardado.Should().Be(2, "un solo reintento, no más");
-        usuarios.Guardados.Should().BeEmpty();
+        preferencias.IntentosDeGuardado.Should().Be(1, "el reintento vive en el puerto, no se duplica aquí");
+        preferencias.Guardados.Should().BeEmpty();
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
         resultado.Should().NotBeOfType<RedirectHttpResult>();
         resultado.Should().BeAssignableTo<IStatusCodeHttpResult>()
@@ -339,19 +322,30 @@ public class LocalizacionInfraestructuraTests
     }
 
     [Fact]
-    public async Task Un_fallo_que_no_es_de_concurrencia_no_se_reintenta_ni_escribe_cookie()
+    public async Task La_cookie_no_se_escribe_antes_de_que_termine_la_escritura()
     {
-        var usuario = NuevoUsuario();
-        var usuarios = new UsuariosFalsos(usuario) { FalloNoConcurrente = true };
-        var contexto = ContextoAutenticado(usuario.Id);
+        var usuarioId = Guid.NewGuid();
+        var contexto = ContextoAutenticado(usuarioId);
+        var cookiesAlGuardar = -1;
+        var preferencias = new PreferenciasFalsas { AlGuardar = () => cookiesAlGuardar = contexto.Response.Headers.SetCookie.Count };
 
-        var resultado = await IdiomaEndpoints.CambiarAsync(
-            "ca-ES", "/", contexto, usuarios, new DesenganchadorFalso(), Textos(), ConCatalan, NullLogger.Instance);
+        await IdiomaEndpoints.CambiarAsync("ca-ES", "/", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
 
-        usuarios.IntentosDeGuardado.Should().Be(1);
+        cookiesAlGuardar.Should().Be(0, "la cookie nunca se adelanta a la cuenta");
+        UnicoSetCookie(contexto).Should().Contain("ca-ES");
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_la_escritura_sube_sin_escribir_la_cookie()
+    {
+        var usuarioId = Guid.NewGuid();
+        var contexto = ContextoAutenticado(usuarioId);
+        var preferencias = new PreferenciasFalsas { AlGuardar = () => throw new InvalidOperationException("rechazada") };
+
+        var acto = () => IdiomaEndpoints.CambiarAsync("ca-ES", "/", contexto, preferencias, Textos(), ConCatalan, NullLogger.Instance);
+
+        await acto.Should().ThrowAsync<InvalidOperationException>();
         contexto.Response.Headers.SetCookie.Should().BeEmpty();
-        resultado.Should().BeAssignableTo<IStatusCodeHttpResult>()
-            .Which.StatusCode.Should().Be(StatusCodes.Status409Conflict);
     }
 
     // ── Recursos neutral / ca-ES ──────────────────────────────────────────
@@ -430,71 +424,34 @@ public class LocalizacionInfraestructuraTests
         new StringLocalizer<TextosComunes>(new ResourceManagerStringLocalizerFactory(
             Opciones.Create(new LocalizationOptions()), NullLoggerFactory.Instance));
 
-    private static ApplicationUser NuevoUsuario() =>
-        new() { Id = Guid.NewGuid(), UserName = "gestora@refrielectric.test", Idioma = IdiomaPreferido.Espanol };
-
     private static DefaultHttpContext ContextoAutenticado(Guid usuarioId) => new()
     {
         User = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "Prueba")),
     };
 
-    /// <summary>
-    /// <c>UserManager</c> con <c>FindByIdAsync</c>/<c>UpdateAsync</c>
-    /// controlados: cada <c>FindByIdAsync</c> tras un desenganche devuelve una
-    /// instancia nueva (la «fila fresca»), y <c>UpdateAsync</c> puede devolver
-    /// un <c>ConcurrencyFailure</c> —como hace <c>UserStore</c>, sin lanzar—.
-    /// </summary>
-    private sealed class UsuariosFalsos(ApplicationUser usuario) : UserManager<ApplicationUser>(
-        new AlmacenNoUsado(), Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
-        [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-        NullLogger<UserManager<ApplicationUser>>.Instance)
+    /// <summary>El puerto con su resultado controlado: anota qué idioma quedaría guardado.</summary>
+    private sealed class PreferenciasFalsas : IPreferenciasCuentaPropia
     {
-        private int _lecturas;
-        public int ConflictosPendientes { get; set; }
-        public bool FalloNoConcurrente { get; init; }
+        public ResultadoEscrituraCuenta Resultado { get; init; } = ResultadoEscrituraCuenta.Guardada;
+        public Action? AlGuardar { get; init; }
         public int IntentosDeGuardado { get; private set; }
         public List<IdiomaPreferido> Guardados { get; } = [];
+        public List<Guid> Cuentas { get; } = [];
 
-        public override Task<ApplicationUser?> FindByIdAsync(string userId) =>
-            Task.FromResult<ApplicationUser?>(userId == usuario.Id.ToString()
-                ? (_lecturas++ == 0 ? usuario : new ApplicationUser { Id = usuario.Id, UserName = usuario.UserName })
-                : null);
-
-        public override Task<IdentityResult> UpdateAsync(ApplicationUser user)
+        public Task<ResultadoEscrituraCuenta> GuardarIdiomaAsync(Guid usuarioId, IdiomaPreferido idioma, CancellationToken ct = default)
         {
             IntentosDeGuardado++;
-            if (FalloNoConcurrente)
-                return Task.FromResult(IdentityResult.Failed(new IdentityError { Code = "DuplicateUserName" }));
-            if (ConflictosPendientes > 0)
-            {
-                ConflictosPendientes--;
-                return Task.FromResult(IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure()));
-            }
+            Cuentas.Add(usuarioId);
+            AlGuardar?.Invoke();
+            if (Resultado == ResultadoEscrituraCuenta.Guardada)
+                Guardados.Add(idioma);
 
-            Guardados.Add(user.Idioma);
-            return Task.FromResult(IdentityResult.Success);
+            return Task.FromResult(Resultado);
         }
-    }
 
-    private sealed class AlmacenNoUsado : IUserStore<ApplicationUser>
-    {
-        public void Dispose() { }
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) => throw new NotSupportedException();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) => throw new NotSupportedException();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
-    }
-
-    private sealed class DesenganchadorFalso : IDesenganchadorDeEntidadesRastreadas
-    {
-        public List<object> Desenganchados { get; } = [];
-        public void Desenganchar<TEntidad>(TEntidad entidad) where TEntidad : class => Desenganchados.Add(entidad);
+        public Task<PreferenciasDeCuenta?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResultadoEscrituraCuenta> GuardarTemaAsync(Guid usuarioId, TemaPreferido tema, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResultadoEscrituraCuenta> RegistrarActividadAsync(Guid usuarioId, DateTime instanteUtc, CancellationToken ct = default) => throw new NotSupportedException();
     }
 }

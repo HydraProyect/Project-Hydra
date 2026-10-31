@@ -249,6 +249,59 @@ public class AuditoriaDeGestionDeUsuariosTests : IAsyncLifetime
             "un cambio de solo UltimaActividadUtc es el patrón exacto de ActividadUsuarioService y no debe dejar fila");
     }
 
+    /// <summary>Lo mismo por el camino real, que además renueva el sello: tampoco deja fila.</summary>
+    [Fact]
+    public async Task Registrar_la_actividad_por_el_puerto_no_genera_fila_de_auditoria()
+    {
+        var usuarioId = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(ActorAuditoria.SinResolver))
+        {
+            contexto.Users.Add(NuevoUsuario(usuarioId));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(ActorAuditoria.Normal(Guid.NewGuid())))
+        {
+            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos()).RegistrarActividadAsync(usuarioId, DateTime.UtcNow))
+                .Should().Be(ResultadoEscrituraCuenta.Guardada);
+        }
+
+        await using var verificacion = CrearContexto(ActorAuditoria.SinResolver);
+        (await verificacion.RegistrosAuditoria
+            .AnyAsync(r => r.EntidadTipo == "Usuario" && r.EntidadId == usuarioId && r.Accion == "Modificado"))
+            .Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El tema es un cambio real de la cuenta: escribirlo sin cargarla entera no le quita su fila de auditoría ni el
+    /// Tenant que la sella.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_el_tema_por_el_puerto_deja_fila_de_auditoria_con_el_cambio()
+    {
+        var usuarioId = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto(ActorAuditoria.SinResolver))
+        {
+            contexto.Users.Add(NuevoUsuario(usuarioId));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(ActorAuditoria.Normal(Guid.NewGuid())))
+        {
+            (await new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos()).GuardarTemaAsync(usuarioId, TemaPreferido.Oscuro))
+                .Should().Be(ResultadoEscrituraCuenta.Guardada);
+        }
+
+        await using var verificacion = CrearContexto(ActorAuditoria.SinResolver);
+        var registro = await verificacion.RegistrosAuditoria
+            .SingleAsync(r => r.EntidadTipo == "Usuario" && r.EntidadId == usuarioId && r.Accion == "Modificado");
+
+        registro.DatosDespues.Should().Contain("\"Tema\"");
+        registro.DatosDespues.Should().NotContain("PasswordHash");
+    }
+
     /// <summary>
     /// Defensa de la exclusión de arriba: si el campo silenciado viaja JUNTO
     /// con un cambio real (p. ej. activar/desactivar mientras se registra la

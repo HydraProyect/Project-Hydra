@@ -248,6 +248,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
         services.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
         services.AddScoped<ILecturaCuentaPropia, LecturaCuentaPropia>();
+        services.AddScoped<IPreferenciasCuentaPropia, PreferenciasCuentaPropia>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -492,7 +493,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();

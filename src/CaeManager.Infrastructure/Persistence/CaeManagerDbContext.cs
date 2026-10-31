@@ -94,7 +94,6 @@ public class CaeManagerDbContext(
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
-        IDesenganchadorDeEntidadesRastreadas,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
 {
@@ -104,8 +103,6 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
     IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
     void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
-    void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
-        Entry(entidad).State = EntityState.Detached;
 
     IInstantaneaCambiosDeComando IRestauracionCambiosDeComando.CapturarRestauracion() => ConcurrenciaContexto.CapturarRestauracion(this);
 

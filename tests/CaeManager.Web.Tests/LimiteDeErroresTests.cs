@@ -99,7 +99,7 @@ public class LimiteDeErroresTests : BunitContext
         Services.AddSingleton(new PuertaAccesoDatos());
         Services.AddSingleton(usuarios);
         Services.AddSingleton<ILecturaCuentaPropia>(new LecturaCuentaPropia(null!));
-        Services.AddSingleton(new ActividadUsuarioService(null!, usuarios, new PuertaAccesoDatos()));
+        Services.AddSingleton(new ActividadUsuarioService(null!, null!, null!));
         Services.AddSingleton<AuthenticationStateProvider>(new ProveedorAnonimo());
         Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
 

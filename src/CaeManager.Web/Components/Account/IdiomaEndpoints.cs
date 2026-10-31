@@ -5,7 +5,6 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Recursos;
 using CaeManager.Web.Services;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
@@ -23,7 +22,7 @@ namespace CaeManager.Web.Components.Account;
 ///
 /// <para>
 /// Invariante: <b>la cookie nunca se adelanta al estado persistido</b>. Solo
-/// se escribe tras un <c>UpdateAsync</c> correcto; si la cuenta no llega a
+/// se escribe tras una escritura confirmada; si la cuenta no llega a
 /// guardarse, la respuesta no aparenta éxito y la cookie no cambia.
 /// </para>
 ///
@@ -43,12 +42,11 @@ public static class IdiomaEndpoints
         // formulario envía (SelectorIdioma), igual que /cuenta/cliente-activo.
         endpoints.MapPost(Ruta, (
             [FromForm] string? idioma, [FromForm] string? returnUrl, HttpContext httpContext,
-            UserManager<ApplicationUser> userManager,
-            IDesenganchadorDeEntidadesRastreadas desenganchador,
+            IPreferenciasCuentaPropia preferencias,
             IStringLocalizer<TextosComunes> textos,
             IOptions<OpcionesLocalizacion> localizacion,
             ILoggerFactory loggerFactory) =>
-            CambiarAsync(idioma, returnUrl, httpContext, userManager, desenganchador, textos, localizacion.Value,
+            CambiarAsync(idioma, returnUrl, httpContext, preferencias, textos, localizacion.Value,
                 loggerFactory.CreateLogger(typeof(IdiomaEndpoints).FullName!)))
             .RequireAuthorization();
 
@@ -58,7 +56,7 @@ public static class IdiomaEndpoints
     /// <summary>El manejador de <see cref="Ruta"/>; público para que los tests lo ejerciten tal cual.</summary>
     public static async Task<IResult> CambiarAsync(
         string? idioma, string? returnUrl, HttpContext httpContext,
-        UserManager<ApplicationUser> userManager, IDesenganchadorDeEntidadesRastreadas desenganchador,
+        IPreferenciasCuentaPropia preferencias,
         IStringLocalizer<TextosComunes> textos, OpcionesLocalizacion localizacion, ILogger logger)
     {
         if (!Guid.TryParse(httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId))
@@ -73,7 +71,7 @@ public static class IdiomaEndpoints
 
         var destino = RedireccionLocal.SanearParaVolver(returnUrl);
 
-        if (!await GuardarAsync(userManager, desenganchador, logger, usuarioId, idiomaElegido))
+        if (!await GuardarAsync(preferencias, logger, usuarioId, idiomaElegido))
             return RespuestaNoCambiado(textos, destino);
 
         CulturaUsuarioCookie.Escribir(httpContext, idiomaElegido);
@@ -83,56 +81,21 @@ public static class IdiomaEndpoints
     /// <summary>
     /// Mismo tratamiento que <c>SelectorTema.GuardarTemaAsync</c>:
     /// <c>ActividadUsuarioService</c> actualiza esta misma fila en cada carga
-    /// de página, así que entre el <c>FindByIdAsync</c> y el <c>UpdateAsync</c>
-    /// puede colarse otra escritura (<c>ConcurrencyFailure</c>, que
-    /// <c>UserStore</c> devuelve como resultado, no lanza). Se recarga la fila
-    /// —desenganchando antes la instancia obsoleta, o <c>FindByIdAsync</c>
-    /// devolvería la misma del mapa de identidad— y se reaplica SOLO el idioma,
-    /// una única vez. Devuelve <c>true</c> solo si algún intento persistió.
+    /// de página, así que entre la lectura y la escritura puede colarse otra
+    /// escritura. <see cref="IPreferenciasCuentaPropia"/> relee la fila y
+    /// reaplica SOLO el idioma, una única vez. Devuelve <c>true</c> solo si
+    /// algún intento persistió.
     /// </summary>
     public static async Task<bool> GuardarAsync(
-        UserManager<ApplicationUser> userManager, IDesenganchadorDeEntidadesRastreadas desenganchador,
-        ILogger logger, Guid usuarioId, IdiomaPreferido idioma)
+        IPreferenciasCuentaPropia preferencias, ILogger logger, Guid usuarioId, IdiomaPreferido idioma)
     {
-        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
-        if (usuario is null)
-        {
-            logger.LogWarning("No se encontró la cuenta {UsuarioId} al guardar el idioma.", usuarioId);
-            return false;
-        }
+        var resultado = await preferencias.GuardarIdiomaAsync(usuarioId, idioma);
+        if (resultado == ResultadoEscrituraCuenta.Guardada) return true;
 
-        usuario.Idioma = idioma;
-        var resultado = await userManager.UpdateAsync(usuario);
-        if (resultado.Succeeded) return true;
-
-        if (!resultado.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
-        {
-            LogFallo(logger, usuarioId, resultado);
-            return false;
-        }
-
-        desenganchador.Desenganchar(usuario);
-        var usuarioFresco = await userManager.FindByIdAsync(usuarioId.ToString());
-        if (usuarioFresco is null)
-        {
-            logger.LogWarning(
-                "No se pudo recargar la cuenta {UsuarioId} tras un conflicto de concurrencia al guardar el idioma.",
-                usuarioId);
-            return false;
-        }
-
-        usuarioFresco.Idioma = idioma;
-        var resultadoReintento = await userManager.UpdateAsync(usuarioFresco);
-        if (resultadoReintento.Succeeded) return true;
-
-        LogFallo(logger, usuarioId, resultadoReintento);
+        logger.LogWarning(
+            "No se pudo guardar el idioma elegido para {UsuarioId}: {Resultado}", usuarioId, resultado);
         return false;
     }
-
-    private static void LogFallo(ILogger logger, Guid usuarioId, IdentityResult resultado) =>
-        logger.LogWarning(
-            "No se pudo guardar el idioma elegido para {UsuarioId}: {Errores}",
-            usuarioId, string.Join(" ", resultado.Errors.Select(e => e.Code)));
 
     /// <summary>
     /// 409 con una página mínima, no una redirección: redirigir a la página de
