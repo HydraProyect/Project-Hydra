@@ -11,6 +11,10 @@ public interface IExtraccionIaCacheRepository
     /// </summary>
     Task<ExtraccionIaCache?> ObtenerAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Misma clave que <see cref="ObtenerAsync"/>, solo para saber si la entrada existe: no carga
+    /// la extracción, que guarda datos personales en claro.
+    /// </summary>
     Task<Guid?> ObtenerIdAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default);
 
     void Agregar(ExtraccionIaCache cache);

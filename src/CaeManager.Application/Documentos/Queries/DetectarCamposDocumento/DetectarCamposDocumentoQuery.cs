@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.DocumentosIa;
@@ -43,7 +44,8 @@ public class DetectarCamposDocumentoQueryHandler(
     ITrabajadoresQueryContext trabajadoresContext,
     IOptions<DeteccionPreviaDocumentoOptions> opciones,
     IInstruccionTratamientoIaService instruccionTratamientoIa,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IRequestHandler<DetectarCamposDocumentoQuery, Result<DeteccionCamposDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido = "documento CAE (tipo todavía no seleccionado por el usuario, infiérelo libremente del contenido)";
@@ -54,6 +56,12 @@ public class DetectarCamposDocumentoQueryHandler(
     public async Task<Result<DeteccionCamposDocumentoDto>> Handle(
         DetectarCamposDocumentoQuery request, CancellationToken cancellationToken)
     {
+        // Soporte TALVEG no da de alta Documentos y cae_app_soporte no lee
+        // ExtraccionesIaCache.ExtraccionJson (OWASP ASVS V4.1.3): en Sesión Privilegiada
+        // el formulario sigue sin sugerencia, igual que con la detección apagada.
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null)
+            return Result.Exito(new DeteccionCamposDocumentoDto(null, null, 0));
+
         // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de
         // despliegue de abajo — ver el mismo gate en VerificacionIaDocumentoService.
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))

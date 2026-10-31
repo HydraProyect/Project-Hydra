@@ -589,11 +589,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         if (DocumentoId is not null)
             await _drawerGestion.AbrirEditarAsync(DocumentoId.Value);
+        // Todo lo que sigue es un alta: sin escritura no hay formulario que se pueda guardar.
+        else if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
+            return;
         else if (TrabajadorId is not null && TipoDocumentoId is not null)
             await _drawerGestion.AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
         else if (EmpresaIdFaltante is not null && TipoDocumentoId is not null)
             await _drawerGestion.AbrirCrearParaFaltanteEmpresaAsync(EmpresaIdFaltante.Value, TipoDocumentoId.Value);
-        else if (Accion == "crear" && await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
+        else if (Accion == "crear")
             await _drawerGestion.AbrirCrearAsync();
         else
             return;
