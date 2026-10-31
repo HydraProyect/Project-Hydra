@@ -504,7 +504,10 @@ public class TerminologiaCanonicaTests
         // 85 (antes 84): ObtenerValidacionOficialDocumentoQueryHandler lee la misma señal
         // (IClienteActivoSeleccionado ×1) para no pedir VerificacionesDocumentoOficial.CodigoVerificacion
         // bajo cae_app_soporte; es otro consumidor de la interfaz existente.
-        ["ClienteActivo"] = 85,
+        // 86 (antes 85, 2026-10-31): VigenciaSesionCuenta lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) para no leer el sello de la cuenta bajo cae_app_soporte; es la misma
+        // señal con la que TenantRlsConnectionInterceptor adopta ese rol, y un consumidor de la interfaz existente.
+        ["ClienteActivo"] = 86,
     };
 
     [Theory]

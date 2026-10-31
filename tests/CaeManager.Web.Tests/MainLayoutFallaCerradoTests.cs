@@ -9,13 +9,11 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Opciones = Microsoft.Extensions.Options.Options;
 
 namespace CaeManager.Web.Tests;
 
@@ -33,8 +31,8 @@ namespace CaeManager.Web.Tests;
 /// </para>
 ///
 /// <para>
-/// La excepción se inyecta desde el <see cref="IUserStore{TUser}"/>, que es por
-/// donde la sufre de verdad —<c>UserManager</c> por debajo—, y el circuito se
+/// La excepción se inyecta desde <see cref="ILecturaCuentaPropia"/>, que es por
+/// donde la sufre de verdad, y el circuito se
 /// declara muerto por el único camino que lo declara en producción
 /// (<see cref="EstadoDelCircuito.OnCircuitClosedAsync"/>), no por una bandera
 /// de test.
@@ -53,7 +51,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     private static readonly Guid IdUsuario = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     private readonly EstadoDelCircuito _circuito = new();
-    private readonly AlmacenConmutable _almacen = new();
+    private readonly LecturaConmutable _cuenta = new();
     private readonly NavegacionDeBanco _navegacion = new();
     private readonly ProveedorAutenticacionConmutable _autenticacion = new();
     private readonly AccesoHttpContextConmutable _httpContextAccessor = new();
@@ -70,13 +68,12 @@ public class MainLayoutFallaCerradoTests : BunitContext
         // caso mide vive en OnParametersSetAsync, no en el árbol de hijos.
         ComponentFactories.Add(new TodoMenosElLayout());
 
-        var usuarios = CrearUsuarios(_almacen);
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddLocalization();
         Services.AddSingleton(_circuito);
         Services.AddSingleton(new PuertaAccesoDatos());
-        Services.AddSingleton(usuarios);
-        Services.AddSingleton<ActividadUsuarioService>(new ActividadUsuarioSilenciosa(usuarios));
+        Services.AddSingleton<ILecturaCuentaPropia>(_cuenta);
+        Services.AddSingleton<ActividadUsuarioService>(new ActividadUsuarioSilenciosa());
         Services.AddSingleton<NavigationManager>(_navegacion);
         Services.AddSingleton<IHttpContextAccessor>(_httpContextAccessor);
 
@@ -102,7 +99,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// propósito, tras un hallazgo de Codex sobre este incremento (P1): una
     /// versión anterior la excluía del catch por tipo pensando solo en la
     /// petición abortada, pero una dependencia del guard (p. ej. un timeout de
-    /// consulta en <c>UserManager</c>/EF Core) puede lanzarla igual con el
+    /// consulta en EF Core) puede lanzarla igual con el
     /// cliente todavía conectado, y excluirla de forma general dejaba pasar
     /// ese caso sin redirigir y sin registrar nada — el mismo fallo abierto
     /// que este catch existe para cerrar. Este caso (el doble de
@@ -122,7 +119,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [InlineData(typeof(OperationCanceledException))]
     public void Con_el_circuito_vivo_una_excepcion_en_el_guard_retira_el_contenido(Type tipoDeExcepcion)
     {
-        _almacen.Falla(tipoDeExcepcion);
+        _cuenta.Falla(tipoDeExcepcion);
 
         Render<MainLayout>();
 
@@ -139,7 +136,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// <summary>
     /// El caso realmente benigno: el cliente cerró la conexión (navegó a otro
     /// sitio, cerró la pestaña) mientras el guard todavía esperaba a
-    /// UserManager, y eso se propaga como <see cref="OperationCanceledException"/>.
+    /// la base, y eso se propaga como <see cref="OperationCanceledException"/>.
     /// No hay nadie a quien redirigir — forzarlo sería una navegación al
     /// vacío— y registrar un error sería ruido de monitorización sobre
     /// tráfico normal (la preocupación original que motivó revisar este
@@ -152,7 +149,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public void Con_una_cancelacion_por_peticion_realmente_abortada_no_se_redirige()
     {
-        _almacen.Falla(typeof(OperationCanceledException));
+        _cuenta.Falla(typeof(OperationCanceledException));
         _httpContextAccessor.AbortarPeticion();
 
         Render<MainLayout>();
@@ -178,7 +175,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     public void Durante_el_prerenderizado_sin_circuito_una_excepcion_tambien_retira_el_contenido()
     {
         SetRendererInfo(new RendererInfo("Static", isInteractive: false));
-        _almacen.Falla(typeof(ObjectDisposedException));
+        _cuenta.Falla(typeof(ObjectDisposedException));
 
         Render<MainLayout>();
 
@@ -195,7 +192,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public async Task Con_el_circuito_ya_cerrado_la_excepcion_se_descarta_sin_redirigir()
     {
-        _almacen.Falla(typeof(ObjectDisposedException));
+        _cuenta.Falla(typeof(ObjectDisposedException));
         await _circuito.OnCircuitClosedAsync(circuit: null!, CancellationToken.None);
 
         Render<MainLayout>();
@@ -212,7 +209,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public void Sin_excepcion_el_guard_sigue_redirigiendo_a_donde_le_toca()
     {
-        _almacen.Devuelve(UsuarioQueDebeCambiarContrasena());
+        _cuenta.Devuelve(CuentaQueDebeCambiarContrasena());
 
         Render<MainLayout>();
 
@@ -226,7 +223,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public void Un_usuario_en_regla_no_se_va_a_ninguna_parte()
     {
-        _almacen.Devuelve(UsuarioEnRegla(), Roles.GestorCae);
+        _cuenta.Devuelve(CuentaEnRegla(Roles.GestorCae));
 
         Render<MainLayout>();
 
@@ -260,7 +257,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public void La_redireccion_del_guard_no_la_atrapa_el_catch()
     {
-        _almacen.Devuelve(UsuarioQueDebeCambiarContrasena());
+        _cuenta.Devuelve(CuentaQueDebeCambiarContrasena());
         _navegacion.LanzarComoElServidor = true;
 
         var montar = () => Render<MainLayout>();
@@ -298,16 +295,11 @@ public class MainLayoutFallaCerradoTests : BunitContext
         return (uri.AbsolutePath, consulta);
     }
 
-    private static ApplicationUser UsuarioQueDebeCambiarContrasena() =>
-        new() { Id = IdUsuario, UserName = "gestora@refrielectric.test", DebeCambiarContrasena = true };
+    private static EstadoCuentaPropia CuentaQueDebeCambiarContrasena() =>
+        new(DebeCambiarContrasena: true, DobleFactorActivo: false, Roles: []);
 
-    private static ApplicationUser UsuarioEnRegla() =>
-        new() { Id = IdUsuario, UserName = "gestora@refrielectric.test", DebeCambiarContrasena = false };
-
-    private static UserManager<ApplicationUser> CrearUsuarios(IUserStore<ApplicationUser> almacen) => new(
-        almacen, Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
-        [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-        NullLogger<UserManager<ApplicationUser>>.Instance);
+    private static EstadoCuentaPropia CuentaEnRegla(params string[] roles) =>
+        new(DebeCambiarContrasena: false, DobleFactorActivo: false, Roles: roles);
 
     /// <summary>Monta MainLayout de verdad y sustituye por un stub todo lo demás.</summary>
     private sealed class TodoMenosElLayout : IComponentFactory
@@ -323,8 +315,8 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// real exige un UserManager que escriba de verdad (ver el remarks de
     /// <see cref="ActividadUsuarioService.RegistrarYEvaluarAsync"/>).
     /// </summary>
-    private sealed class ActividadUsuarioSilenciosa(UserManager<ApplicationUser> usuarios)
-        : ActividadUsuarioService(null!, usuarios, new PuertaAccesoDatos())
+    private sealed class ActividadUsuarioSilenciosa()
+        : ActividadUsuarioService(null!, null!, new PuertaAccesoDatos())
     {
         public override Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(
             bool interactivo, CancellationToken cancellationToken = default) =>
@@ -401,50 +393,23 @@ public class MainLayoutFallaCerradoTests : BunitContext
     }
 
     /// <summary>
-    /// Solo lo que el guard de MainLayout toca —buscar por id, roles y 2FA—, y
-    /// conmutable porque bUnit no deja registrar servicios nuevos una vez
-    /// empezado el test.
+    /// Solo lo que el guard de MainLayout toca, y conmutable porque bUnit no deja
+    /// registrar servicios nuevos una vez empezado el test. Responde por
+    /// <see cref="IdUsuario"/>: otro identificador sería otra cuenta.
     /// </summary>
-    private sealed class AlmacenConmutable : IUserStore<ApplicationUser>, IUserRoleStore<ApplicationUser>, IUserTwoFactorStore<ApplicationUser>
+    private sealed class LecturaConmutable : ILecturaCuentaPropia
     {
         private Type? _tipoDeExcepcion;
-        private ApplicationUser? _usuario;
-        private IList<string> _roles = [];
+        private EstadoCuentaPropia? _cuenta;
 
         public void Falla(Type tipoDeExcepcion) => _tipoDeExcepcion = tipoDeExcepcion;
 
-        public void Devuelve(ApplicationUser usuario, params string[] roles)
-        {
-            _usuario = usuario;
-            _roles = roles;
-        }
+        public void Devuelve(EstadoCuentaPropia cuenta) => _cuenta = cuenta;
 
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct)
+        public Task<EstadoCuentaPropia?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default)
         {
             if (_tipoDeExcepcion is not null) throw (Exception)Activator.CreateInstance(_tipoDeExcepcion)!;
-            return Task.FromResult(_usuario?.Id.ToString() == userId ? _usuario : null);
+            return Task.FromResult(usuarioId == IdUsuario ? _cuenta : null);
         }
-
-        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(_roles);
-
-        public Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user, CancellationToken ct) =>
-            Task.FromResult(user.TwoFactorEnabled);
-
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Id.ToString());
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.UserName);
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) { user.UserName = userName; return Task.CompletedTask; }
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.NormalizedUserName);
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) { user.NormalizedUserName = normalizedName; return Task.CompletedTask; }
-
-        public void Dispose() { }
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
-        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken ct) => throw new NotSupportedException();
-        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken ct) => throw new NotSupportedException();
-        public Task<bool> IsInRoleAsync(ApplicationUser user, string roleName, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken ct) => throw new NotSupportedException();
-        public Task SetTwoFactorEnabledAsync(ApplicationUser user, bool enabled, CancellationToken ct) => throw new NotSupportedException();
     }
 }

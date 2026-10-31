@@ -57,7 +57,6 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs",
         "src/CaeManager.Web/Program.cs",
         "src/CaeManager.Web/Services/CurrentUserService.cs",
-        "src/CaeManager.Web/Services/ProveedorAutenticacionRevalidada.cs",
         "src/CaeManager.Web/Services/RecuperacionContrasena.cs",
     ];
 
@@ -72,8 +71,7 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs",
         "src/CaeManager.Web/Components/Layout/SelectorTema.razor",
         "src/CaeManager.Web/Services/ActividadUsuarioService.cs",
-        // Lecturas de la propia sesión: rol, 2FA, permiso sensible.
-        "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs",
+        // Lecturas de la propia sesión: permiso sensible.
         "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
         // Otra cuenta o rol para pintarlo: el nombre de un rol y los roles de una cuenta.
@@ -101,7 +99,7 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         // Control positivo: si el escaneo no ve los dos consumidores que seguro
         // existen, ha dejado de observar y la igualdad de abajo no diría nada.
         conGestor.Should().Contain(
-            ["src/CaeManager.Web/Program.cs", "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"],
+            ["src/CaeManager.Web/Program.cs", "src/CaeManager.Web/Services/CurrentUserService.cs"],
             "el escaneo tiene que ver a los consumidores que seguro existen");
 
         conGestor.Should().BeEquivalentTo(InfraestructuraDeLogin.Concat(DeudaCongelada),

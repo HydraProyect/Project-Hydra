@@ -14,7 +14,8 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Lo que SÍ observa:</b> en cada <c>.cs</c> o <c>.razor</c> de
 /// <c>src/CaeManager.Web</c>, sin comentarios, las llamadas a los métodos de Identity
 /// que devuelven una cuenta (<c>FindBy…Async</c>, <c>GetUserAsync</c>,
-/// <c>GetUsersInRoleAsync</c>, <c>GetTwoFactorAuthenticationUserAsync</c>),
+/// <c>GetUsersInRoleAsync</c>, <c>GetTwoFactorAuthenticationUserAsync</c>,
+/// <c>ValidateSecurityStampAsync</c>),
 /// <c>UserManager.Users</c> y <c>ObtenerVisiblesAsync</c> del directorio. El recuento
 /// por fichero tiene que ser exactamente <see cref="Congeladas"/>: uno que crece pone
 /// esto en rojo, y uno que mengua también, para que se rebaje en el mismo commit.
@@ -41,22 +42,21 @@ public class MaterializacionesDeCuentasEnWebTests
     /// </summary>
     private static readonly Dictionary<string, int> Congeladas = new()
     {
-        // Sesión, autenticación y credenciales de la propia cuenta. CurrentUserService cuenta dos:
-        // el rol de origen y una lectura de UserManager.Users que ya proyecta (se cuentan llamadas).
+        // Sesión, autenticación y credenciales de la propia cuenta. Lo de CurrentUserService es una
+        // lectura de UserManager.Users que ya proyecta (se cuentan llamadas, no columnas).
         ["src/CaeManager.Web/Components/Account/InicioSesionMicrosoft.cs"] = 3,
         ["src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/Login.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs"] = 1,
-        ["src/CaeManager.Web/Services/CurrentUserService.cs"] = 2,
+        ["src/CaeManager.Web/Services/CurrentUserService.cs"] = 1,
         ["src/CaeManager.Web/Services/RecuperacionContrasena.cs"] = 1,
         // Preferencias de la propia cuenta: la entidad se guarda después.
         ["src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs"] = 2,
         ["src/CaeManager.Web/Components/Layout/SelectorTema.razor.cs"] = 2,
         ["src/CaeManager.Web/Services/ActividadUsuarioService.cs"] = 1,
-        // Necesitan la entidad para GetRolesAsync o GetTwoFactorEnabledAsync.
-        ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,
+        // Necesita la entidad para GetRolesAsync.
         ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs"] = 1,
         // La lista de /usuarios: calcula «pendiente de activación» con la contraseña.
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor.cs"] = 1,
@@ -64,7 +64,7 @@ public class MaterializacionesDeCuentasEnWebTests
 
     private static readonly Regex MaterializaUnaCuenta = new(
         @"(?<![Rr]oleManager)\.(?:FindBy(?:Id|Email|Name|Login)Async|GetUserAsync|GetUsersInRoleAsync" +
-        @"|GetTwoFactorAuthenticationUserAsync|ObtenerVisiblesAsync)\s*\(|[Uu]ser[Mm]anager\.Users\b",
+        @"|GetTwoFactorAuthenticationUserAsync|ObtenerVisiblesAsync|ValidateSecurityStampAsync)\s*\(|[Uu]ser[Mm]anager\.Users\b",
         RegexOptions.Compiled);
 
     [Fact]
@@ -75,7 +75,7 @@ public class MaterializacionesDeCuentasEnWebTests
         // Control positivo: si el escaneo no ve a los consumidores que seguro existen,
         // ha dejado de observar y la igualdad de abajo no diría nada.
         encontradas.Should().ContainKeys(
-            ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs", "src/CaeManager.Web/Services/CurrentUserService.cs"],
+            ["src/CaeManager.Web/Components/Account/Pages/Login.razor", "src/CaeManager.Web/Services/CurrentUserService.cs"],
             "el escaneo tiene que ver a los consumidores que seguro existen");
 
         encontradas.Should().BeEquivalentTo(Congeladas,
@@ -83,9 +83,36 @@ public class MaterializacionesDeCuentasEnWebTests
             "del directorio. Si migraste un sitio, rebaja su recuento en el mismo commit");
     }
 
+    /// <summary>
+    /// <c>ILecturaCuentaPropia</c> acepta cualquier identificador y devuelve roles: fuera de estos sitios sería
+    /// el rol de origen con otro nombre, y el rol de origen no autoriza
+    /// (<see cref="RolDeOrigenFueraDeAutorizacionTests"/>). Solo la usan el guard de la propia sesión y
+    /// <c>ObtenerRolOrigenAsync</c>.
+    /// </summary>
+    [Fact]
+    public void La_lectura_de_la_cuenta_propia_solo_tiene_los_consumidores_congelados()
+    {
+        var raiz = RaizDelRepositorio();
+        var separador = Path.DirectorySeparatorChar;
+
+        var consumidores = Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.*", SearchOption.AllDirectories)
+            .Where(a => a.EndsWith(".cs", StringComparison.Ordinal) || a.EndsWith(".razor", StringComparison.Ordinal))
+            .Where(a => !a.Contains($"{separador}obj{separador}") && !a.Contains($"{separador}bin{separador}"))
+            .Where(a => LimpiadorDeComentarios.Quitar(File.ReadAllText(a), razor: a.EndsWith(".razor", StringComparison.Ordinal))
+                .Contains("ILecturaCuentaPropia", StringComparison.Ordinal))
+            .Select(a => Path.GetRelativePath(raiz, a).Replace(separador, '/'));
+
+        consumidores.Should().BeEquivalentTo(
+            "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+            "src/CaeManager.Infrastructure/Identity/LecturaCuentaPropia.cs",
+            "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs",
+            "src/CaeManager.Web/Services/CurrentUserService.cs");
+    }
+
     [Theory]
     [InlineData("\"Hola\".Equals(rol); await RoleManager.FindByIdAsync(id);", 0)]
     [InlineData("await UserManager.FindByIdAsync(id);", 1)]
+    [InlineData("await signInManager.ValidateSecurityStampAsync(principal);", 1)]
     [InlineData("await userManager.Users.AsNoTracking().CountAsync();", 1)]
     [InlineData("await _userManager.Users.CountAsync();", 1)]
     [InlineData("await DirectorioUsuarios.ObtenerVisiblesAsync(token);", 1)]

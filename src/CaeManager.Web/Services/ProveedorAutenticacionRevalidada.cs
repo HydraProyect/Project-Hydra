@@ -17,10 +17,11 @@ namespace CaeManager.Web.Services;
 ///
 /// <para>
 /// Cada <see cref="RevalidationInterval"/> abre un ámbito propio y pregunta a
-/// <see cref="SignInManagerCuentaDesactivada"/> —la misma pregunta que hace la cookie— si
-/// el principal sigue valiendo (sello, cuenta activa e identificador de sesión no
-/// revocado: cerrar sesión en otra pestaña o en todos los dispositivos corta también
-/// el circuito en el ciclo siguiente). Si no, el estado pasa a anónimo: el
+/// <see cref="IVigenciaSesionCuenta"/> —la misma pregunta que hace la cookie, sin cargar la
+/// cuenta en una Sesión Privilegiada— si el principal sigue valiendo (sello, cuenta activa e
+/// identificador de sesión no revocado: cerrar sesión en otra pestaña o en todos los
+/// dispositivos corta también el circuito en el ciclo siguiente). Se pregunta siempre por el
+/// principal del circuito, que es el Actor real. Si no, el estado pasa a anónimo: el
 /// <c>TenantActual</c> queda sin tenant, el filtro global de EF deniega
 /// y <c>CurrentUserService</c> no devuelve usuario, así que las Commands
 /// fallan cerradas — el mismo camino que ya sigue cualquier petición sin
@@ -99,16 +100,13 @@ public sealed class ProveedorAutenticacionRevalidada(
             try
             {
                 await using var ambito = scopeFactory.CreateAsyncScope();
-                var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
+                var vigencia = ambito.ServiceProvider.GetRequiredService<IVigenciaSesionCuenta>();
                 // El principal del circuito no cambia: lo que el Administrador del Tenant haya
-                // ajustado desde que se conectó se lee aquí, con la misma fábrica de la cookie.
-                var usuario = await signInManager.ValidateSecurityStampAsync(authenticationState.User);
-                var vigente = usuario is not null
+                // ajustado desde que se conectó llega en el principal vigente.
+                var principalVigente = await vigencia.PrincipalVigenteAsync(authenticationState.User, cancellationToken);
+                var vigente = principalVigente is not null
                     && CaducidadSesion.CircuitoAdmitido(
-                        authenticationState.User,
-                        await signInManager.ClaimsFactory.CreateAsync(usuario),
-                        ultimaRegistrada,
-                        ahora);
+                        authenticationState.User, principalVigente, ultimaRegistrada, ahora);
                 if (!vigente) _sesionInvalidada = true;
                 return vigente;
             }

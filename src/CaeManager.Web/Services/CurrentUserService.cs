@@ -269,21 +269,21 @@ public class CurrentUserService(
     /// <summary>
     /// Rol de la organización de origen, de Identity. Ver el contrato en
     /// <see cref="ICurrentUserService.ObtenerRolOrigenAsync"/>: no autoriza.
+    /// Proyecta la cuenta (<see cref="ILecturaCuentaPropia"/>): en una Sesión
+    /// Privilegiada, materializarla leería sus credenciales con <c>cae_app_soporte</c>.
     /// Mismo motivo que <see cref="TieneDobleFactorActivoAsync"/> para resolver
-    /// el <c>UserManager</c> dentro del método.
+    /// la lectura dentro del método.
     /// </summary>
     public async Task<string?> ObtenerRolOrigenAsync()
     {
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return null;
 
-        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
-        if (usuario is null) return null;
+        var cuenta = await serviceProvider.GetRequiredService<ILecturaCuentaPropia>().ObtenerAsync(usuarioId.Value);
 
         // Uno por usuario (Usuarios.razor); el orden solo hace determinista
         // un estado que no debería existir.
-        return (await userManager.GetRolesAsync(usuario)).Order(StringComparer.Ordinal).FirstOrDefault();
+        return cuenta?.Roles.Order(StringComparer.Ordinal).FirstOrDefault();
     }
 
     /// <summary>

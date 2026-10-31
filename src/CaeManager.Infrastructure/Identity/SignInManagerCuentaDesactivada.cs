@@ -25,11 +25,12 @@ namespace CaeManager.Infrastructure.Identity;
 ///
 /// <list type="bullet">
 /// <item><b>Validación</b> — <see cref="ValidateSecurityStampAsync(ApplicationUser?, string?)"/>
-/// la usan tanto el <c>SecurityStampValidator</c> de la cookie como el
-/// proveedor de autenticación del circuito
-/// (<c>ProveedorAutenticacionRevalidada</c>): una cuenta desactivada deja de
-/// validar aunque su stamp coincida (cubre también cuentas desactivadas antes
-/// de rotar el stamp al desactivar).</item>
+/// la usa el <c>SecurityStampValidator</c> de la cookie, y el proveedor de
+/// autenticación del circuito (<c>ProveedorAutenticacionRevalidada</c>) llega
+/// aquí por <see cref="IVigenciaSesionCuenta"/> salvo en una Sesión Privilegiada,
+/// donde esa misma pregunta la responde <c>app_cuenta_firmada_vigente</c>: una
+/// cuenta desactivada deja de validar aunque su stamp coincida (cubre también
+/// cuentas desactivadas antes de rotar el stamp al desactivar).</item>
 /// <item><b>Emisión</b> — <see cref="SignInWithClaimsAsync(ApplicationUser, AuthenticationProperties?, IEnumerable{Claim})"/>
 /// es a donde llegan <c>SignInAsync</c>, <c>RefreshSignInAsync</c> y el
 /// callback de Microsoft (que no comprueba bloqueo). Sin este freno, una
@@ -81,7 +82,8 @@ public class SignInManagerCuentaDesactivada(
             : null;
 
     /// <summary>
-    /// Punto de entrada de la validación periódica de la cookie y del circuito: busca
+    /// Punto de entrada de la validación periódica de la cookie y del circuito fuera de
+    /// una Sesión Privilegiada (<see cref="IVigenciaSesionCuenta"/>): busca
     /// la cuenta por el <c>Id</c> del principal. En el <c>SecurityStampValidator</c>
     /// de la cookie todavía no hay <c>HttpContext.User</c> y por tanto tampoco Tenant,
     /// y <c>AspNetUsers</c> tiene RLS (P1-M1): sin
@@ -92,8 +94,8 @@ public class SignInManagerCuentaDesactivada(
     ///
     /// <para>
     /// Además del sello y de la desactivación, exige el identificador de sesión y que su sesión
-    /// siga sin revocar (<c>app_sesion_vigente</c>, sin Tenant). Lo llaman los dos revalidadores,
-    /// el de la cookie y el del circuito, con el mismo intervalo
+    /// siga sin revocar (<c>app_sesion_vigente</c>, sin Tenant). Los dos revalidadores, el de la
+    /// cookie y el del circuito, comparten intervalo
     /// (<see cref="SecurityStampValidatorOptions.ValidationInterval"/>).
     /// </para>
     /// </summary>

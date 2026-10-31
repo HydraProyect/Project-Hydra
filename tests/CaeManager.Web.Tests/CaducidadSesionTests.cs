@@ -176,7 +176,7 @@ public class CaducidadSesionTests
     [Fact]
     public async Task El_circuito_sin_identificador_de_sesion_falla_cerrado_sin_consultar_la_base()
     {
-        // Sin SignInManager registrado: llegar a la base dejaría un aviso de error en el log.
+        // Sin IVigenciaSesionCuenta registrado: llegar a la base dejaría un aviso de error en el log.
         var registro = new RegistroDeAvisos();
         var servicios = new ServiceCollection().BuildServiceProvider();
         using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
@@ -288,7 +288,7 @@ public class CaducidadSesionTests
     [Fact]
     public async Task El_circuito_caducado_falla_cerrado_sin_consultar_la_base()
     {
-        // Sin SignInManager registrado: llegar a la base dejaría un aviso de error en el log.
+        // Sin IVigenciaSesionCuenta registrado: llegar a la base dejaría un aviso de error en el log.
         var registro = new RegistroDeAvisos();
         var servicios = new ServiceCollection().BuildServiceProvider();
         using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
@@ -304,7 +304,7 @@ public class CaducidadSesionTests
     [Fact]
     public async Task El_circuito_sin_hora_de_inicio_falla_cerrado()
     {
-        // Sin SignInManager registrado: llegar a la base dejaría un aviso de error en el log.
+        // Sin IVigenciaSesionCuenta registrado: llegar a la base dejaría un aviso de error en el log.
         var registro = new RegistroDeAvisos();
         var servicios = new ServiceCollection().BuildServiceProvider();
         using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
@@ -678,7 +678,7 @@ public class CaducidadSesionTests
             return;
         }
 
-        // Con señal reciente, pasa el plazo y llega a consultar el sello: aquí, sin SignInManager
+        // Con señal reciente, pasa el plazo y llega a consultar el sello: aquí, sin IVigenciaSesionCuenta
         // registrado, ese paso falla cerrado con un aviso, que es lo que distingue los dos caminos.
         (await (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!).Should().BeFalse();
         registro.Avisos.Should().Be(1);

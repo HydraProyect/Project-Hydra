@@ -1,6 +1,7 @@
 ﻿using System.Data.Common;
 using System.Reflection;
 using System.Security.Claims;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -91,6 +92,90 @@ public class ProveedorAutenticacionRevalidadaTests
         finally
         {
             ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    /// <summary>
+    /// El proveedor pregunta por el principal del circuito, el mismo objeto y no uno reconstruido: es el
+    /// Actor real, también en una Sesión Privilegiada. Si el resultado fuera otro, la pregunta iría sobre otra
+    /// cuenta. Lo que responde cada camino se mide en <c>FronteraCuentaFirmadaTests</c> y en
+    /// <c>SesionDeCuentaDesactivadaTests</c> (integración).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_ciclo_pregunta_por_el_principal_del_circuito_y_obedece_la_respuesta(bool vigente)
+    {
+        var vigencia = new VigenciaFalsa(vigente);
+        await using var servicios = new ServiceCollection().AddSingleton<IVigenciaSesionCuenta>(vigencia).BuildServiceProvider();
+        var proveedor = new ProveedorAutenticacionRevalidada(NullLoggerFactory.Instance,
+            servicios.GetRequiredService<IServiceScopeFactory>(), Options.Create(new SecurityStampValidatorOptions()));
+        try
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+                new Claim(SignInManagerCuentaDesactivada.ClaimSid, Guid.NewGuid().ToString("N")),
+                new Claim(CaducidadSesion.MarcaInicio, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture))], "sesion"));
+            var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            var tarea = (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!;
+
+            (await tarea).Should().Be(vigente);
+            proveedor.SesionInvalidada.Should().Be(!vigente);
+            vigencia.Preguntados.Should().ContainSingle().Which.Should().BeSameAs(principal);
+        }
+        finally
+        {
+            ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Una cuenta vigente a la que el Tenant acaba de exigirle lo que no tiene: el circuito no la admite, porque
+    /// esa activación solo se resuelve en una petición HTTP.
+    /// </summary>
+    [Fact]
+    public async Task El_ciclo_mide_el_circuito_con_el_principal_vigente_y_no_con_el_suyo()
+    {
+        var vigente = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true")], "sesion"));
+        var vigencia = new VigenciaFalsa(true, vigente);
+        await using var servicios = new ServiceCollection().AddSingleton<IVigenciaSesionCuenta>(vigencia).BuildServiceProvider();
+        var proveedor = new ProveedorAutenticacionRevalidada(NullLoggerFactory.Instance,
+            servicios.GetRequiredService<IServiceScopeFactory>(), Options.Create(new SecurityStampValidatorOptions()));
+        try
+        {
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+                new Claim(SignInManagerCuentaDesactivada.ClaimSid, Guid.NewGuid().ToString("N")),
+                new Claim(CaducidadSesion.MarcaInicio, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture))], "sesion"));
+            var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync",
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+            var tarea = (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!;
+
+            (await tarea).Should().BeFalse();
+            proveedor.SesionInvalidada.Should().BeTrue();
+        }
+        finally
+        {
+            ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    private sealed class VigenciaFalsa(bool respuesta, ClaimsPrincipal? principalVigente = null) : IVigenciaSesionCuenta
+    {
+        public List<ClaimsPrincipal> Preguntados { get; } = [];
+
+        public Task<bool> SigueVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+        {
+            Preguntados.Add(principal);
+            return Task.FromResult(respuesta);
+        }
+
+        public Task<ClaimsPrincipal?> PrincipalVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+        {
+            Preguntados.Add(principal);
+            return Task.FromResult(respuesta ? principalVigente ?? principal : null);
         }
     }
 
