@@ -64,7 +64,7 @@ RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj --locked-mode -p:Use
 # donde deciden algo, en el `dotnet build -warnaserror` de CI.
 RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false --no-restore -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.14@sha256:d247d17dd429d96580eeb96cfce220c1089d860dbbf9f94d599ca64cf3604fe4 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
