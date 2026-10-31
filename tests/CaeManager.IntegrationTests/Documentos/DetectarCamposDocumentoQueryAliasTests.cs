@@ -3,6 +3,7 @@ using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -105,7 +106,16 @@ public class DetectarCamposDocumentoQueryAliasTests : IAsyncLifetime
 
         return new DetectarCamposDocumentoQueryHandler(
             router, contexto, contexto, Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new SinSesionPrivilegiada());
+    }
+
+    private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
     private CaeManagerDbContext CrearContexto()

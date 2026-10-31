@@ -28,8 +28,12 @@ public class ObtenerLoteGeneracionDocumentosQueryHandler(
     public async Task<Result<LoteGeneracionDocumentoDto>> Handle(
         ObtenerLoteGeneracionDocumentosQuery request, CancellationToken cancellationToken)
     {
+        // Proyecta a propósito: Soporte TALVEG no tiene ContextoJson, y materializar la entidad
+        // daría 42501 en Sesión Privilegiada.
         var lote = await plantillasContext.LotesGeneracionDocumento
-            .FirstOrDefaultAsync(l => l.Id == request.LoteGeneracionDocumentoId, cancellationToken);
+            .Where(l => l.Id == request.LoteGeneracionDocumentoId)
+            .Select(l => new { l.Id, l.Estado, l.TotalItems, l.ItemsCompletados, l.ItemsFallidos })
+            .FirstOrDefaultAsync(cancellationToken);
         if (lote is null)
             return Result.Fallo<LoteGeneracionDocumentoDto>(Error.Crear("Plantilla.LoteNoEncontrado", "No encontramos este lote de generación."));
 
