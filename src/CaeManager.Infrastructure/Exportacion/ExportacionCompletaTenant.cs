@@ -35,7 +35,9 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// propietario (ASVS 4.0.3 V4.1.3). Lo comprueba la función <c>app_actor_plataforma_que_exporta</c>,
 /// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS. Quien ejecuta la CLI no se
 /// autentica en la aplicación, así que el Actor real consta como declarado en los datos de la fila.
-/// No hay Usuario simulado. La exportación queda en la auditoría del Tenant antes de leer nada (si
+/// No hay Usuario simulado. Va en los datos y no en las columnas de autor, porque esas columnas
+/// afirman una identidad autenticada y abren la cuenta a la lectura bajo RLS del Tenant propietario
+/// (<c>cuentas_lectura</c>). La exportación queda en la auditoría del Tenant antes de leer nada (si
 /// esa fila no se guarda, no se exporta nada) y otra vez al terminar, con los recuentos.
 /// </para>
 ///
@@ -103,7 +105,7 @@ public static class ExportacionCompletaTenant
         typeof(ExportacionCompletaTenant).GetMethod(nameof(LeerConjunto), BindingFlags.NonPublic | BindingFlags.Static)!;
 
     public const string Uso =
-        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Administrador de plataforma> --destino <ruta.zip>.";
+        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Actor de Plataforma TALVEG con AdminPlataforma> --destino <ruta.zip>.";
 
     public sealed record Resultado(Guid TenantId, string NombreTenant, IReadOnlyDictionary<string, long> Recuentos, int DocumentosSinFichero);
 
@@ -177,12 +179,12 @@ public static class ExportacionCompletaTenant
 
         // Quien ejecuta la CLI no se autentica en la aplicación: el Actor real consta como declarado.
         // Esta fila se guarda antes de leer nada; la de cierre, al terminar.
-        await AuditarAsync(contexto, tenantId, actorId, new
+        await AuditarAsync(contexto, tenantId, new
         {
             fase = "Iniciada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            actorDeclarado = true,
+            actorRealDeclaradoUsuarioId = actorId,
             usuarioSimuladoId = (Guid?)null,
         }, cancellationToken);
 
@@ -232,12 +234,12 @@ public static class ExportacionCompletaTenant
             await archivo.TerminarAsync(cancellationToken);
         }
 
-        await AuditarAsync(contexto, tenantId, actorId, new
+        await AuditarAsync(contexto, tenantId, new
         {
             fase = "Completada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            actorDeclarado = true,
+            actorRealDeclaradoUsuarioId = actorId,
             usuarioSimuladoId = (Guid?)null,
             recuentos,
             documentosSinFichero = sinFichero,
@@ -247,38 +249,36 @@ public static class ExportacionCompletaTenant
     }
 
     /// <summary>
-    /// Autor y Actor real son la misma cuenta, como en toda acción sin simulación. La vía queda
-    /// Desconocida porque no hay sesión que la ampare y Normal diría que actuó el propio Tenant.
+    /// Sin autor en las columnas: el Actor es declarado, no autenticado. El tipo de actor queda
+    /// Desconocido, y la vía también, porque Normal diría que actuó el propio Tenant.
     /// </summary>
-    private static async Task AuditarAsync(CaeManagerDbContext contexto, Guid tenantId, Guid actorId, object datos, CancellationToken cancellationToken)
+    private static async Task AuditarAsync(CaeManagerDbContext contexto, Guid tenantId, object datos, CancellationToken cancellationToken)
     {
         contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
             "Tenant", tenantId, RegistroAuditoria.AccionExportacion, null, JsonSerializer.Serialize(datos),
-            usuarioId: actorId, TipoActorAuditoria.Persona, actorRealUsuarioId: actorId, TipoViaAccesoAuditoria.Desconocida));
+            usuarioId: null, TipoActorAuditoria.Desconocido, viaAcceso: TipoViaAccesoAuditoria.Desconocida));
         await contexto.SaveChangesAsync(cancellationToken);
         contexto.ChangeTracker.Clear();
     }
 
     /// <summary>
     /// El Actor de Plataforma TALVEG que pide la exportación. La función de la base devuelve la cuenta
-    /// solo si es de un Tenant de plataforma y tiene una concesión AdminPlataforma vigente que alcanza
-    /// este Tenant; aquí se añade que no esté desactivada, con el criterio de la propia cuenta.
+    /// solo si es de un Tenant de plataforma, no está desactivada y tiene una concesión AdminPlataforma
+    /// vigente que alcanza este Tenant.
     /// </summary>
     private static async Task<Guid> ExigirActorDePlataformaAsync(
         CaeManagerDbContext contexto, Guid tenantId, string correo, CancellationToken cancellationToken)
     {
         var normalizado = correo.Trim().ToUpperInvariant();
-        var cuentas = await contexto.Database.SqlQuery<FilaActorDePlataforma>($"SELECT cuenta_id AS \"CuentaId\", fin_bloqueo AS \"FinBloqueo\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);
+        var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);
 
-        if (cuentas is not [var cuenta] || ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.FinBloqueo, DateTimeOffset.UtcNow))
+        if (cuentas is not [var cuentaId])
             throw new InvalidOperationException(
-                "La exportación solo la puede pedir un Administrador de plataforma activo con concesión vigente sobre " +
-                "ese Tenant; esa cuenta no existe en la plataforma, no tiene la concesión o está desactivada.");
+                "La exportación solo la puede pedir un Actor de Plataforma TALVEG activo con concesión AdminPlataforma " +
+                "vigente sobre ese Tenant; esa cuenta no existe en la plataforma, no tiene la concesión o está desactivada.");
 
-        return cuenta.CuentaId;
+        return cuentaId;
     }
-
-    private sealed record FilaActorDePlataforma(Guid CuentaId, DateTimeOffset? FinBloqueo);
 
     private static async Task<long> EscribirUsuariosAsync(
         CaeManagerDbContext contexto, ArchivoExportacion archivo, Guid tenantId, CancellationToken cancellationToken)

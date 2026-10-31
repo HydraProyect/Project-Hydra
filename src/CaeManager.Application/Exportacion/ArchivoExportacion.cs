@@ -49,7 +49,6 @@ public sealed class ArchivoExportacion : IDisposable
         this.tenantId = tenantId;
         this.reloj = reloj ?? TimeProvider.System;
         archivo = new ZipOutputStream(destino) { IsStreamOwner = false, Password = contrasena };
-        archivo.SetLevel(9);
     }
 
     public Task AgregarAsync(string ruta, Stream contenido, CancellationToken cancellationToken = default) =>

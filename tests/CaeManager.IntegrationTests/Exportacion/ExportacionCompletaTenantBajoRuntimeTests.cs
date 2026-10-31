@@ -50,6 +50,10 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
     private string _actorDeOtroTenant = null!;
     private string _actorCaducado = null!;
     private string _actorDesactivado = null!;
+    private string _actorRevocado = null!;
+    private string _actorBloqueoTemporal = null!;
+    private string _actorGlobal = null!;
+    private string _consultaConConcesion = null!;
 
     public async Task InitializeAsync()
     {
@@ -78,7 +82,18 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         (var deOtroTenantId, _actorDeOtroTenant) = await CuentaAsync(_tenantPlataforma, administrador);
         (var caducadoId, _actorCaducado) = await CuentaAsync(_tenantPlataforma, administrador);
         (var desactivadoId, _actorDesactivado) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var revocadoId, _actorRevocado) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var temporalId, _actorBloqueoTemporal) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var globalId, _actorGlobal) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var consultaConConcesionId, _consultaConConcesion) = await CuentaAsync(_tenantA, consulta);
+        var revocada = ConcesionPrivilegio.SobreTenants(revocadoId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null);
+        revocada.Revocar(ahora);
         _propietario.ConcesionesPrivilegio.AddRange(
+            revocada,
+            ConcesionPrivilegio.SobreTenants(temporalId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null),
+            ConcesionPrivilegio.Global(globalId, ahora.AddMinutes(-10), null),
+            // Dato anómalo: una cuenta de un Tenant propietario con la concesión. Solo EsPlataforma la para.
+            ConcesionPrivilegio.SobreTenants(consultaConConcesionId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null),
             ConcesionPrivilegio.SobreTenants(_actorId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null),
             ConcesionPrivilegio.SobreTenants(deOtroTenantId, CapacidadPrivilegio.AdminPlataforma, [_tenantB], ahora.AddMinutes(-10), null),
             ConcesionPrivilegio.SobreTenants(caducadoId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddHours(-2), ahora.AddHours(-1)),
@@ -86,6 +101,9 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
         await _propietario.Users.IgnoreQueryFilters().Where(u => u.Id == desactivadoId)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, ApplicationUser.FinDeBloqueoDeCuentaDesactivada));
+
+        await _propietario.Users.IgnoreQueryFilters().Where(u => u.Id == temporalId)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, DateTimeOffset.UtcNow.AddMinutes(15)));
 
         // El correo del Actor también existe como cuenta de un Tenant propietario: solo cuenta la de la plataforma.
         await CuentaAsync(_tenantA, consulta, _actor);
@@ -117,7 +135,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
                 runtime, new AlmacenVacio(), _tenantA, _actor, ContrasenaZip, destino);
 
             resultado.Recuentos["Empresa"].Should().Be(1);
-            resultado.Recuentos["Usuario"].Should().Be(3);
+            resultado.Recuentos["Usuario"].Should().Be(4);
         }
 
         destino.Position = 0;
@@ -155,22 +173,22 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
             .Where(r => r.TenantId == _tenantA && r.EntidadId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion)
             .ToListAsync();
         auditoria.Should().HaveCount(2, "la exportación queda en la auditoría del Tenant propietario al empezar y al terminar");
-        auditoria.Should().OnlyContain(r => r.ActorRealUsuarioId == _actorId && r.UsuarioId == _actorId &&
-                                            r.TipoActor == TipoActorAuditoria.Persona &&
+        auditoria.Should().OnlyContain(r => r.ActorRealUsuarioId == null && r.UsuarioId == null &&
+                                            r.TipoActor == TipoActorAuditoria.Desconocido &&
                                             r.ViaAcceso == TipoViaAccesoAuditoria.Desconocida);
-        auditoria.Should().OnlyContain(r => r.DatosDespues!.Contains("\"actorDeclarado\":true") &&
+        auditoria.Should().OnlyContain(r => r.DatosDespues!.Contains($"\"actorRealDeclaradoUsuarioId\":\"{_actorId}\"") &&
                                             r.DatosDespues.Contains("\"usuarioSimuladoId\":null") &&
                                             !r.DatosDespues.Contains(ContrasenaZip));
         manifiesto.RootElement.GetProperty("noIncluido").EnumerateObject().Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task Se_niega_si_no_la_pide_un_Administrador_de_plataforma_con_concesion_vigente_sobre_el_Tenant()
+    public async Task Se_niega_si_no_la_pide_un_Actor_de_Plataforma_con_concesion_vigente_sobre_el_Tenant()
     {
         string[] rechazados =
         [
             _administradorA, _consultaA, _administradorB, _actorSinConcesion, _actorDeOtroTenant,
-            _actorCaducado, _actorDesactivado, "nadie@exportacion.local",
+            _actorCaducado, _actorDesactivado, _actorRevocado, _consultaConConcesion, "nadie@exportacion.local",
         ];
 
         foreach (var correo in rechazados)
@@ -179,13 +197,38 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
             var exportar = () => ExportacionCompletaTenant.ExportarAsync(
                 runtime, new AlmacenVacio(), _tenantA, correo, ContrasenaZip, new MemoryStream());
 
-            await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Administrador de plataforma activo*");
+            await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Actor de Plataforma TALVEG activo*");
         }
 
         await using var control = CrearPropietario();
         (await control.RegistrosAuditoria.IgnoreQueryFilters()
                 .CountAsync(r => r.TenantId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion))
             .Should().Be(0, "un rechazo no llega a abrir la exportación");
+    }
+
+    [Fact]
+    public async Task La_acepta_una_concesion_global_y_un_bloqueo_temporal_no_desactiva()
+    {
+        foreach (var correo in new[] { _actorGlobal, _actorBloqueoTemporal })
+        {
+            await using var runtime = CrearRuntime();
+            var resultado = await ExportacionCompletaTenant.ExportarAsync(
+                runtime, new AlmacenVacio(), _tenantA, correo, ContrasenaZip, new MemoryStream());
+
+            resultado.TenantId.Should().Be(_tenantA);
+        }
+    }
+
+    [Fact]
+    public async Task El_Tenant_propietario_no_gana_lectura_de_la_cuenta_del_Actor()
+    {
+        await using (var runtime = CrearRuntime())
+            await ExportacionCompletaTenant.ExportarAsync(runtime, new AlmacenVacio(), _tenantA, _actor, ContrasenaZip, new MemoryStream());
+
+        await using var lector = CrearRuntime();
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
+
+        (await lector.Users.IgnoreQueryFilters().CountAsync(u => u.TenantId == _tenantPlataforma && u.Id == _actorId)).Should().Be(0);
     }
 
     [Fact]

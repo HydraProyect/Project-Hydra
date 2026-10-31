@@ -85,8 +85,36 @@ public class ArchivoExportacionTests
         using var zip = Abrir(destino, Contrasena);
         zip.Cast<ZipEntry>().Should().HaveCount(2).And.OnlyContain(e => e.IsCrypted && e.AESKeySize == 256);
 
-        var crudo = Encoding.Latin1.GetString(destino.ToArray());
-        crudo.Should().NotContain("marca-que-no-puede").And.NotContain("tenantId");
+        using var sinContrasena = Abrir(destino, null);
+        Assert.Throws<ZipException>(() => sinContrasena.GetInputStream(sinContrasena.GetEntry("datos/Empresa.json")));
+    }
+
+    [Fact]
+    public async Task UnJsonGrandeConVolcadosAMitadDeEntradaSeLeeIgual()
+    {
+        var filas = Enumerable.Range(0, 40_000).Select(i => $"fila {i}").ToArray();
+        using var destino = new MemoryStream();
+        using (var archivo = new ArchivoExportacion(destino, Guid.NewGuid(), Contrasena))
+        {
+            await archivo.EscribirAsync("datos/Empresa.json", async salida =>
+            {
+                await using var escritor = new Utf8JsonWriter(salida);
+                escritor.WriteStartArray();
+                foreach (var fila in filas)
+                {
+                    escritor.WriteStringValue(fila);
+                    if (escritor.BytesPending > 16 * 1024)
+                        await escritor.FlushAsync();
+                }
+                escritor.WriteEndArray();
+            });
+            await archivo.TerminarAsync();
+        }
+
+        using var zip = Abrir(destino, Contrasena);
+        var leidas = await JsonSerializer.DeserializeAsync<string[]>(zip.GetInputStream(zip.GetEntry("datos/Empresa.json")));
+
+        leidas.Should().Equal(filas);
     }
 
     [Fact]
@@ -163,7 +191,7 @@ public class ArchivoExportacionTests
         error.Message.Should().Contain("Empresa").And.NotContain(pedido.ToString());
     }
 
-    private static ZipFile Abrir(MemoryStream destino, string contrasena)
+    private static ZipFile Abrir(MemoryStream destino, string? contrasena)
     {
         destino.Position = 0;
         return new ZipFile(destino, leaveOpen: true) { Password = contrasena };

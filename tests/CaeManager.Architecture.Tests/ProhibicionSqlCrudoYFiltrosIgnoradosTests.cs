@@ -161,7 +161,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // bajo el ámbito del Tenant exportado; la función SECURITY DEFINER comprueba cuenta y concesión. Correo y Tenant,
         // parametrizados por EF.
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs",
-            """var cuentas = await contexto.Database.SqlQuery<FilaActorDePlataforma>($"SELECT cuenta_id AS \"CuentaId\", fin_bloqueo AS \"FinBloqueo\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);""")] = 1,
+            """var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);""")] = 1,
 
         // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
         // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
