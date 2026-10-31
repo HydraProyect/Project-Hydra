@@ -24,9 +24,7 @@ public class ReclamacionBuzonIntegracionConfiguration : IEntityTypeConfiguration
         // ExisteReclamacionAsync como una relación 1:1 con ConexionIntegracion.
         builder.HasIndex(r => r.ConexionIntegracionId).IsUnique();
 
-        // Sin HasQueryFilter: la unicidad que impone esta tabla cruza
-        // Tenants por definición (ver el comentario de clase de
-        // ReclamacionBuzonIntegracion) — un filtro de tenant o una política
-        // de aislamiento la neutralizarían.
+        // El aislamiento por Tenant propietario lo aplica RLS; el índice
+        // único sigue garantizando la unicidad global del buzón.
     }
 }
