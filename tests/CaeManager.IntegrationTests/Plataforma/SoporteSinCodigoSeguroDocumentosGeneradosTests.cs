@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento;
 using CaeManager.Application.Plantillas.Queries.ObtenerDocumentosGenerados;
 using CaeManager.Application.Plantillas.Queries.ObtenerTotalDocumentosGeneradosConAvisos;
 using CaeManager.Domain.Common;
@@ -28,6 +29,7 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private Guid _tenant;
     private Guid _documentoGeneradoId;
+    private Guid _documentoId;
     private string _razonSocial = "";
 
     public async Task InitializeAsync()
@@ -54,6 +56,11 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
 
         var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         contexto.Documentos.Add(documento);
+        contexto.VerificacionesDocumentoOficial.Add(new VerificacionDocumentoOficial(
+            documento.Id, PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
+            "CSV-123", null, null, null, null, ResultadoCotejoDocumentoOficial.Coincide,
+            DecisionValidacionOficial.AutoValidado, ""));
+        _documentoId = documento.Id;
         var generado = new DocumentoGenerado(
             version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, empresaId: empresa.Id, conAvisos: true);
         contexto.DocumentosGenerados.Add(generado);
@@ -145,6 +152,42 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
         var materializar = async () => await contextoSoporte.DocumentosGenerados.ToListAsync();
         (await materializar.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Materializar_verificaciones_o_eventos_de_webhook_falla_en_Sesion_Privilegiada()
+    {
+        await using var contextoRuntime = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        (await contextoRuntime.VerificacionesDocumentoOficial.ToListAsync()).Should().ContainSingle(
+            "control del instrumento: sin Sesión Privilegiada la fila existe y se materializa");
+        await contextoRuntime.EventosWebhook.ToListAsync();
+
+        await using var contextoSoporte = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+        var verificaciones = async () => await contextoSoporte.VerificacionesDocumentoOficial.ToListAsync();
+        (await verificaciones.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        var eventos = async () => await contextoSoporte.EventosWebhook.ToListAsync();
+        (await eventos.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Consulta_de_verificacion_funciona_con_ambos_roles()
+    {
+        var sesion = Guid.NewGuid();
+        await using var soporte = CrearContexto(sesionPrivilegiadaId: sesion);
+        var resultadoSoporte = await new ObtenerValidacionOficialDocumentoQueryHandler(
+            soporte, new ClienteActivoSeleccionadoFalso(_tenant, sesion)).Handle(new(_documentoId), CancellationToken.None);
+        resultadoSoporte.Should().NotBeNull();
+        resultadoSoporte!.CodigoVerificacionDisponible.Should().BeFalse();
+        resultadoSoporte.CodigoVerificacion.Should().BeNull();
+
+        await using var runtime = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        var resultadoRuntime = await new ObtenerValidacionOficialDocumentoQueryHandler(
+            runtime, new ClienteActivoSeleccionadoFalso(_tenant, null)).Handle(new(_documentoId), CancellationToken.None);
+        resultadoRuntime.Should().NotBeNull();
+        resultadoRuntime!.CodigoVerificacionDisponible.Should().BeTrue();
+        resultadoRuntime.CodigoVerificacion.Should().Be("CSV-123");
     }
 
     private CaeManagerDbContext CrearContexto(Guid? sesionPrivilegiadaId = null, string? cadenaConexion = null)
