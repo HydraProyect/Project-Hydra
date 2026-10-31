@@ -1133,6 +1133,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Canal")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 
@@ -10544,9 +10547,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("UltimaActividadUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("UltimaDesactivacionEnUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("UserName")

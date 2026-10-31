@@ -86,7 +86,7 @@ public class ExportacionCompletaTenantTests
             "Id", "TenantId", "UserName", "Email", "EmailConfirmed", "PhoneNumber", "PhoneNumberConfirmed",
             "TwoFactorEnabled", "LockoutEnd", "LockoutEnabled", "AccessFailedCount", "NombreCompleto", "Tema", "Idioma",
             "Avatar", "CoordinadorUsuarioId", "ClienteId", "DebeCambiarContrasena", "FechaCreacion", "UltimaActividadUtc",
-            "PermisoConsultarAccesoDocumentosSensibles", "UltimaDesactivacionEnUtc");
+            "PermisoConsultarAccesoDocumentosSensibles", "ClavesApiValidasDesdeUtc");
     }
 
     [Theory]

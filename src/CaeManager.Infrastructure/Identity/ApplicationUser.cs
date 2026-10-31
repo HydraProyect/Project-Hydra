@@ -129,16 +129,16 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
         finBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
 
     /// <summary>
-    /// Cuándo se desactivó la cuenta por última vez. Reactivar no lo borra: es lo que
-    /// impide que una clave de API emitida antes vuelva a autenticar, como el stamp
-    /// nuevo impide que resucite una cookie (ver <see cref="AdmiteClaveEmitidaEn"/>).
+    /// Instante de la última reactivación: una clave de API de esta cuenta solo vale si se
+    /// emitió después. Lo que el stamp nuevo hace con las cookies, también con la clave que
+    /// se emitiera mientras la cuenta estaba desactivada (ver <see cref="AdmiteClaveEmitidaEn"/>).
     /// </summary>
-    public DateTime? UltimaDesactivacionEnUtc { get; private set; }
+    public DateTime? ClavesApiValidasDesdeUtc { get; private set; }
 
     /// <summary>
     /// ¿Una clave de API emitida por esta cuenta en <paramref name="emitidaEnUtc"/> sigue
-    /// respaldada por ella? No si la cuenta está desactivada, ni si se desactivó después de
-    /// emitirla, aunque ya esté reactivada: desactivar invalida la clave para siempre
+    /// respaldada por ella? No si la cuenta está desactivada, ni si se reactivó después de
+    /// emitirla: desactivar invalida la clave para siempre
     /// (decisión del 2026-10-28; OWASP ASVS 4.0.3 V4.1.3 y V4.1.5). El bloqueo temporal por
     /// intentos fallidos no la corta, por el mismo motivo que no corta sesiones.
     /// Recibe los datos y no la cuenta porque al autenticar la clave la fila no se puede
@@ -146,9 +146,9 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// (<c>app_estado_cuenta_emisora</c>).
     /// </summary>
     public static bool AdmiteClaveEmitidaEn(
-        DateTimeOffset? finBloqueo, DateTime? ultimaDesactivacionEnUtc, DateTime emitidaEnUtc, DateTimeOffset ahora) =>
+        DateTimeOffset? finBloqueo, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc, DateTimeOffset ahora) =>
         !EsBloqueoDeDesactivacion(finBloqueo, ahora)
-        && (ultimaDesactivacionEnUtc is null || ultimaDesactivacionEnUtc < emitidaEnUtc);
+        && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     /// <summary>
     /// Lo que <see cref="Desactivar"/> escribe en <c>LockoutEnd</c>. Con
@@ -163,8 +163,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// El bloqueo impide entrar y, con <see cref="EstaDesactivada"/>, corta las
     /// sesiones abiertas; el stamp es lo que impide que <see cref="Reactivar"/>
     /// devuelva la vida a una cookie o a un token de extensión emitidos antes
-    /// (con solo el bloqueo, quitarlo resucitaba lo anterior). La fecha hace lo mismo
-    /// con las claves de API que la cuenta emitió. Juntos en un
+    /// (con solo el bloqueo, quitarlo resucitaba lo anterior). Juntos en un
     /// método para que ninguna pantalla pueda hacer una mitad sin la otra.
     /// </summary>
     public void Desactivar()
@@ -172,7 +171,6 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
         LockoutEnabled = true;
         LockoutEnd = FinDeBloqueoDeCuentaDesactivada;
         SecurityStamp = Guid.NewGuid().ToString();
-        UltimaDesactivacionEnUtc = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -186,11 +184,15 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// <summary>
     /// Quita el bloqueo. No toca el security stamp: el que rotó en
     /// <see cref="Desactivar"/> sigue manteniendo muertas las sesiones anteriores.
-    /// Tampoco <see cref="UltimaDesactivacionEnUtc"/>, que mantiene muertas las claves
-    /// de API emitidas antes.
+    /// Si la cuenta estaba desactivada, fecha <see cref="ClavesApiValidasDesdeUtc"/>, que
+    /// mantiene muertas las claves de API emitidas antes de este momento, incluida la que
+    /// una sesión aún abierta emitiera con la cuenta ya desactivada.
     /// </summary>
     public void Reactivar()
     {
+        if (EstaDesactivada(DateTimeOffset.UtcNow))
+            ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+
         LockoutEnabled = true;
         LockoutEnd = null;
     }

@@ -49,7 +49,7 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
     {
         var estado = await AlmacenUsuarios.EstadoCuentaEmisoraAsync(dbContext, creadaPorUsuarioId, cancellationToken);
         return estado is not null && ApplicationUser.AdmiteClaveEmitidaEn(
-            estado.FinBloqueo, estado.UltimaDesactivacionEnUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
+            estado.FinBloqueo, estado.ClavesApiValidasDesdeUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
     }
 
     public async Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default)

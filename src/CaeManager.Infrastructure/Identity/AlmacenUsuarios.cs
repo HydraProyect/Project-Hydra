@@ -183,7 +183,7 @@ public class AlmacenUsuarios(
     /// </summary>
     internal static async Task<EstadoCuentaEmisora?> EstadoCuentaEmisoraAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         (await db.Database.SqlQuery<EstadoCuentaEmisora>(
-                $"SELECT fin_bloqueo AS \"FinBloqueo\", ultima_desactivacion AS \"UltimaDesactivacionEnUtc\" FROM app_estado_cuenta_emisora({cuentaId})")
+                $"SELECT fin_bloqueo AS \"FinBloqueo\", claves_validas_desde AS \"ClavesApiValidasDesdeUtc\" FROM app_estado_cuenta_emisora({cuentaId})")
             .ToListAsync(cancellationToken))
         .SingleOrDefault();
 
@@ -297,5 +297,5 @@ public sealed record CuentaResuelta
 public sealed record EstadoCuentaEmisora
 {
     public DateTimeOffset? FinBloqueo { get; init; }
-    public DateTime? UltimaDesactivacionEnUtc { get; init; }
+    public DateTime? ClavesApiValidasDesdeUtc { get; init; }
 }

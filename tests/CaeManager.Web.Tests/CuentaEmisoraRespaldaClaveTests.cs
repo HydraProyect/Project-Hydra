@@ -13,7 +13,7 @@ public class CuentaEmisoraRespaldaClaveTests
     private static readonly DateTime Emision = DateTime.UtcNow.AddDays(-10);
 
     private static bool Admite(ApplicationUser cuenta, DateTime emitidaEnUtc) => ApplicationUser.AdmiteClaveEmitidaEn(
-        cuenta.LockoutEnd, cuenta.UltimaDesactivacionEnUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
+        cuenta.LockoutEnd, cuenta.ClavesApiValidasDesdeUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
 
     [Fact]
     public void La_cuenta_que_nunca_se_desactivo_respalda_la_clave() =>
@@ -39,6 +39,19 @@ public class CuentaEmisoraRespaldaClaveTests
         Admite(cuenta, Emision).Should().BeFalse();
     }
 
+    // Una sesión abierta puede emitir con la cuenta ya desactivada, hasta que revalide el sello.
+    [Fact]
+    public void Reactivar_no_devuelve_la_clave_emitida_durante_la_desactivacion()
+    {
+        var cuenta = new ApplicationUser();
+        cuenta.Desactivar();
+        var emitidaDurante = DateTime.UtcNow;
+        Thread.Sleep(1);
+        cuenta.Reactivar();
+
+        Admite(cuenta, emitidaDurante).Should().BeFalse();
+    }
+
     [Fact]
     public void La_clave_emitida_despues_de_reactivar_vale()
     {
@@ -46,17 +59,26 @@ public class CuentaEmisoraRespaldaClaveTests
         cuenta.Desactivar();
         cuenta.Reactivar();
 
-        Admite(cuenta, cuenta.UltimaDesactivacionEnUtc!.Value.AddSeconds(1)).Should().BeTrue();
+        Admite(cuenta, cuenta.ClavesApiValidasDesdeUtc!.Value.AddSeconds(1)).Should().BeTrue();
     }
 
-    // Una emisión que corre a la vez que la desactivación puede quedar fechada después de ella.
     [Fact]
-    public void Con_la_cuenta_desactivada_tampoco_vale_una_clave_fechada_despues()
+    public void Con_la_cuenta_desactivada_tampoco_vale_una_clave_recien_emitida()
     {
         var cuenta = new ApplicationUser();
         cuenta.Desactivar();
 
-        Admite(cuenta, cuenta.UltimaDesactivacionEnUtc!.Value.AddSeconds(1)).Should().BeFalse();
+        Admite(cuenta, DateTime.UtcNow.AddSeconds(1)).Should().BeFalse();
+    }
+
+    // Reactivar una cuenta activa no es una reactivación: no puede tumbar sus claves vigentes.
+    [Fact]
+    public void Reactivar_una_cuenta_activa_no_corta_sus_claves()
+    {
+        var cuenta = new ApplicationUser();
+        cuenta.Reactivar();
+
+        Admite(cuenta, Emision).Should().BeTrue();
     }
 
     // Quien conociera un correo no debe poder tumbar la integración con cinco contraseñas erróneas.
