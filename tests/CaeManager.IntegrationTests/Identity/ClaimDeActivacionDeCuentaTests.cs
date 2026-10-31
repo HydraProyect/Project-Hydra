@@ -220,6 +220,9 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
             var parametros = new ParametroSistema(30, 15);
             parametros.ActualizarSeguridadAcceso(minutos, exigeTodos);
             contexto.ParametrosSistema.Add(parametros);
+            // Este contexto no lleva TenantSelladoInterceptor: sin sellar a mano, la fila quedaría con
+            // TenantId vacío, la fábrica no la vería y regirían los valores por defecto.
+            contexto.Entry(parametros).Property(p => p.TenantId).CurrentValue = _tenant;
             await contexto.SaveChangesAsync();
         }
     }
