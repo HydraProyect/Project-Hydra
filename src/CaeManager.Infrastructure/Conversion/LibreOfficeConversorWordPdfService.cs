@@ -21,7 +21,12 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
     // (hay estado a nivel de proceso/sistema que esa opción no siempre aísla).
     // Serializar es la opción simple y suficiente para el volumen esperado (uso
     // interno, no SaaS) — no justifica un listener persistente tipo unoconv.
-    private static readonly SemaphoreSlim Semaforo = new(1, 1);
+    //
+    // La espera por el semáforo también tiene tope (EsperaMaximaSegundos): el
+    // TimeoutSegundos solo cubre el proceso, así que sin él una conversión atascada
+    // en cola dejaba esperando sin límite a todas las demás cargas de Word.
+    // internal para que los tests puedan ocuparlo sin lanzar LibreOffice.
+    internal static readonly SemaphoreSlim Semaforo = new(1, 1);
 
     // Los comparte el barrido de arranque (LimpiezaTemporalesConversionWordHostedService).
     internal const string PrefijoDirectorio = "caemanager-word2pdf-";
@@ -76,7 +81,14 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
             proceso.StartInfo.Environment["TMP"] = directorioTrabajo;
             proceso.StartInfo.Environment["TEMP"] = directorioTrabajo;
 
-            await Semaforo.WaitAsync(cancellationToken);
+            if (!await Semaforo.WaitAsync(TimeSpan.FromSeconds(_opciones.EsperaMaximaSegundos), cancellationToken))
+            {
+                _logger.LogWarning(
+                    "Conversión de Word a PDF rechazada: el servicio siguió ocupado durante {Segundos} s.",
+                    _opciones.EsperaMaximaSegundos);
+                throw new ConversionWordPdfOcupadaException();
+            }
+
             try
             {
                 try

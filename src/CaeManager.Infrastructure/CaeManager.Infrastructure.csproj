@@ -73,6 +73,7 @@
        arriba. -->
   <ItemGroup>
     <InternalsVisibleTo Include="CaeManager.IntegrationTests" />
+    <InternalsVisibleTo Include="CaeManager.Web.Tests" />
   </ItemGroup>
 
 </Project>

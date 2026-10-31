@@ -732,6 +732,11 @@ public partial class DrawerGestionDocumento : ComponentBase
             var textos = Servicios.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>();
             ToastService.Mostrar(textos["ErrorSinEspacio"], TonoToast.Error);
         }
+        catch (ConversionWordPdfOcupadaException ex)
+        {
+            // Transitorio y esperado: el aviso dice qué hacer, no es un fallo del archivo.
+            ToastService.Mostrar(ex.Message, TonoToast.Advertencia);
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Fallo al procesar el archivo subido en Documentos");

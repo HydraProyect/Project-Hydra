@@ -1,4 +1,5 @@
 using System.Reflection;
+using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 using CaeManager.Application.Plataforma;
@@ -52,8 +53,11 @@ public class ExportacionesConRastroTests
     /// <summary>Página vacía a cualquier listado paginado; a los informes y al resumen, un resultado con una fila.</summary>
     private sealed class MediatorFalso : IMediator
     {
+        public List<ObtenerAuditoriaQuery> ConsultasAuditoria { get; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerAuditoriaQuery consultaAuditoria) ConsultasAuditoria.Add(consultaAuditoria);
             object? respuesta = request switch
             {
                 GenerarInformeVigenciaQuery => new InformeVigenciaDto("Tenant", []),
@@ -112,7 +116,7 @@ public class ExportacionesConRastroTests
     {
         ["incidencias"] = r => IncidenciasEndpoints.ExportarAsync(
             new MediatorFalso(), r, Servicios.GetRequiredService<IStringLocalizer<TextosIncidencias>>(), default),
-        ["auditoria"] = r => AuditoriaEndpoints.ExportarAsync(null, new MediatorFalso(), r, default),
+        ["auditoria"] = r => AuditoriaEndpoints.ExportarAsync(null, null, null, new MediatorFalso(), r, default),
         ["asignaciones"] = r => AsignacionesEndpoints.ExportarAsync(
             new MediatorFalso(), Sesion(activa: false), r, Servicios.GetRequiredService<IStringLocalizer<TextosAsignaciones>>(), default),
         ["resumenFacturacion"] = r => FacturacionEndpoints.ExportarResumenAsync(
@@ -185,7 +189,7 @@ public class ExportacionesConRastroTests
     {
         var registro = new RegistroFalso();
 
-        await AuditoriaEndpoints.ExportarAsync(filtro, new MediatorFalso(), registro, default);
+        await AuditoriaEndpoints.ExportarAsync(filtro, null, null, new MediatorFalso(), registro, default);
 
         registro.Registros.Single().Criterios.Should().Contain("entidad", esperado);
     }
@@ -195,9 +199,39 @@ public class ExportacionesConRastroTests
     {
         var registro = new RegistroFalso();
 
-        await AuditoriaEndpoints.ExportarAsync(null, new MediatorFalso(), registro, default);
+        await AuditoriaEndpoints.ExportarAsync(null, null, null, new MediatorFalso(), registro, default);
 
         registro.Registros.Single().Criterios.Should().NotContainKey("entidad");
+    }
+
+    [Fact]
+    public async Task La_exportacion_de_auditoria_acota_por_el_rango_recibido_y_lo_declara_en_el_rastro()
+    {
+        var registro = new RegistroFalso();
+        var mediador = new MediatorFalso();
+
+        await AuditoriaEndpoints.ExportarAsync(null, "2026-01-15", "2026-02-20", mediador, registro, default);
+
+        var consulta = mediador.ConsultasAuditoria.Should().ContainSingle().Subject;
+        consulta.DesdeUtc.Should().Be(RangoFechasAuditoria.DesdeUtc(new DateOnly(2026, 1, 15)));
+        consulta.HastaUtc.Should().Be(RangoFechasAuditoria.HastaUtcExclusivo(new DateOnly(2026, 2, 20)));
+        registro.Registros.Single().Criterios.Should().Contain("desde", "2026-01-15").And.Contain("hasta", "2026-02-20");
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("no-es-fecha", "31/12/2026")]
+    public async Task Sin_fechas_validas_la_exportacion_de_auditoria_sigue_siendo_todo_el_historial(string? desde, string? hasta)
+    {
+        var registro = new RegistroFalso();
+        var mediador = new MediatorFalso();
+
+        await AuditoriaEndpoints.ExportarAsync(null, desde, hasta, mediador, registro, default);
+
+        var consulta = mediador.ConsultasAuditoria.Should().ContainSingle().Subject;
+        consulta.DesdeUtc.Should().BeNull("el endpoint sin rango conserva su contrato: no se impone un rango por defecto");
+        consulta.HastaUtc.Should().BeNull();
+        registro.Registros.Single().Criterios.Should().NotContainKey("desde").And.NotContainKey("hasta");
     }
 
     [Fact]

@@ -369,6 +369,9 @@
   <data name="ErrorContenido" xml:space="preserve">
     <value>El contenido real no coincide con la extensión — se omitió.</value>
   </data>
+  <data name="ErrorConversionOcupada" xml:space="preserve">
+    <value>La conversión de Word está ocupada con otros archivos. Vuelve a intentarlo en un minuto o sube el archivo ya convertido a PDF.</value>
+  </data>
   <data name="ErrorConvertir" xml:space="preserve">
     <value>No pudimos convertir este archivo a PDF.</value>
   </data>
