@@ -123,9 +123,9 @@ public class CrearClienteDeleganteCommandHandler(
         // con SingleAsync() y falla si no existe.
         using (AmbitoTenantExplicito.Establecer(tenantCliente.Id))
         {
-            // Ambos guardados firman el mismo Tenant: no hay cambio de identidad
+            // Los tres guardados firman el mismo Tenant: no hay cambio de identidad
             // RLS dentro de la conexión. La transacción revierte también el alta
-            // si falla la operación delegada o su primera cartera.
+            // si falla la delegación, la operación delegada o su primera cartera.
             var escrita = await transaccion.EjecutarAsync(async ct =>
             {
                 tenantRepositorio.Agregar(tenantCliente);
@@ -147,10 +147,17 @@ public class CrearClienteDeleganteCommandHandler(
                 // Tenant activo al guardar. Fuera del ámbito el Tenant activo sería el de origen de
                 // quien ejecuta y RLS rechazaría la inserción. La autoridad sigue
                 // siendo la concesión global validada arriba; el ámbito solo fija
-                // dónde se escribe. DelegacionTenant y AsignacionOperadorDelegado son
-                // catálogo global (Entity, no EntidadConTenant): el ámbito no las sella.
+                // dónde se escribe. DelegacionTenant y AsignacionOperadorDelegado no llevan
+                // TenantId (Entity, no EntidadConTenant): el ámbito no las sella, pero sus
+                // políticas exigen que el Tenant activo sea un extremo de la delegación.
                 var delegacion = new DelegacionTenant(tenantOrigenId!.Value, tenantCliente.Id);
                 delegacionRepositorio.Agregar(delegacion);
+
+                // Guardado propio y antes de la asignación: el WITH CHECK de
+                // AsignacionesOperadorDelegado busca la delegación, y sin clave foránea
+                // entre las dos tablas EF no garantiza el orden de los INSERT de un
+                // mismo guardado. Si la asignación fuera primero, RLS la rechazaría.
+                await unitOfWork.SaveChangesAsync(ct);
 
                 // Sin esto, la delegación quedaría creada pero inservible: nadie
                 // podría operarla hasta un segundo paso manual que además hoy no
