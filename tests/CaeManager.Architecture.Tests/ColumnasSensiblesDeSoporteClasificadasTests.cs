@@ -64,7 +64,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["CredencialesAccesoEmpresa.Contrasena"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["CredencialesAccesoSubcontrata.Contrasena"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["CredencialesConexionPlataformaCae.SecretoApi"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
-        ["CredencialesIntegracion.AccessToken"] =new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
+        ["CredencialesIntegracion.AccessToken"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["CredencialesIntegracion.AccessTokenExpiraUtc"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["CredencialesIntegracion.RefreshToken"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["DocumentosGenerados.CodigoSeguroVerificacion"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
@@ -94,7 +94,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["SuscripcionesWebhook.ClientState"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["Tenants.LogoArchivoClave"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; dato operativo o metadato, necesidad por revisar."),
         ["UsosConexionPlataformaCae.ClaveIdempotencia"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; Guid generado por el servidor para correlacionar el uso, no es secreto."),
-        ["VerificacionesDocumentoOficial.CodigoVerificacion"] =new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
+        ["VerificacionesDocumentoOficial.CodigoVerificacion"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
     };
 
     // Los términos se buscan como componentes de nombres PascalCase, sin confundir, por ejemplo,
