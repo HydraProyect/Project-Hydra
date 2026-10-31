@@ -114,10 +114,3 @@ jobs:
       reportDir: /zap/wrk
       reportFile: informe-zap-autenticado.json
       reportTitle: ZAP autenticado (instancia local)
-
-  - type: report
-    parameters:
-      template: traditional-md
-      reportDir: /zap/wrk
-      reportFile: informe-zap-autenticado.md
-      reportTitle: ZAP autenticado (instancia local)
