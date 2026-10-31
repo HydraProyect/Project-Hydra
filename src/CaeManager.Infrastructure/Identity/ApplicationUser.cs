@@ -123,8 +123,32 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// que conociera un correo podría expulsar a esa persona con cinco
     /// contraseñas erróneas. Solo la desactivación deliberada corta sesiones.
     /// </summary>
-    public bool EstaDesactivada(DateTimeOffset ahora) =>
-        LockoutEnd is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
+    public bool EstaDesactivada(DateTimeOffset ahora) => EsBloqueoDeDesactivacion(LockoutEnd, ahora);
+
+    private static bool EsBloqueoDeDesactivacion(DateTimeOffset? finBloqueo, DateTimeOffset ahora) =>
+        finBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
+
+    /// <summary>
+    /// Cuándo se desactivó la cuenta por última vez. Reactivar no lo borra: es lo que
+    /// impide que una clave de API emitida antes vuelva a autenticar, como el stamp
+    /// nuevo impide que resucite una cookie (ver <see cref="AdmiteClaveEmitidaEn"/>).
+    /// </summary>
+    public DateTime? UltimaDesactivacionEnUtc { get; private set; }
+
+    /// <summary>
+    /// ¿Una clave de API emitida por esta cuenta en <paramref name="emitidaEnUtc"/> sigue
+    /// respaldada por ella? No si la cuenta está desactivada, ni si se desactivó después de
+    /// emitirla, aunque ya esté reactivada: desactivar invalida la clave para siempre
+    /// (decisión del 2026-10-28; OWASP ASVS 4.0.3 V4.1.3 y V4.1.5). El bloqueo temporal por
+    /// intentos fallidos no la corta, por el mismo motivo que no corta sesiones.
+    /// Recibe los datos y no la cuenta porque al autenticar la clave la fila no se puede
+    /// leer: es de otro Tenant y solo llegan estos dos valores
+    /// (<c>app_estado_cuenta_emisora</c>).
+    /// </summary>
+    public static bool AdmiteClaveEmitidaEn(
+        DateTimeOffset? finBloqueo, DateTime? ultimaDesactivacionEnUtc, DateTime emitidaEnUtc, DateTimeOffset ahora) =>
+        !EsBloqueoDeDesactivacion(finBloqueo, ahora)
+        && (ultimaDesactivacionEnUtc is null || ultimaDesactivacionEnUtc < emitidaEnUtc);
 
     /// <summary>
     /// Lo que <see cref="Desactivar"/> escribe en <c>LockoutEnd</c>. Con
@@ -139,7 +163,8 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// El bloqueo impide entrar y, con <see cref="EstaDesactivada"/>, corta las
     /// sesiones abiertas; el stamp es lo que impide que <see cref="Reactivar"/>
     /// devuelva la vida a una cookie o a un token de extensión emitidos antes
-    /// (con solo el bloqueo, quitarlo resucitaba lo anterior). Juntos en un
+    /// (con solo el bloqueo, quitarlo resucitaba lo anterior). La fecha hace lo mismo
+    /// con las claves de API que la cuenta emitió. Juntos en un
     /// método para que ninguna pantalla pueda hacer una mitad sin la otra.
     /// </summary>
     public void Desactivar()
@@ -147,6 +172,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
         LockoutEnabled = true;
         LockoutEnd = FinDeBloqueoDeCuentaDesactivada;
         SecurityStamp = Guid.NewGuid().ToString();
+        UltimaDesactivacionEnUtc = DateTime.UtcNow;
     }
 
     /// <summary>
@@ -160,6 +186,8 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// <summary>
     /// Quita el bloqueo. No toca el security stamp: el que rotó en
     /// <see cref="Desactivar"/> sigue manteniendo muertas las sesiones anteriores.
+    /// Tampoco <see cref="UltimaDesactivacionEnUtc"/>, que mantiene muertas las claves
+    /// de API emitidas antes.
     /// </summary>
     public void Reactivar()
     {

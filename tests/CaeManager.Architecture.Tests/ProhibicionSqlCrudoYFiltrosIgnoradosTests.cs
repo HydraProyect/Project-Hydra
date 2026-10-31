@@ -180,6 +180,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+        // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
+        // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            "(await db.Database.SqlQuery<EstadoCuentaEmisora>(")] = 1,
 
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo

@@ -28,6 +28,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.ApiKeys;
@@ -74,6 +75,7 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
     private string _claveEnClaro = string.Empty;
     private Guid _delegacionId;
     private Guid _tenantPlataformaId;
+    private Guid _emisorId;
 
     private const string RazonSocialDelCliente = "Empresa Atlas S.L.";
 
@@ -93,6 +95,7 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         contexto.Users.Add(new ApplicationUser { Id = emisorId, TenantId = tenantPlataforma.Id, UserName = "emisor-alfa@ejemplo.test", Email = "emisor-alfa@ejemplo.test" });
         await contexto.SaveChangesAsync();
 
+        _emisorId = emisorId;
         _tenantClienteId = tenantCliente.Id;
         _delegacionId = delegacion.Id;
         _tenantPlataformaId = tenantPlataforma.Id;
@@ -117,15 +120,20 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         // La clave la emite el comando real, no una construcción a mano: el
         // hash que va a la fila es el que el handler de autenticación vuelve a
         // calcular después.
+        _claveEnClaro = await EmitirClaveAsync(contexto);
+    }
+
+    private async Task<string> EmitirClaveAsync(CaeManagerDbContext contexto)
+    {
         var generador = new GenerarClaveApiCommandHandler(
             new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
-            new CurrentUserServiceFalso(emisorId, tenantOrigenId: tenantPlataforma.Id), contexto);
+            new CurrentUserServiceFalso(_emisorId, tenantOrigenId: _tenantPlataformaId), contexto);
 
         var generada = await generador.Handle(
-            new GenerarClaveApiCommand(delegacion.Id, "Integración externa de prueba", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
+            new GenerarClaveApiCommand(_delegacionId, "Integración externa de prueba", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         generada.EsExitoso.Should().BeTrue("sin una clave emitida no hay nada que autenticar");
-        _claveEnClaro = generada.Valor.ClaveEnClaro;
+        return generada.Valor.ClaveEnClaro;
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaPropietario);
@@ -240,6 +248,79 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
 
         var (estado, _) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
         estado.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// M-35, con el rol real: la cuenta emisora es de otra organización y su fila no se ve desde
+    /// el Tenant propietario de la clave, así que el corte solo existe si
+    /// <c>app_estado_cuenta_emisora</c> llega a responder bajo <c>cae_app_runtime</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("desactivada", HttpStatusCode.Unauthorized)]
+    [InlineData("reactivada", HttpStatusCode.Unauthorized)]
+    [InlineData("bloqueo temporal", HttpStatusCode.OK)]
+    public async Task Bajo_RLS_el_estado_de_la_cuenta_emisora_decide_la_clave(string caso, HttpStatusCode esperado)
+    {
+        await using (var contexto = CrearContextoPropietario())
+        {
+            var cuenta = await contexto.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == _emisorId);
+            if (caso == "bloqueo temporal")
+                cuenta.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(15);
+            else
+                cuenta.Desactivar();
+            if (caso == "reactivada")
+                cuenta.Reactivar();
+            await contexto.SaveChangesAsync();
+        }
+
+        var (estado, cuerpo) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
+        estado.Should().Be(esperado, "caso {0}. Detalle: {1}", caso, cuerpo);
+    }
+
+    [Fact]
+    public async Task Bajo_RLS_la_clave_emitida_tras_reactivar_la_cuenta_autentica()
+    {
+        await using var contexto = CrearContextoPropietario();
+        var cuenta = await contexto.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == _emisorId);
+        cuenta.Desactivar();
+        cuenta.Reactivar();
+        await contexto.SaveChangesAsync();
+        var claveNueva = await EmitirClaveAsync(contexto);
+
+        var cadena = BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario);
+        (await LlamarAsync(cadena, _claveEnClaro)).Estado.Should().Be(HttpStatusCode.Unauthorized, "control: la anterior sigue cortada");
+        (await LlamarAsync(cadena, claveNueva)).Estado.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// Contrato de catálogo: si se perdiera el <c>search_path</c> fijado o el
+    /// <c>REVOKE ... FROM PUBLIC</c>, los tests de comportamiento seguirían en verde y cualquier
+    /// rol con conexión podría preguntar por el estado de cualquier cuenta.
+    /// </summary>
+    [Fact]
+    public async Task La_funcion_del_estado_de_la_cuenta_emisora_tiene_el_contrato_de_las_definidoras()
+    {
+        await using var propietario = new NpgsqlConnection(_cadenaPropietario);
+        await propietario.OpenAsync();
+        await using var orden = new NpgsqlCommand(
+            """
+            SELECT p.prosecdef, array_to_string(p.proconfig, ';'),
+                   has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE'),
+                   p.proacl IS NULL OR EXISTS (SELECT 1 FROM aclexplode(p.proacl) a WHERE a.grantee = 0)
+            FROM pg_proc p
+            WHERE p.proname = 'app_estado_cuenta_emisora' AND p.pronamespace = 'public'::regnamespace;
+            """, propietario);
+        await using var lector = await orden.ExecuteReaderAsync();
+
+        (await lector.ReadAsync()).Should().BeTrue("la función tiene que existir");
+        lector.GetBoolean(0).Should().BeTrue("SECURITY DEFINER");
+        lector.GetString(1).Should().Contain("search_path");
+        lector.GetBoolean(2).Should().BeTrue("la autenticación corre con cae_app_runtime");
+        lector.GetBoolean(3).Should().BeFalse("Soporte TALVEG no autentica claves");
+        lector.GetBoolean(4).Should().BeFalse("el aprovisionamiento no autentica claves");
+        lector.GetBoolean(5).Should().BeFalse("nada para PUBLIC");
     }
 
     [Fact]

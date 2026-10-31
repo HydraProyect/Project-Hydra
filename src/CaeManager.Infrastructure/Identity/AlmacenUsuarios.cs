@@ -166,14 +166,26 @@ public class AlmacenUsuarios(
     private Task<Guid?> ResolverTenantPorIdAsync(Guid id, CancellationToken cancellationToken) =>
         TenantDeCuentaAsync(Context, id, cancellationToken);
 
-    // Las tres funciones SECURITY DEFINER de RlsAspNetUsers. Estáticas e internas: las
+    // Las funciones SECURITY DEFINER sobre AspNetUsers. Estáticas e internas: las
     // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (origen de la cuenta que
-    // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas tres
+    // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas
     // líneas como los únicos sitios que las invocan.
 
     internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")
             .SingleAsync(cancellationToken);
+
+    /// <summary>
+    /// Los dos datos de la cuenta que deciden si respalda una clave de API
+    /// (<see cref="ApplicationUser.AdmiteClaveEmitidaEn"/>), o <c>null</c> si la cuenta no existe.
+    /// Función SECURITY DEFINER porque la cuenta es de otro Tenant que el de la clave
+    /// (migración CuentaEmisoraCortaClaveApi).
+    /// </summary>
+    internal static async Task<EstadoCuentaEmisora?> EstadoCuentaEmisoraAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
+        (await db.Database.SqlQuery<EstadoCuentaEmisora>(
+                $"SELECT fin_bloqueo AS \"FinBloqueo\", ultima_desactivacion AS \"UltimaDesactivacionEnUtc\" FROM app_estado_cuenta_emisora({cuentaId})")
+            .ToListAsync(cancellationToken))
+        .SingleOrDefault();
 
     internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorNombreNormalizadoAsync(
         CaeManagerDbContext db, string nombreNormalizado, CancellationToken cancellationToken) =>
@@ -279,4 +291,11 @@ public sealed record CuentaResuelta
 {
     public Guid CuentaId { get; init; }
     public Guid TenantId { get; init; }
+}
+
+/// <summary>La fila de <c>app_estado_cuenta_emisora</c>: solo lo que decide si la cuenta respalda una clave de API.</summary>
+public sealed record EstadoCuentaEmisora
+{
+    public DateTimeOffset? FinBloqueo { get; init; }
+    public DateTime? UltimaDesactivacionEnUtc { get; init; }
 }

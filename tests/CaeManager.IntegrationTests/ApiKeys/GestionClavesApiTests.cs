@@ -182,6 +182,27 @@ public class GestionClavesApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sin_concesion_sobre_el_Tenant_propietario_no_se_revoca()
+    {
+        await using var contextoGenerar = CrearContexto();
+        var handlerGenerar = new GenerarClaveApiCommandHandler(
+            new DelegacionTenantRepository(contextoGenerar), new ClaveApiRepository(contextoGenerar), new AutorizacionClavesApiDePrueba(_tenantClienteId),
+            new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoGenerar);
+        var generada = await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "No revocable", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
+
+        // La cuenta es del Tenant marcado como plataforma y es el origen de la delegación: sin
+        // concesión sobre el Tenant propietario, eso solo ya no autoriza.
+        await using var contextoRevocar = CrearContexto();
+        var handlerRevocar = new RevocarClaveApiCommandHandler(
+            new DelegacionTenantRepository(contextoRevocar), new ClaveApiRepository(contextoRevocar), new AutorizacionClavesApiDePrueba(Guid.NewGuid()),
+            new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoRevocar);
+        var resultado = await handlerRevocar.Handle(new RevocarClaveApiCommand(_delegacionId, generada.Valor.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("ClaveApi.NoAutorizado");
+    }
+
+    [Fact]
     public async Task Revocar_desactiva_la_clave_y_deja_de_autenticar()
     {
         await using var contextoGenerar = CrearContexto();
@@ -192,7 +213,7 @@ public class GestionClavesApiTests : IAsyncLifetime
 
         await using var contextoRevocar = CrearContexto();
         var handlerRevocar = new RevocarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contextoRevocar), new ClaveApiRepository(contextoRevocar), contextoRevocar,
+            new DelegacionTenantRepository(contextoRevocar), new ClaveApiRepository(contextoRevocar), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoRevocar);
         var resultadoRevocar = await handlerRevocar.Handle(
             new RevocarClaveApiCommand(_delegacionId, generada.Valor.Id), CancellationToken.None);
