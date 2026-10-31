@@ -158,6 +158,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("AspNetUsers", "DebeCambiarContrasena"),
             // Instante de la última reactivación de la cuenta: una fecha que corta las claves de API anteriores, no una clave.
             ("AspNetUsers", "ClavesApiValidasDesdeUtc"),
+            // Instante de la última suspensión del Tenant: una fecha que corta sus claves de API anteriores, no una clave.
+            ("Tenants", "ClavesApiValidasDesdeUtc"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
             ("AspNetUsers", "ConcurrencyStamp"),
             // Identity usa el sello del rol para detectar escrituras concurrentes, no para autenticar.
