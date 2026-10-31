@@ -202,4 +202,6 @@
   <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Después te pediremos otro código: espera a que la aplicación muestre uno nuevo, porque cada código sirve una sola vez.</value></data>
   <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.</value></data>
   <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No se pudo preparar la verificación en dos pasos. Vuelve a iniciar sesión.</value></data>
+  <data name="LoginMicrosoftSeparador" xml:space="preserve"><value>o</value></data>
+  <data name="LoginMicrosoftIniciarSesion" xml:space="preserve"><value>Iniciar sesión con Microsoft</value></data>
 </root>

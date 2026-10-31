@@ -277,7 +277,7 @@ public static class InicioSesionMicrosoft
     }
 
     /// <summary>
-    /// Desafío del botón «continuar con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.
+    /// Desafío del botón «Iniciar sesión con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.
     /// Con <paramref name="reautenticar"/> (alta del TOTP, ASVS 4.0.3 V3.7.1) pide a Microsoft
     /// <c>prompt=login</c>: la persona vuelve a introducir sus credenciales en vez de reutilizar en
     /// silencio la sesión que ya tenga abierta en Microsoft, y el desafío lleva la marca
