@@ -141,6 +141,12 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_la_propuesta", 'w',
             "lo único que el Tenant propietario actualiza es la propuesta pendiente a Sustituida, y solo su Administrador",
             ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"], ["'Propuesto'"], ["'Sustituido'"]),
+        ("UsosConexionPlataformaCae", "solo_se_cierra_una_vez", 'w',
+            "un uso de conector solo pasa de EnCurso a cerrado, una vez: el registro no se reescribe",
+            [], ["'EnCurso'"], ["'EnCurso'", "\"FinalizadoEnUtc\""]),
+        ("UsosConexionPlataformaCae", "solo_nace_abierto_o_denegado", 'a',
+            "la aplicación no inserta un uso ya cerrado con éxito o fallo, que fingiría una llamada",
+            ["'EnCurso'", "'Denegado'"], [], []),
         ("SesionesUsuario", "solo_la_propia_cuenta_revoca", 'w',
             "solo la cuenta que firma el contexto revoca sus sesiones de cookie, aunque otra cuenta del mismo Tenant " +
             "pudiera escribir en él (el alta llega desde el inicio de sesión, sin usuario en el contexto)",

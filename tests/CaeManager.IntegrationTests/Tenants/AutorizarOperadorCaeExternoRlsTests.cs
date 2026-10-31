@@ -227,16 +227,17 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             .Should().BeFalse("el contexto ajeno se rechaza antes de crear el vínculo");
     }
 
-    // ── Revocar y reactivar: el equipo del Operador CAE externo, con alcance ───
-    // Decisiones de producto del 2026-10-26: revocan y reactivan el Gestor CAE, el Coordinador
-    // CAE, la Dirección CAE y el Administrador del propio Operador CAE externo, con alcance sobre
-    // ese Tenant propietario (Asignación de Cartera viva propia, o un rol que alcanza toda la
-    // organización). No pueden el Administrador del Tenant propietario ni nadie de otro Operador
-    // CAE. Cada persona actúa desde su propio Workspace activo, como en producción, y la regla se
-    // lee en Identity y en las carteras reales (EquipoDelOperadorCaeExterno).
+    // ── Revocar: el equipo del Operador CAE externo. Reactivar: el Tenant propietario ───
+    // Decisiones de producto del 2026-10-26: revocan el Gestor CAE, el Coordinador CAE, la Dirección
+    // CAE y el Administrador del propio Operador CAE externo, con alcance sobre ese Tenant propietario
+    // (Asignación de Cartera viva propia, o un rol que alcanza toda la organización). No pueden el
+    // Administrador del Tenant propietario ni nadie de otro Operador CAE. Decisión SEG-7 del
+    // 2026-10-31: reactiva solo el Administrador del Tenant propietario, nunca el Operador CAE
+    // externo. Cada persona actúa desde su propio Workspace activo, como en producción, y la regla se
+    // lee en Identity y en las carteras reales (EquipoDelOperadorCaeExterno, AdministradorQueReactiva).
 
     [Fact]
-    public async Task El_Gestor_CAE_con_cartera_revoca_y_despues_reactiva_el_Administrador_del_Operador_bajo_RLS()
+    public async Task El_Gestor_CAE_con_cartera_revoca_y_solo_reactiva_el_Administrador_del_Tenant_propietario_bajo_RLS()
     {
         // Flujo de FlujoAltaYRevocacionDelegacionTests, ahora bajo cae_app_runtime: el
         // Gestor CAE del Operador CAE externo revoca con su propio Tenant activo. La
@@ -256,19 +257,69 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((false, 0, 1, 0),
             "la operación delegada se cierra, no se borra, y arrastra su cartera");
 
-        // Consecuencia aceptada (decisión (c) del 2026-10-26): su cartera se cerró con la
-        // revocación, así que ya no tiene alcance para reactivar.
-        var delGestor = await ReactivarAsync(gestorOperador, Roles.GestorCae, delegacionId);
-        delGestor.Puede.Should().BeFalse("sin cartera viva no se le pinta «Reactivar»");
-        delGestor.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
-
-        // El Administrador del Operador CAE externo alcanza toda la organización.
-        var administradorOperador = await SembrarUsuarioAsync("admin-operador", _operador, Roles.Administrador);
-        var reactivar = await ReactivarAsync(administradorOperador, Roles.Administrador, delegacionId);
+        // El Tenant propietario, desde su casa: es suyo reactivar, y la operación es suya.
+        var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador, delegacionId);
         reactivar.Puede.Should().BeTrue("la pantalla le pinta «Reactivar»");
         reactivar.Resultado.EsExitoso.Should().BeTrue(reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
         (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((true, 1, 2, 1),
             "reactivar abre una operación nueva y le repone la cartera que la revocación cerró");
+    }
+
+    [Theory]
+    [InlineData("administrador-del-operador")]
+    [InlineData("administrador-del-operador-en-el-workspace-derivado")]
+    [InlineData("direccion-del-operador")]
+    [InlineData("gestor-del-operador")]
+    [InlineData("gestor-del-tenant-propietario")]
+    [InlineData("administrador-de-otro-tenant")]
+    [InlineData("actor-de-plataforma")]
+    public async Task Quien_no_es_Administrador_del_Tenant_propietario_no_reactiva_y_no_escribe_bajo_RLS(string quien)
+    {
+        var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
+        alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
+        var delegacionId = alta.Valor;
+        var gestorOperador = await SembrarUsuarioAsync("gestor-operador", _operador, Roles.GestorCae);
+        await SembrarCarteraAsync(delegacionId, gestorOperador.Id);
+        var administradorOperador = await SembrarUsuarioAsync("admin-operador", _operador, Roles.Administrador);
+        (await RevocarAsync(gestorOperador, Roles.GestorCae, delegacionId)).Resultado.EsExitoso.Should().BeTrue();
+
+        var (intruso, rol, workspace) = quien switch
+        {
+            "administrador-del-operador" => (administradorOperador, Roles.Administrador, (Guid?)null),
+            // Con el Tenant activo correcto y sin autoridad: la autoridad sale del Tenant de origen.
+            "administrador-del-operador-en-el-workspace-derivado" => (administradorOperador, Roles.Administrador, _propietario),
+            "direccion-del-operador" => (await SembrarUsuarioAsync("direccion-operador", _operador, Roles.DireccionCae),
+                Roles.DireccionCae, null),
+            "gestor-del-operador" => (gestorOperador, Roles.GestorCae, null),
+            "gestor-del-tenant-propietario" => (_gestorPropietario, Roles.GestorCae, null),
+            "administrador-de-otro-tenant" => (_administradorOtroTenant, Roles.Administrador, null),
+            "actor-de-plataforma" => (_actorPlataforma, Roles.Administrador, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(quien)),
+        };
+
+        var reactivar = await ReactivarAsync(intruso, rol, delegacionId, workspace);
+        reactivar.Puede.Should().BeFalse("la pantalla no le pinta «Reactivar»");
+        reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((false, 0, 1, 0), "no se escribe nada");
+
+        // Control: el mismo estado que el Tenant propietario sí puede reactivar.
+        (await ReactivarAsync(_administradorPropietario, Roles.Administrador, delegacionId)).Resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_sesion_de_un_Administrador_degradado_en_base_no_reactiva_bajo_RLS()
+    {
+        var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
+        alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
+        var gestorOperador = await SembrarUsuarioAsync("gestor-operador", _operador, Roles.GestorCae);
+        await SembrarCarteraAsync(alta.Valor, gestorOperador.Id);
+        (await RevocarAsync(gestorOperador, Roles.GestorCae, alta.Valor)).Resultado.EsExitoso.Should().BeTrue();
+
+        // La sesión dice Administrador; la base, Gestor CAE.
+        var reactivar = await ReactivarAsync(_gestorPropietario, Roles.Administrador, alta.Valor);
+        reactivar.Puede.Should().BeFalse();
+        reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        (await EstadoAsync(alta.Valor, gestorOperador.Id)).Should().Be((false, 0, 1, 0));
     }
 
     [Theory]
@@ -293,7 +344,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     [InlineData("administrador-del-tenant-propietario")]
     [InlineData("gestor-cae-de-otro-operador-cae-externo")]
     [InlineData("gestor-cae-del-operador-sin-cartera")]
-    public async Task Quien_no_es_del_equipo_con_alcance_no_revoca_ni_reactiva_y_no_escribe_bajo_RLS(string quien)
+    public async Task Quien_no_es_del_equipo_con_alcance_no_revoca_y_no_escribe_bajo_RLS(string quien)
     {
         var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
         alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
@@ -303,8 +354,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
 
         var (intruso, rol) = quien switch
         {
-            // El Administrador del Tenant propietario, desde su casa: autorizó el acceso, pero
-            // revocarlo y reactivarlo no es suyo (su salida la hace Soporte TALVEG).
+            // El Administrador del Tenant propietario, desde su casa: autorizó el acceso y lo
+            // reactiva, pero revocarlo no es suyo (su salida la hace Soporte TALVEG).
             "administrador-del-tenant-propietario" => (_administradorPropietario, Roles.Administrador),
             // Un Gestor CAE de verdad, pero de otro Operador CAE externo.
             "gestor-cae-de-otro-operador-cae-externo" => (await SembrarUsuarioAsync(
@@ -322,11 +373,6 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
 
         // Control: el Gestor CAE con cartera sí revoca.
         (await RevocarAsync(gestorOperador, Roles.GestorCae, delegacionId)).Resultado.EsExitoso.Should().BeTrue();
-
-        var reactivar = await ReactivarAsync(intruso, rol, delegacionId);
-        reactivar.Puede.Should().BeFalse("la pantalla no le pinta «Reactivar»");
-        reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
-        (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((false, 0, 1, 0), "no se escribe nada");
     }
 
     [Theory]
@@ -339,12 +385,12 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         var direccionOperador = await SembrarUsuarioAsync("direccion-operador", _operador, Roles.DireccionCae);
         (await RevocarAsync(direccionOperador, Roles.DireccionCae, alta.Valor)).Resultado.EsExitoso.Should().BeTrue();
 
-        // La Dirección CAE del Operador CAE externo, con autoridad, pero desde el Workspace
-        // operativo derivado de un tercero: se rechaza con un error propio antes de escribir.
+        // El Administrador del Tenant propietario, con autoridad, pero con otro Tenant activo: se
+        // reactiva desde la casa de uno, y se rechaza igual que a quien no tiene autoridad.
         var reactivar = await ReactivarAsync(
-            direccionOperador, Roles.DireccionCae, alta.Valor, contextoAjeno ? _otroPropietario : null);
+            _administradorPropietario, Roles.Administrador, alta.Valor, contextoAjeno ? _otroPropietario : null);
         if (contextoAjeno)
-            reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
+            reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
         else
             reactivar.Resultado.EsExitoso.Should().BeTrue(reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
 
@@ -357,7 +403,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Reactivar_desde_el_Tenant_del_Operador_CAE_externo_respeta_otro_acceso_vigente_y_la_cartera_bajo_RLS(
+    public async Task Reactivar_respeta_otro_acceso_vigente_y_la_cartera_bajo_RLS(
         bool otroOperadorVigente)
     {
         var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
@@ -377,8 +423,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             otraDelegacionId = otraAlta.Valor;
         }
 
-        // La revocación cerró la Asignación de Cartera del Gestor CAE. Incluso cuando
-        // hay otro acceso vigente, la denegación debe preceder al estado de negocio.
+        // Incluso cuando hay otro acceso vigente, la denegación por autoridad debe
+        // preceder al estado de negocio.
         await using var verificacion = ContextoPropietarioDeLaBase();
         var auditoriaPrevia = await verificacion.RegistrosAuditoria.IgnoreQueryFilters()
             .Where(r => r.EntidadTipo == nameof(DelegacionTenant) && r.EntidadId == alta.Valor)
@@ -388,16 +434,13 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         sinCartera.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
         (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((false, 0, 1, 0));
 
-        // El Administrador del Operador CAE externo tiene autoridad organizativa.
-        // Actúa desde su Tenant de origen, no desde el Tenant propietario: la
-        // consulta del otro acceso debe verlo pese a esa diferencia bajo RLS.
-        var reactivar = await ReactivarAsync(administradorOperador, Roles.Administrador, alta.Valor);
+        var reactivar = await ReactivarAsync(_administradorPropietario, Roles.Administrador, alta.Valor);
         reactivar.Puede.Should().BeTrue();
         if (otroOperadorVigente)
         {
             reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoReactivable");
             reactivar.Resultado.Error.Mensaje.Should().Be(
-                "No se puede reactivar este acceso. Habla con la organización propietaria de los datos.");
+                "No se puede reactivar este acceso: tu organización ya tiene otro Operador CAE externo con acceso vigente.");
             (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((false, 0, 1, 0));
             (await verificacion.DelegacionesTenant.AsNoTracking()
                 .SingleAsync(d => d.Id == otraDelegacionId)).Activa.Should().BeTrue();
@@ -417,8 +460,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         else
         {
             var registro = auditoriaNueva.Should().ContainSingle().Subject;
-            registro.ActorRealUsuarioId.Should().Be(administradorOperador.Id);
-            registro.UsuarioId.Should().Be(administradorOperador.Id);
+            registro.ActorRealUsuarioId.Should().Be(_administradorPropietario.Id);
+            registro.UsuarioId.Should().Be(_administradorPropietario.Id);
             using var antes = System.Text.Json.JsonDocument.Parse(registro.DatosAntes!);
             using var despues = System.Text.Json.JsonDocument.Parse(registro.DatosDespues!);
             antes.RootElement.GetProperty(nameof(DelegacionTenant.Activa)).GetBoolean().Should().BeFalse();
@@ -610,7 +653,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             var puede = await handler.Handle(new PuedeRevocarQuery(delegacionId), CancellationToken.None);
             var lote = await new CaeManager.Application.Tenants.PermisosAccesosDelegadosQueryHandler(
                     contexto, usuarioActual, Directorio(servicios, contexto, tenant, usuarioActual),
-                    new CatalogoIncorporacionCartera(contexto, usuarioActual))
+                    new CatalogoIncorporacionCartera(contexto, usuarioActual), tenant, Autorizacion(servicios))
                 .Handle(new CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery([delegacionId]), CancellationToken.None);
             (lote.TryGetValue(delegacionId, out var permiso) && permiso.PuedeRevocar).Should().Be(puede,
                 "el lote y la consulta individual deben ver y autorizar igual bajo RLS runtime");
@@ -634,13 +677,14 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto), usuarioActual,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual), contexto, contexto,
             new TransaccionDeComando(contexto), new CatalogoIncorporacionCartera(contexto, usuarioActual),
-            directorio, directorio, new BloqueoCarteraUsuario(contexto), tenant);
+            directorio, directorio, new BloqueoCarteraUsuario(contexto), tenant, Autorizacion(servicios));
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
         {
             var puede = await handler.Handle(new PuedeReactivarQuery(delegacionId), CancellationToken.None);
             var lote = await new CaeManager.Application.Tenants.PermisosAccesosDelegadosQueryHandler(
-                    contexto, usuarioActual, directorio, new CatalogoIncorporacionCartera(contexto, usuarioActual))
+                    contexto, usuarioActual, directorio, new CatalogoIncorporacionCartera(contexto, usuarioActual),
+                    tenant, Autorizacion(servicios))
                 .Handle(new CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery([delegacionId]), CancellationToken.None);
             (lote.TryGetValue(delegacionId, out var permiso) && permiso.PuedeReactivar).Should().Be(puede,
                 "el lote y la consulta individual deben ver y autorizar igual bajo RLS runtime");
@@ -658,6 +702,9 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         _sesion.Rol = rol;
         return new CurrentUserServiceFalso(usuario.Id, rol, usuario.TenantId);
     }
+
+    private static AutorizacionDelegacionPorAdministradorDelCliente Autorizacion(IServiceProvider servicios) =>
+        new(servicios.GetRequiredService<UserManager<ApplicationUser>>());
 
     private static DirectorioUsuariosTenant Directorio(
         IServiceProvider servicios, CaeManagerDbContext contexto, ITenantActual tenant, ICurrentUserService usuario) =>

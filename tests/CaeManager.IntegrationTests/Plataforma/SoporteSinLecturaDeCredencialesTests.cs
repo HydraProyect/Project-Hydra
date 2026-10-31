@@ -139,6 +139,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         // Solo columnas que NO son secretas aunque su nombre lo parezca. Un secreto real no entra aquí.
         var noSecretas = new HashSet<(string Tabla, string Columna)>
         {
+            // Guid opaco que distingue reintentos ante la plataforma CAE: la puerta rechaza cualquier otro valor.
+            ("UsosConexionPlataformaCae", "ClaveIdempotencia"),
             // Booleano que obliga a cambiar la contraseña en el siguiente acceso; no la contiene.
             ("AspNetUsers", "DebeCambiarContrasena"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
@@ -178,6 +180,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("CanalesGestionDocumental", "Contrasena"),
             ("ClavesApi", "HashClave"),
             ("CredencialesAccesoEmpresa", "Contrasena"),
+            ("CredencialesConexionPlataformaCae", "SecretoApi"),
             ("CredencialesAccesoSubcontrata", "Contrasena"),
             ("CredencialesIntegracion", "AccessToken"),
             ("CredencialesIntegracion", "RefreshToken"),
@@ -223,6 +226,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [Theory]
     [InlineData("AspNetUserTokens")]
     [InlineData("CredencialesIntegracion")]
+    [InlineData("CredencialesConexionPlataformaCae")]
     [InlineData("ClavesApi")]
     public async Task Soporte_no_tiene_privilegio_de_tabla_sobre_los_almacenes_de_secretos(string tabla)
     {
@@ -243,6 +247,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [Theory]
     [InlineData("AspNetUserTokens")]
     [InlineData("CredencialesIntegracion")]
+    [InlineData("CredencialesConexionPlataformaCae")]
     public async Task Soporte_no_lee_ninguna_columna_de_tokens_ni_de_credenciales_de_integracion(string tabla)
     {
         var (legibles, todas) = await ColumnasAsync(tabla);
@@ -314,6 +319,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [InlineData("SELECT count(*) FROM \"AspNetUserTokens\";")]
     [InlineData("SELECT \"RefreshToken\" FROM \"CredencialesIntegracion\";")]
     [InlineData("SELECT \"AccessToken\" FROM \"CredencialesIntegracion\";")]
+    [InlineData("SELECT \"SecretoApi\" FROM \"CredencialesConexionPlataformaCae\";")]
+    [InlineData("SELECT count(*) FROM \"CredencialesConexionPlataformaCae\";")]
     [InlineData("SELECT \"HashClave\" FROM \"ClavesApi\";")]
     [InlineData("SELECT * FROM \"ClavesApi\";")]
     [InlineData("SELECT \"Contrasena\" FROM \"CanalesGestionDocumental\";")]

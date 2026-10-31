@@ -79,6 +79,7 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // pago (es quien opera Hydra, no un cliente) — se queda en
             // SinSuscripcion para siempre, y GateComercialTenantBehavior lo
             // exime del gate igualmente por EsPlataforma.
+            AddOnSubidaAutomaticaActivo = false,
             EstadoComercial = EstadoComercialTenant.SinSuscripcion,
         });
     }

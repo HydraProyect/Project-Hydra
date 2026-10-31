@@ -480,7 +480,10 @@ public class TerminologiaCanonicaTests
         // entidad ya existente. RevocarOperadorCaeExternoPorSoporteCommand nombra su parámetro DelegacionTenantId (+3:
         // declaración, validador y handler) porque es el Id de esa entidad, y RevocacionOperadorCaeExternoPorSoporte desengancha
         // DelegacionTenant del ChangeTracker tras la escritura por SQL (+1). Los tipos nuevos usan el nombre canónico.
-        ["Delegacion"] = 351,
+        // 351 → 355 (2026-10-31, SEG-7): +4, referencias a tipos ya existentes. Reactivar y su lote reciben
+        // IAutorizacionDelegacionTenant, y AdministradorQueReactiva la declara y llama a PuedeGestionarDelegacionesAsync.
+        // Lo nuevo usa el nombre canónico; el renombrado es un incremento propio.
+        ["Delegacion"] = 355,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
@@ -492,10 +495,13 @@ public class TerminologiaCanonicaTests
         // la Sesión Privilegiada seleccionada (IClienteActivoSeleccionado ×1 cada uno) para no pedir
         // ConexionesIntegracion.UltimoError bajo cae_app_soporte; es la misma señal con la que
         // TenantRlsConnectionInterceptor adopta ese rol, y son consumidores de la interfaz existente.
-        // 77 -> 83 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
+        // 78 (antes 77): OperacionesConectorPlataformaCae lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) porque, ya revocada, no revalida y la conexión sigue siendo de
+        // cae_app_soporte, sin INSERT sobre el uso; es la misma señal y un consumidor de la interfaz existente.
+        // 78 -> 84 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
         // de la interfaz y del tipo concreto (ContextoExtensionMiddleware ×3 y los dos endpoints de entrega), más la
         // firma de TicketEsDeEstaPeticion; ningún nombre nuevo lleva el término.
-        ["ClienteActivo"] = 83,
+        ["ClienteActivo"] = 84,
     };
 
     [Theory]

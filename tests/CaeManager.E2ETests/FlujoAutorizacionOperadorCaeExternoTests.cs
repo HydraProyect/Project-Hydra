@@ -17,11 +17,11 @@ namespace CaeManager.E2ETests;
 /// </para>
 ///
 /// <para>
-/// Revocar ya no es suyo: revocan y reactivan el Gestor CAE, el Coordinador CAE, la Dirección
-/// CAE y el Administrador del propio Operador CAE externo con alcance sobre el Tenant
-/// propietario (decisiones de producto del 2026-10-26), así que al Administrador del Tenant
-/// propietario no se le pinta «Revocar acceso». Que el Administrador del Operador CAE externo
-/// sí revoque y reactive se recorre en <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el
+/// Revocar ya no es suyo: revocan el Gestor CAE, el Coordinador CAE, la Dirección CAE y el
+/// Administrador del propio Operador CAE externo con alcance sobre el Tenant propietario
+/// (decisiones de producto del 2026-10-26), así que al Administrador del Tenant propietario no
+/// se le pinta «Revocar acceso». Que el Administrador del Operador CAE externo revoque y no
+/// reactive se recorre en <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el
 /// Operador CAE externo recién creado no tiene ninguna cuenta con sesión.
 /// </para>
 /// </summary>
