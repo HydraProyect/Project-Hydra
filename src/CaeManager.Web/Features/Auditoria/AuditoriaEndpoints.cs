@@ -100,6 +100,16 @@ public static class AuditoriaEndpoints
         return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
     }
 
+    /// <summary>
+    /// El filtro es texto libre y el rastro no admite datos personales: solo se nombra un tipo
+    /// de entidad del dominio. Cualquier otro valor consta como «otro», porque sí filtró.
+    /// </summary>
+    private static string? EntidadParaElRastro(string? entidad) =>
+        string.IsNullOrWhiteSpace(entidad) ? null : EntidadesDelDominio.Contains(entidad) ? entidad : "otro";
+
+    private static readonly HashSet<string> EntidadesDelDominio =
+        typeof(RegistroAuditoria).Assembly.GetExportedTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+
     public static async Task<IResult> ExportarAsync(
         string? entidad, IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion, CancellationToken cancellationToken)
     {
@@ -160,7 +170,7 @@ public static class AuditoriaEndpoints
         {
             await registroExportacion.RegistrarAsync(
                 nameof(RegistroAuditoria), fila - 2,
-                CriteriosExportacion.Desde(("listado", "auditoria"), ("entidad", CriteriosExportacion.SoloNombre(entidad))),
+                CriteriosExportacion.Desde(("listado", "auditoria"), ("entidad", EntidadParaElRastro(entidad))),
                 cancellationToken);
         }
         catch

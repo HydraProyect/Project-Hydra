@@ -1,6 +1,7 @@
 using System.Reflection;
 using CaeManager.Application.Common;
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Reportes.Queries;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;
@@ -80,6 +81,23 @@ public class ExportacionesConRastroTests
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    private static ISesionPrivilegiadaActual Sesion(bool activa)
+    {
+        var sesion = DispatchProxy.Create<ISesionPrivilegiadaActual, SesionProxy>();
+        ((SesionProxy)(object)sesion).Activa = activa;
+        return sesion;
+    }
+
+    private class SesionProxy : DispatchProxy
+    {
+        public bool Activa { get; set; }
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod!.Name == nameof(ISesionPrivilegiadaActual.ObtenerAsync)
+                ? Task.FromResult<SesionPrivilegiadaActiva?>(Activa ? default(SesionPrivilegiadaActiva) : null)
+                : throw new NotSupportedException(targetMethod.Name);
+    }
+
     private class AlcanceProxy : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
@@ -96,7 +114,7 @@ public class ExportacionesConRastroTests
             new MediatorFalso(), r, Servicios.GetRequiredService<IStringLocalizer<TextosIncidencias>>(), default),
         ["auditoria"] = r => AuditoriaEndpoints.ExportarAsync(null, new MediatorFalso(), r, default),
         ["asignaciones"] = r => AsignacionesEndpoints.ExportarAsync(
-            new MediatorFalso(), r, Servicios.GetRequiredService<IStringLocalizer<TextosAsignaciones>>(), default),
+            new MediatorFalso(), Sesion(activa: false), r, Servicios.GetRequiredService<IStringLocalizer<TextosAsignaciones>>(), default),
         ["resumenFacturacion"] = r => FacturacionEndpoints.ExportarResumenAsync(
             Guid.NewGuid(), 2026, 10, new MediatorFalso(), new DefaultHttpContext(),
             DispatchProxy.Create<IAlcanceDatosService, AlcanceProxy>(), r, default),
@@ -159,13 +177,75 @@ public class ExportacionesConRastroTests
             .And.NotContainKey("centro");
     }
 
-    [Fact]
-    public async Task El_filtro_de_la_auditoria_exportada_solo_llega_al_rastro_si_es_un_nombre()
+    [Theory]
+    [InlineData("12345678Z", "otro")]
+    [InlineData("AnaRuiz", "otro")]
+    [InlineData(nameof(Incidencia), nameof(Incidencia))]
+    public async Task El_rastro_de_la_auditoria_solo_nombra_entidades_del_dominio(string filtro, string esperado)
     {
         var registro = new RegistroFalso();
 
-        await AuditoriaEndpoints.ExportarAsync("12345678Z", new MediatorFalso(), registro, default);
+        await AuditoriaEndpoints.ExportarAsync(filtro, new MediatorFalso(), registro, default);
+
+        registro.Registros.Single().Criterios.Should().Contain("entidad", esperado);
+    }
+
+    [Fact]
+    public async Task Sin_filtro_la_auditoria_no_declara_entidad()
+    {
+        var registro = new RegistroFalso();
+
+        await AuditoriaEndpoints.ExportarAsync(null, new MediatorFalso(), registro, default);
 
         registro.Registros.Single().Criterios.Should().NotContainKey("entidad");
+    }
+
+    [Fact]
+    public async Task Con_centro_el_informe_no_declara_el_Cliente_empresarial_que_la_consulta_ignora()
+    {
+        var registro = new RegistroFalso();
+        var centroId = Guid.NewGuid();
+
+        await ReportesEndpoints.AsignacionesXlsxAsync(new MediatorFalso(), registro, Guid.NewGuid(), centroId, default);
+        await ReportesEndpoints.VigenciaXlsxAsync(new MediatorFalso(), registro, Guid.NewGuid(), centroId, false, default);
+
+        registro.Registros.Should().OnlyContain(r => r.Criterios["centro"] == centroId.ToString() && !r.Criterios.ContainsKey("cliente"));
+    }
+
+    [Fact]
+    public async Task El_rastro_de_asignaciones_declara_que_solo_salen_las_activas()
+    {
+        var registro = new RegistroFalso();
+
+        await Exportaciones["asignaciones"](registro);
+
+        registro.Registros.Single().Criterios.Should().Contain("activa", "true");
+    }
+
+    [Fact]
+    public async Task El_rastro_del_resumen_declara_Cliente_empresarial_y_periodo()
+    {
+        var registro = new RegistroFalso();
+        var clienteId = Guid.NewGuid();
+
+        await FacturacionEndpoints.ExportarResumenAsync(
+            clienteId, 2026, 10, new MediatorFalso(), new DefaultHttpContext(),
+            DispatchProxy.Create<IAlcanceDatosService, AlcanceProxy>(), registro, default);
+
+        registro.Registros.Single().Criterios.Should().Contain("cliente", clienteId.ToString())
+            .And.Contain("anyo", "2026").And.Contain("mes", "10");
+    }
+
+    [Fact]
+    public async Task En_Sesion_Privilegiada_las_asignaciones_se_niegan_sin_leer_datos()
+    {
+        var registro = new RegistroFalso();
+
+        var resultado = await AsignacionesEndpoints.ExportarAsync(
+            null!, Sesion(activa: true), registro,
+            Servicios.GetRequiredService<IStringLocalizer<TextosAsignaciones>>(), default);
+
+        resultado.Should().BeOfType<StatusCodeHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+        registro.Registros.Should().BeEmpty();
     }
 }

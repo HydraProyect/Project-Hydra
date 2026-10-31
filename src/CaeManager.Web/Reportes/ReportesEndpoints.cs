@@ -102,13 +102,14 @@ public static class ReportesEndpoints
         return Results.File(bytes, "application/pdf", "informe.pdf");
     }
 
+    // Con centro, las consultas ignoran el Cliente empresarial: el rastro dice el filtro que se aplicó.
     private static IReadOnlyDictionary<string, string> CriteriosVigencia(string formato, GenerarInformeVigenciaQuery consulta)
     {
         var (cliente, centro, incluirVigentes) = consulta;
         return CriteriosExportacion.Desde(
             ("listado", "reporteVigencia"),
             ("formato", formato),
-            ("cliente", cliente?.ToString()),
+            ("cliente", centro is null ? cliente?.ToString() : null),
             ("centro", centro?.ToString()),
             ("incluirVigentes", incluirVigentes ? "true" : null));
     }
@@ -119,7 +120,7 @@ public static class ReportesEndpoints
         return CriteriosExportacion.Desde(
             ("listado", "reporteAsignaciones"),
             ("formato", formato),
-            ("cliente", cliente?.ToString()),
+            ("cliente", centro is null ? cliente?.ToString() : null),
             ("centro", centro?.ToString()));
     }
 }

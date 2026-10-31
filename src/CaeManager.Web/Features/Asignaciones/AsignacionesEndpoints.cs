@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Asignaciones.Recursos;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Asignaciones;
 using ClosedXML.Excel;
 using MediatR;
@@ -26,9 +27,14 @@ public static class AsignacionesEndpoints
     }
 
     public static async Task<IResult> ExportarAsync(
-        IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion,
+        IMediator mediator, [FromServices] ISesionPrivilegiadaActual sesionPrivilegiada,
+        [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion,
         [FromServices] IStringLocalizer<TextosAsignaciones> textos, CancellationToken cancellationToken)
     {
+        // Soporte TALVEG no escribe en RegistrosAuditoria: lo que no deja rastro no se entrega.
+        if (await sesionPrivilegiada.ObtenerAsync(cancellationToken) is not null)
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+
         // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
         // no materializa toda la tabla de asignaciones del tenant de golpe.
         var asignaciones = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
@@ -50,7 +56,7 @@ public static class AsignacionesEndpoints
         {
             await registroExportacion.RegistrarAsync(
                 nameof(Asignacion), filas,
-                CriteriosExportacion.Desde(("listado", "asignaciones")),
+                CriteriosExportacion.Desde(("listado", "asignaciones"), ("activa", "true")),
                 cancellationToken);
         }
         catch
