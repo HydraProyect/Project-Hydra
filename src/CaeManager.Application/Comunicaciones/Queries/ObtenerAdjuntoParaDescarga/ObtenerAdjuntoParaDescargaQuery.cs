@@ -65,11 +65,7 @@ public class ObtenerAdjuntoParaDescargaQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (fila is null) return null;
-        if (!await alcanceDatos.ConversacionVisibleAsync(fila.ClienteId, fila.EmpresaId, fila.ConexionIntegracionId, cancellationToken)) return null;
-
-        var rol = await currentUserService.ObtenerRolEfectivoAsync();
-        if (rol is null) return null;
-        if (AccesoATriage.EsTriage(fila.ClienteId, fila.EmpresaId) && !AccesoATriage.RolPermitido(rol)) return null;
+        if (!await AccesoATriage.AdjuntoAlcanzableAsync(alcanceDatos, currentUserService, fila.ClienteId, fila.EmpresaId, fila.ConexionIntegracionId, cancellationToken)) return null;
 
         await registroAcceso.RegistrarAsync(nameof(AdjuntoMensaje), fila.Id, cancellationToken);
 
