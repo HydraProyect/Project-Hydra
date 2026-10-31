@@ -6,9 +6,12 @@ using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.IntegrationTests.ApiKeys;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -59,7 +62,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [
         "Id", "NombreDescriptivo", "PrefijoVisible", "CreadaPorUsuarioId", "UltimoUsoUtc", "RevocadaEnUtc",
         "CaducaEnUtc", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc",
-        "EliminadoPorUsuarioId",
+        "EliminadoPorUsuarioId", "VentanaSoporteId", "VentanaSoporteAbiertaEnUtc",
     ];
 
     /// <summary>
@@ -106,10 +109,20 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         contexto.Tenants.AddRange(tenantPlataforma, tenantVisitado);
         contexto.DelegacionesTenant.Add(delegacion);
+        // Con una cuenta real y su ventana, para que el listado llegue a evaluar el respaldo entero.
+        var emisor = Guid.NewGuid();
+        contexto.Users.Add(new ApplicationUser
+        {
+            Id = emisor,
+            UserName = $"u-{emisor:N}@ejemplo.test",
+            Email = $"u-{emisor:N}@ejemplo.test",
+            TenantId = tenantPlataforma.Id,
+        });
         // Sellada en el Tenant visitado por TenantSelladoInterceptor. El hash es un valor cualquiera
         // de 64 caracteres: aquí solo importa que exista la columna.
         contexto.ClavesApi.Add(new ClaveApi(
-            "Integración de prueba", "hyd_prueba01", new string('a', 64), Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba"));
+            "Integración de prueba", "hyd_prueba01", new string('a', 64), emisor, DateTime.UtcNow.AddDays(30), "Prueba",
+            delegacion.Id, delegacion.ActivadaEnUtc));
 
         // Un buzón con error y una línea de WhatsApp con error, para los listados de Integraciones.
         var buzon = new ConexionIntegracion("avisos@buzon-de-prueba.local", "Buzón de prueba");
@@ -145,6 +158,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("AspNetUsers", "DebeCambiarContrasena"),
             // Instante de la última reactivación de la cuenta: una fecha que corta las claves de API anteriores, no una clave.
             ("AspNetUsers", "ClavesApiValidasDesdeUtc"),
+            // Instante de la última suspensión del Tenant: una fecha que corta sus claves de API anteriores, no una clave.
+            ("Tenants", "ClavesApiValidasDesdeUtc"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
             ("AspNetUsers", "ConcurrencyStamp"),
             // Identity usa el sello del rol para detectar escrituras concurrentes, no para autenticar.
@@ -384,16 +399,20 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     {
         // El handler real: las claves se leen por la conexión de la Sesión Privilegiada
         // (cae_app_soporte); la delegación y el Tenant de plataforma, por la del propietario. Si la
-        // proyección volviera a usar ClaveApi.EstaActiva, EF traería HashClave y esto daría 42501.
+        // proyección volviera a usar ClaveApi.EstaActiva, EF traería HashClave y esto daría 42501. El
+        // respaldo corre también bajo ese rol: sin su EXECUTE, también, y si no llegara a la cuenta
+        // real y a la ventana la clave saldría cortada.
         await using var contextoSoporte = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
         await using var contextoTenants = CrearContexto();
         var handler = new ObtenerClavesApiQueryHandler(
-            contextoSoporte, contextoTenants, new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenantPlataforma));
+            contextoSoporte, new ClaveApiRepository(contextoSoporte), contextoTenants, new AutorizacionClavesApiDePrueba(_tenant),
+            new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenantPlataforma));
 
         var claves = await handler.Handle(new ObtenerClavesApiQuery(_delegacionId), CancellationToken.None);
 
-        claves.Should().ContainSingle("control positivo: el handler llegó a leer ClavesApi bajo cae_app_soporte")
-            .Which.EstaActiva.Should().BeTrue();
+        var clave = claves.Should().ContainSingle("control positivo: el handler llegó a leer ClavesApi bajo cae_app_soporte").Subject;
+        clave.EstaActiva.Should().BeTrue();
+        clave.Cortada.Should().BeFalse();
     }
 
     [Fact]

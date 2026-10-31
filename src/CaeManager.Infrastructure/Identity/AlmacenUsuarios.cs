@@ -167,7 +167,7 @@ public class AlmacenUsuarios(
         TenantDeCuentaAsync(Context, id, cancellationToken);
 
     // Las funciones SECURITY DEFINER sobre AspNetUsers. Estáticas e internas: las
-    // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (origen de la cuenta que
+    // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (estado de la cuenta que
     // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas
     // líneas como los únicos sitios que las invocan.
 

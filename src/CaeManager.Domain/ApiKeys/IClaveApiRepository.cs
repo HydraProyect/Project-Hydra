@@ -30,24 +30,18 @@ public interface IClaveApiRepository
     Task<ClaveApi?> ObtenerPorHashAsync(string hashClave, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// ¿Existe en el Tenant propietario de la clave una delegación que cumpla
-    /// <see cref="CriterioSoporteClaveApi.PuedeAutenticar"/> desde la organización de origen de
-    /// la cuenta <paramref name="creadaPorUsuarioId"/>? Solo existencia: no exige que esté activa
-    /// ni vigente (eso lo exige la emisión, con <see cref="CriterioSoporteClaveApi.PuedeEmitir"/>).
-    /// Devuelve false si la cuenta emisora ya no existe. El origen se resuelve por la cuenta, no
-    /// por la sesión: en la autenticación por clave no hay persona ni Tenant de sesión. Se llama
-    /// dentro del <c>AmbitoTenantExplicito</c> del Tenant propietario.
+    /// ¿La clave sigue respaldada, todo a la vez? El Tenant propietario la admite
+    /// (<c>Tenant.AdmiteClaveEmitidaEn</c>), la cuenta <paramref name="creadaPorUsuarioId"/> la
+    /// respalda (existe, no está desactivada y no se reactivó después de emitirla; un bloqueo
+    /// temporal por intentos fallidos no cuenta) y sigue abierta la ventana de Soporte en que se
+    /// emitió (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). No mira revocación ni
+    /// caducidad, que son de la propia clave. Una sola interpretación para autenticar y para los
+    /// listados. La cuenta es de otra organización, así que no se puede leer su fila bajo RLS.
+    /// Se llama dentro del <c>AmbitoTenantExplicito</c> del Tenant propietario.
     /// </summary>
-    Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// ¿La cuenta <paramref name="creadaPorUsuarioId"/> sigue respaldando una clave emitida en
-    /// <paramref name="emitidaEnUtc"/>? False si la cuenta ya no existe, si está desactivada o si
-    /// se reactivó después de emitirla, aunque la emitiera ya desactivada; un bloqueo temporal por
-    /// intentos fallidos no cuenta. La cuenta es de otra organización que el Tenant propietario
-    /// de la clave, así que esta comprobación no puede leer su fila bajo RLS.
-    /// </summary>
-    Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default);
+    Task<bool> ClaveSigueRespaldadaAsync(
+        Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc,
+        Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default);
 
     void Agregar(ClaveApi clave);
 }

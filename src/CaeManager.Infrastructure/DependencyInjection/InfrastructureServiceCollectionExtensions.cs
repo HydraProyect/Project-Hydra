@@ -556,6 +556,8 @@ public static class InfrastructureServiceCollectionExtensions
         // depende de la sesión: es del alcance del usuario, no del proceso.
         services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
+        services.AddScoped<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada,
+            CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
         // PD-A3: abre el ámbito de elevación y, con él, mueve el rol Postgres
         // de la conexión de este ámbito de DI entre cae_app_soporte y
         // cae_app_aprovisionamiento. Scoped: depende de la conexión de ESTE

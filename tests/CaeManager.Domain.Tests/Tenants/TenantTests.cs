@@ -203,6 +203,68 @@ public class TenantTests
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SinSuscripcion);
     }
 
+    // Decisión del 2026-10-28 concretada el 2026-10-31.
+    [Theory]
+    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.SinSuscripcion, true)]
+    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.Activa, true)]
+    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.SoloLectura, true)]
+    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.Suspendida, false)]
+    [InlineData(EstadoTenant.Suspendido, EstadoComercialTenant.Activa, false)]
+    public void Admite_una_clave_de_API_segun_el_estado_del_Tenant(EstadoTenant estado, EstadoComercialTenant comercial, bool admite) =>
+        Tenant.AdmiteClaveEmitidaEn(estado, comercial, null, DateTime.UtcNow).Should().Be(admite);
+
+    // Sin pasar por Reactivar: el sello de Suspender basta aunque Estado se devuelva por otra vía.
+    [Fact]
+    public void Suspender_deja_fuera_la_clave_de_API_emitida_antes_aunque_no_se_reactive_por_el_dominio()
+    {
+        var tenant = new Tenant("Tenant de prueba");
+        var emitida = DateTime.UtcNow.AddMinutes(-1);
+
+        tenant.Suspender();
+
+        Tenant.AdmiteClaveEmitidaEn(EstadoTenant.Activo, EstadoComercialTenant.Activa, tenant.ClavesApiValidasDesdeUtc, emitida).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Reactivar_no_devuelve_la_clave_de_API_emitida_antes()
+    {
+        var emitidaAntes = DateTime.UtcNow.AddMinutes(-1);
+        var tenant = new Tenant("Ibertec");
+        tenant.Suspender();
+        tenant.Reactivar();
+
+        tenant.Estado.Should().Be(EstadoTenant.Activo, "control: el Tenant está reactivado de verdad");
+        tenant.ClavesApiValidasDesdeUtc.Should().NotBeNull();
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitidaAntes).Should().BeFalse();
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, tenant.ClavesApiValidasDesdeUtc!.Value).Should().BeFalse();
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, DateTime.UtcNow.AddMinutes(1)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reactivar_un_Tenant_que_no_estaba_suspendido_no_corta_sus_claves_de_API()
+    {
+        var tenant = new Tenant("Ibertec");
+
+        tenant.Reactivar();
+
+        tenant.ClavesApiValidasDesdeUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void La_suspension_comercial_es_reversible_para_la_clave_de_API()
+    {
+        var emitida = DateTime.UtcNow.AddMinutes(-1);
+        var tenant = new Tenant("Ibertec");
+        tenant.VincularSuscripcionStripe("cus_123", "sub_123", EstadoComercialTenant.Activa);
+        tenant.ActualizarEstadoComercial(EstadoComercialTenant.Suspendida);
+
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitida).Should().BeFalse();
+
+        tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitida).Should().BeTrue();
+    }
+
     [Fact]
     public void ActualizarEstadoComercial_aplica_el_nuevo_estado_de_una_suscripcion_ya_vinculada()
     {

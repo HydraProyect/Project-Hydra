@@ -39,7 +39,7 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tena
     public async Task<TResponse> Handle(
         TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        if (request is not ICommandBase)
+        if (request is not ICommandBase or IComandoQueReduceExposicion)
             return await next(cancellationToken);
 
         if (tenantActual.TenantId is not { } tenantId)
