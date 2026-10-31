@@ -85,6 +85,8 @@ public class ArchivoExportacionTests
         using var zip = Abrir(destino, Contrasena);
         zip.Cast<ZipEntry>().Should().HaveCount(2).And.OnlyContain(e => e.IsCrypted && e.AESKeySize == 256);
 
+        Encoding.Latin1.GetString(destino.ToArray()).Should().NotContain("marca-que-no-puede-verse-en-claro");
+
         using var sinContrasena = Abrir(destino, null);
         Assert.Throws<ZipException>(() => sinContrasena.GetInputStream(sinContrasena.GetEntry("datos/Empresa.json")));
     }

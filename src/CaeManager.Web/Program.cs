@@ -1028,7 +1028,7 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 // `--exportar-tenant <TenantId> --solicitante <correo> --destino <ruta.zip>`. Solo desde este modo
 // de CLI, nunca en el arranque normal. Lee con el contexto INYECTADO —rol restringido, bajo RLS— y
 // nunca con FabricaContextoDeBootstrap: ExportacionCompletaTenant se niega si esa identidad puede
-// saltarse RLS, exige que el solicitante sea un Administrador de plataforma con concesión vigente
+// saltarse RLS, exige que el solicitante sea un Actor de Plataforma TALVEG con concesión AdminPlataforma vigente
 // sobre ese Tenant y audita la exportación en él antes de escribir. El zip va cifrado con AES-256 y
 // la contraseña, aleatoria y nunca aceptada como argumento, solo se muestra por consola al terminar:
 // ejecuta con `docker compose run --rm`, para que el contenedor y su salida no se queden. Se lanza con el servicio "app" (el que recibe

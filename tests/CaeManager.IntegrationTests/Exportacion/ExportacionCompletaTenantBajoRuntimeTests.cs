@@ -25,7 +25,7 @@ namespace CaeManager.IntegrationTests.Exportacion;
 /// (igual que el modo de CLI), con los interceptores de sellado y de sesión RLS de producción. Dos
 /// Tenants propietarios con su Empresa, su Administrador y una credencial de portal cada uno: el zip
 /// cifrado del primero trae lo suyo y nada del segundo, ni la contraseña de su propio portal. Y se niega
-/// si la pide quien no es un Administrador de plataforma con concesión vigente sobre ese Tenant, o si la
+/// si la pide quien no es un Actor de Plataforma TALVEG con concesión AdminPlataforma vigente sobre ese Tenant, o si la
 /// identidad de la conexión se salta RLS. La siembra va como propietario de la base, porque no es lo que
 /// se mide.
 /// </summary>
@@ -103,7 +103,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, ApplicationUser.FinDeBloqueoDeCuentaDesactivada));
 
         await _propietario.Users.IgnoreQueryFilters().Where(u => u.Id == temporalId)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, DateTimeOffset.UtcNow.AddMinutes(15)));
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, DateTimeOffset.UtcNow.AddDays(300)));
 
         // El correo del Actor también existe como cuenta de un Tenant propietario: solo cuenta la de la plataforma.
         await CuentaAsync(_tenantA, consulta, _actor);
@@ -228,6 +228,8 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await using var lector = CrearRuntime();
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
 
+        (await lector.Users.IgnoreQueryFilters().CountAsync(u => u.TenantId == _tenantA))
+            .Should().Be(4, "control positivo: sin él, no ver al Actor no probaría nada");
         (await lector.Users.IgnoreQueryFilters().CountAsync(u => u.TenantId == _tenantPlataforma && u.Id == _actorId)).Should().Be(0);
     }
 
