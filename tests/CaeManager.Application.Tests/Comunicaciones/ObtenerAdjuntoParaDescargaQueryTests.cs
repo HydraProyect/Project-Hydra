@@ -1,4 +1,3 @@
-using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescarga;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Clientes;
@@ -101,10 +100,14 @@ public class ObtenerAdjuntoParaDescargaQueryTests
     }
 
     [Fact]
-    public void La_puerta_de_triage_compartida_con_la_deteccion_no_admite_el_rol_nulo()
+    public async Task Un_hilo_anclado_solo_a_una_Empresa_no_es_triage()
     {
-        // La descarga corta antes el rol nulo; la detección llega con él hasta aquí.
-        AccesoATriage.RolPermitido(null).Should().BeFalse();
+        var (contexto, adjunto) = Escenario(new Conversacion("Con Empresa", empresaId: Guid.NewGuid()));
+        var registro = new RegistroAccesoDatoSensibleFalso();
+
+        var resultado = await Handler(contexto, "Cliente", registro).Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.Should().NotBeNull();
     }
 
     private static ObtenerAdjuntoParaDescargaQueryHandler Handler(

@@ -154,6 +154,39 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         if (!permitido) resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
     }
 
+    [Fact]
+    public async Task Sin_rol_efectivo_tampoco_se_analiza_el_adjunto_de_un_hilo_anclado()
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Sin Rol S.L.", "B10380194", false, null, null);
+        contexto.Empresas.Add(cliente);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Documentación recibida");
+        conversacion.AsignarCliente(cliente.Id);
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
+        var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso());
+
+        var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

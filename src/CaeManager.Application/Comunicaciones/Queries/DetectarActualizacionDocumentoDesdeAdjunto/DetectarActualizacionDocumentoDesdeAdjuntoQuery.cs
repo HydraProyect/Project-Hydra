@@ -64,9 +64,10 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Lee el contenido y devuelve lo que detecta en él: misma puerta que la
-        // descarga (SEG-9, ASVS 4.0.3 V4.1.3 y V4.2.1).
-        if (AccesoATriage.EsTriage(adjunto.ClienteId, adjunto.EmpresaId)
-            && !AccesoATriage.RolPermitido(await currentUserService.ObtenerRolEfectivoAsync()))
+        // descarga, también sin rol efectivo en un hilo anclado (SEG-9, ASVS 4.0.3
+        // V4.1.3 y V4.2.1).
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null || (AccesoATriage.EsTriage(adjunto.ClienteId, adjunto.EmpresaId) && !AccesoATriage.RolPermitido(rol)))
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de

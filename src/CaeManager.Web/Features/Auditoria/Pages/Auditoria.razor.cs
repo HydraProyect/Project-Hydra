@@ -33,7 +33,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             // Credenciales de plataformas externas: aparecen sobre todo por sus
             // lecturas (RegistroAuditoria.AccionAccesoDatoSensible).
             "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata", "AccesoPlataformaCaeEmpresa",
-            // Adjuntos de correo: solo aparecen por sus descargas.
+            // Adjuntos de correo: aparecen sobre todo por sus descargas.
             "AdjuntoMensaje" },
             .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
