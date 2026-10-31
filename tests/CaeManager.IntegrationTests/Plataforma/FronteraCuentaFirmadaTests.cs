@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -357,6 +358,54 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     [Fact]
     public async Task La_frontera_no_necesita_las_columnas_de_credenciales()
     {
+        await RetirarCredencialesASoporteAsync();
+
+        var principal = PrincipalDe(_actorReal, SelloActorReal);
+        await using var contexto = ContextoDeSoporte(principal);
+
+        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue();
+        (await new LecturaCuentaPropia(contexto).ObtenerAsync(_actorReal)).Should().NotBeNull();
+
+        var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
+        (await materializar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    /// <summary>
+    /// Lo mismo para <c>/delegaciones</c> y las tres consultas escalares del directorio: bajo <c>cae_app_soporte</c>
+    /// y sin las columnas siguen respondiendo, con la RLS de la conexión. <c>ObtenerVisiblesAsync</c> y
+    /// <c>ObtenerEquipoAsync</c> no entran: siguen materializando hasta el contrato de activación.
+    /// </summary>
+    [Fact]
+    public async Task Las_personas_delegadas_y_el_directorio_no_necesitan_las_columnas_de_credenciales()
+    {
+        await RetirarCredencialesASoporteAsync();
+
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+
+        var personas = await new LecturaPersonasDelegadas(contexto).ObtenerAsync(
+            new[] { _actorReal, _usuarioSimulado, _cuentaDeOtroTenant }, default);
+
+        personas.Should().BeEquivalentTo(new[]
+        {
+            new PersonaDelegadaVisible(_actorReal, "actor-real", "actor-real@frontera-cuenta.test", Roles.GestorCae),
+            new PersonaDelegadaVisible(_usuarioSimulado, "usuario-simulado", "usuario-simulado@frontera-cuenta.test", null),
+        }, "la proyección no amplía lo que la RLS deja ver");
+
+        var tenant = new TenantActualAmbiental { TenantId = _tenantObjetivo };
+        var directorio = new DirectorioUsuariosTenant(
+            new UserManager<ApplicationUser>(new AlmacenUsuarios(contexto, tenant), null!, null!, null!, null!, null!, null!, null!, null!),
+            contexto, tenant, new PuertaAccesoDatos(), contexto, null!);
+
+        (await directorio.EsCuentaActivaConRolAsync(_actorReal, _tenantOrigen, Roles.GestorCae)).Should().BeTrue();
+        (await directorio.ObtenerCuentasActivasConRolAsync(_tenantOrigen, Roles.GestorCae)).Should().Equal(_actorReal);
+        (await directorio.ObtenerAsync(_usuarioSimulado)).Should().NotBeNull();
+        (await directorio.ObtenerAsync(_cuentaDeOtroTenant)).Should().BeNull("una cuenta que la RLS no deja ver no existe aquí");
+    }
+
+    /// <summary>Lo que hará la PR del <c>REVOKE</c>, solo en esta base de prueba.</summary>
+    private async Task RetirarCredencialesASoporteAsync()
+    {
         await ComoPropietarioAsync("""
             REVOKE SELECT ON public."AspNetUsers" FROM cae_app_soporte;
             DO $$
@@ -369,25 +418,13 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
                 EXECUTE format('GRANT SELECT (%s) ON public."AspNetUsers" TO cae_app_soporte', columnas);
             END $$;
             """);
-        await using (var conexion = new NpgsqlConnection(_cadena))
-        {
-            await conexion.OpenAsync();
-            await using var comando = new NpgsqlCommand("""
-                SELECT has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'PasswordHash', 'SELECT')
-                    OR has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'SecurityStamp', 'SELECT');
-                """, conexion);
-            ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
-        }
-
-        var principal = PrincipalDe(_actorReal, SelloActorReal);
-        await using var contexto = ContextoDeSoporte(principal);
-
-        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue();
-        (await new LecturaCuentaPropia(contexto).ObtenerAsync(_actorReal)).Should().NotBeNull();
-
-        var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
-        (await materializar.Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand("""
+            SELECT has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'PasswordHash', 'SELECT')
+                OR has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'SecurityStamp', 'SELECT');
+            """, conexion);
+        ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
     }
 
     private static void Sembrar(

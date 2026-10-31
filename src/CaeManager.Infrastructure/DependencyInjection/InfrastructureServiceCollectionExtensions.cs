@@ -603,6 +603,7 @@ public static class InfrastructureServiceCollectionExtensions
         // administración necesitan sus listados, y los Commands solo la
         // comprobación de IDirectorioUsuariosService.
         services.AddScoped<DirectorioUsuariosTenant>();
+        services.AddScoped<CaeManager.Infrastructure.Autorizacion.ILecturaPersonasDelegadas, CaeManager.Infrastructure.Autorizacion.LecturaPersonasDelegadas>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Clientes.IDirectorioDestinosCartera>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());

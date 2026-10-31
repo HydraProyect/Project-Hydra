@@ -74,9 +74,8 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         // Lecturas de la propia sesión: permiso sensible.
         "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
-        // Otra cuenta o rol para pintarlo: el nombre de un rol y los roles de una cuenta.
+        // Un rol para pintarlo: su nombre.
         "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
-        "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs",
     ];
 
     /// <summary>
