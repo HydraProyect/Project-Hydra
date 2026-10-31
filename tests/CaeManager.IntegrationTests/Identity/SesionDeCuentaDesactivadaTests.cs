@@ -7,7 +7,6 @@ using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
-using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Seguridad;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
@@ -67,9 +66,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) => opciones
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(
-                sp.GetRequiredService<ContadorDeConsultas>(),
-                new TenantSelladoInterceptor(sp.GetRequiredService<ITenantActual>())));
+            .AddInterceptors(sp.GetRequiredService<ContadorDeConsultas>()));
         servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
         // Los tipos REALES que registra InfrastructureServiceCollectionExtensions

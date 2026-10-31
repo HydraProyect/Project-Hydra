@@ -4,7 +4,6 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
-using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -43,9 +42,8 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
         servicios.AddSingleton<ITenantActual>(new TenantActualFijo());
         servicios.AddScoped<PuertaAccesoDatos>();
 
-        servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) => opciones
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(sp.GetRequiredService<ITenantActual>())));
+        servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
 
         servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
