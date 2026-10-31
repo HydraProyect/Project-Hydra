@@ -148,7 +148,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             new AsignacionOperadorDelegadoRepositorioFalso(), delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: _operador.Id),
             _writer, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
-            new CurrentUserServiceFalso(_usuario), _unitOfWork, _tenants);
+            new CurrentUserServiceFalso(_usuario), _unitOfWork, _tenants, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(_propietario.Id));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"), CancellationToken.None);
@@ -171,7 +171,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
         CrearAsignacionOperadorDelegadoCommandHandler Handler(AutorizacionDelegacionFalsa autorizacion) => new(
             new AsignacionOperadorDelegadoRepositorioFalso(), delegaciones,
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: _operador.Id),
-            _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _tenants);
+            _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _tenants, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(_propietario.Id));
 
         var orden = new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae");
         var porPlataforma = await Handler(new AutorizacionDelegacionFalsa(autoriza: true)).Handle(orden, CancellationToken.None);

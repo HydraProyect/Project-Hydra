@@ -1,7 +1,12 @@
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
+using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Operaciones;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +62,100 @@ public class RlsAsignacionesOperadorDelegadoTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadena);
+
+    [Fact]
+    public async Task Crear_desde_un_Tenant_no_extremo_falla_antes_de_insertar_bajo_runtime()
+    {
+        await using var conexion = await AbrirAsync("cae_app_runtime", tenant: _a, origen: _operador);
+        await using var contexto = CrearContexto(conexion);
+        var actual = new TenantActualAmbiental { TenantId = _a };
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _operador);
+        var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
+            new AsignacionOperadorDelegadoRepository(contexto), new DelegacionTenantRepository(contexto),
+            null!, new AsignacionesOperativasWriter(contexto, actual, usuario), new Autoriza(), usuario, contexto, contexto, actual);
+
+        var resultado = await handler.Handle(new(_haciaB, Guid.NewGuid(), "Consulta"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
+        contexto.ChangeTracker.HasChanges().Should().BeFalse();
+        await using var verificacion = CrearContexto();
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.CountAsync(a => a.DelegacionTenantId == _haciaB)).Should().Be(1);
+    }
+
+    /// <summary>
+    /// El Tenant activo es un extremo y la autoridad está resuelta, pero con esta posición
+    /// posicion_en_la_asignacion no deja localizar la Asignación de Operación: sin la guarda
+    /// el comando acabaría en una excepción de AbrirCarteraOperadorAsync.
+    /// </summary>
+    [Fact]
+    public async Task Crear_con_el_Operador_CAE_activo_y_origen_en_el_propietario_falla_antes_de_escribir_bajo_runtime()
+    {
+        await using (var siembra = CrearContexto())
+        {
+            var ahora = DateTime.UtcNow;
+            siembra.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+                _b, _operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var conexion = await AbrirAsync("cae_app_runtime", tenant: _operador, origen: _b);
+        await using var contexto = CrearContexto(conexion);
+        (await contexto.AsignacionesOperacion.CountAsync(o => o.PropietarioTenantId == _b))
+            .Should().Be(0, "control: esta posición no alcanza la Asignación de Operación");
+
+        var actual = new TenantActualAmbiental { TenantId = _operador };
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _b);
+        var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
+            new AsignacionOperadorDelegadoRepository(contexto), new DelegacionTenantRepository(contexto),
+            null!, new AsignacionesOperativasWriter(contexto, actual, usuario), new Autoriza(), usuario, contexto, contexto, actual);
+
+        var resultado = await handler.Handle(new(_haciaB, Guid.NewGuid(), "Consulta"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.RequiereTenantPropietario");
+        contexto.ChangeTracker.HasChanges().Should().BeFalse();
+        await using var verificacion = CrearContexto();
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.CountAsync(a => a.DelegacionTenantId == _haciaB)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Revocar_desde_el_Tenant_de_origen_con_cartera_vigente_falla_sin_escribir_bajo_runtime()
+    {
+        Guid carteraId;
+        await using (var siembra = CrearContexto())
+        {
+            var ahora = DateTime.UtcNow;
+            var operacion = AsignacionOperacion.Externa(_a, _operador, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            var cartera = AsignacionCartera.Externa(operacion, _gestorEnA, "GestorCae",
+                AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+            siembra.AsignacionesOperacion.Add(operacion);
+            siembra.AsignacionesCartera.Add(cartera);
+            await siembra.SaveChangesAsync();
+            carteraId = cartera.Id;
+        }
+
+        await using (var conexion = await AbrirAsync("cae_app_runtime", tenant: _operador, origen: _operador))
+        await using (var contexto = CrearContexto(conexion))
+        {
+            var actual = new TenantActualAmbiental { TenantId = _operador };
+            var usuario = new CurrentUserServiceFalso(tenantOrigenId: _operador);
+            var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+                new AsignacionOperadorDelegadoRepository(contexto), new DelegacionTenantRepository(contexto), usuario,
+                new AsignacionesOperativasWriter(contexto, actual, usuario), contexto, actual);
+            var resultado = await handler.Handle(new(_asignacionEnA), CancellationToken.None);
+            resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.RequiereTenantPropietario");
+            contexto.ChangeTracker.HasChanges().Should().BeFalse();
+        }
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.Id == _asignacionEnA)).Should().BeTrue();
+        (await verificacion.AsignacionesCartera.SingleAsync(c => c.Id == carteraId)).Estado.Should().Be(EstadoAsignacion.Vigente);
+    }
+
+    private sealed class Autoriza : IAutorizacionDelegacionTenant
+    {
+        public Task<bool> PuedeGestionarDelegacionesAsync(Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
 
     [Theory]
     [InlineData("cae_app_runtime")]
