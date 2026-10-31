@@ -93,7 +93,7 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
     private CaeManagerDbContext NuevoContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = null };
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
