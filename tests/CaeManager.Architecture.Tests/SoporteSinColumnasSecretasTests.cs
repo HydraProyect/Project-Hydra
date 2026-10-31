@@ -22,7 +22,9 @@ namespace CaeManager.Architecture.Tests;
 /// <c>CanalesGestionDocumental</c>, <c>CredencialesAccesoEmpresa</c> y <c>CredencialesAccesoSubcontrata</c>,
 /// <c>ClientState</c> de <c>SuscripcionesWebhook</c>, <c>TokenAcceso</c> de <c>LineasWhatsApp</c> y
 /// <c>UltimoError</c> de <c>ConexionesIntegracion</c>; <c>AccesosPlataformaCaeEmpresa</c> ya no se concedía.
-/// <c>AspNetUsers</c> no está: <c>UserManager</c> materializa la cuenta entera en Sesión Privilegiada.
+/// <c>AspNetUsers</c> no estaba porque <c>UserManager</c> materializaba la cuenta entera en Sesión Privilegiada;
+/// <c>SoporteSinPasswordHashNiSecurityStamp</c> retiró <c>PasswordHash</c> y <c>SecurityStamp</c> (ASVS V4.1.3) cuando
+/// esas lecturas pasaron a proyectar.
 /// </para>
 ///
 /// <para>
@@ -61,6 +63,18 @@ public class SoporteSinColumnasSecretasTests
     private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
     private const string MigracionQueRetiraCodigoYPayload = "20261101000000_SoporteSinCodigoVerificacionNiPayloadWebhook";
     private const string MigracionQueRetiraUserLogins = "20261101060000_SoporteSinLecturaDeUserLogins";
+    private const string MigracionQueRetiraCredencialesDeCuenta = "20261101110000_SoporteSinPasswordHashNiSecurityStamp";
+
+    /// <summary>
+    /// Lo que retira <see cref="MigracionQueRetiraCredencialesDeCuenta"/>. Solo rige desde esa migración: la línea base
+    /// concede <c>AspNetUsers</c> entera, y esta la sustituye por columnas.
+    /// </summary>
+    private static readonly string[] ColumnasRetiradasDeAspNetUsers = ["PasswordHash", "SecurityStamp"];
+
+    /// <summary>Una constante de texto de la migración, con las columnas que luego concede interpolándola.</summary>
+    private static readonly Regex ConstanteDeTexto = new(
+        @"const\s+string\s+(?<nombre>\w+)\s*=\s*""""""\s*(?<valor>.*?)\s*""""""\s*;",
+        RegexOptions.Singleline | RegexOptions.Compiled);
 
     /// <summary>
     /// Lo que retira <see cref="MigracionQueRetiraLosJson"/>. Solo rige desde esa migración: las anteriores
@@ -152,6 +166,12 @@ public class SoporteSinColumnasSecretasTests
     [InlineData("""GRANT SELECT ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", true)]
     [InlineData("""GRANT SELECT ("Id", "Sid") ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", true)]
     [InlineData("""GRANT SELECT ("Id", "UsuarioId") ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", false)]
+    [InlineData("""GRANT SELECT ON TABLE public."AspNetUsers" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "PasswordHash") ON TABLE public."AspNetUsers" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "SecurityStamp") ON TABLE public."AspNetUsers" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id"), UPDATE ON TABLE public."AspNetUsers" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ({Columnas}) ON TABLE public."AspNetUsers" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "ConcurrencyStamp") ON TABLE public."AspNetUsers" TO cae_app_soporte;""", false)]
     public void El_detector_reconoce_las_concesiones_prohibidas(string sql, bool infractora)
     {
         // Sin esto, un detector que no marcara nada dejaría el test principal en verde.
@@ -179,8 +199,8 @@ public class SoporteSinColumnasSecretasTests
         infractoras.Should().BeEmpty(
             "Soporte TALVEG no lee tokens de Identity, tokens de integraciones, hashes de claves API, " +
             "contraseñas de plataformas y portales, el ClientState de los webhooks, el token de WhatsApp, " +
-            "el último error de las conexiones, el código seguro de los documentos generados ni el identificador " +
-            "de las sesiones de usuario; " +
+            "el último error de las conexiones, el código seguro de los documentos generados, el identificador " +
+            "de las sesiones de usuario ni el hash de contraseña y el sello de seguridad de las cuentas; " +
             "si una lectura de Sesión Privilegiada necesita una columna de esas tablas, se concede por columna " +
             "y nunca la secreta");
     }
@@ -295,8 +315,43 @@ public class SoporteSinColumnasSecretasTests
         concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 
+    [Fact]
+    public void La_restriccion_de_AspNetUsers_solo_rige_desde_la_migracion_que_la_retira()
+    {
+        EsInfractora(("20260926160042_LineaBaseCompactada", "SELECT", "TABLE public.\"AspNetUsers\"")).Should().BeFalse();
+        EsInfractora((MigracionQueRetiraCredencialesDeCuenta, "SELECT", "TABLE public.\"AspNetUsers\"")).Should().BeTrue();
+    }
+
+    [Fact]
+    public void La_migracion_de_las_cuentas_retira_el_select_de_tabla_y_concede_las_demas_columnas()
+    {
+        var texto = SinComentarios(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraCredencialesDeCuenta + ".cs")));
+        var up = Up(ConConstantesExpandidas(texto));
+
+        Regex.IsMatch(up, @"REVOKE\s+SELECT\s+ON\s+TABLE\s+public\.""AspNetUsers""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+            .Should().BeTrue($"el Up de {MigracionQueRetiraCredencialesDeCuenta} retira el SELECT de tabla de cae_app_soporte");
+
+        // Control positivo: la cuenta se sigue leyendo por columnas, y la lista se ha leído expandida.
+        var concesion = ConcesionesASoporteEn(MigracionQueRetiraCredencialesDeCuenta, up).Should()
+            .ContainSingle(c => TablaDe(c.Objeto) == "AspNetUsers" && c.Privilegios.StartsWith("SELECT (", StringComparison.Ordinal))
+            .Subject;
+        concesion.Privilegios.Should().Contain("\"UserName\"").And.Contain("\"TenantId\"");
+        EsInfractora(concesion).Should().BeFalse();
+    }
+
     private static bool EsInfractora((string Migracion, string Privilegios, string Objeto) concesion)
     {
+        if (string.CompareOrdinal(concesion.Migracion, MigracionQueRetiraCredencialesDeCuenta) >= 0
+            && TablaDe(concesion.Objeto).Equals("AspNetUsers", StringComparison.OrdinalIgnoreCase))
+        {
+            // Una lista sin expandir («({Columnas})») no se puede comprobar: se marca, como una tabla interpolada.
+            var listas = Regex.Matches(concesion.Privilegios, @"\((?<columnas>[^)]*)\)");
+            return listas.Count == 0 || Regex.Split(concesion.Privilegios, @",(?![^(]*\))").Any(p => !p.Contains('('))
+                || listas.SelectMany(m => m.Groups["columnas"].Value.Split(','))
+                    .Select(c => c.Trim().Trim('"'))
+                    .Any(c => c.Contains('{') || ColumnasRetiradasDeAspNetUsers.Contains(c, StringComparer.OrdinalIgnoreCase));
+        }
+
         if (string.CompareOrdinal(concesion.Migracion, MigracionQueRetiraCodigoYPayload) >= 0)
         {
             var tablaCodigo = TablaDe(concesion.Objeto);
@@ -364,9 +419,18 @@ public class SoporteSinColumnasSecretasTests
                      .OrderBy(a => Path.GetFileName(a), StringComparer.Ordinal))
         {
             var migracion = Path.GetFileName(archivo).Split('.')[0];
-            foreach (var concesion in ConcesionesASoporteEn(migracion, Up(SinComentarios(File.ReadAllText(archivo)))))
+            foreach (var concesion in ConcesionesASoporteEn(migracion, Up(ConConstantesExpandidas(SinComentarios(File.ReadAllText(archivo))))))
                 yield return concesion;
         }
+    }
+
+    /// <summary>Sustituye <c>({Constante})</c> por su texto: las columnas concedidas también se miden si viven en una constante.</summary>
+    private static string ConConstantesExpandidas(string texto)
+    {
+        foreach (Match constante in ConstanteDeTexto.Matches(texto))
+            texto = texto.Replace($"({{{constante.Groups["nombre"].Value}}})", $"({constante.Groups["valor"].Value})");
+
+        return texto;
     }
 
     /// <summary>

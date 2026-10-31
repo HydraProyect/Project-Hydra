@@ -413,7 +413,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         using (var ambito = Sesion(_adminOperador, _propietario))
         {
             var predicado = new AdministradorDelTenantPropietarioEnBase(
-                ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+                ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>());
 
             (await predicado.EsAdministradorEnBaseAsync(_adminOperador.Id, _propietario)).Should().BeFalse(
                 "es Administrador de su organización, no miembro del Tenant propietario");
@@ -424,7 +424,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         using (var ambito = Sesion(_adminPropietario, _propietario))
         {
             var predicado = new AdministradorDelTenantPropietarioEnBase(
-                ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+                ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>());
             (await predicado.EsAdministradorEnBaseAsync(_adminPropietario.Id, _propietario)).Should().BeTrue();
         }
     }
@@ -902,13 +902,13 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     {
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return new TechoDeRolPorEncargo(contexto, contexto, new PerfilDePropiedadEnOrigenEnBase(
-            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()),
+            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()),
             new TenantConAdministradorPropioEnBase(contexto));
     }
 
     private AutoridadSobreElEncargo Autoridad(IServiceScope ambito) =>
         new(new SesionPrivilegiadaAusente(), _sesion, _actor, new AdministradorDelTenantPropietarioEnBase(
-            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()));
+            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()));
 
     private RegistrarEncargoAdministracionCommandHandler Registrar(IServiceScope ambito) =>
         new(_tenantActual, Autoridad(ambito),

@@ -35,8 +35,8 @@ public interface IVigenciaSesionCuenta
 /// <list type="bullet">
 /// <item><b>Sin Sesión Privilegiada seleccionada:</b> <c>ValidateSecurityStampAsync</c>, sin ningún cambio.</item>
 /// <item><b>Con Sesión Privilegiada seleccionada:</b> la conexión adopta <c>cae_app_soporte</c>
-/// (<c>TenantRlsConnectionInterceptor</c>), y ese rol no tiene por qué leer las credenciales de la cuenta
-/// (ASVS 4.0.3 V4.1.3). El sello y la desactivación los comprueba <c>app_cuenta_firmada_vigente</c>, que solo
+/// (<c>TenantRlsConnectionInterceptor</c>), y ese rol no lee las credenciales de la cuenta
+/// (ASVS 4.0.3 V4.1.3; migración <c>SoporteSinPasswordHashNiSecurityStamp</c>). El sello y la desactivación los comprueba <c>app_cuenta_firmada_vigente</c>, que solo
 /// devuelve un booleano sobre la cuenta que firma el contexto, y la revocación
 /// <see cref="IRegistroSesionesUsuario.EstaVigenteAsync"/>. No se omite ninguna de las tres
 /// comprobaciones.</item>

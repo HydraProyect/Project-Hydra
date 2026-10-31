@@ -247,7 +247,8 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         (await userManager.IsInRoleAsync(nuevo, Roles.Administrador)).Should().BeTrue();
-        var autorizacion = new AutorizacionDelegacionPorAdministradorDelCliente(userManager);
+        var autorizacion = new AutorizacionDelegacionPorAdministradorDelCliente(
+            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>());
         (await autorizacion.PuedeGestionarDelegacionesAsync(nuevo.Id, _tenantPropietario)).Should().BeFalse(
             "un Administrador del Operador CAE externo no es Administrador del Tenant propietario");
     }

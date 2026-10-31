@@ -566,7 +566,6 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
             await propietario.SaveChangesAsync();
         }
 
-        await QuitarLasCredencialesASoporteAsync();
         await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
 
         (await VigilanciaInicioSesionService.AdministradoresAsync(contexto, rolNormalizado, _tenantObjetivo, null, default))
@@ -576,15 +575,13 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Lo que hará la PR del <c>REVOKE</c>, solo en esta base de prueba: soporte pierde <c>PasswordHash</c> y
-    /// <c>SecurityStamp</c>. La frontera sigue funcionando sin ellas, y materializar la cuenta falla, que es lo que
-    /// demuestra que ninguno de los dos caminos de la frontera las estaba leyendo.
+    /// <c>SoporteSinPasswordHashNiSecurityStamp</c>: soporte no lee <c>PasswordHash</c> ni <c>SecurityStamp</c>. La
+    /// frontera sigue funcionando sin ellas, y materializar la cuenta falla, que es lo que demuestra que ninguno de los
+    /// dos caminos de la frontera las lee.
     /// </summary>
     [Fact]
     public async Task La_frontera_no_necesita_las_columnas_de_credenciales()
     {
-        await QuitarLasCredencialesASoporteAsync();
-
         var principal = PrincipalDe(_actorReal, SelloActorReal);
         await using var contexto = ContextoDeSoporte(principal);
 
@@ -600,12 +597,12 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     /// <summary>
     /// Lo mismo para <c>/delegaciones</c> y las tres consultas escalares del directorio: bajo <c>cae_app_soporte</c>
     /// y sin las columnas siguen respondiendo, con la RLS de la conexión. <c>ObtenerVisiblesAsync</c> y
-    /// <c>ObtenerEquipoAsync</c> no entran: siguen materializando hasta el contrato de activación.
+    /// <c>ObtenerEquipoAsync</c> no entran: materializan la cuenta, y solo se llega a ellos con un rol de negocio, que la
+    /// Sesión Privilegiada no tiene.
     /// </summary>
     [Fact]
     public async Task Las_personas_delegadas_y_el_directorio_no_necesitan_las_columnas_de_credenciales()
     {
-        await QuitarLasCredencialesASoporteAsync();
 
         await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
 
@@ -630,6 +627,39 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Una ruta de identificación con una Sesión Privilegiada en la cookie del navegador. Sin descartar la selección, la
+    /// conexión lleva <c>cae_app_soporte</c> y la cuenta no se puede materializar; descartada, tampoco la recupera un
+    /// ámbito nuevo de la misma petición, que volvería a leer la cookie.
+    /// </summary>
+    [Fact]
+    public async Task En_una_ruta_de_identificacion_la_cuenta_se_lee_sin_la_Sesion_Privilegiada_de_la_cookie()
+    {
+        var principal = PrincipalDe(_actorReal, SelloActorReal);
+        var proteccion = new EphemeralDataProtectionProvider();
+        var peticion = new DefaultHttpContext { User = principal };
+        peticion.Request.Path = "/cuenta/iniciar-sesion";
+        peticion.Request.Headers.Cookie =
+            $"{ClienteActivoSeleccionado.NombreCookie}={ClienteActivoSeleccionado.Proteger(proteccion, _actorReal, _tenantObjetivo, null, Guid.NewGuid())}";
+        var accesor = new HttpContextAccessor { HttpContext = peticion };
+
+        var seleccion = new ClienteActivoSeleccionado(accesor, proteccion);
+        seleccion.SesionPrivilegiadaIdSeleccionada.Should().NotBeNull("control: la cookie nombra la Sesión Privilegiada");
+        await using (var bajoSoporte = ContextoConSeleccion(seleccion, principal, _tenantObjetivo))
+        {
+            (await IdentidadEfectivaAsync(bajoSoporte)).Should().Be("cae_app_soporte", "sin esta identidad el test mediría otro camino");
+            var materializar = async () => await bajoSoporte.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
+            (await materializar.Should().ThrowAsync<PostgresException>())
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+
+        await new SeleccionDescartadaEnIdentificacionMiddleware(_ => Task.CompletedTask).InvokeAsync(peticion, seleccion);
+
+        await using var sinSeleccion = ContextoConSeleccion(new ClienteActivoSeleccionado(accesor, proteccion), principal, _tenantOrigen);
+        (await IdentidadEfectivaAsync(sinSeleccion)).Should().NotBe("cae_app_soporte");
+        (await sinSeleccion.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal)).SecurityStamp.Should().Be(SelloActorReal);
+    }
+
+    /// <summary>
     /// Tema, idioma y actividad se siguen leyendo bajo Sesión Privilegiada sin las columnas de credenciales. La
     /// escritura no cambia: <c>cae_app_soporte</c> no tiene <c>UPDATE</c>, la base la rechaza y el contexto queda
     /// limpio para lo siguiente del circuito.
@@ -637,7 +667,6 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     [Fact]
     public async Task Bajo_soporte_las_preferencias_se_leen_sin_credenciales_y_escribirlas_sigue_rechazado()
     {
-        await QuitarLasCredencialesASoporteAsync();
 
         await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
         var preferencias = new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos());
@@ -649,31 +678,6 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
             .WithInnerException<PostgresException>()
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
         contexto.ChangeTracker.Entries().Should().BeEmpty();
-    }
-
-    private async Task QuitarLasCredencialesASoporteAsync()
-    {
-        await ComoPropietarioAsync("""
-            REVOKE SELECT ON public."AspNetUsers" FROM cae_app_soporte;
-            DO $$
-            DECLARE columnas text;
-            BEGIN
-                SELECT string_agg(quote_ident(attname), ', ') INTO columnas
-                FROM pg_attribute
-                WHERE attrelid = 'public."AspNetUsers"'::regclass AND attnum > 0 AND NOT attisdropped
-                  AND attname NOT IN ('PasswordHash', 'SecurityStamp');
-                EXECUTE format('GRANT SELECT (%s) ON public."AspNetUsers" TO cae_app_soporte', columnas);
-            END $$;
-            """);
-        await using (var conexion = new NpgsqlConnection(_cadena))
-        {
-            await conexion.OpenAsync();
-            await using var comando = new NpgsqlCommand("""
-                SELECT has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'PasswordHash', 'SELECT')
-                    OR has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'SecurityStamp', 'SELECT');
-                """, conexion);
-            ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
-        }
     }
 
     private static void Sembrar(
@@ -720,8 +724,8 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "prueba"));
     }
 
-    private CurrentUserService ServicioReal(ClaimsPrincipal principal) => new(
-        new EstadoDeAutenticacion(principal), new HttpContextAccessor(), _seleccion,
+    private CurrentUserService ServicioReal(ClaimsPrincipal principal, IClienteActivoSeleccionado? seleccion = null) => new(
+        new EstadoDeAutenticacion(principal), new HttpContextAccessor(), seleccion ?? _seleccion,
         new ServiceCollection().BuildServiceProvider());
 
     private VigenciaSesionCuenta Vigencia(CaeManagerDbContext contexto, IClienteActivoSeleccionado? seleccion = null) => new(
@@ -729,12 +733,18 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         new RegistroSesionesUsuario(contexto, null!, null!, NullLogger<RegistroSesionesUsuario>.Instance),
         Options.Create(new IdentityOptions()), NullLogger<VigenciaSesionCuenta>.Instance);
 
-    private CaeManagerDbContext ContextoDeSoporte(ClaimsPrincipal principal)
+    private CaeManagerDbContext ContextoDeSoporte(ClaimsPrincipal principal) =>
+        ContextoConSeleccion(_seleccion, principal, _tenantObjetivo);
+
+    private CaeManagerDbContext ContextoConSeleccion(IClienteActivoSeleccionado seleccion, ClaimsPrincipal principal, Guid tenant)
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = _tenantObjetivo };
+        var tenantActual = new TenantActualAmbiental { TenantId = tenant };
         return Contexto(tenantActual, new TenantRlsConnectionInterceptor(
-            tenantActual, _seleccion, ServicioReal(principal), BaseDatosPostgresDePruebas.FirmanteContextoRls));
+            tenantActual, seleccion, ServicioReal(principal, seleccion), BaseDatosPostgresDePruebas.FirmanteContextoRls));
     }
+
+    private static Task<string> IdentidadEfectivaAsync(CaeManagerDbContext contexto) =>
+        contexto.Database.SqlQuery<string>($"SELECT current_user::text AS \"Value\"").SingleAsync();
 
     private CaeManagerDbContext ContextoPropietario()
     {

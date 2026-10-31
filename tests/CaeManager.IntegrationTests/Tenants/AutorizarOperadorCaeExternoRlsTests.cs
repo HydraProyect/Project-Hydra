@@ -559,7 +559,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
 
         using var ambito = _arnes.Servicios.CreateScope();
         var predicado = new AdministradorDelTenantPropietarioEnBase(
-            ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>());
 
         using (AmbitoTenantExplicito.Establecer(_propietario))
             (await predicado.EsAdministradorEnBaseAsync(administrador.Id, _propietario)).Should().BeTrue();
@@ -582,12 +582,12 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     private async Task<bool> PuedeAutorizarAsync(ApplicationUser usuario, Guid? workspaceActivo = null)
     {
         using var ambito = _arnes.Servicios.CreateScope();
-        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         _sesion.UsuarioId = usuario.Id;
         _sesion.TenantOrigenId = usuario.TenantId;
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
-            return await new AutorizacionDelegacionPorAdministradorDelCliente(userManager)
+            return await new AutorizacionDelegacionPorAdministradorDelCliente(contexto)
                 .PuedeGestionarDelegacionesAsync(usuario.Id, _propietario);
     }
 
@@ -606,7 +606,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new DelegacionTenantRepository(contexto),
             contexto,
             new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuarioActual),
-            new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<UserManager<ApplicationUser>>()),
+            new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<CaeManagerDbContext>()),
             usuarioActual,
             contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte(), servicios.GetRequiredService<ITenantActual>());
 
@@ -622,7 +622,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
 
         var handler = new AutorizarOperadorCaeExternoQueriesHandler(
             servicios.GetRequiredService<CaeManagerDbContext>(),
-            new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<UserManager<ApplicationUser>>()),
+            new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<CaeManagerDbContext>()),
             new CurrentUserServiceFalso(usuario.Id, tenantOrigenId: usuario.TenantId));
 
         using (AmbitoTenantExplicito.Establecer(usuario.TenantId))
@@ -704,7 +704,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     }
 
     private static AutorizacionDelegacionPorAdministradorDelCliente Autorizacion(IServiceProvider servicios) =>
-        new(servicios.GetRequiredService<UserManager<ApplicationUser>>());
+        new(servicios.GetRequiredService<CaeManagerDbContext>());
 
     private static DirectorioUsuariosTenant Directorio(
         IServiceProvider servicios, CaeManagerDbContext contexto, ITenantActual tenant, ICurrentUserService usuario) =>

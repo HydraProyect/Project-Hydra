@@ -1049,7 +1049,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
                     new TransaccionDeComando(contexto), pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
                     directorio, directorio, new BloqueoCarteraUsuario(contexto), sp.GetRequiredService<ITenantActual>(),
-                    new AutorizacionDelegacionPorAdministradorDelCliente(sp.GetRequiredService<UserManager<ApplicationUser>>()))
+                    new AutorizacionDelegacionPorAdministradorDelCliente(contexto))
                 .Handle(new ReactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);
         });
 

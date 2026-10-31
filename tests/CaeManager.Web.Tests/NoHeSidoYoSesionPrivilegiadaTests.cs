@@ -12,9 +12,9 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// «No he sido yo» es una vía de seguridad cuya autoridad es el token del buzón: la selección del
-/// navegador no la condiciona, ni siquiera una que nombre una Sesión Privilegiada. Lo que Postgres
-/// haga después con el rol de esa conexión queda fuera de esta prueba, que solo fija que la página
-/// no añade una barrera propia.
+/// navegador no la condiciona, ni siquiera una que nombre una Sesión Privilegiada. Esta prueba fija
+/// que la página no añade una barrera propia; que la conexión no adopte <c>cae_app_soporte</c> lo
+/// fijan <c>SeleccionDescartadaEnIdentificacionTests</c> y <c>FronteraCuentaFirmadaTests</c>.
 /// </summary>
 public class NoHeSidoYoSesionPrivilegiadaTests : BunitContext
 {

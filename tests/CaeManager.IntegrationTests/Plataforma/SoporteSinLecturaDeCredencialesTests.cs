@@ -3,9 +3,11 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -14,6 +16,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.IntegrationTests.ApiKeys;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Xunit;
@@ -44,8 +47,8 @@ namespace CaeManager.IntegrationTests.Plataforma;
 ///
 /// <para>
 /// Y para lo que venga: toda columna de <c>public</c> con nombre de secreto que <c>cae_app_soporte</c> lea
-/// falla aquí salvo que se justifique que no es secreta. <c>AspNetUsers.PasswordHash</c> y
-/// <c>AspNetUsers.SecurityStamp</c> sí lo son y Soporte TALVEG aún los lee: es deuda abierta, fijada aparte.
+/// falla aquí salvo que se justifique que no es secreta. <c>SoporteSinPasswordHashNiSecurityStamp</c> retiró
+/// <c>AspNetUsers.PasswordHash</c> y <c>AspNetUsers.SecurityStamp</c>, las dos últimas que se leían.
 /// La detección es solo por nombre: en verde no prueba que Soporte TALVEG no lea ningún secreto, porque no ve
 /// uno guardado en una columna con otro nombre ni dentro de un texto.
 /// </para>
@@ -63,6 +66,19 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         "Id", "NombreDescriptivo", "PrefijoVisible", "CreadaPorUsuarioId", "UltimoUsoUtc", "RevocadaEnUtc",
         "CaducaEnUtc", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc",
         "EliminadoPorUsuarioId", "VentanaSoporteId", "VentanaSoporteAbiertaEnUtc",
+    ];
+
+    /// <summary>
+    /// Las columnas de <c>AspNetUsers</c> que Soporte TALVEG puede leer: todas menos <c>PasswordHash</c> y
+    /// <c>SecurityStamp</c>. El recuento exacto obliga a decidir, con cada columna nueva, si es secreta.
+    /// </summary>
+    private static readonly string[] ColumnasLegiblesDeAspNetUsers =
+    [
+        "Id", "AccessFailedCount", "Avatar", "ClavesApiValidasDesdeUtc", "ClienteId", "ConcurrencyStamp",
+        "CoordinadorUsuarioId", "DebeCambiarContrasena", "Email", "EmailConfirmed", "FechaBajaUtc", "FechaCreacion",
+        "Idioma", "LockoutEnabled", "LockoutEnd", "NombreCompleto", "NormalizedEmail", "NormalizedUserName",
+        "PermisoConsultarAccesoDocumentosSensibles", "PhoneNumber", "PhoneNumberConfirmed", "Tema", "TenantId",
+        "TwoFactorEnabled", "UltimaActividadUtc", "UserName",
     ];
 
     /// <summary>
@@ -180,20 +196,12 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("Tenants", "LogoArchivoClave"),
         };
 
-        // Secretos reales que Soporte TALVEG aún lee: no son excepciones sino deuda de seguridad abierta.
-        // Se fijan aquí para que la lista no crezca y para que retirarlos obligue a borrarlos de ella.
-        // La revocación no es de una línea: UserManager materializa la cuenta entera en Sesión Privilegiada
-        // (ver SoporteSinColumnasSecretasRestantes).
-        var deudaDeSecretosLegibles = new HashSet<(string Tabla, string Columna)>
-        {
-            ("AspNetUsers", "PasswordHash"),
-            ("AspNetUsers", "SecurityStamp"),
-        };
-
         // Lo que las migraciones ya retiraron: los patrones tienen que seguir viéndolo.
         var secretosRevocados = new[]
         {
             ("AccesosPlataformaCaeEmpresa", "Contrasena"),
+            ("AspNetUsers", "PasswordHash"),
+            ("AspNetUsers", "SecurityStamp"),
             ("CanalesGestionDocumental", "Contrasena"),
             ("ClavesApi", "HashClave"),
             ("CredencialesAccesoEmpresa", "Contrasena"),
@@ -235,9 +243,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         noSecretas.Except(legibles).Should().BeEmpty(
             "una excepción que ya no existe o ya no se lee se quita de la lista: no puede quedar para tapar otra columna");
 
-        legibles.Except(noSecretas).Should().BeEquivalentTo(deudaDeSecretosLegibles,
-            "Soporte TALVEG no debe leer columnas con nombre de secreto: cada una se revoca, o se justifica que no es "
-            + "secreta. Si la deuda de AspNetUsers ya se revocó, se borra de la lista");
+        legibles.Except(noSecretas).Should().BeEmpty(
+            "Soporte TALVEG no debe leer columnas con nombre de secreto: cada una se revoca, o se justifica que no es secreta");
     }
 
     [Theory]
@@ -320,6 +327,36 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Soporte_lee_de_AspNetUsers_todas_las_columnas_salvo_las_credenciales()
+    {
+        var (legibles, todas) = await ColumnasAsync("AspNetUsers");
+        string[] secretas = ["PasswordHash", "SecurityStamp"];
+
+        todas.Should().Contain(secretas, "control del instrumento: las columnas secretas existen");
+        legibles.Should().NotContain(secretas);
+        // Una columna nueva sin conceder falla aquí y no en Sesión Privilegiada: todas menos las secretas.
+        legibles.Should().BeEquivalentTo(todas.Except(secretas), "AspNetUsers se lee entera salvo las credenciales");
+        legibles.Should().BeEquivalentTo(ColumnasLegiblesDeAspNetUsers,
+            "una columna nueva en AspNetUsers no se concede sola: hay que decidir si es secreta y añadirla aquí y en una migración");
+    }
+
+    [Fact]
+    public async Task Soporte_no_tiene_privilegio_de_tabla_sobre_AspNetUsers()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES", "TRIGGER" })
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = "SELECT has_table_privilege('cae_app_soporte', 'public.\"AspNetUsers\"', @privilegio);";
+            comando.Parameters.AddWithValue("privilegio", privilegio);
+
+            ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse($"{privilegio} sobre AspNetUsers");
+        }
+    }
+
+    [Fact]
     public async Task Soporte_no_lee_ninguna_columna_de_los_accesos_a_plataformas_CAE()
     {
         // AnadePlataformaCaeDeClienteEmpresarial ya se la retiró entera; aquí se mide.
@@ -350,6 +387,10 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [InlineData("SELECT * FROM \"LineasWhatsApp\";")]
     [InlineData("SELECT \"UltimoError\" FROM \"ConexionesIntegracion\";")]
     [InlineData("SELECT count(*) FROM \"ConexionesIntegracion\" WHERE \"UltimoError\" IS NOT NULL;")]
+    [InlineData("SELECT \"PasswordHash\" FROM \"AspNetUsers\";")]
+    [InlineData("SELECT \"SecurityStamp\" FROM \"AspNetUsers\";")]
+    [InlineData("SELECT * FROM \"AspNetUsers\";")]
+    [InlineData("SELECT count(*) FROM \"AspNetUsers\" WHERE \"PasswordHash\" IS NOT NULL;")]
     public async Task Soporte_no_puede_leer_secretos_ni_con_sql_directo(string sql)
     {
         await using var conexion = await AbrirComoSoporteAsync();
@@ -360,6 +401,32 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Soporte_lee_las_demas_columnas_de_las_cuentas_bajo_RLS()
+    {
+        var delTenantVisitado = Guid.NewGuid();
+        var deOtroTenant = Guid.NewGuid();
+        var otroTenant = new Tenant("Otro Tenant de prueba");
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Tenants.Add(otroTenant);
+            contexto.Users.AddRange(Cuenta(delTenantVisitado, _tenant), Cuenta(deOtroTenant, otroTenant.Id));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = await AbrirComoSoporteAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = $"SELECT {string.Join(", ", ColumnasLegiblesDeAspNetUsers.Select(c => $"\"{c}\""))} FROM \"AspNetUsers\";";
+
+        var cuentas = new List<Guid>();
+        await using var lector = await comando.ExecuteReaderAsync();
+        while (await lector.ReadAsync())
+            cuentas.Add(lector.GetGuid(0));
+
+        cuentas.Should().Contain(delTenantVisitado).And.NotContain(deOtroTenant,
+            "retirar dos columnas no cambia la RLS de AspNetUsers");
     }
 
     [Fact]
@@ -439,6 +506,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("SuscripcionWebhook", () => contexto.SuscripcionesWebhook.ToListAsync()),
             ("LineaWhatsApp", () => contexto.LineasWhatsApp.ToListAsync()),
             ("ConexionIntegracion", () => contexto.ConexionesIntegracion.ToListAsync()),
+            ("ApplicationUser", () => contexto.Users.ToListAsync()),
         };
 
         foreach (var (entidad, leer) in lecturas)
@@ -463,6 +531,28 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             .Should().ContainSingle("la línea sembrada en el Tenant visitado");
         (await contexto.ConexionesIntegracion.Select(c => new { c.Id, c.Nombre, c.Estado }).ToListAsync())
             .Should().HaveCount(2, "el buzón y la conexión de WhatsApp sembrados");
+        (await contexto.Users.Select(u => new { u.Id, u.TenantId, u.LockoutEnd }).ToListAsync())
+            .Should().BeEmpty("en el Tenant visitado no hay cuentas sembradas");
+    }
+
+    [Fact]
+    public async Task En_Sesion_Privilegiada_la_autorizacion_por_rol_en_base_proyecta_la_cuenta()
+    {
+        var administrador = Guid.NewGuid();
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Users.Add(Cuenta(administrador, _tenant));
+            var rol = await contexto.Roles.SingleAsync(r => r.Name == Roles.Administrador);
+            contexto.UserRoles.Add(new IdentityUserRole<Guid> { UserId = administrador, RoleId = rol.Id });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var soporte = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+
+        (await new AdministradorDelTenantPropietarioEnBase(soporte).EsAdministradorEnBaseAsync(administrador, _tenant))
+            .Should().BeTrue();
+        (await new PerfilDePropiedadEnOrigenEnBase(soporte).ObtenerAsync(administrador, _tenant))
+            .Should().Be(Roles.Administrador);
     }
 
     [Fact]
@@ -537,6 +627,14 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     }
 
     // ── Andamiaje ──────────────────────────────────────────────────────────
+
+    private static ApplicationUser Cuenta(Guid id, Guid tenantId) => new()
+    {
+        Id = id,
+        UserName = $"u-{id:N}@ejemplo.test",
+        Email = $"u-{id:N}@ejemplo.test",
+        TenantId = tenantId,
+    };
 
     private async Task<(List<string> Legibles, List<string> Todas)> ColumnasAsync(string tabla)
     {
