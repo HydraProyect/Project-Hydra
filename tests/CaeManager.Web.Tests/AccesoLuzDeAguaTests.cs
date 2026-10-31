@@ -94,6 +94,7 @@ public class AccesoLuzDeAguaTests : BunitContext
         var cut = Render<Login>();
 
         cut.FindAll("a[href^='/cuenta/iniciar-sesion-microsoft']").Should().BeEmpty();
+        cut.FindAll("a.acceso-microsoft, .acceso-separador").Should().BeEmpty();
         cut.Markup.Should().NotContain("Microsoft");
         cut.Markup.Should().NotContain("solo de consulta");
     }
@@ -107,10 +108,48 @@ public class AccesoLuzDeAguaTests : BunitContext
 
         var cut = Render<Login>();
 
-        var enlace = cut.Find(".acceso-alterno a");
-        enlace.TextContent.Should().Be("continuar con Microsoft");
-        enlace.GetAttribute("href").Should().Be("/cuenta/iniciar-sesion-microsoft?returnUrl=%2Fdocumentos%3Fvista%3Dmia");
+        var boton = cut.Find("a.acceso-microsoft");
+        boton.TextContent.Trim().Should().Be("Iniciar sesión con Microsoft");
+        boton.GetAttribute("href").Should().Be("/cuenta/iniciar-sesion-microsoft?returnUrl=%2Fdocumentos%3Fvista%3Dmia");
         cut.Find(".acceso-nota").TextContent.Should().Be("Con correo y contraseña, el acceso es solo de consulta.");
+    }
+
+    [Fact]
+    public void El_boton_de_Microsoft_lleva_el_logotipo_oficial_decorativo_sin_deformarlo()
+    {
+        ConfigurarSso();
+
+        var cut = Render<Login>();
+
+        var logo = cut.Find("a.acceso-microsoft svg");
+        logo.GetAttribute("aria-hidden").Should().Be("true", "el nombre accesible lo da el texto del botón");
+        logo.GetAttribute("width").Should().Be("21");
+        logo.GetAttribute("height").Should().Be("21");
+        logo.GetAttribute("viewBox").Should().Be("0 0 21 21");
+        logo.QuerySelectorAll("rect").Select(r => r.GetAttribute("fill")).Should()
+            .Equal("#F25022", "#7FBA00", "#00A4EF", "#FFB900");
+        logo.QuerySelectorAll("rect").Should().OnlyContain(r =>
+            r.GetAttribute("width") == "10" && r.GetAttribute("height") == "10");
+        cut.Markup.Should().NotContain("<script", "la CSP es script-src 'self'");
+    }
+
+    [Fact]
+    public void El_boton_de_Microsoft_se_dice_en_catalan()
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            ConfigurarSso();
+
+            var cut = Render<Login>();
+
+            cut.Find("a.acceso-microsoft").TextContent.Trim().Should().Be("Inicia la sessió amb Microsoft");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
     }
 
     [Fact]

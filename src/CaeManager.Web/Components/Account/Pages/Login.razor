@@ -68,7 +68,20 @@
        editar. *@
     @if (OpcionesAzureAd.Value.EstaConfigurado)
     {
-        <p class="acceso-alterno">o <a href="@EnlaceLoginMicrosoft">continuar con Microsoft</a></p>
+        @* Botón de inicio de sesión con Microsoft según la guía de marca de Microsoft
+           Learn (howto-add-branding-in-apps): logotipo de cuatro cuadrados sin
+           alterar y el texto «Iniciar sesión con Microsoft». El SVG es decorativo:
+           el nombre accesible lo da el texto. Sin scripts (CSP script-src 'self'). *@
+        <p class="acceso-separador" aria-hidden="true"><span>@Textos["LoginMicrosoftSeparador"]</span></p>
+        <a class="acceso-microsoft" href="@EnlaceLoginMicrosoft">
+            <svg class="acceso-microsoft-logo" width="21" height="21" viewBox="0 0 21 21" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+                <rect x="0" y="0" width="10" height="10" fill="#F25022" />
+                <rect x="11" y="0" width="10" height="10" fill="#7FBA00" />
+                <rect x="0" y="11" width="10" height="10" fill="#00A4EF" />
+                <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
+            </svg>
+            <span>@Textos["LoginMicrosoftIniciarSesion"]</span>
+        </a>
         <p class="acceso-nota">Con correo y contraseña, el acceso es solo de consulta.</p>
     }
 
