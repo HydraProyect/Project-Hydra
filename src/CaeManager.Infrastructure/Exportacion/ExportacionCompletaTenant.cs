@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Exportacion;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -41,8 +42,15 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// <b>Qué no sale.</b> Ninguna columna cifrada en reposo (credenciales de portales, tokens de
 /// integraciones, clientState, payloads crudos de webhooks: todas las de conversor texto→texto),
 /// ni el hash de las claves de API, ni hashes de contraseña, sellos de seguridad o secretos TOTP
-/// de Identity (de los Usuarios solo se proyectan campos de perfil). Tampoco las filas con
-/// borrado lógico, que el filtro global oculta, ni los catálogos globales sin Tenant.
+/// de Identity (de los Usuarios solo se proyectan campos de perfil). Tampoco los catálogos
+/// globales sin Tenant.
+/// </para>
+///
+/// <para>
+/// <b>Papelera.</b> Las filas con borrado lógico salen mientras sigan en el servidor, cada una con
+/// su <c>EstaEliminado</c>, y sus binarios también. Por eso la lectura salta el filtro global de EF
+/// y repone el TenantId a mano (<see cref="ConsultaDeTenant{T}"/>): RLS y la comprobación fila a
+/// fila no cambian, y las columnas secretas siguen fuera también en esas filas.
 /// </para>
 /// </summary>
 public static class ExportacionCompletaTenant
@@ -50,6 +58,9 @@ public static class ExportacionCompletaTenant
     public const string Argumento = "--exportar-tenant";
     public const string ArgumentoSolicitante = "--solicitante";
     public const string ArgumentoDestino = "--destino";
+
+    /// <summary>Recuento del manifiesto: filas exportadas que están en la papelera.</summary>
+    public const string RecuentoEnPapelera = "FilasEnPapelera";
 
     /// <summary>Propiedades que nunca se exportan aunque no lleven conversor de cifrado.</summary>
     private static readonly HashSet<string> NombresSecretos = new(StringComparer.Ordinal)
@@ -75,7 +86,6 @@ public static class ExportacionCompletaTenant
     {
         ["TareaAsistente, TurnoTareaAsistente, PasoTareaAsistente"] =
             "RLS las acota a la persona que las creó; la exportación corre sin sesión de usuario y no las ve.",
-        ["Filas con borrado lógico"] = "El filtro global de EF las oculta; solo se exportan los datos vigentes.",
         ["Asignaciones de Operación y de Cartera, encargos, solicitudes y propuestas de cartera"] =
             "No son filas del Tenant propietario sino relaciones con un Operador CAE externo (sin TenantId).",
         ["Aceptaciones de términos, preferencias de panel y tablas de Identity de claims, logins y tokens"] =
@@ -167,6 +177,7 @@ public static class ExportacionCompletaTenant
         }, cancellationToken);
 
         var recuentos = new SortedDictionary<string, long>(StringComparer.Ordinal);
+        var enPapelera = 0L;
         int sinFichero;
         using (var archivo = new ArchivoExportacion(destino, tenantId))
         {
@@ -184,11 +195,13 @@ public static class ExportacionCompletaTenant
                     {
                         await using var escritor = new Utf8JsonWriter(salida);
                         escritor.WriteStartArray();
-                        await foreach (var fila in Leer(contexto, tipo.ClrType).WithCancellation(cancellationToken))
+                        await foreach (var fila in Leer(contexto, tipo.ClrType, tenantId).WithCancellation(cancellationToken))
                         {
                             GuardaTenantExportacion.Exigir(tenantId, ((EntidadConTenant)fila).TenantId, tipo.ClrType.Name);
                             EscribirEntidad(escritor, contexto.Model.FindEntityType(fila.GetType()) ?? tipo, fila);
                             filas++;
+                            if (fila is EntidadBase { EstaEliminado: true })
+                                enPapelera++;
                             if (escritor.BytesPending > 64 * 1024)
                                 await escritor.FlushAsync(cancellationToken);
                         }
@@ -198,11 +211,14 @@ public static class ExportacionCompletaTenant
                     recuentos[tipo.ClrType.Name] = filas;
                 }
 
+                archivo.RegistrarRecuento(RecuentoEnPapelera, enPapelera);
+                recuentos[RecuentoEnPapelera] = enPapelera;
+
                 var usuarios = await EscribirUsuariosAsync(contexto, archivo, tenantId, cancellationToken);
                 archivo.RegistrarRecuento("Usuario", usuarios);
                 recuentos["Usuario"] = usuarios;
 
-                sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, cancellationToken);
+                sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, tenantId, cancellationToken);
                 // Foto de solo lectura: se deshace siempre; las dos filas de auditoría van fuera de ella.
                 await foto.RollbackAsync(cancellationToken);
             }
@@ -300,15 +316,15 @@ public static class ExportacionCompletaTenant
     }
 
     /// <summary>
-    /// El binario de cada Documento vivo con fichero, descifrado por el almacén con la clave del
+    /// El binario de cada Documento con fichero, también de los que están en la papelera, descifrado por el almacén con la clave del
     /// Tenant del ámbito. Primero se leen los pares (Id, clave) y después se abren los ficheros,
     /// para no abrir el almacén con un lector de la base aún abierto. Un fichero que ya no está
     /// queda en el manifiesto; cualquier otro fallo aborta la exportación.
     /// </summary>
     private static async Task<int> EscribirDocumentosAsync(
-        CaeManagerDbContext contexto, IFileStorageService almacen, ArchivoExportacion archivo, CancellationToken cancellationToken)
+        CaeManagerDbContext contexto, IFileStorageService almacen, ArchivoExportacion archivo, Guid tenantId, CancellationToken cancellationToken)
     {
-        var documentos = await contexto.Documentos.AsNoTracking()
+        var documentos = await ConsultaDeTenant<Documento>(contexto, tenantId)
             .Where(d => d.ArchivoUrl != null)
             .OrderBy(d => d.Id)
             .Select(d => new { d.Id, d.ArchivoUrl })
@@ -397,9 +413,16 @@ public static class ExportacionCompletaTenant
         escritor.WriteEndObject();
     }
 
-    private static IAsyncEnumerable<object> Leer(CaeManagerDbContext contexto, Type tipo) =>
-        (IAsyncEnumerable<object>)LeerConjuntoGenerico.MakeGenericMethod(tipo).Invoke(null, [contexto])!;
+    private static IAsyncEnumerable<object> Leer(CaeManagerDbContext contexto, Type tipo, Guid tenantId) =>
+        (IAsyncEnumerable<object>)LeerConjuntoGenerico.MakeGenericMethod(tipo).Invoke(null, [contexto, tenantId])!;
 
-    private static IAsyncEnumerable<object> LeerConjunto<T>(CaeManagerDbContext contexto) where T : class =>
-        contexto.Set<T>().AsNoTracking().AsAsyncEnumerable();
+    private static IAsyncEnumerable<object> LeerConjunto<T>(CaeManagerDbContext contexto, Guid tenantId) where T : EntidadConTenant =>
+        ConsultaDeTenant<T>(contexto, tenantId).AsAsyncEnumerable();
+
+    /// <summary>
+    /// Todas las filas del Tenant, las de la papelera incluidas. Saltar el filtro global quita también
+    /// su comparación del TenantId, y por eso se repone aquí.
+    /// </summary>
+    public static IQueryable<T> ConsultaDeTenant<T>(CaeManagerDbContext contexto, Guid tenantId) where T : EntidadConTenant =>
+        contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);
 }
