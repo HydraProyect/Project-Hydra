@@ -74,6 +74,13 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Cuándo se dio de baja la cuenta (<see cref="Desactivar"/>); null mientras esté activa.
+    /// De aquí cuentan los 12 meses de conservación tras la baja (decisión de 2026-10-31).
+    /// Repetir la baja no reinicia el plazo, y <see cref="Reactivar"/> lo anula.
+    /// </summary>
+    public DateTime? FechaBajaUtc { get; private set; }
+
+    /// <summary>
     /// Tenant al que pertenece este usuario (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
     /// Tenant Resolution Strategy — se estampa como claim de sesión al
     /// autenticar, ver TenantClaimsPrincipalFactory). Todo usuario nuevo
@@ -174,6 +181,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     {
         LockoutEnabled = true;
         LockoutEnd = FinDeBloqueoDeCuentaDesactivada;
+        FechaBajaUtc ??= DateTime.UtcNow;
         SecurityStamp = Guid.NewGuid().ToString();
     }
 
@@ -199,6 +207,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
 
         LockoutEnabled = true;
         LockoutEnd = null;
+        FechaBajaUtc = null;
     }
 
     /// <summary>

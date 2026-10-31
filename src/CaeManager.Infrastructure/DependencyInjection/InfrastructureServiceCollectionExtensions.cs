@@ -205,6 +205,8 @@ public static class InfrastructureServiceCollectionExtensions
             sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
         services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
         services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
+        services.AddScoped<CaeManager.Infrastructure.Retencion.PurgaRegistrosCaducados>();
+        services.AddHostedService<CaeManager.Infrastructure.Retencion.PurgaRegistrosCaducadosHostedService>();
 
         // Incidentes de seguridad sospechados (plano de Plataforma): señales de alta certeza,
         // registro por la función app_registrar_incidente_seguridad y alerta saliente al
