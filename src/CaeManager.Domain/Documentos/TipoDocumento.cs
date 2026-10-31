@@ -168,10 +168,12 @@ public class TipoDocumento : EntidadConTenant
     /// automática por IA de este tipo de documento queda desactivada para
     /// todos los Clientes, sin excepción — ver
     /// <see cref="Documentos.ConfiguracionIaDocumentoCliente"/> para el
-    /// nivel 2 (Gestor CAE, solo para su propia cartera). Empieza activo:
-    /// solo se desactiva explícitamente.
+    /// nivel 2 (Gestor CAE, solo para su propia cartera). Un tipo que revela
+    /// salud (<see cref="RevelaSalud"/>), el de aptitud incluido, nace apagado
+    /// y lo enciende el Tenant propietario por tipo de documento (DPA 16.4);
+    /// el resto nace activo. Sin clasificar, el tipo cuenta como de salud.
     /// </summary>
-    public bool LecturaIaActiva { get; private set; } = true;
+    public bool LecturaIaActiva { get; private set; }
 
     /// <summary>
     /// Solo tiene sentido para Ámbito Empresa: si está activo, un Documento
@@ -315,6 +317,7 @@ public class TipoDocumento : EntidadConTenant
         Naturaleza = naturaleza;
         Notas = notas;
         Sensibilidad = sensibilidad;
+        LecturaIaActiva = !RevelaSalud;
         EstablecerGlosario(descripcion, criteriosValidacion, seSolicitaA, observaciones);
     }
 
