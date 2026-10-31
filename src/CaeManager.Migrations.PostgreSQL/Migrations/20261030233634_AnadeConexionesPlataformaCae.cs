@@ -300,7 +300,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // UsosConexionPlataformaCae: sin DELETE y con UPDATE solo de las tres columnas del cierre; la
             // política restrictiva impide reescribir un uso ya cerrado o insertar uno que finja una llamada
-            // exitosa, y los CHECK fijan el enumerado y la coherencia del cierre (V7.1.1, V7.2.2).
+            // exitosa, y los CHECK fijan el enumerado y la coherencia del cierre (V7.3.3).
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."ConexionesPlataformaCae" ENABLE ROW LEVEL SECURITY;

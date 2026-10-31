@@ -12,6 +12,7 @@ public class ConexionPlataformaCaeRepositorioFalso : IConexionPlataformaCaeRepos
     public HabilitacionComercialConector? Habilitacion { get; set; }
     public List<UsoConexionPlataformaCae> Descartados { get; } = [];
     public bool HayTransaccionAbierta { get; set; }
+    public bool HayCambiosPendientes { get; set; }
     public bool ConflictoAlGuardar { get; set; }
     public Exception? ExcepcionAlLeerCredencial { get; set; }
 

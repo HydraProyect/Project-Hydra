@@ -13,17 +13,20 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// cerrado (OWASP ASVS 4.0.3 V4.1.5), si una operación puede salir hacia la plataforma:
 /// <list type="number">
 /// <item>No hay transacción abierta: un rollback borraría el uso de una llamada que ya salió, y una
-/// estrategia de reintentos la repetiría (V7.2.2).</item>
-/// <item>Hay Tenant resuelto y no es una Sesión Privilegiada: un Actor de Plataforma TALVEG nunca opera
-/// con la credencial de un Tenant (V4.1.3).</item>
+/// estrategia de reintentos la repetiría (V7.3.3). Tampoco cambios pendientes del llamador: la puerta
+/// guarda con su mismo <see cref="IUnitOfWork"/> y se los llevaría aunque negara la operación.</item>
+/// <item>Hay Tenant resuelto y no es una Sesión Privilegiada, viva o ya revocada: un Actor de Plataforma
+/// TALVEG nunca opera con la credencial de un Tenant (V4.1.3). Mientras la selección nombre una sesión,
+/// la conexión sigue abriéndose como cae_app_soporte, que no puede escribir el uso.</item>
 /// <item>La conexión, y la Acreditación o el Trabajador, son del Tenant propietario actual, leídos bajo
 /// los filtros de Tenant y RLS con la identidad efectiva de la petición, y la Acreditación es de la
 /// misma plataforma que la conexión (V4.2.1). Decisión del 2026-10-30, punto 5: nunca con las
 /// credenciales de otro.</item>
 /// <item>Quien pide tiene rol efectivo con escritura en ese Tenant: una coordenada de contexto no es
 /// autoridad, y una Asignación de Operación revocada deja el rol en null aunque el circuito conserve
-/// la selección (V4.1.3). Sin usuario solo opera un proceso de fondo dentro de un
-/// <see cref="AmbitoTenantExplicito"/>.</item>
+/// la selección (V4.1.3). Sin usuario no opera nadie: un circuito con la sesión invalidada tampoco tiene
+/// usuario, y un <see cref="AmbitoTenantExplicito"/> es una coordenada, no autoridad. La identidad del
+/// proceso de fondo llega con el incremento de cola.</item>
 /// <item>El kill switch de la plataforma, en el catálogo global, leído de la base en cada operación.</item>
 /// <item>El Add-on de subida automática del Tenant, su estado comercial y que no esté suspendido.</item>
 /// <item>Hay credencial y hay conector registrado.</item>
@@ -42,8 +45,8 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// </para>
 ///
 /// <para>
-/// El llamador no puede tener cambios pendientes en su contexto: la puerta guarda con el mismo
-/// <see cref="IUnitOfWork"/> antes de la llamada. No decide el alcance de cartera: eso es de cada Command
+/// La clave de idempotencia es un Guid: va a un registro que Soporte TALVEG lee y sin purga, y un dato
+/// del Trabajador no puede acabar dentro. La puerta no decide el alcance de cartera: eso es de cada Command
 /// que la dispare, como en <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>. Tampoco
 /// guarda lo que devuelve la plataforma en la Acreditación: es del incremento de cola y lectura
 /// programada.
@@ -66,6 +69,7 @@ public class OperacionesConectorPlataformaCae(
     IProveedorPlataformaCaeRepository proveedores,
     IEnumerable<IConectorPlataformaCae> conectores,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    IClienteActivoSeleccionado clienteActivoSeleccionado,
     ITenantActual tenantActual,
     ICurrentUserService usuarioActual,
     IFileStorageService archivos,
@@ -148,8 +152,7 @@ public class OperacionesConectorPlataformaCae(
     }
 
     private static bool ClaveValida(string claveIdempotencia) =>
-        !string.IsNullOrWhiteSpace(claveIdempotencia)
-        && claveIdempotencia.Length <= UsoConexionPlataformaCae.LongitudMaximaClaveIdempotencia;
+        Guid.TryParseExact(claveIdempotencia, "D", out var clave) && clave != Guid.Empty;
 
     private sealed record AccesoAutorizado(
         Guid TenantId, ConexionPlataformaCae Conexion, IConectorPlataformaCae Conector, CredencialApiConector Credencial);
@@ -158,16 +161,18 @@ public class OperacionesConectorPlataformaCae(
     private async Task<AccesoAutorizado?> AutorizarAsync(
         Guid conexionId, OperacionConectorPlataformaCae operacion, Guid? acreditacionId, Guid? trabajadorId, CancellationToken cancellationToken)
     {
-        if (conexiones.HayTransaccionAbierta)
+        if (conexiones.HayTransaccionAbierta || conexiones.HayCambiosPendientes)
         {
             logger.LogError(
-                "Operación {Operacion} con la conexión {ConexionId} denegada: hay una transacción abierta.",
+                "Operación {Operacion} con la conexión {ConexionId} denegada: hay una transacción abierta o cambios pendientes.",
                 operacion, conexionId);
             return null;
         }
 
-        // En Sesión Privilegiada tampoco se podría escribir el uso: cae_app_soporte no tiene INSERT.
+        // Se mira la selección además de la revalidación: una sesión ya revocada no revalida, pero la conexión
+        // sigue siendo de cae_app_soporte, sin INSERT sobre el uso. Negar aquí no escribe nada.
         if (tenantActual.TenantId is not { } tenantId
+            || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
             || await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not null)
         {
             logger.LogWarning(
@@ -221,7 +226,7 @@ public class OperacionesConectorPlataformaCae(
     private async Task<bool> TieneAutoridadAsync()
     {
         if (await usuarioActual.ObtenerUsuarioActualIdAsync() is null)
-            return AmbitoTenantExplicito.TenantIdActual is not null;
+            return false;
 
         var rol = await usuarioActual.ObtenerRolEfectivoAsync();
         return rol is not null && AutorizacionEscrituraBehavior<object, object>.RolesConEscritura.Contains(rol);

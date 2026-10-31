@@ -46,6 +46,9 @@ public interface IConexionPlataformaCaeRepository
     /// <summary>Hay una transacción abierta: un rollback borraría el uso de una llamada que ya salió.</summary>
     bool HayTransaccionAbierta { get; }
 
-    /// <summary>False si otra petición ganó la carrera por los índices únicos; lo que perdió no queda pendiente.</summary>
+    /// <summary>El contexto tiene cambios sin guardar: el siguiente guardado se los llevaría.</summary>
+    bool HayCambiosPendientes { get; }
+
+    /// <summary>False si otra petición ganó la carrera por los índices únicos o retiró la fila; lo que perdió no queda pendiente.</summary>
     Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default);
 }

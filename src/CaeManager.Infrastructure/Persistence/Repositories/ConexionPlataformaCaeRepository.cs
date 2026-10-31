@@ -64,6 +64,8 @@ public class ConexionPlataformaCaeRepository(CaeManagerDbContext dbContext) : IC
     public bool HayTransaccionAbierta =>
         dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null;
 
+    public bool HayCambiosPendientes => dbContext.ChangeTracker.HasChanges();
+
     public async Task<bool> GuardarCambiosAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -76,24 +78,34 @@ public class ConexionPlataformaCaeRepository(CaeManagerDbContext dbContext) : IC
             SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: { } indice
         } && IndicesUnicos.Contains(indice))
         {
-            // Lo que perdió la carrera no se queda pendiente para el próximo SaveChanges del circuito, ni
-            // los registros que AuditoriaInterceptor añadió para este guardado fallido.
-            foreach (var entrada in dbContext.ChangeTracker.Entries()
-                         .Where(e => e.Entity is ConexionPlataformaCae or CredencialConexionPlataformaCae or RegistroAuditoria
-                                     && e.State is EntityState.Added or EntityState.Modified)
-                         .ToList())
-            {
-                if (entrada.State == EntityState.Added)
-                {
-                    entrada.State = EntityState.Detached;
-                    continue;
-                }
+            DescartarLoQuePerdioLaCarrera();
+            return false;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Retirar confirmó antes: la credencial que se iba a rotar ya no existe.
+            DescartarLoQuePerdioLaCarrera();
+            return false;
+        }
+    }
 
-                entrada.CurrentValues.SetValues(entrada.OriginalValues);
-                entrada.State = EntityState.Unchanged;
+    // Lo que perdió la carrera no se queda pendiente para el próximo SaveChanges del circuito, ni los
+    // registros que AuditoriaInterceptor añadió para este guardado fallido.
+    private void DescartarLoQuePerdioLaCarrera()
+    {
+        foreach (var entrada in dbContext.ChangeTracker.Entries()
+                     .Where(e => e.Entity is ConexionPlataformaCae or CredencialConexionPlataformaCae or RegistroAuditoria
+                                 && e.State is EntityState.Added or EntityState.Modified)
+                     .ToList())
+        {
+            if (entrada.State == EntityState.Added)
+            {
+                entrada.State = EntityState.Detached;
+                continue;
             }
 
-            return false;
+            entrada.CurrentValues.SetValues(entrada.OriginalValues);
+            entrada.State = EntityState.Unchanged;
         }
     }
 }

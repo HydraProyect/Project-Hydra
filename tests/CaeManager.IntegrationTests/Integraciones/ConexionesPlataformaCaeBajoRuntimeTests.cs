@@ -31,6 +31,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
 {
     private const string Secreto = "SECRETO-API-PLATAFORMA-no-debe-aparecer-en-claro";
+    private const string Clave = "6f1d3c2a-7b4e-4f0a-9c55-2a1e8d3b7c10";
 
     // Sembrada por la migración de catálogo.
     private static readonly Guid Proveedor = Guid.Parse("60000000-0000-0000-0000-000000000001");
@@ -235,7 +236,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         var trabajador = await SembrarTrabajadorAsync(_tenantA);
 
         await using var contexto = CrearContexto(_tenantA);
-        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, "clave-1");
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, Clave);
 
         resultado.EsExitoso.Should().BeTrue();
         conector.Llamadas.Should().Be(1);
@@ -244,7 +245,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         await using var lectura = CrearContexto(_tenantA);
         var uso = await lectura.UsosConexionPlataformaCae.SingleAsync();
         uso.Resultado.Should().Be(ResultadoUsoConector.Exito);
-        uso.ClaveIdempotencia.Should().Be("clave-1");
+        uso.ClaveIdempotencia.Should().Be(Clave);
         uso.FinalizadoEnUtc.Should().NotBeNull();
     }
 
@@ -255,7 +256,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         var ajeno = await SembrarTrabajadorAsync(_tenantB);
 
         await using var contexto = CrearContexto(_tenantA);
-        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, ajeno, "clave-1");
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, ajeno, Clave);
 
         resultado.EsExitoso.Should().BeFalse();
         conector.Llamadas.Should().Be(0);
@@ -274,7 +275,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
 
         await EjecutarComoPropietarioAsync("UPDATE \"ProveedoresPlataformaCae\" SET \"ConectorApiActivo\" = false WHERE \"Id\" = @id;", Proveedor);
 
-        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, "clave-1");
+        var resultado = await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, Clave);
 
         resultado.EsExitoso.Should().BeFalse();
         conector.Llamadas.Should().Be(0);
@@ -327,6 +328,55 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
 
         contexto.ChangeTracker.Entries().Should().NotContain(e => e.Entity == duplicada);
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Perder_la_carrera_contra_retirar_devuelve_conflicto_y_deshace_la_rotacion()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var repositorio = new ConexionPlataformaCaeRepository(contexto);
+        var credencial = await repositorio.ObtenerCredencialAsync(_conexionA);
+        credencial!.Rotar("rotado", DateTime.UtcNow);
+
+        await EjecutarComoPropietarioAsync("DELETE FROM \"CredencialesConexionPlataformaCae\" WHERE \"ConexionPlataformaCaeId\" = @id;", _conexionA);
+
+        (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
+
+        credencial.SecretoApi.Should().Be(Secreto);
+        contexto.Entry(credencial).State.Should().Be(EntityState.Unchanged);
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Los_cambios_pendientes_del_llamador_se_ven_y_la_puerta_no_se_los_lleva()
+    {
+        var conector = await HabilitarYCrearConectorAsync();
+        var trabajador = await SembrarTrabajadorAsync(_tenantA);
+
+        await using var contexto = CrearContexto(_tenantA);
+        contexto.ConexionesPlataformaCae.Add(new ConexionPlataformaCae(Proveedor, "Pendiente del llamador"));
+
+        (await CrearPuerta(contexto, _tenantA, conector).DarDeAltaTrabajadorAsync(_conexionA, trabajador, Clave)).EsExitoso.Should().BeFalse();
+
+        conector.Llamadas.Should().Be(0);
+        await using var lectura = CrearContexto(_tenantA);
+        (await lectura.ConexionesPlataformaCae.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_uso_descartado_no_sale_en_el_siguiente_guardado()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var repositorio = new ConexionPlataformaCaeRepository(contexto);
+        var uso = UsoConexionPlataformaCae.Iniciar(
+            _conexionA, OperacionConectorPlataformaCae.SubirDocumento, _usuario, Guid.NewGuid(), null, DateTime.UtcNow);
+        repositorio.RegistrarUso(uso);
+        repositorio.HayCambiosPendientes.Should().BeTrue("control: el uso estaba pendiente");
+
+        repositorio.DescartarUso(uso);
+
+        repositorio.HayCambiosPendientes.Should().BeFalse();
         (await contexto.SaveChangesAsync()).Should().Be(0);
     }
 
@@ -403,6 +453,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         new ProveedorPlataformaCaeRepository(contexto),
         [conector],
         new SinSesionPrivilegiada(),
+        new SinClienteSeleccionado(tenant),
         new TenantActualAmbiental { TenantId = tenant },
         new CurrentUserServiceFalso(_usuario, rol: "GestorCae", tenantOrigenId: tenant),
         new SinArchivos(),

@@ -21,6 +21,7 @@ namespace CaeManager.Application.Tests.Integraciones;
 public class OperacionesConectorPlataformaCaeTests
 {
     private const string Secreto = "secreto-de-api-que-no-debe-aparecer";
+    private const string Clave = "6f1d3c2a-7b4e-4f0a-9c55-2a1e8d3b7c10";
 
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly Guid _usuario = Guid.NewGuid();
@@ -40,6 +41,7 @@ public class OperacionesConectorPlataformaCaeTests
     private Guid? _tenantActual;
     private string? _rol = "GestorCae";
     private Guid? _usuarioActual;
+    private Guid? _sesionSeleccionada;
 
     public OperacionesConectorPlataformaCaeTests()
     {
@@ -68,7 +70,7 @@ public class OperacionesConectorPlataformaCaeTests
 
     private OperacionesConectorPlataformaCae Crear(params IConectorPlataformaCae[] conectores) => new(
         _conexiones, _proveedores, conectores.Length == 0 ? [_conector] : conectores,
-        new SesionFalsa(() => _sesionPrivilegiada), new TenantFalso(() => _tenantActual),
+        new SesionFalsa(() => _sesionPrivilegiada), new SeleccionFalsa(_tenant, _sesionSeleccionada), new TenantFalso(() => _tenantActual),
         new CurrentUserServiceFalso(_usuarioActual, _rol), _archivos, _unitOfWork, _logger);
 
     private Task<Result<EstadoDocumentoEnPlataforma>> LeerAsync() =>
@@ -102,19 +104,19 @@ public class OperacionesConectorPlataformaCaeTests
     [Fact]
     public async Task El_alta_de_Trabajador_pasa_sus_datos_y_la_clave_de_idempotencia()
     {
-        var resultado = await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, "clave-1");
+        var resultado = await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, Clave);
 
         resultado.EsExitoso.Should().BeTrue();
         var solicitud = _conector.UltimaSolicitud.Should().BeOfType<SolicitudAltaTrabajador>().Subject;
         solicitud.Dni.Should().Be("12345678Z");
-        solicitud.ClaveIdempotencia.Should().Be("clave-1");
+        solicitud.ClaveIdempotencia.Should().Be(Clave);
         _conexiones.Usos.Single().TrabajadorId.Should().Be(_trabajador);
     }
 
     [Fact]
     public async Task La_subida_entrega_el_contenido_del_archivo_de_la_Acreditacion()
     {
-        var resultado = await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, "clave-2");
+        var resultado = await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, Clave);
 
         resultado.EsExitoso.Should().BeTrue();
         _conector.UltimoContenido.Should().Equal(Encoding.UTF8.GetBytes("pdf"));
@@ -289,7 +291,7 @@ public class OperacionesConectorPlataformaCaeTests
         _conexiones.Trabajadores.Add(new TrabajadorParaConector(_trabajador, Guid.NewGuid(), "Ana", "Pérez", "12345678Z"));
 
         DebeDenegarSinLlamar(
-            await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, "clave"), MotivoUsoConector.ObjetoNoEncontrado);
+            await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, Clave), MotivoUsoConector.ObjetoNoEncontrado);
     }
 
     [Fact]
@@ -299,7 +301,7 @@ public class OperacionesConectorPlataformaCaeTests
         _conexiones.Trabajadores.Add(new TrabajadorParaConector(_trabajador, _tenant, "Ana", "Pérez", null));
 
         DebeDenegarSinLlamar(
-            await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, "clave"), MotivoUsoConector.DatosInsuficientes);
+            await Crear().DarDeAltaTrabajadorAsync(_conexion.Id, _trabajador, Clave), MotivoUsoConector.DatosInsuficientes);
     }
 
     [Fact]
@@ -309,7 +311,7 @@ public class OperacionesConectorPlataformaCaeTests
         _conexiones.Acreditaciones.Add(new AcreditacionParaConector(_acreditacion, _tenant, Guid.NewGuid(), _proveedor.Id, null));
 
         DebeDenegarSinLlamar(
-            await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, "clave"), MotivoUsoConector.DatosInsuficientes);
+            await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, Clave), MotivoUsoConector.DatosInsuficientes);
     }
 
     [Fact]
@@ -368,6 +370,31 @@ public class OperacionesConectorPlataformaCaeTests
         _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error);
     }
 
+    [Fact]
+    public async Task Con_cambios_pendientes_del_llamador_no_se_guarda_nada()
+    {
+        _conexiones.HayCambiosPendientes = true;
+
+        (await LeerAsync()).EsExitoso.Should().BeFalse();
+
+        _conector.Llamadas.Should().Be(0);
+        _unitOfWork.VecesGuardado.Should().Be(0, "una denegación se llevaría lo que el llamador cree no persistido");
+        _logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_ya_revocada_se_niega_sin_escribir()
+    {
+        // La revalidación devuelve null, pero la selección sigue y la conexión es de cae_app_soporte.
+        _sesionSeleccionada = Guid.NewGuid();
+        _rol = null;
+
+        (await LeerAsync()).EsExitoso.Should().BeFalse();
+
+        _conector.Llamadas.Should().Be(0);
+        _unitOfWork.VecesGuardado.Should().Be(0, "cae_app_soporte no tiene INSERT sobre el uso");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("Consulta")]
@@ -391,14 +418,16 @@ public class OperacionesConectorPlataformaCaeTests
     }
 
     [Fact]
-    public async Task Un_proceso_de_fondo_opera_dentro_de_su_ambito_explicito()
+    public async Task Sin_usuario_un_ambito_explicito_no_es_autoridad()
     {
+        // Un circuito con la sesión invalidada tampoco tiene usuario, y puede abrir un ámbito para un fan-out.
         _usuarioActual = null;
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
 
-        (await LeerAsync()).EsExitoso.Should().BeTrue();
+        (await LeerAsync()).EsExitoso.Should().BeFalse();
 
-        _conector.Llamadas.Should().Be(1);
+        _conector.Llamadas.Should().Be(0);
+        _conexiones.Usos.Should().ContainSingle().Which.Motivo.Should().Be(MotivoUsoConector.SinAutoridad);
     }
 
     [Fact]
@@ -433,21 +462,20 @@ public class OperacionesConectorPlataformaCaeTests
 
     [Theory]
     [InlineData("   ")]
-    [InlineData(null)]
-    public async Task Una_clave_de_idempotencia_invalida_se_deniega(string? clave)
+    [InlineData("12345678Z")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task Una_clave_de_idempotencia_que_no_es_un_Guid_se_deniega(string clave)
     {
-        var demasiadoLarga = new string('x', UsoConexionPlataformaCae.LongitudMaximaClaveIdempotencia + 1);
-
         DebeDenegarSinLlamar(
-            await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, clave ?? demasiadoLarga), MotivoUsoConector.DatosInsuficientes);
+            await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, clave), MotivoUsoConector.DatosInsuficientes);
     }
 
     [Fact]
     public async Task El_uso_conserva_la_clave_de_idempotencia_para_poder_reconciliarlo()
     {
-        await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, "clave-3");
+        await Crear().SubirDocumentoAsync(_conexion.Id, _acreditacion, Clave);
 
-        _conexiones.Usos.Single().ClaveIdempotencia.Should().Be("clave-3");
+        _conexiones.Usos.Single().ClaveIdempotencia.Should().Be(Clave);
     }
 
     [Fact]
@@ -500,6 +528,15 @@ public class OperacionesConectorPlataformaCaeTests
             Task.FromResult<SesionPrivilegiadaActiva?>(null);
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion());
+    }
+
+    private sealed class SeleccionFalsa(Guid tenant, Guid? sesion) : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => tenant;
+
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesion;
     }
 
     private sealed class TenantFalso(Func<Guid?> tenant) : ITenantActual
