@@ -37,7 +37,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Qué observa y qué no.</b> Llama al manejador (<see cref="DocumentosEndpoints.ServirArchivoAsync"/>)
 /// y ejecuta su <c>IResult</c> contra un <c>HttpContext</c>; no pasa por el routing ni por la
-/// autorización (<c>Policies.SesionOExtension</c>), que este cambio no toca. El almacén es un doble que
+/// autorización (solo cookie de sesión). El almacén es un doble que
 /// lanza lo mismo que <c>DiskFileStorageService.AbrirAsync</c> cuando el fichero falta: que el almacén
 /// real lo lance así no lo prueba este test, lo dice su código.
 /// </para>

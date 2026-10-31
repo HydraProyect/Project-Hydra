@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     /// <summary>
-    /// Soporte TALVEG no lee credenciales (OWASP ASVS 4.0.3 V1.4.3, mínimo privilegio, y V2.10.4, secretos
+    /// Soporte TALVEG no lee credenciales (OWASP ASVS 4.0.3 V4.1.3, mínimo privilegio, y V2.10.4, secretos
     /// fuera del alcance de quien no los usa). La línea base concedía a <c>cae_app_soporte</c> —el rol que
     /// <c>TenantRlsConnectionInterceptor</c> adopta en cuanto hay una Sesión Privilegiada seleccionada—
     /// <c>SELECT</c> sobre la tabla entera de tres almacenes de secretos:

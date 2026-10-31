@@ -278,7 +278,38 @@ function hostDeUnaUrl(url) {
   }
 }
 
-// Ritmo humano (MVP2 § 14.5): esta función descarga UN documento e inyecta
+// El archivo de UNA Acreditación pendiente, en dos pasos: el servidor comprueba
+// cartera, estado, kill switch y portal antes de emitir un ticket de un minuto, y
+// vuelve a comprobarlos al servir el contenido. Las comprobaciones de subirDocumento
+// son para explicar el motivo a la persona, no la autoridad.
+async function recogerArchivo(acreditacionId, dominioPortal) {
+  const entrega = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/entrega`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dominioPortal }),
+  });
+  if (!entrega.ok) return entrega;
+  if (!entrega.respuesta.ok) return falloDeEntrega(entrega.respuesta);
+
+  const { ticket } = await entrega.respuesta.json();
+  const archivo = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/archivo`, {
+    cache: "no-store",
+    headers: { "X-Ticket-Entrega": ticket },
+  });
+  if (!archivo.ok) return archivo;
+  if (!archivo.respuesta.ok) return falloDeEntrega(archivo.respuesta);
+
+  return { ok: true, base64: arrayBufferABase64(await archivo.respuesta.arrayBuffer()) };
+}
+
+async function falloDeEntrega(respuesta) {
+  if (respuesta.status === 429)
+    return { ok: false, error: "Has pedido muchos documentos seguidos. Espera un minuto e inténtalo de nuevo." };
+  const detalle = await leerDetalleDelProblema(respuesta);
+  return { ok: false, error: detalle ?? `No pudimos recoger el PDF de TALVEG (${respuesta.status}).` };
+}
+
+// Ritmo humano (MVP2 § 14.5): esta función recoge UN documento e inyecta
 // UN archivo por invocación — nunca un bucle sobre varios. Hay DOS formas de
 // llamarla, y las dos nacen del clic real del Gestor CAE sobre un documento
 // concreto: el botón "Subir" del popup (ver el comentario gemelo en popup.js,
@@ -290,20 +321,14 @@ function hostDeUnaUrl(url) {
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
 async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, proveedorElegidoId }, pestanaQueLoPidio, urlDelRemitente) {
-  // El host de la pestaña se lee antes de descargar nada: sin él no hay forma de
-  // saber de qué portal se trata y todo lo demás sería trabajo perdido.
+  // El host de la pestaña se lee antes de pedir nada: sin él no hay forma de saber
+  // de qué portal se trata y el servidor no entregaría el archivo.
   const idPestanaDestino =
     pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
   if (!idPestanaDestino) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
   const dominioPortal = await hostDeLaPestana(idPestanaDestino, urlDelRemitente);
   if (!dominioPortal)
     return { ok: false, error: "No pudimos saber en qué portal está esta pestaña, así que no se pone el documento." };
-
-  const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
-  if (!descarga.ok) return descarga;
-  if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de TALVEG (${descarga.respuesta.status}).` };
-
-  const base64 = arrayBufferABase64(await descarga.respuesta.arrayBuffer());
 
   // Cuando la petición nace del panel del content script, el archivo va a ESA
   // pestaña, no a la que esté activa cuando termine la descarga. El PDF tarda,
@@ -314,10 +339,11 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
   // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
   // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
   // el popup está abierto.
-  // (La pestaña y su host se fijaron arriba, antes de descargar.)
+  // (La pestaña y su host se fijaron arriba, antes de recoger el archivo.)
   const idPestana = idPestanaDestino;
 
-  // Revalidar después de descargar y antes de entregar nada al formulario.
+  // La lista que vio la persona pudo quedar obsoleta: se relee antes de pedir el
+  // archivo, para no sacarlo de TALVEG si no va a entrar en este formulario.
   const pendientes = await listarPendientes();
   if (!pendientes.ok) return pendientes;
   const proveedores = Array.isArray(pendientes.proveedores) ? pendientes.proveedores : [];
@@ -330,8 +356,9 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
     return { ok: false, error: "Esta acreditaci\u00f3n ya no se puede subir. Actualiza la lista en TALVEG; si fue rechazada, renueva el documento." };
 
   // Un documento solo entra en el portal de SU Plataforma CAE. El panel ya no
-  // ofrece los de otras, pero el popup lista todo, así que la comprobación que
-  // cierra de verdad la puerta está aquí, antes de entregar nada al formulario.
+  // ofrece los de otras, pero el popup lista todo. El servidor exige lo mismo al
+  // entregar el archivo; aquí se resuelve además el portal compartido entre dos
+  // Proveedores, que solo la persona puede aclarar.
   // Sin dominios en la respuesta no hay forma de saberlo: no se sube.
   const portal = resolverPortal(dueno, dominioPortal);
   if (!portal.esDeEstePortal)
@@ -345,17 +372,20 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
       error: `Este portal puede ser de ${portal.empate.map((o) => o.nombre).join(" o ")}. Ábrelo desde el panel de la página y elige cuál es antes de poner el documento.`,
     };
 
+  const archivo = await recogerArchivo(acreditacionId, dominioPortal);
+  if (!archivo.ok) return archivo;
+
   let respuestaContenido;
   try {
     // La pestaña pudo navegar a otro portal entre la lectura del host (antes de
-    // descargar) y ahora. Por eso se envía `hostEsperado`: el content script lo
+    // recoger el archivo) y ahora. Por eso se envía `hostEsperado`: el content script lo
     // compara con SU host en el instante de inyectar y se niega si ya no coincide.
     // Releer la URL desde aquí no valdría (chrome.tabs.get no da la URL sin el
     // permiso «tabs») y dejaría igualmente una ventana entre la lectura y el mensaje.
     respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
       accion: "inyectarArchivo",
       hostEsperado: dominioPortal,
-      base64,
+      base64: archivo.base64,
       nombreArchivo: nombreArchivo || "documento.pdf",
       tipoMime: "application/pdf",
     });

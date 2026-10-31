@@ -47,7 +47,14 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["/comunicaciones/adjuntos/{id:guid}/archivo"] = PruebaDeDescargas,
         ["/requisitos-documentales/{id:guid}/archivo"] = PruebaDeDescargas,
         ["/empresas/{id:guid}/sello/archivo"] = PruebaDeDescargas,
+        ["/extension/acreditaciones/{id:guid}/archivo"] = PruebaDeDescargas,
         ["/tenants/{id:guid}/logo"] = PruebaDelLogo,
+    };
+
+    /// <summary>Ruta con Id en un fichero que sirve binarios, pero que no sirve ninguno → dónde se prueba entre Tenants.</summary>
+    private static readonly Dictionary<string, string> RutasPorIdSinBinario = new()
+    {
+        ["/extension/acreditaciones/{id:guid}/entrega"] = "emite el ticket: DescargasConIdDeOtroTenantBajoRuntimeTests.Preparar_la_entrega_*",
     };
 
     /// <summary>
@@ -65,6 +72,7 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["src/CaeManager.Web/Features/Centros/RequisitosDocumentalesEndpoints.cs"] = (1, "por Id: plantilla del requisito del Centro"),
         ["src/CaeManager.Web/Features/Documentos/FirmasGuardadasEndpoints.cs"] = (2, "por Id: sello de la Empresa; /mi-firma/archivo es la del usuario actual, sin Id"),
         ["src/CaeManager.Web/Features/Tenants/LogoTenantEndpoints.cs"] = (1, "por Id: logo del Tenant"),
+        ["src/CaeManager.Web/Features/Extension/EntregaArchivoExtensionEndpoints.cs"] = (1, "por Id: archivo de una Acreditación pendiente, con ticket"),
         ["src/CaeManager.Web/Features/Asignaciones/AsignacionesEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Centros/CentrosEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Clientes/ClientesEndpoints.cs"] = (3, "sin Id: exportación y dos plantillas"),
@@ -103,12 +111,29 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
             .ToHashSet();
 
         rutas.Should().Contain("/documentos/{id:guid}/archivo", "control positivo: el patrón de ruta lee los literales");
+        rutas.ExceptWith(RutasPorIdSinBinario.Keys);
         rutas.Should().BeSubsetOf(RutasPorId.Keys,
             "una ruta con parámetro en un fichero que sirve binarios recibe el Id de un recurso: necesita su "
             + "prueba con el Id de otro Tenant");
         RutasPorId.Keys.Should().BeSubsetOf(rutas,
             "cada ruta catalogada existe en el código, en un fichero que sirve binarios: una ruta renombrada o "
             + "retirada se corrige aquí y en su prueba, para que el catálogo no recorra rutas que ya no existen");
+    }
+
+    /// <summary>
+    /// El token de extensión vale ocho horas: si entrase aquí, sacaría cualquier Documento visible sin ticket, sin cupo
+    /// y sin Acreditación pendiente. Su única vía es <c>/extension/acreditaciones/{id}/archivo</c>.
+    /// </summary>
+    [Fact]
+    public void El_archivo_de_un_Documento_solo_admite_la_cookie_de_sesion()
+    {
+        var fuente = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src/CaeManager.Web/Features/Documentos/DocumentosEndpoints.cs"));
+
+        var mapeo = Regex.Match(fuente, @"""/documentos/\{id:guid\}/archivo""[^;]*;");
+
+        mapeo.Success.Should().BeTrue("control positivo: el mapeo de la ruta se encuentra");
+        mapeo.Value.Should().Contain("AuthenticationSchemes = IdentityConstants.ApplicationScheme");
+        mapeo.Value.Should().NotContain("Policies.");
     }
 
     [Fact]
