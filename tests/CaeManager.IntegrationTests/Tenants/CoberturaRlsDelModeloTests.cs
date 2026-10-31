@@ -96,6 +96,25 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// </summary>
     private const string PoliticaAislamiento = "aislamiento_tenant";
 
+    [Fact]
+    public async Task Las_reclamaciones_de_buzon_aislan_por_Tenant_propietario()
+    {
+        var estado = await LeerEstadoRlsAsync(["ReclamacionesBuzonIntegracion"]);
+        var tabla = estado["ReclamacionesBuzonIntegracion"];
+        tabla.Habilitado.Should().BeTrue();
+        tabla.Forzado.Should().BeTrue();
+        tabla.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo([PoliticaAislamiento]);
+        var politica = tabla.Politicas.Single(p => p.Nombre == PoliticaAislamiento);
+        politica.Permisiva.Should().BeTrue();
+        politica.Comando.Should().Be('*');
+        foreach (var expresion in new[] { politica.Using, politica.WithCheck })
+        {
+            expresion.Should().NotBeNull();
+            expresion!.Should().Contain("TenantPropietarioId").And.Contain("app_ctx_tenant_id()").And.NotContain("current_setting(");
+            InspeccionTextoPoliticaRls.TieneDisyuncion(expresion).Should().BeFalse();
+        }
+    }
+
     /// <summary>
     /// Entidades con <c>TenantId</c> cuya tabla NO debe llevar RLS.
     ///
