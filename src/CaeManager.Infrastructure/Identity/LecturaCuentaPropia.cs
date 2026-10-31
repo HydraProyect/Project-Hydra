@@ -12,12 +12,19 @@ namespace CaeManager.Infrastructure.Identity;
 public sealed record EstadoCuentaPropia(bool DebeCambiarContrasena, bool DobleFactorActivo, IReadOnlyList<string> Roles);
 
 /// <summary>
-/// Lee <see cref="EstadoCuentaPropia"/> proyectando columnas, sin materializar <see cref="ApplicationUser"/>: en una
-/// Sesión Privilegiada la conexión lleva <c>cae_app_soporte</c>, y una cuenta completa arrastraría también
-/// <c>PasswordHash</c> y <c>SecurityStamp</c>. Es solo lectura: el resultado no se guarda ni autoriza nada por sí mismo.
+/// Lee <see cref="EstadoCuentaPropia"/> y el rol de origen proyectando columnas, sin materializar
+/// <see cref="ApplicationUser"/>: en una Sesión Privilegiada la conexión lleva <c>cae_app_soporte</c>, y una cuenta
+/// completa arrastraría también <c>PasswordHash</c> y <c>SecurityStamp</c>. Es solo lectura: el resultado no se guarda
+/// ni autoriza nada por sí mismo.
 /// </summary>
 public interface ILecturaCuentaPropia
 {
+    /// <summary>
+    /// El rol de la cuenta, o <c>null</c> si no tiene ninguno o esta conexión no la ve. Hay uno por usuario
+    /// (<c>Usuarios.razor</c>); el orden solo hace determinista un estado que no debería existir.
+    /// </summary>
+    Task<string?> LeerRolAsync(Guid usuarioId, CancellationToken ct = default);
+
     /// <summary>El estado de la cuenta, o <c>null</c> si esta conexión no la ve.</summary>
     Task<EstadoCuentaPropia?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default);
 }
@@ -28,6 +35,16 @@ public interface ILecturaCuentaPropia
 /// </summary>
 public sealed class LecturaCuentaPropia(CaeManagerDbContext db) : ILecturaCuentaPropia
 {
+    public async Task<string?> LeerRolAsync(Guid usuarioId, CancellationToken ct = default)
+    {
+        var roles = await (from cuenta in db.Users.AsNoTracking()
+                           where cuenta.Id == usuarioId
+                           join asignacion in db.UserRoles on cuenta.Id equals asignacion.UserId
+                           join rol in db.Roles on asignacion.RoleId equals rol.Id
+                           select rol.Name).ToListAsync(ct);
+        return roles.OfType<string>().Order(StringComparer.Ordinal).FirstOrDefault();
+    }
+
     public async Task<EstadoCuentaPropia?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default)
     {
         var cuenta = await db.Users.AsNoTracking()

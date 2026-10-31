@@ -279,11 +279,7 @@ public class CurrentUserService(
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return null;
 
-        var cuenta = await serviceProvider.GetRequiredService<ILecturaCuentaPropia>().ObtenerAsync(usuarioId.Value);
-
-        // Uno por usuario (Usuarios.razor); el orden solo hace determinista
-        // un estado que no debería existir.
-        return cuenta?.Roles.Order(StringComparer.Ordinal).FirstOrDefault();
+        return await serviceProvider.GetRequiredService<ILecturaCuentaPropia>().LeerRolAsync(usuarioId.Value);
     }
 
     /// <summary>
