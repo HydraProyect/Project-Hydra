@@ -20,14 +20,16 @@ public class PlantillaDocumentoVersionConfiguration : IEntityTypeConfiguration<P
         // criterio que ContactoAgenda con su propietario polimórfico.
         builder.HasOne<PlantillaDocumento>()
             .WithMany()
-            .HasForeignKey(v => v.PlantillaDocumentoId)
+            .HasForeignKey(v => new { v.TenantId, v.PlantillaDocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(v => new { v.TenantId, v.PlantillaDocumentoId, v.NumeroVersion }).IsUnique();
 
         builder.HasMany(v => v.Elementos)
             .WithOne()
-            .HasForeignKey(e => e.PlantillaDocumentoVersionId)
+            .HasForeignKey(e => new { e.TenantId, e.PlantillaDocumentoVersionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(v => v.Elementos).UsePropertyAccessMode(PropertyAccessMode.Field);
 

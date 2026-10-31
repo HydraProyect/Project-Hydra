@@ -504,19 +504,17 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
                 case EntityState.Modified when (Guid)entrada.Property(nameof(EntidadConTenant.TenantId)).OriginalValue! == Guid.Empty:
                     // Entidad NUEVA que el fixup de DetectChanges clasificó
                     // como Modified: las entidades hijas de un agregado
-                    // cargado (p. ej. el segundo Mensaje de un hilo ya
-                    // existente, vía Conversacion.AgregarMensaje) las
-                    // descubre EF por la navegación, no por un Add explícito,
-                    // y como Entity asigna el Guid en el constructor la clave
-                    // "ya está puesta" y EF asume que la fila existe. Un
-                    // TenantId ORIGINAL vacío no puede venir de la base de
-                    // datos (columna NOT NULL, sellada en el insert), así que
-                    // es la firma inequívoca de este caso — se reclasifica
-                    // como inserción y se sella. Sin esto, el segundo mensaje
-                    // de cualquier conversación cargada moría aquí con "otro
-                    // tenant" (detectado verificando WhatsApp end-to-end,
-                    // 2026-08-04; afectaba igual a la ingesta de correo M365 —
-                    // ver AgregarMensajeAConversacionCargadaTests). Una fila
+                    // cargado (p. ej. un rol nuevo de un ContactoAgenda ya
+                    // existente) las descubre EF por la navegación, no por
+                    // un Add explícito, y como Entity asigna el Guid en el
+                    // constructor la clave "ya está puesta" y EF asume que
+                    // la fila existe. Un TenantId ORIGINAL vacío no puede
+                    // venir de la base de datos (columna NOT NULL, sellada
+                    // en el insert), así que es la firma inequívoca de este
+                    // caso — se reclasifica como inserción y se sella.
+                    // Mensaje no pasa por aquí: declara su Id
+                    // ValueGeneratedNever y EF ya lo clasifica como Added
+                    // (ver MensajeConfiguration). Una fila
                     // REAL de otro tenant nunca entra por esta rama: su
                     // original viene de BD y no está vacío, y sigue cayendo
                     // al rechazo de abajo.

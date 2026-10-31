@@ -64,7 +64,8 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
 
         builder.HasMany(t => t.Aliases)
             .WithOne()
-            .HasForeignKey(a => a.TipoDocumentoId)
+            .HasForeignKey(a => new { a.TenantId, a.TipoDocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(t => t.Aliases).UsePropertyAccessMode(PropertyAccessMode.Field);
 

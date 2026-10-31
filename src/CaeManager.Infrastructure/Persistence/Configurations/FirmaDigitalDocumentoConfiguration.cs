@@ -19,7 +19,10 @@ public class FirmaDigitalDocumentoConfiguration : IEntityTypeConfiguration<Firma
         builder.Property(f => f.FirmanteNif).HasMaxLength(FirmaDigitalDocumento.LongitudMaximaNif);
         builder.Property(f => f.MotivoInvalidez).HasMaxLength(FirmaDigitalDocumento.LongitudMaximaMotivo);
 
-        builder.HasOne<Documento>().WithMany().HasForeignKey(f => f.DocumentoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Documento>().WithMany()
+            .HasForeignKey(f => new { f.TenantId, f.DocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
         // El acceso es siempre "las firmas de este documento" (detalle del
         // Documento y delete-and-recreate al renovar).

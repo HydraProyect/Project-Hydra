@@ -64,36 +64,32 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // pública (que no expone Add). Mismo patrón estándar de EF Core para
         // agregados DDD con colecciones encapsuladas.
         //
-        // FK de EF de una sola columna, NO compuesta con TenantId: al ser
-        // una navegación de colección real (HasMany, a diferencia del
-        // HasOne<T>().WithMany() sin navegación que usa
-        // AsignacionConfiguration/DocumentoConfiguration), componer TenantId
-        // aquí como relación de EF Core chocaba con el fixup del
-        // ChangeTracker antes de que TenantSelladoInterceptor sellara el
-        // tenant real (auditoría Módulo 8, intentado y revertido
-        // 2026-08-30). La defensa en profundidad real vive fuera de este
-        // fichero: la migración FkCompuestaTenantComunicaciones añade en SQL
-        // crudo la FK compuesta (ConversacionId, TenantId) → Conversaciones
-        // (Id, TenantId) para Mensajes y ParticipantesConversacion —
-        // deliberadamente invisible al modelo Fluent para no volver a
-        // disparar el mismo fixup.
+        // FK compuesta con TenantId también en las navegaciones de colección: el
+        // fixup del ChangeTracker copia el TenantId del padre al hijo nuevo y
+        // TenantSelladoInterceptor lo confirma con el Tenant de sesión, así que
+        // colgar un hijo de un padre de otro Tenant falla con 23503 en la base.
+        // La condición para que el fixup no choque con el sellado está en
+        // MensajeConfiguration: un hijo descubierto por navegación que además
+        // es principal de otra FK compuesta declara su Id ValueGeneratedNever.
         builder.HasMany(c => c.Mensajes)
             .WithOne()
-            .HasForeignKey(m => m.ConversacionId)
+            .HasForeignKey(m => new { m.TenantId, m.ConversacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Mensajes).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasMany(c => c.Participantes)
             .WithOne()
-            .HasForeignKey(p => p.ConversacionId)
+            .HasForeignKey(p => new { p.TenantId, p.ConversacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Participantes).UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        // Historial de cambios de estado (hueco 2 de Comunicaciones): mismo patrón que Mensajes/Participantes, FK de EF
-        // de una sola columna por el mismo motivo (ver arriba). La migración añade el aislamiento por Tenant de la tabla.
+        // Historial de cambios de estado (hueco 2 de Comunicaciones): mismo patrón que Mensajes/Participantes.
         builder.HasMany(c => c.CambiosEstado)
             .WithOne()
-            .HasForeignKey(x => x.ConversacionId)
+            .HasForeignKey(x => new { x.TenantId, x.ConversacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.CambiosEstado).UsePropertyAccessMode(PropertyAccessMode.Field);
 

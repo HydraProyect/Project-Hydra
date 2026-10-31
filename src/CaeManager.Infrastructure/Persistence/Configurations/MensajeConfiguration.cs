@@ -11,6 +11,17 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.ToTable("Mensajes");
         builder.HasKey(m => m.Id);
 
+        // El Id lo asigna el constructor de Entity, no la base, y aquí hay que
+        // declararlo: Mensaje se descubre por la navegación Conversacion.Mensajes
+        // y a la vez es principal de FKs compuestas con TenantId (AdjuntoMensaje,
+        // AlertaCriticaConversacion, IntencionConversacion). Con el valor generado
+        // por defecto, EF clasifica como Modified el mensaje nuevo de un hilo
+        // cargado, el fixup le copia el TenantId del hilo y DetectChanges lanza
+        // «is part of a key» antes de que TenantSelladoInterceptor lo reclasifique.
+        // Con ValueGeneratedNever entra como Added. Lo vigila
+        // ClavesForaneasCompuestasConTenantTests.
+        builder.Property(m => m.Id).ValueGeneratedNever();
+
         builder.Property(m => m.Remitente).IsRequired().HasMaxLength(320);
         // Sin HasMaxLength a propósito, a diferencia de los demás campos
         // acotados de esta entidad: forzar aquí un varchar(N) generaría una
@@ -31,11 +42,7 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         // a diferencia de Conversaciones.HiloExternoId (ConversacionConfiguration).
         // Motivo doble:
         // 1) Mensaje no tiene FK directa a ConexionIntegracion (cuelga de
-        //    Conversacion) y su FK a Conversacion es deliberadamente NO
-        //    compuesta con TenantId (ver el comentario de
-        //    ConversacionConfiguration.HasMany(c => c.Mensajes) — componerla
-        //    rompe TenantSelladoInterceptor, reproducido y revertido en la
-        //    auditoría Módulo 8). Añadir ConexionIntegracionId aquí exigiría
+        //    Conversacion). Añadir ConexionIntegracionId aquí exigiría
         //    denormalizar una columna nueva solo para este índice.
         // 2) A diferencia de HiloExternoId (conversationId, que Microsoft
         //    documenta como COMPARTIDO a propósito entre los buzones
@@ -53,16 +60,11 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.HasIndex(m => new { m.TenantId, m.MensajeExternoId }).IsUnique();
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que Conversacion.Mensajes/Participantes. FK de EF de una
-        // sola columna, no compuesta con TenantId — ver el comentario de
-        // ConversacionConfiguration sobre por qué (navegación de colección
-        // real + TenantSelladoInterceptor, auditoría Módulo 8). La FK
-        // compuesta (MensajeId, TenantId) → Mensajes (Id, TenantId) para
-        // AdjuntosMensaje vive en SQL crudo en la migración
-        // FkCompuestaTenantComunicaciones, fuera de este modelo Fluent.
+        // patrón que Conversacion.Mensajes/Participantes, con FK compuesta.
         builder.HasMany(m => m.Adjuntos)
             .WithOne()
-            .HasForeignKey(a => a.MensajeId)
+            .HasForeignKey(a => new { a.TenantId, a.MensajeId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(m => m.Adjuntos).UsePropertyAccessMode(PropertyAccessMode.Field);
 
