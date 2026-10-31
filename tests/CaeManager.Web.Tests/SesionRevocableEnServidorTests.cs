@@ -67,10 +67,10 @@ public class SesionRevocableEnServidorTests
         var (gestor, _, sesiones, cuenta) = Montar();
         var protector = new EphemeralDataProtectionProvider();
         var sid = Guid.NewGuid();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, gestor.UserManager, protector, sesiones)).EsFallido.Should().BeTrue();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones)).EsExitoso.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsExitoso.Should().BeTrue();
         await sesiones.RevocarAsync(cuenta.Id, sid);
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
     }
 
     [Fact]

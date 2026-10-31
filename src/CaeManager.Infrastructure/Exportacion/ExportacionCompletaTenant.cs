@@ -15,7 +15,7 @@ namespace CaeManager.Infrastructure.Exportacion;
 
 /// <summary>
 /// Exportación completa de los datos de UN Tenant propietario (devolución de datos al terminar el
-/// contrato, Términos y condiciones): un zip con un JSON por tipo de entidad del Tenant, sus
+/// contrato, Términos y condiciones): un zip cifrado con un JSON por tipo de entidad del Tenant, sus
 /// Usuarios sin secretos de Identity, los binarios de sus Documentos descifrados con el mismo
 /// almacén que usa la descarga y el manifiesto de <see cref="ArchivoExportacion"/>.
 ///
@@ -30,11 +30,22 @@ namespace CaeManager.Infrastructure.Exportacion;
 ///
 /// <para>
 /// <b>Autorización.</b> Solo se alcanza desde el modo de CLI <see cref="Argumento"/> (acceso
-/// operativo al servidor), y exige además nombrar a la cuenta que la pide, que tiene que ser un
-/// Administrador activo del propio Tenant propietario; quien ejecuta la CLI no está autenticado en
-/// la aplicación, así que ese solicitante consta como declarado y el actor como Desconocido. La
-/// exportación queda en la auditoría del Tenant antes de leer nada (si esa fila no se guarda, no
-/// se exporta nada) y otra vez al terminar, con los recuentos.
+/// operativo al servidor), y exige además nombrar a un Actor de Plataforma TALVEG: una cuenta activa
+/// de un Tenant de plataforma con una concesión AdminPlataforma vigente que alcance el Tenant
+/// propietario (ASVS 4.0.3 V4.1.3). Lo comprueba la función <c>app_actor_plataforma_que_exporta</c>,
+/// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS. Quien ejecuta la CLI no se
+/// autentica en la aplicación, así que el Actor real consta como declarado en los datos de la fila.
+/// No hay Usuario simulado. Va en los datos y no en las columnas de autor, porque esas columnas
+/// afirman una identidad autenticada y abren la cuenta a la lectura bajo RLS del Tenant propietario
+/// (<c>cuentas_lectura</c>). La exportación queda en la auditoría del Tenant antes de leer nada (si
+/// esa fila no se guarda, no se exporta nada) y otra vez al terminar, con los recuentos.
+/// </para>
+///
+/// <para>
+/// <b>Contraseña.</b> Aleatoria por exportación, la genera la CLI y se muestra una sola vez en la
+/// consola. Nunca entra en la auditoría, ni en el manifiesto, ni en <see cref="Resultado"/>, ni en
+/// un registro (ASVS 4.0.3 V7.1.1), y nunca se acepta como argumento, que dejaría rastro en el
+/// historial. Se pasa al Tenant propietario por un canal distinto del enlace de descarga.
 /// </para>
 ///
 /// <para>
@@ -94,7 +105,7 @@ public static class ExportacionCompletaTenant
         typeof(ExportacionCompletaTenant).GetMethod(nameof(LeerConjunto), BindingFlags.NonPublic | BindingFlags.Static)!;
 
     public const string Uso =
-        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Administrador del Tenant> --destino <ruta.zip>.";
+        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Actor de Plataforma TALVEG con AdminPlataforma> --destino <ruta.zip>.";
 
     public sealed record Resultado(Guid TenantId, string NombreTenant, IReadOnlyDictionary<string, long> Recuentos, int DocumentosSinFichero);
 
@@ -106,6 +117,16 @@ public static class ExportacionCompletaTenant
             salida.WriteLine($"  {entidad}: {filas}");
         if (resultado.DocumentosSinFichero > 0)
             salida.WriteLine($"  Documentos sin fichero en el almacén: {resultado.DocumentosSinFichero} (en el manifiesto).");
+    }
+
+    /// <summary>
+    /// La única salida de la contraseña: va a la consola de quien ejecuta, nunca al registro. Solo se
+    /// llama con el zip ya completo.
+    /// </summary>
+    public static void InformarContrasena(string contrasena, TextWriter salida)
+    {
+        salida.WriteLine($"Contraseña del zip, se muestra solo esta vez: {contrasena}");
+        salida.WriteLine("Pásala al Tenant propietario por un canal distinto del enlace de descarga.");
     }
 
     /// <summary>Solo el tipo y el mensaje: la traza y los datos de la excepción no se imprimen.</summary>
@@ -135,7 +156,7 @@ public static class ExportacionCompletaTenant
 
     public static async Task<Resultado> ExportarAsync(
         CaeManagerDbContext contexto, IFileStorageService almacen, Guid tenantId, string correoSolicitante,
-        Stream destino, CancellationToken cancellationToken = default)
+        string contrasena, Stream destino, CancellationToken cancellationToken = default)
     {
         if (tenantId == Guid.Empty)
             throw new InvalidOperationException("El TenantId del Tenant propietario es obligatorio.");
@@ -154,21 +175,22 @@ public static class ExportacionCompletaTenant
         if (tenant.EsPlataforma)
             throw new InvalidOperationException("El Tenant de plataforma TALVEG no es un Tenant propietario exportable.");
 
-        var solicitanteId = await ExigirAdministradorActivoAsync(contexto, tenantId, correoSolicitante, cancellationToken);
+        var actorId = await ExigirActorDePlataformaAsync(contexto, tenantId, correoSolicitante, cancellationToken);
 
-        // Quien ejecuta la CLI no está autenticado en la aplicación: el actor queda Desconocido y el
-        // solicitante, como declarado. Esta fila se guarda antes de leer nada; la de cierre, al terminar.
+        // Quien ejecuta la CLI no se autentica en la aplicación: el Actor real consta como declarado.
+        // Esta fila se guarda antes de leer nada; la de cierre, al terminar.
         await AuditarAsync(contexto, tenantId, new
         {
             fase = "Iniciada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            solicitanteDeclaradoUsuarioId = solicitanteId,
+            actorRealDeclaradoUsuarioId = actorId,
+            usuarioSimuladoId = (Guid?)null,
         }, cancellationToken);
 
         var recuentos = new SortedDictionary<string, long>(StringComparer.Ordinal);
         int sinFichero;
-        using (var archivo = new ArchivoExportacion(destino, tenantId))
+        using (var archivo = new ArchivoExportacion(destino, tenantId, contrasena))
         {
             // Una sola foto de la base para todas las tablas: sin ella, una fila creada o borrada a mitad
             // dejaría claves foráneas que apuntan fuera del zip.
@@ -217,7 +239,8 @@ public static class ExportacionCompletaTenant
             fase = "Completada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            solicitanteDeclaradoUsuarioId = solicitanteId,
+            actorRealDeclaradoUsuarioId = actorId,
+            usuarioSimuladoId = (Guid?)null,
             recuentos,
             documentosSinFichero = sinFichero,
         }, cancellationToken);
@@ -225,39 +248,36 @@ public static class ExportacionCompletaTenant
         return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
     }
 
+    /// <summary>
+    /// Sin autor en las columnas: el Actor es declarado, no autenticado. El tipo de actor queda
+    /// Desconocido, y la vía también, porque Normal diría que actuó el propio Tenant.
+    /// </summary>
     private static async Task AuditarAsync(CaeManagerDbContext contexto, Guid tenantId, object datos, CancellationToken cancellationToken)
     {
         contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
             "Tenant", tenantId, RegistroAuditoria.AccionExportacion, null, JsonSerializer.Serialize(datos),
-            usuarioId: null, TipoActorAuditoria.Desconocido));
+            usuarioId: null, TipoActorAuditoria.Desconocido, viaAcceso: TipoViaAccesoAuditoria.Desconocida));
         await contexto.SaveChangesAsync(cancellationToken);
         contexto.ChangeTracker.Clear();
     }
 
     /// <summary>
-    /// La cuenta que pide la exportación: del propio Tenant propietario (no de un Operador CAE ni de
-    /// TALVEG), con rol Administrador y no desactivada. Se lee ya bajo el ámbito del Tenant.
+    /// El Actor de Plataforma TALVEG que pide la exportación. La función de la base devuelve la cuenta
+    /// solo si es de un Tenant de plataforma, no está desactivada y tiene una concesión AdminPlataforma
+    /// vigente que alcanza este Tenant.
     /// </summary>
-    private static async Task<Guid> ExigirAdministradorActivoAsync(
+    private static async Task<Guid> ExigirActorDePlataformaAsync(
         CaeManagerDbContext contexto, Guid tenantId, string correo, CancellationToken cancellationToken)
     {
         var normalizado = correo.Trim().ToUpperInvariant();
-        var cuenta = await contexto.Users.AsNoTracking()
-            .Where(u => u.TenantId == tenantId && u.NormalizedEmail == normalizado)
-            .SingleOrDefaultAsync(cancellationToken);
+        var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);
 
-        var esAdministrador = cuenta is not null && await (
-            from ur in contexto.UserRoles.AsNoTracking()
-            join r in contexto.Roles.AsNoTracking() on ur.RoleId equals r.Id
-            where ur.UserId == cuenta.Id && r.Name == Roles.Administrador
-            select ur.UserId).AnyAsync(cancellationToken);
-
-        if (cuenta is null || !esAdministrador || cuenta.EstaDesactivada(DateTimeOffset.UtcNow))
+        if (cuentas is not [var cuentaId])
             throw new InvalidOperationException(
-                "La exportación solo la puede pedir un Administrador activo del propio Tenant propietario; " +
-                "esa cuenta no existe en el Tenant, no es Administrador o está desactivada.");
+                "La exportación solo la puede pedir un Actor de Plataforma TALVEG activo con concesión AdminPlataforma " +
+                "vigente sobre ese Tenant; esa cuenta no existe en la plataforma, no tiene la concesión o está desactivada.");
 
-        return cuenta.Id;
+        return cuentaId;
     }
 
     private static async Task<long> EscribirUsuariosAsync(

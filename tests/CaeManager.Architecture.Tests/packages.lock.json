@@ -1106,6 +1106,11 @@
           "Serilog.Sinks.File": "7.0.0"
         }
       },
+      "SharpZipLib": {
+        "type": "Transitive",
+        "resolved": "1.4.2",
+        "contentHash": "yjj+3zgz8zgXpiiC3ZdF/iyTBbz2fFvMxZFEBPUcwZjIvXOf37Ylm+K58hqMfIBt5JgU/Z2uoUS67JmTLe973A=="
+      },
       "SixLabors.Fonts": {
         "type": "Transitive",
         "resolved": "1.0.0",
@@ -1253,7 +1258,8 @@
           "MediatR": "[12.5.0, )",
           "MediatR.Contracts": "[2.0.1, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )",
+          "SharpZipLib": "[1.4.2, )"
         }
       },
       "caemanager.domain": {
