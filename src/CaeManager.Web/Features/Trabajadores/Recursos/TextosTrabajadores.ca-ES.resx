@@ -890,4 +890,7 @@
   <data name="PlataformasSoloIncidencias" xml:space="preserve"><value>Només incidències · {0}</value></data>
   <data name="PlataformasTodo" xml:space="preserve"><value>Tot · {0}</value></data>
   <data name="CabeceraExtranjeroCobrable" xml:space="preserve"><value>Estranger (cobrable)</value></data>
+  <data name="ToastGestionesPendientesNoCargadas" xml:space="preserve">
+    <value>No hem pogut carregar les gestions pendents d'aquest treballador. Que no n'aparegui cap no vol dir que no n'hi hagi; recarrega la pàgina.</value>
+  </data>
 </root>

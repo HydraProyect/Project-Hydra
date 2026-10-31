@@ -103,6 +103,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
         public bool FallarDocumentos { get; set; }
+        public bool FallarGestiones { get; set; }
         public bool FallarDocumentacionBase { get; set; }
 
         /// <summary>Detecciones de personal de la Empresa (aviso «Podría estar de baja»).</summary>
@@ -155,6 +156,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
             CaeManager.Application.Trabajadores.Commands.GuardarNotaInternaTrabajador.GuardarNotaInternaTrabajadorCommand c => GuardarNota(c.Id, c.Notas),
             ObtenerDocumentacionPorCentroDeTrabajadorQuery q =>
                 (IReadOnlyList<CentroDocumentacionTrabajadorDto>)(Centros.GetValueOrDefault(q.TrabajadorId) ?? []),
+            ObtenerGestionesQuery when FallarGestiones => throw new InvalidOperationException("Fallo simulado de la consulta de gestiones."),
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Selector,
@@ -1790,6 +1792,26 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.InvokeAsync(() => Boton(cut, "Reintentar").Click());
 
         cut.WaitForAssertion(() => Filas(cut, "Otros documentos del trabajador").Should().ContainSingle());
+    }
+
+    /// <summary>
+    /// M-06: si la lectura de gestiones pendientes falla, la lista vacía se leía como «no hay ninguna».
+    /// El usuario recibe un aviso de error y la página sigue.
+    /// </summary>
+    [Fact]
+    public void Si_las_gestiones_pendientes_fallan_avisa_y_el_resto_de_la_pagina_sigue()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso { FallarGestiones = true });
+        var (norte, _) = Escena();
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [norte];
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => Avisos.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error));
+        AbrirCentros(cut);
+        cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion").Should().ContainSingle();
     }
 
     [Fact]
