@@ -761,27 +761,57 @@ public class RevocacionDelegacionTests
         lote[deSoporte.Id].PuedeReactivar.Should().BeFalse();
     }
 
-    // ── Retirar a una persona: fuera de la decisión, criterio sin cambios ──
+    // ── Retirar a una persona, sin revocar la delegación entera ──
 
     [Fact]
-    public async Task Se_puede_retirar_un_operador_sin_revocar_la_delegacion_entera()
+    public async Task Desde_el_Tenant_de_origen_no_se_retira_una_persona_de_un_Operador_CAE_externo()
     {
         var (delegacion, delegacionRepositorio, unitOfWork) = Preparar();
         var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "GestorCae");
         var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
         asignacionRepositorio.Agregar(asignacion);
 
+        var writer = new AsignacionesOperativasWriterFalso();
         var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
             asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), writer, unitOfWork,
             new TenantActualFijo(OperadorCae));
+
+        var resultado = await handler.Handle(
+            new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.RequiereTenantPropietario");
+        resultado.Error.Mensaje.Should().Be("Pide a la organización cuyos datos gestiona que retire a esta persona.");
+        asignacionRepositorio.Asignaciones.Should().ContainSingle();
+        writer.CarterasCerradas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        delegacion.Activa.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// La exigencia del Tenant propietario es solo de la del Operador CAE externo, que tiene
+    /// cartera que cerrar: una de Soporte TALVEG se sigue retirando desde el otro extremo.
+    /// </summary>
+    [Fact]
+    public async Task Desde_el_otro_extremo_se_retira_una_persona_de_una_delegacion_de_Soporte()
+    {
+        var delegacion = DelegacionTenant.ParaSoporte(OperadorCae, TenantPropietario);
+        var delegacionRepositorio = new DelegacionTenantRepositorioFalso();
+        delegacionRepositorio.Agregar(delegacion);
+        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "Consulta");
+        var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
+        asignacionRepositorio.Agregar(asignacion);
+
+        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+            asignacionRepositorio, delegacionRepositorio,
+            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(),
+            new UnitOfWorkFalso(), new TenantActualFijo(OperadorCae));
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         asignacionRepositorio.Asignaciones.Should().BeEmpty();
-        delegacion.Activa.Should().BeTrue("retirar a una persona no corta el acceso de todo el equipo");
     }
 
     [Fact]
@@ -851,6 +881,7 @@ public class RevocacionDelegacionTests
 
         resultado.EsExitoso.Should().BeTrue();
         asignacionRepositorio.Asignaciones.Should().BeEmpty();
+        delegacion.Activa.Should().BeTrue("retirar a una persona no corta el acceso de todo el equipo");
     }
 
     // ── Arnés ─────────────────────────────────────────────────────────────
