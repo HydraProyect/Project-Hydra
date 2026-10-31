@@ -16,6 +16,7 @@ using CaeManager.Application.Tenants.Queries.EsTenantOrigenPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerActividadSoporte;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Domain.Soporte;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -24,7 +25,6 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Localization;
-using Microsoft.AspNetCore.Identity;
 using AsignacionLista = CaeManager.Application.Tenants.Queries.ObtenerDelegaciones.DelegacionDto;
 
 namespace CaeManager.Web.Features.Delegaciones.Pages;
@@ -38,7 +38,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAccesosSoporteTalveg> TextosAccesos { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private ILecturaPersonasDelegadas LecturaPersonas { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Delegaciones> Logger { get; set; } = default!;
@@ -495,25 +495,20 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         CancellationToken cancellationToken) =>
         PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            var rolDeOrigenPorUsuarioId = new Dictionary<Guid, string?>();
-            foreach (var (persona, esSoporte, operacionDelTenantEntero) in personas)
+            var filas = personas.ToArray();
+            var cuentas = (await LecturaPersonas.ObtenerAsync(filas.Select(f => f.Persona.UsuarioId).Distinct().ToArray(), cancellationToken))
+                .ToDictionary(u => u.Id);
+            foreach (var (persona, esSoporte, operacionDelTenantEntero) in filas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var usuarioId = persona.UsuarioId;
-                if (!rolDeOrigenPorUsuarioId.TryGetValue(usuarioId, out var rolDeOrigen))
-                {
-                    var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
-                    _nombresPorUsuarioId[usuarioId] = usuario is null
-                        ? "Persona no encontrada"
-                        : $"{usuario.NombreCompleto} ({usuario.Email})";
-                    rolDeOrigen = usuario is null
-                        ? null
-                        : (await UserManager.GetRolesAsync(usuario)).Order(StringComparer.Ordinal).FirstOrDefault();
-                    rolDeOrigenPorUsuarioId[usuarioId] = rolDeOrigen;
-                }
+                cuentas.TryGetValue(usuarioId, out var usuario);
+                _nombresPorUsuarioId[usuarioId] = usuario is null
+                    ? "Persona no encontrada"
+                    : $"{usuario.NombreCompleto} ({usuario.Email})";
 
                 _rolMostradoPorAsignacionId[persona.AsignacionId] = TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario(
-                    esSoporte, operacionDelTenantEntero, persona.Rol, rolDeOrigen);
+                    esSoporte, operacionDelTenantEntero, persona.Rol, usuario?.Rol);
             }
         });
 

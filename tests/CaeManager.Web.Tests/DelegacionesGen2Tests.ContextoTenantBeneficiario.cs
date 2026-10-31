@@ -83,6 +83,24 @@ public partial class DelegacionesGen2Tests
             .Should().Be(Roles.NombreVisible(Roles.Consulta), "en Soporte TALVEG decide la fila delegada, no el perfil de origen");
     }
 
+    [Fact]
+    public void Las_cuentas_se_leen_en_un_lote_sin_repetir_personas_y_la_que_no_se_ve_no_se_pinta()
+    {
+        // Sin N+1: la misma persona en dos delegaciones y otra que la conexion no ve, una sola lectura.
+        var visible = Guid.NewGuid();
+        var noVisible = Guid.NewGuid();
+        ConocerCuenta(visible, Roles.GestorCae);
+        var primera = Delegacion() with
+        {
+            Operadores = [new OperadorDelegadoDto(Guid.NewGuid(), visible, Roles.GestorCae), new OperadorDelegadoDto(Guid.NewGuid(), noVisible, Roles.GestorCae)],
+        };
+        var segunda = Delegacion() with { Operadores = [new OperadorDelegadoDto(Guid.NewGuid(), visible, Roles.GestorCae)] };
+
+        var (cut, _, _) = Renderizar(primera, segunda);
+
+        _lotesPedidos.Should().ContainSingle().Which.Should().BeEquivalentTo(new[] { visible, noVisible });
+        cut.Markup.Should().Contain("Persona de prueba (persona@operador.test)").And.Contain("Persona no encontrada");
+    }
     private void ConocerCuenta(Guid usuarioId, string rol) =>
         _cuentasConocidas[usuarioId] = (
             new ApplicationUser { Id = usuarioId, NombreCompleto = "Persona de prueba", Email = "persona@operador.test" },
