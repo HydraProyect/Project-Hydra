@@ -98,7 +98,7 @@ public class AvatarDeCuentasBajoRuntimeTests
     [Fact]
     public async Task Una_cuenta_cargada_antes_de_elegir_avatar_no_lo_pisa_al_guardarse_entera()
     {
-        // SelectorTema conserva la cuenta en memoria y la escribe entera con
+        // el circuito conserva la cuenta en memoria y la escribe entera con
         // UserManager.UpdateAsync: sin renovar el sello, esa escritura devolvería el avatar anterior.
         var usuarioId = Guid.NewGuid();
         await using var arnes = await CrearArnesAsync(usuarioId);

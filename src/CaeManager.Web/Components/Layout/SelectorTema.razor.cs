@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
@@ -23,19 +22,14 @@ namespace CaeManager.Web.Components.Layout;
 /// </summary>
 public partial class SelectorTema : IAsyncDisposable
 {
-    [Inject] private CaeManager.Application.Common.PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
-
     /// <summary>
-    /// Solo para <see cref="GuardarTemaAsync"/>: <c>UserManager.FindByIdAsync</c>
-    /// no sirve para recargar tras un conflicto de concurrencia porque
-    /// devuelve la MISMA instancia obsoleta que ya está trackeada en el
-    /// DbContext scoped de este circuito (mapa de identidad de EF) — no
-    /// repite el viaje a la base. Hace falta desengancharla primero; Web no
-    /// resuelve el DbContext concreto (ver
-    /// <c>CaeManager.Architecture.Tests.FronterasDeCapaTests</c>), de ahí la
-    /// interfaz.
+    /// La cuenta se lee y se escribe sin cargarla entera: el circuito de una
+    /// Sesión Privilegiada lleva <c>cae_app_soporte</c>, que no debe recibir
+    /// credenciales (ver <see cref="IPreferenciasCuentaPropia"/>). El puerto
+    /// pasa por <c>PuertaAccesoDatos</c>: este componente se inicializa en
+    /// paralelo con el resto del layout sobre el mismo DbContext scoped.
     /// </summary>
-    [Inject] private CaeManager.Application.Common.IDesenganchadorDeEntidadesRastreadas Desenganchador { get; set; } = default!;
+    [Inject] private IPreferenciasCuentaPropia Preferencias { get; set; } = default!;
 
     [Inject] private ILogger<SelectorTema> Logger { get; set; } = default!;
     [Inject] private ILogger<ExcepcionDeCircuitoDesconectado> LoggerDeCircuitoDesconectado { get; set; } = default!;
@@ -81,7 +75,13 @@ public partial class SelectorTema : IAsyncDisposable
     private Task<IJSObjectReference>? _moduloTask;
 
     private IJSObjectReference? _modulo;
-    private ApplicationUser? _usuario;
+
+    /// <summary>
+    /// La cuenta cuyas preferencias se leyeron. Sin ella el tema se aplica en
+    /// el navegador sin persistir, como en cualquier sesión sin cuenta.
+    /// </summary>
+    private Guid? _usuarioId;
+
     private string? _temaActual;
 
     /// <summary>
@@ -99,10 +99,6 @@ public partial class SelectorTema : IAsyncDisposable
 
     /// <summary>
     /// Hay un manejador drenando cambios. <b>Un solo guardado en vuelo</b>:
-    /// dos manejadores solapados mutaban <c>_usuario</c> a la vez —la lambda
-    /// diferida de <c>PuertaAccesoDatos</c> lee el campo al cruzar la puerta,
-    /// no al crear la operación— y un guardado podía dar <c>Succeeded</c>
-    /// sobre la instancia que otro acababa de preparar con SU tema; además,
     /// con dos <c>UPDATE</c> concurrentes gana el que termine último, no el
     /// que se pidió último. El resto de manejadores solo anotan lo elegido en
     /// <see cref="_temaActual"/> y salen: ver <see cref="CambiarTemaAsync"/>.
@@ -142,12 +138,10 @@ public partial class SelectorTema : IAsyncDisposable
 
         if (!Guid.TryParse(idClaim, out var usuarioId)) return;
 
-        // Por la puerta: se inicializa en paralelo con el resto del layout
-        // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
+        PreferenciasDeCuenta? preferencias = null;
         try
         {
-            _usuario = await PuertaAccesoDatos.EjecutarAsync(
-                () => UserManager.FindByIdAsync(usuarioId.ToString()));
+            preferencias = await Preferencias.ObtenerAsync(usuarioId);
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
@@ -160,8 +154,8 @@ public partial class SelectorTema : IAsyncDisposable
             // una NpgsqlException cruda de desincronización de protocolo,
             // no solo como ObjectDisposedException — este catch solo
             // cubría la primera hasta esta fecha, D-1a,
-            // Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md). _usuario se queda en
-            // null, que ya es el valor que la línea de abajo trata como
+            // Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md). preferencias se queda en
+            // null, que ya es el valor que las líneas de abajo tratan como
             // "sin tema guardado" — no hay nadie al otro lado esperando el
             // resultado de todos modos, pero sí queda constancia de que
             // ocurrió.
@@ -169,7 +163,8 @@ public partial class SelectorTema : IAsyncDisposable
                 ex.GetType().Name, ex.Message);
         }
 
-        _temaActual = TemaATexto(_usuario?.Tema ?? TemaPreferido.Sistema);
+        _usuarioId = preferencias is null ? null : usuarioId;
+        _temaActual = TemaATexto(preferencias?.Tema ?? TemaPreferido.Sistema);
         _temaGuardado = _temaActual;
     }
 
@@ -239,13 +234,12 @@ public partial class SelectorTema : IAsyncDisposable
     /// <b>Guardado confirmado, no solo intentado</b> (primera revisión de
     /// Codex, 2026-09-20): la primera versión de este orden solo garantizaba
     /// «guardar intentado antes de aplicar», porque <see cref="GuardarTemaAsync"/>
-    /// sale con normalidad —tras registrar el fallo— cuando el resultado de
-    /// Identity es un error no concurrente, cuando la recarga tras un
-    /// conflicto no encuentra la cuenta o cuando el reintento también falla.
-    /// En esos tres caminos la cuenta se queda con el tema anterior, y aplicar
-    /// igualmente escribía la cookie del nuevo: la misma carrera de arriba,
-    /// con otra causa. Por eso <see cref="GuardarTemaAsync"/> devuelve si
-    /// persistió y solo entonces se aplica.
+    /// sale con normalidad —tras registrar el fallo— cuando la cuenta ya no se
+    /// ve o cuando el reintento también choca con otra escritura. En esos
+    /// caminos la cuenta se queda con el tema anterior, y aplicar igualmente
+    /// escribía la cookie del nuevo: la misma carrera de arriba, con otra
+    /// causa. Por eso <see cref="GuardarTemaAsync"/> devuelve si persistió y
+    /// solo entonces se aplica.
     /// </para>
     ///
     /// <para>
@@ -276,8 +270,8 @@ public partial class SelectorTema : IAsyncDisposable
     /// bucle mientras lo pedido difiera de lo confirmado
     /// (<see cref="_temaGuardado"/>), releyendo la intención tras cada vuelta.
     /// Los demás manejadores solo la anotan y salen. Consecuencias: (a) no hay
-    /// dos guardados en vuelo, así que <c>_usuario</c> no se muta a la vez y
-    /// la última escritura en la cuenta es la última intención; (b) una
+    /// dos guardados en vuelo, así que la última escritura en la cuenta es la
+    /// última intención; (b) una
     /// intención superada antes de guardarse (A→B→A, o B pisado por C) ni
     /// siquiera se guarda: no hay «llegada tarde» posible, porque nada se
     /// encola —la versión anterior serializaba con un <c>SemaphoreSlim</c>,
@@ -322,7 +316,7 @@ public partial class SelectorTema : IAsyncDisposable
                 var texto = _temaActual!;
                 var generacion = _generacion;
 
-                if (_usuario is not null && !await GuardarTemaAsync(texto))
+                if (_usuarioId is { } usuarioId && !await GuardarTemaAsync(usuarioId, texto))
                 {
                     if (_generacion == generacion)
                         return;
@@ -343,20 +337,17 @@ public partial class SelectorTema : IAsyncDisposable
     }
 
     /// <summary>
-    /// <c>_usuario</c> se cargó una sola vez en <see cref="OnInitializedAsync"/>
-    /// y puede llevar horas en memoria cuando el usuario por fin toca el
-    /// selector: cualquier otra escritura sobre esta misma cuenta entre medias
-    /// —<c>ActividadUsuarioService</c> toca <c>UltimaActividadUtc</c> en cada
-    /// carga de página, con su propio <c>UserManager.UpdateAsync</c>— renueva
-    /// <c>ConcurrencyStamp</c> en la base y deja este <c>_usuario</c> obsoleto.
-    /// <c>UserManager.UpdateAsync</c> con una entidad obsoleta no lanza: el
-    /// <c>UserStore</c> de Identity atrapa <c>DbUpdateConcurrencyException</c> y
-    /// devuelve un <see cref="IdentityResult"/> fallido — descartarlo, como
-    /// hacía la versión anterior, perdía la preferencia en silencio (mismo
-    /// defecto mudo que el que arregló <see cref="OnAfterRenderAsync"/>, esta
-    /// vez en el guardado y no en la aplicación). Se recarga la fila fresca y
-    /// se reintenta una sola vez: no hay conflicto que fusionar, el tema
-    /// elegido ahora mismo siempre debe ganar.
+    /// El guardado puede llegar horas después de leer la cuenta: cualquier
+    /// otra escritura sobre ella entre medias —<c>ActividadUsuarioService</c>
+    /// toca <c>UltimaActividadUtc</c> en cada carga de página— renueva
+    /// <c>ConcurrencyStamp</c>. Por eso este componente no guarda nada de la
+    /// fila y <see cref="IPreferenciasCuentaPropia"/> la relee al escribir, con
+    /// un reintento: no hay conflicto que fusionar, el tema elegido ahora mismo
+    /// siempre debe ganar. Una cuenta que ya no se ve o un segundo conflicto
+    /// llegan como resultado, no como excepción, y descartarlos perdería la
+    /// preferencia en silencio (mismo defecto mudo que el que arregló
+    /// <see cref="OnAfterRenderAsync"/>, esta vez en el guardado y no en la
+    /// aplicación).
     ///
     /// <para>
     /// Devuelve <c>true</c> solo si la preferencia quedó persistida: el
@@ -364,48 +355,15 @@ public partial class SelectorTema : IAsyncDisposable
     /// partir de ese valor, no de que el guardado «haya terminado».
     /// </para>
     /// </summary>
-    private async Task<bool> GuardarTemaAsync(string texto)
+    private async Task<bool> GuardarTemaAsync(Guid usuarioId, string texto)
     {
-        _usuario!.Tema = TextoATema(texto);
-        var resultado = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
-        if (resultado.Succeeded) return true;
+        var resultado = await Preferencias.GuardarTemaAsync(usuarioId, TextoATema(texto));
+        if (resultado == ResultadoEscrituraCuenta.Guardada) return true;
 
-        if (!resultado.Errors.Any(error => error.Code == nameof(IdentityErrorDescriber.ConcurrencyFailure)))
-        {
-            LogFalloAlGuardar(resultado);
-            return false;
-        }
-
-        var usuarioFresco = await PuertaAccesoDatos.EjecutarAsync(async () =>
-        {
-            // Desengancha la instancia obsoleta del change tracker: mientras
-            // siga trackeada, FindByIdAsync devuelve exactamente el mismo
-            // objeto (mapa de identidad de EF) en vez de repetir la consulta,
-            // así que "recargar" no recargaría nada.
-            Desenganchador.Desenganchar(_usuario);
-            return await UserManager.FindByIdAsync(_usuario.Id.ToString());
-        });
-        if (usuarioFresco is null)
-        {
-            Logger.LogWarning(
-                "No se pudo recargar la cuenta {UsuarioId} tras un conflicto de concurrencia al guardar el tema.",
-                _usuario.Id);
-            return false;
-        }
-
-        _usuario = usuarioFresco;
-        _usuario.Tema = TextoATema(texto);
-        var resultadoReintento = await PuertaAccesoDatos.EjecutarAsync(() => UserManager.UpdateAsync(_usuario));
-        if (resultadoReintento.Succeeded) return true;
-
-        LogFalloAlGuardar(resultadoReintento);
+        Logger.LogWarning(
+            "No se pudo guardar el tema elegido para {UsuarioId}: {Resultado}", usuarioId, resultado);
         return false;
     }
-
-    private void LogFalloAlGuardar(IdentityResult resultado) =>
-        Logger.LogWarning(
-            "No se pudo guardar el tema elegido para {UsuarioId}: {Errores}",
-            _usuario!.Id, string.Join(" ", resultado.Errors.Select(e => e.Description)));
 
     private static string TemaATexto(TemaPreferido tema) => tema switch
     {

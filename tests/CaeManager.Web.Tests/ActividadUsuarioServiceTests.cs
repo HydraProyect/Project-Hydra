@@ -2,10 +2,9 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
-using Opciones = Microsoft.Extensions.Options.Options;
 
 namespace CaeManager.Web.Tests;
 
@@ -68,11 +67,9 @@ public class ActividadUsuarioServiceTests
     public async Task Una_segunda_llamada_mientras_la_primera_resuelve_espera_su_respuesta_en_vez_de_inventarse_una()
     {
         var ultimaActividad = Ahora.AddMinutes(-30);
-        var usuario = new ApplicationUser { Id = Guid.NewGuid(), UserName = "gestora@refrielectric.test", UltimaActividadUtc = ultimaActividad };
-        var almacen = new AlmacenDeUnUsuario(usuario);
         var enVuelo = new TaskCompletionSource();
         var servicio = new ActividadUsuarioService(
-            new UsuarioActualRetenido(usuario.Id, enVuelo.Task), CrearUsuarios(almacen), new PuertaAccesoDatos());
+            new UsuarioActualRetenido(Guid.NewGuid(), enVuelo.Task), new PreferenciasFalsas(ultimaActividad), NullLogger<ActividadUsuarioService>.Instance);
 
         var primera = servicio.RegistrarYEvaluarAsync(interactivo: true);
         var segunda = servicio.RegistrarYEvaluarAsync(interactivo: true);
@@ -88,23 +85,85 @@ public class ActividadUsuarioServiceTests
     [Fact]
     public async Task Resuelta_una_vez_no_se_vuelve_a_preguntar()
     {
-        var usuario = new ApplicationUser { Id = Guid.NewGuid(), UserName = "gestora@refrielectric.test", UltimaActividadUtc = Ahora.AddMinutes(-30) };
-        var almacen = new AlmacenDeUnUsuario(usuario);
-        var usuarioActual = new UsuarioActualRetenido(usuario.Id, Task.CompletedTask);
-        var servicio = new ActividadUsuarioService(usuarioActual, CrearUsuarios(almacen), new PuertaAccesoDatos());
+        var usuarioId = Guid.NewGuid();
+        var preferencias = new PreferenciasFalsas(Ahora.AddMinutes(-30));
+        var usuarioActual = new UsuarioActualRetenido(usuarioId, Task.CompletedTask);
+        var servicio = new ActividadUsuarioService(usuarioActual, preferencias, NullLogger<ActividadUsuarioService>.Instance);
 
         var primera = await servicio.RegistrarYEvaluarAsync(interactivo: true);
         var segunda = await servicio.RegistrarYEvaluarAsync(interactivo: true);
 
         segunda.Should().Be(primera);
         usuarioActual.Preguntas.Should().Be(1, "«ausente» se evalúa una vez por circuito, no en cada navegación");
-        almacen.Escrituras.Should().Be(1);
+        preferencias.Escrituras.Should().Be(1);
+        preferencias.Cuentas.Should().Equal([usuarioId, usuarioId], "lectura y escritura son de la cuenta de la sesión");
     }
 
-    private static UserManager<ApplicationUser> CrearUsuarios(IUserStore<ApplicationUser> almacen) => new(
-        almacen, Opciones.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
-        [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-        NullLogger<UserManager<ApplicationUser>>.Instance);
+    /// <summary>
+    /// <c>UpdateAsync</c> devolvía el conflicto como resultado y nadie lo miraba. Un conflicto que sobrevive al
+    /// reintento no quita la ausencia ya leída, pero deja constancia.
+    /// </summary>
+    [Theory]
+    [InlineData(ResultadoEscrituraCuenta.Conflicto)]
+    [InlineData(ResultadoEscrituraCuenta.CuentaNoVisible)]
+    public async Task Una_actividad_que_no_llega_a_guardarse_deja_aviso_y_conserva_la_ausencia(ResultadoEscrituraCuenta fallo)
+    {
+        var ultimaActividad = DateTime.UtcNow.AddMinutes(-30);
+        var preferencias = new PreferenciasFalsas(ultimaActividad) { ResultadoDeEscritura = fallo };
+        var registro = new RegistroQueCuentaAvisos();
+        var servicio = new ActividadUsuarioService(new UsuarioActualRetenido(Guid.NewGuid(), Task.CompletedTask), preferencias, registro);
+
+        var resultado = await servicio.RegistrarYEvaluarAsync(interactivo: true);
+
+        resultado.Should().Be((true, (DateTime?)ultimaActividad));
+        preferencias.Escrituras.Should().Be(1);
+        registro.Avisos.Should().Be(1, "descartar el resultado de la escritura era el defecto");
+    }
+
+    [Fact]
+    public async Task Dentro_del_throttle_no_se_escribe_en_la_cuenta()
+    {
+        var preferencias = new PreferenciasFalsas(DateTime.UtcNow.AddSeconds(-30));
+        var servicio = new ActividadUsuarioService(
+            new UsuarioActualRetenido(Guid.NewGuid(), Task.CompletedTask), preferencias, NullLogger<ActividadUsuarioService>.Instance);
+
+        var (ausente, _) = await servicio.RegistrarYEvaluarAsync(interactivo: true);
+
+        ausente.Should().BeFalse();
+        preferencias.Escrituras.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Sin_cuenta_visible_no_hay_ausencia_ni_escritura()
+    {
+        var preferencias = new PreferenciasFalsas(Ahora) { Visible = false };
+        var servicio = new ActividadUsuarioService(
+            new UsuarioActualRetenido(Guid.NewGuid(), Task.CompletedTask), preferencias, NullLogger<ActividadUsuarioService>.Instance);
+
+        (await servicio.RegistrarYEvaluarAsync(interactivo: true)).Should().Be((false, (DateTime?)null));
+        preferencias.Escrituras.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Una escritura rechazada por la base no es un conflicto: bajo Sesión Privilegiada <c>cae_app_soporte</c> no
+    /// tiene <c>UPDATE</c>, y el fallo sigue llegando a <c>MainLayout</c> como hasta ahora.
+    /// </summary>
+    [Fact]
+    public async Task Un_rechazo_de_la_escritura_sube_y_la_siguiente_llamada_vuelve_a_intentarlo()
+    {
+        var preferencias = new PreferenciasFalsas(DateTime.UtcNow.AddMinutes(-30))
+        {
+            FalloDeEscritura = new InvalidOperationException("rechazada"),
+        };
+        var servicio = new ActividadUsuarioService(
+            new UsuarioActualRetenido(Guid.NewGuid(), Task.CompletedTask), preferencias, NullLogger<ActividadUsuarioService>.Instance);
+
+        var acto = () => servicio.RegistrarYEvaluarAsync(interactivo: true);
+
+        await acto.Should().ThrowAsync<InvalidOperationException>();
+        await acto.Should().ThrowAsync<InvalidOperationException>();
+        preferencias.Escrituras.Should().Be(2);
+    }
 
     /// <summary>Devuelve el id del usuario, pero solo cuando la tarea retenida se suelta.</summary>
     private sealed class UsuarioActualRetenido(Guid id, Task retencion) : ICurrentUserService
@@ -124,29 +183,45 @@ public class ActividadUsuarioServiceTests
         public Task<bool> TieneDobleFactorActivoAsync() => throw new NotSupportedException();
     }
 
-    /// <summary>Solo lo que este servicio toca: buscar por id y guardar la última actividad.</summary>
-    private sealed class AlmacenDeUnUsuario(ApplicationUser usuario) : IUserStore<ApplicationUser>
+    /// <summary>Solo lo que este servicio toca: leer la cuenta y registrar la actividad.</summary>
+    private sealed class PreferenciasFalsas(DateTime? ultimaActividad) : IPreferenciasCuentaPropia
     {
+        public bool Visible { get; init; } = true;
+        public ResultadoEscrituraCuenta ResultadoDeEscritura { get; init; } = ResultadoEscrituraCuenta.Guardada;
+        public Exception? FalloDeEscritura { get; init; }
         public int Escrituras { get; private set; }
+        public List<Guid> Cuentas { get; } = [];
 
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
-            Task.FromResult<ApplicationUser?>(usuario.Id.ToString() == userId ? usuario : null);
-
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct)
+        public Task<PreferenciasDeCuenta?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default)
         {
-            Escrituras++;
-            return Task.FromResult(IdentityResult.Success);
+            Cuentas.Add(usuarioId);
+            return Task.FromResult(Visible ? new PreferenciasDeCuenta(TemaPreferido.Sistema, IdiomaPreferido.Espanol, ultimaActividad) : null);
         }
 
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Id.ToString());
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.UserName);
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken ct) { user.UserName = userName; return Task.CompletedTask; }
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.NormalizedUserName);
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken ct) { user.NormalizedUserName = normalizedName; return Task.CompletedTask; }
+        public Task<ResultadoEscrituraCuenta> RegistrarActividadAsync(Guid usuarioId, DateTime instanteUtc, CancellationToken ct = default)
+        {
+            Escrituras++;
+            Cuentas.Add(usuarioId);
+            return FalloDeEscritura is null ? Task.FromResult(ResultadoDeEscritura) : Task.FromException<ResultadoEscrituraCuenta>(FalloDeEscritura);
+        }
 
-        public void Dispose() { }
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<ResultadoEscrituraCuenta> GuardarTemaAsync(Guid usuarioId, TemaPreferido tema, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<ResultadoEscrituraCuenta> GuardarIdiomaAsync(Guid usuarioId, IdiomaPreferido idioma, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class RegistroQueCuentaAvisos : ILogger<ActividadUsuarioService>
+    {
+        public int Avisos { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                Avisos++;
+        }
     }
 }

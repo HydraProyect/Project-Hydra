@@ -79,7 +79,6 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             .AddInterceptors(_interceptorUpdates, _interceptorSql));
 
         servicios.AddScoped<PuertaAccesoDatos>();
-        servicios.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()

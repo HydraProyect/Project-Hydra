@@ -357,6 +357,43 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     [Fact]
     public async Task La_frontera_no_necesita_las_columnas_de_credenciales()
     {
+        await QuitarLasCredencialesASoporteAsync();
+
+        var principal = PrincipalDe(_actorReal, SelloActorReal);
+        await using var contexto = ContextoDeSoporte(principal);
+
+        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue();
+        (await new LecturaCuentaPropia(contexto).ObtenerAsync(_actorReal)).Should().NotBeNull();
+
+        var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
+        (await materializar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    /// <summary>
+    /// Tema, idioma y actividad se siguen leyendo bajo Sesión Privilegiada sin las columnas de credenciales. La
+    /// escritura no cambia: <c>cae_app_soporte</c> no tiene <c>UPDATE</c>, la base la rechaza y el contexto queda
+    /// limpio para lo siguiente del circuito.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_soporte_las_preferencias_se_leen_sin_credenciales_y_escribirlas_sigue_rechazado()
+    {
+        await QuitarLasCredencialesASoporteAsync();
+
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+        var preferencias = new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos());
+
+        (await preferencias.ObtenerAsync(_actorReal)).Should().NotBeNull();
+
+        var escribir = () => preferencias.RegistrarActividadAsync(_actorReal, DateTime.UtcNow);
+        (await escribir.Should().ThrowAsync<DbUpdateException>())
+            .WithInnerException<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        contexto.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    private async Task QuitarLasCredencialesASoporteAsync()
+    {
         await ComoPropietarioAsync("""
             REVOKE SELECT ON public."AspNetUsers" FROM cae_app_soporte;
             DO $$
@@ -378,16 +415,6 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
                 """, conexion);
             ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
         }
-
-        var principal = PrincipalDe(_actorReal, SelloActorReal);
-        await using var contexto = ContextoDeSoporte(principal);
-
-        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue();
-        (await new LecturaCuentaPropia(contexto).ObtenerAsync(_actorReal)).Should().NotBeNull();
-
-        var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
-        (await materializar.Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     private static void Sembrar(
