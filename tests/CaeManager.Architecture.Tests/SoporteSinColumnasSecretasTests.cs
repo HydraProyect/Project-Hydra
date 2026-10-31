@@ -60,7 +60,7 @@ public class SoporteSinColumnasSecretasTests
 
     private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
     private const string MigracionQueRetiraCodigoYPayload = "20261101000000_SoporteSinCodigoVerificacionNiPayloadWebhook";
-    private const string MigracionQueRetiraUserLogins = "20261101004000_SoporteSinLecturaDeUserLogins";
+    private const string MigracionQueRetiraUserLogins = "20261101030000_SoporteSinLecturaDeUserLogins";
 
     /// <summary>
     /// Lo que retira <see cref="MigracionQueRetiraLosJson"/>. Solo rige desde esa migración: las anteriores

@@ -88,7 +88,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["PlantillasDocumentoVersion.HashSha256ArchivoOriginal"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
         ["PlataformasCaeClienteEmpresarial.CodigoCliente"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; dato operativo o metadato, necesidad por revisar."),
         ["ProveedoresPlataformaCae.Codigo"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; dato operativo o metadato, necesidad por revisar."),
-        ["AspNetUserLogins.ProviderKey"] = new(Decision.Retirada, "Retirada por la migración 20261101004000_SoporteSinLecturaDeUserLogins."),
+        ["AspNetUserLogins.ProviderKey"] = new(Decision.Retirada, "Retirada por la migración 20261101030000_SoporteSinLecturaDeUserLogins."),
         ["AspNetUsers.SecurityStamp"] = new(Decision.ConcedidaPorRevisar, "Identity materializa la cuenta completa; exposición por revisar."),
         ["SesionesUsuario.Sid"] = new(Decision.Retirada, "Retirada por la migración 20261031000000_SoporteSinSidSesionUsuario."),
         ["SuscripcionesWebhook.ClientState"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
