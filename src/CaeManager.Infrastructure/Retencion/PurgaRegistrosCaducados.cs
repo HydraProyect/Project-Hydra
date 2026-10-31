@@ -15,7 +15,8 @@ namespace CaeManager.Infrastructure.Retencion;
 /// La purga cruza Tenants y el rol de aplicación no puede hacerlo: no fija ningún Tenant ni
 /// debilita RLS. Lo hace <c>app_purgar_registros_auditoria(boolean)</c>, cuya identidad explícita
 /// es su propietario, con el corte escrito dentro. El runtime elige solo entre contar y borrar:
-/// no puede adelantar el plazo ni borrar una fila concreta.
+/// no puede adelantar el plazo ni borrar una fila concreta. Si borra algo, la propia función deja
+/// su fila en <c>TrazasPurga</c> en la misma transacción, también por llamada SQL directa.
 /// </para>
 ///
 /// <para>
