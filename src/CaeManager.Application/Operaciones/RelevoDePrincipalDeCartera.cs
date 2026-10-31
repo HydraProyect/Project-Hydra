@@ -16,7 +16,7 @@ namespace CaeManager.Application.Operaciones;
 /// primer perfil del Operador CAE que tenga alguna. Con varias en ese perfil, o sin nadie en
 /// ninguno, <b>la operación queda sin principal</b> y la lista la alerta. El cierre en cascada
 /// de la operación entera no pasa por aquí: ahí la cartera recuerda que era la principal y
-/// <see cref="RestaurarAlReactivarAsync"/> se la devuelve al reactivar.
+/// <see cref="RestaurarAlReactivarAsync"/> se la devuelve al reactivar, sin escalar.
 /// </para>
 /// </summary>
 public static class RelevoDePrincipalDeCartera
@@ -50,8 +50,8 @@ public static class RelevoDePrincipalDeCartera
     /// firmado al abrirla: de las cuentas del Operador CAE externo solo ve las vinculadas a ese
     /// Tenant (política cuentas_lectura), no su organigrama. Por eso aquí no se escala
     /// (<c>EscaladoDePrincipalDeCartera</c>): contar «la única cuenta» sobre una vista parcial daría
-    /// la marca a quien no es la única. Un Coordinador CAE sin vínculo con el Tenant propietario no
-    /// se ve y cuenta como no relevable. En los dos casos la operación queda sin principal y en la
+    /// la marca a quien no es la única. Un Coordinador CAE sin vínculo ni rastro en el Tenant
+    /// propietario no se ve y cuenta como no relevable. En los dos casos la operación queda sin principal y en la
     /// alerta del Operador CAE, que la toma con «Asumir». No se ensancha RLS para nada de esto.
     /// </para>
     ///

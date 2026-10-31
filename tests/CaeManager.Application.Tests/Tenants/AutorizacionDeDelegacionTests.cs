@@ -29,9 +29,10 @@ namespace CaeManager.Application.Tests.Tenants;
 /// por el otro lado — Hydra nunca inicia una delegación.
 ///
 /// <para>
-/// Revocar y reactivar la Asignación de Operación de un Operador CAE externo no siguen esta
-/// regla: desde las decisiones de producto del 2026-10-26 las decide el equipo del propio Operador CAE
-/// externo con alcance sobre el Tenant propietario (<see cref="CaeManager.Application.Tenants.EquipoDelOperadorCaeExterno"/>), y sus
+/// Revocar la Asignación de Operación de un Operador CAE externo no sigue esta regla: desde las
+/// decisiones de producto del 2026-10-26 lo decide el equipo del propio Operador CAE externo con
+/// alcance sobre el Tenant propietario (<see cref="CaeManager.Application.Tenants.EquipoDelOperadorCaeExterno"/>).
+/// Reactivarla es solo del Administrador del Tenant propietario (decisión SEG-7 del 2026-10-31). Sus
 /// tests están en <see cref="RevocacionDelegacionTests"/>.
 /// </para>
 /// </summary>
@@ -304,9 +305,9 @@ public class AutorizacionDeDelegacionTests
         }
     }
 
-    // ── ReactivarDelegacionTenant: desde 2026-10-26 la decide el equipo del Operador CAE externo
-    // (EquipoDelOperadorCaeExterno), no el Administrador del Tenant propietario. Sus tests viven en
-    // RevocacionDelegacionTests, junto a los de revocar, porque la regla es la misma.
+    // ── ReactivarDelegacionTenant: desde SEG-7 (2026-10-31) la decide solo el Administrador del Tenant
+    // propietario (AdministradorQueReactiva), nunca el Operador CAE externo. Sus tests viven en
+    // RevocacionDelegacionTests, junto a los de revocar.
 
     /// <summary>
     /// Segundo acto excluido del Encargo de administración (decisión D-8, 2026-10-08): autorizar o

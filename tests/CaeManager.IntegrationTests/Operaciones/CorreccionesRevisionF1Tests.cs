@@ -652,9 +652,9 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Revoca y reactiva quien puede: la Dirección CAE de la Consultora (el Operador CAE externo), que alcanza
-    /// a toda la organización sin Asignación de Cartera propia, desde el Tenant propietario. Un Gestor CAE no
-    /// serviría para reactivar: revocar le cierra la cartera en cascada (decisiones del 2026-10-26). Quién puede y quién no se mide bajo RLS real en <c>AutorizarOperadorCaeExternoRlsTests</c>.
+    /// Revoca quien puede: la Dirección CAE de la Consultora (el Operador CAE externo), que alcanza a toda la
+    /// organización sin Asignación de Cartera propia. Quién puede y quién no se mide bajo RLS real en
+    /// <c>AutorizarOperadorCaeExternoRlsTests</c>.
     /// </summary>
     private DesactivarDelegacionTenantCommandHandler CrearDesactivar(CaeManagerDbContext contexto) =>
         new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(), CrearWriter(contexto), contexto,

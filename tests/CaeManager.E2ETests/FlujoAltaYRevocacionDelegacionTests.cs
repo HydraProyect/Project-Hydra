@@ -12,11 +12,12 @@ namespace CaeManager.E2ETests;
 /// ventana, no alta/revocación comercial).
 ///
 /// <para>
-/// Revoca y reactiva el Administrador del Operador CAE externo, el mismo que dio de alta
-/// el acceso, desde su organización: revocan y reactivan el Gestor CAE, el Coordinador CAE,
-/// la Dirección CAE y el Administrador del propio Operador CAE externo con alcance sobre el
-/// Tenant propietario, y el Administrador alcanza a toda la organización (decisiones de
-/// producto del 2026-10-26).
+/// Revoca el Administrador del Operador CAE externo, el mismo que dio de alta el acceso,
+/// desde su organización: revocan el Gestor CAE, el Coordinador CAE, la Dirección CAE y el
+/// Administrador del propio Operador CAE externo con alcance sobre el Tenant propietario, y
+/// el Administrador alcanza a toda la organización (decisiones de producto del 2026-10-26).
+/// Reactivar no se le ofrece: es solo del Administrador del Tenant propietario (decisión SEG-7
+/// del 2026-10-31).
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -130,8 +131,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
             "data-tenant-id", await Ayudas.IdDeOpcionSelectorTenantAsync(page, nombreClienteDelegante) ?? string.Empty);
 
-        // Vuelve al origen: el Administrador revoca y reactiva al final, desde su
-        // organización.
+        // Vuelve al origen: el Administrador revoca al final, desde su organización.
         //
         // Misma comprobación concreta que tras el primer cambio (línea
         // arriba), y por el mismo motivo: sin ella, el NavegarYEsperarAsync

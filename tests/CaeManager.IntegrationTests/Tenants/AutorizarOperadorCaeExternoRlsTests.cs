@@ -227,13 +227,14 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             .Should().BeFalse("el contexto ajeno se rechaza antes de crear el vínculo");
     }
 
-    // ── Revocar y reactivar: el equipo del Operador CAE externo, con alcance ───
-    // Decisiones de producto del 2026-10-26: revocan y reactivan el Gestor CAE, el Coordinador
-    // CAE, la Dirección CAE y el Administrador del propio Operador CAE externo, con alcance sobre
-    // ese Tenant propietario (Asignación de Cartera viva propia, o un rol que alcanza toda la
-    // organización). No pueden el Administrador del Tenant propietario ni nadie de otro Operador
-    // CAE. Cada persona actúa desde su propio Workspace activo, como en producción, y la regla se
-    // lee en Identity y en las carteras reales (EquipoDelOperadorCaeExterno).
+    // ── Revocar: el equipo del Operador CAE externo. Reactivar: el Tenant propietario ───
+    // Decisiones de producto del 2026-10-26: revocan el Gestor CAE, el Coordinador CAE, la Dirección
+    // CAE y el Administrador del propio Operador CAE externo, con alcance sobre ese Tenant propietario
+    // (Asignación de Cartera viva propia, o un rol que alcanza toda la organización). No pueden el
+    // Administrador del Tenant propietario ni nadie de otro Operador CAE. Decisión SEG-7 del
+    // 2026-10-31: reactiva solo el Administrador del Tenant propietario, nunca el Operador CAE
+    // externo. Cada persona actúa desde su propio Workspace activo, como en producción, y la regla se
+    // lee en Identity y en las carteras reales (EquipoDelOperadorCaeExterno, AdministradorQueReactiva).
 
     [Fact]
     public async Task El_Gestor_CAE_con_cartera_revoca_y_solo_reactiva_el_Administrador_del_Tenant_propietario_bajo_RLS()
