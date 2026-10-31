@@ -19,6 +19,12 @@ public static class LectorInformeVigenciaExportado
 {
     private static readonly object CandadoFuente = new();
 
+    /// <summary>Global y no atómico: dos clases de test que generan PDF en paralelo no pueden asignarlo a la vez.</summary>
+    public static void RegistrarFuente()
+    {
+        lock (CandadoFuente) GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver();
+    }
+
     /// <summary>
     /// Genera el PDF de vigencia de <paramref name="informe"/> y devuelve las filas de su tabla (Estado, Trabajador,
     /// Empresa, Tipo de documento, Vencimiento); admite una sola página. Registra la fuente embebida antes de generar,
@@ -26,8 +32,7 @@ public static class LectorInformeVigenciaExportado
     /// </summary>
     public static IReadOnlyList<string[]> FilasDelPdf(InformeVigenciaDto informe)
     {
-        // Global y no atómico: dos clases de test que generan PDF en paralelo no pueden asignarlo a la vez.
-        lock (CandadoFuente) GlobalFontSettings.FontResolver ??= new EmbeddedFontResolver();
+        RegistrarFuente();
         var pdf = ConstructorInformeArchivos.PdfVigencia(informe, incluirVigentes: true);
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         var winAnsi = Encoding.GetEncoding(1252);

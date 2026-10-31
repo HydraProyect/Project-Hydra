@@ -1,6 +1,8 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Asignaciones.Recursos;
+using CaeManager.Domain.Asignaciones;
 using ClosedXML.Excel;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -18,31 +20,49 @@ public static class AsignacionesEndpoints
 {
     public static IEndpointRouteBuilder MapAsignacionesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/asignaciones/exportar.xlsx", async (IMediator mediator, [FromServices] IStringLocalizer<TextosAsignaciones> textos, CancellationToken cancellationToken) =>
-        {
-            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
-            // no materializa toda la tabla de asignaciones del tenant de golpe.
-            var asignaciones = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerAsignacionesQuery(Busqueda: null, Activa: true, Pagina: pagina, TamanoPagina: tamanoPagina),
-                    cancellationToken));
-
-            using var libro = await ConstruirLibroAsync(asignaciones, textos);
-
-            // Se escribe directo en el stream que consume la respuesta HTTP
-            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
-            // y duplicarlo otra vez con ToArray().
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "asignaciones.xlsx");
-        });
+        endpoints.MapGet("/asignaciones/exportar.xlsx", ExportarAsync);
 
         return endpoints;
+    }
+
+    public static async Task<IResult> ExportarAsync(
+        IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion,
+        [FromServices] IStringLocalizer<TextosAsignaciones> textos, CancellationToken cancellationToken)
+    {
+        // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+        // no materializa toda la tabla de asignaciones del tenant de golpe.
+        var asignaciones = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerAsignacionesQuery(Busqueda: null, Activa: true, Pagina: pagina, TamanoPagina: tamanoPagina),
+                cancellationToken));
+
+        using var libro = await ConstruirLibroAsync(asignaciones, textos);
+        var filas = libro.Worksheets.First().RowsUsed().Count() - 1;
+
+        // Se escribe directo en el stream que consume la respuesta HTTP
+        // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+        // y duplicarlo otra vez con ToArray().
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(Asignacion), filas,
+                CriteriosExportacion.Desde(("listado", "asignaciones")),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "asignaciones.xlsx");
     }
 
     /// <summary>
