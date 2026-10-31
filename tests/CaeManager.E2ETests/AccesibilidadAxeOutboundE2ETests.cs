@@ -45,7 +45,7 @@ public class AccesibilidadAxeOutboundE2ETests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
         // Una pantalla sin contenido de aplicación no se analiza: sería una medición vacía que pasaría por vacía.
-        await Expect(page.Locator("main, [role=main]").First).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(page.GetByRole(AriaRole.Main)).ToBeVisibleAsync(EsperaEnFrio);
 
         var resultado = await page.RunAxe();
 
