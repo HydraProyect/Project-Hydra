@@ -226,7 +226,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         // Detalle, cumplimiento y Clientes empresariales (acotados): «Información» también cuenta estos últimos.
         m.Tokens.Should().HaveCount(3).And.OnlyContain(x => x.CanBeCanceled && !x.IsCancellationRequested);
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         m.Tokens.Should().OnlyContain(x => x.IsCancellationRequested, "DisposeComponentsAsync retira el panel y cancela su ciclo");
     }
 

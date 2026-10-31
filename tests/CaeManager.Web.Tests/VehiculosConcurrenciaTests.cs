@@ -507,7 +507,7 @@ public class VehiculosConcurrenciaTests : BunitContext
             var token = m.Tokens[m.Enviadas.FindLastIndex(x => x is ObtenerVehiculosQuery)];
             token.CanBeCanceled.Should().BeTrue();
             token.IsCancellationRequested.Should().BeFalse();
-            await DisposeComponentsAsync();
+            await CierreDePagina.CerrarPaginaAsync(cut, this);
             token.IsCancellationRequested.Should().BeTrue();
         }
         catch

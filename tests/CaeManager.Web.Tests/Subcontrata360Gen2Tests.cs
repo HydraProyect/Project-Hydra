@@ -673,7 +673,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         campoGeneracion.Should().NotBeNull("el test lee la generación para comprobar que Dispose se ejecutó");
         var generacionAntes = (int)campoGeneracion!.GetValue(instancia)!;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         ((int)campoGeneracion.GetValue(instancia)!).Should().BeGreaterThan(generacionAntes,
             "DisposeComponentsAsync tiene que haber llamado a Dispose del panel (cut.Dispose de bUnit 2.x no lo hace)");
@@ -1353,7 +1353,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del panel, no CancellationToken.None");
         token.Register(() => trabajadores.TrySetCanceled(token));
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("Dispose cancela lo que ya estaba emitido");
         trabajadores.Task.IsCanceled.Should().BeTrue();
@@ -1386,7 +1386,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
             "el recorrido tiene que haber pasado por todas las consultas que lanza el panel, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested, "retirado el panel no queda ninguna consulta suya viva");
     }

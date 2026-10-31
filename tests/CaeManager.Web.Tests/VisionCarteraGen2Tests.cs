@@ -676,7 +676,7 @@ public class VisionCarteraGen2Tests : BunitContext
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => cut.InvokeAsync(() => respuesta.SetResult(null));
@@ -695,7 +695,7 @@ public class VisionCarteraGen2Tests : BunitContext
         var escenario = new Escenario { Retener = p => p is ObtenerKpisGlobalesQuery ? respuesta.Task : null };
         var (cut, _, logger) = Renderizar(escenario);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         await cut.InvokeAsync(() => respuesta.SetException(new OperationCanceledException("cancelada al salir")));
 
         logger.Errores.Should().BeEmpty("la carga ya no es de nadie: su fallo no es un error que registrar");
