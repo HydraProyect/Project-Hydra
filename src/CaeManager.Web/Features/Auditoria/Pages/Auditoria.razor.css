@@ -26,3 +26,10 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
 }
+
+/* Aviso bajo los filtros cuando se vacía «Desde» y se consulta todo el historial. */
+.nota-rango-auditoria {
+    margin: 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}

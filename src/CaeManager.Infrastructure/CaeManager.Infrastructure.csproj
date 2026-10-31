@@ -65,7 +65,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- El arnes de tests de arranque monta un DbContext con la MISMA cadena de
+  <!-- (Web.Tests tambien lo usa: ocupa el semaforo de conversion de Word sin lanzar LibreOffice.)
+       El arnes de tests de arranque monta un DbContext con la MISMA cadena de
        interceptores que produccion, y para eso necesita ConfiguracionDeContexto.
        Se abre por aqui y no haciendo publica la clase: es cableado interno, no
        API de Infrastructure. Montar esa lista a mano en el arnes ya produjo un
@@ -73,6 +74,7 @@
        arriba. -->
   <ItemGroup>
     <InternalsVisibleTo Include="CaeManager.IntegrationTests" />
+    <InternalsVisibleTo Include="CaeManager.Web.Tests" />
   </ItemGroup>
 
 </Project>

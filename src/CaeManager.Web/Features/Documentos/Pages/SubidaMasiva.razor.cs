@@ -664,6 +664,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             contenidoPdf = await ConversorArchivosPdf.UnificarAsync([(contenido, nombreArchivo)], ConversorWordPdf);
             if (!EsVigente(carga)) return;
         }
+        catch (ConversionWordPdfOcupadaException)
+        {
+            if (!EsVigente(carga)) return;
+            MarcarError(item, Textos["ErrorConversionOcupada"]);
+            StateHasChanged();
+            return;
+        }
         catch (Exception ex)
         {
             if (!EsVigente(carga)) return;
