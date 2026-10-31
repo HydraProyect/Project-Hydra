@@ -61,13 +61,62 @@ public class PurgaRegistrosAuditoriaBajoRuntimeTests
     }
 
     [Fact]
+    public async Task Un_argumento_nulo_cuenta_y_no_borra()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var tenant = Guid.NewGuid();
+        await SembrarAsync(arnes, tenant, "61 months");
+        await using var runtime = await ConexionRuntimeAsync(arnes, tenant);
+
+        await using var purgar = new NpgsqlCommand("SELECT public.app_purgar_registros_auditoria(NULL);", runtime);
+        ((int)(await purgar.ExecuteScalarAsync())!).Should().Be(4);
+
+        foreach (var tabla in Tablas)
+            (await ContarComoPropietarioAsync(arnes, tabla, tenant)).Should().Be(1, $"NULL no debe borrar de {tabla}");
+    }
+
+    [Fact]
+    public async Task Una_revision_de_IA_sin_resolver_conserva_su_auditoria_hasta_resolverse()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var tenant = Guid.NewGuid();
+        await SembrarAsync(arnes, tenant, "61 months");
+        await using var propietario = new NpgsqlConnection(arnes.CadenaPropietario);
+        await propietario.OpenAsync();
+        await using (var revision = new NpgsqlCommand(
+            """
+            INSERT INTO "RevisionesIaDocumento"
+                ("Id", "DocumentoId", "AuditoriaExtraccionIaId", "ConfianzaGeneral", "Motivo", "Resuelta", "CreadaEnUtc", "TenantId")
+            SELECT gen_random_uuid(), gen_random_uuid(), "Id", 50, 'test', false, now(), @tenant
+              FROM "AuditoriasExtraccionIa" WHERE "TenantId" = @tenant;
+            """, propietario))
+        {
+            revision.Parameters.AddWithValue("tenant", tenant);
+            (await revision.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        (await EjecutarAsync(arnes, activa: false)).Should().Be(3, "la pendiente tampoco cuenta como purgable");
+        await EjecutarAsync(arnes, activa: true);
+        (await ContarComoPropietarioAsync(arnes, "AuditoriasExtraccionIa", tenant)).Should().Be(1, "aún debe recibir la decisión humana");
+
+        await using (var resolver = new NpgsqlCommand("""UPDATE "RevisionesIaDocumento" SET "Resuelta" = true WHERE "TenantId" = @tenant;""", propietario))
+        {
+            resolver.Parameters.AddWithValue("tenant", tenant);
+            await resolver.ExecuteNonQueryAsync();
+        }
+
+        await EjecutarAsync(arnes, activa: true);
+        (await ContarComoPropietarioAsync(arnes, "AuditoriasExtraccionIa", tenant)).Should().Be(0, "resuelta, ya solo cuenta el plazo");
+    }
+
+    [Fact]
     public async Task El_runtime_no_borra_filas_sueltas_ni_otros_roles_piden_la_purga()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         var tenant = Guid.NewGuid();
         await using var runtime = await ConexionRuntimeAsync(arnes, tenant);
 
-        foreach (var tabla in new[] { "RegistrosAuditoria", "RegistrosAccesoDocumentoSensible", "RegistrosActividadSoporte" })
+        foreach (var tabla in Tablas)
         {
             await using var borrar = new NpgsqlCommand($"""DELETE FROM "{tabla}";""", runtime);
             var intento = () => borrar.ExecuteNonQueryAsync();
@@ -162,8 +211,8 @@ public class PurgaRegistrosAuditoriaBajoRuntimeTests
             INSERT INTO "RegistrosActividadSoporte" ("Id", "OcurridaEnUtc", "TenantId", "UsuarioSoporteId", "Tipo", "SesionPrivilegiadaId")
             VALUES (gen_random_uuid(), now() - interval '{antiguedad}', @tenant, gen_random_uuid(), 'Lectura', gen_random_uuid());
             INSERT INTO "AuditoriasExtraccionIa"
-                ("Id", "ConfianzaGeneral", "CreadaEnUtc", "NumeroPaginas", "TenantId", "HashSha256", "ProveedorCodigo", "TipoEsperado", "VersionPipeline")
-            VALUES (gen_random_uuid(), 90, now() - interval '{antiguedad}', 1, @tenant, 'hash', 'proveedor', 'tipo', 'v1');
+                ("Id", "ConfianzaGeneral", "CreadaEnUtc", "NumeroPaginas", "TiempoProcesamientoMs", "TenantId", "HashSha256", "ProveedorCodigo", "TipoEsperado", "VersionPipeline")
+            VALUES (gen_random_uuid(), 90, now() - interval '{antiguedad}', 1, 0, @tenant, 'hash', 'proveedor', 'tipo', 'v1');
             """, propietario);
         sembrar.Parameters.AddWithValue("tenant", tenant);
         await sembrar.ExecuteNonQueryAsync();

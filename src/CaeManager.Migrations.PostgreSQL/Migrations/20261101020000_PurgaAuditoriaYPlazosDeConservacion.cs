@@ -33,6 +33,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // runtime solo con EXECUTE. El parámetro elige entre contar y borrar, nunca el corte.
             // Evidencia de aceptación: el contrato y 5 años. Sin fecha de fin de contrato no se
             // purga; lo que sí se hace es imponer en base de datos que no se edita ni se borra.
+            // AuditoriasExtraccionIa: el runtime la actualiza al registrar la decisión humana, pero ya no
+            // la borra, y la purga respeta la fila de una revisión de IA aún sin resolver.
             migrationBuilder.Sql(
                 """
                 CREATE OR REPLACE FUNCTION public.app_purgar_sesiones_usuario() RETURNS integer
@@ -71,7 +73,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         SELECT (SELECT count(*) FROM public."RegistrosAuditoria" WHERE "FechaUtc" < v_corte)
                              + (SELECT count(*) FROM public."RegistrosAccesoDocumentoSensible" WHERE "OcurridoEnUtc" < v_corte)
                              + (SELECT count(*) FROM public."RegistrosActividadSoporte" WHERE "OcurridaEnUtc" < v_corte)
-                             + (SELECT count(*) FROM public."AuditoriasExtraccionIa" WHERE "CreadaEnUtc" < v_corte)
+                             + (SELECT count(*) FROM public."AuditoriasExtraccionIa" a
+                                 WHERE a."CreadaEnUtc" < v_corte
+                                   AND NOT EXISTS (SELECT 1 FROM public."RevisionesIaDocumento" r
+                                                    WHERE r."AuditoriaExtraccionIaId" = a."Id" AND NOT r."Resuelta"))
                           INTO v_total;
                         RETURN v_total;
                     END IF;
@@ -85,7 +90,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     DELETE FROM public."RegistrosActividadSoporte" WHERE "OcurridaEnUtc" < v_corte;
                     GET DIAGNOSTICS v_filas = ROW_COUNT;
                     v_total := v_total + v_filas;
-                    DELETE FROM public."AuditoriasExtraccionIa" WHERE "CreadaEnUtc" < v_corte;
+                    DELETE FROM public."AuditoriasExtraccionIa" a
+                     WHERE a."CreadaEnUtc" < v_corte
+                       AND NOT EXISTS (SELECT 1 FROM public."RevisionesIaDocumento" r
+                                        WHERE r."AuditoriaExtraccionIaId" = a."Id" AND NOT r."Resuelta");
                     GET DIAGNOSTICS v_filas = ROW_COUNT;
                     v_total := v_total + v_filas;
                     RETURN v_total;
@@ -95,6 +103,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 GRANT EXECUTE ON FUNCTION public.app_purgar_registros_auditoria(boolean) TO cae_app_runtime;
 
                 REVOKE UPDATE, DELETE, TRUNCATE ON TABLE public."AceptacionesTerminos" FROM cae_app_runtime;
+                REVOKE DELETE, TRUNCATE ON TABLE public."AuditoriasExtraccionIa" FROM cae_app_runtime;
                 """);
         }
 
@@ -104,6 +113,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.Sql(
                 """
                 GRANT UPDATE, DELETE ON TABLE public."AceptacionesTerminos" TO cae_app_runtime;
+                GRANT DELETE ON TABLE public."AuditoriasExtraccionIa" TO cae_app_runtime;
 
                 DROP FUNCTION public.app_purgar_registros_auditoria(boolean);
 
