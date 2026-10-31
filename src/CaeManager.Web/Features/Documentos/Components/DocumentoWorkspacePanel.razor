@@ -155,7 +155,7 @@ else
                         {
                             <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Motivos</span><strong>@_validacion.Motivos</strong></div>
                         }
-                        <div class="celda-info-documento-360"><span>Código de verificación (CEA/CSV)</span><strong>@(_validacion.CodigoVerificacion ?? "—")</strong></div>
+                        <div class="celda-info-documento-360"><span>Código de verificación (CEA/CSV)</span><strong>@(_validacion.CodigoVerificacionDisponible ? (_validacion.CodigoVerificacion ?? "—") : TextosDocumento["ValidacionOficialCodigoNoDisponibleSoporte"])</strong></div>
                         <div class="celda-info-documento-360"><span>CIF detectado</span><strong>@(_validacion.CifDetectado ?? "—")</strong></div>
                         <div class="celda-info-documento-360"><span>Fecha de emisión detectada</span><strong>@(_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</strong></div>
                         <div class="celda-info-documento-360"><span>Periodo detectado</span><strong>@(_validacion.PeriodoDetectado ?? "—")</strong></div>

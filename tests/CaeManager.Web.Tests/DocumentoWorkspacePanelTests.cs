@@ -140,7 +140,7 @@ public class DocumentoWorkspacePanelTests : BunitContext
             Validacion = new ValidacionOficialDocumentoDto(
                 PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
                 DecisionValidacionOficial.AutoValidado, ResultadoCotejoDocumentoOficial.Coincide, "Motivos de prueba.",
-                null, null, null, null, null, new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), [])
+                null, null, null, null, null, new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), [], true)
         };
         Services.AddScoped<ToastService>();
         Services.AddScoped<IMediator>(_ => mediador);
@@ -180,7 +180,7 @@ public class DocumentoWorkspacePanelTests : BunitContext
         var validacion = new ValidacionOficialDocumentoDto(
             PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion, decision,
             ResultadoCotejoDocumentoOficial.Coincide, "Motivos de prueba.", null, null, null, null, null,
-            new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), []);
+            new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), [], true);
 
         var cut = Renderizar(Detalle(), "validacion", validacion);
 
@@ -188,6 +188,21 @@ public class DocumentoWorkspacePanelTests : BunitContext
         rejilla.Should().Contain("Verificado el").And.Contain(rotuloEsperado);
         rejilla.Should().NotContainEquivalentOf("validad",
             "«validado» está reservado al estado de la acreditación en la plataforma del Cliente");
+    }
+
+    [Theory]
+    [InlineData(false, null, "No disponible para Soporte TALVEG")]
+    [InlineData(true, null, "—")]
+    [InlineData(true, "CSV-123", "CSV-123")]
+    public void Muestra_la_disponibilidad_del_codigo(bool disponible, string? codigo, string esperado)
+    {
+        var validacion = new ValidacionOficialDocumentoDto(
+            PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
+            DecisionValidacionOficial.AutoValidado, ResultadoCotejoDocumentoOficial.Coincide,
+            "", codigo, null, null, null, null, DateTime.UtcNow, [], disponible);
+        var cut = Renderizar(Detalle(), "validacion", validacion);
+        var celda = cut.FindAll(".celda-info-documento-360").Single(e => e.TextContent.Contains("Código de verificación"));
+        celda.QuerySelector("strong")!.TextContent.Should().Be(esperado);
     }
 
     [Fact]

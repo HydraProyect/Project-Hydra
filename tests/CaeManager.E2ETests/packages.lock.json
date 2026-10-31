@@ -15,6 +15,17 @@
           "SixLabors.Fonts": "[1.0.0, 3.0.0)"
         }
       },
+      "Deque.AxeCore.Playwright": {
+        "type": "Direct",
+        "requested": "[4.13.0, )",
+        "resolved": "4.13.0",
+        "contentHash": "tqzqVEsQfVg4fmx9/AkbgYjVMYHHOGI7WkTznKuP8ayi0uaBcd+2skOfxnVdUBlEhpHdu9stzxOZ6uPVhIS2JA==",
+        "dependencies": {
+          "Deque.AxeCore.Commons": "4.13.0",
+          "Microsoft.Playwright": "1.20.2",
+          "System.IO.Abstractions": "17.0.24"
+        }
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.10.1, )",
@@ -82,6 +93,14 @@
         "resolved": "2.0.0",
         "contentHash": "ngTqjYreDYNytG1W5d3ewHsw0ukmmrgV7EKnS4/40rXoYZGt07jrBvo+N+GxT49rcageUMUiprV0jYT4nwVBHQ=="
       },
+      "Deque.AxeCore.Commons": {
+        "type": "Transitive",
+        "resolved": "4.13.0",
+        "contentHash": "roq2z6OmKY4KVXGj1lSigUbjE7DnIcYLqPOVcnWrusS6CI7oB6/He8Oo3ZO/TCOlnaTS1hkJOuKPwL+PyhyC6w==",
+        "dependencies": {
+          "NewtonSoft.Json": "13.0.1"
+        }
+      },
       "DocumentFormat.OpenXml": {
         "type": "Transitive",
         "resolved": "3.1.1",
@@ -139,6 +158,11 @@
           "Microsoft.TestPlatform.ObjectModel": "18.10.1"
         }
       },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.1",
+        "contentHash": "ppPFpBcvxdsfUonNcvITKqLl3bqxWbDCZIzDWHzjpdAHRFfZe0Dw9HmA0+za13IdyrgJwpkDTDA9fHaxOrt20A=="
+      },
       "RBush.Signed": {
         "type": "Transitive",
         "resolved": "4.0.0",
@@ -153,6 +177,11 @@
         "type": "Transitive",
         "resolved": "5.0.0",
         "contentHash": "dMkqfy2el8A8/I76n2Hi1oBFEbG1SfxD2l5nhwXV3XjlnOmwxJlQbYpJH4W51odnU9sARCSAgv7S3CyAFMkpYg=="
+      },
+      "System.IO.Abstractions": {
+        "type": "Transitive",
+        "resolved": "17.0.24",
+        "contentHash": "hA7bacntMiZv1Yf9xtjwl/GP3GT1mG84QxhAk7ijAUD0pJhJaVVwXScE13vMpXnNtlaRDW6SeyZdWg2j2qrh4w=="
       },
       "System.IO.Packaging": {
         "type": "Transitive",

@@ -718,6 +718,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
                 var parametros = new CaeManager.Domain.Configuracion.ParametroSistema(30, 15);
                 parametros.ActualizarSeguridadAcceso(30, exigeSegundoFactorTodosLosPerfiles: true);
                 contexto.ParametrosSistema.Add(parametros);
+                // Este contexto no lleva TenantSelladoInterceptor: sin sellar a mano, la fila quedaría
+                // con TenantId vacío, la fábrica no la vería y regirían los valores por defecto.
+                contexto.Entry(parametros).Property(p => p.TenantId).CurrentValue = _tenant;
                 await contexto.SaveChangesAsync();
             }
 
@@ -992,9 +995,11 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         public IServiceScope CreateScope() => throw new TaskCanceledException("tiempo de espera del proveedor");
     }
 
+    // Consulta el ámbito explícito igual que TenantActual: la fábrica de claims lee los parámetros
+    // del Tenant de la cuenta dentro de ese ámbito, y con un valor fijo el filtro global no vería la fila.
     private sealed class TenantActualFijo : ITenantActual
     {
-        public Guid? TenantId { get; set; }
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
 
     private sealed class ContadorDeConsultas : DbCommandInterceptor
