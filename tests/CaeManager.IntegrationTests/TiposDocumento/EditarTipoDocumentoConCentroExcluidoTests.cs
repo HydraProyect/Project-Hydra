@@ -37,6 +37,9 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly TenantActualAmbiental _tenantActual = new() { TenantId = Guid.NewGuid() };
 
+    /// <summary>Una clave nueva solo se admite si es de la carpeta del Tenant propietario del Centro.</summary>
+    private string ClavePlantilla => $"{_tenantActual.TenantId:N}/formacion-prl.pdf";
+
     public async Task InitializeAsync()
     {
         await using var dbContext = CrearContexto();
@@ -80,7 +83,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var resultadoExclusion = await establecerHandler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(
                 centro.Id, tipo.Id, Incluido: false, PeriodicidadEspecialMeses: 6, BloqueaAcceso: true,
-                ArchivoUrl: "plantillas/formacion-prl.pdf", NombreArchivoOriginal: "Formación PRL.pdf", ToleranciaDias: 15),
+                ArchivoUrl: ClavePlantilla, NombreArchivoOriginal: "Formación PRL.pdf", ToleranciaDias: 15),
             CancellationToken.None);
         resultadoExclusion.EsExitoso.Should().BeTrue();
 
@@ -134,7 +137,7 @@ public class EditarTipoDocumentoConCentroExcluidoTests : IAsyncLifetime
         var fila = filas.Single();
         fila.PeriodicidadEspecialMeses.Should().Be(6);
         fila.BloqueaAcceso.Should().BeTrue();
-        fila.ArchivoUrl.Should().Be("plantillas/formacion-prl.pdf");
+        fila.ArchivoUrl.Should().Be(ClavePlantilla);
         // La tolerancia del Centro la fija «Requisitos del Centro»: convertir la fila desde el picker de Tipos no la pierde.
         fila.ToleranciaDias.Should().Be(15);
     }
