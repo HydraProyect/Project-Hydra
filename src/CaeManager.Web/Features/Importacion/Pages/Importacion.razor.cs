@@ -5,14 +5,13 @@ using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
-using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Infrastructure.Importacion;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Importacion.Pages;
 
@@ -203,9 +202,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     [Inject] private LimitadorAnalisisImportacion Limitador { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private ToastService ToastService { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Importacion> Logger { get; set; } = default!;
     [Inject] private IPlantillaCaeCompletaConfigurada PlantillaCaeCompleta { get; set; } = default!;
 
@@ -414,17 +412,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var idsFaltantes = historial.Select(h => h.EjecutadaPorUsuarioId).Distinct()
                 .Where(id => !_usuariosPorId.ContainsKey(id)).ToList();
 
-            // Mismo patrón que Auditoria.razor.cs: UserManager no pasa por
-            // MediatR y compite por el mismo DbContext scoped que el resto
-            // del layout. La espera de la puerta sí se cancela con el token;
-            // UserManager.FindByIdAsync no admite uno (usa su propio
-            // CancellationToken, None), así que la búsqueda en curso termina
-            // y lo que se corta es la siguiente.
+            // Mismo patrón que Auditoria.razor.cs: la tanda entera toma la
+            // puerta una vez, compitiendo por el mismo DbContext scoped que el
+            // resto del layout, y tanto su espera como cada consulta se
+            // cancelan con el token de la página.
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id), token);
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? Textos["UsuarioEliminado"].Value;
                     token.ThrowIfCancellationRequested();
                 }

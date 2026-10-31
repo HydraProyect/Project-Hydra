@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Workspace;
 using FluentAssertions;
@@ -13,7 +14,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// <c>PestanaHistorial</c> resuelve el nombre de quien hizo cada cambio con
-/// <c>UserManager</c>, que no pasa por MediatR y por tanto no entra solo por
+/// una consulta que, en este doble de MediatR, no entra sola por
 /// <see cref="PuertaAccesoDatos"/>. En Blazor Server el DbContext es scoped y
 /// lo comparte todo el circuito: una búsqueda de usuario fuera de la puerta
 /// puede solaparse con otra operación del circuito y lanzar «A second operation
@@ -22,8 +23,8 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> que, con la puerta ocupada por otra
-/// operación del circuito, la pestaña no llega a llamar a
-/// <c>FindByIdAsync</c>, y que sí lo hace —y pinta el nombre— cuando la
+/// operación del circuito, la pestaña no llega a ejecutar la consulta, y que
+/// sí lo hace —y pinta el nombre— cuando la
 /// puerta se suelta. El test ocupa la puerta como lo haría cualquier otro
 /// componente del circuito: entrando y no saliendo.
 /// </para>
@@ -36,13 +37,20 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public partial class PestanaHistorialPuertaAccesoDatosTests : BunitContext
 {
-    private sealed class MediatorHistorial(IReadOnlyList<RegistroAuditoriaListaDto> filas) : IMediator
+    private sealed class MediatorHistorial(IReadOnlyList<RegistroAuditoriaListaDto> filas, AlmacenUsuarios almacen) : IMediator
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerAuditoriaQuery consulta
-                ? Task.FromResult((TResponse)(object)new ResultadoPaginado<RegistroAuditoriaListaDto>(
-                    filas, filas.Count, consulta.Pagina, consulta.TamanoPagina))
-                : throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerAuditoriaQuery consulta)
+                return (TResponse)(object)new ResultadoPaginado<RegistroAuditoriaListaDto>(
+                    filas, filas.Count, consulta.Pagina, consulta.TamanoPagina);
+            if (request is ObtenerNombreCuentaQuery nombre)
+            {
+                var usuario = await almacen.FindByIdAsync(nombre.UsuarioId.ToString(), cancellationToken);
+                return (TResponse)(object?)(usuario is null ? null : new NombreCuentaDto(usuario.NombreCompleto, usuario.Email))!;
+            }
+            throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             throw new NotSupportedException();
@@ -100,11 +108,9 @@ public partial class PestanaHistorialPuertaAccesoDatosTests : BunitContext
         {
             new(Guid.NewGuid(), "Cliente", entidadId, "Modificado", usuarioId, DateTime.UtcNow, false, false),
         };
-        Services.AddScoped<IMediator>(_ => new MediatorHistorial(filas));
+        Services.AddScoped<IMediator>(_ => new MediatorHistorial(filas, almacen));
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            almacen, null!, null!, null!, null!, null!, null!, null!, null!));
 
         // Otra operación del circuito tiene la puerta: entra y no sale hasta que el test la suelte.
         var puerta = Services.GetRequiredService<PuertaAccesoDatos>();

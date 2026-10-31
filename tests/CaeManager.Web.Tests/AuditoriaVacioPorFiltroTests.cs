@@ -1,7 +1,6 @@
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
-using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using MediatR;
@@ -64,31 +63,11 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     }
 
     /// <summary>
-    /// La página inyecta <c>UserManager</c> para poner nombre al autor de cada
-    /// fila. Con la lista vacía —que es lo que estos casos miran— no llega a
-    /// consultarse ningún usuario, así que el almacén lanza si alguien lo toca:
-    /// es la forma de enterarse si un cambio futuro empieza a pedir usuarios en
-    /// un camino donde no hay filas.
+    /// La página resuelve quién y con qué rol por cada fila, por el mediador y RoleManager. Con la
+    /// lista vacía —que es lo que estos casos miran— no llega a consultarse ninguno,
+    /// y el mediador tampoco admite la consulta del nombre de una cuenta: un cambio
+    /// que empiece a pedir datos en un camino sin filas pone esto en rojo.
     /// </summary>
-    private sealed class AlmacenUsuariosQueNadieDebeTocar : IUserStore<ApplicationUser>
-    {
-        private static Exception NoDeberia() =>
-            new NotSupportedException("Sin filas no se consulta ningún usuario; si esto salta, la página cambió de camino.");
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public void Dispose() { }
-    }
-
-    /// <summary>Mismo criterio que <see cref="AlmacenUsuariosQueNadieDebeTocar"/>, para RoleManager.</summary>
     private sealed class AlmacenRolesQueNadieDebeTocar : IRoleStore<IdentityRole<Guid>>
     {
         private static Exception NoDeberia() =>
@@ -116,8 +95,6 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorConRegistros(registros));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<ToastService>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped(_ => new RoleManager<IdentityRole<Guid>>(
             new AlmacenRolesQueNadieDebeTocar(), null!, null!, null!, null!));
 

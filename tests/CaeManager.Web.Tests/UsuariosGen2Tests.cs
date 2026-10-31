@@ -162,10 +162,12 @@ public partial class UsuariosGen2Tests : BunitContext
         protected override Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.EmpresasGestionadas());
 
-        protected override Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken)
+        protected override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken)
         {
             Fuente.RolesConsultados.Add(rol);
-            return Task.FromResult(Fuente.EnRol(rol));
+            return Task.FromResult<IReadOnlyList<CuentaVisibleEnRol>>(Fuente.EnRol(rol)
+                .Select(u => new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar))
+                .ToList());
         }
 
         protected override Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(

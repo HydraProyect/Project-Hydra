@@ -6,13 +6,12 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Reportes.Commands.RegistrarHistorialInforme;
 using CaeManager.Application.Reportes.Queries;
 using CaeManager.Application.Reportes.Queries.ObtenerHistorialInformes;
-using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Reportes;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Reportes.Pages;
 
@@ -83,7 +82,6 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
     private static readonly TimeSpan EsperaMinima = TimeSpan.FromMilliseconds(1400);
 
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private NavigationManager Navegacion { get; set; } = default!;
 
@@ -171,7 +169,7 @@ public partial class Reportes : CaeManager.Web.Components.PaginaInteractiva
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id));
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? Textos["UsuarioEliminado"].Value;
                 }
             });

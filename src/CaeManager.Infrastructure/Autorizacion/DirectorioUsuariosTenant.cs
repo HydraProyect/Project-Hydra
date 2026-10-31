@@ -243,12 +243,12 @@ public class DirectorioUsuariosTenant(
                       && u.Id != excluirUsuarioId
                       && r.Name == Roles.GestorCae
                 orderby u.NombreCompleto, u.Email
-                select u)
+                select new { u.Id, u.NombreCompleto, u.Email, u.PhoneNumber, u.LockoutEnd })
                 .ToListAsync(cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
-                .Where(u => !u.EstaDesactivada(ahora))
+                .Where(u => !ApplicationUser.BloqueoDesactivaLaCuenta(u.LockoutEnd, ahora))
                 .Take(MaximoCompanerosGestorCae)
                 .Select(u => new CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.CompaneroGestorCaeDto(
                     u.Id,
@@ -435,25 +435,28 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
-    /// Equivalente a <c>GetUsersInRoleAsync</c> pero acotado al tenant activo
-    /// — es el que alimenta los selectores de gestor/ejecutivo.
+    /// Las cuentas del rol visibles en el tenant activo, proyectadas: alimenta los
+    /// selectores de gestor/ejecutivo y solo trae lo que estos pintan. El orden se
+    /// resuelve en memoria, no en la base, para que el desplegable no dependa de
+    /// la intercalación de PostgreSQL.
     /// </summary>
-    public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(
+    public virtual Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(
         string rol, CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CuentaVisibleEnRol>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
             var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
-            // GetUsersInRoleAsync no se puede componer con LINQ (devuelve una
-            // lista ya materializada), así que el filtro se aplica después.
-            var enRol = await userManager.GetUsersInRoleAsync(rol);
+            var enRol = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles on u.Id equals ur.UserId
+                join r in identidad.Roles on ur.RoleId equals r.Id
+                where r.Name == rol && (u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
+                select new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar))
+                .ToListAsync(cancellationToken);
 
-            return enRol
-                .Where(u => u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
-                .OrderBy(u => u.NombreCompleto)
-                .ToList();
+            return enRol.OrderBy(u => u.NombreCompleto).ToList();
         }, cancellationToken);
 
     /// <summary>
@@ -583,15 +586,17 @@ public class DirectorioUsuariosTenant(
     /// los roles de cada uno, uno a uno.
     /// </para>
     /// </summary>
-    public Task<IReadOnlyList<ApplicationUser>> ObtenerCuentasPropiasSinRolAsync(
+    public Task<IReadOnlyList<CuentaPropiaSinRol>> ObtenerCuentasPropiasSinRolAsync(
         CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CuentaPropiaSinRol>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
             return await identidad.Users
+                .AsNoTracking()
                 .Where(u => u.TenantId == tenantId && !identidad.UserRoles.Any(ur => ur.UserId == u.Id))
                 .OrderBy(u => u.FechaCreacion)
+                .Select(u => new CuentaPropiaSinRol(u.Id, u.Email, u.NombreCompleto, u.FechaCreacion))
                 .ToListAsync(cancellationToken);
         }, cancellationToken);
 

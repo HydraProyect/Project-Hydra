@@ -4,6 +4,7 @@ using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -13,7 +14,6 @@ using CaeManager.Web.Features.Configuracion.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
@@ -38,8 +38,6 @@ namespace CaeManager.Web.Features.Configuracion.Pages;
 public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosConfiguracion> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunes { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
@@ -197,11 +195,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
         if (orden is null)
             return null;
 
-        // Por la puerta: UserManager no pasa por MediatR y comparte el DbContext scoped con los
-        // componentes del layout (ver PuertaAccesoDatos).
-        ApplicationUser? usuario = null;
-        await PuertaAccesoDatos.EjecutarAsync(async () =>
-            usuario = await UserManager.FindByIdAsync(orden.ActualizadoPorUsuarioId.ToString()));
+        var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(orden.ActualizadoPorUsuarioId));
         // El mockup identifica al Actor real por su correo; un usuario ya borrado no rompe la página.
         return new[] { usuario?.Email, usuario?.NombreCompleto }.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))
                ?? Textos["OrdenMenuActorDesconocido"].Value;

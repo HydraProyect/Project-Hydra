@@ -123,8 +123,14 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// que conociera un correo podría expulsar a esa persona con cinco
     /// contraseñas erróneas. Solo la desactivación deliberada corta sesiones.
     /// </summary>
-    public bool EstaDesactivada(DateTimeOffset ahora) =>
-        LockoutEnd is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
+    public bool EstaDesactivada(DateTimeOffset ahora) => BloqueoDesactivaLaCuenta(LockoutEnd, ahora);
+
+    /// <summary>
+    /// El criterio de <see cref="EstaDesactivada"/> sobre el dato suelto, para las
+    /// lecturas que proyectan <c>LockoutEnd</c> sin materializar la cuenta.
+    /// </summary>
+    public static bool BloqueoDesactivaLaCuenta(DateTimeOffset? finDeBloqueo, DateTimeOffset ahora) =>
+        finDeBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
 
     /// <summary>
     /// Lo que <see cref="Desactivar"/> escribe en <c>LockoutEnd</c>. Con
