@@ -29,7 +29,7 @@
         if (!evento.isTrusted || senalPendiente !== null) return;
 
         // Una interacción dentro del minuto no se pierde: sale al terminar ese minuto. Así el
-        // límite de señales nunca acorta el plazo; como mucho lo alarga unos segundos.
+        // límite de señales nunca acorta el plazo; a cambio, puede alargarlo hasta ese minuto.
         const espera = ultimaSenal + MILISEGUNDOS_ENTRE_SENALES - performance.now();
         if (espera > 0) senalPendiente = setTimeout(enviar, espera);
         else enviar();

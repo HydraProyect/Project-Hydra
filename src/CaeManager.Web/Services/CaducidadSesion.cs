@@ -49,8 +49,8 @@ namespace CaeManager.Web.Services;
 /// rechaza y se borra, y también la que supera el plazo de inactividad o trae una marca
 /// ilegible. La cookie vigente al desplegar este cambio aún no lleva marca de
 /// interacción: se le pone en sus primeras peticiones, en vez de cerrar sesiones activas,
-/// y queda guardada en la siguiente revalidación del sello; el tope de 12 h limita esa
-/// tolerancia. El circuito de Blazor no hace peticiones
+/// cuenta desde la primera vez que se ve y queda guardada en la siguiente revalidación
+/// del sello. El circuito de Blazor no hace peticiones
 /// HTTP: <see cref="ProveedorAutenticacionRevalidada"/> mira el tope y la inactividad en
 /// cada ciclo de revalidación y pasa a anónimo sin consultar la base.
 /// </para>
@@ -133,6 +133,7 @@ public static class CaducidadSesion
             var propiedades = contexto.Properties.Items;
             var actividad = contexto.HttpContext.RequestServices.GetService<ActividadSesiones>();
             var sid = CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.LeerSid(contexto.Principal);
+            var ultimaRegistrada = sid is { } sesion ? actividad?.Leer(sesion) : null;
             var sinMarcaInteraccion = !propiedades.TryGetValue(MarcaInteraccion, out var interaccion) || interaccion is null;
             if (!propiedades.TryGetValue(MarcaInicio, out var inicio)
                 || inicio is null
@@ -140,7 +141,9 @@ public static class CaducidadSesion
                 // La cookie emitida antes de los identificadores de sesión no se puede revocar:
                 // se rechaza en la primera petición, sin esperar a la revalidación del sello.
                 || sid is null
-                || (!sinMarcaInteraccion && !SigueActiva(Leer(interaccion), actividad?.Leer(sid.Value), ahora)))
+                || !(sinMarcaInteraccion
+                    ? ultimaRegistrada is null || SigueActiva(ultimaRegistrada, ahora)
+                    : SigueActiva(Leer(interaccion), ultimaRegistrada, ahora)))
             {
                 contexto.RejectPrincipal();
                 await contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
@@ -152,7 +155,11 @@ public static class CaducidadSesion
             contexto.Properties.IsPersistent = false;
             if (sinMarcaInteraccion)
             {
-                interaccion = Sello(ahora);
+                // Se cuenta desde la primera vez que se ve: si no, una copia de la cookie sin
+                // marca renovaría el plazo en cada petición, hasta el tope de 12 h.
+                if (ultimaRegistrada is null)
+                    actividad?.Anotar(sid.Value, ahora);
+                interaccion = Sello(ultimaRegistrada ?? ahora);
                 propiedades[MarcaInteraccion] = interaccion;
             }
 

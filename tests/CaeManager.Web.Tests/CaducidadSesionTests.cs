@@ -477,6 +477,42 @@ public class CaducidadSesionTests
             "la señal revalida el sello aunque no haya pasado el intervalo");
     }
 
+    /// <summary>
+    /// Una copia de la cookie sin marca se puede presentar otra vez sin aceptar la renovada: el
+    /// plazo cuenta desde la primera vez que se vio, no desde cada presentación.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_presentar_la_cookie_sin_marca_no_renueva_el_plazo()
+    {
+        var opciones = new CookieAuthenticationOptions();
+        CaducidadSesion.Configurar(opciones, Entorno("Production"));
+        var reloj = new RelojManual(Ahora);
+        await using var servicios = new ServiceCollection().AddSingleton<TimeProvider>(reloj)
+            .AddSingleton(new ActividadSesiones()).AddSingleton<IAuthenticationService, AutenticacionFalsa>().BuildServiceProvider();
+        var sid = ClaimSid();
+        var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
+
+        async Task<CookieValidatePrincipalContext> PresentarAsync()
+        {
+            var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddHours(-6) };
+            propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddHours(-6));
+            var contexto = new CookieValidatePrincipalContext(new DefaultHttpContext { RequestServices = servicios }, esquema, opciones,
+                new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([sid], "cookie")), propiedades, esquema.Name));
+            await opciones.Events.OnValidatePrincipal(contexto);
+            return contexto;
+        }
+
+        (await PresentarAsync()).Principal.Should().NotBeNull();
+
+        reloj.Ahora = Ahora.AddMinutes(29);
+        var segunda = await PresentarAsync();
+        segunda.Principal.Should().NotBeNull();
+        segunda.Properties.Items[CaducidadSesion.MarcaInteraccion].Should().Be(Marca(Ahora));
+
+        reloj.Ahora = Ahora.AddMinutes(30);
+        (await PresentarAsync()).Principal.Should().BeNull();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("no-es-un-numero")]
