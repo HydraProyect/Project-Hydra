@@ -254,7 +254,7 @@ public class AnadePrincipalALasCarterasTests : IAsyncLifetime
         }
 
         await using var propio = NuevoContexto(tenant.Id);
-        propio.Users.Add(new ApplicationUser
+        await SiembraDeCuentasEnEsquemaAnterior.InsertarAsync(propio, new ApplicationUser
         {
             Id = usuario,
             TenantId = tenant.Id,
