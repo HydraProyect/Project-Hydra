@@ -97,7 +97,15 @@ public sealed class ProveedorAutenticacionRevalidada(
             {
                 await using var ambito = scopeFactory.CreateAsyncScope();
                 var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
-                var vigente = await signInManager.ValidateSecurityStampAsync(authenticationState.User) is not null;
+                // El principal del circuito no cambia: lo que el Administrador del Tenant haya
+                // ajustado desde que se conectó se lee aquí, con la misma fábrica de la cookie.
+                var usuario = await signInManager.ValidateSecurityStampAsync(authenticationState.User);
+                var vigente = usuario is not null
+                    && CaducidadSesion.CircuitoAdmitido(
+                        authenticationState.User,
+                        await signInManager.ClaimsFactory.CreateAsync(usuario),
+                        actividad?.Leer(sid),
+                        ahora);
                 if (!vigente) _sesionInvalidada = true;
                 return vigente;
             }

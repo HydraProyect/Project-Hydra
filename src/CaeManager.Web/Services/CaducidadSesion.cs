@@ -49,8 +49,9 @@ namespace CaeManager.Web.Services;
 /// <para>
 /// <b>Plazo del Tenant.</b> Viaja en el ticket
 /// (<see cref="TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad"/>), así que la
-/// cookie toma un cambio en la siguiente revalidación del sello y el circuito se queda con
-/// el que tenía al conectarse, hasta que recarga. Sin claim legible y en rango, vale
+/// cookie toma un cambio en la siguiente revalidación del sello. El circuito lo lee en su
+/// ciclo (<see cref="CircuitoAdmitido"/>) y aplica el más corto entre ese y el que tenía al
+/// conectarse: un plazo ampliado le llega al recargar. Sin claim legible y en rango, vale
 /// <see cref="Inactividad"/>: nunca un plazo mayor por un dato que no se entiende.
 /// </para>
 ///
@@ -195,6 +196,15 @@ public static class CaducidadSesion
             if (contexto.Principal is null)
                 return;
 
+            // La revalidación pudo traer un plazo más corto del Tenant: rige ya, antes de que
+            // esta señal renueve una sesión que con él había caducado.
+            if (!SigueActiva(Leer(interaccion), ultimaRegistrada, ahora, PlazoInactividad(contexto.Principal)))
+            {
+                contexto.RejectPrincipal();
+                await contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
+                return;
+            }
+
             if (conInteraccion)
             {
                 interaccion = Sello(ahora);
@@ -231,10 +241,25 @@ public static class CaducidadSesion
     /// un circuito se queda como estaba al conectarse. Sin marca de interacción cuenta el
     /// inicio de sesión, nunca el momento actual.
     /// </summary>
-    public static bool SigueActiva(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
+    public static bool SigueActiva(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
+        SigueActiva(principal, ultimaRegistrada, ahora, PlazoInactividad(principal));
+
+    /// <summary>
+    /// ¿Admite el ajuste vigente del Tenant, recién leído de la base en <paramref name="vigente"/>,
+    /// un circuito que sigue con el principal de cuando se conectó? No, si con el plazo vigente la
+    /// sesión ya caducó o si la cuenta tiene ahora una activación que antes no tenía: esa solo se
+    /// resuelve en una petición HTTP, que es donde actúa el middleware.
+    /// </summary>
+    public static bool CircuitoAdmitido(
+        ClaimsPrincipal circuito, ClaimsPrincipal vigente, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
+        SigueActiva(circuito, ultimaRegistrada, ahora, PlazoInactividad(vigente))
+        && (circuito.HasClaim(c => c.Type == TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion)
+            || !vigente.HasClaim(c => c.Type == TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion));
+
+    private static bool SigueActiva(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora, TimeSpan plazo)
     {
         var marca = Leer(principal.FindFirst(MarcaInteraccion)?.Value) ?? Leer(principal.FindFirst(MarcaInicio)?.Value);
-        return SigueActiva(marca is null || marca < ultimaRegistrada ? ultimaRegistrada : marca, ahora, PlazoInactividad(principal));
+        return SigueActiva(marca is null || marca < ultimaRegistrada ? ultimaRegistrada : marca, ahora, plazo);
     }
 
     /// <summary>

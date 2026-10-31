@@ -186,6 +186,19 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
 
     /// <summary>Un plazo guardado en AspNetUserClaims no puede sustituir al del Tenant.</summary>
     [Fact]
+    public async Task Rige_el_ajuste_del_Tenant_propietario_aunque_se_visite_otro()
+    {
+        await AjustarTenantAsync(45, exigeTodos: true);
+
+        var principal = await PrincipalDeAsync(
+            "gestor-visita@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: false,
+            tenantVisitado: Guid.NewGuid());
+
+        MotivoPendiente(principal).Should().Be(TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores);
+        principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad)?.Value.Should().Be("45");
+    }
+
+    [Fact]
     public async Task Un_plazo_guardado_en_la_cuenta_no_cuenta()
     {
         await AjustarTenantAsync(minutos: 10, exigeTodos: false);
@@ -219,7 +232,8 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
 
     private async Task<System.Security.Claims.ClaimsPrincipal> PrincipalDeAsync(
         string email, string rol, bool debeCambiarContrasena, bool dosFactores,
-        System.Security.Claims.Claim? claimGuardado = null)
+        System.Security.Claims.Claim? claimGuardado = null,
+        Guid? tenantVisitado = null)
     {
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -245,7 +259,8 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
         factory.Should().BeOfType<TenantClaimsPrincipalFactory>(
             "si el contenedor resolviera otra factory, este test estaría midiendo la de Identity");
 
-        return await factory.CreateAsync(usuario);
+        using (tenantVisitado is { } visitado ? AmbitoTenantExplicito.Establecer(visitado) : null)
+            return await factory.CreateAsync(usuario);
     }
 
     private sealed class TenantActualFijo : ITenantActual

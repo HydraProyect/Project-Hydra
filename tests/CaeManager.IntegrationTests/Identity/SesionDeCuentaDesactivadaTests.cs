@@ -691,6 +691,47 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     }
 
     [Fact]
+    public async Task El_circuito_abierto_pasa_a_anonimo_cuando_el_Tenant_exige_un_segundo_factor_que_no_tiene()
+    {
+        var usuario = await CrearUsuarioAsync("circuito-exigido@x.test");
+        var principal = await PrincipalDeSesionAsync(usuario);
+
+        var proveedor = new ProveedorAutenticacionRevalidada(
+            _servicios.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>(),
+            _servicios.GetRequiredService<IServiceScopeFactory>(),
+            IntervaloDeUnSegundo);
+        try
+        {
+            proveedor.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
+
+            // Control positivo: sin la exigencia, el bucle no expulsa a nadie.
+            await Task.Delay(TimeSpan.FromSeconds(2.5));
+            proveedor.SesionInvalidada.Should().BeFalse();
+
+            using (var ambito = _servicios.CreateScope())
+            using (AmbitoTenantExplicito.Establecer(_tenant))
+            {
+                var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+                var parametros = new CaeManager.Domain.Configuracion.ParametroSistema(30, 15);
+                parametros.ActualizarSeguridadAcceso(30, exigeSegundoFactorTodosLosPerfiles: true);
+                contexto.ParametrosSistema.Add(parametros);
+                await contexto.SaveChangesAsync();
+            }
+
+            var limite = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < limite && !proveedor.SesionInvalidada)
+                await Task.Delay(200);
+
+            proveedor.SesionInvalidada.Should().BeTrue(
+                "por SignalR no actúa el middleware: la exigencia solo se aplica obligando a recargar");
+        }
+        finally
+        {
+            ((IDisposable)proveedor).Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Una_cancelacion_que_no_es_del_ciclo_invalida_el_circuito()
     {
         // Un tiempo de espera del proveedor de base de datos llega como
@@ -776,12 +817,13 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         salida.WriteLine($"CONSULTAS: revalidar circuito = {soloValidar}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
 
-        // Presupuesto, no una medida exacta: el circuito lee el usuario y
-        // pregunta si su sesión sigue sin revocar (app_sesion_vigente) una vez
-        // por ciclo; la cookie, además, los roles. Si esto crece sin querer,
+        // Presupuesto, no una medida exacta: validar lee el usuario y pregunta
+        // si su sesión sigue sin revocar (app_sesion_vigente); reconstruir el
+        // principal añade roles, claims y el ajuste del Tenant. El circuito y
+        // la cookie hacen ambas cosas en cada ciclo. Si esto crece sin querer,
         // el coste por sesión activa y minuto deja de ser el medido.
         soloValidar.Should().BeLessThanOrEqualTo(2);
-        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(7);
+        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(8);
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(string email)

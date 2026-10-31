@@ -566,6 +566,35 @@ public class CaducidadSesionTests
             new Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, plazo),
         ], "cookie")), null, Ahora).Should().Be(activa);
 
+    /// <summary>
+    /// La revalidación trae un plazo más corto del Tenant. La señal que la dispara no salva
+    /// una sesión que con ese plazo ya había caducado.
+    /// </summary>
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(6, false)]
+    public async Task La_senal_no_salva_la_sesion_vencida_con_el_plazo_nuevo(int minutos, bool renueva)
+    {
+        Task Validador(CookieValidatePrincipalContext contexto)
+        {
+            contexto.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(
+                contexto.Principal!.Claims
+                    .Where(c => c.Type is not (CaducidadSesion.MarcaInicio or CaducidadSesion.MarcaInteraccion))
+                    .Append(new Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, "5")), "aplicacion")));
+            contexto.ShouldRenew = true;
+            return Task.CompletedTask;
+        }
+        var (app, cliente, reloj) = await ArrancarAsync(Validador);
+        await using var _ = app;
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+        reloj.Ahora = Ahora.AddMinutes(minutos);
+
+        using var respuesta = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post);
+
+        CookieDe(respuesta).Should().NotBeNull();
+        (CookieDe(respuesta) != ".AspNetCore.aplicacion=").Should().Be(renueva);
+    }
+
     /// <summary>La cookie aplica el plazo del Tenant igual que el circuito, en las dos direcciones.</summary>
     [Theory]
     [InlineData("10", 9, HttpStatusCode.OK)]
@@ -582,6 +611,30 @@ public class CaducidadSesionTests
         reloj.Ahora = Ahora.AddMinutes(minutos);
 
         (await Pedir(cliente, "/yo", cookie)).StatusCode.Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData(30, 30, 20, false, false, true)]   // Plazo igual: sigue.
+    [InlineData(30, 5, 6, false, false, false)]    // Plazo reducido y ya vencido: se corta.
+    [InlineData(30, 5, 4, false, false, true)]     // Plazo reducido sin vencer: sigue.
+    [InlineData(30, 30, 20, false, true, false)]   // Activación nueva: se corta.
+    [InlineData(30, 30, 20, true, true, true)]     // Ya en activación: la está resolviendo.
+    public void El_circuito_toma_el_ajuste_vigente_del_Tenant(
+        int plazoDelCircuito, int plazoVigente, int minutos, bool activacionEnCircuito, bool activacionVigente, bool admitido)
+    {
+        Claim[] Claims(int plazo, bool activacion) =>
+        [
+            new(CaducidadSesion.MarcaInteraccion, Ahora.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
+            new(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, plazo.ToString(CultureInfo.InvariantCulture)),
+            .. activacion ? [new Claim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true")] : Array.Empty<Claim>(),
+        ];
+
+        CaducidadSesion.CircuitoAdmitido(
+                new ClaimsPrincipal(new ClaimsIdentity(Claims(plazoDelCircuito, activacionEnCircuito), "aplicacion")),
+                new ClaimsPrincipal(new ClaimsIdentity(Claims(plazoVigente, activacionVigente), "aplicacion")),
+                null,
+                Ahora.AddMinutes(minutos))
+            .Should().Be(admitido);
     }
 
     [Fact]

@@ -25,7 +25,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// La seguridad de acceso del Tenant (<see cref="TipoClaimMinutosInactividad"/> y la exigencia de
 /// segundo factor) sí se consulta: se lee de <see cref="ParametroSistema"/> del Tenant propietario
 /// de la cuenta, nunca del Tenant visitado ni del de una Sesión Privilegiada. Un fallo de esa
-/// lectura se propaga: sin ella no se decide nada.
+/// lectura se propaga: sin ella no se decide nada. Un Tenant sin fila rige por los valores por defecto.
 /// </para>
 /// </summary>
 public class TenantClaimsPrincipalFactory(
