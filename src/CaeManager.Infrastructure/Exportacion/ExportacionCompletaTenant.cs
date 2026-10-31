@@ -22,8 +22,8 @@ namespace CaeManager.Infrastructure.Exportacion;
 ///
 /// <para>
 /// <b>Aislamiento.</b> Lee con el contexto inyectado —rol restringido, con RLS— y bajo
-/// <see cref="AmbitoTenantExplicito"/> fijado al Tenant pedido, así que el filtro global de EF y
-/// las políticas RLS acotan las dos al mismo Tenant. Antes de leer nada exige, contra PostgreSQL,
+/// <see cref="AmbitoTenantExplicito"/> fijado al Tenant pedido, así que la condición explícita de
+/// <see cref="ConsultaDeTenant{T}"/> y las políticas RLS acotan las dos al mismo Tenant. Antes de leer nada exige, contra PostgreSQL,
 /// que esa identidad no pueda saltarse RLS (<see cref="VerificacionIdentidadDeRuntime"/>): nunca
 /// corre con <c>FabricaContextoDeBootstrap</c>. Y cada fila leída se comprueba otra vez contra el
 /// Tenant pedido: una sola fila de otro Tenant aborta la exportación entera.

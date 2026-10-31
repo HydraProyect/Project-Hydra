@@ -31,6 +31,9 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 {
     private const string ContrasenaPortal = "contrasena-del-portal-que-no-sale";
 
+    /// <summary>El índice único de CIF por Tenant incluye las Empresas en la papelera.</summary>
+    private const string CifEnPapelera = "A58818501";
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _propietario = null!;
     private Guid _tenantA;
@@ -128,8 +131,8 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task La_papelera_sale_marcada_sin_secretos_y_sin_filas_de_otro_Tenant()
     {
-        var enPapeleraA = await SembrarAsync(_tenantA, "Empresa en la papelera de A", eliminada: true);
-        var enPapeleraB = await SembrarAsync(_tenantB, "Empresa en la papelera de B", eliminada: true);
+        var enPapeleraA = await SembrarAsync(_tenantA, "Empresa en la papelera de A", CifEnPapelera, eliminada: true);
+        var enPapeleraB = await SembrarAsync(_tenantB, "Empresa en la papelera de B", CifEnPapelera, eliminada: true);
 
         using var destino = new MemoryStream();
         await using (var runtime = CrearRuntime())
@@ -188,10 +191,10 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*exenta de RLS*");
     }
 
-    private async Task<Guid> SembrarAsync(Guid tenantId, string razonSocial, bool eliminada = false)
+    private async Task<Guid> SembrarAsync(Guid tenantId, string razonSocial, string cif = "B12345674", bool eliminada = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
-        var empresa = new Empresa(razonSocial, "B12345674");
+        var empresa = new Empresa(razonSocial, cif);
         _propietario.Empresas.Add(empresa);
         _propietario.CredencialesAccesoEmpresa.Add(new CredencialAccesoEmpresa(
             empresa.Id, "https://portal.example", "Empresa en el portal", "usuario-portal", ContrasenaPortal));

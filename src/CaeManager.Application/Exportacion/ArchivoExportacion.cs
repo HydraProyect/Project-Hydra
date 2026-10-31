@@ -60,7 +60,7 @@ public sealed class ArchivoExportacion : IDisposable
         recuentos.Add(entidad, recuento);
     }
 
-    /// <summary>Documento con fila viva cuyo binario no está en el almacén: consta en el manifiesto, no se calla.</summary>
+    /// <summary>Documento con fila, en la papelera o no, cuyo binario no está en el almacén: consta en el manifiesto, no se calla.</summary>
     public void RegistrarDocumentoSinFichero(Guid documentoId)
     {
         ExigirAbierto();
