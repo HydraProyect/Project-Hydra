@@ -6,6 +6,7 @@ using CaeManager.Domain.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Plantillas;
@@ -253,6 +254,54 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 
         registro.DatosDespues.Should().NotContain(codigoSeguroSecreto);
         registro.DatosDespues.Should().Contain("\"CodigoSeguroVerificacion\":\"***\"");
+        registro.DatosDespues.Should().Contain("\"DatosUtilizadosJson\":\"***\"");
+    }
+
+    [Fact]
+    public async Task Los_json_sensibles_no_aparecen_en_claro_en_la_auditoria()
+    {
+        const string contextoSecreto = "{\"secreto\":\"CONTEXTO-no-debe-aparecer-en-claro\"}";
+        const string extraccionSecreta = "{\"secreto\":\"EXTRACCION-no-debe-aparecer-en-claro\"}";
+
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var plantilla = new PlantillaDocumento(
+                OrigenPlantilla.Externa, "Plantilla de prueba", AmbitoAplicacion.Empresa, FormatoOrigenPlantilla.PdfVisual, tipo.Id);
+            var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "plantilla-de-prueba.pdf", new string('a', 64));
+            contexto.AddRange(tipo, plantilla, version);
+            await contexto.SaveChangesAsync();
+
+            contexto.Add(new LoteGeneracionDocumento(version.Id, 1, Guid.NewGuid(), DateTime.UtcNow, contextoSecreto));
+            contexto.Add(ExtraccionIaCache.Crear(new string('b', 64), "Ficha", extraccionSecreta));
+            await contexto.SaveChangesAsync();
+        }
+
+        var lote = await ObtenerRegistroAsync(nameof(LoteGeneracionDocumento));
+        var extraccion = await ObtenerRegistroAsync(nameof(ExtraccionIaCache));
+
+        lote.DatosDespues.Should().NotContain("CONTEXTO-no-debe-aparecer-en-claro");
+        lote.DatosDespues.Should().Contain("\"ContextoJson\":\"***\"");
+        extraccion.DatosDespues.Should().NotContain("EXTRACCION-no-debe-aparecer-en-claro");
+        extraccion.DatosDespues.Should().Contain("\"ExtraccionJson\":\"***\"");
+    }
+
+    [Fact]
+    public async Task La_solicitud_de_conexion_a_Microsoft_365_no_deja_sus_datos_en_claro_en_la_auditoria()
+    {
+        var usuarioSolicitante = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Add(new SolicitudConexionMicrosoft365(usuarioSolicitante, clienteId: null, gestorPropietarioId: null, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(SolicitudConexionMicrosoft365));
+
+        registro.DatosDespues.Should().NotContain(usuarioSolicitante.ToString());
+        registro.DatosDespues.Should().Contain("\"UsuarioSolicitanteId\":\"***\"");
+        registro.DatosDespues.Should().Contain("\"FechaExpiracionUtc\":\"***\"");
     }
 
     [Fact]

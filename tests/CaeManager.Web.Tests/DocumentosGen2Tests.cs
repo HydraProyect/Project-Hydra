@@ -12,7 +12,9 @@ using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -111,6 +113,8 @@ public partial class DocumentosGen2Tests : BunitContext
             ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
             ObtenerDocumentosQuery q => Pagina(q),
             ObtenerTiposDocumentoQuery => TiposDocumento,
+            ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
+            ObtenerEmpresasParaSelectorQuery => Array.Empty<EmpresaSelectorDto>(),
             ObtenerPlataformasEnUsoQuery => Plataformas,
             GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
             EliminarDocumentosCommand c => AlEliminarLote?.Invoke(c)
@@ -268,6 +272,38 @@ public partial class DocumentosGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
 
         return (Render<PaginaDocumentos>(), mediador);
+    }
+
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("Administrador", true)]
+    public Task Enlace_de_alta_respeta_el_permiso_de_escritura(string rol, bool autorizado) =>
+        ComprobarAltaAsync(rol, "documentos?accion=crear", autorizado);
+
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("Administrador", true)]
+    public Task Enlace_de_faltante_de_trabajador_respeta_el_permiso_de_escritura(string rol, bool autorizado) =>
+        ComprobarAltaAsync(rol, $"documentos?trabajadorId={Guid.NewGuid()}&tipoDocumentoId={Guid.NewGuid()}", autorizado);
+
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("Administrador", true)]
+    public Task Enlace_de_faltante_de_empresa_respeta_el_permiso_de_escritura(string rol, bool autorizado) =>
+        ComprobarAltaAsync(rol, $"documentos?empresaIdFaltante={Guid.NewGuid()}&tipoDocumentoId={Guid.NewGuid()}", autorizado);
+
+    private async Task ComprobarAltaAsync(string rol, string url, bool autorizado)
+    {
+        var (cut, mediador) = Renderizar(rol: rol, url: url);
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPlataformasEnUsoQuery>().Should().NotBeEmpty());
+        // Es una ausencia cuando no hay permiso: se deja correr el enlace profundo antes de mirar.
+        await Task.Delay(200);
+
+        cut.WaitForAssertion(() =>
+        {
+            mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Any().Should().Be(autorizado);
+            cut.FindAll("[role=dialog]").Any(d => d.TextContent.Contains("Nuevo documento")).Should().Be(autorizado);
+        });
     }
 
     private static MediadorControlado ConDocumentos(params DocumentoListaDto[] documentos) =>

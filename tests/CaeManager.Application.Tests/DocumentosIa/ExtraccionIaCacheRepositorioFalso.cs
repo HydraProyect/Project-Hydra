@@ -30,6 +30,9 @@ public class ExtraccionIaCacheRepositorioFalso : IExtraccionIaCacheRepository
         return Task.FromResult(encontrada);
     }
 
+    public async Task<Guid?> ObtenerIdAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default) =>
+        (await ObtenerAsync(hashSha256, tipoEsperado, cancellationToken))?.Id;
+
     public void Agregar(ExtraccionIaCache cache) => _porId[cache.Id] = cache;
 
     public int VecesDescartada { get; private set; }

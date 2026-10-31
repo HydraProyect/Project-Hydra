@@ -153,7 +153,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>El enlace profundo (query) ya se aplicó o se descartó; solo se aplica una vez, con la empresa resuelta.</summary>
     private bool _enlaceProfundoAplicado;
 
-    /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el Drawer directamente.</summary>
+    /// <summary>Comando del palette "Crear documento" (P3-31): /documentos?accion=crear abre el formulario con permiso de escritura.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
     /// <summary>Pestaña con la que abrir la página — deep-link desde otras superficies (hoy, el timeline de Comunicaciones).</summary>
@@ -589,6 +589,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         if (DocumentoId is not null)
             await _drawerGestion.AbrirEditarAsync(DocumentoId.Value);
+        // Todo lo que sigue es un alta: sin escritura no hay formulario que se pueda guardar.
+        else if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion))
+            return;
         else if (TrabajadorId is not null && TipoDocumentoId is not null)
             await _drawerGestion.AbrirCrearParaFaltanteAsync(TrabajadorId.Value, TipoDocumentoId.Value);
         else if (EmpresaIdFaltante is not null && TipoDocumentoId is not null)

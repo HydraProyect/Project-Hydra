@@ -5,6 +5,7 @@ using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Plantillas;
@@ -148,15 +149,27 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
 
         // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
-        // SoporteSinLecturaDeCredenciales, SoporteSinColumnasSecretasRestantes y
-        // SoporteSinCodigoSeguroDocumentosGenerados; OWASP ASVS 4.0.3 V4.1.3 y
-        // V2.10.4): sin esto, Soporte TALVEG las leería en RegistrosAuditoria, que
-        // sí tiene concedido. HashClave es el SHA-256 de la clave de API;
-        // UltimoError, el texto del proveedor al fallar; CodigoSeguroVerificacion,
-        // el código impreso en un documento generado.
+        // SoporteSinLecturaDeCredenciales, SoporteSinColumnasSecretasRestantes,
+        // SoporteSinCodigoSeguroDocumentosGenerados y SoporteSinJsonSensibles;
+        // OWASP ASVS 4.0.3 V4.1.3 y V2.10.4): sin esto, Soporte TALVEG las leería en
+        // RegistrosAuditoria, que sí tiene concedido. HashClave es el SHA-256 de la
+        // clave de API; UltimoError, el texto del proveedor al fallar;
+        // CodigoSeguroVerificacion, el código impreso en un documento generado; los
+        // JSON, los datos personales usados al generar o leídos por la IA; y la
+        // solicitud de Microsoft 365 es una tabla entera retirada, de la que aquí solo
+        // queda su Id y su Tenant.
         [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],
         [typeof(ConexionIntegracion)] = [nameof(ConexionIntegracion.UltimoError)],
-        [typeof(DocumentoGenerado)] = [nameof(DocumentoGenerado.CodigoSeguroVerificacion)],
+        [typeof(DocumentoGenerado)] = [nameof(DocumentoGenerado.CodigoSeguroVerificacion), nameof(DocumentoGenerado.DatosUtilizadosJson)],
+        [typeof(LoteGeneracionDocumento)] = [nameof(LoteGeneracionDocumento.ContextoJson)],
+        [typeof(ExtraccionIaCache)] = [nameof(ExtraccionIaCache.ExtraccionJson)],
+        [typeof(SolicitudConexionMicrosoft365)] =
+        [
+            nameof(SolicitudConexionMicrosoft365.UsuarioSolicitanteId),
+            nameof(SolicitudConexionMicrosoft365.ClienteId),
+            nameof(SolicitudConexionMicrosoft365.GestorPropietarioId),
+            nameof(SolicitudConexionMicrosoft365.FechaExpiracionUtc),
+        ],
 
         // DEC-9 (propietario, 2026-09-02): a diferencia de las entradas de
         // arriba, estas tres propiedades no son secretos cifrados en reposo —
