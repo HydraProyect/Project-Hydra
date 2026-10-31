@@ -237,7 +237,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     [Fact]
     public void La_exigencia_del_Tenant_lleva_a_configurar_el_segundo_factor()
     {
-        _almacen.Devuelve(UsuarioEnRegla(), Roles.GestorCae);
+        _cuenta.Devuelve(CuentaEnRegla(Roles.GestorCae));
         _autenticacion.Anadir(new Claim(
             TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
             TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores));

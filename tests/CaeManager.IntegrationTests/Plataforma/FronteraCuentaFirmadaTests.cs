@@ -147,6 +147,8 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         (await contexto.Database.SqlQuery<Guid>($"SELECT public.app_ctx_usuario_id() AS \"Value\"").SingleAsync())
             .Should().Be(_actorReal);
         (await Vigencia(contexto, seleccion).SigueVigenteAsync(principal)).Should().BeTrue();
+        (await Vigencia(contexto, seleccion).PrincipalVigenteAsync(principal)).Should().BeSameAs(principal,
+            "rehacerlo con la fábrica cargaría la cuenta bajo cae_app_soporte");
     }
 
     [Fact]
