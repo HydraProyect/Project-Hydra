@@ -502,6 +502,8 @@ jobs:
       # este paso falla en vez de dar por apagado un correo que no se ha probado.
       - name: Comprobar que el correo está apagado
         run: |
+          aviso='Se intentó enviar un correo sin Smtp'
+          antes=$(grep -c "$aviso" "$RUNNER_TEMP/app.log" || true)
           tmp=$(mktemp -d)
           curl -fsS -c "$tmp/jar" -o "$tmp/form.html" "$ZAP_BASE/cuenta/olvide-contrasena"
           token=$(sed -n 's/.*name="__RequestVerificationToken"[^>]*value="\([^"]*\)".*/\1/p' "$tmp/form.html" | head -n 1)
@@ -513,7 +515,10 @@ jobs:
             "$ZAP_BASE/cuenta/olvide-contrasena"
           rm -rf "$tmp"
           for i in $(seq 1 30); do
-            if grep -q 'Se intentó enviar un correo sin Smtp' "$RUNNER_TEMP/app.log"; then
+            # Hay que ver aumentar el recuento: los avisos de arranque también
+            # intentan enviar y dejan la misma línea.
+            despues=$(grep -c "$aviso" "$RUNNER_TEMP/app.log" || true)
+            if [ "$despues" -gt "$antes" ]; then
               echo "El servicio de correo rechaza el envío: SMTP sin configurar."
               exit 0
             fi
@@ -540,7 +545,8 @@ jobs:
             /asignaciones/exportar.xlsx /auditoria/exportar.xlsx /centros/exportar.xlsx \
             /clientes/exportar.xlsx /clientes/plantilla.xlsx /clientes/plantilla-combinada.xlsx \
             /documentos/exportar.xlsx /documentos/plantilla.xlsx /empresas/exportar.xlsx \
-            /facturacion/resumen.xlsx /gestiones/exportar.xlsx /incidencias/exportar.xlsx \
+            /facturacion/resumen.xlsx /facturacion/cuota-operador.xlsx /direccion/extranjeros.xlsx \
+            /gestiones/exportar.xlsx /incidencias/exportar.xlsx \
             /proyectos/exportar.xlsx /subcontratas/exportar.xlsx /trabajadores/exportar.xlsx \
             /vehiculos/exportar.xlsx /visitas/exportar.xlsx /mi-firma/archivo \
             /reportes/vigencia.xlsx /reportes/vigencia.pdf \
@@ -570,26 +576,48 @@ jobs:
               -H 'Content-Type: application/json' -d '{}' "$ZAP_BASE/extension/acreditaciones/$id/subida" || true
           fi
 
-      # Una petición por ZAP cada 30 s: la cookie la pone el Replacer, así que un
-      # 200 demuestra que ZAP sigue autenticado en ese momento, no solo que la
-      # cookie valía. 000 (sonda agotada con ZAP ocupado) no prueba nada en ningún
-      # sentido y se cuenta aparte; cualquier otro código es sesión perdida.
+      # Cada 30 s, dos peticiones por ZAP: la de sesión y la de la clave de API.
+      # Las credenciales las pone el Replacer, así que un 200 demuestra que ZAP
+      # sigue autenticado en ese momento, no solo que la credencial valía. 000
+      # (sonda agotada con ZAP ocupado) no prueba nada en ningún sentido y se
+      # cuenta aparte; cualquier otro código es credencial perdida.
+      #
+      # La señal de interacción es lo único que mueve el plazo de inactividad de
+      # 30 min (CaducidadSesion), y sin ella la sesión caería a la vez que el tope
+      # del escaneo. Una señal tardía no revive una sesión ya caducada, así que no
+      # tapa ninguna pérdida.
       - name: Escanear con ZAP autenticado
+        shell: bash
         run: |
           sonda() {
-            local cuerpo codigo
+            local cuerpo codigo api
             cuerpo=$(mktemp)
+            curl -sS -o /dev/null --max-time 45 -x "$ZAP_API" -X POST \
+              -H 'Sec-Fetch-Site: same-origin' "$ZAP_BASE/sesion/actividad" || true
             codigo=$(curl -sS -o "$cuerpo" -w '%{http_code}' --max-time 45 -x "$ZAP_API" "$ZAP_BASE$ZAP_SONDA" || true)
             if [ "$codigo" = 200 ] && ! jq -e 'type == "array"' "$cuerpo" > /dev/null 2>&1; then
               codigo=no-es-lista
             fi
+            api=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 45 -x "$ZAP_API" "$ZAP_BASE/api/v1/clientes" || true)
             rm -f "$cuerpo"
-            echo "$(date -u +%H:%M:%S) $codigo" >> zap/sesion-zap.txt
-            echo "$codigo"
+            echo "$(date -u +%H:%M:%S) sesion=$codigo api=$api" >> zap/sesion-zap.txt
+            case "$codigo:$api" in
+              200:200) echo 200 ;;
+              200:000|000:200|000:000) echo 000 ;;
+              *) echo "$codigo:$api" ;;
+            esac
           }
 
-          plan=$(curl -fsS "$ZAP_API/JSON/automation/action/runPlan/" \
-            --data-urlencode "filePath=/zap/wrk/plan-autenticado.yaml" | jq -r '.planId')
+          # Solo informa: las reglas OAST saldrían a un servidor externo si hubiera uno.
+          echo "Servicio OAST del escaneo activo: $(curl -sS "$ZAP_API/JSON/oast/view/getActiveScanService/" || echo desconocido)"
+
+          respuesta=$(curl -fsS "$ZAP_API/JSON/automation/action/runPlan/" \
+            --data-urlencode "filePath=/zap/wrk/plan-autenticado.yaml")
+          plan=$(jq -r '.planId // empty' <<< "$respuesta")
+          if [ -z "$plan" ]; then
+            echo "::error::ZAP no aceptó el plan."
+            exit 1
+          fi
           echo "Plan de ZAP en marcha: $plan"
           perdida=0
           while :; do
@@ -610,20 +638,27 @@ jobs:
           # La prueba final no admite 000: tiene que ser un 200 con ZAP ya libre.
           final=$(sonda)
           muestras=$(wc -l < zap/sesion-zap.txt)
-          sin_datos=$(grep -c ' 000$' zap/sesion-zap.txt || true)
+          sin_datos=$(grep -c '=000' zap/sesion-zap.txt || true)
           duracion=$(jq -r '"\(.started) -> \(.finished)"' <<< "$progreso")
           curl -fsS "$ZAP_API/JSON/stats/view/siteStats/" --data-urlencode "site=$ZAP_BASE" -G \
             > zap/estadisticas-zap.json || echo '{}' > zap/estadisticas-zap.json
-          peticiones=$(jq '[.. | objects | to_entries[] | select(.key | test("code\\.[0-9]+$")) | .value | tonumber] | add // 0' zap/estadisticas-zap.json)
+          recuento() {
+            jq --arg codigos "$1" \
+              '[.. | objects | to_entries[] | select(.key | test("code\\.(" + $codigos + ")$")) | .value | tonumber] | add // 0' \
+              zap/estadisticas-zap.json
+          }
+          peticiones=$(recuento '[0-9]+')
+          exitos=$(recuento '2[0-9][0-9]')
+          rechazos=$(recuento '401')
 
           {
             echo "### ZAP autenticado"
             echo ""
             echo "- Plan: $duracion"
             echo "- Sondas de sesión por ZAP: $muestras (perdidas $perdida, sin respuesta $sin_datos, final $final)"
-            echo "- Peticiones de ZAP con respuesta: $peticiones"
+            echo "- Peticiones de ZAP con respuesta: $peticiones (2xx $exitos, 401 $rechazos)"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "Sondas: $muestras, perdidas: $perdida, sin respuesta: $sin_datos, final: $final. Peticiones: $peticiones. Errores del plan: $errores."
+          echo "Sondas: $muestras, perdidas: $perdida, sin respuesta: $sin_datos, final: $final. Peticiones: $peticiones, 2xx: $exitos, 401: $rechazos. Errores del plan: $errores."
 
           if [ "$errores" -gt 0 ]; then
             echo "::error::El plan de ZAP terminó con errores."
@@ -636,6 +671,13 @@ jobs:
           # Sin este mínimo, un plan que no llegara a atacar pasaría por escaneo limpio.
           if [ "$peticiones" -lt 1000 ]; then
             echo "::error::ZAP solo hizo $peticiones peticiones: el escaneo no ha ocurrido."
+            exit 1
+          fi
+          # El mínimo anterior también lo cumpliría un escaneo rechazado entero. Medido
+          # con la sesión viva: 41 % de 2xx y 0,1 % de 401. El margen es para que solo
+          # salte un escaneo que dejó de autenticarse sin que lo vieran las sondas.
+          if [ $((exitos * 10)) -lt "$peticiones" ] || [ $((rechazos * 10)) -gt "$peticiones" ]; then
+            echo "::error::Solo $exitos de $peticiones peticiones dieron 2xx y $rechazos dieron 401: el escaneo no estaba autenticado."
             exit 1
           fi
 
@@ -670,11 +712,11 @@ jobs:
             exit 1
           fi
 
-      - name: Log de la aplicación si falla
+      # Al artefacto y no al log del run, a diferencia del baseline: tras un
+      # escaneo activo este log trae las trazas que provocan sus ataques.
+      - name: Guardar el log de la aplicación si falla
         if: failure()
-        run: |
-          tail -n 100 "$RUNNER_TEMP/app.log" || true
-          docker logs --tail 30 zap || true
+        run: cp "$RUNNER_TEMP/app.log" zap/app.log || true
 
       - name: Publicar informe de ZAP
         if: always()
@@ -685,5 +727,6 @@ jobs:
             zap/informe-zap-autenticado.*
             zap/sesion-zap.txt
             zap/estadisticas-zap.json
+            zap/app.log
           retention-days: 90
           if-no-files-found: ignore

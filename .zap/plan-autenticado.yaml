@@ -9,9 +9,8 @@
 # no se usa AJAX spider: sin el circuito, el navegador no vería nada que el
 # spider tradicional no vea ya en el HTML prerenderizado.
 #
-# Tiempos: la sesión caduca tras 30 min sin interacción (CaducidadSesion) y ZAP
-# repite la misma cookie, así que spider + escaneo activo + esperas no pueden
-# acercarse a ese plazo. Si se pasara, la sonda del job lo detecta y falla.
+# Tiempos: la sesión caduca tras 30 min sin interacción (CaducidadSesion). La
+# sonda del job envía esa señal, y si aun así se perdiera la sesión, falla.
 env:
   contexts:
     - name: talveg-http
@@ -48,6 +47,19 @@ env:
     progressToStdout: true
 
 jobs:
+  # La regla 6, en su comprobación del nombre de fichero, prueba como valor el último
+  # tramo de la URL y compara la respuesta con la de un nombre inventado. `_handler`
+  # es el FormName de Blazor y aquí coincide con ese tramo, así que la respuesta cambia
+  # sin que se lea ningún fichero. El filtro solo cubre un valor sin barras: un ataque
+  # de verdad contra `_handler` lleva separadores de ruta y sigue siendo riesgo alto.
+  - type: alertFilter
+    alertFilters:
+      - ruleId: 6
+        newRisk: False Positive
+        parameter: _handler
+        attack: '^[a-z0-9-]+$'
+        attackRegex: true
+
   - type: openapi
     parameters:
       apiUrl: http://127.0.0.1:5080/api/v1/openapi.json
