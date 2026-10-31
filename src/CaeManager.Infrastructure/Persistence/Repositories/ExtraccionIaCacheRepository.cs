@@ -22,6 +22,16 @@ public class ExtraccionIaCacheRepository(CaeManagerDbContext dbContext) : IExtra
             cancellationToken);
     }
 
+    public Task<Guid?> ObtenerIdAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default)
+    {
+        var tipoNormalizado = ExtraccionIaCache.NormalizarTipoEsperado(tipoEsperado);
+        return dbContext.ExtraccionesIaCache
+            .Where(c => c.HashSha256 == hashSha256 && c.TipoEsperado == tipoNormalizado
+                && c.VersionPipeline == ExtraccionIaCache.VersionPipelineActual)
+            .Select(c => (Guid?)c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     public void Agregar(ExtraccionIaCache cache) => dbContext.ExtraccionesIaCache.Add(cache);
 
     public void DescartarTrasConflicto(ExtraccionIaCache cache) => dbContext.Entry(cache).State = EntityState.Detached;

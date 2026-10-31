@@ -156,7 +156,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // el código impreso en un documento generado.
         [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],
         [typeof(ConexionIntegracion)] = [nameof(ConexionIntegracion.UltimoError)],
-        [typeof(DocumentoGenerado)] = [nameof(DocumentoGenerado.CodigoSeguroVerificacion)],
+        [typeof(DocumentoGenerado)] = [nameof(DocumentoGenerado.CodigoSeguroVerificacion), nameof(DocumentoGenerado.DatosUtilizadosJson)],
+        [typeof(LoteGeneracionDocumento)] = [nameof(LoteGeneracionDocumento.ContextoJson)],
+        [typeof(SolicitudConexionMicrosoft365)] = [nameof(SolicitudConexionMicrosoft365.UsuarioSolicitanteId), nameof(SolicitudConexionMicrosoft365.ClienteId), nameof(SolicitudConexionMicrosoft365.GestorPropietarioId), nameof(SolicitudConexionMicrosoft365.FechaExpiracionUtc)],
 
         // DEC-9 (propietario, 2026-09-02): a diferencia de las entradas de
         // arriba, estas tres propiedades no son secretos cifrados en reposo —

@@ -13,6 +13,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -111,6 +112,7 @@ public partial class DocumentosGen2Tests : BunitContext
             ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
             ObtenerDocumentosQuery q => Pagina(q),
             ObtenerTiposDocumentoQuery => TiposDocumento,
+            ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
             ObtenerPlataformasEnUsoQuery => Plataformas,
             GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
             EliminarDocumentosCommand c => AlEliminarLote?.Invoke(c)
@@ -247,7 +249,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private (IRenderedComponent<PaginaDocumentos> Cut, MediadorControlado Mediador) Renderizar(
         MediadorControlado? mediador = null, string url = "documentos", string rol = "Administrador",
-        Guid? tenantSeleccionado = null)
+        Guid? tenantSeleccionado = null, string? accion = null)
     {
         mediador ??= new MediadorControlado();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
@@ -267,7 +269,21 @@ public partial class DocumentosGen2Tests : BunitContext
 
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
 
-        return (Render<PaginaDocumentos>(), mediador);
+        return (Render<PaginaDocumentos>(p => p.Add(x => x.Accion, accion)), mediador);
+    }
+
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("Administrador", true)]
+    public void Enlace_de_alta_respeta_el_permiso_de_escritura(string rol, bool autorizado)
+    {
+        var (cut, mediador) = Renderizar(rol: rol, accion: "crear");
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerPlataformasEnUsoQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() =>
+        {
+            mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Any().Should().Be(autorizado);
+            cut.FindAll("[role=dialog]").Any(d => d.TextContent.Contains("Nuevo documento")).Should().Be(autorizado);
+        });
     }
 
     private static MediadorControlado ConDocumentos(params DocumentoListaDto[] documentos) =>

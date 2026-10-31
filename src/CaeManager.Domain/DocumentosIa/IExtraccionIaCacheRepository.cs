@@ -11,6 +11,8 @@ public interface IExtraccionIaCacheRepository
     /// </summary>
     Task<ExtraccionIaCache?> ObtenerAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default);
 
+    Task<Guid?> ObtenerIdAsync(string hashSha256, string tipoEsperado, CancellationToken cancellationToken = default);
+
     void Agregar(ExtraccionIaCache cache);
 
     /// <summary>

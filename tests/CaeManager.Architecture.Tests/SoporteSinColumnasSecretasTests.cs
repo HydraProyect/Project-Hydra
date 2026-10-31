@@ -195,8 +195,45 @@ public class SoporteSinColumnasSecretasTests
         concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("SELECT (\"Id\", \"DatosUtilizadosJson\")", "DocumentosGenerados", true)]
+    [InlineData("SELECT (\"Id\", \"ContextoJson\")", "LotesGeneracionDocumento", true)]
+    [InlineData("SELECT", "SolicitudesConexionMicrosoft365", true)]
+    [InlineData("SELECT (\"Id\", \"Estado\")", "LotesGeneracionDocumento", false)]
+    public void El_trinquete_detecta_las_nuevas_restricciones(string privilegios, string tabla, bool infractora) =>
+        EsInfractora(("20261031010000_SoporteSinJsonSensibles", privilegios, $"public.\"{tabla}\""))
+            .Should().Be(infractora);
+
+    [Fact]
+    public void La_migracion_de_json_retira_los_permisos_previstos()
+    {
+        const string nombre = "20261031010000_SoporteSinJsonSensibles";
+        var up = Up(SinComentarios(File.ReadAllText(Path.Combine(DirectorioMigraciones(), nombre + ".cs"))));
+        foreach (var tabla in new[] { "DocumentosGenerados", "LotesGeneracionDocumento", "SolicitudesConexionMicrosoft365" })
+            Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+                .Should().BeTrue();
+        var concesiones = ConcesionesASoporteEn(nombre, up).ToList();
+        concesiones.Should().HaveCount(2);
+        concesiones.Where(EsInfractora).Should().BeEmpty();
+    }
+
     private static bool EsInfractora((string Migracion, string Privilegios, string Objeto) concesion)
     {
+        if (string.CompareOrdinal(concesion.Migracion, "20261031010000_SoporteSinJsonSensibles") >= 0)
+        {
+            var tablaNueva = TablaDe(concesion.Objeto);
+            if (tablaNueva.Equals("SolicitudesConexionMicrosoft365", StringComparison.OrdinalIgnoreCase)) return true;
+            if (tablaNueva.Equals("LotesGeneracionDocumento", StringComparison.OrdinalIgnoreCase)
+                || tablaNueva.Equals("DocumentosGenerados", StringComparison.OrdinalIgnoreCase))
+            {
+                var columna = tablaNueva.Equals("LotesGeneracionDocumento", StringComparison.OrdinalIgnoreCase)
+                    ? "ContextoJson" : "DatosUtilizadosJson";
+                var listas = Regex.Matches(concesion.Privilegios, @"\((?<columnas>[^)]*)\)");
+                if (listas.Count == 0 || Regex.Split(concesion.Privilegios, @",(?![^(]*\))").Any(p => !p.Contains('('))
+                    || listas.SelectMany(m => m.Groups["columnas"].Value.Split(',')).Any(c => c.Trim().Trim('"').Equals(columna, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+        }
         if (Regex.IsMatch(concesion.Objeto, @"\bALL\s+TABLES\b", RegexOptions.IgnoreCase))
             return true;
 

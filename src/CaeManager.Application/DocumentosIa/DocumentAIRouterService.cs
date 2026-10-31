@@ -721,14 +721,14 @@ public class DocumentAIRouterService(
     private async Task<(ExtraccionIaCache? Cache, ExtraccionIaCacheDocumento? Vinculo)> GuardarEnCacheAsync(
         string hash, string tipoEsperado, ExtraccionEstructuradaDto extraccion, Guid? documentoId, CancellationToken cancellationToken)
     {
-        var existente = await cacheRepositorio.ObtenerAsync(hash, tipoEsperado, cancellationToken);
+        var existente = await cacheRepositorio.ObtenerIdAsync(hash, tipoEsperado, cancellationToken);
         if (existente is not null)
         {
             // Ya cacheado (p. ej. por una llamada concurrente que ya guardó)
             // — no duplicar el JSON, pero sí asegurar el vínculo de este
             // Documento con la entrada que ganó la carrera.
             var vinculoSobreExistente = documentoId is { } docIdExistente
-                ? await cacheRepositorio.VincularDocumentoAsync(existente.Id, docIdExistente, cancellationToken)
+                ? await cacheRepositorio.VincularDocumentoAsync(existente.Value, docIdExistente, cancellationToken)
                 : null;
             return (null, vinculoSobreExistente);
         }

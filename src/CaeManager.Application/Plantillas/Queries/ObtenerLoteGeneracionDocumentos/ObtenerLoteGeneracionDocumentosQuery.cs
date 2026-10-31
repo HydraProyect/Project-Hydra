@@ -29,7 +29,9 @@ public class ObtenerLoteGeneracionDocumentosQueryHandler(
         ObtenerLoteGeneracionDocumentosQuery request, CancellationToken cancellationToken)
     {
         var lote = await plantillasContext.LotesGeneracionDocumento
-            .FirstOrDefaultAsync(l => l.Id == request.LoteGeneracionDocumentoId, cancellationToken);
+            .Where(l => l.Id == request.LoteGeneracionDocumentoId)
+            .Select(l => new { l.Id, l.Estado, l.TotalItems, l.ItemsCompletados, l.ItemsFallidos })
+            .FirstOrDefaultAsync(cancellationToken);
         if (lote is null)
             return Result.Fallo<LoteGeneracionDocumentoDto>(Error.Crear("Plantilla.LoteNoEncontrado", "No encontramos este lote de generación."));
 
