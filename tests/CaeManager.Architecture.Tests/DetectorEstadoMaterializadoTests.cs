@@ -27,6 +27,9 @@ public class DetectorEstadoMaterializadoTests
     /// </summary>
     private static readonly HashSet<string> NoEntran = new(StringComparer.Ordinal)
     {
+        // Registro de llamadas a plataformas CAE de terceros: el cálculo no lo lee.
+        "CaeManager.Domain.Integraciones.UsoConexionPlataformaCae",
+
         // Ninguna la leen los servicios del cálculo (RecalculoEstadoMaterializadoService, CalculoEstadoCentroService,
         // EvaluacionDeAccesoPorCentroService, CalculoEstadoDocumentalService): auditoría, autorizaciones de lectura,
         // comunicaciones, contactos, contratos de acceso, firma, revisión y caché de IA, credenciales y accesos a

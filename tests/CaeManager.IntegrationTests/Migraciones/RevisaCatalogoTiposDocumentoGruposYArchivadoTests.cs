@@ -1,4 +1,4 @@
-﻿using CaeManager.Domain.Centros;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Tenants;
@@ -492,7 +492,7 @@ public class RevisaCatalogoTiposDocumentoGruposYArchivadoTests : IAsyncLifetime
     private CaeManagerDbContext NuevoContexto(Guid? tenantId)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
