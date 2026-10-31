@@ -170,12 +170,10 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
         var identificador = await servicio.GuardarAsync(new MemoryStream(Contenido(4096)), "archivo.pdf");
         // En el grupo de hilos, no en el contexto de sincronización de xunit: AbrirYAbandonar
         // espera de forma síncrona y bloquearía ese contexto si solo tuviera un hilo.
-        var referencia = await Task.Run(() => AbrirYAbandonar(servicio, identificador));
-        presupuesto.Reservado.Should().BeGreaterThan(0);
+        var referencia = await Task.Run(() => AbrirYAbandonar(servicio, identificador, presupuesto));
 
-        // El flujo vive solo en AbrirYAbandonar (NoInlining), así que no hay raíz que lo retenga ni
-        // en Debug ni en Release. Se repite la recogida unas pocas veces por si el finalizador
-        // tarda en quedar en cola; el límite evita un bucle infinito si el finalizador falta.
+        // La referencia local del llamador ya no retiene el flujo, tampoco en Debug. Las tareas
+        // asíncronas de apertura aún pueden conservarlo transitoriamente.
         for (var intento = 0; intento < 5 && presupuesto.Reservado != 0; intento++)
         {
             GC.Collect();
@@ -187,10 +185,14 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference AbrirYAbandonar(DiskFileStorageService servicio, string identificador)
+    private static WeakReference AbrirYAbandonar(
+        DiskFileStorageService servicio, string identificador, PresupuestoMemoriaDocumentos presupuesto)
     {
         var flujo = servicio.AbrirAsync(identificador).GetAwaiter().GetResult();
-        return new WeakReference(flujo);
+        var referencia = new WeakReference(flujo);
+        presupuesto.Reservado.Should().BeGreaterThan(0);
+        GC.KeepAlive(flujo);
+        return referencia;
     }
 
     [Fact]
