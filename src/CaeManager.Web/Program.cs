@@ -532,8 +532,8 @@ builder.Services.AddOpenApi("v1", options =>
 // runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
 // varias cargas de página desde la misma IP y se quedaba sin poder ni ver el
 // formulario de login (regresión real, encontrada en los E2E de este mismo
-// cambio — devolvía 429 antes de que existiera nada que enviar). El resto de
-// la aplicación no se limita: es Blazor Server con sesión iniciada, el
+// cambio — devolvía 429 antes de que existiera nada que enviar). El tráfico de
+// la aplicación Blazor no se limita: con sesión iniciada, el
 // tráfico útil viaja por el circuito SignalR, no por peticiones HTTP
 // repetidas. Limitador en memoria: suficiente mientras el techo sea 1
 // réplica (autodocumentado en Project-Hydra-Negocio/tecnico/ARCHITECTURE.md); con multi-réplica habría que
@@ -547,15 +547,21 @@ builder.Services.AddOpenApi("v1", options =>
 // configuración y aplican los valores de siempre.
 var limiteCuentaAnonimo = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAnonimo", 10);
 var limiteCuentaAutenticado = builder.Configuration.GetValue("RateLimiting:Cuenta:LimiteAutenticado", 60);
+var limiteExtension = builder.Configuration.GetValue("RateLimiting:Extension:LimiteGlobalPorMinuto", 300);
 
 builder.Services.AddRateLimiter(opciones =>
 {
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opciones.OnRejected = LimitadorExtension.RechazarAsync;
     opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
     {
         // Techo por IP bajo /api/v1, delante del cupo por clave de la política ApiPublica.
         if (LimitadorApiPublica.ParticionGlobal(contexto, rateLimitPorMinutoPorIp) is { } particionApi)
             return particionApi;
+
+        if (LimitadorExtension.ParticionGlobal(contexto, limiteExtension,
+            contexto.RequestServices.GetRequiredService<IDataProtectionProvider>()) is { } particionExtension)
+            return particionExtension;
 
         var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
             && contexto.Request.Path.StartsWithSegments("/cuenta");
@@ -570,8 +576,8 @@ builder.Services.AddRateLimiter(opciones =>
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
-        // después, por petición. Este y el techo por IP de /api/v1
-        // (LimitadorApiPublica) son los ÚNICOS sitios del sistema que leen la
+        // después, por petición. Este, el techo por IP de /api/v1 y los
+        // limitadores de la extensión leen la
         // IP del cliente —no la registra la auditoría, ni los accesos
         // sensibles, ni los logs—, así que es también el único alcance de lo
         // que se perdería si esa IP fuese falsificable: ver
