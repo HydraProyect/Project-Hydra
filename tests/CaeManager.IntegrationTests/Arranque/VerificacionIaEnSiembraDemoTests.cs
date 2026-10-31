@@ -28,7 +28,8 @@ public class VerificacionIaEnSiembraDemoTests
             .Build();
 
     private static TipoDocumento Tipo(string nombre, AmbitoAplicacion ambito) =>
-        new(nombre, vigenciaMeses: 12, aplicaVencimientoAutomatico: true, orden: 1, ambitoAplicacion: ambito);
+        new(nombre, vigenciaMeses: 12, aplicaVencimientoAutomatico: true, orden: 1, ambitoAplicacion: ambito,
+            sensibilidad: SensibilidadDocumental.DatosPersonales);
 
     // --- La decisión: ¿hay proveedor? ---
 
