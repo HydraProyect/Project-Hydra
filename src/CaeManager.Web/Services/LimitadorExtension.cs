@@ -10,7 +10,10 @@ namespace CaeManager.Web.Services;
 /// Cupo global de <c>/extension/*</c> (OWASP API4, ASVS V11.1.4): por cuenta si el token se descifra y está vigente, por
 /// IP en cualquier otro caso. Corre antes de autenticar, así que el token solo reparte el cupo y nunca autoriza: un
 /// token falsificado o caducado no se descifra y cae a la IP del emisor, de modo que no puede gastar el cupo de otra
-/// cuenta. No consulta la base, por lo que un token revocado pero vigente (hasta 8 h) aún cuenta contra su cuenta.
+/// cuenta. El cupo es por cuenta y sesión de inicio (usuario y sid), como en <see cref="LimitadorEntregaExtension"/>: no
+/// se consulta la base, así que un token revocado pero vigente (hasta 8 h) aún se descifra, pero solo agota el cupo de
+/// su propia sesión y no el de la sesión viva del Gestor CAE legítimo. Emitir otro token desde la misma sesión no da
+/// un cupo nuevo.
 /// El contador vive en memoria por instancia y se reinicia con cada despliegue.
 /// </summary>
 public static class LimitadorExtension
@@ -30,7 +33,7 @@ public static class LimitadorExtension
         var carga = LeerCargaAcotada(token, proteccion);
         var clave = carga is null
             ? $"extension:ip:{LimitadorApiPublica.IpDelCliente(contexto)}"
-            : $"extension:usuario:{carga.UsuarioId:N}";
+            : $"extension:usuario:{carga.UsuarioId:N}:{carga.Sid:N}";
 
         return RateLimitPartition.GetFixedWindowLimiter(clave, _ => new FixedWindowRateLimiterOptions
         {

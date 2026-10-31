@@ -18,19 +18,32 @@ namespace CaeManager.Web.Tests;
 public class LimitadorExtensionTests
 {
     [Fact]
-    public async Task Las_cuentas_tienen_cupos_distintos_y_las_sesiones_de_una_cuenta_comparten_cupo()
+    public async Task Los_tokens_de_una_misma_sesion_comparten_cupo_y_otra_cuenta_tiene_el_suyo()
     {
         await using var sitio = await Sitio.IniciarAsync();
         var cuenta = Guid.NewGuid();
-        var token = sitio.Token(cuenta);
+        var sesion = Guid.NewGuid();
+        var token = sitio.Token(cuenta, sesion);
         (await sitio.PedirAsync("/extension/uno", token)).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await sitio.PedirAsync("/extension/dos", sitio.Token(cuenta))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await sitio.PedirAsync("/extension/dos", sitio.Token(cuenta, sesion))).StatusCode.Should().Be(HttpStatusCode.OK);
         using var rechazada = await sitio.PedirAsync("/extension/uno", token);
         rechazada.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         rechazada.Headers.RetryAfter!.Delta.Should().BeGreaterThan(TimeSpan.Zero);
         (await sitio.PedirAsync("/extension/uno", sitio.Token(Guid.NewGuid()))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Un_token_de_una_sesion_anterior_no_agota_el_cupo_de_la_sesion_viva_de_la_misma_cuenta()
+    {
+        await using var sitio = await Sitio.IniciarAsync();
+        var cuenta = Guid.NewGuid();
+        var revocado = sitio.Token(cuenta, Guid.NewGuid());
+        var vivo = sitio.Token(cuenta, Guid.NewGuid());
+        (await sitio.PedirAsync("/extension/uno", revocado)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await sitio.PedirAsync("/extension/uno", revocado)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await sitio.PedirAsync("/extension/uno", revocado)).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        (await sitio.PedirAsync("/extension/uno", vivo)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
     [Fact]
     public async Task Los_tokens_invalidos_comparten_cupo_por_ip_y_no_afectan_otras_rutas()
     {
@@ -109,7 +122,7 @@ public class LimitadorExtensionTests
             return new Sitio(app, new HttpClient { BaseAddress = new Uri(direccion) }, proteccion);
         }
 
-        public string Token(Guid usuario) => TokenSesionExtension.Proteger(proteccion, usuario, "SELLO", Guid.NewGuid());
+        public string Token(Guid usuario, Guid? sid = null) => TokenSesionExtension.Proteger(proteccion, usuario, "SELLO", sid ?? Guid.NewGuid());
 
         public async Task<HttpResponseMessage> PedirAsync(string ruta, string? token)
         {
