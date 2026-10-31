@@ -45,7 +45,8 @@ public sealed class ProveedorAutenticacionRevalidada(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<SecurityStampValidatorOptions> opciones,
-    TimeProvider? reloj = null)
+    TimeProvider? reloj = null,
+    ActividadSesiones? actividad = null)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory), ISesionDeCircuitoInvalidable
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<ProveedorAutenticacionRevalidada>();
@@ -66,7 +67,8 @@ public sealed class ProveedorAutenticacionRevalidada(
         // Tope de 12 h desde el inicio de sesión (ver CaducidadSesion): un circuito
         // abierto no hace peticiones, así que la cookie no lo cortaría. Sin hora de
         // inicio legible, también falla cerrado. No consulta la base.
-        if (!CaducidadSesion.EsVigente(authenticationState.User, (reloj ?? TimeProvider.System).GetUtcNow()))
+        var ahora = (reloj ?? TimeProvider.System).GetUtcNow();
+        if (!CaducidadSesion.EsVigente(authenticationState.User, ahora))
         {
             _sesionInvalidada = true;
             return false;
@@ -75,7 +77,15 @@ public sealed class ProveedorAutenticacionRevalidada(
         // Sin identificador de sesión (cookie anterior a la revocación en servidor) no hay
         // nada que revocar: falla cerrado sin consultar la base. Con él, la consulta de abajo
         // comprueba además que la sesión no esté revocada.
-        if (SignInManagerCuentaDesactivada.LeerSid(authenticationState.User) is null)
+        if (SignInManagerCuentaDesactivada.LeerSid(authenticationState.User) is not { } sid)
+        {
+            _sesionInvalidada = true;
+            return false;
+        }
+
+        // Inactividad (ver CaducidadSesion): la conexión viva del circuito no cuenta,
+        // solo las señales de interacción. Tampoco consulta la base.
+        if (!CaducidadSesion.SigueActiva(authenticationState.User, actividad?.Leer(sid), ahora))
         {
             _sesionInvalidada = true;
             return false;

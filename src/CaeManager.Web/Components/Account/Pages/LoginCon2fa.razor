@@ -279,7 +279,7 @@
         var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
             $"verificar-2fa:{_usuarioPendiente.Id}",
             async _ => resultadoObtenido = await SignInManager.TwoFactorAuthenticatorSignInAsync(
-                Entrada.Codigo, isPersistent: true, rememberClient: false),
+                Entrada.Codigo, isPersistent: false, rememberClient: false),
             CancellationToken.None);
 
         if (!ejecutado)

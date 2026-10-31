@@ -21,9 +21,9 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Caducidad de la sesión (ver <see cref="CaducidadSesion"/>): 8 h de inactividad
-/// deslizante, tope de 12 h desde el inicio que ni el refresco deslizante ni una
-/// reemisión con las propiedades del ticket reinician, y el circuito de Blazor
+/// Caducidad de la sesión (ver <see cref="CaducidadSesion"/>): 30 min sin interacción,
+/// tope de 12 h desde el inicio que ni el refresco deslizante ni una reemisión con las
+/// propiedades del ticket reinician, cookie no persistente y el circuito de Blazor
 /// cortado en fallo cerrado. El recorrido de extremo a extremo usa el manejador de
 /// cookies real sobre Kestrel con un reloj manual.
 /// </summary>
@@ -76,11 +76,15 @@ public class CaducidadSesionTests
         await opciones.Events.OnSigningIn(new CookieSigningInContext(http, esquema, opciones, principal, propiedades, new CookieOptions()));
         propiedades.Items[CaducidadSesion.MarcaInicio].Should().Be(Marca(Ahora));
         principal.FindFirst(CaducidadSesion.MarcaInicio)!.Value.Should().Be(Marca(Ahora));
+        principal.FindFirst(CaducidadSesion.MarcaInteraccion)!.Value.Should().Be(Marca(Ahora));
+        propiedades.IsPersistent.Should().BeFalse("ningún camino de inicio de sesión deja una cookie persistente");
 
-        reloj.Ahora = Ahora.AddHours(6);
+        reloj.Ahora = Ahora.AddMinutes(20);
         var validar = new CookieValidatePrincipalContext(http, esquema, opciones, new AuthenticationTicket(principal, propiedades, esquema.Name));
         await opciones.Events.OnValidatePrincipal(validar);
         validar.Principal!.FindFirst(CaducidadSesion.MarcaInicio)!.Value.Should().Be(Marca(Ahora));
+        validar.Principal!.FindFirst(CaducidadSesion.MarcaInteraccion)!.Value.Should().Be(Marca(Ahora),
+            "una petición cualquiera no es una interacción");
 
         // RefreshSignInAsync reemite con las propiedades del ticket vigente.
         var renovado = new ClaimsPrincipal(new ClaimsIdentity("cookie"));
@@ -190,9 +194,9 @@ public class CaducidadSesionTests
     public enum Reemision { Deslizante, ConPropiedadesDelTicket }
 
     /// <summary>
-    /// Manejador de cookies real: a las 5 h la cookie se reemite (deslizante o como
-    /// <c>RefreshSignInAsync</c>), a las 11 h 59 min sigue valiendo y a las 12 h 1 min,
-    /// con la cookie más reciente y actividad continua, se rechaza y se borra.
+    /// Manejador de cookies real, con interacción cada 20 min: a las 5 h la cookie se
+    /// reemite (deslizante o como <c>RefreshSignInAsync</c>), a las 11 h 59 min sigue
+    /// valiendo y a las 12 h 1 min, con la cookie más reciente, se rechaza y se borra.
     /// </summary>
     [Theory]
     [InlineData(Reemision.Deslizante)]
@@ -222,29 +226,41 @@ public class CaducidadSesionTests
         app.MapGet("/yo", (HttpContext contexto) => contexto.User.Identity?.IsAuthenticated == true
             ? Results.Text(contexto.User.FindFirst(CaducidadSesion.MarcaInicio)?.Value)
             : Results.Unauthorized());
+        app.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent());
         await app.StartAsync();
         using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
         using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(app.Urls.Single()) };
 
         var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
 
-        reloj.Ahora = Ahora.AddHours(5);
+        async Task InteractuarHasta(DateTimeOffset destino)
+        {
+            while (reloj.Ahora < destino)
+            {
+                var siguiente = reloj.Ahora.AddMinutes(20);
+                reloj.Ahora = siguiente < destino ? siguiente : destino;
+                using var senal = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post);
+                cookie = CookieDe(senal) ?? cookie;
+            }
+        }
+
+        await InteractuarHasta(Ahora.AddHours(5));
         using (var renovacion = await Pedir(cliente, reemision == Reemision.Deslizante ? "/yo" : "/refrescar", cookie))
         {
             renovacion.StatusCode.Should().Be(HttpStatusCode.OK);
-            cookie = CookieDe(renovacion).Should().NotBeNull("a las 5 h la cookie se reemite").And.Subject;
+            cookie = CookieDe(renovacion) ?? cookie;
         }
 
         // Actividad intermedia: la reemisión con las propiedades del ticket conserva
         // también su ExpiresUtc, y solo el deslizamiento lo alarga.
-        reloj.Ahora = Ahora.AddHours(8).AddMinutes(-1);
+        await InteractuarHasta(Ahora.AddHours(8).AddMinutes(-1));
         using (var actividad = await Pedir(cliente, "/yo", cookie))
         {
             actividad.StatusCode.Should().Be(HttpStatusCode.OK);
             cookie = CookieDe(actividad) ?? cookie;
         }
 
-        reloj.Ahora = Ahora.AddMinutes(719);
+        await InteractuarHasta(Ahora.AddMinutes(719));
         using (var antes = await Pedir(cliente, "/yo", cookie))
         {
             antes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -299,9 +315,208 @@ public class CaducidadSesionTests
         registro.Avisos.Should().Be(0);
     }
 
-    private static async Task<HttpResponseMessage> Pedir(HttpClient cliente, string ruta, string cookie)
+    /// <summary>
+    /// Manejador de cookies real. Las peticiones corrientes, también las que reemiten la
+    /// cookie deslizante pasada la mitad de su vida, no mueven el plazo; la señal sí, y
+    /// deja el plazo completo por delante aunque llegue justo antes de agotarse.
+    /// </summary>
+    [Fact]
+    public async Task Solo_la_senal_de_interaccion_mueve_el_plazo_de_inactividad()
     {
-        using var peticion = new HttpRequestMessage(HttpMethod.Get, ruta);
+        var (app, cliente, reloj) = await ArrancarAsync();
+        await using var _ = app;
+        var entrada = await cliente.GetAsync("/entrar");
+        entrada.Headers.GetValues("Set-Cookie").Should().ContainSingle(c => c.StartsWith(".AspNetCore.aplicacion=", StringComparison.Ordinal))
+            .Which.Should().NotContain("expires", "la cookie no persistente termina al cerrar el navegador");
+        var cookie = CookieDe(entrada)!;
+
+        reloj.Ahora = Ahora.AddMinutes(29);
+        using (var senal = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post))
+        {
+            senal.StatusCode.Should().Be(HttpStatusCode.OK);
+            cookie = CookieDe(senal).Should().NotBeNull("la señal renueva la cookie desde el primer momento").And.Subject;
+        }
+
+        reloj.Ahora = Ahora.AddMinutes(58);
+        using (var peticion = await Pedir(cliente, "/yo", cookie))
+        {
+            peticion.StatusCode.Should().Be(HttpStatusCode.OK, "han pasado 29 min desde la última señal");
+            cookie = CookieDe(peticion) ?? cookie;
+        }
+
+        reloj.Ahora = Ahora.AddMinutes(59);
+        using var caducada = await Pedir(cliente, "/yo", cookie);
+        caducada.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "una petición corriente no es interacción");
+        caducada.Headers.GetValues("Set-Cookie").Should().Contain(c => c.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Una_senal_tardia_no_revive_la_sesion_ni_cuenta_por_get()
+    {
+        var (app, cliente, reloj) = await ArrancarAsync();
+        await using var _ = app;
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+
+        reloj.Ahora = Ahora.AddMinutes(20);
+        using (var get = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie))
+        {
+            get.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
+            cookie = CookieDe(get) ?? cookie;
+        }
+
+        reloj.Ahora = Ahora.AddMinutes(30);
+        using var tardia = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post);
+        tardia.Headers.GetValues("Set-Cookie").Should().Contain(c => c.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
+        using var despues = await Pedir(cliente, "/yo", cookie);
+        despues.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>Al desplegar, la cookie vigente aún no lleva marca de interacción: no se cierra esa sesión.</summary>
+    [Fact]
+    public async Task La_cookie_anterior_a_la_marca_de_interaccion_la_recibe_sin_cerrar_la_sesion()
+    {
+        var opciones = new CookieAuthenticationOptions();
+        CaducidadSesion.Configurar(opciones, Entorno("Production"));
+        var actividad = new ActividadSesiones();
+        await using var servicios = new ServiceCollection().AddSingleton<TimeProvider>(new RelojManual(Ahora))
+            .AddSingleton(actividad).AddSingleton<IAuthenticationService, AutenticacionFalsa>().BuildServiceProvider();
+        var http = new DefaultHttpContext { RequestServices = servicios };
+        var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddHours(-6) };
+        propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddHours(-6));
+        var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
+        var contexto = new CookieValidatePrincipalContext(http, esquema, opciones,
+            new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([ClaimSid()], "cookie")), propiedades, esquema.Name));
+
+        await opciones.Events.OnValidatePrincipal(contexto);
+
+        contexto.Principal.Should().NotBeNull();
+        contexto.ShouldRenew.Should().BeTrue();
+        propiedades.Items[CaducidadSesion.MarcaInteraccion].Should().Be(Marca(Ahora));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("no-es-un-numero")]
+    [InlineData("-5")]
+    public async Task Una_cookie_con_marca_de_interaccion_ilegible_se_rechaza(string marca)
+    {
+        var opciones = new CookieAuthenticationOptions();
+        CaducidadSesion.Configurar(opciones, Entorno("Production"));
+        await using var servicios = new ServiceCollection().AddSingleton<TimeProvider>(new RelojManual(Ahora))
+            .AddSingleton<IAuthenticationService, AutenticacionFalsa>().BuildServiceProvider();
+        var propiedades = new AuthenticationProperties();
+        propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddMinutes(-5));
+        propiedades.Items[CaducidadSesion.MarcaInteraccion] = marca;
+        var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
+        var contexto = new CookieValidatePrincipalContext(new DefaultHttpContext { RequestServices = servicios }, esquema, opciones,
+            new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([ClaimSid()], "cookie")), propiedades, esquema.Name));
+
+        await opciones.Events.OnValidatePrincipal(contexto);
+
+        contexto.Principal.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(29, true)]
+    [InlineData(30, false)]
+    [InlineData(31, false)]
+    [InlineData(-1, false)]
+    public void El_principal_sigue_activo_menos_de_treinta_minutos_desde_la_interaccion(int minutos, bool activa) =>
+        CaducidadSesion.SigueActiva(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(CaducidadSesion.MarcaInteraccion, Marca(Ahora.AddMinutes(-minutos)))], "cookie")), null, Ahora).Should().Be(activa);
+
+    [Fact]
+    public void Sin_marca_de_interaccion_cuenta_el_inicio_de_sesion() =>
+        CaducidadSesion.SigueActiva(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(CaducidadSesion.MarcaInicio, Marca(Ahora.AddMinutes(-31)))], "cookie")), null, Ahora).Should().BeFalse();
+
+    /// <summary>
+    /// El principal del circuito se queda como al conectarse. Solo la señal anotada lo
+    /// mantiene vivo: el circuito abierto, por sí mismo, caduca sin consultar la base.
+    /// </summary>
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(31, false)]
+    [InlineData(29, null)]
+    public async Task El_circuito_abierto_caduca_sin_senal_aunque_siga_conectado(int? minutosDesdeSenal, bool? vigente)
+    {
+        var sid = Guid.NewGuid();
+        var actividad = new ActividadSesiones();
+        if (minutosDesdeSenal is { } minutos)
+            actividad.Anotar(sid, Ahora.AddMinutes(-minutos));
+        var registro = new RegistroDeAvisos();
+        var servicios = new ServiceCollection().BuildServiceProvider();
+        using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
+            servicios.GetRequiredService<IServiceScopeFactory>(), Options.Create(new SecurityStampValidatorOptions()),
+            new RelojManual(Ahora), actividad);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, "1"),
+                new Claim(CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.ClaimSid, sid.ToString("N")),
+                new Claim(CaducidadSesion.MarcaInicio, Marca(Ahora.AddMinutes(-90))),
+                new Claim(CaducidadSesion.MarcaInteraccion, Marca(Ahora.AddMinutes(-60))),
+            ], "cookie"));
+        var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+
+        if (vigente == false)
+        {
+            (await (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!).Should().BeFalse();
+            proveedor.SesionInvalidada.Should().BeTrue();
+            registro.Avisos.Should().Be(0);
+            return;
+        }
+
+        // Con señal reciente, pasa el plazo y llega a consultar el sello: aquí, sin SignInManager
+        // registrado, ese paso falla cerrado con un aviso, que es lo que distingue los dos caminos.
+        (await (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!).Should().BeFalse();
+        registro.Avisos.Should().Be(1);
+    }
+
+    [Fact]
+    public void El_registro_de_actividad_retira_las_sesiones_ya_caducadas()
+    {
+        var actividad = new ActividadSesiones();
+        var antigua = Guid.NewGuid();
+        var reciente = Guid.NewGuid();
+        actividad.Anotar(antigua, Ahora.AddHours(-13));
+        actividad.Anotar(reciente, Ahora.AddHours(-1));
+
+        for (var i = 0; i < 1024; i++)
+            actividad.Anotar(Guid.NewGuid(), Ahora);
+
+        actividad.Leer(antigua).Should().BeNull();
+        actividad.Leer(reciente).Should().Be(Ahora.AddHours(-1));
+    }
+
+    private static async Task<(WebApplication App, HttpClient Cliente, RelojManual Reloj)> ArrancarAsync()
+    {
+        var reloj = new RelojManual(Ahora);
+        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddSingleton<TimeProvider>(reloj);
+        var sid = ClaimSid();
+        builder.Services.AddAuthentication("aplicacion").AddCookie("aplicacion");
+        builder.Services.Configure<CookieAuthenticationOptions>("aplicacion",
+            opciones => CaducidadSesion.Configurar(opciones, builder.Environment));
+        var app = builder.Build();
+        app.UseAuthentication();
+        app.MapGet("/entrar", (HttpContext contexto) => contexto.SignInAsync("aplicacion",
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1"), sid], "aplicacion")),
+            new AuthenticationProperties { IsPersistent = true }));
+        app.MapGet("/yo", (HttpContext contexto) => contexto.User.Identity?.IsAuthenticated == true ? Results.Ok() : Results.Unauthorized());
+        app.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.Ok());
+        await app.StartAsync();
+        var cliente = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false })
+        {
+            BaseAddress = new Uri(app.Urls.Single())
+        };
+        return (app, cliente, reloj);
+    }
+
+    private static async Task<HttpResponseMessage> Pedir(HttpClient cliente, string ruta, string cookie, HttpMethod? metodo = null)
+    {
+        using var peticion = new HttpRequestMessage(metodo ?? HttpMethod.Get, ruta);
         peticion.Headers.Add("Cookie", cookie);
         return await cliente.SendAsync(peticion);
     }

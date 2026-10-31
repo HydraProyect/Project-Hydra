@@ -361,6 +361,7 @@ builder.Services.AddOptions<SecurityStampValidatorOptions>()
         opciones.ValidationInterval = TimeSpan.FromSeconds(intervalos.Value.SesionSegundos));
 // HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
 CaducidadSesion.ConfigurarHsts(builder.Services);
+builder.Services.AddSingleton<ActividadSesiones>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -385,8 +386,8 @@ builder.Services.ConfigureApplicationCookie(options =>
     // dependa del rol ni de si el stamp sigue siendo válido, así que saltarse
     // la revalidación ahí no cede ninguna autorización real.
     OmitirRevalidacionDeStampEnRuta.Configurar(options, "/Error");
-    // 8 h de inactividad (deslizante) y 12 h como máximo desde el inicio de
-    // sesión; cookie Secure salvo en Development (ver CaducidadSesion).
+    // 30 min sin interacción y 12 h como máximo desde el inicio de sesión; cookie
+    // no persistente, y Secure salvo en Development (ver CaducidadSesion).
     CaducidadSesion.Configurar(options, builder.Environment);
 });
 

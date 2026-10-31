@@ -43,6 +43,11 @@ public static class IdentityEndpointsExtensions
             return await SalirAsync(signInManager, httpContext);
         }).RequireAuthorization();
 
+        // Señal de interacción de actividad-sesion.js. Lo hace todo la validación de la cookie
+        // (CaducidadSesion); sin sesión, responde el desafío y no se mueve nada. Sin formulario ni
+        // antiforgery: SameSite=Lax deja fuera las peticiones de otro sitio, y la señal no cambia datos.
+        endpoints.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent()).RequireAuthorization();
+
         static async Task<IResult> SalirAsync(SignInManager<ApplicationUser> signInManager, HttpContext httpContext)
         {
             await signInManager.SignOutAsync();
@@ -268,7 +273,7 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
-            await signInManager.SignInWithClaimsAsync(usuario, isPersistent: true,
+            await signInManager.SignInWithClaimsAsync(usuario, isPersistent: false,
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
             // La cookie externa temporal ya está consumida: se borra, como hace
