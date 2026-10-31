@@ -66,7 +66,7 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task Soporte_lee_todas_las_columnas_salvo_el_codigo_seguro()
+    public async Task Soporte_lee_las_columnas_permitidas_del_documento_generado()
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -87,10 +87,10 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
         }
 
         todas.Should().Contain("CodigoSeguroVerificacion", "control del instrumento: la columna existe");
-        legibles.Should().BeEquivalentTo(todas.Where(c => c != "CodigoSeguroVerificacion"));
+        legibles.Should().BeEquivalentTo(todas.Where(c => c != "CodigoSeguroVerificacion" && c != "DatosUtilizadosJson"));
         legibles.Should().BeEquivalentTo(new[]
         {
-            "Id", "CentroId", "CreadoEnUtc", "DatosUtilizadosJson", "DocumentoId", "EliminadoEnUtc",
+            "Id", "CentroId", "CreadoEnUtc", "DocumentoId", "EliminadoEnUtc",
             "EliminadoPorUsuarioId", "EmpresaId", "EstaEliminado", "Estado", "GeneradoEnUtc",
             "GeneradoPorUsuarioId", "HashSha256Impreso", "PlantillaDocumentoVersionId",
             "SelloElectronicoAplicadoEnUtc", "TenantId", "TrabajadorId", "Version",

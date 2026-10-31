@@ -3,8 +3,10 @@ using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.DocumentosIa.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -33,7 +35,8 @@ public class DetectarCamposDocumentoQueryHandlerTests
             trabajadoresContext: null!,
             Options.Create(new DeteccionPreviaDocumentoOptions { Activa = false }),
             new InstruccionTratamientoIaFalsa(habilitada: true),
-            new TenantActualFalso(TenantId));
+            new TenantActualFalso(TenantId),
+            new SesionFalsa());
 
         var resultado = await handler.Handle(
             new DetectarCamposDocumentoQuery([1, 2, 3], "reconocimiento-medico.pdf", AmbitoAplicacion.Trabajador),
@@ -57,7 +60,8 @@ public class DetectarCamposDocumentoQueryHandlerTests
             trabajadoresContext: null!,
             Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
             new InstruccionTratamientoIaFalsa(habilitada: false),
-            new TenantActualFalso(TenantId));
+            new TenantActualFalso(TenantId),
+            new SesionFalsa());
 
         var resultado = await handler.Handle(
             new DetectarCamposDocumentoQuery([1, 2, 3], "reconocimiento-medico.pdf", AmbitoAplicacion.Trabajador),
@@ -108,6 +112,29 @@ public class DetectarCamposDocumentoQueryHandlerTests
         resultado.Valor.FechaEmisionLeida.Should().BeNull();
     }
 
+    [Fact]
+    public async Task En_sesion_privilegiada_no_llama_al_router_de_ia()
+    {
+        // Opción e instrucción activas a propósito: solo la Sesión Privilegiada puede bloquear la
+        // llamada. cae_app_soporte no lee ExtraccionJson, así que el router daría 42501.
+        var handler = new DetectarCamposDocumentoQueryHandler(
+            new RouterQueLanzaSiSeInvoca(),
+            tiposDocumentoContext: null!,
+            trabajadoresContext: null!,
+            Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
+            new InstruccionTratamientoIaFalsa(habilitada: true),
+            new TenantActualFalso(TenantId),
+            new SesionFalsa(activa: true));
+
+        var resultado = await handler.Handle(
+            new DetectarCamposDocumentoQuery([1, 2, 3], "documento.pdf", AmbitoAplicacion.Trabajador),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.TipoDocumentoId.Should().BeNull();
+        resultado.Valor.TrabajadorId.Should().BeNull();
+    }
+
     private static Task<Result<DeteccionCamposDocumentoDto>> DetectarConAsync(Dictionary<string, string?> campos, int confianza)
     {
         var extraccion = new ExtraccionEstructuradaDto(TipoDetectado: null, campos, confianza, NotasValidacion: null);
@@ -117,7 +144,8 @@ public class DetectarCamposDocumentoQueryHandlerTests
             trabajadoresContext: null!,
             Options.Create(new DeteccionPreviaDocumentoOptions { Activa = true }),
             new InstruccionTratamientoIaFalsa(habilitada: true),
-            new TenantActualFalso(TenantId));
+            new TenantActualFalso(TenantId),
+            new SesionFalsa());
 
         return handler.Handle(new DetectarCamposDocumentoQuery([1, 2, 3], "documento.pdf", AmbitoAplicacion.Trabajador), CancellationToken.None);
     }
@@ -145,5 +173,15 @@ public class DetectarCamposDocumentoQueryHandlerTests
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId => tenantId;
+    }
+
+    private sealed class SesionFalsa(bool activa = false) : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            RevalidarAsync(cancellationToken);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(
+                activa ? new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.Impersonacion, null) : null);
     }
 }

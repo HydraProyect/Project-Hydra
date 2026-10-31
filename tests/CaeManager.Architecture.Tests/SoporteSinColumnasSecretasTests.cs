@@ -32,6 +32,11 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
+/// <c>SoporteSinJsonSensibles</c> retiró <c>DatosUtilizadosJson</c>, <c>ContextoJson</c>, <c>ExtraccionJson</c>
+/// y la tabla <c>SolicitudesConexionMicrosoft365</c> (ASVS V4.1.3).
+/// </para>
+///
+/// <para>
 /// Solo cuenta el <c>Up</c>: el <c>Down</c> de la propia migración vuelve a conceder lo que retiró, que es
 /// lo que debe hacer. Las migraciones anteriores (la línea base) quedan cubiertas porque la que retira va
 /// después; que esa migración siga retirando lo comprueba el segundo test. Lo que hay en la base migrada,
@@ -47,6 +52,19 @@ public class SoporteSinColumnasSecretasTests
     private const string MigracionQueRetiraElCodigoSeguro = "20261030230000_SoporteSinCodigoSeguroDocumentosGenerados";
 
     private const string MigracionQueRetiraSid = "20261031000000_SoporteSinSidSesionUsuario";
+
+    private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
+
+    /// <summary>
+    /// Lo que retira <see cref="MigracionQueRetiraLosJson"/>. Solo rige desde esa migración: las anteriores
+    /// conceden esas columnas por lista, y esta las deshace después.
+    /// </summary>
+    private static readonly Dictionary<string, string> ColumnasRetiradasConLosJson = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["DocumentosGenerados"] = "DatosUtilizadosJson",
+        ["LotesGeneracionDocumento"] = "ContextoJson",
+        ["ExtraccionesIaCache"] = "ExtraccionJson",
+    };
 
     private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "CredencialesIntegracion", "CredencialesConexionPlataformaCae"];
 
@@ -204,6 +222,30 @@ public class SoporteSinColumnasSecretasTests
         concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("SELECT (\"Id\", \"DatosUtilizadosJson\")", "DocumentosGenerados", true)]
+    [InlineData("SELECT (\"Id\", \"ContextoJson\")", "LotesGeneracionDocumento", true)]
+    [InlineData("SELECT (\"Id\", \"ExtraccionJson\")", "ExtraccionesIaCache", true)]
+    [InlineData("SELECT", "ExtraccionesIaCache", true)]
+    [InlineData("SELECT", "SolicitudesConexionMicrosoft365", true)]
+    [InlineData("SELECT (\"Id\", \"Estado\")", "LotesGeneracionDocumento", false)]
+    [InlineData("SELECT (\"Id\", \"HashSha256\")", "ExtraccionesIaCache", false)]
+    public void El_trinquete_detecta_las_nuevas_restricciones(string privilegios, string tabla, bool infractora) =>
+        EsInfractora((MigracionQueRetiraLosJson, privilegios, $"public.\"{tabla}\""))
+            .Should().Be(infractora);
+
+    [Fact]
+    public void La_migracion_de_json_retira_los_permisos_previstos()
+    {
+        var up = Up(SinComentarios(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraLosJson + ".cs"))));
+        foreach (var tabla in new[] { "DocumentosGenerados", "LotesGeneracionDocumento", "ExtraccionesIaCache", "SolicitudesConexionMicrosoft365" })
+            Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+                .Should().BeTrue();
+        var concesiones = ConcesionesASoporteEn(MigracionQueRetiraLosJson, up).ToList();
+        concesiones.Should().HaveCount(3);
+        concesiones.Where(EsInfractora).Should().BeEmpty();
+    }
+
     [Fact]
     public void La_migracion_de_sid_retira_el_grant_de_tabla_y_concede_las_demas_columnas()
     {
@@ -217,6 +259,18 @@ public class SoporteSinColumnasSecretasTests
 
     private static bool EsInfractora((string Migracion, string Privilegios, string Objeto) concesion)
     {
+        if (string.CompareOrdinal(concesion.Migracion, MigracionQueRetiraLosJson) >= 0)
+        {
+            var tablaNueva = TablaDe(concesion.Objeto);
+            if (tablaNueva.Equals("SolicitudesConexionMicrosoft365", StringComparison.OrdinalIgnoreCase)) return true;
+            if (ColumnasRetiradasConLosJson.TryGetValue(tablaNueva, out var columna))
+            {
+                var listas = Regex.Matches(concesion.Privilegios, @"\((?<columnas>[^)]*)\)");
+                if (listas.Count == 0 || Regex.Split(concesion.Privilegios, @",(?![^(]*\))").Any(p => !p.Contains('('))
+                    || listas.SelectMany(m => m.Groups["columnas"].Value.Split(',')).Any(c => c.Trim().Trim('"').Equals(columna, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+        }
         if (Regex.IsMatch(concesion.Objeto, @"\bALL\s+TABLES\b", RegexOptions.IgnoreCase))
             return true;
 
