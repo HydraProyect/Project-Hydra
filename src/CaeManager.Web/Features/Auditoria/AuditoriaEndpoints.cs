@@ -197,7 +197,7 @@ public static class AuditoriaEndpoints
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
-        // — el único filtro de la pantalla es el tipo de entidad. Resuelve
+        // — los filtros de la pantalla son el tipo de entidad y el rango de fechas (el enlace los lleva). Resuelve
         // nombre de usuario con el mismo criterio que Auditoria.razor.cs.
         endpoints.MapGet("/auditoria/exportar.xlsx", ExportarAsync).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();

@@ -18,6 +18,9 @@ public class RangoFechasAuditoriaTests
     [InlineData(null, false)]
     [InlineData("15/01/2026", false)]
     [InlineData("2026-13-40", false)]
+    [InlineData("20260-01-15", false)]
+    [InlineData("9999-12-31", false)]
+    [InlineData("1800-01-01", false)]
     public void Interpretar_solo_acepta_el_formato_del_campo_de_fecha(string? texto, bool valida)
     {
         RangoFechasAuditoria.Interpretar(texto).HasValue.Should().Be(valida);

@@ -51,7 +51,7 @@
             <CampoTexto Etiqueta="@Textos["Desde"]" Type="date" Valor="@_desde" ValorChanged="CambiarDesdeAsync" />
             <CampoTexto Etiqueta="@Textos["Hasta"]" Type="date" Valor="@_hasta" ValorChanged="CambiarHastaAsync" />
         </div>
-        @if (string.IsNullOrEmpty(_desde))
+        @if (RangoFechasAuditoria.Interpretar(_desde) is null)
         {
             <p class="nota-rango-auditoria">@Textos["SinFechaInicio"]</p>
         }

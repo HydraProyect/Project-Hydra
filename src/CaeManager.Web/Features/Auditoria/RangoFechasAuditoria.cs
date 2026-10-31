@@ -22,10 +22,14 @@ public static class RangoFechasAuditoria
 
     public static DateOnly DesdePorDefecto() => DiaDeNegocio.Hoy().AddDays(-DiasPorDefecto);
 
-    /// <summary>Texto de un campo de fecha (<c>yyyy-MM-dd</c>) a fecha; vacío o inválido es «sin límite».</summary>
+    /// <summary>
+    /// Texto de un campo de fecha (<c>yyyy-MM-dd</c>) a fecha; vacío, inválido o con un año fuera de
+    /// 1900–2999 es «sin límite» (un año de 5 o 6 dígitos, que el navegador admite, no debe llegar al
+    /// cálculo de días ni a la base de datos).
+    /// </summary>
     public static DateOnly? Interpretar(string? texto) =>
         DateOnly.TryParseExact(texto, FormatoFecha, System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.None, out var fecha)
+            System.Globalization.DateTimeStyles.None, out var fecha) && fecha.Year is >= 1900 and <= 2999
             ? fecha
             : null;
 

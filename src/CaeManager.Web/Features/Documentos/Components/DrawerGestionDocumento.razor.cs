@@ -732,10 +732,11 @@ public partial class DrawerGestionDocumento : ComponentBase
             var textos = Servicios.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>();
             ToastService.Mostrar(textos["ErrorSinEspacio"], TonoToast.Error);
         }
-        catch (ConversionWordPdfOcupadaException ex)
+        catch (ConversionWordPdfOcupadaException)
         {
             // Transitorio y esperado: el aviso dice qué hacer, no es un fallo del archivo.
-            ToastService.Mostrar(ex.Message, TonoToast.Advertencia);
+            var textos = Servicios.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>();
+            ToastService.Mostrar(textos["ErrorConversionOcupada"], TonoToast.Advertencia);
         }
         catch (Exception ex)
         {

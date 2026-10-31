@@ -81,7 +81,7 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
             proceso.StartInfo.Environment["TMP"] = directorioTrabajo;
             proceso.StartInfo.Environment["TEMP"] = directorioTrabajo;
 
-            if (!await Semaforo.WaitAsync(TimeSpan.FromSeconds(_opciones.EsperaMaximaSegundos), cancellationToken))
+            if (!await Semaforo.WaitAsync(TimeSpan.FromSeconds(Math.Max(0, _opciones.EsperaMaximaSegundos)), cancellationToken))
             {
                 _logger.LogWarning(
                     "Conversión de Word a PDF rechazada: el servicio siguió ocupado durante {Segundos} s.",
