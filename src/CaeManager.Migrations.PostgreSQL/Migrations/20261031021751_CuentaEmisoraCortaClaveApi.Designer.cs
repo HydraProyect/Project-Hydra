@@ -1133,9 +1133,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Canal")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 
@@ -10477,6 +10474,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("Avatar")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
