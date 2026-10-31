@@ -64,7 +64,9 @@ namespace CaeManager.Domain.Auditoria;
 /// <c>TipoDocumentoId</c> real (o, en el caso de las plantillas, el contenido
 /// está deliberadamente vacío), así que la categoría de DEC-36 no tiene de
 /// dónde salir sin inventar una fuente distinta al punto único de REC-132 —
-/// justo lo que esa decisión prohíbe. La evidencia de
+/// justo lo que esa decisión prohíbe. La descarga de un adjunto de correo sí
+/// queda en <see cref="RegistroAuditoria"/> como acceso a dato sensible, sin
+/// categoría, vía <c>ObtenerAdjuntoParaDescargaQuery</c>. La evidencia de
 /// <c>VerificacionExternaSubcontrata</c> SÍ se registra (tiene su propio
 /// <c>TipoDocumentoId</c>, y el archivo adjunto no es una plantilla en
 /// blanco) pese a no ser una instancia de <see cref="Documentos.Documento"/>
