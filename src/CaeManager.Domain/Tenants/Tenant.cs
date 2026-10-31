@@ -164,7 +164,34 @@ public class Tenant : Entity
 
     public void Suspender() => Estado = EstadoTenant.Suspendido;
 
-    public void Reactivar() => Estado = EstadoTenant.Activo;
+    /// <summary>
+    /// Reactivar la suspensión operativa no devuelve las claves de API anteriores: quedan fuera
+    /// por <see cref="ClavesApiValidasDesdeUtc"/>, igual que con la cuenta emisora (decisión del
+    /// 2026-10-28 concretada el 2026-10-31).
+    /// </summary>
+    public void Reactivar()
+    {
+        if (Estado is EstadoTenant.Suspendido)
+            ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+
+        Estado = EstadoTenant.Activo;
+    }
+
+    /// <summary>Instante de la última reactivación: una clave de API de este Tenant solo vale si se emitió después.</summary>
+    public DateTime? ClavesApiValidasDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// ¿Este Tenant propietario admite una clave de API emitida en <paramref name="emitidaEnUtc"/>?
+    /// No mientras esté suspendido, operativa o comercialmente, ni si se reactivó de la suspensión
+    /// operativa después de emitirla. La suspensión comercial es reversible: al levantarse, la
+    /// clave vuelve a valer. <see cref="EstadoComercialTenant.SoloLectura"/> no corta: la API
+    /// pública solo lee. Recibe los datos y no el Tenant porque se evalúa sobre una proyección.
+    /// </summary>
+    public static bool AdmiteClaveEmitidaEn(
+        EstadoTenant estado, EstadoComercialTenant estadoComercial, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc) =>
+        estado is EstadoTenant.Activo
+        && estadoComercial is not EstadoComercialTenant.Suspendida
+        && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     public void RenombrarA(string nombre) => EstablecerNombre(nombre);
 

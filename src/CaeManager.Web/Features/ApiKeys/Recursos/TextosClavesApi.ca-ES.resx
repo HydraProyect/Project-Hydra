@@ -7,5 +7,25 @@
   <data name="Caducidad" xml:space="preserve"><value>Vàlida fins a</value></data>
   <data name="Motivo" xml:space="preserve"><value>Motiu de l’emissió</value></data>
   <data name="Caducada" xml:space="preserve"><value>Vençuda</value></data>
-  <data name="LimiteCaducidad" xml:space="preserve"><value>Tria fins a quin dia val la clau, des d’avui i com a màxim d’aquí a 364 dies. Val tot aquell dia en hora peninsular, tret que la revoquis abans.</value></data>
+  <data name="LimiteCaducidad" xml:space="preserve"><value>Tria fins a quin dia val la clau, des d’avui i com a màxim d’aquí a 364 dies. Deixa de valer abans si es tanca l’accés de suport en què la generes, si se suspèn l’organització o si la revoques.</value></data>
+  <data name="OrganizacionTitulo" xml:space="preserve"><value>Claus d'API de l'organització</value></data>
+  <data name="OrganizacionDescripcion" xml:space="preserve"><value>Claus de l'API pública emeses per a aquesta organització. Pots revocar-ne qualsevol. Una clau deixa de ser vàlida si es tanca la finestra de suport en què es va emetre, si es desactiva el compte que la va emetre o si se suspèn l'organització.</value></data>
+  <data name="OrganizacionVacioTitulo" xml:space="preserve"><value>Sense claus emeses</value></data>
+  <data name="OrganizacionVacioDescripcion" xml:space="preserve"><value>Aquesta organització no té cap clau de l'API pública.</value></data>
+  <data name="Nombre" xml:space="preserve"><value>Nom</value></data>
+  <data name="Prefijo" xml:space="preserve"><value>Prefix</value></data>
+  <data name="Creada" xml:space="preserve"><value>Creada</value></data>
+  <data name="UltimoUso" xml:space="preserve"><value>Últim ús</value></data>
+  <data name="Estado" xml:space="preserve"><value>Estat</value></data>
+  <data name="Acciones" xml:space="preserve"><value>Accions</value></data>
+  <data name="Nunca" xml:space="preserve"><value>Mai</value></data>
+  <data name="Revocar" xml:space="preserve"><value>Revocar</value></data>
+  <data name="RevocarTitulo" xml:space="preserve"><value>Revocar la clau</value></data>
+  <data name="RevocarConfirmacion" xml:space="preserve"><value>Es revocarà la clau «{0}». No es pot desfer.</value></data>
+  <data name="Revocada" xml:space="preserve"><value>Revocada</value></data>
+  <data name="Activa" xml:space="preserve"><value>Activa</value></data>
+  <data name="Cortada" xml:space="preserve"><value>Sense efecte</value></data>
+  <data name="RevocadaAviso" xml:space="preserve"><value>Clau revocada.</value></data>
+  <data name="ErrorCarga" xml:space="preserve"><value>No hem pogut carregar les claus d'aquesta organització.</value></data>
+  <data name="ErrorRevocar" xml:space="preserve"><value>No hem pogut revocar la clau. Torna a carregar la llista per veure en quin estat ha quedat.</value></data>
 </root>

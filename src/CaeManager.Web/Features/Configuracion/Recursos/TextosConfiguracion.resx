@@ -63,6 +63,12 @@
   <data name="EntradaMiFirmaResumen" xml:space="preserve">
     <value>Firma y sello personales</value>
   </data>
+  <data name="EntradaApiOrganizacionNombre" xml:space="preserve">
+    <value>Claves de mi organización</value>
+  </data>
+  <data name="EntradaApiOrganizacionResumen" xml:space="preserve">
+    <value>Ver y revocar</value>
+  </data>
   <data name="EntradaApiNombre" xml:space="preserve">
     <value>Claves API</value>
   </data>

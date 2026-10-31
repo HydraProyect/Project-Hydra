@@ -9,6 +9,8 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.IntegrationTests.ApiKeys;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -384,11 +386,13 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     {
         // El handler real: las claves se leen por la conexión de la Sesión Privilegiada
         // (cae_app_soporte); la delegación y el Tenant de plataforma, por la del propietario. Si la
-        // proyección volviera a usar ClaveApi.EstaActiva, EF traería HashClave y esto daría 42501.
+        // proyección volviera a usar ClaveApi.EstaActiva, EF traería HashClave y esto daría 42501. El
+        // respaldo corre también bajo ese rol: sin sus EXECUTE, también.
         await using var contextoSoporte = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
         await using var contextoTenants = CrearContexto();
         var handler = new ObtenerClavesApiQueryHandler(
-            contextoSoporte, contextoTenants, new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenantPlataforma));
+            contextoSoporte, new ClaveApiRepository(contextoSoporte), contextoTenants, new AutorizacionClavesApiDePrueba(_tenant),
+            new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: _tenantPlataforma));
 
         var claves = await handler.Handle(new ObtenerClavesApiQuery(_delegacionId), CancellationToken.None);
 

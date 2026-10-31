@@ -251,8 +251,6 @@ public class UsosDeEsPlataformaCongeladosTests
         // Comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
         // contra ITenantActual: quien ya opera un tenant ajeno podría usar el workspace
         // activo para abrirse acceso a otros.
-        ["src/CaeManager.Application/ApiKeys/Queries/ObtenerClavesApi/ObtenerClavesApiQuery.cs"] =
-            new(1, CategoriaUso.Autoridad, ":36 — lo retira el bloque C"),
         ["src/CaeManager.Application/Tenants/AutorizacionAccesoSoporte.cs"] =
             new(2, CategoriaUso.Autoridad,
                 ":8 comentario y :28 predicado real (t.EsPlataforma) — único punto de verdad extraído el " +
@@ -680,6 +678,9 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly string[] SuperficiePublicaDeTenant =
     [
         "ActualizarEstadoComercial",
+        // Cortes de las claves de API por estado del Tenant: no tocan el flag.
+        "AdmiteClaveEmitidaEn",
+        "ClavesApiValidasDesdeUtc",
         // Add-on de subida automática: solo toca su propia columna.
         "AddOnSubidaAutomaticaActivo",
         "CambiarAddOnSubidaAutomatica",

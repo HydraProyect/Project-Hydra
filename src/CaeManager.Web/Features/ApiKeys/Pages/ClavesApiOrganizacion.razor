@@ -1,0 +1,45 @@
+@page "/configuracion/claves-api-organizacion"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
+
+<LimiteDeErrores Pagina="this">
+@if (!IntegradaEnConfiguracion)
+{
+    <PageTitle>@Textos["OrganizacionTitulo"] — @Marca.Nombre</PageTitle>
+}
+
+<div class="@ClaseContenedorPagina">
+    <CabeceraPagina Titulo="@Textos["OrganizacionTitulo"]" Integrada="@IntegradaEnConfiguracion">
+        <Descripcion>@Textos["OrganizacionDescripcion"]</Descripcion>
+    </CabeceraPagina>
+    @if (_cargando) { <EstadoCargando Filas="3" /> }
+    else if (_claves.Count == 0) { <EstadoVacio Titulo="@Textos["OrganizacionVacioTitulo"]" Descripcion="@Textos["OrganizacionVacioDescripcion"]" /> }
+    else
+    {
+        <TarjetaListado>
+            <Contenido>
+                <table class="tabla-datos">
+                    <thead><tr><th>@Textos["Nombre"]</th><th>@Textos["Prefijo"]</th><th>@Textos["Creada"]</th><th>@Textos["Caducidad"]</th><th>@Textos["UltimoUso"]</th><th>@Textos["Estado"]</th><th><span class="solo-lector">@Textos["Acciones"]</span></th></tr></thead>
+                    <tbody>
+                    @foreach (var clave in _claves)
+                    {
+                        <tr>
+                            <td>@clave.NombreDescriptivo</td>
+                            <td><code>@clave.PrefijoVisible…</code></td>
+                            <td>@FechaCreacion(clave)</td>
+                            <td>@FechaCaducidad(clave)</td>
+                            <td>@FechaUltimoUso(clave)</td>
+                            <td><Badge Tono="@(EstaVigente(clave) ? TonoBadge.Exito : TonoBadge.Neutro)">@TextoEstado(clave)</Badge></td>
+                            <td>@if (clave.EstaActiva) { <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo" OnClick="() => _claveARevocar = clave" Cargando="@(_revocando && _claveARevocar?.Id == clave.Id)">@Textos["Revocar"]</Boton> }</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </Contenido>
+        </TarjetaListado>
+    }
+</div>
+
+<DialogoConfirmacion Visible="@(_claveARevocar is not null)" VisibleChanged="CerrarRevocacion" Titulo="@Textos["RevocarTitulo"]" Mensaje="@MensajeRevocacion" TextoBotonConfirmar="@Textos["Revocar"]" EnProgreso="_revocando" OnConfirmar="RevocarAsync" />
+</LimiteDeErrores>

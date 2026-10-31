@@ -19,9 +19,9 @@ namespace CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 ///
 /// <para>
 /// Revocar exige menos que emitir, a propósito: ni delegación vigente ni segundo factor.
-/// La ventana de Soporte dura horas y la clave vive hasta su caducidad, así que exigirla
-/// dejaría una clave filtrada sin nadie que pudiera cortarla, y revocar reduce exposición
-/// en vez de crearla (ver el contrato de <see cref="IAutorizacionAdminPlataforma"/>).
+/// Revocar reduce exposición en vez de crearla (ver el contrato de
+/// <see cref="IAutorizacionAdminPlataforma"/>). El Tenant propietario revoca por su propia vía,
+/// <c>RevocarClaveApiDeMiOrganizacionCommand</c>.
 /// </para>
 /// </summary>
 public record RevocarClaveApiCommand(Guid DelegacionTenantId, Guid ClaveApiId) : ICommand;

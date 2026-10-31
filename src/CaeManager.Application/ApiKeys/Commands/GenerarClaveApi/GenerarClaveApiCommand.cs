@@ -26,9 +26,9 @@ namespace CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 /// (<c>TenantConsultoraId</c> = Tenant de origen de la cuenta, nunca el Tenant activo);</item>
 /// <item>la delegación es de propósito Soporte y está activa y vigente al emitir
 /// (<see cref="CriterioSoporteClaveApi.PuedeEmitir"/>). Al autenticar,
-/// <c>ApiKeyAuthenticationHandler</c> exige menos —<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>:
-/// que esa delegación de Soporte siga existiendo, aunque su ventana esté cerrada—, porque la
-/// ventana de <c>AbrirAccesoSoporteCommand</c> dura horas y la clave vive hasta su caducidad;</item>
+/// <c>ApiKeyAuthenticationHandler</c> exige que siga abierta esa misma ventana
+/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>): la clave vive como mucho lo que ella,
+/// aunque su caducidad sea posterior;</item>
 /// <item>AdminPlataforma sobre el Tenant propietario objetivo
 /// (<see cref="IAutorizacionAdminPlataforma.PuedeSobreTenantAsync"/>), no la mera
 /// pertenencia al Tenant de plataforma;</item>

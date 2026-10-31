@@ -1,4 +1,5 @@
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -45,29 +46,33 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
 
     public void Agregar(ClaveApi clave) => dbContext.ClavesApi.Add(clave);
 
-    public async Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
+    public async Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
     {
-        var estado = await AlmacenUsuarios.EstadoCuentaEmisoraAsync(dbContext, creadaPorUsuarioId, cancellationToken);
-        return estado is not null && ApplicationUser.AdmiteClaveEmitidaEn(
-            estado.FinBloqueo, estado.ClavesApiValidasDesdeUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
-    }
+        var ahora = DateTime.UtcNow;
 
-    public async Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default)
-    {
-        // Solo existencia de la delegación de Soporte (CriterioSoporteClaveApi.PuedeAutenticar):
-        // ni Activa ni ExpiraEnUtc, porque la ventana de soporte dura horas y la clave vive hasta
-        // su caducidad. Si la cuenta emisora se ha eliminado, app_tenant_de_cuenta devuelve null
-        // y esto es false.
-        //
+        // "Tenants" no tiene filtro global ni RLS y las dos identidades de la aplicación pueden
+        // leerla. Sin la fila no hay respaldo.
+        var tenant = await dbContext.Tenants
+            .Where(t => t.Id == tenantPropietarioId)
+            .Select(t => new { t.Estado, t.EstadoComercial, t.ClavesApiValidasDesdeUtc })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (tenant is null || !Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitidaEnUtc))
+            return false;
+
+        var estado = await AlmacenUsuarios.EstadoCuentaEmisoraAsync(dbContext, creadaPorUsuarioId, cancellationToken);
+        if (estado is null || !ApplicationUser.AdmiteClaveEmitidaEn(
+                estado.FinBloqueo, estado.ClavesApiValidasDesdeUtc, emitidaEnUtc, new DateTimeOffset(ahora)))
+            return false;
+
         // Corre bajo el ámbito del Tenant propietario de la clave. Ambas lecturas funcionan
         // desde ese ámbito, así que una clave legítima no puede dar un falso negativo por RLS:
         // - la cuenta emisora es de otra organización y "AspNetUsers" bajo RLS no la vería; su
-        //   Tenant se resuelve con app_tenant_de_cuenta (SECURITY DEFINER, EXECUTE para
-        //   cae_app_runtime, devuelve solo el TenantId de esa cuenta), sin ampliar la política;
+        //   Tenant se resuelve con app_tenant_de_cuenta (SECURITY DEFINER, devuelve solo el
+        //   TenantId de esa cuenta), sin ampliar la política;
         // - "DelegacionesTenant" no tiene filtro global de EF, pero su RLS permite leer
-        //   desde el Tenant propietario de la clave (TenantClienteId), con SELECT para cae_app_runtime.
+        //   desde el Tenant propietario de la clave (TenantClienteId).
         var origen = await AlmacenUsuarios.TenantDeCuentaAsync(dbContext, creadaPorUsuarioId, cancellationToken);
         return origen is { } tenantOrigenId && await dbContext.DelegacionesTenant
-            .AnyAsync(CriterioSoporteClaveApi.PuedeAutenticar(tenantOrigenId, tenantPropietarioId), cancellationToken);
+            .AnyAsync(CriterioSoporteClaveApi.PuedeAutenticar(tenantOrigenId, tenantPropietarioId, emitidaEnUtc, ahora), cancellationToken);
     }
 }

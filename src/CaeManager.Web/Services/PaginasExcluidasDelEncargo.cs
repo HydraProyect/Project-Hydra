@@ -28,6 +28,7 @@ public static class PaginasExcluidasDelEncargo
     private static readonly HashSet<Type> Paginas =
     [
         typeof(Features.ApiKeys.Pages.ClavesApi),
+        typeof(Features.ApiKeys.Pages.ClavesApiOrganizacion),
         typeof(Features.Auditoria.Pages.Auditoria),
         typeof(Features.Auditoria.Pages.AccesosDocumentosSensibles),
         typeof(Features.AuditoriaIa.Pages.AuditoriaIa),

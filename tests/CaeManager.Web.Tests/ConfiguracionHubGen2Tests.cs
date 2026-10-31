@@ -22,7 +22,7 @@ namespace CaeManager.Web.Tests;
 /// <para>
 /// <b>Qué observa.</b> El marco del hub, no las páginas que embebe: una sola
 /// cabecera con un solo h1; la navegación agrupada tal como la declara el
-/// catálogo (dieciséis entradas, cinco listas nombradas por su grupo, sin
+/// catálogo (diecisiete entradas, cinco listas nombradas por su grupo, sin
 /// Delegaciones ni Estado comercial); qué entrada lleva
 /// <c>aria-current="page"</c> y que se mueve con la ruta; el nombre accesible
 /// de cada entrada y de las migas (lo que queda fuera de <c>aria-hidden</c>);
@@ -66,6 +66,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         ("Plataforma y conexiones", "Conexiones de integración", "M365, portales, webhooks", "/configuracion/integraciones"),
         ("Plataforma y conexiones", "Importar datos", "Cuadro de Control CAE (Excel)", "/configuracion/importar"),
         ("Plataforma y conexiones", "Organización", "Logo de la organización", "/configuracion/organizacion"),
+        ("Plataforma y conexiones", "Claves de mi organización", "Ver y revocar", "/configuracion/api-organizacion"),
         ("Plataforma y conexiones", "Administración de plataforma", "Inicialización e identidad raíz", "/configuracion/plataforma"),
         ("Catálogos y datos", "Parámetros del sistema", "Umbrales del semáforo", "/configuracion/params"),
         ("Catálogos y datos", "Tipos de documento", "Catálogo y vigencias", "/configuracion/tipos"),
@@ -273,7 +274,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     // ---------------------------------------------------------------- navegación
 
     [Fact]
-    public void La_navegacion_agrupa_las_dieciseis_entradas_en_listas_nombradas_por_su_grupo()
+    public void La_navegacion_agrupa_las_diecisiete_entradas_en_listas_nombradas_por_su_grupo()
     {
         var cut = RenderizarHub("plataforma");
 
@@ -312,7 +313,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub("plataforma");
 
         var enlaces = Navegacion(cut).QuerySelectorAll("a");
-        enlaces.Should().HaveCount(16);
+        enlaces.Should().HaveCount(17);
 
         foreach (var enlace in enlaces)
         {
@@ -455,7 +456,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
         rutas.Should().Contain("/configuracion/auditoria", "control positivo: el grupo se pintó");
         rutas.Contains("/configuracion/accesos-sensibles").Should().Be(conPermiso);
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 17 : 16);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(conPermiso ? 18 : 17);
     }
 
     [Fact]
@@ -473,7 +474,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: false);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(16);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(17);
         PlataformaYConexiones(cut).Select(e => e.Ruta).Should().NotContain("/configuracion/orden-menu",
             "un Administrador de Tenant no ordena el menú global: la entrada ni existe para él");
     }
@@ -483,7 +484,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
     {
         var cut = RenderizarHub("plataforma", esAdministradorPlataforma: true);
 
-        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(17);
+        Navegacion(cut).QuerySelectorAll("a").Should().HaveCount(18);
         // Orden del marco de Design: Claves API, Conexiones, Importar datos y Orden del menú; los extras van detrás.
         PlataformaYConexiones(cut)[3].Should().Be(
             ("Orden del menú", "Solo Actor de Plataforma", "/configuracion/orden-menu"));

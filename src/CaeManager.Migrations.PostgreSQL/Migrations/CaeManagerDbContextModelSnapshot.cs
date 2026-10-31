@@ -9975,6 +9975,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("AddOnSubidaAutomaticaActivo")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 

@@ -188,14 +188,15 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Al autenticar basta con que la delegación de Soporte del origen emisor EXISTA
-    /// (<c>CriterioSoporteClaveApi.PuedeAutenticar</c>): cerrar la ventana o dejarla vencer no
-    /// deja la clave en 401. Distinguir una retirada a propósito queda como incremento aparte.
+    /// La clave vale mientras siga abierta la ventana de Soporte TALVEG en que se emitió
+    /// (<c>CriterioSoporteClaveApi.PuedeAutenticar</c>): al cerrarla, al vencer o al reabrirla queda
+    /// en 401 aunque no esté caducada.
     /// </summary>
     [Theory]
     [InlineData("soporte revocado")]
     [InlineData("soporte vencido")]
-    public async Task Bajo_RLS_autentica_aunque_la_ventana_de_soporte_este_cerrada(string caso)
+    [InlineData("soporte reabierto")]
+    public async Task Bajo_RLS_la_clave_cae_con_la_ventana_de_soporte_en_que_se_emitio(string caso)
     {
         await using (var contexto = CrearContextoPropietario())
         {
@@ -203,11 +204,65 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
             delegacion.Desactivar();
             if (caso == "soporte vencido")
                 delegacion.ActivarParaSoporte("Prueba de vencimiento", DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(-2));
+            if (caso == "soporte reabierto")
+                delegacion.ActivarParaSoporte("Prueba de reapertura", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
             await contexto.SaveChangesAsync();
         }
 
         var (estado, cuerpo) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
-        estado.Should().Be(HttpStatusCode.OK, "la delegación de Soporte del origen emisor sigue existiendo. Detalle: {0}", cuerpo);
+        estado.Should().Be(HttpStatusCode.Unauthorized, "caso {0}. Detalle: {1}", caso, cuerpo);
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-28 concretada el 2026-10-31: la suspensión operativa corta y reactivar
+    /// no devuelve la clave; la comercial corta y al revertirse vuelve a valer; solo lectura no corta.
+    /// </summary>
+    [Theory]
+    [InlineData("suspendido", HttpStatusCode.Unauthorized)]
+    [InlineData("reactivado", HttpStatusCode.Unauthorized)]
+    [InlineData("comercial suspendida", HttpStatusCode.Unauthorized)]
+    [InlineData("comercial revertida", HttpStatusCode.OK)]
+    [InlineData("solo lectura", HttpStatusCode.OK)]
+    public async Task Bajo_RLS_el_estado_del_Tenant_propietario_decide_la_clave(string caso, HttpStatusCode esperado)
+    {
+        await using (var contexto = CrearContextoPropietario())
+        {
+            var tenant = await contexto.Tenants.SingleAsync(t => t.Id == _tenantClienteId);
+            switch (caso)
+            {
+                case "suspendido":
+                    tenant.Suspender();
+                    break;
+                case "reactivado":
+                    tenant.Suspender();
+                    tenant.Reactivar();
+                    break;
+                default:
+                    tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
+                    tenant.ActualizarEstadoComercial(caso == "solo lectura" ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
+                    if (caso == "comercial revertida") tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    break;
+            }
+            await contexto.SaveChangesAsync();
+        }
+
+        var (estado, cuerpo) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
+        estado.Should().Be(esperado, "caso {0}. Detalle: {1}", caso, cuerpo);
+    }
+
+    [Fact]
+    public async Task Bajo_RLS_la_clave_emitida_tras_reactivar_el_Tenant_autentica()
+    {
+        await using var contexto = CrearContextoPropietario();
+        var tenant = await contexto.Tenants.SingleAsync(t => t.Id == _tenantClienteId);
+        tenant.Suspender();
+        tenant.Reactivar();
+        await contexto.SaveChangesAsync();
+        var claveNueva = await EmitirClaveAsync(contexto);
+
+        var cadena = BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario);
+        (await LlamarAsync(cadena, _claveEnClaro)).Estado.Should().Be(HttpStatusCode.Unauthorized, "control: la anterior sigue cortada");
+        (await LlamarAsync(cadena, claveNueva)).Estado.Should().Be(HttpStatusCode.OK);
     }
 
     [Theory]
@@ -318,25 +373,32 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         lector.GetBoolean(0).Should().BeTrue("SECURITY DEFINER");
         lector.GetString(1).Should().Contain("search_path");
         lector.GetBoolean(2).Should().BeTrue("la autenticación corre con cae_app_runtime");
-        lector.GetBoolean(3).Should().BeFalse("Soporte TALVEG no autentica claves");
+        lector.GetBoolean(3).Should().BeTrue("el listado del Actor de Plataforma TALVEG evalúa el respaldo en Sesión Privilegiada");
         lector.GetBoolean(4).Should().BeFalse("el aprovisionamiento no autentica claves");
         lector.GetBoolean(5).Should().BeFalse("nada para PUBLIC");
     }
 
-    [Fact]
-    public async Task Bajo_RLS_basta_una_de_varias_delegaciones_validas_del_mismo_origen()
+    // Otra ventana del mismo origen, abierta después de emitir, no respalda la clave; una inactiva
+    // tampoco la tumba si sigue abierta la suya.
+    [Theory]
+    [InlineData(true, HttpStatusCode.Unauthorized)]
+    [InlineData(false, HttpStatusCode.OK)]
+    public async Task Bajo_RLS_solo_cuenta_la_ventana_en_que_se_emitio_entre_varias_del_mismo_origen(bool cerrarLaDeLaEmision, HttpStatusCode esperado)
     {
         await using (var contexto = CrearContextoPropietario())
         {
-            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
             var otra = DelegacionTenant.ParaSoporte(_tenantPlataformaId, _tenantClienteId);
-            otra.ActivarParaSoporte("Nueva ventana de prueba", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
+            if (cerrarLaDeLaEmision)
+            {
+                (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
+                otra.ActivarParaSoporte("Nueva ventana de prueba", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
+            }
             contexto.DelegacionesTenant.Add(otra);
             await contexto.SaveChangesAsync();
         }
 
         var (estado, _) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
-        estado.Should().Be(HttpStatusCode.OK);
+        estado.Should().Be(esperado);
     }
 
     /// <summary>

@@ -63,6 +63,12 @@
   <data name="EntradaMiFirmaResumen" xml:space="preserve">
     <value>Signatura i segell personals</value>
   </data>
+  <data name="EntradaApiOrganizacionNombre" xml:space="preserve">
+    <value>Claus de la meva organització</value>
+  </data>
+  <data name="EntradaApiOrganizacionResumen" xml:space="preserve">
+    <value>Veure i revocar</value>
+  </data>
   <data name="EntradaApiNombre" xml:space="preserve">
     <value>Claus API</value>
   </data>

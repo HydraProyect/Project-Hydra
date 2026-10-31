@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autenticacion;
@@ -17,23 +17,24 @@ namespace CaeManager.Web.Tests;
 
 public class ApiKeyAuthenticationHandlerTests
 {
-    // Al autenticar basta con que EXISTA la delegación de Soporte entre el origen de la cuenta
-    // emisora y el Tenant propietario (CriterioSoporteClaveApi.PuedeAutenticar): con la ventana
-    // cerrada, retirada o vencida, la clave sigue valiendo hasta su caducidad o su revocación.
+    // Autenticar exige que siga abierta la ventana de Soporte en que se emitió la clave
+    // (CriterioSoporteClaveApi.PuedeAutenticar): con la ventana cerrada, retirada, vencida o
+    // reabierta, la clave ya no vale. El Tenant propietario se comprueba en ClaveApiRepository.
     [Theory]
     [InlineData("legitima", true)]
     [InlineData("caducada", false)]
     [InlineData("revocada", false)]
-    [InlineData("soporte con ventana cerrada", true)]
-    [InlineData("soporte retirado", true)]
-    [InlineData("soporte vencido", true)]
+    [InlineData("soporte con ventana cerrada", false)]
+    [InlineData("soporte retirado", false)]
+    [InlineData("soporte vencido", false)]
+    [InlineData("soporte reabierto tras emitir", false)]
     [InlineData("soporte de otro origen", false)]
     [InlineData("delegacion comercial del mismo origen", false)]
     [InlineData("soporte hacia otro Tenant", false)]
     [InlineData("sin delegacion", false)]
     [InlineData("cuenta emisora eliminada", false)]
     [InlineData("cuenta emisora desactivada", false)]
-    public async Task Autentica_una_clave_vigente_si_existe_la_delegacion_de_soporte_de_su_origen(string caso, bool acepta)
+    public async Task Autentica_una_clave_vigente_si_sigue_abierta_la_ventana_de_soporte_en_que_se_emitio(string caso, bool acepta)
     {
         const string secreto = "hydra_clave-ficticia-de-prueba";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secreto))).ToLowerInvariant();
@@ -65,9 +66,8 @@ public class ApiKeyAuthenticationHandlerTests
         {
             resultado.Principal!.FindFirstValue("tenant_id").Should().Be(tenant.ToString());
             resultado.Principal!.FindFirstValue(ClaimTypes.Role).Should().Be("Consulta");
-            repositorio.TenantComprobado.Should().Be(tenant);
-            repositorio.EmisorComprobado.Should().Be(clave.CreadaPorUsuarioId, "el origen se resuelve por la cuenta que emitió la clave");
-            repositorio.RespaldoComprobado.Should().Be((clave.CreadaPorUsuarioId, clave.CreadoEnUtc), "el estado se mira en la cuenta emisora y contra la fecha de emisión");
+            repositorio.RespaldoComprobado.Should().Be((tenant, clave.CreadaPorUsuarioId, clave.CreadoEnUtc),
+                "el respaldo se mira en el Tenant propietario, en la cuenta emisora y contra la fecha de emisión");
         }
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
     }
@@ -90,6 +90,10 @@ public class ApiKeyAuthenticationHandlerTests
                 var retirada = Abierta(DelegacionTenant.ParaSoporte(origen, tenant), ahora);
                 retirada.Desactivar();
                 return [retirada];
+            case "soporte reabierto tras emitir":
+                var reabierta = DelegacionTenant.ParaSoporte(origen, tenant);
+                reabierta.ActivarParaSoporte("Prueba", ahora.AddHours(1), ahora.AddMinutes(1));
+                return [reabierta];
             case "soporte vencido":
                 var vencida = DelegacionTenant.ParaSoporte(origen, tenant);
                 vencida.ActivarParaSoporte("Prueba", ahora.AddMinutes(-1), ahora.AddHours(-2));
@@ -130,14 +134,7 @@ public class ApiKeyAuthenticationHandlerTests
     // memoria: el origen de la cuenta emisora (null si se eliminó) y las delegaciones del caso.
     private sealed class Repositorio(ClaveApi clave, Guid tenant, Guid? origenEmisor, List<DelegacionTenant> delegaciones, bool cuentaRespalda) : IClaveApiRepository
     {
-        public (Guid Cuenta, DateTime EmitidaEnUtc)? RespaldoComprobado { get; private set; }
-        public Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
-        {
-            RespaldoComprobado = (creadaPorUsuarioId, emitidaEnUtc);
-            return Task.FromResult(cuentaRespalda);
-        }
-        public Guid? TenantComprobado { get; private set; }
-        public Guid? EmisorComprobado { get; private set; }
+        public (Guid Tenant, Guid Cuenta, DateTime EmitidaEnUtc)? RespaldoComprobado { get; private set; }
         public Task<Guid?> ObtenerTenantPorHashAsync(string hashClave, CancellationToken cancellationToken = default)
         {
             AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
@@ -148,13 +145,12 @@ public class ApiKeyAuthenticationHandlerTests
             AmbitoTenantExplicito.TenantIdActual.Should().Be(tenant);
             return Task.FromResult<ClaveApi?>(hashClave == clave.HashClave ? clave : null);
         }
-        public Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default)
+        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
         {
             AmbitoTenantExplicito.TenantIdActual.Should().Be(tenant);
-            TenantComprobado = tenantPropietarioId;
-            EmisorComprobado = creadaPorUsuarioId;
-            return Task.FromResult(creadaPorUsuarioId == clave.CreadaPorUsuarioId && origenEmisor is { } o
-                && delegaciones.AsQueryable().Any(CriterioSoporteClaveApi.PuedeAutenticar(o, tenantPropietarioId)));
+            RespaldoComprobado = (tenantPropietarioId, creadaPorUsuarioId, emitidaEnUtc);
+            return Task.FromResult(cuentaRespalda && creadaPorUsuarioId == clave.CreadaPorUsuarioId && origenEmisor is { } o
+                && delegaciones.AsQueryable().Any(CriterioSoporteClaveApi.PuedeAutenticar(o, tenantPropietarioId, emitidaEnUtc, DateTime.UtcNow)));
         }
         public Task<ClaveApi?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Agregar(ClaveApi clave) => throw new NotSupportedException();

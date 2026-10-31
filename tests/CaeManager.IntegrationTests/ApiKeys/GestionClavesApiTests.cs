@@ -2,8 +2,11 @@ using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 using CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
+using CaeManager.Application.ApiKeys.Commands.RevocarClaveApiDeMiOrganizacion;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
+using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Auditing;
@@ -256,12 +259,91 @@ public class GestionClavesApiTests : IAsyncLifetime
         await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "Segunda", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         await using var contextoConsulta = CrearContexto();
-        var handlerConsulta = new ObtenerClavesApiQueryHandler(
-            contextoConsulta, contextoConsulta, new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId));
+        var handlerConsulta = HandlerConsulta(contextoConsulta);
 
         var claves = await handlerConsulta.Handle(new ObtenerClavesApiQuery(_delegacionId), CancellationToken.None);
 
         claves.Should().HaveCount(2);
         claves.Select(c => c.NombreDescriptivo).Should().BeEquivalentTo("Primera", "Segunda");
+    }
+
+    [Fact]
+    public async Task Los_dos_listados_muestran_cortada_la_clave_al_cerrarse_su_ventana()
+    {
+        await GenerarAsync("Respaldada");
+
+        (await ListarAsync()).Should().AllSatisfy(c => c.Cortada.Should().BeFalse("control: con la ventana abierta sigue respaldada"));
+
+        await using (var contexto = CrearContexto())
+        {
+            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
+            await contexto.SaveChangesAsync();
+        }
+
+        (await ListarAsync()).Should().AllSatisfy(c =>
+        {
+            c.Cortada.Should().BeTrue();
+            c.EstaActiva.Should().BeTrue("sin revocar: cabe revocarla");
+        });
+    }
+
+    [Fact]
+    public async Task El_Administrador_revoca_la_clave_de_su_Tenant_y_el_de_otro_no_la_alcanza()
+    {
+        var claveId = await GenerarAsync("A revocar");
+
+        async Task<Domain.Common.Result> RevocarDesdeAsync(Guid tenantActual)
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(tenantActual);
+            await using var contexto = CrearContexto();
+            return await new RevocarClaveApiDeMiOrganizacionCommandHandler(
+                    new ClaveApiRepository(contexto), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
+                    new AdministradorDePrueba(tenantActual), contexto)
+                .Handle(new RevocarClaveApiDeMiOrganizacionCommand(claveId), CancellationToken.None);
+        }
+
+        (await RevocarDesdeAsync(_tenantPlataformaId)).Error.Codigo.Should().Be("ClaveApi.NoEncontrada", "el filtro de Tenant la esconde");
+        (await ListarAsync()).Should().ContainSingle().Which.EstaActiva.Should().BeTrue("control: sigue sin revocar");
+
+        (await RevocarDesdeAsync(_tenantClienteId)).EsExitoso.Should().BeTrue();
+        (await ListarAsync()).Should().ContainSingle().Which.EstaActiva.Should().BeFalse();
+    }
+
+    private async Task<Guid> GenerarAsync(string nombre)
+    {
+        await using var contexto = CrearContexto();
+        var generada = await new GenerarClaveApiCommandHandler(
+                new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
+                new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contexto)
+            .Handle(new GenerarClaveApiCommand(_delegacionId, nombre, DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
+        generada.EsExitoso.Should().BeTrue();
+        return generada.Valor.Id;
+    }
+
+    // Lee con los dos listados y exige la misma respuesta: una clave cortada se ve igual en ambos.
+    private async Task<IReadOnlyList<ClaveApiDto>> ListarAsync()
+    {
+        await using var contextoPlataforma = CrearContexto();
+        var dePlataforma = await HandlerConsulta(contextoPlataforma).Handle(new ObtenerClavesApiQuery(_delegacionId), CancellationToken.None);
+
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantClienteId);
+        await using var contextoTenant = CrearContexto();
+        var delTenant = await new ObtenerClavesApiDeMiOrganizacionQueryHandler(
+                contextoTenant, new ClaveApiRepository(contextoTenant), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
+                new AdministradorDePrueba(_tenantClienteId))
+            .Handle(new ObtenerClavesApiDeMiOrganizacionQuery(), CancellationToken.None);
+
+        delTenant.Should().BeEquivalentTo(dePlataforma);
+        return delTenant;
+    }
+
+    private ObtenerClavesApiQueryHandler HandlerConsulta(CaeManagerDbContext contexto) => new(
+        contexto, new ClaveApiRepository(contexto), contexto, new AutorizacionClavesApiDePrueba(_tenantClienteId),
+        new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId));
+
+    private sealed class AdministradorDePrueba(Guid tenantDelAdministrador) : IAdministradorDelTenantPropietario
+    {
+        public Task<bool> EsAdministradorEnBaseAsync(Guid usuarioId, Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tenantDelAdministrador == tenantId);
     }
 }
