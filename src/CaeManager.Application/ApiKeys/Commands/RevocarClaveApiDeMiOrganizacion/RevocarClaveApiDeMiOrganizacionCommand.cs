@@ -29,13 +29,13 @@ public class RevocarClaveApiDeMiOrganizacionCommandHandler(
     ITenantActual tenantActual,
     ICurrentUserService currentUserService,
     IAdministradorDelTenantPropietario administradorDelTenant,
-    ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    ICoordenadaSesionPrivilegiada coordenadaSesionPrivilegiada,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RevocarClaveApiDeMiOrganizacionCommand, Result>
 {
     public async Task<Result> Handle(RevocarClaveApiDeMiOrganizacionCommand request, CancellationToken cancellationToken)
     {
-        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, sesionPrivilegiadaActual, cancellationToken))
+        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, coordenadaSesionPrivilegiada, cancellationToken))
             return Result.Fallo(AutoridadClavesApiDelTenant.SoloAdministradorDelTenant);
 
         var clave = await claveRepositorio.ObtenerPorIdAsync(request.ClaveApiId, cancellationToken);

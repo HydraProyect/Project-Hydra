@@ -21,12 +21,12 @@ public class ObtenerClavesApiDeMiOrganizacionQueryHandler(
     ITenantActual tenantActual,
     ICurrentUserService currentUserService,
     IAdministradorDelTenantPropietario administradorDelTenant,
-    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
+    ICoordenadaSesionPrivilegiada coordenadaSesionPrivilegiada)
     : IRequestHandler<ObtenerClavesApiDeMiOrganizacionQuery, IReadOnlyList<ClaveApiDto>?>
 {
     public async Task<IReadOnlyList<ClaveApiDto>?> Handle(ObtenerClavesApiDeMiOrganizacionQuery request, CancellationToken cancellationToken)
     {
-        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, sesionPrivilegiadaActual, cancellationToken))
+        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, coordenadaSesionPrivilegiada, cancellationToken))
             return null;
 
         return await ListadoClavesApi.LeerAsync(claveContext, claveRepositorio, tenantActual.TenantId!.Value, cancellationToken);

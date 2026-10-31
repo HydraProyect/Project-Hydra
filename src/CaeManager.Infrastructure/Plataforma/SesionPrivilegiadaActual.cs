@@ -11,9 +11,11 @@ public class SesionPrivilegiadaActual(
     IClienteActivoSeleccionado clienteActivoSeleccionado,
     ICurrentUserService currentUserService,
     TimeProvider? reloj = null)
-    : ISesionPrivilegiadaActual
+    : ISesionPrivilegiadaActual, ICoordenadaSesionPrivilegiada
 {
     private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
+
+    public bool HaySeleccionada => clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null;
 
     // Una sola referencia inmutable, no tres campos sueltos: en Blazor Server el
     // temporizador de RevalidacionCircuitoActivoHandler revalida desde otro hilo

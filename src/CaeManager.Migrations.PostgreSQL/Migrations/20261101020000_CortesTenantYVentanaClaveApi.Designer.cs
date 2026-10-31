@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261101010000_CortesTenantYVentanaClaveApi")]
+    [Migration("20261101020000_CortesTenantYVentanaClaveApi")]
     partial class CortesTenantYVentanaClaveApi
     {
         /// <inheritdoc />

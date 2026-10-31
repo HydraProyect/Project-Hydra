@@ -299,7 +299,7 @@ public class GestionClavesApiTests : IAsyncLifetime
             await using var contexto = CrearContexto();
             return await new RevocarClaveApiDeMiOrganizacionCommandHandler(
                     new ClaveApiRepository(contexto), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
-                    new AdministradorDePrueba(tenantActual), new SinSesionPrivilegiada(), contexto)
+                    new AdministradorDePrueba(tenantActual), new SinSeleccion(), contexto)
                 .Handle(new RevocarClaveApiDeMiOrganizacionCommand(claveId), CancellationToken.None);
         }
 
@@ -331,7 +331,7 @@ public class GestionClavesApiTests : IAsyncLifetime
         await using var contextoTenant = CrearContexto();
         var delTenant = await new ObtenerClavesApiDeMiOrganizacionQueryHandler(
                 contextoTenant, new ClaveApiRepository(contextoTenant), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
-                new AdministradorDePrueba(_tenantClienteId), new SinSesionPrivilegiada())
+                new AdministradorDePrueba(_tenantClienteId), new SinSeleccion())
             .Handle(new ObtenerClavesApiDeMiOrganizacionQuery(), CancellationToken.None);
 
         delTenant.Should().BeEquivalentTo(dePlataforma);
@@ -342,12 +342,9 @@ public class GestionClavesApiTests : IAsyncLifetime
         contexto, new ClaveApiRepository(contexto), contexto, new AutorizacionClavesApiDePrueba(_tenantClienteId),
         new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId));
 
-    private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual
+    private sealed class SinSeleccion : ICoordenadaSesionPrivilegiada
     {
-        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<SesionPrivilegiadaActiva?>(null);
-        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+        public bool HaySeleccionada => false;
     }
 
     private sealed class AdministradorDePrueba(Guid tenantDelAdministrador) : IAdministradorDelTenantPropietario
