@@ -174,7 +174,7 @@ public class ClavesApiGen2Tests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
         mediator.Tokens.Where(t => t.Peticion is GenerarClaveApiCommand).Should().ContainSingle("control positivo: se observó el comando").Which.Token.CanBeCanceled.Should().BeFalse();
         var token = consultas[0];
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue();
     }
 
@@ -190,7 +190,7 @@ public class ClavesApiGen2Tests : BunitContext
         campos.Single(c => c.Name == "_nombreNuevaClave").SetValue(instancia, "Nombre pendiente");
         campos.Single(c => c.Name == "_claveARevocar").SetValue(instancia, Clave(mediator.ClaveId));
         campos.Single(c => c.Name == "_claveGenerada").GetValue(instancia).Should().Be(claveEnClaro, "control positivo: el campo se escribió");
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         campos.Single(c => c.Name == "_claveGenerada").GetValue(instancia).Should().BeNull();
         campos.Single(c => c.Name == "_nombreNuevaClave").GetValue(instancia).Should().BeNull();
         campos.Single(c => c.Name == "_claveARevocar").GetValue(instancia).Should().BeNull();

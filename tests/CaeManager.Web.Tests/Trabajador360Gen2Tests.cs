@@ -2201,7 +2201,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested,
             "cada consulta tiene que llevar el token del ciclo de la página, no CancellationToken.None");
 
-        await CerrarPaginaAsync(cut);
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested,
             "retirada la página no queda ninguna consulta suya trabajando para nadie");

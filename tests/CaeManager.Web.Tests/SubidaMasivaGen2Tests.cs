@@ -95,7 +95,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 
         tokensConsultas.Should().HaveCount(2, "las dos consultas iniciales deben observar el token del ciclo");
         tokensConsultas.Should().OnlyContain(token => !token.IsCancellationRequested);
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         tokensConsultas.Should().OnlyContain(token => token.IsCancellationRequested,
             "DisposeComponentsAsync ejecuta Dispose del componente y cancela el token entregado al mediador");
@@ -371,7 +371,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         var primero = await Task.WhenAny(_mediador.ComandoCrearRecibido.Task, clic).WaitAsync(TimeSpan.FromSeconds(10));
         primero.Should().BeSameAs(_mediador.ComandoCrearRecibido.Task,
             "la confirmacion tiene que enviar ConfirmarDocumentoPropuestoPorIaCommand; excepcion: {0}", clic.Exception?.GetBaseException().Message);
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         _mediador.CrearPendiente.SetResult(Result.Exito(Guid.NewGuid()));
 
         await clic.WaitAsync(TimeSpan.FromSeconds(10));
@@ -910,7 +910,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 
         await FilaDe(cut, "abierto.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
         presupuesto.Reservado.Should().BePositive("control: vuelve a abrirse");
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         presupuesto.Reservado.Should().Be(0, "cerrar la pantalla la devuelve");
     }
 
@@ -954,7 +954,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         Directory.GetFiles(almacen.Directorio).Should().ContainSingle("control: el pendiente está en disco");
         cuota.ReservadoGlobal.Should().BePositive();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Directory.Exists(almacen.Directorio).Should().BeFalse();
         cuota.ReservadoGlobal.Should().Be(0);

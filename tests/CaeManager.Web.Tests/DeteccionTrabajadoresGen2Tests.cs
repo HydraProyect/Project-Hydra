@@ -735,7 +735,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         tokenDeLaCarga.Value.IsCancellationRequested.Should().BeFalse("antes de retirar la página nadie ha cancelado nada");
         var instancia = cut.Instance;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         tokenDeLaCarga.Value.IsCancellationRequested.Should().BeTrue(
             "Dispose tiene que cancelar el token con el que viajó la carga de detecciones en vuelo");
@@ -776,7 +776,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         var enviadasAntes = mediador.Enviados.Count();
         var instancia = cut.Instance;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => respuesta.SetResult());
         await llegaTarde.Should().NotThrowAsync("la respuesta tardía no puede tocar un componente ya retirado");
@@ -800,7 +800,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
 
         var resolucion = Pulsar(cut, nuria, "Mantener activo");
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mantener.SetResult();
         await resolucion;

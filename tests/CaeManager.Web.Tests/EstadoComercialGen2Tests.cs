@@ -762,7 +762,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         var retenida = escenario.Retenidas.Single();
         retenida.Cancelada.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         retenida.Cancelada.Should().BeTrue("DisposeAsync del componente tiene que haberse ejecutado y cancelado su ciclo");
 

@@ -1386,7 +1386,7 @@ public partial class Centro360Gen2Tests : BunitContext
             "el recorrido tiene que haber pasado por todas las consultas que lanza la pantalla, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested,
             "retirada la página no queda ninguna consulta suya viva");
@@ -1419,7 +1419,7 @@ public partial class Centro360Gen2Tests : BunitContext
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token de la página, no CancellationToken.None");
         token.Register(() => visitas.TrySetCanceled(token));
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         ((int)campoGeneracion.GetValue(instancia)!).Should().BeGreaterThan(generacionAntes,
             "DisposeComponentsAsync tiene que haber llamado al Dispose de la página");

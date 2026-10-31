@@ -1623,7 +1623,7 @@ public partial class DocumentosGen2Tests : BunitContext
             token.CanBeCanceled.Should().BeTrue();
             token.IsCancellationRequested.Should().BeFalse();
             consultas = m.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
-            await DisposeComponentsAsync();
+            await CierreDePagina.CerrarPaginaAsync(cut, this);
             token.IsCancellationRequested.Should().BeTrue();
         }
         catch
