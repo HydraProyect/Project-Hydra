@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// </summary>
 public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
 {
-    private const string MigracionDelCambio = "20261101010000_LecturaIaApagadaEnTiposDeSalud";
+    private const string MigracionDelCambio = "20261101020000_LecturaIaApagadaEnTiposDeSalud";
     private const string BaseAptitud = "10000000-0000-0000-0000-000000000001";
 
     private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
