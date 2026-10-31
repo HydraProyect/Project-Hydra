@@ -464,6 +464,7 @@ public class OperacionesConectorPlataformaCaeTests
     [InlineData("   ")]
     [InlineData("12345678Z")]
     [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("6F1D3C2A-7B4E-4F0A-9C55-2A1E8D3B7C10")]
     public async Task Una_clave_de_idempotencia_que_no_es_un_Guid_se_deniega(string clave)
     {
         DebeDenegarSinLlamar(

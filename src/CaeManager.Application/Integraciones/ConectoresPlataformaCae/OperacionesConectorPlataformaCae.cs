@@ -45,7 +45,7 @@ namespace CaeManager.Application.Integraciones.ConectoresPlataformaCae;
 /// </para>
 ///
 /// <para>
-/// La clave de idempotencia es un Guid: va a un registro que Soporte TALVEG lee y sin purga, y un dato
+/// La clave de idempotencia es un Guid en su forma canónica, porque una plataforma compara cadenas: va a un registro que Soporte TALVEG lee y sin purga, y un dato
 /// del Trabajador no puede acabar dentro. La puerta no decide el alcance de cartera: eso es de cada Command
 /// que la dispare, como en <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/>. Tampoco
 /// guarda lo que devuelve la plataforma en la Acreditación: es del incremento de cola y lectura
@@ -152,7 +152,7 @@ public class OperacionesConectorPlataformaCae(
     }
 
     private static bool ClaveValida(string claveIdempotencia) =>
-        Guid.TryParseExact(claveIdempotencia, "D", out var clave) && clave != Guid.Empty;
+        Guid.TryParseExact(claveIdempotencia, "D", out var clave) && clave != Guid.Empty && clave.ToString("D") == claveIdempotencia;
 
     private sealed record AccesoAutorizado(
         Guid TenantId, ConexionPlataformaCae Conexion, IConectorPlataformaCae Conector, CredencialApiConector Credencial);

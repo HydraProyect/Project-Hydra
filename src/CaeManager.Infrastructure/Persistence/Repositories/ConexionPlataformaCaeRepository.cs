@@ -83,8 +83,8 @@ public class ConexionPlataformaCaeRepository(CaeManagerDbContext dbContext) : IC
         }
         catch (DbUpdateConcurrencyException)
         {
-            // Retirar confirmó antes: la credencial que se iba a rotar ya no existe.
-            DescartarLoQuePerdioLaCarrera();
+            // Retirar confirmó antes: la credencial que se iba a rotar ya no existe. El contexto ya
+            // desacopló el lote entero (ConcurrenciaContexto.DescartarLoteFallido).
             return false;
         }
     }

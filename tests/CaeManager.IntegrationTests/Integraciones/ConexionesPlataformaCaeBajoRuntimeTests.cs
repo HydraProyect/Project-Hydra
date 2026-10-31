@@ -332,7 +332,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Perder_la_carrera_contra_retirar_devuelve_conflicto_y_deshace_la_rotacion()
+    public async Task Perder_la_carrera_contra_retirar_devuelve_conflicto_y_no_deja_la_rotacion_pendiente()
     {
         await using var contexto = CrearContexto(_tenantA);
         var repositorio = new ConexionPlataformaCaeRepository(contexto);
@@ -340,6 +340,21 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
         credencial!.Rotar("rotado", DateTime.UtcNow);
 
         await EjecutarComoPropietarioAsync("DELETE FROM \"CredencialesConexionPlataformaCae\" WHERE \"ConexionPlataformaCaeId\" = @id;", _conexionA);
+
+        (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
+
+        repositorio.HayCambiosPendientes.Should().BeFalse();
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Perder_la_carrera_por_el_nombre_deshace_tambien_la_rotacion_pendiente()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+        var repositorio = new ConexionPlataformaCaeRepository(contexto);
+        var credencial = await repositorio.ObtenerCredencialAsync(_conexionA);
+        credencial!.Rotar("rotado", DateTime.UtcNow);
+        repositorio.Agregar(new ConexionPlataformaCae(Proveedor, "Acuerdo A"));
 
         (await repositorio.GuardarCambiosAsync()).Should().BeFalse();
 
