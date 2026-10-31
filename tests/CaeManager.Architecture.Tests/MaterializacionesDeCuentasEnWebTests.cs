@@ -78,6 +78,25 @@ public class MaterializacionesDeCuentasEnWebTests
     }
 
     /// <summary>
+    /// Excepción al hueco de Infrastructure declarado arriba: estas dos lecturas no necesitan credenciales,
+    /// así que se congelan como proyección. Lo que devuelven lo mide <c>FronteraCuentaFirmadaTests</c> contra
+    /// PostgreSQL.
+    /// </summary>
+    [Fact]
+    public void Las_lecturas_de_rol_y_destinatarios_no_materializan_cuentas()
+    {
+        var raiz = RaizDelRepositorio();
+        var lectura = File.ReadAllText(Path.Combine(raiz, "src/CaeManager.Infrastructure/Identity/LecturaCuentaPropia.cs"));
+        var vigilancia = File.ReadAllText(Path.Combine(raiz, "src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"));
+        var rol = lectura[(lectura.IndexOf("public async Task<string?> LeerRolAsync", StringComparison.Ordinal))..];
+        rol = rol[..rol.IndexOf("public async Task<EstadoCuentaPropia?>", StringComparison.Ordinal)];
+        var destinatarios = vigilancia[(vigilancia.IndexOf("internal static async Task<List<DestinatarioAdministrador>> AdministradoresAsync", StringComparison.Ordinal))..];
+        destinatarios = destinatarios[..destinatarios.IndexOf("private async Task NotificarAdministradoresAsync", StringComparison.Ordinal)];
+        rol.Should().Contain("select rol.Name").And.NotContain("select cuenta").And.NotContain("FindBy");
+        destinatarios.Should().Contain("select new DestinatarioAdministrador(").And.NotContain("GetUsersInRoleAsync").And.NotContain("select cuenta");
+    }
+
+    /// <summary>
     /// <c>ILecturaCuentaPropia</c> acepta cualquier identificador y devuelve roles: fuera de estos sitios sería
     /// el rol de origen con otro nombre, y el rol de origen no autoriza
     /// (<see cref="RolDeOrigenFueraDeAutorizacionTests"/>). Solo la usan el guard de la propia sesión y

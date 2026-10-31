@@ -99,6 +99,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Expect(interruptorVerificacionIa).ToHaveTextAsync(
             "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
+        // El tipo creado aquí no pasa sensibilidad: cuenta como de salud y su lectura nace apagada (DPA 16.4).
+        // La verificación exige lectura, así que el Administrador la enciende también, con la misma espera.
+        var interruptorLecturaIa = filaTipo.GetByTitle("Lectura automática por IA para este tipo de documento, en todos los Clientes");
+        await interruptorLecturaIa.Locator("input").CheckAsync();
+        await Expect(interruptorLecturaIa).ToHaveTextAsync(
+            "Activa", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+
         // --- Paso 1: Empresa → Cliente → Centro encadenados (alta guiada) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
 
