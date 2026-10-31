@@ -8,11 +8,13 @@
               rows="@Filas"
               placeholder="@Placeholder"
               disabled="@Deshabilitado"
+              aria-invalid="@(TieneError ? "true" : null)"
+              aria-describedby="@(TieneError ? IdMensajeError : null)"
               @oninput="ManejarCambioAsync"
               @onblur="ManejarBlurAsync">@_valorMostrado</textarea>
     @if (TieneError)
     {
-        <span class="campo-mensaje-error" role="alert">@MensajeError</span>
+        <span id="@IdMensajeError" class="campo-mensaje-error" role="alert">@MensajeError</span>
     }
 </div>
 
@@ -31,6 +33,8 @@
 
     /// <summary>Ver <see cref="CampoTexto"/> — mismo propósito, misma semántica.</summary>
     [Parameter] public EventCallback OnBlur { get; set; }
+
+    private string IdMensajeError => $"{_id}-error";
 
     private bool TieneError => !string.IsNullOrWhiteSpace(MensajeError);
 
