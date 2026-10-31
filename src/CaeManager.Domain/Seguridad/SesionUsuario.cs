@@ -7,7 +7,7 @@ namespace CaeManager.Domain.Seguridad;
 ///
 /// <para>
 /// <b>Por qué existe.</b> Cerrar sesión solo borraba la cookie del navegador: una copia de la
-/// cookie seguía valiendo hasta su caducidad (8 h deslizantes, 12 h como máximo). Cada emisión
+/// cookie seguía valiendo hasta su caducidad. Cada emisión
 /// de la cookie de aplicación lleva ahora un identificador aleatorio propio (<see cref="Sid"/>,
 /// claim <c>talveg:sid</c>), y la revalidación periódica de la cookie y del circuito de Blazor
 /// (cada 60 s) exige que su fila exista y no esté revocada. Cerrar sesión revoca solo esa fila;
