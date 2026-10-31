@@ -203,6 +203,7 @@ public partial class UsuariosGen2Tests : BunitContext
     {
         // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
         protected override void DesengancharCuenta(Guid usuarioId) { }
+        protected override Task<bool> TieneLoginExternoAsync(ApplicationUser usuario) => Task.FromResult(false);
         public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(fuente.EsPropia(usuarioId));
 

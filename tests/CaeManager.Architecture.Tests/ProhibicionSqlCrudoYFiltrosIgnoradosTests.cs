@@ -381,6 +381,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
         // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.
         [("src/CaeManager.Infrastructure/Identity/VigenciaSesionCuenta.cs", ".SqlQuery<bool>($\"SELECT public.app_cuenta_firmada_vigente({sello}) AS \\\"Value\\\"\")")] = 1,
+        // Login externo de un lote de cuentas bajo Sesión Privilegiada: cae_app_soporte no lee
+        // AspNetUserLogins (sin RLS) y pregunta a app_cuenta_tiene_login_externo (SECURITY DEFINER,
+        // solo un booleano, acotada al Tenant firmado). Antes, la identidad efectiva decide la vía.
+        [("src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs", "await identidad.Database.SqlQueryRaw<string>(\"SELECT current_user::text AS \\\"Value\\\"\")")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs", "return (await identidad.Database.SqlQuery<Guid>(")] = 1,
 
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.

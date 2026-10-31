@@ -43,6 +43,7 @@ namespace CaeManager.IntegrationTests.Plataforma;
 public class FronteraCuentaFirmadaTests : IAsyncLifetime
 {
     private const string Funcion = "public.app_cuenta_firmada_vigente(text)";
+    private const string FuncionLoginExterno = "public.app_cuenta_tiene_login_externo(uuid)";
     private const string SelloActorReal = "SELLO-ACTOR-REAL";
     private const string SelloUsuarioSimulado = "SELLO-USUARIO-SIMULADO";
 
@@ -83,6 +84,127 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadena);
+
+    [Fact]
+    public async Task Soporte_solo_consulta_existencia_de_login_en_el_Tenant_firmado()
+    {
+        await using (var contexto = ContextoPropietario())
+        {
+            contexto.UserLogins.AddRange(
+                new IdentityUserLogin<Guid> { LoginProvider = "Microsoft", ProviderKey = "objetivo", UserId = _usuarioSimulado },
+                new IdentityUserLogin<Guid> { LoginProvider = "Microsoft", ProviderKey = "ajeno", UserId = _cuentaDeOtroTenant });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using (var rol = new NpgsqlCommand("SET ROLE cae_app_soporte", conexion))
+            await rol.ExecuteNonQueryAsync();
+        await using (var identidad = new NpgsqlCommand("SELECT current_user", conexion))
+            ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_soporte");
+
+        await using (var directa = new NpgsqlCommand("SELECT \"ProviderKey\", \"UserId\" FROM public.\"AspNetUserLogins\"", conexion))
+        {
+            var leer = async () => await directa.ExecuteReaderAsync();
+            (await leer.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+
+        async Task<bool> TieneLogin(Guid usuario)
+        {
+            await using var comando = new NpgsqlCommand("SELECT public.app_cuenta_tiene_login_externo(@usuario)", conexion);
+            comando.Parameters.AddWithValue("usuario", usuario);
+            return (bool)(await comando.ExecuteScalarAsync())!;
+        }
+
+        (await TieneLogin(_usuarioSimulado)).Should().BeFalse("sin contexto firmado falla cerrado");
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _tenantObjetivo);
+        (await TieneLogin(_usuarioSimulado)).Should().BeTrue();
+        (await TieneLogin(_cuentaDeOtroTenant)).Should().BeFalse();
+        (await TieneLogin(_actorReal)).Should().BeFalse();
+        (await TieneLogin(Guid.NewGuid())).Should().BeFalse();
+
+        await using var contextoSoporte = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+        var tenant = new TenantActualAmbiental { TenantId = _tenantObjetivo };
+        var directorio = new DirectorioUsuariosTenant(
+            new UserManager<ApplicationUser>(new AlmacenUsuarios(contextoSoporte, tenant), null!, null!, null!, null!, null!, null!, null!, null!),
+            contextoSoporte, tenant, new PuertaAccesoDatos(), contextoSoporte, null!);
+        (await directorio.ObtenerIdsConLoginExternoAsync([_usuarioSimulado, _cuentaDeOtroTenant, _actorReal]))
+            .Should().BeEquivalentTo(new[] { _usuarioSimulado });
+    }
+
+    /// <summary>
+    /// La activación pendiente de una cuenta por SSO también se responde bajo Sesión Privilegiada sin tocar la
+    /// tabla: <c>_usuarioSimulado</c> no tiene contraseña, y solo el vínculo la distingue de una invitación.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_soporte_una_cuenta_con_login_externo_no_queda_pendiente_de_activar()
+    {
+        await using (var contexto = ContextoPropietario())
+        {
+            contexto.UserLogins.Add(new IdentityUserLogin<Guid> { LoginProvider = "Microsoft", ProviderKey = "objetivo", UserId = _usuarioSimulado });
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var contextoSoporte = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+        var tenant = new TenantActualAmbiental { TenantId = _tenantObjetivo };
+        var usuarios = new UserManager<ApplicationUser>(new AlmacenUsuarios(contextoSoporte, tenant), null!, null!, null!, null!, null!, null!, null!, null!);
+        var puerta = new PuertaAccesoDatos();
+        var directorio = new DirectorioUsuariosTenant(usuarios, contextoSoporte, tenant, puerta, contextoSoporte, null!);
+        var cuentas = new GestionCuentasUsuarioIdentity(usuarios, puerta, directorio, contextoSoporte);
+
+        var cuenta = await cuentas.ObtenerAsync(_usuarioSimulado);
+
+        cuenta.Should().NotBeNull();
+        cuenta!.PendienteActivacion.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("cae_app_runtime")]
+    [InlineData("cae_app_aprovisionamiento")]
+    public async Task Solo_soporte_ejecuta_la_lectura_de_login_externo(string rol)
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using (var cambiar = new NpgsqlCommand($"SET ROLE {rol};", conexion))
+            await cambiar.ExecuteNonQueryAsync();
+
+        await using var comando = new NpgsqlCommand("SELECT public.app_cuenta_tiene_login_externo(gen_random_uuid())", conexion);
+        var ejecutar = async () => await comando.ExecuteScalarAsync();
+
+        (await ejecutar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    /// <summary>
+    /// La forma es el contrato: una cuenta como único argumento (el Tenant no se puede pedir), un booleano como
+    /// respuesta (<c>ProviderKey</c> no sale), <c>search_path</c> fijado y el mismo propietario que las tablas que
+    /// lee. Soporte TALVEG se queda sin la tabla, ni entera ni por columnas, y <c>cae_app_runtime</c> la conserva
+    /// porque el inicio de sesión la lee antes de conocer el Tenant.
+    /// </summary>
+    [Fact]
+    public async Task La_lectura_de_login_externo_solo_devuelve_un_booleano_y_retira_la_tabla_a_soporte()
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand($"""
+            SELECT p.prosecdef, pg_get_function_identity_arguments(p.oid), p.prorettype::regtype::text, p.proconfig, p.provolatile::text,
+                   p.proowner = (SELECT c.relowner FROM pg_class c WHERE c.oid = 'public."AspNetUsers"'::regclass),
+                   has_any_column_privilege('cae_app_soporte', 'public."AspNetUserLogins"', 'SELECT'),
+                   has_table_privilege('cae_app_runtime', 'public."AspNetUserLogins"', 'SELECT')
+            FROM pg_proc p WHERE p.oid = '{FuncionLoginExterno}'::regprocedure;
+            """, conexion);
+
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+        lector.GetBoolean(0).Should().BeTrue("sin SECURITY DEFINER no leería la tabla que se retira a soporte");
+        lector.GetString(1).Should().Be("p_usuario uuid");
+        lector.GetString(2).Should().Be("boolean");
+        lector.GetFieldValue<string[]>(3).Should().ContainSingle(c => c.StartsWith("search_path=", StringComparison.Ordinal));
+        lector.GetString(4).Should().Be("s");
+        lector.GetBoolean(5).Should().BeTrue("la función lee con el propietario de las tablas");
+        lector.GetBoolean(6).Should().BeFalse();
+        lector.GetBoolean(7).Should().BeTrue();
+    }
 
     [Fact]
     public async Task El_Actor_real_firma_el_contexto_de_la_Sesion_Privilegiada()
@@ -291,8 +413,10 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
-    [Fact]
-    public async Task EXECUTE_solo_para_soporte_y_nunca_para_PUBLIC()
+    [Theory]
+    [InlineData(Funcion)]
+    [InlineData(FuncionLoginExterno)]
+    public async Task EXECUTE_solo_para_soporte_y_nunca_para_PUBLIC(string funcion)
     {
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
@@ -301,7 +425,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
             FROM pg_proc p
             CROSS JOIN LATERAL aclexplode(p.proacl) a
             LEFT JOIN pg_roles r ON r.oid = a.grantee
-            WHERE p.oid = '{Funcion}'::regprocedure AND a.grantee <> p.proowner;
+            WHERE p.oid = '{funcion}'::regprocedure AND a.grantee <> p.proowner;
             """, conexion);
 
         var concedidos = new List<string>();
