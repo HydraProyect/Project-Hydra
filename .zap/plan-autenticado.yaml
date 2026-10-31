@@ -50,12 +50,15 @@ jobs:
   # La regla 6, en su comprobación del nombre de fichero, prueba como valor el último
   # tramo de la URL y compara la respuesta con la de un nombre inventado. `_handler`
   # es el FormName de Blazor y aquí coincide con ese tramo, así que la respuesta cambia
-  # sin que se lea ningún fichero. El filtro solo cubre un valor sin barras: un ataque
-  # de verdad contra `_handler` lleva separadores de ruta y sigue siendo riesgo alto.
+  # sin que se lea ningún fichero. El filtro solo cubre `/cuenta` y un valor sin barras:
+  # un ataque de verdad contra `_handler` lleva separadores de ruta y sigue siendo riesgo
+  # alto, y otro parámetro `_handler` fuera de `/cuenta` no queda tapado.
   - type: alertFilter
     alertFilters:
       - ruleId: 6
         newRisk: False Positive
+        url: 'http://127\.0\.0\.1:5080/cuenta/.*'
+        urlRegex: true
         parameter: _handler
         attack: '^[a-z0-9-]+$'
         attackRegex: true

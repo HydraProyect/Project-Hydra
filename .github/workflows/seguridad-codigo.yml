@@ -674,10 +674,11 @@ jobs:
             exit 1
           fi
           # El mínimo anterior también lo cumpliría un escaneo rechazado entero. Medido
-          # con la sesión viva: 41 % de 2xx y 0,1 % de 401. El margen es para que solo
-          # salte un escaneo que dejó de autenticarse sin que lo vieran las sondas.
+          # con la sesión viva: 41 % de 2xx y 0,1 % de 401. Sirve de red para la clave de
+          # API y para un escaneo rechazado; la cookie perdida la detecta la sonda, porque
+          # las páginas anónimas también dan 200.
           if [ $((exitos * 10)) -lt "$peticiones" ] || [ $((rechazos * 10)) -gt "$peticiones" ]; then
-            echo "::error::Solo $exitos de $peticiones peticiones dieron 2xx y $rechazos dieron 401: el escaneo no estaba autenticado."
+            echo "::error::Solo $exitos de $peticiones peticiones dieron 2xx y $rechazos dieron 401: el escaneo fue rechazado."
             exit 1
           fi
 
@@ -714,9 +715,11 @@ jobs:
 
       # Al artefacto y no al log del run, a diferencia del baseline: tras un
       # escaneo activo este log trae las trazas que provocan sus ataques.
-      - name: Guardar el log de la aplicación si falla
+      - name: Guardar los logs si falla
         if: failure()
-        run: cp "$RUNNER_TEMP/app.log" zap/app.log || true
+        run: |
+          cp "$RUNNER_TEMP/app.log" zap/app.log || true
+          docker logs --tail 200 zap > zap/zap.log 2>&1 || true
 
       - name: Publicar informe de ZAP
         if: always()
@@ -728,5 +731,6 @@ jobs:
             zap/sesion-zap.txt
             zap/estadisticas-zap.json
             zap/app.log
+            zap/zap.log
           retention-days: 90
           if-no-files-found: ignore
