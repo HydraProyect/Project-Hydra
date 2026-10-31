@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.DataProtection;
@@ -27,7 +28,7 @@ namespace CaeManager.Web.Features.Extension;
 /// </para>
 ///
 /// <para>
-/// <b>Una sesión privilegiada o un workspace delegado no se heredan.</b> El
+/// <b>Una Sesión Privilegiada no puede emitir tokens.</b> El
 /// token solo nombra al usuario; el tenant lo resuelve después
 /// <see cref="TenantClaimsPrincipalFactory"/> desde <c>user.TenantId</c>, que
 /// es el tenant PROPIO. La cookie de contexto no entra en una petición con
@@ -50,13 +51,15 @@ public static class ExtensionTokenEndpoints
             ClaimsPrincipal usuarioActual,
             UserManager<ApplicationUser> userManager,
             IDataProtectionProvider dataProtectionProvider,
-            IRegistroSesionesUsuario sesiones) =>
+            IRegistroSesionesUsuario sesiones,
+            IClienteActivoSeleccionado seleccion,
+            ILoggerFactory fabricaRegistro) =>
         {
             var valorClaim = usuarioActual.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(valorClaim, out var usuarioId))
                 return Results.Unauthorized();
 
-            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), userManager, dataProtectionProvider, sesiones);
+            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), userManager, dataProtectionProvider, sesiones, seleccion, fabricaRegistro);
             if (resultado.EsFallido)
                 return resultado.Error.Codigo == "Extension.UsuarioNoEncontrado"
                     ? Results.Unauthorized()

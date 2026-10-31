@@ -42,7 +42,10 @@ public enum CapacidadPrivilegio
     /// <summary>
     /// Gestión de tenants, facturación, configuración global, diagnóstico.
     /// <b>No implica leer el contenido documental de ningún tenant</b>: para
-    /// eso hace falta <see cref="SoporteLectura"/>, concedida aparte.
+    /// eso hace falta <see cref="SoporteLectura"/>, concedida aparte. Única
+    /// excepción, decisión del propietario del 2026-10-31: la devolución de datos
+    /// con <c>--exportar-tenant</c> la pide un Actor con esta capacidad, desde el
+    /// servidor, y sale cifrada hacia el Tenant propietario.
     /// </summary>
     AdminPlataforma = 3,
 

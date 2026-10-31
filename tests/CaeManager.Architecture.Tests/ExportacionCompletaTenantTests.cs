@@ -112,6 +112,18 @@ public class ExportacionCompletaTenantTests
         sql[inicioCondicion..].Should().NotContain("EstaEliminado", "las filas de la papelera salen mientras sigan en el servidor");
     }
 
+    [Fact]
+    public void El_resultado_no_lleva_la_contrasena_y_la_consola_la_muestra_una_sola_vez()
+    {
+        typeof(ExportacionCompletaTenant.Resultado).GetProperties().Select(p => p.Name)
+            .Should().BeEquivalentTo("TenantId", "NombreTenant", "Recuentos", "DocumentosSinFichero");
+
+        using var salida = new StringWriter();
+        ExportacionCompletaTenant.InformarContrasena("contrasena-unica", salida);
+
+        salida.ToString().Split("contrasena-unica").Should().HaveCount(2);
+    }
+
     private static CaeManagerDbContext CrearContextoSinConexion()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = Guid.NewGuid() };

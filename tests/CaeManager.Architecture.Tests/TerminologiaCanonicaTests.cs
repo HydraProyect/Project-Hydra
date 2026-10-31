@@ -507,7 +507,10 @@ public class TerminologiaCanonicaTests
         // 86 (antes 85, 2026-10-31): VigenciaSesionCuenta lee la Sesión Privilegiada seleccionada
         // (IClienteActivoSeleccionado ×1) para no leer el sello de la cuenta bajo cae_app_soporte; es la misma
         // señal con la que TenantRlsConnectionInterceptor adopta ese rol, y un consumidor de la interfaz existente.
-        ["ClienteActivo"] = 86,
+        // 89 (antes 86, 2026-10-31): EmisorTokenExtension deniega con esa misma señal y la recibe de sus dos
+        // entradas, ExtensionTokenEndpoints y ConectarExtension (IClienteActivoSeleccionado ×1 cada uno): son
+        // consumidores de la interfaz existente; ningún nombre nuevo lleva el término.
+        ["ClienteActivo"] = 89,
     };
 
     [Theory]

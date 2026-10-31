@@ -2,6 +2,7 @@ using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -368,6 +369,38 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
         (await materializar.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    /// <summary>
+    /// Lo mismo para <c>/delegaciones</c> y las tres consultas escalares del directorio: bajo <c>cae_app_soporte</c>
+    /// y sin las columnas siguen respondiendo, con la RLS de la conexión. <c>ObtenerVisiblesAsync</c> y
+    /// <c>ObtenerEquipoAsync</c> no entran: siguen materializando hasta el contrato de activación.
+    /// </summary>
+    [Fact]
+    public async Task Las_personas_delegadas_y_el_directorio_no_necesitan_las_columnas_de_credenciales()
+    {
+        await QuitarLasCredencialesASoporteAsync();
+
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+
+        var personas = await new LecturaPersonasDelegadas(contexto).ObtenerAsync(
+            new[] { _actorReal, _usuarioSimulado, _cuentaDeOtroTenant }, default);
+
+        personas.Should().BeEquivalentTo(new[]
+        {
+            new PersonaDelegadaVisible(_actorReal, "actor-real", "actor-real@frontera-cuenta.test", Roles.GestorCae),
+            new PersonaDelegadaVisible(_usuarioSimulado, "usuario-simulado", "usuario-simulado@frontera-cuenta.test", null),
+        }, "la proyección no amplía lo que la RLS deja ver");
+
+        var tenant = new TenantActualAmbiental { TenantId = _tenantObjetivo };
+        var directorio = new DirectorioUsuariosTenant(
+            new UserManager<ApplicationUser>(new AlmacenUsuarios(contexto, tenant), null!, null!, null!, null!, null!, null!, null!, null!),
+            contexto, tenant, new PuertaAccesoDatos(), contexto, null!);
+
+        (await directorio.EsCuentaActivaConRolAsync(_actorReal, _tenantOrigen, Roles.GestorCae)).Should().BeTrue();
+        (await directorio.ObtenerCuentasActivasConRolAsync(_tenantOrigen, Roles.GestorCae)).Should().Equal(_actorReal);
+        (await directorio.ObtenerAsync(_usuarioSimulado)).Should().NotBeNull();
+        (await directorio.ObtenerAsync(_cuentaDeOtroTenant)).Should().BeNull("una cuenta que la RLS no deja ver no existe aquí");
     }
 
     /// <summary>

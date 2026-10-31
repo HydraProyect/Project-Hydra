@@ -131,9 +131,11 @@ public class DirectorioUsuariosTenant(
             // (Codex, #996, pasada 1). Misma razón que ObtenerAsync.
             var usuario = await userManager.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
+                .Where(u => u.Id == usuarioId && u.TenantId == tenantId)
+                .Select(u => new { u.Id, u.LockoutEnd })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (usuario is null || usuario.EstaDesactivada(DateTimeOffset.UtcNow))
+            if (usuario is null || ApplicationUser.BloqueoDesactivaLaCuenta(usuario.LockoutEnd, DateTimeOffset.UtcNow))
                 return false;
 
             // El rol también sin rastreo: IsInRoleAsync acaba en UserRoles.FindAsync, que devuelve
@@ -158,12 +160,12 @@ public class DirectorioUsuariosTenant(
                 join ur in identidad.UserRoles.AsNoTracking() on u.Id equals ur.UserId
                 join r in identidad.Roles.AsNoTracking() on ur.RoleId equals r.Id
                 where u.TenantId == tenantId && r.Name == rol
-                select u)
+                select new { u.Id, u.LockoutEnd })
                 .ToListAsync(cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
-                .Where(u => !u.EstaDesactivada(ahora))
+                .Where(u => !ApplicationUser.BloqueoDesactivaLaCuenta(u.LockoutEnd, ahora))
                 .Select(u => u.Id)
                 .Distinct()
                 .OrderBy(id => id)
@@ -831,11 +833,13 @@ public class DirectorioUsuariosTenant(
 
             var cuenta = await identidad.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
+                .Where(u => u.Id == usuarioId)
+                .Select(u => new { u.TenantId, u.LockoutEnd, u.CoordinadorUsuarioId })
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (cuenta is null) return null;
 
-            var activa = !cuenta.EstaDesactivada(DateTimeOffset.UtcNow);
+            var activa = !ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.LockoutEnd, DateTimeOffset.UtcNow);
 
             if (cuenta.TenantId == tenantId)
             {

@@ -797,6 +797,27 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      # Va en este job y no en uno propio porque este corre siempre, también
+      # cuando `alcance` salta los tests: una PR ligera no se libra de la guarda.
+      # Solo trae la base con profundidad 1: basta con comparar los dos árboles.
+      # En `merge_group` la base es `base_sha`, la punta de lo que va delante en
+      # la cola, que es lo que cierra la carrera entre dos PR paralelas.
+      - name: Probar la guarda de orden de migraciones
+        run: python3 scripts/verificar-orden-migraciones.tests.py
+
+      - name: Comprobar el orden de las migraciones
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE_PR: ${{ github.event.pull_request.base.sha }}
+          BASE_COLA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENTO" = "merge_group" ]; then base="$BASE_COLA"; else base="$BASE_PR"; fi
+          test -n "$base"
+          git fetch --no-tags --depth=1 origin "$base"
+          python3 scripts/verificar-orden-migraciones.py "$base" HEAD
+
       - name: Exigir que las dependencias hayan pasado
         id: exigir
         env:
