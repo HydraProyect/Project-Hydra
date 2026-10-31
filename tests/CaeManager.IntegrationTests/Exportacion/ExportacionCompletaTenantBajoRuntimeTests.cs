@@ -1,10 +1,10 @@
-using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.Exportacion;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Exportacion;
 using CaeManager.Infrastructure.Identity;
@@ -12,6 +12,7 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
+using ICSharpCode.SharpZipLib.Zip;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -23,13 +24,15 @@ namespace CaeManager.IntegrationTests.Exportacion;
 /// Exportación completa de un Tenant propietario leída <b>como <c>cae_app_runtime</c></b>, sin usuario
 /// (igual que el modo de CLI), con los interceptores de sellado y de sesión RLS de producción. Dos
 /// Tenants propietarios con su Empresa, su Administrador y una credencial de portal cada uno: el zip
-/// del primero trae lo suyo y nada del segundo, ni la contraseña de su propio portal. Y se niega si
-/// la pide quien no es Administrador del Tenant, o si la identidad de la conexión se salta RLS. La
-/// siembra va como propietario de la base, porque no es lo que se mide.
+/// cifrado del primero trae lo suyo y nada del segundo, ni la contraseña de su propio portal. Y se niega
+/// si la pide quien no es un Administrador de plataforma con concesión vigente sobre ese Tenant, o si la
+/// identidad de la conexión se salta RLS. La siembra va como propietario de la base, porque no es lo que
+/// se mide.
 /// </summary>
 public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 {
     private const string ContrasenaPortal = "contrasena-del-portal-que-no-sale";
+    private const string ContrasenaZip = "contrasena-del-zip-que-no-se-registra";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _propietario = null!;
@@ -40,6 +43,13 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
     private string _administradorA = null!;
     private string _administradorB = null!;
     private string _consultaA = null!;
+    private Guid _tenantPlataforma;
+    private Guid _actorId;
+    private string _actor = null!;
+    private string _actorSinConcesion = null!;
+    private string _actorDeOtroTenant = null!;
+    private string _actorCaducado = null!;
+    private string _actorDesactivado = null!;
 
     public async Task InitializeAsync()
     {
@@ -48,9 +58,10 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 
         var tenantA = new Tenant("Tenant propietario exportado");
         var tenantB = new Tenant("Tenant propietario ajeno");
-        _propietario.Tenants.AddRange(tenantA, tenantB);
+        var tenantPlataforma = new Tenant("TALVEG", esPlataforma: true);
+        _propietario.Tenants.AddRange(tenantA, tenantB, tenantPlataforma);
         await _propietario.SaveChangesAsync();
-        (_tenantA, _tenantB) = (tenantA.Id, tenantB.Id);
+        (_tenantA, _tenantB, _tenantPlataforma) = (tenantA.Id, tenantB.Id, tenantPlataforma.Id);
 
         var administrador = await _propietario.Roles.Where(r => r.Name == Roles.Administrador).Select(r => r.Id).SingleAsync();
         var consulta = await _propietario.Roles.Where(r => r.Name == Roles.Consulta).Select(r => r.Id).SingleAsync();
@@ -60,6 +71,24 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         (_, _administradorA) = await CuentaAsync(_tenantA, administrador);
         (var administradorBId, _administradorB) = await CuentaAsync(_tenantB, administrador);
         (_, _consultaA) = await CuentaAsync(_tenantA, consulta);
+
+        var ahora = DateTime.UtcNow;
+        (_actorId, _actor) = await CuentaAsync(_tenantPlataforma, administrador);
+        (_, _actorSinConcesion) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var deOtroTenantId, _actorDeOtroTenant) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var caducadoId, _actorCaducado) = await CuentaAsync(_tenantPlataforma, administrador);
+        (var desactivadoId, _actorDesactivado) = await CuentaAsync(_tenantPlataforma, administrador);
+        _propietario.ConcesionesPrivilegio.AddRange(
+            ConcesionPrivilegio.SobreTenants(_actorId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null),
+            ConcesionPrivilegio.SobreTenants(deOtroTenantId, CapacidadPrivilegio.AdminPlataforma, [_tenantB], ahora.AddMinutes(-10), null),
+            ConcesionPrivilegio.SobreTenants(caducadoId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddHours(-2), ahora.AddHours(-1)),
+            ConcesionPrivilegio.SobreTenants(desactivadoId, CapacidadPrivilegio.AdminPlataforma, [_tenantA], ahora.AddMinutes(-10), null));
+        await _propietario.SaveChangesAsync();
+        await _propietario.Users.IgnoreQueryFilters().Where(u => u.Id == desactivadoId)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.LockoutEnd, ApplicationUser.FinDeBloqueoDeCuentaDesactivada));
+
+        // El correo del Actor también existe como cuenta de un Tenant propietario: solo cuenta la de la plataforma.
+        await CuentaAsync(_tenantA, consulta, _actor);
 
         // Referencia cruzada: una fila de auditoría de A que nombra a la cuenta de B. La política de lectura
         // de cuentas deja ver a B bajo el contexto de A por esa referencia, así que lo que impide que B salga
@@ -85,18 +114,20 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await using (var runtime = CrearRuntime())
         {
             var resultado = await ExportacionCompletaTenant.ExportarAsync(
-                runtime, new AlmacenVacio(), _tenantA, _administradorA, destino);
+                runtime, new AlmacenVacio(), _tenantA, _actor, ContrasenaZip, destino);
 
             resultado.Recuentos["Empresa"].Should().Be(1);
-            resultado.Recuentos["Usuario"].Should().Be(2);
+            resultado.Recuentos["Usuario"].Should().Be(3);
         }
 
         destino.Position = 0;
-        using var zip = new ZipArchive(destino, ZipArchiveMode.Read);
+        using var zip = new ZipFile(destino, leaveOpen: true) { Password = ContrasenaZip };
+        var entradas = zip.Cast<ZipEntry>().ToList();
+        entradas.Should().OnlyContain(e => e.IsCrypted && e.AESKeySize == 256);
         var todo = new StringBuilder();
-        foreach (var entrada in zip.Entries)
+        foreach (var entrada in entradas)
         {
-            using var lector = new StreamReader(entrada.Open());
+            using var lector = new StreamReader(zip.GetInputStream(entrada));
             todo.Append(await lector.ReadToEndAsync());
         }
 
@@ -109,34 +140,65 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         texto.Should().NotContain("Shelbyville");
         texto.Should().NotContain(ContrasenaPortal);
         texto.Should().NotContain("PasswordHash").And.NotContain("SecurityStamp");
+        texto.Should().NotContain(ContrasenaZip);
 
-        using var manifiesto = await JsonDocument.ParseAsync(zip.GetEntry(ArchivoExportacion.RutaManifiesto)!.Open());
+        using var manifiesto = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry(ArchivoExportacion.RutaManifiesto)));
         manifiesto.RootElement.GetProperty("tenantId").GetGuid().Should().Be(_tenantA);
         manifiesto.RootElement.GetProperty("sha256").EnumerateObject().Select(p => p.Name)
-            .Should().BeEquivalentTo(zip.Entries.Select(e => e.FullName).Where(n => n != ArchivoExportacion.RutaManifiesto));
+            .Should().BeEquivalentTo(entradas.Select(e => e.Name).Where(n => n != ArchivoExportacion.RutaManifiesto));
 
-        using var empresas = await JsonDocument.ParseAsync(zip.GetEntry("datos/Empresa.json")!.Open());
+        using var empresas = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry("datos/Empresa.json")));
         empresas.RootElement.EnumerateArray().Select(e => e.GetProperty("TenantId").GetGuid()).Should().Equal(_tenantA);
 
         await using var control = CrearPropietario();
-        (await control.RegistrosAuditoria.IgnoreQueryFilters()
-                .CountAsync(r => r.TenantId == _tenantA && r.EntidadId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion))
-            .Should().Be(2, "la exportación queda en la auditoría del Tenant propietario al empezar y al terminar");
+        var auditoria = await control.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.TenantId == _tenantA && r.EntidadId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion)
+            .ToListAsync();
+        auditoria.Should().HaveCount(2, "la exportación queda en la auditoría del Tenant propietario al empezar y al terminar");
+        auditoria.Should().OnlyContain(r => r.ActorRealUsuarioId == _actorId && r.UsuarioId == _actorId &&
+                                            r.TipoActor == TipoActorAuditoria.Persona &&
+                                            r.ViaAcceso == TipoViaAccesoAuditoria.Desconocida);
+        auditoria.Should().OnlyContain(r => r.DatosDespues!.Contains("\"actorDeclarado\":true") &&
+                                            r.DatosDespues.Contains("\"usuarioSimuladoId\":null") &&
+                                            !r.DatosDespues.Contains(ContrasenaZip));
         manifiesto.RootElement.GetProperty("noIncluido").EnumerateObject().Should().NotBeEmpty();
     }
 
     [Fact]
-    public async Task Se_niega_si_la_pide_una_cuenta_que_no_es_Administrador_del_Tenant()
+    public async Task Se_niega_si_no_la_pide_un_Administrador_de_plataforma_con_concesion_vigente_sobre_el_Tenant()
     {
-        await using var runtime = CrearRuntime();
+        string[] rechazados =
+        [
+            _administradorA, _consultaA, _administradorB, _actorSinConcesion, _actorDeOtroTenant,
+            _actorCaducado, _actorDesactivado, "nadie@exportacion.local",
+        ];
 
-        var noAdministrador = () => ExportacionCompletaTenant.ExportarAsync(
-            runtime, new AlmacenVacio(), _tenantA, _consultaA, new MemoryStream());
-        var administradorDeOtroTenant = () => ExportacionCompletaTenant.ExportarAsync(
-            runtime, new AlmacenVacio(), _tenantA, _administradorB, new MemoryStream());
+        foreach (var correo in rechazados)
+        {
+            await using var runtime = CrearRuntime();
+            var exportar = () => ExportacionCompletaTenant.ExportarAsync(
+                runtime, new AlmacenVacio(), _tenantA, correo, ContrasenaZip, new MemoryStream());
 
-        await noAdministrador.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Administrador activo*");
-        await administradorDeOtroTenant.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Administrador activo*");
+            await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Administrador de plataforma activo*");
+        }
+
+        await using var control = CrearPropietario();
+        (await control.RegistrosAuditoria.IgnoreQueryFilters()
+                .CountAsync(r => r.TenantId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion))
+            .Should().Be(0, "un rechazo no llega a abrir la exportación");
+    }
+
+    [Fact]
+    public async Task La_funcion_de_la_base_solo_la_ejecuta_el_runtime()
+    {
+        await using var control = CrearPropietario();
+        var conExecute = await control.Database.SqlQuery<string>($$"""
+            SELECT r.rolname AS "Value" FROM pg_roles r
+            WHERE r.rolname IN ('cae_app_runtime', 'cae_app_soporte', 'cae_app_aprovisionamiento')
+              AND has_function_privilege(r.rolname, 'public.app_actor_plataforma_que_exporta(text, uuid)', 'EXECUTE')
+            """).ToListAsync();
+
+        conExecute.Should().Equal("cae_app_runtime");
     }
 
     [Fact]
@@ -145,7 +207,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await using var propietario = CrearPropietario();
 
         var exportar = () => ExportacionCompletaTenant.ExportarAsync(
-            propietario, new AlmacenVacio(), _tenantA, _administradorA, new MemoryStream());
+            propietario, new AlmacenVacio(), _tenantA, _actor, ContrasenaZip, new MemoryStream());
 
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*exenta de RLS*");
     }
@@ -161,17 +223,17 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         return empresa.Id;
     }
 
-    private async Task<(Guid Id, string Correo)> CuentaAsync(Guid tenantId, Guid rolId)
+    private async Task<(Guid Id, string Correo)> CuentaAsync(Guid tenantId, Guid rolId, string? correoFijo = null)
     {
         var id = Guid.NewGuid();
-        var correo = $"{id:N}@exportacion.local";
+        var correo = correoFijo ?? $"{id:N}@exportacion.local";
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
         _propietario.Users.Add(new ApplicationUser
         {
             Id = id,
             TenantId = tenantId,
-            UserName = correo,
-            NormalizedUserName = correo.ToUpperInvariant(),
+            UserName = id.ToString("N"),
+            NormalizedUserName = id.ToString("N").ToUpperInvariant(),
             Email = correo,
             NormalizedEmail = correo.ToUpperInvariant(),
             NombreCompleto = "Usuario",

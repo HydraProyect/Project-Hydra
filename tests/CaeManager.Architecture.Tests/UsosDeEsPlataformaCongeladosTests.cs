@@ -376,7 +376,7 @@ public class UsosDeEsPlataformaCongeladosTests
         ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
             new(2, CategoriaUso.Guarda,
                 "lee el flag del Tenant pedido y rechaza exportar el Tenant de plataforma TALVEG como si fuera un " +
-                "Tenant propietario. Solo impide; la autorización es el Administrador activo del propio Tenant"),
+                "Tenant propietario. Solo impide; la autorización es la concesión AdminPlataforma vigente sobre ese Tenant"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +
@@ -453,6 +453,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 "doc-comment, comentario y predicados de app_conceder_administrador_por_plataforma (decisión del " +
                 "2026-10-30; ADR-011 § 8.7.3): el actor debe pertenecer a un Tenant de plataforma y el Tenant objetivo no " +
                 "serlo. Solo restringe, no concede."),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101010000_ActorPlataformaExportaTenant.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "doc-comment y predicado de app_actor_plataforma_que_exporta (M-36, decisión de Chris del 2026-10-31): " +
+                "la cuenta que pide --exportar-tenant debe ser de un Tenant de plataforma, además de la concesión " +
+                "AdminPlataforma que alcanza el Tenant. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
