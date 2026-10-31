@@ -492,7 +492,10 @@ public class TerminologiaCanonicaTests
         // la Sesión Privilegiada seleccionada (IClienteActivoSeleccionado ×1 cada uno) para no pedir
         // ConexionesIntegracion.UltimoError bajo cae_app_soporte; es la misma señal con la que
         // TenantRlsConnectionInterceptor adopta ese rol, y son consumidores de la interfaz existente.
-        ["ClienteActivo"] = 77,
+        // 77 -> 83 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
+        // de la interfaz y del tipo concreto (ContextoExtensionMiddleware ×3 y los dos endpoints de entrega), más la
+        // firma de TicketEsDeEstaPeticion; ningún nombre nuevo lleva el término.
+        ["ClienteActivo"] = 83,
     };
 
     [Theory]

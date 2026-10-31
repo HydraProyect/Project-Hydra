@@ -5,7 +5,8 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// <summary>
 /// Autorización de vida corta para recoger el archivo de UNA Acreditación pendiente desde la extensión de navegador.
 /// Separa el «¿puede salir?» del «dame el contenido»: el ticket se emite después de comprobar cartera, estado, kill
-/// switch y portal, y queda ligado al usuario, a la Acreditación, al Documento y al host del portal.
+/// switch y portal, y queda ligado al usuario, al Tenant, a la Asignación de Operación (si es un Tenant beneficiario), a
+/// la Acreditación, al Documento y al host del portal.
 ///
 /// <para>
 /// Mismo mecanismo que <see cref="TokenSesionExtension"/> y con su propio propósito, así que un token de sesión no vale
@@ -20,18 +21,23 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// </summary>
 public static class TicketEntregaExtension
 {
-    /// <summary>Nombre del protector. Cambiarlo invalida los tickets vivos, que duran un minuto.</summary>
-    private const string PropositoProtector = "CaeManager.Extension.EntregaArchivo.v1";
+    /// <summary>
+    /// Nombre del protector. Cambiarlo invalida los tickets vivos, que duran un minuto. v2: la carga añade el Tenant y la
+    /// Asignación de Operación; un ticket v1 no se puede reinterpretar sin inventarlos.
+    /// </summary>
+    private const string PropositoProtector = "CaeManager.Extension.EntregaArchivo.v2";
 
     public static readonly TimeSpan Vigencia = TimeSpan.FromSeconds(60);
 
     public static string Proteger(
-        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, Guid acreditacionId, Guid documentoId, string hostPortal)
+        IDataProtectionProvider dataProtectionProvider, Guid usuarioId, Guid tenantId, Guid? asignacionOperacionId,
+        Guid acreditacionId, Guid documentoId, string hostPortal)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPortal);
 
         return CrearProtector(dataProtectionProvider).Protect(
-            $"{usuarioId:N}|{acreditacionId:N}|{documentoId:N}|{hostPortal}", Vigencia);
+            $"{usuarioId:N}|{tenantId:N}|{asignacionOperacionId ?? Guid.Empty:N}|{acreditacionId:N}|{documentoId:N}|{hostPortal}",
+            Vigencia);
     }
 
     /// <summary>
@@ -57,16 +63,21 @@ public static class TicketEntregaExtension
     public static CargaUtilTicketEntrega? ParsearCargaUtil(string cargaUtil)
     {
         var partes = cargaUtil.Split('|');
-        if (partes.Length != 4)
+        if (partes.Length != 6)
             return null;
 
+        // La Asignación de Operación va vacía en el Tenant de origen; el resto no puede estarlo.
         if (!Guid.TryParseExact(partes[0], "N", out var usuarioId) || usuarioId == Guid.Empty
-            || !Guid.TryParseExact(partes[1], "N", out var acreditacionId) || acreditacionId == Guid.Empty
-            || !Guid.TryParseExact(partes[2], "N", out var documentoId) || documentoId == Guid.Empty
-            || string.IsNullOrWhiteSpace(partes[3]))
+            || !Guid.TryParseExact(partes[1], "N", out var tenantId) || tenantId == Guid.Empty
+            || !Guid.TryParseExact(partes[2], "N", out var asignacionOperacionId)
+            || !Guid.TryParseExact(partes[3], "N", out var acreditacionId) || acreditacionId == Guid.Empty
+            || !Guid.TryParseExact(partes[4], "N", out var documentoId) || documentoId == Guid.Empty
+            || string.IsNullOrWhiteSpace(partes[5]))
             return null;
 
-        return new CargaUtilTicketEntrega(usuarioId, acreditacionId, documentoId, partes[3]);
+        return new CargaUtilTicketEntrega(
+            usuarioId, tenantId, asignacionOperacionId == Guid.Empty ? null : asignacionOperacionId,
+            acreditacionId, documentoId, partes[5]);
     }
 
     private static ITimeLimitedDataProtector CrearProtector(IDataProtectionProvider dataProtectionProvider) =>
@@ -74,4 +85,5 @@ public static class TicketEntregaExtension
 }
 
 /// <summary>Contenido verificado de un ticket de entrega — ver <see cref="TicketEntregaExtension"/>.</summary>
-public record CargaUtilTicketEntrega(Guid UsuarioId, Guid AcreditacionId, Guid DocumentoId, string HostPortal);
+public record CargaUtilTicketEntrega(
+    Guid UsuarioId, Guid TenantId, Guid? AsignacionOperacionId, Guid AcreditacionId, Guid DocumentoId, string HostPortal);

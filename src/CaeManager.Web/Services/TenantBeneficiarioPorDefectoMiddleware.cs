@@ -90,6 +90,7 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
     {
         var peticion = contexto.Request;
         return contexto.User.Identity?.IsAuthenticated == true
+               && !ContextoExtension.Es(contexto)
                && HttpMethods.IsGet(peticion.Method)
                && !CookieDeContextoTenant.HaySeleccion(peticion)
                // Las páginas de cuenta (inicio y cierre de sesión, 2FA, cambio de

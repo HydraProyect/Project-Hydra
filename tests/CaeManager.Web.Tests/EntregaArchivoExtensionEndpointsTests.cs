@@ -40,6 +40,7 @@ namespace CaeManager.Web.Tests;
 public class EntregaArchivoExtensionEndpointsTests
 {
     private static readonly Guid Usuario = Guid.NewGuid();
+    private static readonly Guid Tenant = Guid.NewGuid();
     private static readonly Guid Acreditacion = Guid.NewGuid();
     private static readonly Guid Documento = Guid.NewGuid();
     private static readonly string RutaEntrega = $"/extension/acreditaciones/{Acreditacion}/entrega";
@@ -84,7 +85,7 @@ public class EntregaArchivoExtensionEndpointsTests
         respuesta.StatusCode.Should().Be(HttpStatusCode.OK);
         using var json = JsonDocument.Parse(await respuesta.Content.ReadAsStringAsync());
         TicketEntregaExtension.Leer(_proteccion, json.RootElement.GetProperty("ticket").GetString())
-            .Should().Be(new CargaUtilTicketEntrega(Usuario, Acreditacion, Documento, "app.dokify.net"));
+            .Should().Be(new CargaUtilTicketEntrega(Usuario, Tenant, null, Acreditacion, Documento, "app.dokify.net"));
         mediador.Preparaciones.Should().ContainSingle().Which.DominioPortal.Should().Be("app.dokify.net");
     }
 
@@ -220,7 +221,25 @@ public class EntregaArchivoExtensionEndpointsTests
     }
 
     private string TicketDe(Guid usuario, Guid acreditacion) =>
-        TicketEntregaExtension.Proteger(_proteccion, usuario, acreditacion, Documento, "app.dokify.net");
+        TicketEntregaExtension.Proteger(_proteccion, usuario, Tenant, null, acreditacion, Documento, "app.dokify.net");
+
+    [Fact]
+    public async Task Un_ticket_de_otro_Tenant_o_de_otra_Asignacion_de_Operacion_no_recoge_nada()
+    {
+        var registro = new RegistroEspia();
+        await using var app = await ArrancarAsync(new Mediador(null), registro);
+        using var cliente = Cliente(app);
+
+        foreach (var ticket in new[]
+                 {
+                     TicketEntregaExtension.Proteger(_proteccion, Usuario, Guid.NewGuid(), null, Acreditacion, Documento, "app.dokify.net"),
+                     TicketEntregaExtension.Proteger(_proteccion, Usuario, Tenant, Guid.NewGuid(), Acreditacion, Documento, "app.dokify.net"),
+                 })
+        {
+            using var respuesta = await PedirArchivoAsync(cliente, ticket);
+            respuesta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+    }
 
     private static Task<HttpResponseMessage> PedirEntregaAsync(HttpClient cliente) => cliente.PostAsync(RutaEntrega,
         new StringContent("{\"dominioPortal\":\"app.dokify.net\"}", Encoding.UTF8, "application/json"));
@@ -265,6 +284,8 @@ public class EntregaArchivoExtensionEndpointsTests
         builder.Services.AddSingleton(mediador);
         builder.Services.AddSingleton<IDataProtectionProvider>(_proteccion);
         builder.Services.AddSingleton(DispatchProxy.Create<ICurrentUserService, UsuarioDelToken>());
+        builder.Services.AddSingleton<ITenantActual>(new TenantDeLaPrueba());
+        builder.Services.AddSingleton<IClienteActivoSeleccionado>(new SinSeleccion());
         builder.Services.AddSingleton<IFileStorageService>(new AlmacenFijo());
         builder.Services.AddSingleton<IRegistroAccesoDocumentoSensibleService>(registro ?? new RegistroEspia());
         var app = builder.Build();
@@ -324,6 +345,18 @@ public class EntregaArchivoExtensionEndpointsTests
             throw new NotSupportedException();
 
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class TenantDeLaPrueba : ITenantActual
+    {
+        public Guid? TenantId => Tenant;
+    }
+
+    private sealed class SinSeleccion : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     private sealed class RegistroEspia : IRegistroAccesoDocumentoSensibleService

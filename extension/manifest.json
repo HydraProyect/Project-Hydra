@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TALVEG — Subida asistida",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Sube documentos de TALVEG directamente a las plataformas CAE externas, sin descargarlos antes a tu disco.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqscjehEUa7S/0fzjZkVSs5Ny1n8J1vEI4Ugv/ieLXAL5V4T15SBB1Jk6jkZtTIEWfRNZUdfaWV702GUGSNqwLfVCwTCFq/hqzfOJVsEw5PL4fbJnoTBq+377KKMNRx+JDTvJ+7u3qENIk3QV87MQTVOmJwUbsGgl7Nwap74/UggcffY1Pmj6asscrZYnEd1m39GcU57Ahf1usUB0DvkAuXlxooFLD30FawIl1X6F8/QtW5//6GnAPv1dUOsnhzuR4z4cKB+kteXUOB+V9BcQFQHDUqPqlSE/bK1GueNJjZ36NcVAFFZPM3np3cKsHqDXr+b9NlfOadS44z2tmwaP6QIDAQAB",
   "action": {

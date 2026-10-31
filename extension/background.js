@@ -13,6 +13,12 @@
 //                                                           y aún sin confirmar, y la última confirmada que
 //                                                           se puede deshacer. Solo Ids, el tipo de documento
 //                                                           y caducidades; nada del Trabajador ni el PDF.
+//   chrome.storage.session: { tenantSeleccionado, seleccionRetirada, tenantPorPestana } -- el Tenant
+//                                                           que la persona eligió, si TALVEG lo retiró, y el
+//                                                           que usa cada pestaña desde su último listado.
+//                                                           Es una solicitud: el servidor la resuelve en cada
+//                                                           petición. Un envío en curso guarda el suyo, y un
+//                                                           cambio de selección no lo desvía.
 //
 // Conexión automática (DEC A', 2026-09-10): a diferencia del supuesto original
 // ("cada tenant vive en su propio dominio"), TALVEG sirve todos los tenants
@@ -95,7 +101,7 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
 // reintentar al volver a conectar; caducan solos a los 30 min, y el servidor
 // vuelve a comprobar la cartera de quien confirme.
 async function desconectar({ borrarEnvios = false } = {}) {
-  const claves = ["token", "expiraEnUtc"];
+  const claves = ["token", "expiraEnUtc", CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA, CLAVE_TENANT_POR_PESTANA];
   if (borrarEnvios) claves.push(CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS);
   await chrome.storage.session.remove(claves);
   await avisarDeLaConexion(false);
@@ -152,7 +158,7 @@ async function conectarManual({ codigo }) {
   return { ok: true };
 }
 
-async function peticionAutenticada(ruta, opciones = {}) {
+async function peticionAutenticada(ruta, opciones = {}, tenantId = null) {
   const { hydraUrl, token, conectado } = await obtenerConexion();
   if (!conectado) {
     // No basta con devolver el error: si había algo guardado y lo que pasa es
@@ -171,16 +177,20 @@ async function peticionAutenticada(ruta, opciones = {}) {
       credentials: "omit",
       // "manual": estos endpoints están protegidos con una política que
       // combina el esquema de extensión con el de cookie de Identity
-      // (Policies.SesionOExtension). Cuando ninguno de los dos autentica, el
-      // reto que gana es el de la cookie: una redirección 302 a la pantalla
-      // de login, no un 401 limpio (comprobado contra el servidor real, no
-      // supuesto). Con el "follow" por defecto, fetch sigue esa redirección
+      // (Policies.SesionOExtension). Un servidor actual contesta 401 a un token
+      // inválido, pero uno anterior deja ganar al reto de la cookie: una
+      // redirección 302 a la pantalla de login, no un 401 limpio (comprobado
+      // contra el servidor real, no supuesto). Con el "follow" por defecto, fetch sigue esa redirección
       // sola, entrega la página de login con status 200, y el .json() de más
       // abajo lanzaría una excepción sin control al intentar parsear HTML.
       // "manual" deja la redirección sin seguir para poder tratarla aquí como
       // lo que es: sesión/token inválidos, igual que un 401 de verdad.
       redirect: "manual",
-      headers: { ...(opciones.headers ?? {}), Authorization: `Extension ${token}` },
+      headers: {
+        ...(opciones.headers ?? {}),
+        ...(tenantId ? { [CABECERA_TENANT]: tenantId } : {}),
+        Authorization: `Extension ${token}`,
+      },
     });
   } catch (error) {
     return { ok: false, error: `No pudimos contactar con TALVEG (${error.message}).` };
@@ -194,11 +204,128 @@ async function peticionAutenticada(ruta, opciones = {}) {
     return { ok: false, error: "Tu conexión con TALVEG caducó. Vuelve a conectar." };
   }
 
+  // TALVEG ya no autoriza este Tenant a este usuario. No se reintenta contra otro:
+  // lo que estuviera en curso se para y la persona elige en el popup.
+  if (tenantId && respuesta.status === 403 && (await esSeleccionRetirada(respuesta))) {
+    await retirarSeleccion(tenantId);
+    return { ok: false, seleccionRetirada: true, error: AVISO_SELECCION_RETIRADA };
+  }
+
   return { ok: true, respuesta };
 }
 
-async function listarPendientes() {
-  const resultado = await peticionAutenticada("/extension/acreditaciones-pendientes");
+// --- Tenant de cada flujo ----------------------------------------------------
+
+const CABECERA_TENANT = "X-Tenant-Beneficiario";
+const TITULO_SELECCION_NO_AUTORIZADA = "Extension.SeleccionNoAutorizada";
+const CLAVE_TENANT_SELECCIONADO = "tenantSeleccionado";
+const CLAVE_SELECCION_RETIRADA = "seleccionRetirada";
+const CLAVE_TENANT_POR_PESTANA = "tenantPorPestana";
+const AVISO_SELECCION_RETIRADA = "Esa empresa ya no está autorizada para tu usuario. Elige otra en la extensión.";
+
+async function esSeleccionRetirada(respuesta) {
+  try {
+    return (await respuesta.clone().json())?.title === TITULO_SELECCION_NO_AUTORIZADA;
+  } catch {
+    return false;
+  }
+}
+
+// La pestaña que iba por ese Tenant deja de recordarlo. La selección de la persona
+// solo cae si era esa: si ya había elegido otra, no hay nada que avisar.
+async function retirarSeleccion(tenantId) {
+  await enSerie(async () => {
+    const mapa = await leerPorPestana(CLAVE_TENANT_POR_PESTANA);
+    await guardarPorPestana(CLAVE_TENANT_POR_PESTANA,
+      Object.fromEntries(Object.entries(mapa).filter(([, valor]) => valor !== tenantId)));
+  });
+  const datos = await chrome.storage.session.get(CLAVE_TENANT_SELECCIONADO);
+  if (datos?.[CLAVE_TENANT_SELECCIONADO] !== tenantId) return;
+  await chrome.storage.session.remove(CLAVE_TENANT_SELECCIONADO);
+  await chrome.storage.session.set({ [CLAVE_SELECCION_RETIRADA]: true });
+}
+
+// Sin cabecera: el servidor no resuelve aquí ningún Tenant beneficiario, y por eso
+// esta lista sigue funcionando después de que retire una selección. Un servidor
+// anterior a este endpoint responde 404 y se sigue sin selección, en el Tenant de origen.
+async function pedirTenants() {
+  const resultado = await peticionAutenticada("/extension/tenants-beneficiarios");
+  if (!resultado.ok) return resultado;
+  if (resultado.respuesta.status === 404) return { ok: true, tenants: [], porDefecto: null };
+  if (!resultado.respuesta.ok)
+    return { ok: false, error: `TALVEG respondió ${resultado.respuesta.status}.` };
+
+  try {
+    const datos = await resultado.respuesta.json();
+    return { ok: true, tenants: Array.isArray(datos?.tenants) ? datos.tenants : [], porDefecto: datos?.porDefecto ?? null };
+  } catch {
+    return { ok: false, error: "TALVEG respondió algo que no entendemos." };
+  }
+}
+
+// El Tenant vigente para un flujo nuevo. Tras una retirada no se escoge otro por la
+// persona: hasta que elija, no se lista ni se sube nada.
+async function resolverSeleccion() {
+  const datos = await chrome.storage.session.get([CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA]);
+  if (datos?.[CLAVE_SELECCION_RETIRADA])
+    return { ok: false, seleccionRetirada: true, error: AVISO_SELECCION_RETIRADA };
+  if (datos?.[CLAVE_TENANT_SELECCIONADO]) return { ok: true, tenantId: datos[CLAVE_TENANT_SELECCIONADO] };
+
+  const lista = await pedirTenants();
+  if (!lista.ok) return lista;
+  const tenantId = lista.porDefecto ?? lista.tenants.find((t) => t.esOrigen)?.tenantId ?? null;
+  if (tenantId) await chrome.storage.session.set({ [CLAVE_TENANT_SELECCIONADO]: tenantId });
+  return { ok: true, tenantId };
+}
+
+// Lo que se ofrece en el popup, con lo elegido y el aviso si TALVEG lo retiró.
+async function obtenerTenants() {
+  const lista = await pedirTenants();
+  if (!lista.ok) return lista;
+  const datos = await chrome.storage.session.get([CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA]);
+  const avisoRetirada = Boolean(datos?.[CLAVE_SELECCION_RETIRADA]);
+  const seleccion = avisoRetirada ? { ok: true, tenantId: null } : await resolverSeleccion();
+  if (!seleccion.ok) return seleccion;
+  return { ok: true, tenants: lista.tenants, seleccionado: seleccion.tenantId, avisoRetirada };
+}
+
+// Solo el popup. Cambia lo que usen los flujos nuevos; los envíos en curso guardan el suyo.
+async function elegirTenant(tenantId) {
+  const lista = await pedirTenants();
+  if (!lista.ok) return lista;
+  if (!lista.tenants.some((t) => t.tenantId === tenantId))
+    return { ok: false, error: AVISO_SELECCION_RETIRADA };
+  await chrome.storage.session.remove(CLAVE_SELECCION_RETIRADA);
+  await chrome.storage.session.set({ [CLAVE_TENANT_SELECCIONADO]: tenantId });
+  return { ok: true };
+}
+
+function fijarTenantDePestana(idPestana, tenantId) {
+  return enSerie(async () => {
+    const mapa = await leerPorPestana(CLAVE_TENANT_POR_PESTANA);
+    if (tenantId) mapa[String(idPestana)] = tenantId;
+    else delete mapa[String(idPestana)];
+    await guardarPorPestana(CLAVE_TENANT_POR_PESTANA, mapa);
+  });
+}
+
+// El panel de una pestaña muestra lo que se listó para ella; lo que pida después
+// va al mismo Tenant, aunque entretanto se haya cambiado la selección en el popup.
+async function tenantDeLaPestana(idPestana) {
+  const mapa = await leerPorPestana(CLAVE_TENANT_POR_PESTANA);
+  const tenantId = mapa[String(idPestana)];
+  return tenantId ? { ok: true, tenantId } : resolverSeleccion();
+}
+
+async function listarPendientesDelFlujo(idPestana) {
+  const seleccion = await resolverSeleccion();
+  if (!seleccion.ok) return seleccion;
+  if (idPestana) await fijarTenantDePestana(idPestana, seleccion.tenantId);
+  return listarPendientes(seleccion.tenantId);
+}
+
+async function listarPendientes(tenantId) {
+  const resultado = await peticionAutenticada("/extension/acreditaciones-pendientes", {}, tenantId);
   if (!resultado.ok) return resultado;
 
   if (!resultado.respuesta.ok)
@@ -282,12 +409,12 @@ function hostDeUnaUrl(url) {
 // cartera, estado, kill switch y portal antes de emitir un ticket de un minuto, y
 // vuelve a comprobarlos al servir el contenido. Las comprobaciones de subirDocumento
 // son para explicar el motivo a la persona, no la autoridad.
-async function recogerArchivo(acreditacionId, dominioPortal) {
+async function recogerArchivo(acreditacionId, dominioPortal, tenantId) {
   const entrega = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/entrega`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dominioPortal }),
-  });
+  }, tenantId);
   if (!entrega.ok) return entrega;
   if (!entrega.respuesta.ok) return falloDeEntrega(entrega.respuesta);
 
@@ -295,7 +422,7 @@ async function recogerArchivo(acreditacionId, dominioPortal) {
   const archivo = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/archivo`, {
     cache: "no-store",
     headers: { "X-Ticket-Entrega": ticket },
-  });
+  }, tenantId);
   if (!archivo.ok) return archivo;
   if (!archivo.respuesta.ok) return falloDeEntrega(archivo.respuesta);
 
@@ -321,6 +448,12 @@ async function falloDeEntrega(respuesta) {
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
 async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, proveedorElegidoId }, pestanaQueLoPidio, urlDelRemitente) {
+  // El Tenant del flujo se fija aquí y no se vuelve a mirar: relectura, ticket,
+  // archivo y confirmación van al mismo, cambie lo que cambie el popup mientras tanto.
+  const flujo = pestanaQueLoPidio ? await tenantDeLaPestana(pestanaQueLoPidio) : await resolverSeleccion();
+  if (!flujo.ok) return flujo;
+  const tenantDelFlujo = flujo.tenantId;
+
   // El host de la pestaña se lee antes de pedir nada: sin él no hay forma de saber
   // de qué portal se trata y el servidor no entregaría el archivo.
   const idPestanaDestino =
@@ -344,7 +477,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
 
   // La lista que vio la persona pudo quedar obsoleta: se relee antes de pedir el
   // archivo, para no sacarlo de TALVEG si no va a entrar en este formulario.
-  const pendientes = await listarPendientes();
+  const pendientes = await listarPendientes(tenantDelFlujo);
   if (!pendientes.ok) return pendientes;
   const proveedores = Array.isArray(pendientes.proveedores) ? pendientes.proveedores : [];
   const dueno = proveedores.find((proveedor) => (proveedor.clientes ?? []).some((cliente) =>
@@ -372,7 +505,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
       error: `Este portal puede ser de ${portal.empate.map((o) => o.nombre).join(" o ")}. Ábrelo desde el panel de la página y elige cuál es antes de poner el documento.`,
     };
 
-  const archivo = await recogerArchivo(acreditacionId, dominioPortal);
+  const archivo = await recogerArchivo(acreditacionId, dominioPortal, tenantDelFlujo);
   if (!archivo.ok) return archivo;
 
   let respuestaContenido;
@@ -405,7 +538,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, prov
   // «Subida» sin más; ahora se deja la acreditación pendiente de confirmar en
   // ESTA pestaña y la página le pregunta «Lo he enviado» / «No lo he enviado».
   // Solo la confirmación llama a TALVEG (confirmarEnvio).
-  await anotarEnvioPendiente(idPestana, acreditacionId, (nombreArchivo || "documento").replace(/\.pdf$/i, ""));
+  await anotarEnvioPendiente(idPestana, acreditacionId, (nombreArchivo || "documento").replace(/\.pdf$/i, ""), tenantDelFlujo);
   try {
     await chrome.tabs.sendMessage(idPestana, { accion: "pedirConfirmacionEnvio" });
   } catch {
@@ -484,9 +617,10 @@ function cambiarEnPestana(clave, idPestana, acreditacionId, valor) {
   });
 }
 
-async function anotarEnvioPendiente(idPestana, acreditacionId, documento) {
+async function anotarEnvioPendiente(idPestana, acreditacionId, documento, tenantId) {
   await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, {
     documento,
+    tenantId,
     caducaEn: Date.now() + CADUCIDAD_ENVIO_PENDIENTE_MS,
   });
 }
@@ -518,6 +652,8 @@ async function confirmarEnvio({ acreditacionId }, idPestana, urlDeLaPestana) {
   const pendientes = await vigentesDePestana(CLAVE_ENVIOS_PENDIENTES, idPestana);
   if (!pendientes[acreditacionId])
     return { ok: false, error: "Ya no hay nada que confirmar aquí. Si lo enviaste, anótalo en Centro 360." };
+  // El Tenant por el que se puso el documento, no el que marque ahora el popup.
+  const tenantDelEnvio = pendientes[acreditacionId].tenantId ?? null;
 
   // El servidor vuelve a comprobar que este portal es el de la Plataforma CAE del
   // canal (segunda línea tras la puerta de subirDocumento, por si un cliente
@@ -527,7 +663,7 @@ async function confirmarEnvio({ acreditacionId }, idPestana, urlDeLaPestana) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ dominioPortal: hostDeUnaUrl(urlDeLaPestana) }),
-  });
+  }, tenantDelEnvio);
   // Sin conexión, o con la conexión caducada (peticionAutenticada desconecta
   // sola, sin borrar los envíos): sigue pendiente, para reintentar al volver a
   // conectar mientras no pasen los 30 min. Solo el «Desconectar» del popup lo borra.
@@ -557,6 +693,7 @@ async function confirmarEnvio({ acreditacionId }, idPestana, urlDeLaPestana) {
     await cambiarEnPestana(CLAVE_ENVIOS_CONFIRMADOS, idPestana, acreditacionId, {
       cambioId: anotado.cambioId,
       version: anotado.version,
+      tenantId: tenantDelEnvio,
       caducaEn: Date.now() + VENTANA_DESHACER_MS,
     });
   }
@@ -582,7 +719,7 @@ async function deshacerEnvio({ acreditacionId }, idPestana) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ cambioId: confirmado.cambioId, version: confirmado.version }),
-  });
+  }, confirmado.tenantId ?? null);
   if (!deshecho.ok) return deshecho;
   if (!deshecho.respuesta.ok) {
     const detalle = await leerDetalleDelProblema(deshecho.respuesta);
@@ -593,7 +730,7 @@ async function deshacerEnvio({ acreditacionId }, idPestana) {
 
 // Una pestaña cerrada no va a confirmar nada.
 chrome.tabs?.onRemoved?.addListener?.((idPestana) => enSerie(async () => {
-  for (const clave of [CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS]) {
+  for (const clave of [CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS, CLAVE_TENANT_POR_PESTANA]) {
     const mapa = await leerPorPestana(clave);
     if (mapa[String(idPestana)]) {
       delete mapa[String(idPestana)];
@@ -608,7 +745,10 @@ chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
     conectarManual: (m) => conectarManual(m),
     // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
     desconectar: () => desconectar({ borrarEnvios: true }),
-    listarPendientes: () => listarPendientes(),
+    listarPendientes: () => listarPendientesDelFlujo(remitente?.tab?.id),
+    obtenerTenants: () => obtenerTenants(),
+    // La selección se cambia en el popup, nunca desde una pestaña del portal.
+    elegirTenant: (m) => (remitente?.tab ? Promise.resolve({ ok: false }) : elegirTenant(m.tenantId)),
     // `remitente.url` solo es la de la pestaña cuando escribe un content script; la
     // del popup es la de su propia página de la extensión.
     subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id, remitente?.tab ? remitente.url : undefined),

@@ -53,8 +53,11 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         ILogger<RevalidacionClienteActivoMiddleware> logger)
     {
         // Sin cookie no hay nada que revalidar: cero coste para el usuario
-        // normal, que es la inmensa mayoría.
-        if (string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
+        // normal, que es la inmensa mayoría. Una petición de la extensión ya se
+        // resolvió con el mismo predicado en ContextoExtensionMiddleware, y si
+        // trajera cookie no es la suya: ni se lee ni se borra.
+        if (ContextoExtension.Es(contexto)
+            || string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
         {
             await siguiente(contexto);
             return;

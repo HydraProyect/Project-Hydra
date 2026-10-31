@@ -101,3 +101,18 @@ summary {
   padding: 4px 6px;
   margin: 4px 0;
 }
+
+#grupo-tenant {
+  margin-bottom: 8px;
+}
+
+#grupo-tenant label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+#selector-tenant {
+  width: 100%;
+  padding: 4px;
+}

@@ -274,6 +274,8 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // exista la impersonacion.
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+// Una petición de la extensión ya resuelta no se vuelve a autenticar (ver EvaluadorPoliticaExtension).
+builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyEvaluator, CaeManager.Web.Services.EvaluadorPoliticaExtension>();
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
@@ -442,11 +444,10 @@ builder.Services.AddAuthorization(options =>
     // de acreditaciones y «Lo he enviado». Ambos esquemas explícitos porque el
     // FallbackPolicy no fija ninguno y aceptaría solo el de por defecto.
     //
-    // Extension va PRIMERO a propósito. Cuando una política nombra varios
-    // esquemas, el middleware autentica con todos y FUSIONA las identidades;
-    // si una petición trajera a la vez cabecera y cookie, el orden decide cuál
-    // gana en FindFirst. Que gane la que el llamante presentó explícitamente
-    // es lo predecible.
+    // Con el token de extensión no hay fusión de identidades, aunque la petición
+    // traiga también la cookie: ContextoExtensionMiddleware la autentica solo con
+    // ese esquema y EvaluadorPoliticaExtension no vuelve a autenticar. El de la
+    // cookie solo actúa en una sesión interactiva, sin token.
     options.AddPolicy(Policies.SesionOExtension, policy => policy
         .AddAuthenticationSchemes(
             ExtensionAuthenticationSchemeOptions.NombreEsquema,
@@ -1352,6 +1353,12 @@ app.UseRequestLocalization();
 
 app.UseAuthentication();
 
+// Inmediatamente después de UseAuthentication: solo en /extension/* y con el token
+// de extensión, fija la identidad de ese esquema y resuelve el Tenant solicitado
+// antes del rol efectivo y de cualquier consulta de negocio. La cookie no entra en
+// esa petición (ver ContextoExtensionMiddleware).
+app.UseContextoExtension();
+
 // Inmediatamente después de UseAuthentication y ANTES de UseAuthorization: una
 // sesión privilegiada de plataforma no lleva rol de negocio, y las puertas
 // [Authorize(Roles = …)] preguntan al principal, no a CurrentUserService (ver
@@ -1434,6 +1441,7 @@ app.MapClienteActivoEndpoints();
 app.MapSesionSoporteEndpoints();
 app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
+app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
 app.MapVistaVocabularioPreviewEndpoints();

@@ -28,10 +28,11 @@ namespace CaeManager.Web.Features.Extension;
 ///
 /// <para>
 /// Las dos rutas exigen el token de extensión (<see cref="Policies.SoloExtension"/>): la cookie no autentica, así que no
-/// hay antifalsificación que validar. La política no impide que una petición traiga además la cookie de selección: que
-/// una Sesión Privilegiada no opere aquí lo sostienen el cliente (<c>credentials: "omit"</c>), el rol efectivo, que bajo
-/// ella es nulo, y la función de registro de Soporte TALVEG, que rechaza este tipo de acceso. Ninguna de las dos rutas
-/// anota nada en la Acreditación: eso sigue siendo «Lo he enviado».
+/// hay antifalsificación que validar. Si la petición trae además la cookie de selección, se ignora: el Tenant lo resuelve
+/// <see cref="ContextoExtensionMiddleware"/> desde la cabecera de la extensión, y una Sesión Privilegiada no se alcanza
+/// por ahí. El ticket queda ligado al Tenant y a la Asignación de Operación con los que se emitió: si al recoger ya no
+/// son los que resuelve la petición, responde el mismo 404. Ninguna de las dos rutas anota nada en la Acreditación: eso
+/// sigue siendo «Lo he enviado».
 /// </para>
 /// </summary>
 public static class EntregaArchivoExtensionEndpoints
@@ -56,6 +57,7 @@ public static class EntregaArchivoExtensionEndpoints
 
     public static async Task<IResult> PrepararAsync(
         Guid id, HttpRequest solicitud, IMediator mediator, ICurrentUserService usuarioActual,
+        ITenantActual tenantActual, IClienteActivoSeleccionado seleccion,
         IDataProtectionProvider dataProtectionProvider, CancellationToken cancellationToken)
     {
         if (id == Guid.Empty)
@@ -67,24 +69,28 @@ public static class EntregaArchivoExtensionEndpoints
         if (resultado.EsFallido)
             return Fallo(resultado.Error);
 
-        if (await usuarioActual.ObtenerUsuarioActualIdAsync() is not { } usuarioId)
+        if (await usuarioActual.ObtenerUsuarioActualIdAsync() is not { } usuarioId
+            || tenantActual.TenantId is not { } tenantId)
             return Results.NotFound();
 
         var ticket = TicketEntregaExtension.Proteger(
-            dataProtectionProvider, usuarioId, id, resultado.Valor.DocumentoId, resultado.Valor.HostPortal);
+            dataProtectionProvider, usuarioId, tenantId, seleccion.AsignacionOperacionIdSeleccionada,
+            id, resultado.Valor.DocumentoId, resultado.Valor.HostPortal);
         return Results.Ok(new { ticket, expiraEnUtc = DateTime.UtcNow.Add(TicketEntregaExtension.Vigencia) });
     }
 
     /// <summary>Método con nombre, y no una lambda, para probarlo sin levantar el host (como <see cref="DocumentosEndpoints.ServirArchivoAsync"/>).</summary>
     public static async Task<IResult> ServirAsync(
         Guid id, HttpContext contexto, IMediator mediator, ICurrentUserService usuarioActual,
+        ITenantActual tenantActual, IClienteActivoSeleccionado seleccion,
         IDataProtectionProvider dataProtectionProvider, IFileStorageService almacenamiento,
         IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
         CancellationToken cancellationToken)
     {
         var ticket = TicketEntregaExtension.Leer(dataProtectionProvider, contexto.Request.Headers[CabeceraTicket].ToString());
         if (ticket is null || ticket.AcreditacionId != id
-            || await usuarioActual.ObtenerUsuarioActualIdAsync() != ticket.UsuarioId)
+            || await usuarioActual.ObtenerUsuarioActualIdAsync() != ticket.UsuarioId
+            || !TicketEsDeEstaPeticion(ticket, tenantActual, seleccion))
             return Results.NotFound();
 
         // El ticket no es una foto válida durante un minuto: el kill switch, la cartera o una Acreditación que dejó de
@@ -102,6 +108,15 @@ public static class EntregaArchivoExtensionEndpoints
             registroAcceso, fabricaRegistro, cancellationToken);
         return abierto.Rechazo ?? Results.File(abierto.Flujo!, "application/pdf");
     }
+
+    /// <summary>
+    /// ¿Se emitió el ticket para el mismo Tenant y la misma Asignación de Operación que resuelve ahora la petición? Si la
+    /// cartera cambió entre la emisión y la recogida, no: un ticket no sobrevive a la autorización con la que nació.
+    /// </summary>
+    public static bool TicketEsDeEstaPeticion(
+        CargaUtilTicketEntrega ticket, ITenantActual tenantActual, IClienteActivoSeleccionado seleccion) =>
+        tenantActual.TenantId == ticket.TenantId
+        && seleccion.AsignacionOperacionIdSeleccionada == ticket.AsignacionOperacionId;
 
     private static async Task<PrepararEntregaPeticion?> LeerPeticionAsync(HttpRequest solicitud, CancellationToken cancellationToken)
     {
