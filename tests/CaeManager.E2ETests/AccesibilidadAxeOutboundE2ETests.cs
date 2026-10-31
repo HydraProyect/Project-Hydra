@@ -20,7 +20,9 @@ namespace CaeManager.E2ETests;
 ///
 /// <para>
 /// Se crea el contexto con <c>BypassCSP</c> solo porque axe se inyecta en la página; la CSP de la
-/// aplicación no se toca ni se mide aquí.
+/// aplicación no se toca ni se mide aquí. <c>ReducedMotion</c> evita medir el contraste a media transición.
+/// Subir la versión de Deque.AxeCore.Playwright cambia las reglas de axe-core: se hace a mano y regenerando
+/// la línea base, no por Dependabot.
 /// </para>
 /// </summary>
 [Collection("AppCollectionGestorCaeCarteraMultiTenant")]
@@ -31,21 +33,33 @@ public class AccesibilidadAxeOutboundE2ETests(WebAppFixtureGestorCaeCarteraMulti
 
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
+    private static readonly string[] Rutas = ["/mi-trabajo", "/trabajadores", "/centros", "/documentos", "/visitas"];
+
+    public static TheoryData<string> RutasAnalizadas() => [.. Rutas];
+
+    /// <summary>Una ruta anotada en la línea base que ya no se analiza dejaría una cifra huérfana que nada vigila.</summary>
+    [Fact]
+    public void La_linea_base_no_contiene_rutas_que_ya_no_se_analizan()
+    {
+        var fichero = Path.Combine(AppContext.BaseDirectory, "Accesibilidad", "axe-linea-base-outbound.json");
+        var todo = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, int>>>(File.ReadAllText(fichero))!;
+        Assert.Empty(todo.Keys.Except(Rutas));
+    }
+
     [Theory]
-    [InlineData("/mi-trabajo")]
-    [InlineData("/trabajadores")]
-    [InlineData("/centros")]
-    [InlineData("/documentos")]
-    [InlineData("/visitas")]
+    [MemberData(nameof(RutasAnalizadas))]
     public async Task La_pantalla_Outbound_no_empeora_ni_mejora_sin_anotar_la_linea_base_de_axe(string ruta)
     {
-        await using var contexto = await fixture.Browser.NewContextAsync(new() { BypassCSP = true });
+        await using var contexto = await fixture.Browser.NewContextAsync(new() { BypassCSP = true, ReducedMotion = ReducedMotion.Reduce });
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
-        // Una pantalla sin contenido de aplicación no se analiza: sería una medición vacía que pasaría por vacía.
-        await Expect(page.GetByRole(AriaRole.Main)).ToBeVisibleAsync(EsperaEnFrio);
+        // Una redirección (acceso denegado, inicio de sesión) o un estado de carga no se analizan: serían una
+        // medición de otra pantalla, o vacía, que pasaría por vacía. NetworkIdle no espera a los datos del circuito.
+        Assert.Equal(ruta, new Uri(page.Url).AbsolutePath);
+        await Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1 })).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(page.Locator("[class*=esqueleto]")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
 
         var resultado = await page.RunAxe();
 
