@@ -114,6 +114,37 @@ public class TipoDocumentoTests
     }
 
     [Fact]
+    public void La_lectura_IA_nace_apagada_en_un_tipo_de_salud_y_la_enciende_el_Tenant_propietario()
+    {
+        var aptitud = new TipoDocumento("Certificado de aptitud médica", 12, true, 1, AmbitoAplicacion.Trabajador,
+            sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+
+        aptitud.LecturaIaActiva.Should().BeFalse("DPA 16.4: apagada salvo que el Tenant propietario la active");
+
+        aptitud.EstablecerLecturaIaActiva(true);
+
+        aptitud.LecturaIaActiva.Should().BeTrue();
+    }
+
+    [Fact]
+    public void La_lectura_IA_nace_apagada_en_un_tipo_sin_clasificar()
+    {
+        var sinClasificar = new TipoDocumento("Tipo nuevo", 12, true, 1, AmbitoAplicacion.Trabajador);
+
+        sinClasificar.LecturaIaActiva.Should().BeFalse("sin clasificar cuenta como salud, la lectura más protectora");
+    }
+
+    [Theory]
+    [InlineData(SensibilidadDocumental.SinDatosPersonales)]
+    [InlineData(SensibilidadDocumental.DatosPersonales)]
+    public void La_lectura_IA_nace_activa_en_un_tipo_que_no_revela_salud(SensibilidadDocumental sensibilidad)
+    {
+        var tipo = new TipoDocumento("Formación", 12, true, 1, AmbitoAplicacion.Trabajador, sensibilidad: sensibilidad);
+
+        tipo.LecturaIaActiva.Should().BeTrue();
+    }
+
+    [Fact]
     public void Sensibilidad_se_puede_especificar_explicitamente_al_crear()
     {
         var tipo = new TipoDocumento("RLC", null, aplicaVencimientoAutomatico: false, orden: 1, AmbitoAplicacion.Empresa,

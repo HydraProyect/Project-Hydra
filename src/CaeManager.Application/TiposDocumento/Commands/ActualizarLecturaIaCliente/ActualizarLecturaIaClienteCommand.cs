@@ -41,7 +41,7 @@ public class ActualizarLecturaIaClienteCommandHandler(
         else
         {
             // Sin fila = hereda el nivel 1 (ver ConfiguracionIaDocumentoCliente) —
-            // solo se crea una fila cuando el valor difiere del default (activo).
+            // solo se crea una fila para apagar: el nivel 2 nunca enciende lo que el nivel 1 apaga.
             if (!request.Activa)
                 repositorio.Agregar(new ConfiguracionIaDocumentoCliente(request.ClienteId, request.TipoDocumentoId, activa: false));
         }

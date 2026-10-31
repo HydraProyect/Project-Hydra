@@ -27,7 +27,7 @@ public class ArchivoExportacionTests
             await archivo.EscribirAsync("documentos/1/documento.pdf", salida => salida.WriteAsync(binario).AsTask());
             archivo.RegistrarRecuento("Empresa", 1);
             archivo.RegistrarDocumentoSinFichero(sinFichero);
-            archivo.RegistrarNoIncluido("Filas con borrado lógico", "El filtro global las oculta.");
+            archivo.RegistrarNoIncluido("Tablas de ejemplo", "Motivo de ejemplo.");
             await archivo.TerminarAsync();
         }
 
@@ -46,7 +46,7 @@ public class ArchivoExportacionTests
             .Should().Be(Convert.ToHexString(SHA256.HashData(binario)).ToLowerInvariant());
         raiz.GetProperty("sha256").TryGetProperty(ArchivoExportacion.RutaManifiesto, out _).Should().BeFalse();
         raiz.GetProperty("documentosSinFichero").EnumerateArray().Select(e => e.GetGuid()).Should().Equal(sinFichero);
-        raiz.GetProperty("noIncluido").GetProperty("Filas con borrado lógico").GetString().Should().Be("El filtro global las oculta.");
+        raiz.GetProperty("noIncluido").GetProperty("Tablas de ejemplo").GetString().Should().Be("Motivo de ejemplo.");
     }
 
     [Fact]

@@ -47,6 +47,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Empresas.Add(_empresa);
 
         _tipoApto = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
+        _tipoApto.EstablecerLecturaIaActiva(true);
         _tipoApto.EstablecerVerificacionIaActiva(true);
 
         await _dbContext.SaveChangesAsync();

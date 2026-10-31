@@ -20,7 +20,7 @@ namespace CaeManager.Infrastructure.Seguridad;
 /// </para>
 ///
 /// <para>
-/// En la misma pasada, la conservación de 5 años de <c>SesionesUsuario</c> (sesiones de cookie
+/// En la misma pasada, la conservación de 12 meses de <c>SesionesUsuario</c> (sesiones de cookie
 /// emitidas y revocadas) con <c>app_purgar_sesiones_usuario()</c>, con el mismo criterio: corte
 /// fijo dentro de la función y sin DELETE para el runtime.
 /// </para>
@@ -71,6 +71,6 @@ public class PurgaIniciosSesionHostedService(
             .SqlQuery<int>($"SELECT public.app_purgar_sesiones_usuario() AS \"Value\"")
             .SingleAsync(stoppingToken);
         if (sesiones > 0)
-            logger.LogInformation("Purgadas {Filas} sesiones de cookie con más de 5 años.", sesiones);
+            logger.LogInformation("Purgadas {Filas} sesiones de cookie con más de 12 meses.", sesiones);
     }
 }

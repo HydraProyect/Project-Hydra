@@ -2962,7 +2962,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DatosAdicionales = 8,
                             DeteccionTrabajadoresActiva = false,
                             Grupo = "VigilanciaDeLaSalud",
-                            LecturaIaActiva = true,
+                            LecturaIaActiva = false,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Certificado de aptitud médica",
                             Notas = "Renovación anual estándar. Obligatorio por defecto (2026-08-09): sí o sí exigido en CAE.",
@@ -4605,7 +4605,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             Grupo = "CoordinacionCae",
-                            LecturaIaActiva = true,
+                            LecturaIaActiva = false,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Informe de investigación de accidente o incidente",
                             Notas = "F-70 del catálogo de formatos PRL — art. 16.3 LPRL. Un informe por accidente o incidente — vencimiento manual.",
@@ -4870,7 +4870,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             Grupo = "CoordinacionCae",
-                            LecturaIaActiva = true,
+                            LecturaIaActiva = false,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Documento requerido por el Cliente empresarial",
                             Notas = "Tipo genérico para los formularios propios que pide un Cliente empresarial concreto. Vigencia según cada Cliente empresarial — vencimiento manual.",
@@ -10642,6 +10642,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FechaBajaUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");

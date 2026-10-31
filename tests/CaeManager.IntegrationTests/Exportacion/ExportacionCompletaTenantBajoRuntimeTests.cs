@@ -34,6 +34,9 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
     private const string ContrasenaPortal = "contrasena-del-portal-que-no-sale";
     private const string ContrasenaZip = "contrasena-del-zip-que-no-se-registra";
 
+    /// <summary>El índice único de CIF por Tenant incluye las Empresas en la papelera.</summary>
+    private const string CifEnPapelera = "A58818501";
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private CaeManagerDbContext _propietario = null!;
     private Guid _tenantA;
@@ -183,6 +186,44 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_papelera_sale_marcada_sin_secretos_y_sin_filas_de_otro_Tenant()
+    {
+        var enPapeleraA = await SembrarAsync(_tenantA, "Empresa en la papelera de A", CifEnPapelera, eliminada: true);
+        var enPapeleraB = await SembrarAsync(_tenantB, "Empresa en la papelera de B", CifEnPapelera, eliminada: true);
+
+        using var destino = new MemoryStream();
+        await using (var runtime = CrearRuntime())
+        {
+            var resultado = await ExportacionCompletaTenant.ExportarAsync(
+                runtime, new AlmacenVacio(), _tenantA, _actor, ContrasenaZip, destino);
+
+            resultado.Recuentos["Empresa"].Should().Be(2);
+            resultado.Recuentos[ExportacionCompletaTenant.RecuentoEnPapelera].Should().Be(1);
+        }
+
+        destino.Position = 0;
+        using var zip = new ZipFile(destino, leaveOpen: true) { Password = ContrasenaZip };
+        using var empresas = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry("datos/Empresa.json")));
+        empresas.RootElement.EnumerateArray()
+            .ToDictionary(e => e.GetProperty("Id").GetGuid(), e => e.GetProperty("EstaEliminado").GetBoolean())
+            .Should().BeEquivalentTo(new Dictionary<Guid, bool> { [_empresaA] = false, [enPapeleraA] = true });
+
+        var todo = new StringBuilder();
+        foreach (var entrada in zip.Cast<ZipEntry>())
+        {
+            using var lector = new StreamReader(zip.GetInputStream(entrada));
+            todo.Append(await lector.ReadToEndAsync());
+        }
+
+        todo.ToString().Should().NotContain(enPapeleraB.ToString());
+        todo.ToString().Should().NotContain(ContrasenaPortal, "la credencial de una Empresa en la papelera sigue sin salir");
+
+        using var manifiesto = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry(ArchivoExportacion.RutaManifiesto)));
+        manifiesto.RootElement.GetProperty("noIncluido").EnumerateObject().Select(p => p.Name)
+            .Should().NotContain("Filas con borrado lógico");
+    }
+
+    [Fact]
     public async Task Se_niega_si_no_la_pide_un_Actor_de_Plataforma_con_concesion_vigente_sobre_el_Tenant()
     {
         string[] rechazados =
@@ -257,13 +298,15 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("*exenta de RLS*");
     }
 
-    private async Task<Guid> SembrarAsync(Guid tenantId, string razonSocial)
+    private async Task<Guid> SembrarAsync(Guid tenantId, string razonSocial, string cif = "B12345674", bool eliminada = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
-        var empresa = new Empresa(razonSocial, "B12345674");
+        var empresa = new Empresa(razonSocial, cif);
         _propietario.Empresas.Add(empresa);
         _propietario.CredencialesAccesoEmpresa.Add(new CredencialAccesoEmpresa(
             empresa.Id, "https://portal.example", "Empresa en el portal", "usuario-portal", ContrasenaPortal));
+        if (eliminada)
+            empresa.MarcarComoEliminado(Guid.NewGuid());
         await _propietario.SaveChangesAsync();
         return empresa.Id;
     }

@@ -49,9 +49,9 @@ namespace CaeManager.Migrations.PostgreSQL;
 /// </para>
 ///
 /// <para>
-/// Sin purga: nada aquí borra una partición. La retención de la auditoría es una
-/// decisión pendiente (P1-M2, DECISIÓN NECESARIA de 2026-09-26) y, cuando se
-/// tome, la ejecutará un rol propio, nunca <c>cae_app_runtime</c>.
+/// Sin purga: nada aquí borra una partición. La conservación de la auditoría, de
+/// 5 años, la aplica <c>app_purgar_registros_auditoria</c>, cuyo propietario es la
+/// identidad que borra; <c>cae_app_runtime</c> solo puede invocarla.
 /// </para>
 /// </summary>
 public static class ParticionadoMensualEventos

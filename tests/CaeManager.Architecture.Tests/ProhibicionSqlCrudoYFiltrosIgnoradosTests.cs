@@ -68,6 +68,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Comando manual con identidad de bootstrap: detecta referencias de todos los Tenants propietarios;
         // las escrituras conservan el ámbito explícito de cada Tenant propietario y los interceptores.
         [("src/CaeManager.Infrastructure/FileStorage/ReparacionAdjuntosTemporales.cs", "var filas = await db.Set<T>().IgnoreQueryFilters()")] = 1,
+        // Exportación completa: la papelera sale mientras siga en el servidor; repone el TenantId en la misma línea.
+        [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
@@ -363,9 +365,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // dentro de la función, runtime solo tiene EXECUTE). No existe
         // equivalente EF para invocar una función que devuelve un escalar.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
-        // Conservación de 5 años de SesionesUsuario, en la misma pasada y con el
+        // Conservación de 12 meses de SesionesUsuario, en la misma pasada y con el
         // mismo criterio: app_purgar_sesiones_usuario, sin parámetros.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_sesiones_usuario() AS \\\"Value\\\"\")")] = 1,
+        // Conservación de 5 años de los registros de auditoría: app_purgar_registros_auditoria
+        // (SECURITY DEFINER, corte fijo dentro). El único parámetro, un booleano interpolado
+        // que EF envía como parámetro, elige entre contar y borrar.
+        [("src/CaeManager.Infrastructure/Retencion/PurgaRegistrosCaducados.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_registros_auditoria({simular}) AS \\\"Value\\\"\")")] = 1,
         // Revocación de sesión en servidor: cada revalidación (cookie y circuito)
         // pregunta a app_sesion_vigente (SECURITY DEFINER, solo un booleano) antes
         // de que haya Tenant en el contexto. Parámetros interpolados de
