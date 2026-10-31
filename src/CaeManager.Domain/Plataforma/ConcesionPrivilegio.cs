@@ -71,7 +71,7 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// Alcance global sobre todos los tenants. <b>Solo se admite para las
     /// capacidades de <see cref="AdmiteAlcanceGlobal"/></b>:
     /// <see cref="CapacidadPrivilegio.AdminPlataforma"/>, que no implica leer
-    /// contenido, y <see cref="CapacidadPrivilegio.SoporteLectura"/>, que sí lo
+    /// contenido salvo la devolución de datos por CLI, y <see cref="CapacidadPrivilegio.SoporteLectura"/>, que sí lo
     /// lee pero nunca sin una <see cref="SesionPrivilegiada"/> por Tenant
     /// objetivo, con motivo, ventana y 2FA (ADR-011 § 8.9). Para el resto de
     /// capacidades el alcance es siempre una lista explícita de tenants.
@@ -234,7 +234,8 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// <summary>
     /// Concesión de <see cref="CapacidadPrivilegio.AdminPlataforma"/> sobre
     /// todos los tenants. Administrar la plataforma no implica leer el contenido
-    /// de ningún Tenant (ADR-011 § 8.2).
+    /// de ningún Tenant (ADR-011 § 8.2), salvo la devolución de datos con
+    /// <c>--exportar-tenant</c> (ver <see cref="CapacidadPrivilegio.AdminPlataforma"/>).
     /// </summary>
     public static ConcesionPrivilegio Global(
         Guid usuarioPlataformaId,

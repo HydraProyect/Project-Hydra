@@ -99,6 +99,18 @@ public class ExportacionCompletaTenantTests
     public void La_extension_del_fichero_exportado_sale_solo_de_una_clave_segura(string clave, string esperada) =>
         ExportacionCompletaTenant.ExtensionSegura(clave).Should().Be(esperada);
 
+    [Fact]
+    public void El_resultado_no_lleva_la_contrasena_y_la_consola_la_muestra_una_sola_vez()
+    {
+        typeof(ExportacionCompletaTenant.Resultado).GetProperties().Select(p => p.Name)
+            .Should().BeEquivalentTo("TenantId", "NombreTenant", "Recuentos", "DocumentosSinFichero");
+
+        using var salida = new StringWriter();
+        ExportacionCompletaTenant.InformarContrasena("contrasena-unica", salida);
+
+        salida.ToString().Split("contrasena-unica").Should().HaveCount(2);
+    }
+
     private static CaeManagerDbContext CrearContextoSinConexion()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = Guid.NewGuid() };

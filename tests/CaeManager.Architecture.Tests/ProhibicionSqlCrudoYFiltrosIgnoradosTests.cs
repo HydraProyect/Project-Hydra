@@ -157,6 +157,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
             """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
 
+        // M-36: el Actor de Plataforma TALVEG que pide --exportar-tenant. Plano de plataforma que RLS oculta, como debe,
+        // bajo el ámbito del Tenant exportado; la función SECURITY DEFINER comprueba cuenta y concesión. Correo y Tenant,
+        // parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs",
+            """var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);""")] = 1,
+
         // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
         // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
         // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
