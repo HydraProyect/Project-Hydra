@@ -74,6 +74,13 @@ public class Tenant : Entity
     public DateTime? EstadoComercialActualizadoEnUtc { get; private set; }
 
     /// <summary>
+    /// El Add-on de subida automática está activo para este Tenant beneficiario: sin él, ninguna
+    /// conexión con una plataforma CAE de terceros llama a la plataforma. Lo cambia un Actor de
+    /// Plataforma TALVEG, y dice para quién está activo el producto, no quién lo paga.
+    /// </summary>
+    public bool AddOnSubidaAutomaticaActivo { get; private set; }
+
+    /// <summary>
     /// Marca de finalización de <c>DatosPruebaSeeder</c> para ESTE tenant —
     /// null hasta que una siembra completa termina sin cortarse. Incidente de
     /// producción del 2026-08-28: el guard anterior ("¿existe algún Cliente
@@ -152,6 +159,8 @@ public class Tenant : Entity
     /// interino que sustituye, que tampoco se revocaba).
     /// </summary>
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
+
+    public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;
 
     public void Suspender() => Estado = EstadoTenant.Suspendido;
 

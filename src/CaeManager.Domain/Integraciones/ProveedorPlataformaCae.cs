@@ -49,6 +49,14 @@ public class ProveedorPlataformaCae : Entity
     /// </summary>
     public bool Activo { get; private set; } = true;
 
+    /// <summary>
+    /// Interruptor de la conexión por API oficial con esta plataforma, aparte de <see cref="Activo"/>:
+    /// suspender el acuerdo de API de una plataforma no apaga la extensión de navegador, que sigue
+    /// sirviendo con la sesión del Gestor CAE. Nace apagado, aunque el proveedor esté activo: sin acuerdo
+    /// firmado no hay conexión. Una llamada exige los dos.
+    /// </summary>
+    public bool ConectorApiActivo { get; private set; }
+
     private ProveedorPlataformaCae()
     {
     }
@@ -64,6 +72,10 @@ public class ProveedorPlataformaCae : Entity
     public void Activar() => Activo = true;
 
     public void Desactivar() => Activo = false;
+
+    public void ActivarConectorApi() => ConectorApiActivo = true;
+
+    public void DesactivarConectorApi() => ConectorApiActivo = false;
 
     private void EstablecerCodigo(string codigo)
     {

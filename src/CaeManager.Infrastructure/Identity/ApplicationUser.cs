@@ -123,10 +123,14 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// que conociera un correo podría expulsar a esa persona con cinco
     /// contraseñas erróneas. Solo la desactivación deliberada corta sesiones.
     /// </summary>
-    public bool EstaDesactivada(DateTimeOffset ahora) => EsBloqueoDeDesactivacion(LockoutEnd, ahora);
+    public bool EstaDesactivada(DateTimeOffset ahora) => BloqueoDesactivaLaCuenta(LockoutEnd, ahora);
 
-    private static bool EsBloqueoDeDesactivacion(DateTimeOffset? finBloqueo, DateTimeOffset ahora) =>
-        finBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
+    /// <summary>
+    /// El criterio de <see cref="EstaDesactivada"/> sobre el dato suelto, para las
+    /// lecturas que proyectan <c>LockoutEnd</c> sin materializar la cuenta.
+    /// </summary>
+    public static bool BloqueoDesactivaLaCuenta(DateTimeOffset? finDeBloqueo, DateTimeOffset ahora) =>
+        finDeBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
 
     /// <summary>
     /// Instante de la última reactivación: una clave de API de esta cuenta solo vale si se
@@ -147,7 +151,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// </summary>
     public static bool AdmiteClaveEmitidaEn(
         DateTimeOffset? finBloqueo, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc, DateTimeOffset ahora) =>
-        !EsBloqueoDeDesactivacion(finBloqueo, ahora)
+        !BloqueoDesactivaLaCuenta(finBloqueo, ahora)
         && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     /// <summary>

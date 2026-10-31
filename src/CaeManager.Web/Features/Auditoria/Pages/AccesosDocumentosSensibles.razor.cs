@@ -1,14 +1,13 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
-using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Recursos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Auditoria.Pages;
@@ -30,7 +29,6 @@ namespace CaeManager.Web.Features.Auditoria.Pages;
 public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Textos { get; set; } = default!;
 
@@ -124,16 +122,15 @@ public partial class AccesosDocumentosSensibles : CaeManager.Web.Components.Pagi
                 .Distinct()
                 .ToList();
 
-            // Por la puerta: UserManager no pasa por MediatR y esta carga
-            // corre en paralelo con los componentes del layout sobre el mismo
-            // DbContext scoped (ver PuertaAccesoDatos). Mismo criterio que
-            // Auditoria.razor.cs.
+            // Mismo criterio que Auditoria.razor.cs: la tanda entera toma la
+            // puerta una vez, y esta carga corre en paralelo con los componentes
+            // del layout sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
                     token.ThrowIfCancellationRequested();
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id), token);
                     _nombresPorUsuarioId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
                 }
             }, token);

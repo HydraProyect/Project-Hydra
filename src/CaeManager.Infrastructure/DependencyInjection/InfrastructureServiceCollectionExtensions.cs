@@ -478,6 +478,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.ISolicitudConexionMicrosoft365Repository, SolicitudConexionMicrosoft365Repository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IProveedorPlataformaCaeRepository, ProveedorPlataformaCaeRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IConexionPlataformaCaeRepository, ConexionPlataformaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Plataforma.IOrdenMenuLateralRepository, OrdenMenuLateralRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
@@ -612,6 +613,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
             CaeManager.Infrastructure.Plataforma.ContactosSeguridadPlataforma>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
+        services.AddScoped<CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta.ILectorNombreCuenta, LectorNombreCuentaIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.
         services.AddScoped<CaeManager.Application.Usuarios.IGestionCuentasUsuario, GestionCuentasUsuarioIdentity>();

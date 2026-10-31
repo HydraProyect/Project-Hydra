@@ -676,6 +676,9 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly string[] SuperficiePublicaDeTenant =
     [
         "ActualizarEstadoComercial",
+        // Add-on de subida automática: solo toca su propia columna.
+        "AddOnSubidaAutomaticaActivo",
+        "CambiarAddOnSubidaAutomatica",
         "CambiarPerfilVocabulario",
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",

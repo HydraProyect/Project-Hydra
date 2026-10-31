@@ -118,8 +118,10 @@ public class FronteraDeTenantEnGestionDeRolesTests : IAsyncLifetime
         var pendientes = await EjecutarComoAsync(_tenantPropio,
             directorio => directorio.ObtenerCuentasPropiasSinRolAsync());
 
-        pendientes.Select(u => u.Id).Should().ContainSingle()
-            .Which.Should().Be(_usuarioPropioSinRol);
+        var pendiente = pendientes.Should().ContainSingle().Which;
+        pendiente.Id.Should().Be(_usuarioPropioSinRol);
+        pendiente.Email.Should().Be("propio-sin-rol@x.test");
+        pendiente.NombreCompleto.Should().Be("Nombre de propio-sin-rol@x.test");
 
         // Nombre y correo de empleados ajenos era exactamente lo que se
         // filtraba: se nombra el Id concreto para que el fallo diga cuál.
@@ -167,7 +169,7 @@ public class FronteraDeTenantEnGestionDeRolesTests : IAsyncLifetime
         {
             UserName = email,
             Email = email,
-            NombreCompleto = email,
+            NombreCompleto = "Nombre de " + email,
             TenantId = tenantId,
         };
 

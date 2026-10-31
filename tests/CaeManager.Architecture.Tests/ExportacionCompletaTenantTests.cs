@@ -45,6 +45,7 @@ public class ExportacionCompletaTenantTests
     [InlineData(typeof(CanalGestionDocumental), "Contrasena")]
     [InlineData(typeof(CredencialIntegracion), "RefreshToken")]
     [InlineData(typeof(CredencialIntegracion), "AccessToken")]
+    [InlineData(typeof(CredencialConexionPlataformaCae), "SecretoApi")]
     [InlineData(typeof(SuscripcionWebhook), "ClientState")]
     [InlineData(typeof(LineaWhatsApp), "TokenAcceso")]
     [InlineData(typeof(EventoWebhook), "PayloadCrudo")]

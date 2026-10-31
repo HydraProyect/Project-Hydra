@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
@@ -49,6 +50,7 @@ public class AuditoriaPantallaTests : BunitContext
         public List<ObtenerAuditoriaQuery> Consultas { get; } = [];
         public List<object> Comandos { get; } = [];
         public List<RegistroAuditoriaListaDto> Filas { get; } = [];
+        public Dictionary<string, ApplicationUser> Usuarios { get; } = [];
 
         /// <summary>Total que declara la respuesta; sin valor, el número de filas que casan.</summary>
         public int? TotalDeclarado { get; set; }
@@ -66,6 +68,10 @@ public class AuditoriaPantallaTests : BunitContext
                 case ObtenerAuditoriaQuery consulta:
                     Consultas.Add(consulta);
                     return Convertir<TResponse>((Responder ?? ResponderAplicandoFiltro)(consulta));
+                case ObtenerNombreCuentaQuery nombre:
+                    return Task.FromResult((TResponse)(object?)(Usuarios.GetValueOrDefault(nombre.UsuarioId.ToString()) is { } usuario
+                    ? new NombreCuentaDto(usuario.NombreCompleto, usuario.Email)
+                    : null)!);
                 case ICommand comando:
                     Comandos.Add(comando);
                     return Task.FromResult((TResponse)(object)Result.Exito());
@@ -103,26 +109,6 @@ public class AuditoriaPantallaTests : BunitContext
     }
 
     /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
-    private sealed class AlmacenUsuarios(Dictionary<string, ApplicationUser> usuarios) : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca usuarios por Id.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(usuarios.GetValueOrDefault(userId));
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
-    }
-
-    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
     private sealed class AlmacenRoles(Dictionary<string, IdentityRole<Guid>> roles) : IRoleStore<IdentityRole<Guid>>
     {
         private static Exception NoPrevisto() => new NotSupportedException("La página solo busca roles por Id.");
@@ -143,7 +129,7 @@ public class AuditoriaPantallaTests : BunitContext
     }
 
     private readonly MediatorAuditoria _mediador = new();
-    private readonly Dictionary<string, ApplicationUser> _usuarios = [];
+    private Dictionary<string, ApplicationUser> _usuarios => _mediador.Usuarios;
     private readonly Dictionary<string, IdentityRole<Guid>> _roles = [];
 
     private IRenderedComponent<Features.Auditoria.Pages.Auditoria> Renderizar(string? entidad = null, bool integrada = false)
@@ -152,8 +138,6 @@ public class AuditoriaPantallaTests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped(_ => new RoleManager<IdentityRole<Guid>>(
             new AlmacenRoles(_roles), null!, null!, null!, null!));
 
