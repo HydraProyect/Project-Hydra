@@ -92,6 +92,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
         servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        // La revalidación del circuito pasa por aquí; sin selección, por el SignInManager real.
+        servicios.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
+        servicios.AddSingleton<IClienteActivoSeleccionado, SinSeleccion>();
         // El hash ficticio del login con cuenta inexistente (S-A-10); aquí no se mide su coste.
         servicios.AddSingleton(new VerificacionContrasenaFicticia(new PasswordHasher<ApplicationUser>()));
 
@@ -977,5 +980,12 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
             => Task.FromResult(ResultadoNoHeSidoYo.EnlaceNoValido);
+    }
+
+    private sealed class SinSeleccion : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 }

@@ -501,7 +501,10 @@ public class TerminologiaCanonicaTests
         // 78 -> 84 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
         // de la interfaz y del tipo concreto (ContextoExtensionMiddleware ×3 y los dos endpoints de entrega), más la
         // firma de TicketEsDeEstaPeticion; ningún nombre nuevo lleva el término.
-        ["ClienteActivo"] = 84,
+        // 84 -> 85 (2026-10-31): VigenciaSesionCuenta lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) para no leer el sello de la cuenta bajo cae_app_soporte; es la misma
+        // señal con la que TenantRlsConnectionInterceptor adopta ese rol, y un consumidor de la interfaz existente.
+        ["ClienteActivo"] = 85,
     };
 
     [Theory]

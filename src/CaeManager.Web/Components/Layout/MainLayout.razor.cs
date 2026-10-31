@@ -5,14 +5,13 @@ using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Components.Layout;
 
 public partial class MainLayout
 {
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private ILecturaCuentaPropia CuentaPropia { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
@@ -112,10 +111,12 @@ public partial class MainLayout
             // mismo DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                var usuario = await UserManager.FindByIdAsync(id.ToString());
-                if (usuario is null) return;
+                // Proyección y no la cuenta entera: en una Sesión Privilegiada la conexión
+                // lleva cae_app_soporte y la cuenta arrastraría sus credenciales.
+                var cuenta = await CuentaPropia.ObtenerAsync(id);
+                if (cuenta is null) return;
 
-                if (usuario.DebeCambiarContrasena)
+                if (cuenta.DebeCambiarContrasena)
                 {
                     Navigation.NavigateTo("/cuenta/cambiar-contrasena", forceLoad: true);
                     return;
@@ -125,8 +126,7 @@ public partial class MainLayout
                 // creado sin rol que entra por SSO (ver
                 // IdentityEndpointsExtensions) podría saltarse la sala de espera
                 // escribiendo cualquier otra URL a mano.
-                var roles = await UserManager.GetRolesAsync(usuario);
-                if (roles.Count == 0)
+                if (cuenta.Roles.Count == 0)
                 {
                     Navigation.NavigateTo("/cuenta/pendiente-de-rol", forceLoad: true);
                     return;
@@ -138,7 +138,7 @@ public partial class MainLayout
                 // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
                 // usa AuthLayout, no este Layout, así que no vuelve a pasar por
                 // aquí y no hay bucle de redirección.
-                if (roles.Contains(Roles.Administrador) && !await UserManager.GetTwoFactorEnabledAsync(usuario))
+                if (cuenta.Roles.Contains(Roles.Administrador) && !cuenta.DobleFactorActivo)
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }
@@ -216,8 +216,8 @@ public partial class MainLayout
             }
 
             // Circuito ya cerrado. El circuito de Blazor puede desconectarse (y
-            // con él el CaeManagerDbContext scoped que UserManager usa por
-            // debajo) mientras este guard todavía está en vuelo — reproducido
+            // con él el CaeManagerDbContext scoped que la lectura de la cuenta usa
+            // por debajo) mientras este guard todavía está en vuelo — reproducido
             // en producción dos veces, en el mismo sitio (Sentry DOTNET-6:
             // ObjectDisposedException sobre CaeManagerDbContext; DOTNET-3:
             // ArgumentOutOfRangeException dentro de NpgsqlDataReader — misma
