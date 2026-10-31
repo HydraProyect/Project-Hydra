@@ -52,8 +52,6 @@ public class MaterializacionesDeCuentasEnWebTests
         ["src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs"] = 1,
         ["src/CaeManager.Web/Services/CurrentUserService.cs"] = 1,
         ["src/CaeManager.Web/Services/RecuperacionContrasena.cs"] = 1,
-        // Necesita la entidad para GetRolesAsync.
-        ["src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs"] = 1,
         // La lista de /usuarios: calcula «pendiente de activación» con la contraseña.
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor.cs"] = 1,
     };
