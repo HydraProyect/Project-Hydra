@@ -82,6 +82,7 @@ public partial class Centro360Gen2Tests : BunitContext
         public Dictionary<Guid, CentroListaDto> Resumenes { get; } = [];
         public Dictionary<Guid, List<VisitaResumenDto>> Visitas { get; } = [];
         public Dictionary<Guid, List<CanalGestionResumenDto>> Canales { get; } = [];
+        public bool FallarCanales { get; set; }
         /// <summary>Credencial por (Centro, Canal): responde solo al par exacto, como la consulta real.</summary>
         public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
         public Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> Asignaciones { get; } = [];
@@ -137,6 +138,7 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerProximaVisitaPorCentroQuery q => q.CentroIds.ToDictionary(
                 c => c,
                 c => (IReadOnlyList<VisitaResumenDto>)(Visitas.GetValueOrDefault(c) ?? [])),
+            ObtenerCanalesGestionDeCentroQuery when FallarCanales => throw new InvalidOperationException("Fallo simulado de los canales."),
             ObtenerCanalesGestionDeCentroQuery q => Canales.GetValueOrDefault(q.CentroId) ?? [],
             ObtenerCredencialCanalGestionQuery q => Credenciales.GetValueOrDefault((q.CentroId, q.CanalId)),
             ObtenerLoteReclamacionQuery q => q.CentroId is { } id && PorReclamar.TryGetValue(id, out var docs)
@@ -301,6 +303,22 @@ public partial class Centro360Gen2Tests : BunitContext
     /// anillo de cumplimiento (un 0 % o un 100 % afirmaría algo que no se
     /// mide) y con la explicación en lugar de los canales de gestión.
     /// </summary>
+    /// <summary>
+    /// M-06: un fallo al leer los canales de gestión dejaba la tarjeta vacía, igual que un Centro sin
+    /// canales. El usuario recibe un aviso de error.
+    /// </summary>
+    [Fact]
+    public void Si_los_canales_de_gestion_fallan_avisa_al_usuario()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso { FallarCanales = true });
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+
+        Renderizar(id);
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Tono == TonoToast.Error);
+    }
+
     [Fact]
     public void Las_pestanas_disponibles_respetan_el_orden_de_la_maqueta_y_cuentan_Trabajadores_distintos()
     {
