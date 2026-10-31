@@ -100,7 +100,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("ApiKeys.GenerarClaveApiCommandHandler", "IDelegacionTenantRepository"),
         ("ApiKeys.ObtenerClavesApiQueryHandler", "ITenantsQueryContext"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "IDelegacionTenantRepository"),
-        ("ApiKeys.RevocarClaveApiCommandHandler", "ITenantsQueryContext"),
         ("Asignaciones.CrearAsignacionCommandHandler", "ICentrosQueryContext"),
         ("Asignaciones.CrearAsignacionCommandHandler", "ITrabajadoresQueryContext"),
         ("Asignaciones.CrearAsignacionesCommandHandler", "ICentrosQueryContext"),

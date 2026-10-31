@@ -45,6 +45,13 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
 
     public void Agregar(ClaveApi clave) => dbContext.ClavesApi.Add(clave);
 
+    public async Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
+    {
+        var estado = await AlmacenUsuarios.EstadoCuentaEmisoraAsync(dbContext, creadaPorUsuarioId, cancellationToken);
+        return estado is not null && ApplicationUser.AdmiteClaveEmitidaEn(
+            estado.FinBloqueo, estado.ClavesApiValidasDesdeUtc, emitidaEnUtc, DateTimeOffset.UtcNow);
+    }
+
     public async Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default)
     {
         // Solo existencia de la delegación de Soporte (CriterioSoporteClaveApi.PuedeAutenticar):

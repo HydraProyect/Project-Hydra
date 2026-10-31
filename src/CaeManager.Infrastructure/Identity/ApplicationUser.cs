@@ -133,6 +133,28 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
         finDeBloqueo is { } fin && fin > ahora.Add(UmbralDeCuentaDesactivada);
 
     /// <summary>
+    /// Instante de la última reactivación: una clave de API de esta cuenta solo vale si se
+    /// emitió después. Lo que el stamp nuevo hace con las cookies, también con la clave que
+    /// se emitiera mientras la cuenta estaba desactivada (ver <see cref="AdmiteClaveEmitidaEn"/>).
+    /// </summary>
+    public DateTime? ClavesApiValidasDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// ¿Una clave de API emitida por esta cuenta en <paramref name="emitidaEnUtc"/> sigue
+    /// respaldada por ella? No si la cuenta está desactivada, ni si se reactivó después de
+    /// emitirla: desactivar invalida la clave para siempre
+    /// (decisión del 2026-10-28; OWASP ASVS 4.0.3 V4.1.3 y V4.1.5). El bloqueo temporal por
+    /// intentos fallidos no la corta, por el mismo motivo que no corta sesiones.
+    /// Recibe los datos y no la cuenta porque al autenticar la clave la fila no se puede
+    /// leer: es de otro Tenant y solo llegan estos dos valores
+    /// (<c>app_estado_cuenta_emisora</c>).
+    /// </summary>
+    public static bool AdmiteClaveEmitidaEn(
+        DateTimeOffset? finBloqueo, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc, DateTimeOffset ahora) =>
+        !BloqueoDesactivaLaCuenta(finBloqueo, ahora)
+        && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
+
+    /// <summary>
     /// Lo que <see cref="Desactivar"/> escribe en <c>LockoutEnd</c>. Con
     /// <see cref="EstaDesactivada"/> forma un par: cambiar uno sin el otro
     /// dejaría cuentas desactivadas que ya no lo parecen.
@@ -166,9 +188,15 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// <summary>
     /// Quita el bloqueo. No toca el security stamp: el que rotó en
     /// <see cref="Desactivar"/> sigue manteniendo muertas las sesiones anteriores.
+    /// Si la cuenta estaba desactivada, fecha <see cref="ClavesApiValidasDesdeUtc"/>, que
+    /// mantiene muertas las claves de API emitidas antes de este momento, incluida la que
+    /// una sesión aún abierta emitiera con la cuenta ya desactivada.
     /// </summary>
     public void Reactivar()
     {
+        if (EstaDesactivada(DateTimeOffset.UtcNow))
+            ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+
         LockoutEnabled = true;
         LockoutEnd = null;
     }

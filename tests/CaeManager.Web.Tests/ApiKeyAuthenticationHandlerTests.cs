@@ -32,6 +32,7 @@ public class ApiKeyAuthenticationHandlerTests
     [InlineData("soporte hacia otro Tenant", false)]
     [InlineData("sin delegacion", false)]
     [InlineData("cuenta emisora eliminada", false)]
+    [InlineData("cuenta emisora desactivada", false)]
     public async Task Autentica_una_clave_vigente_si_existe_la_delegacion_de_soporte_de_su_origen(string caso, bool acepta)
     {
         const string secreto = "hydra_clave-ficticia-de-prueba";
@@ -45,7 +46,8 @@ public class ApiKeyAuthenticationHandlerTests
             Asignar(clave, nameof(ClaveApi.CaducaEnUtc), ahora.AddDays(-1));
         if (caso == "revocada") clave.Revocar();
         var repositorio = new Repositorio(clave, tenant,
-            caso == "cuenta emisora eliminada" ? null : origen, Delegaciones(caso, origen, tenant, ahora));
+            caso == "cuenta emisora eliminada" ? null : origen, Delegaciones(caso, origen, tenant, ahora),
+            cuentaRespalda: caso != "cuenta emisora desactivada");
         var guardado = new Guardado();
         using var servicios = new ServiceCollection().AddLogging().BuildServiceProvider();
         using var logger = LoggerFactory.Create(_ => { });
@@ -65,6 +67,7 @@ public class ApiKeyAuthenticationHandlerTests
             resultado.Principal!.FindFirstValue(ClaimTypes.Role).Should().Be("Consulta");
             repositorio.TenantComprobado.Should().Be(tenant);
             repositorio.EmisorComprobado.Should().Be(clave.CreadaPorUsuarioId, "el origen se resuelve por la cuenta que emitió la clave");
+            repositorio.RespaldoComprobado.Should().Be((clave.CreadaPorUsuarioId, clave.CreadoEnUtc), "el estado se mira en la cuenta emisora y contra la fecha de emisión");
         }
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
     }
@@ -125,8 +128,14 @@ public class ApiKeyAuthenticationHandlerTests
 
     // Doble del repositorio que aplica el mismo criterio que ClaveApiRepository sobre una lista en
     // memoria: el origen de la cuenta emisora (null si se eliminó) y las delegaciones del caso.
-    private sealed class Repositorio(ClaveApi clave, Guid tenant, Guid? origenEmisor, List<DelegacionTenant> delegaciones) : IClaveApiRepository
+    private sealed class Repositorio(ClaveApi clave, Guid tenant, Guid? origenEmisor, List<DelegacionTenant> delegaciones, bool cuentaRespalda) : IClaveApiRepository
     {
+        public (Guid Cuenta, DateTime EmitidaEnUtc)? RespaldoComprobado { get; private set; }
+        public Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
+        {
+            RespaldoComprobado = (creadaPorUsuarioId, emitidaEnUtc);
+            return Task.FromResult(cuentaRespalda);
+        }
         public Guid? TenantComprobado { get; private set; }
         public Guid? EmisorComprobado { get; private set; }
         public Task<Guid?> ObtenerTenantPorHashAsync(string hashClave, CancellationToken cancellationToken = default)

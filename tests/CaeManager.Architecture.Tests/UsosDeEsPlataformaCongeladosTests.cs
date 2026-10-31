@@ -226,6 +226,12 @@ public class UsosDeEsPlataformaCongeladosTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-10-31: <c>RevocarClaveApiCommand</c> deja de usar el flag y exige
+    /// concesión AdminPlataforma (-1 fichero, -1 aparición de autoridad). De 34/60 a
+    /// <b>33 ficheros, 59 apariciones</b>.
+    /// </para>
+    ///
+    /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
     /// escaneo — eso es precisamente cómo mueren estos ratchets. Así se explicó, por
     /// ejemplo, que <c>Tenant.cs</c> aportara 7 y no 4: las líneas del mutador contienen
@@ -242,11 +248,9 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
         // ── AUTORIDAD ─────────────────────────────────────────────────────────────
-        // Los cinco comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
+        // Comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
         // contra ITenantActual: quien ya opera un tenant ajeno podría usar el workspace
         // activo para abrirse acceso a otros.
-        ["src/CaeManager.Application/ApiKeys/Commands/RevocarClaveApi/RevocarClaveApiCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":47 — lo retira el bloque C"),
         ["src/CaeManager.Application/ApiKeys/Queries/ObtenerClavesApi/ObtenerClavesApiQuery.cs"] =
             new(1, CategoriaUso.Autoridad, ":36 — lo retira el bloque C"),
         ["src/CaeManager.Application/Tenants/AutorizacionAccesoSoporte.cs"] =
