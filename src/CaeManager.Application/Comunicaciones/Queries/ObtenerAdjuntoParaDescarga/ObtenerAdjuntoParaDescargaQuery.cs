@@ -20,12 +20,10 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescar
 /// <para>
 /// Un hilo sin ancla (la cola de triage) no tiene cartera que lo acote, y
 /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync"/> lo da
-/// por visible. Lo que lo acota es el rol: solo los roles de gestión CAE de
-/// <c>RolesComunicaciones.Gestion</c>, los mismos que entran en la pantalla.
-/// El endpoint solo exige sesión, así que sin esta comprobación cualquier
-/// usuario del Tenant propietario que tuviera el Guid se llevaba el adjunto
-/// (SEG-9, ASVS 4.0.3 V4.1.3 y V4.2.1). Lista cerrada: un rol nuevo, o el rol
-/// nulo de una Sesión Privilegiada, queda fuera hasta que alguien lo decida.
+/// por visible. Lo que lo acota es el rol (<see cref="AccesoATriage"/>). El
+/// endpoint solo exige sesión, así que sin esta comprobación cualquier usuario
+/// del Tenant propietario que tuviera el Guid se llevaba el adjunto (SEG-9,
+/// ASVS 4.0.3 V4.1.3 y V4.2.1).
 /// </para>
 ///
 /// <para>
@@ -33,7 +31,16 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescar
 /// se puede registrar no se entrega (ASVS 4.0.3 V7.1.3 y V7.2.2). Va por
 /// <see cref="IRegistroAccesoDatoSensibleService"/> y no por el registro de
 /// Documentos sensibles porque un adjunto no tiene <c>TipoDocumentoId</c> del
-/// que sacar una categoría: la fila dice qué adjunto se leyó y quién lo leyó.
+/// que sacar una categoría: la fila dice qué adjunto se pidió y quién lo pidió.
+/// La fila se escribe antes de abrir el archivo, así que un archivo ausente deja
+/// fila sin entrega, y cada petición Range de un visor deja la suya.
+/// </para>
+///
+/// <para>
+/// Sin rol efectivo no se entrega nada, tampoco en un hilo anclado. Es el caso de
+/// Soporte TALVEG en una Sesión Privilegiada: <c>cae_app_soporte</c> no puede
+/// escribir en <c>RegistrosAuditoria</c>, y lo que no se puede registrar no se
+/// entrega. Mejor un 404 decidido aquí que un 500 por un 42501.
 /// </para>
 /// </summary>
 public record ObtenerAdjuntoParaDescargaQuery(Guid Id) : IRequest<AdjuntoParaDescargaDto?>;
@@ -47,15 +54,6 @@ public class ObtenerAdjuntoParaDescargaQueryHandler(
     IRegistroAccesoDatoSensibleService registroAcceso)
     : IRequestHandler<ObtenerAdjuntoParaDescargaQuery, AdjuntoParaDescargaDto?>
 {
-    /// <summary>
-    /// Copia de <c>RolesComunicaciones.Gestion</c>, que vive en Web y aquí no se
-    /// alcanza. <c>RolesComunicacionesEnApplicationTests</c> vigila que no diverjan.
-    /// </summary>
-    public static readonly IReadOnlySet<string> RolesConAccesoATriage = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "Administrador", "DireccionCae", "CoordinadorCae", "GestorCae", "Consulta"
-    };
-
     public async Task<AdjuntoParaDescargaDto?> Handle(ObtenerAdjuntoParaDescargaQuery request, CancellationToken cancellationToken)
     {
         var fila = await (
@@ -69,13 +67,12 @@ public class ObtenerAdjuntoParaDescargaQueryHandler(
         if (fila is null) return null;
         if (!await alcanceDatos.ConversacionVisibleAsync(fila.ClienteId, fila.EmpresaId, fila.ConexionIntegracionId, cancellationToken)) return null;
 
-        var esTriage = fila.ClienteId is null && fila.EmpresaId is null;
-        if (esTriage && !EsRolConAccesoATriage(await currentUserService.ObtenerRolEfectivoAsync())) return null;
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol is null) return null;
+        if (AccesoATriage.EsTriage(fila.ClienteId, fila.EmpresaId) && !AccesoATriage.RolPermitido(rol)) return null;
 
         await registroAcceso.RegistrarAsync(nameof(AdjuntoMensaje), fila.Id, cancellationToken);
 
         return new AdjuntoParaDescargaDto(fila.NombreArchivo, fila.TipoContenido, fila.ArchivoUrl);
     }
-
-    private static bool EsRolConAccesoATriage(string? rol) => rol is not null && RolesConAccesoATriage.Contains(rol);
 }

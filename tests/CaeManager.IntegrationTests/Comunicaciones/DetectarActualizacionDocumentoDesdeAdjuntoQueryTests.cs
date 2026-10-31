@@ -63,7 +63,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -83,7 +83,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -114,12 +114,44 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+    }
+
+    /// <summary>SEG-9: leer el adjunto de triage para detectar qué contiene es leerlo; misma puerta que la descarga.</summary>
+    [Theory]
+    [InlineData("Cliente", false)]
+    [InlineData(null, false)]
+    [InlineData("GestorCae", true)]
+    public async Task Un_adjunto_de_triage_solo_se_analiza_con_un_rol_de_gestion(string? rol, bool permitido)
+    {
+        await using var contexto = CrearContexto();
+
+        var conversacion = new Conversacion("Sin clasificar");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = false });
+        var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: rol));
+
+        var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(permitido);
+        if (!permitido) resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
     }
 
     private CaeManagerDbContext CrearContexto()

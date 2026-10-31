@@ -35,8 +35,9 @@ public class RegistroAccesoDatoSensibleRepository(
             // Sin excepción para 42501 (a diferencia de
             // RegistroAccesoDocumentoSensibleRepository): una Sesión
             // Privilegiada no llega aquí —AutorizacionSecretosDeTenantBehavior
-            // deniega antes las dos familias de consultas—, y si algún día
-            // llegara, el registro que no se puede escribir significa que el
+            // deniega antes las dos familias de consultas y
+            // ObtenerAdjuntoParaDescargaQuery exige rol efectivo—, y si algún
+            // día llegara, el registro que no se puede escribir significa que el
             // dato no se entrega. Que el fallo tampoco deje el registro Added
             // para el próximo SaveChanges de otro handler.
             dbContext.Entry(registro).State = EntityState.Detached;

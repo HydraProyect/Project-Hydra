@@ -32,7 +32,9 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         [.. new[] { "Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
             // Credenciales de plataformas externas: aparecen sobre todo por sus
             // lecturas (RegistroAuditoria.AccionAccesoDatoSensible).
-            "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata", "AccesoPlataformaCaeEmpresa" },
+            "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata", "AccesoPlataformaCaeEmpresa",
+            // Adjuntos de correo: solo aparecen por sus descargas.
+            "AdjuntoMensaje" },
             .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
     [Inject] private IMediator Mediator { get; set; } = default!;

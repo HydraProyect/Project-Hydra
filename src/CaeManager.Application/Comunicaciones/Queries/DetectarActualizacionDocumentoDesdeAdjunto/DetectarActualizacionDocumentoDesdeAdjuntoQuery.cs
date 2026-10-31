@@ -39,7 +39,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
     IDocumentAIRouterService router, IOptions<ExtraccionDocumentoAdjuntoOptions> opciones,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
-    IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual)
+    IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual,
+    ICurrentUserService currentUserService)
     : IRequestHandler<DetectarActualizacionDocumentoDesdeAdjuntoQuery, Result<DeteccionActualizacionDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido =
@@ -60,6 +61,12 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
+            return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
+
+        // Lee el contenido y devuelve lo que detecta en él: misma puerta que la
+        // descarga (SEG-9, ASVS 4.0.3 V4.1.3 y V4.2.1).
+        if (AccesoATriage.EsTriage(adjunto.ClienteId, adjunto.EmpresaId)
+            && !AccesoATriage.RolPermitido(await currentUserService.ObtenerRolEfectivoAsync()))
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de

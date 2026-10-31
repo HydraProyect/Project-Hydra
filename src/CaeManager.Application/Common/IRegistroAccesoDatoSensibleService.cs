@@ -29,7 +29,7 @@ namespace CaeManager.Application.Common;
 /// si hubiera impersonación, el usuario simulado. Hoy no la hay en este camino:
 /// la impersonación es una Sesión Privilegiada y
 /// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/> deniega
-/// antes estas consultas; la separación queda por si eso cambia.
+/// antes estas consultas, y la descarga de adjuntos exige rol efectivo; la separación queda por si eso cambia.
 /// </para>
 /// </summary>
 public interface IRegistroAccesoDatoSensibleService

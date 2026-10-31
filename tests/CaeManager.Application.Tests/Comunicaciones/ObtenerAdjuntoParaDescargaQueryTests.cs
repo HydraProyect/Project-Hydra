@@ -1,3 +1,4 @@
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescarga;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Clientes;
@@ -63,6 +64,18 @@ public class ObtenerAdjuntoParaDescargaQueryTests
     }
 
     [Fact]
+    public async Task Sin_rol_efectivo_un_hilo_anclado_tampoco_se_entrega_porque_no_se_podria_registrar()
+    {
+        var (contexto, adjunto) = Escenario(new Conversacion("Con Cliente", Guid.NewGuid()));
+        var registro = new RegistroAccesoDatoSensibleFalso();
+
+        var resultado = await Handler(contexto, rol: null, registro).Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.Should().BeNull();
+        registro.Registrados.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Un_hilo_de_un_Cliente_fuera_de_cartera_no_se_entrega_ni_se_registra()
     {
         var (contexto, adjunto) = Escenario(new Conversacion("Con Cliente", Guid.NewGuid()));
@@ -85,6 +98,13 @@ public class ObtenerAdjuntoParaDescargaQueryTests
         var accion = () => handler.Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None);
 
         await accion.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void La_puerta_de_triage_compartida_con_la_deteccion_no_admite_el_rol_nulo()
+    {
+        // La descarga corta antes el rol nulo; la detección llega con él hasta aquí.
+        AccesoATriage.RolPermitido(null).Should().BeFalse();
     }
 
     private static ObtenerAdjuntoParaDescargaQueryHandler Handler(
