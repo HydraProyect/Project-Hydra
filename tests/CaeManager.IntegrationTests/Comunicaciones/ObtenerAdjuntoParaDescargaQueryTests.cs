@@ -1,11 +1,16 @@
+using CaeManager.Application.Auditoria;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerAdjuntoParaDescarga;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Comunicaciones;
@@ -49,7 +54,8 @@ public class ObtenerAdjuntoParaDescargaQueryTests : IAsyncLifetime
         contexto.AdjuntosMensaje.Add(adjunto);
         await contexto.SaveChangesAsync();
 
-        var handler = new ObtenerAdjuntoParaDescargaQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAdjuntoParaDescargaQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None);
 
@@ -61,7 +67,8 @@ public class ObtenerAdjuntoParaDescargaQueryTests : IAsyncLifetime
     public async Task Un_adjunto_de_otro_tenant_no_es_visible()
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerAdjuntoParaDescargaQueryHandler(contexto, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerAdjuntoParaDescargaQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerAdjuntoParaDescargaQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -88,11 +95,47 @@ public class ObtenerAdjuntoParaDescargaQueryTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new ObtenerAdjuntoParaDescargaQueryHandler(
-            contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]));
+            contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]),
+            new CurrentUserServiceFalso(rol: "GestorCae"), new RegistroAccesoDatoSensibleFalso());
 
         var resultado = await handler.Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None);
 
         resultado.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task La_descarga_de_un_adjunto_de_triage_deja_fila_con_el_Actor_real_y_la_via_en_el_Tenant_propietario()
+    {
+        await using var contexto = CrearContexto();
+
+        var conversacion = new Conversacion("Sin clasificar");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "desconocido@ejemplo.com", "Adjunto");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "contrato.pdf", "application/pdf", 2048, "adjuntos/contrato.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var gestor = Guid.NewGuid();
+        var asignacionOperacionId = Guid.NewGuid();
+        var registro = new RegistroAccesoDatoSensibleService(
+            new ActorFijo(new ActorAuditoria(gestor, null, TipoViaAcceso.OperacionDelegada, asignacionOperacionId)),
+            new RegistroAccesoDatoSensibleRepository(contexto, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance));
+        var handler = new ObtenerAdjuntoParaDescargaQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(rol: "GestorCae"), registro);
+
+        (await handler.Handle(new ObtenerAdjuntoParaDescargaQuery(adjunto.Id), CancellationToken.None)).Should().NotBeNull();
+
+        var fila = await contexto.RegistrosAuditoria.AsNoTracking()
+            .SingleAsync(r => r.EntidadId == adjunto.Id && r.Accion == RegistroAuditoria.AccionAccesoDatoSensible);
+        fila.EntidadTipo.Should().Be(nameof(AdjuntoMensaje));
+        fila.TenantId.Should().Be(_tenant);
+        fila.ActorRealUsuarioId.Should().Be(gestor);
+        fila.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.OperacionDelegada);
+        fila.ViaAccesoId.Should().Be(asignacionOperacionId);
     }
 
     private CaeManagerDbContext CrearContexto()
@@ -104,5 +147,11 @@ public class ObtenerAdjuntoParaDescargaQueryTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private sealed class ActorFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 }

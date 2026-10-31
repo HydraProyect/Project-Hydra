@@ -17,13 +17,19 @@ namespace CaeManager.Application.Common;
 /// </para>
 ///
 /// <para>
+/// También lo llama <c>ObtenerAdjuntoParaDescargaQuery</c>, con la misma regla:
+/// un adjunto de correo no es una credencial, pero es contenido sin clasificar
+/// que una persona se lleva, y no tiene otro rastro donde quedar.
+/// </para>
+///
+/// <para>
 /// La fila va al Tenant activo —el Tenant propietario del dato, también en un
 /// Context Workspace delegado— y lleva el actor dual de
 /// <see cref="IActorAuditoria"/>: quien estaba realmente detrás del teclado y,
 /// si hubiera impersonación, el usuario simulado. Hoy no la hay en este camino:
 /// la impersonación es una Sesión Privilegiada y
 /// <see cref="AutorizacionSecretosDeTenantBehavior{TRequest,TResponse}"/> deniega
-/// antes estas consultas; la separación queda por si eso cambia.
+/// antes estas consultas, y la descarga de adjuntos exige rol efectivo; la separación queda por si eso cambia.
 /// </para>
 /// </summary>
 public interface IRegistroAccesoDatoSensibleService
