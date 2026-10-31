@@ -62,15 +62,11 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
 
     /// <summary>
     /// Lo que queda por migrar, con su motivo. Ninguno administra cuentas ajenas:
-    /// son lecturas (nombre o permiso de una cuenta, la propia sesión) o
-    /// preferencias de la propia cuenta. Solo puede menguar.
+    /// son lecturas (nombre o permiso de una cuenta, la propia sesión). Solo puede
+    /// menguar.
     /// </summary>
     private static readonly string[] DeudaCongelada =
     [
-        // Preferencias de la propia cuenta (escriben sobre quien está en sesión).
-        "src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs",
-        "src/CaeManager.Web/Components/Layout/SelectorTema.razor",
-        "src/CaeManager.Web/Services/ActividadUsuarioService.cs",
         // Lecturas de la propia sesión: permiso sensible.
         "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",

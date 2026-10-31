@@ -15,6 +15,18 @@ namespace CaeManager.Architecture.Tests;
 public class LimitadorApiPublicaRegistradoEnProgramTests
 {
     [Fact]
+    public void El_limitador_global_aplica_el_cupo_y_el_rechazo_de_la_extension()
+    {
+        var codigo = ProgramSinComentarios();
+        // Anclada al argumento limiteExtension y antes del GetNoLimiter: si el bloque bajara, un GET a /extension quedaria sin cupo.
+        Regex.IsMatch(codigo, @"LimitadorExtension\.ParticionGlobal\(\s*contexto\s*,\s*limiteExtension\s*,[^;]*?is\s*\{\s*\}\s+(\w+)\)\s*return\s+\1\s*;[\s\S]*?GetNoLimiter\(\s*""sin-limite""\s*\)")
+            .Should().BeTrue();
+        Regex.IsMatch(codigo, @"var\s+limiteExtension\s*=\s*builder\.Configuration\.GetValue\(\s*""RateLimiting:Extension:LimiteGlobalPorMinuto""\s*,\s*300\s*\)")
+            .Should().BeTrue();
+        codigo.Should().Contain("opciones.OnRejected = LimitadorExtension.RechazarAsync;");
+    }
+
+    [Fact]
     public void La_politica_ApiPublica_reparte_el_cupo_con_LimitadorApiPublica_y_no_con_el_principal()
     {
         var codigo = ProgramSinComentarios();

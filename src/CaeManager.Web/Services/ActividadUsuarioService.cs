@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Services;
 
@@ -15,8 +14,8 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public class ActividadUsuarioService(
     ICurrentUserService currentUserService,
-    UserManager<ApplicationUser> userManager,
-    PuertaAccesoDatos puertaAccesoDatos)
+    IPreferenciasCuentaPropia preferencias,
+    ILogger<ActividadUsuarioService> logger)
 {
     private static readonly TimeSpan UmbralAusencia = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan ThrottleEscritura = TimeSpan.FromMinutes(1);
@@ -49,10 +48,9 @@ public class ActividadUsuarioService(
     /// </param>
     /// <remarks>
     /// <c>virtual</c> para poder sustituirlo en los tests de componente de
-    /// Inicio: la implementación real necesita un <see cref="UserManager{TUser}"/>
-    /// que escriba de verdad (<c>UpdateAsync</c> pasa por los validadores de
-    /// Identity), y montar ese aparato para decidir si el resumen «qué llegó sin
-    /// ver» aparece haría que el andamio tapara lo que el caso mide.
+    /// Inicio: la implementación real necesita una cuenta que escribir, y montar
+    /// ese aparato para decidir si el resumen «qué llegó sin ver» aparece haría que
+    /// el andamio tapara lo que el caso mide.
     /// </remarks>
     public virtual Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(bool interactivo, CancellationToken cancellationToken = default)
     {
@@ -65,39 +63,41 @@ public class ActividadUsuarioService(
         return _resolucion = ResolverAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Un conflicto que sobrevive al reintento del puerto no invalida la ausencia ya
+    /// leída: solo se queda sin registrar esta actividad, y otra escritura acaba de tocar
+    /// la cuenta. Se deja constancia en vez de descartarlo; cualquier otro fallo de la
+    /// escritura sigue subiendo hasta quien llama.
+    /// </summary>
     private async Task<(bool Ausente, DateTime? DesdeParaResumen)> ResolverAsync(CancellationToken cancellationToken)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return (false, null);
 
-        var resultado = (Ausente: false, DesdeParaResumen: (DateTime?)null);
+        var cuenta = await preferencias.ObtenerAsync(usuarioId.Value, cancellationToken);
+        if (cuenta is null) return (false, null);
 
-        await puertaAccesoDatos.EjecutarAsync(async () =>
+        var anterior = cuenta.UltimaActividadUtc;
+        var ahora = DateTime.UtcNow;
+        var (ausente, debeEscribir) = Evaluar(anterior, ahora);
+
+        if (debeEscribir)
         {
-            var usuario = await userManager.FindByIdAsync(usuarioId.Value.ToString());
-            if (usuario is null) return;
-
-            var anterior = usuario.UltimaActividadUtc;
-            var ahora = DateTime.UtcNow;
-            var (ausente, debeEscribir) = Evaluar(anterior, ahora);
-
-            resultado = (ausente, anterior);
-
-            if (debeEscribir)
+            var escritura = await preferencias.RegistrarActividadAsync(usuarioId.Value, ahora, cancellationToken);
+            if (escritura != ResultadoEscrituraCuenta.Guardada)
             {
-                usuario.UltimaActividadUtc = ahora;
-                await userManager.UpdateAsync(usuario);
+                logger.LogWarning(
+                    "No se pudo registrar la actividad de {UsuarioId}: {Resultado}", usuarioId, escritura);
             }
-        }, cancellationToken);
+        }
 
-        return resultado;
+        return (ausente, anterior);
     }
 
     /// <summary>
     /// Extraído como método puro y estático (mismo patrón que
     /// <c>ObtenerBandejaGestorQueryHandler.Fusionar</c>) para poder probar el umbral de
-    /// ausencia y el throttle de escritura sin tener que construir un
-    /// <see cref="UserManager{TUser}"/> real.
+    /// ausencia y el throttle de escritura sin tocar la base.
     /// </summary>
     public static (bool Ausente, bool DebeEscribir) Evaluar(DateTime? anterior, DateTime ahora)
     {

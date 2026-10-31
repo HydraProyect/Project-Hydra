@@ -85,8 +85,8 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
     {
         var conIdentity = ComponentesQueInyectanIdentity();
 
-        conIdentity.Should().Contain("src/CaeManager.Web/Components/Layout/SelectorTema.razor",
-            "SelectorTema inyecta UserManager y lo usa por la puerta: si el descubrimiento no lo ve, ha dejado " +
+        conIdentity.Should().Contain("src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor",
+            "ConectarExtension inyecta UserManager y lo usa por la puerta: si el descubrimiento no lo ve, ha dejado " +
             "de observar el fenómeno y la comparación de abajo pasaría en vacío");
 
         var sinPuerta = conIdentity

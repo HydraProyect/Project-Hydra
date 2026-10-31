@@ -23,7 +23,7 @@ namespace CaeManager.Infrastructure.Identity;
 ///
 /// <para>
 /// <b>El mismo <c>UPDATE</c> renueva el <c>ConcurrencyStamp</c>.</b> Quien conserve la
-/// cuenta cargada de antes (<c>SelectorTema</c> la guarda en memoria durante horas) y la
+/// cuenta cargada de antes y la
 /// escriba entera con <c>UserManager.UpdateAsync</c> devolvería el avatar anterior sin
 /// que nadie lo notase; con el sello renovado, esa escritura falla por concurrencia y
 /// su dueño recarga la fila antes de reintentar.

@@ -49,7 +49,7 @@ public class MainLayoutMarcaTests : BunitContext
         Services.AddSingleton(new PuertaAccesoDatos());
         Services.AddSingleton(usuarios);
         Services.AddSingleton<ILecturaCuentaPropia>(new LecturaCuentaPropia(null!));
-        Services.AddSingleton(new ActividadUsuarioService(null!, usuarios, new PuertaAccesoDatos()));
+        Services.AddSingleton(new ActividadUsuarioService(null!, null!, null!));
         Services.AddSingleton<AuthenticationStateProvider>(new ProveedorAnonimo());
 
         // Solo para que MainLayout resuelva la inyección: con un usuario

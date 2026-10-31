@@ -316,7 +316,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// <see cref="ActividadUsuarioService.RegistrarYEvaluarAsync"/>).
     /// </summary>
     private sealed class ActividadUsuarioSilenciosa()
-        : ActividadUsuarioService(null!, null!, new PuertaAccesoDatos())
+        : ActividadUsuarioService(null!, null!, null!)
     {
         public override Task<(bool Ausente, DateTime? DesdeParaResumen)> RegistrarYEvaluarAsync(
             bool interactivo, CancellationToken cancellationToken = default) =>

@@ -52,10 +52,6 @@ public class MaterializacionesDeCuentasEnWebTests
         ["src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs"] = 1,
         ["src/CaeManager.Web/Services/CurrentUserService.cs"] = 1,
         ["src/CaeManager.Web/Services/RecuperacionContrasena.cs"] = 1,
-        // Preferencias de la propia cuenta: la entidad se guarda después.
-        ["src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs"] = 2,
-        ["src/CaeManager.Web/Components/Layout/SelectorTema.razor.cs"] = 2,
-        ["src/CaeManager.Web/Services/ActividadUsuarioService.cs"] = 1,
         // La lista de /usuarios: calcula «pendiente de activación» con la contraseña.
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor.cs"] = 1,
     };
@@ -105,6 +101,31 @@ public class MaterializacionesDeCuentasEnWebTests
             "src/CaeManager.Infrastructure/Identity/LecturaCuentaPropia.cs",
             "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs",
             "src/CaeManager.Web/Services/CurrentUserService.cs");
+    }
+
+    /// <summary>
+    /// <c>IPreferenciasCuentaPropia</c> escribe sobre la cuenta que le digan: estos sitios le pasan la de su propia
+    /// sesión, y uno nuevo tendría que justificar de dónde saca el identificador.
+    /// </summary>
+    [Fact]
+    public void Las_preferencias_de_la_cuenta_propia_solo_tienen_los_consumidores_congelados()
+    {
+        var raiz = RaizDelRepositorio();
+        var separador = Path.DirectorySeparatorChar;
+
+        var consumidores = Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.*", SearchOption.AllDirectories)
+            .Where(a => a.EndsWith(".cs", StringComparison.Ordinal) || a.EndsWith(".razor", StringComparison.Ordinal))
+            .Where(a => !a.Contains($"{separador}obj{separador}") && !a.Contains($"{separador}bin{separador}"))
+            .Where(a => LimpiadorDeComentarios.Quitar(File.ReadAllText(a), razor: a.EndsWith(".razor", StringComparison.Ordinal))
+                .Contains("IPreferenciasCuentaPropia", StringComparison.Ordinal))
+            .Select(a => Path.GetRelativePath(raiz, a).Replace(separador, '/'));
+
+        consumidores.Should().BeEquivalentTo(
+            "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+            "src/CaeManager.Infrastructure/Identity/PreferenciasCuentaPropia.cs",
+            "src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs",
+            "src/CaeManager.Web/Components/Layout/SelectorTema.razor.cs",
+            "src/CaeManager.Web/Services/ActividadUsuarioService.cs");
     }
 
     [Theory]

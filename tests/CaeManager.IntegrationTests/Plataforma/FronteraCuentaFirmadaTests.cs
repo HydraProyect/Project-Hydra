@@ -358,7 +358,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     [Fact]
     public async Task La_frontera_no_necesita_las_columnas_de_credenciales()
     {
-        await RetirarCredencialesASoporteAsync();
+        await QuitarLasCredencialesASoporteAsync();
 
         var principal = PrincipalDe(_actorReal, SelloActorReal);
         await using var contexto = ContextoDeSoporte(principal);
@@ -379,7 +379,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     [Fact]
     public async Task Las_personas_delegadas_y_el_directorio_no_necesitan_las_columnas_de_credenciales()
     {
-        await RetirarCredencialesASoporteAsync();
+        await QuitarLasCredencialesASoporteAsync();
 
         await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
 
@@ -403,8 +403,29 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         (await directorio.ObtenerAsync(_cuentaDeOtroTenant)).Should().BeNull("una cuenta que la RLS no deja ver no existe aquí");
     }
 
-    /// <summary>Lo que hará la PR del <c>REVOKE</c>, solo en esta base de prueba.</summary>
-    private async Task RetirarCredencialesASoporteAsync()
+    /// <summary>
+    /// Tema, idioma y actividad se siguen leyendo bajo Sesión Privilegiada sin las columnas de credenciales. La
+    /// escritura no cambia: <c>cae_app_soporte</c> no tiene <c>UPDATE</c>, la base la rechaza y el contexto queda
+    /// limpio para lo siguiente del circuito.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_soporte_las_preferencias_se_leen_sin_credenciales_y_escribirlas_sigue_rechazado()
+    {
+        await QuitarLasCredencialesASoporteAsync();
+
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+        var preferencias = new PreferenciasCuentaPropia(contexto, new PuertaAccesoDatos());
+
+        (await preferencias.ObtenerAsync(_actorReal)).Should().NotBeNull();
+
+        var escribir = () => preferencias.RegistrarActividadAsync(_actorReal, DateTime.UtcNow);
+        (await escribir.Should().ThrowAsync<DbUpdateException>())
+            .WithInnerException<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        contexto.ChangeTracker.Entries().Should().BeEmpty();
+    }
+
+    private async Task QuitarLasCredencialesASoporteAsync()
     {
         await ComoPropietarioAsync("""
             REVOKE SELECT ON public."AspNetUsers" FROM cae_app_soporte;
@@ -418,13 +439,15 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
                 EXECUTE format('GRANT SELECT (%s) ON public."AspNetUsers" TO cae_app_soporte', columnas);
             END $$;
             """);
-        await using var conexion = new NpgsqlConnection(_cadena);
-        await conexion.OpenAsync();
-        await using var comando = new NpgsqlCommand("""
-            SELECT has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'PasswordHash', 'SELECT')
-                OR has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'SecurityStamp', 'SELECT');
-            """, conexion);
-        ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
+        await using (var conexion = new NpgsqlConnection(_cadena))
+        {
+            await conexion.OpenAsync();
+            await using var comando = new NpgsqlCommand("""
+                SELECT has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'PasswordHash', 'SELECT')
+                    OR has_column_privilege('cae_app_soporte', 'public."AspNetUsers"', 'SecurityStamp', 'SELECT');
+                """, conexion);
+            ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse("si no, este test no estaría quitando nada");
+        }
     }
 
     private static void Sembrar(
