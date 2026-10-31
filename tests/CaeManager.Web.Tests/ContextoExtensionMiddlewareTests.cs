@@ -45,6 +45,24 @@ public class ContextoExtensionMiddlewareTests
         escena.Autenticaciones.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData("/extension/acreditaciones-pendientes", TokenDePrueba, true)]
+    [InlineData("/EXTENSION/acreditaciones-pendientes", TokenDePrueba, true)]
+    [InlineData("/extension/tenants-beneficiarios/", TokenDePrueba, true)]
+    [InlineData("/extension", TokenDePrueba, true)]
+    [InlineData("/extension/acreditaciones-pendientes", "extension token-de-prueba", true)]
+    [InlineData("/extensiones/acreditaciones-pendientes", TokenDePrueba, false)]
+    [InlineData("/cuenta/extension/token", TokenDePrueba, false)]
+    [InlineData("/extension/acreditaciones-pendientes", "Extensiontoken-de-prueba", false)]
+    public void Aplica_con_el_mismo_criterio_que_el_enrutado_y_que_el_esquema(string ruta, string autorizacion, bool esperado)
+    {
+        var contexto = new DefaultHttpContext();
+        contexto.Request.Path = ruta;
+        contexto.Request.Headers.Authorization = autorizacion;
+
+        ContextoExtension.Aplica(contexto.Request).Should().Be(esperado);
+    }
+
     [Fact]
     public async Task Un_token_rechazado_responde_401_y_no_cae_a_la_cookie()
     {

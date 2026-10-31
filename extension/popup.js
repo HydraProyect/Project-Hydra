@@ -51,8 +51,8 @@ async function cargarTenantsAsync() {
 
   selectorTenant.replaceChildren();
   if (resultado.avisoRetirada) {
-    mostrarError(avisoTenant, "Esa empresa ya no está autorizada para tu usuario. Elige otra para seguir.");
-    const marcador = new Option("Elige una empresa", "", true, true);
+    mostrarError(avisoTenant, "Esa Empresa gestionada ya no está autorizada para tu usuario. Elige otra para seguir.");
+    const marcador = new Option("Elige una Empresa gestionada", "", true, true);
     marcador.disabled = true;
     selectorTenant.add(marcador);
   }

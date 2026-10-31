@@ -250,6 +250,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
         sinCabecera.Tenant.Should().BeNull();
         sinCabecera.SesionPrivilegiada.Should().BeNull();
         sinCabecera.Empresas.Should().Equal(["Cliente de origen"], "la cookie no abre el Tenant que nombra");
+        sinCabecera.Rol.Should().Be(Roles.GestorCae, "tampoco quita el rol: en esta petición no se lee");
         conCabecera.Paso.Should().BeFalse("la Sesión Privilegiada no autoriza una solicitud de la extensión");
         conCabecera.Estado.Should().Be(StatusCodes.Status403Forbidden);
     }
@@ -314,8 +315,10 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
                 await alPasar(new PeticionEnCurso(runtime, tenantActual, seleccion));
         });
 
-        await new ContextoExtensionMiddleware(contexto => rolEfectivo.InvokeAsync(
-                contexto, seleccion, usuarioActual, usuarioActual, NullLogger<RolEfectivoDelWorkspaceMiddleware>.Instance))
+        var sinRolDeNegocio = new SesionPrivilegiadaSinRolDeNegocioMiddleware(contexto => rolEfectivo.InvokeAsync(
+            contexto, seleccion, usuarioActual, usuarioActual, NullLogger<RolEfectivoDelWorkspaceMiddleware>.Instance));
+
+        await new ContextoExtensionMiddleware(contexto => sinRolDeNegocio.InvokeAsync(contexto, _protector))
             .InvokeAsync(http);
 
         return new Resultado(

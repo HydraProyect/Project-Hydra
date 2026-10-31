@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -19,6 +20,7 @@ public class ContextoExtensionEnElPipelineTests
         var orden = new[]
         {
             "app.UseAuthentication();",
+            "app.UseRateLimiter();",
             "app.UseContextoExtension();",
             "app.UseSesionPrivilegiadaSinRolDeNegocio();",
             "app.UseTenantBeneficiarioPorDefecto();",
@@ -37,6 +39,29 @@ public class ContextoExtensionEnElPipelineTests
         var programa = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
 
         programa.Should().Contain("IPolicyEvaluator, CaeManager.Web.Services.EvaluadorPoliticaExtension>()");
+    }
+
+    /// <summary>
+    /// <c>ContextoExtensionMiddleware</c> actúa por prefijo de ruta para fallar en cerrado aunque cambie el enrutado: un
+    /// endpoint con una política del esquema de extensión mapeado fuera de <c>/extension/*</c> se quedaría sin él y volvería
+    /// a leer la cookie de selección, sin que nada avisara.
+    /// </summary>
+    [Fact]
+    public void Las_politicas_del_esquema_de_extension_solo_protegen_rutas_de_la_extension()
+    {
+        var conPolitica = new Regex(@"(RequireAuthorization\(|Policy\s*=\s*)Policies\.(SoloExtension|SesionOExtension)\b");
+        var rutaMapeada = new Regex(@"\.Map(Get|Post|Put|Patch|Delete|Methods)\(\s*""(?<ruta>[^""]*)""");
+        var fuentes = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web");
+
+        var rutas = Directory.EnumerateFiles(fuentes, "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".cs", StringComparison.Ordinal) || f.EndsWith(".razor", StringComparison.Ordinal))
+            .Select(File.ReadAllText)
+            .Where(texto => conPolitica.IsMatch(texto))
+            .SelectMany(texto => rutaMapeada.Matches(texto).Select(m => m.Groups["ruta"].Value))
+            .ToList();
+
+        rutas.Should().HaveCountGreaterThanOrEqualTo(6, "control positivo: se ven las rutas de la extensión de hoy");
+        rutas.Should().OnlyContain(ruta => ruta.StartsWith("/extension/", StringComparison.Ordinal));
     }
 
     private static string RaizDelRepositorio()

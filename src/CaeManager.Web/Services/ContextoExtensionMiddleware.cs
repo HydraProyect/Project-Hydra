@@ -17,8 +17,9 @@ namespace CaeManager.Web.Services;
 /// <para>
 /// <b>Por qué tan pronto.</b> El esquema predeterminado de la aplicación es la cookie, y los endpoints de la extensión
 /// eligen su esquema en <c>UseAuthorization</c>: para entonces ya han corrido el ajuste del rol efectivo y la firma del
-/// contexto RLS de las primeras consultas. Este middleware va inmediatamente después de <c>UseAuthentication</c>, solo
-/// actúa en <c>/extension/*</c> con el token de extensión, y a partir de ahí esa petición tiene una sola identidad.
+/// contexto RLS de las primeras consultas. Este middleware va tras <c>UseAuthentication</c> y <c>UseRateLimiter</c>, que
+/// gasta el cupo antes de la primera consulta; solo actúa en <c>/extension/*</c> con el token de extensión, y a partir de
+/// ahí esa petición tiene una sola identidad.
 /// </para>
 ///
 /// <para>
@@ -177,7 +178,7 @@ public static class ContextoExtension
 public static class ContextoExtensionMiddlewareExtensions
 {
     /// <summary>
-    /// Inmediatamente después de <c>UseAuthentication</c> y ANTES de <c>UseSesionPrivilegiadaSinRolDeNegocio</c>,
+    /// Después de <c>UseAuthentication</c> y <c>UseRateLimiter</c>, y ANTES de <c>UseSesionPrivilegiadaSinRolDeNegocio</c>,
     /// <c>UseTenantBeneficiarioPorDefecto</c> y <c>UseRolEfectivoDelWorkspace</c>: todos ellos necesitan ya la identidad
     /// y la selección definitivas de la petición.
     /// </summary>

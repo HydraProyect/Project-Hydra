@@ -1353,10 +1353,16 @@ app.UseRequestLocalization();
 
 app.UseAuthentication();
 
-// Inmediatamente después de UseAuthentication: solo en /extension/* y con el token
-// de extensión, fija la identidad de ese esquema y resuelve el Tenant solicitado
-// antes del rol efectivo y de cualquier consulta de negocio. La cookie no entra en
-// esa petición (ver ContextoExtensionMiddleware).
+// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado; el de
+// /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y ANTES de
+// UseContextoExtension y de todo lo que consulta la base: ese es el trabajo que el
+// límite protege, y por eso el cupo de la entrega a la extensión se gasta antes del
+// esquema de extensión, también en una petición que acabe en 401 o 403.
+app.UseRateLimiter();
+
+// Solo en /extension/* y con el token de extensión: fija la identidad de ese esquema y
+// resuelve el Tenant solicitado antes del rol efectivo y de cualquier consulta de
+// negocio. La cookie no entra en esa petición (ver ContextoExtensionMiddleware).
 app.UseContextoExtension();
 
 // Inmediatamente después de UseAuthentication y ANTES de UseAuthorization: una
@@ -1385,19 +1391,13 @@ app.UseRolEfectivoDelWorkspace();
 // ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
 app.UseCuentaAMedioActivarSinAcceso();
 
-// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado;
-// el de /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y antes
-// de que ningún endpoint procese la petición.
-app.UseRateLimiter();
-
 app.UseAuthorization();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
 // los endpoints y componentes. No antes de que nada resuelva el tenant:
 // UseRolEfectivoDelWorkspace ya lo hizo más arriba, y entre los dos median
-// UseCuentaAMedioActivarSinAcceso, UseRateLimiter, UseAuthorization y
-// UseAntiforgery, que pueden cortar la petición sin pasar por aquí (REC-189,
+// UseCuentaAMedioActivarSinAcceso, UseAuthorization y UseAntiforgery, que pueden cortar la petición sin pasar por aquí (REC-189,
 // ver el porqué y por qué no es un agujero de autorización en el doc-comment
 // de UseRevalidacionClienteActivo).
 app.UseRevalidacionClienteActivo();
