@@ -288,7 +288,7 @@ public sealed class VigilanciaInicioSesionService(
         try
         {
             var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-            var administradores = await AdministradoresAsync(userManager, usuario);
+            var administradores = await AdministradoresAsync(db, userManager.NormalizeName(Roles.Administrador), usuario.TenantId, null, ct);
             var texto = teniaContrasena
                 ? $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones y debe crear una contraseña nueva."
                 : $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones; entra con Microsoft, así que tiene que asegurar su cuenta de Microsoft.";
@@ -340,23 +340,35 @@ public sealed class VigilanciaInicioSesionService(
                 logger.LogWarning("No se pudo enviar el aviso de inicio de sesión inusual a la cuenta {UsuarioId}.", usuario.Id);
         }
 
-        var administradores = (await AdministradoresAsync(userManager, usuario)).Where(a => a.Id != usuario.Id).ToList();
+        var administradores = await AdministradoresAsync(db, userManager.NormalizeName(Roles.Administrador), usuario.TenantId, usuario.Id, ct);
         var titulo = avisarPersona ? "Inicio de sesión inusual" : "Ráfaga de intentos fallidos";
         var texto = $"{usuario.NombreCompleto}: {motivos}. {lugar}, {momento}.";
         await NotificarAdministradoresAsync(servicios, db, administradores, titulo,
             texto, $"<p>Aviso de seguridad sobre la cuenta de {WebUtility.HtmlEncode(usuario.NombreCompleto)} en {Marca.Nombre}.</p>{detalle}", ct);
     }
 
-    private static async Task<List<ApplicationUser>> AdministradoresAsync(UserManager<ApplicationUser> userManager, ApplicationUser usuario)
-        // GetUsersInRoleAsync no filtra por Tenant y la política de AspNetUsers
-        // deja ver también a quien opera este Tenant desde otro: el aviso es
-        // solo para el Administrador del Tenant propietario de la cuenta.
-        => (await userManager.GetUsersInRoleAsync(Roles.Administrador))
-            .Where(a => a.TenantId == usuario.TenantId && !a.EstaDesactivada(DateTimeOffset.UtcNow))
-            .ToList();
+    /// <summary>Lo que hace falta para avisar a un Administrador, sin las credenciales de su cuenta (ASVS 4.0.3 V4.1.3).</summary>
+    internal sealed record DestinatarioAdministrador(Guid Id, string? Email, DateTimeOffset? LockoutEnd);
+
+    /// <summary>
+    /// Los Administradores activos del Tenant propietario de la cuenta avisada, salvo <paramref name="usuarioId"/>
+    /// si se indica. El rol no filtra por Tenant y la política de <c>AspNetUsers</c> deja ver también a quien opera
+    /// este Tenant desde otro: el aviso es solo para el Administrador del Tenant propietario.
+    /// </summary>
+    internal static async Task<List<DestinatarioAdministrador>> AdministradoresAsync(
+        CaeManagerDbContext db, string rolNormalizado, Guid tenantId, Guid? usuarioId, CancellationToken ct)
+    {
+        var candidatos = await (from cuenta in db.Users.AsNoTracking()
+                                join asignacion in db.UserRoles on cuenta.Id equals asignacion.UserId
+                                join rol in db.Roles on asignacion.RoleId equals rol.Id
+                                where cuenta.TenantId == tenantId && cuenta.Id != usuarioId && rol.NormalizedName == rolNormalizado
+                                select new DestinatarioAdministrador(cuenta.Id, cuenta.Email, cuenta.LockoutEnd)).ToListAsync(ct);
+        var ahora = DateTimeOffset.UtcNow;
+        return candidatos.Where(a => !ApplicationUser.BloqueoDesactivaLaCuenta(a.LockoutEnd, ahora)).ToList();
+    }
 
     private async Task NotificarAdministradoresAsync(
-        IServiceProvider servicios, CaeManagerDbContext db, IReadOnlyList<ApplicationUser> administradores,
+        IServiceProvider servicios, CaeManagerDbContext db, IReadOnlyList<DestinatarioAdministrador> administradores,
         string titulo, string texto, string cuerpoHtml, CancellationToken ct)
     {
         foreach (var administrador in administradores)

@@ -164,6 +164,12 @@ public class CurrentUserServiceTests
     {
         public List<Guid> Preguntadas { get; } = [];
 
+        public Task<string?> LeerRolAsync(Guid usuarioId, CancellationToken ct = default)
+        {
+            Preguntadas.Add(usuarioId);
+            return Task.FromResult(estado?.Roles.Order(StringComparer.Ordinal).FirstOrDefault());
+        }
+
         public Task<EstadoCuentaPropia?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default)
         {
             Preguntadas.Add(usuarioId);

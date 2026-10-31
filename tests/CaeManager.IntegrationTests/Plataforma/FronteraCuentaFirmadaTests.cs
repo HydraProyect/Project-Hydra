@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Seguridad;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -347,7 +348,107 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
         estado!.DebeCambiarContrasena.Should().BeTrue();
         estado.DobleFactorActivo.Should().BeTrue();
         estado.Roles.Should().Equal(Roles.GestorCae);
+        (await lectura.LeerRolAsync(_actorReal)).Should().Be(Roles.GestorCae);
+        (await lectura.LeerRolAsync(_cuentaDeOtroTenant)).Should().BeNull();
         (await lectura.ObtenerAsync(_cuentaDeOtroTenant)).Should().BeNull("la proyección no amplía lo que la RLS deja ver");
+    }
+
+    /// <summary>
+    /// La lectura del rol responde lo mismo que el camino al que sustituye: el primero en orden ordinal de los roles
+    /// de <see cref="LecturaCuentaPropia.ObtenerAsync"/>, y <c>null</c> sin rol o sin cuenta. El test unitario de
+    /// <c>CurrentUserService</c> usa un doble, así que el orden solo se observa aquí.
+    /// </summary>
+    [Fact]
+    public async Task El_rol_de_origen_conserva_su_conducta_con_varios_roles_sin_rol_y_sin_cuenta()
+    {
+        await using (var propietario = ContextoPropietario())
+        {
+            var administrador = await propietario.Roles.SingleAsync(r => r.Name == Roles.Administrador);
+            propietario.UserRoles.Add(new IdentityUserRole<Guid> { UserId = _actorReal, RoleId = administrador.Id });
+            await propietario.SaveChangesAsync();
+        }
+
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+        var lectura = new LecturaCuentaPropia(contexto);
+
+        (await lectura.ObtenerAsync(_actorReal))!.Roles.Should().BeEquivalentTo([Roles.GestorCae, Roles.Administrador]);
+        (await lectura.LeerRolAsync(_actorReal)).Should().Be(Roles.Administrador, "gana el primero en orden ordinal");
+
+        await ComoPropietarioAsync(
+            "DELETE FROM \"AspNetUserRoles\" WHERE \"UserId\" = @id", new NpgsqlParameter("id", _actorReal));
+
+        (await lectura.ObtenerAsync(_actorReal))!.Roles.Should().BeEmpty();
+        (await lectura.LeerRolAsync(_actorReal)).Should().BeNull("una cuenta sin rol no tiene rol de origen");
+        (await lectura.LeerRolAsync(Guid.NewGuid())).Should().BeNull("lo mismo que ObtenerAsync sin cuenta");
+    }
+
+    /// <summary>
+    /// La lista de un aviso de seguridad: Administradores del Tenant propietario, sin los desactivados y sin los de
+    /// otro Tenant, con el bloqueo temporal dentro porque no es una desactivación. El <c>null</c> de la cuenta excluida
+    /// tiene que traducirse como «no excluir a nadie»: es el aviso de «no he sido yo», que también llega a la propia
+    /// cuenta si es Administradora.
+    /// </summary>
+    [Fact]
+    public async Task Los_avisos_de_seguridad_van_a_los_Administradores_activos_del_Tenant_propietario()
+    {
+        var activa = Guid.NewGuid();
+        var sinCorreo = Guid.NewGuid();
+        var conBloqueoTemporal = Guid.NewGuid();
+        var desactivada = Guid.NewGuid();
+        var deOtroTenant = Guid.NewGuid();
+        await using var contexto = ContextoPropietario();
+        Sembrar(contexto, activa, "administradora-activa", _tenantOrigen, "SELLO-1", false, false);
+        Sembrar(contexto, sinCorreo, "administradora-sin-correo", _tenantOrigen, "SELLO-2", false, false);
+        Sembrar(contexto, conBloqueoTemporal, "administradora-bloqueada", _tenantOrigen, "SELLO-3", false, false);
+        Sembrar(contexto, desactivada, "administradora-desactivada", _tenantOrigen, "SELLO-4", false, false);
+        Sembrar(contexto, deOtroTenant, "administradora-de-otro-tenant", _tenantObjetivo, "SELLO-5", false, false);
+        contexto.Users.Local.Single(u => u.Id == sinCorreo).Email = null;
+        contexto.Users.Local.Single(u => u.Id == conBloqueoTemporal).LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(15);
+        contexto.Users.Local.Single(u => u.Id == desactivada).LockoutEnd = DateTimeOffset.MaxValue;
+        var rol = await contexto.Roles.SingleAsync(r => r.Name == Roles.Administrador);
+        foreach (var cuenta in new[] { activa, sinCorreo, conBloqueoTemporal, desactivada, deOtroTenant })
+            contexto.UserRoles.Add(new IdentityUserRole<Guid> { UserId = cuenta, RoleId = rol.Id });
+        await contexto.SaveChangesAsync();
+
+        var todos = await VigilanciaInicioSesionService.AdministradoresAsync(contexto, rol.NormalizedName!, _tenantOrigen, null, default);
+        var salvoLaAvisada = await VigilanciaInicioSesionService.AdministradoresAsync(contexto, rol.NormalizedName!, _tenantOrigen, activa, default);
+
+        todos.Select(a => a.Id).Should().BeEquivalentTo([activa, sinCorreo, conBloqueoTemporal]);
+        todos.Single(a => a.Id == activa).Email.Should().Be("administradora-activa@frontera-cuenta.test");
+        todos.Single(a => a.Id == sinCorreo).Email.Should().BeNull();
+        salvoLaAvisada.Select(a => a.Id).Should().BeEquivalentTo([sinCorreo, conBloqueoTemporal]);
+    }
+
+    /// <summary>
+    /// La misma lista bajo soporte y sin las columnas de credenciales: responde sin pedirlas, y la RLS sigue decidiendo.
+    /// <c>AspNetUserRoles</c> y <c>AspNetRoles</c> no tienen política, así que la Administradora de otro Tenant cumple
+    /// todo el predicado de la consulta y solo la política de <c>AspNetUsers</c> la deja fuera.
+    /// </summary>
+    [Fact]
+    public async Task Bajo_soporte_la_lista_de_avisos_no_amplia_lo_que_la_RLS_deja_ver()
+    {
+        var administradoraDelObjetivo = Guid.NewGuid();
+        string rolNormalizado;
+        Guid otroTenant;
+        await using (var propietario = ContextoPropietario())
+        {
+            Sembrar(propietario, administradoraDelObjetivo, "administradora-del-objetivo", _tenantObjetivo, "SELLO-6", false, false);
+            var rol = await propietario.Roles.SingleAsync(r => r.Name == Roles.Administrador);
+            rolNormalizado = rol.NormalizedName!;
+            otroTenant = await propietario.Users.Where(u => u.Id == _cuentaDeOtroTenant).Select(u => u.TenantId).SingleAsync();
+            propietario.UserRoles.AddRange(
+                new IdentityUserRole<Guid> { UserId = administradoraDelObjetivo, RoleId = rol.Id },
+                new IdentityUserRole<Guid> { UserId = _cuentaDeOtroTenant, RoleId = rol.Id });
+            await propietario.SaveChangesAsync();
+        }
+
+        await QuitarLasCredencialesASoporteAsync();
+        await using var contexto = ContextoDeSoporte(PrincipalDe(_actorReal, SelloActorReal));
+
+        (await VigilanciaInicioSesionService.AdministradoresAsync(contexto, rolNormalizado, _tenantObjetivo, null, default))
+            .Select(a => a.Id).Should().Equal(administradoraDelObjetivo);
+        (await VigilanciaInicioSesionService.AdministradoresAsync(contexto, rolNormalizado, otroTenant, null, default))
+            .Should().BeEmpty("la consulta no amplía lo que la RLS deja ver");
     }
 
     /// <summary>
@@ -365,6 +466,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
 
         (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue();
         (await new LecturaCuentaPropia(contexto).ObtenerAsync(_actorReal)).Should().NotBeNull();
+        (await new LecturaCuentaPropia(contexto).LeerRolAsync(_actorReal)).Should().Be(Roles.GestorCae);
 
         var materializar = async () => await contexto.Users.AsNoTracking().SingleAsync(u => u.Id == _actorReal);
         (await materializar.Should().ThrowAsync<PostgresException>())

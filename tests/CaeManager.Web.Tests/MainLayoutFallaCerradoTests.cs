@@ -399,6 +399,7 @@ public class MainLayoutFallaCerradoTests : BunitContext
     /// </summary>
     private sealed class LecturaConmutable : ILecturaCuentaPropia
     {
+        public Task<string?> LeerRolAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
         private Type? _tipoDeExcepcion;
         private EstadoCuentaPropia? _cuenta;
 
