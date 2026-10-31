@@ -1,5 +1,6 @@
 using CaeManager.Domain.Common;
 using System.Globalization;
+using System.Security.Claims;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
@@ -7,6 +8,7 @@ using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -15,7 +17,6 @@ using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Dashboard.Pages;
@@ -38,8 +39,6 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
-    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
@@ -208,18 +207,8 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
     /// <summary>
     /// El nombre de pila se resuelve aparte, tras el primer render, y NO
-    /// dentro de CargarAsync — UserManager.GetUserAsync usa el mismo
-    /// DbContext con ámbito de circuito que el resto de componentes del
-    /// shell (MainLayout: SelectorClienteActivo, ContextWorkspace…), que
-    /// también corren su propia inicialización en paralelo durante la carga
-    /// inicial. Mover la llamada a OnAfterRenderAsync reduce la ventana pero
-    /// no la cierra del todo — reproducido en vivo ("a second operation was
-    /// started on this context instance", seguido de ObjectDisposedException
-    /// al liberar un semáforo de PuertaAccesoDatos ya liberado por la
-    /// carrera). El acceso directo a UserManager tiene que pasar por la
-    /// puerta, igual que ya hace MainLayout.razor.cs con la suya — ver
-    /// PuertaAccesoDatos.cs: "los accesos directos (UserManager en páginas y
-    /// layout...) se envuelven en su sitio".
+    /// dentro de CargarAsync. La consulta entra por MediatR y comparte la
+    /// puerta de acceso a datos con los demás componentes del circuito.
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -255,9 +244,12 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         // de que existiera ese claim.
         var nombreDelTicket = estadoAutenticacion.User.FindFirst(
             CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto)?.Value;
-        var nombrePila = nombreDelTicket is { Length: > 0 } ? NombreDePila(nombreDelTicket) : await PuertaAccesoDatos.EjecutarAsync(async () =>
+        var nombrePila = nombreDelTicket is { Length: > 0 } ? NombreDePila(nombreDelTicket) : await ResolverNombreDeCuentaAsync();
+
+        async Task<string?> ResolverNombreDeCuentaAsync()
         {
-            var usuario = await UserManager.GetUserAsync(estadoAutenticacion.User);
+            var id = estadoAutenticacion.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var usuario = id is null ? null : await Mediator.Send(new ObtenerNombreCuentaQuery(Guid.Parse(id)), token);
             // Identity.Name es el email de acceso (mismo dato que usa el enlace "Mi
             // firma" del topbar), no un nombre para mostrar; NombreCompleto es el
             // campo real (mismo origen que PestanaHistorial usa para "quién hizo
@@ -266,7 +258,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             // personalizar. Solo el nombre de pila, como en el mockup ("Buenos días,
             // Marta") — el nombre completo en un saludo de cabecera lee como un formulario.
             return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto ? NombreDePila(nombreCompleto) : null;
-        }, token);
+        }
 
         if (_desechado)
             return;

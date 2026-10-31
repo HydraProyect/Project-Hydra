@@ -7,6 +7,7 @@ using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
@@ -36,7 +37,6 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private RoleManager<IdentityRole<Guid>> RoleManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -169,14 +169,14 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
                 .Distinct()
                 .ToList();
 
-            // Por la puerta: UserManager/RoleManager no pasan por MediatR y
-            // esta carga corre en paralelo con los componentes del layout
-            // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
+            // Por la puerta: RoleManager no pasa por MediatR y esta carga corre
+            // en paralelo con los componentes del layout sobre el mismo
+            // DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id));
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
                 }
 

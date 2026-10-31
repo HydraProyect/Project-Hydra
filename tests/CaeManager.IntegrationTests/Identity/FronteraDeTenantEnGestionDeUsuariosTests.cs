@@ -162,6 +162,37 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_selector_por_rol_proyecta_la_cuenta_delegada_y_excluye_la_ajena_sin_delegacion()
+    {
+        Guid ajenoSinDelegacion;
+        using (var ambitoSiembra = _servicios.CreateScope())
+        {
+            var cuentas = ambitoSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ajenoSinDelegacion = await CrearAsync(cuentas, "gestor-sin-delegacion@x.test", _tenantAjeno, Roles.GestorCae);
+
+            // Nombre distinto del correo, para que un cruce de columnas no pase desapercibido.
+            var delegada = await cuentas.FindByIdAsync(_usuarioAjenoDelegado.ToString());
+            delegada!.NombreCompleto = "Gestor Ajeno";
+            delegada.Avatar = "zorro-verde";
+            (await cuentas.UpdateAsync(delegada)).Succeeded.Should().BeTrue();
+        }
+
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
+
+        var gestores = await directorio.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
+
+        gestores.Should().ContainSingle(u => u.Id == _usuarioAjenoDelegado).Which.Should().Be(
+            new CuentaVisibleEnRol(_usuarioAjenoDelegado, "Gestor Ajeno", "gestor-ajeno@x.test", "zorro-verde"));
+        gestores.Select(u => u.Id).Should().NotContain(ajenoSinDelegacion);
+        (await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador)).Select(u => u.Id)
+            .Should().ContainSingle().Which.Should().Be(_actorAdministrador);
+        ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()
+            .ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task AbrirEditarAsync_rechaza_la_ficha_de_un_operador_delegado()
     {
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);

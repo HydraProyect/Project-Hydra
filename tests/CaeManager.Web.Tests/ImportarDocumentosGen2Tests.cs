@@ -12,7 +12,6 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using PaginaImportacion = CaeManager.Web.Features.Importacion.Pages.Importacion;
 
@@ -48,25 +47,6 @@ public class ImportarDocumentosGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private sealed class AlmacenUsuariosVacio : IUserStore<ApplicationUser>
-    {
-        private static Exception NoDeberia() => new NotSupportedException("El historial está vacío.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(null);
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public void Dispose() { }
-    }
-
-    private readonly AlmacenUsuariosVacio _usuarios = new();
-
     private IRenderedComponent<PaginaImportacion> RenderizarAsistenteDocumentos(bool entradaDocumental = true)
     {
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
@@ -78,8 +58,6 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
         Services.AddLocalization();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo(
             entradaDocumental ? "importacion?plantilla=documentos&flujo=documentos" : "importacion?plantilla=documentos");
 
@@ -137,8 +115,6 @@ public class ImportarDocumentosGen2Tests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
         Services.AddLocalization();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo("importacion?plantilla=documentos&flujo=documentos");
 
         var cut = Render<PaginaImportacion>(p => p.Add(x => x.IntegradaEnConfiguracion, true));

@@ -8,13 +8,11 @@ using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
-using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -98,8 +96,6 @@ public sealed class HoraPeninsularEnPantallaTests : BunitContext
             _ => null,
         }));
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosVacio(), null!, null!, null!, null!, null!, null!, null!, null!));
 
         var cut = Render<PestanaHistorial>(p => p
             .Add(x => x.EntidadTipo, "Cliente")
@@ -200,23 +196,5 @@ public sealed class HoraPeninsularEnPantallaTests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
-    }
-
-    /// <summary>Los registros del test no tienen usuario: la pestaña no busca a nadie.</summary>
-    private sealed class AlmacenUsuariosVacio : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("El test no tiene usuarios que buscar.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
     }
 }

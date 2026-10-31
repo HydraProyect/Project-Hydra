@@ -74,18 +74,11 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Services/ActividadUsuarioService.cs",
         // Lecturas de la propia sesión: rol, 2FA, permiso sensible.
         "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs",
-        "src/CaeManager.Web/Features/Auditoria/AuditoriaEndpoints.cs",
-        "src/CaeManager.Web/Features/Auditoria/Pages/AccesosDocumentosSensibles.razor.cs",
-        "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
-        "src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs",
         "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
-        // Lecturas del nombre de otra cuenta para pintarlo.
-        "src/CaeManager.Web/Components/Workspace/PestanaHistorial.razor",
-        "src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor.cs",
+        // Otra cuenta o rol para pintarlo: el nombre de un rol y los roles de una cuenta.
+        "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
         "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs",
-        "src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor.cs",
-        "src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs",
     ];
 
     /// <summary>
