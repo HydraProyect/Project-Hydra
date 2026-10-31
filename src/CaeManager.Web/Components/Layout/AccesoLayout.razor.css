@@ -355,8 +355,10 @@
     padding: 0 12px;
     font: 600 14px/1 'TALVEG Plex', system-ui, sans-serif;
     color: #F2EEE1;
-    background: rgba(10, 24, 18, .42);
-    backdrop-filter: blur(3px);
+    /* #142820 es rgba(10, 24, 18, .42) de los campos compuesto sobre el agua de la
+       escena (#1B342A): opaco para que el barrido de contraste por tema lo mida
+       (no entiende rgba). */
+    background: #142820;
     border: 1px solid rgba(242, 238, 225, .3);
     border-radius: 7px;
     text-decoration: none;
@@ -375,12 +377,12 @@
 }
 
 .acceso-centro ::deep .acceso-microsoft:hover {
-    background: rgba(242, 238, 225, .12);
+    background: #2F4037; /* crema al 12 % sobre #142820, opaco para el barrido de contraste */
     border-color: rgba(242, 238, 225, .55);
 }
 
 .acceso-centro ::deep .acceso-microsoft:active {
-    background: rgba(242, 238, 225, .2);
+    background: #405047; /* crema al 20 % sobre #142820 */
     border-color: rgba(242, 238, 225, .7);
 }
 
