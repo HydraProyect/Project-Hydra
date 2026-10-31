@@ -45,9 +45,11 @@ public class DarDeBajaAsignacionCommandHandler(
             return Result.Fallo(Error.Crear("Asignacion.NoEncontrada", "No encontramos esta asignación."));
 
         // Asignacion no lleva token de versión (sin columna que migrar): la carrera que
-        // importa —dos Gestores CAE dan de baja la misma fila con fechas distintas— se
-        // detecta por su estado. Una baja ya dada no se re-fecha en silencio; para
-        // corregirla está «Deshacer» (ReactivarAsignacionCommand) y volver a darla.
+        // importa —un Gestor CAE con la pantalla vieja da de baja una fila que otro ya cerró
+        // con otra fecha— se detecta por su estado. Una baja ya dada no se re-fecha en
+        // silencio; para corregirla está «Deshacer» (ReactivarAsignacionCommand) y volver
+        // a darla. No cubre dos confirmaciones estrictamente simultáneas: eso exigiría el
+        // token de versión (columna y migración), que queda como deuda declarada.
         if (!asignacion.EstaActiva)
             return Result.Fallo(Error.Crear("Asignacion.YaDeBaja", "Esta asignación ya estaba dada de baja."));
 
