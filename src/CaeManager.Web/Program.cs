@@ -1413,6 +1413,9 @@ app.UseAntiforgery();
 // de UseRevalidacionClienteActivo).
 app.UseRevalidacionClienteActivo();
 
+// Detrás de la revalidación, que borraría la cookie si viera la selección ya descartada.
+app.UseSeleccionDescartadaEnIdentificacion();
+
 // D-11: /salud añade la revisión desplegada en una cabecera, sin tocar su cuerpo ni su código.
 app.UseRevisionEnSalud(Environment.GetEnvironmentVariable(CaeManager.Web.Services.RevisionDesplegada.Variable));
 

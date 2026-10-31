@@ -1,6 +1,5 @@
 using CaeManager.Application.Tenants;
-using CaeManager.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
+using CaeManager.Infrastructure.Persistence;
 
 namespace CaeManager.Infrastructure.Autorizacion;
 
@@ -37,12 +36,12 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </para>
 /// </remarks>
 public class AutorizacionDelegacionPorAdministradorDelCliente(
-    UserManager<ApplicationUser> userManager) : IAutorizacionDelegacionTenant
+    CaeManagerDbContext db) : IAutorizacionDelegacionTenant
 {
     // El predicado vive en AdministradorDelTenantPropietarioEnBase: una sola implementación para
     // las delegaciones heredadas y para el logo del Tenant.
     public Task<bool> PuedeGestionarDelegacionesAsync(
         Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) =>
-        new AdministradorDelTenantPropietarioEnBase(userManager)
+        new AdministradorDelTenantPropietarioEnBase(db)
             .EsAdministradorEnBaseAsync(usuarioId, tenantClienteDeleganteId, cancellationToken);
 }

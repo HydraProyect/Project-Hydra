@@ -211,6 +211,20 @@ public class ClienteActivoSeleccionado(
     }
 
     /// <summary>
+    /// Descarta la selección para toda la petición, sin borrar la cookie: a diferencia de <see cref="Invalidar"/>, alcanza
+    /// también a los ámbitos que la petición abra después, que volverían a leerla de la cookie. Lo llama
+    /// <see cref="SeleccionDescartadaEnIdentificacionMiddleware"/> en las rutas que identifican a una persona con sus
+    /// propias credenciales o con el token de su buzón, que nunca corren bajo una Sesión Privilegiada. Solo quita una
+    /// coordenada: quien tenía cookie sigue resolviendo a su Tenant de origen, como cualquier sesión sin selección.
+    /// </summary>
+    public void DescartarEnEstaPeticion()
+    {
+        if (httpContextAccessor.HttpContext is { } contexto)
+            contexto.Items[ClaveSeleccionDescartada] = true;
+        Invalidar();
+    }
+
+    /// <summary>
     /// Cada oyente por separado: uno que lance no deja a los demás suscritos al Tenant retirado ni tumba a quien retira
     /// la selección (el temporizador de revalidación del circuito).
     /// </summary>
@@ -248,10 +262,12 @@ public class ClienteActivoSeleccionado(
     /// </summary>
     public event Action? SeleccionRetirada;
 
+    private static readonly object ClaveSeleccionDescartada = new();
+
     private (Guid? TenantId, Guid? AsignacionOperacionId, Guid? SesionPrivilegiadaId) LeerDeCookie()
     {
         var httpContext = httpContextAccessor.HttpContext;
-        if (httpContext is null) return (null, null, null);
+        if (httpContext is null || httpContext.Items.ContainsKey(ClaveSeleccionDescartada)) return (null, null, null);
 
         return LeerCargaUtil(
             dataProtectionProvider,

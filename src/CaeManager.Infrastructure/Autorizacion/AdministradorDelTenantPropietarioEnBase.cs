@@ -1,6 +1,6 @@
 using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
+using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Autorizacion;
@@ -11,7 +11,7 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// <c>Administrador</c>. Cualquiera de las dos por separado autoriza a la persona equivocada. Es el
 /// predicado que aplican también las delegaciones heredadas (ADR-004 § 12.2) y el logo del Tenant.
 /// </remarks>
-public class AdministradorDelTenantPropietarioEnBase(UserManager<ApplicationUser> userManager)
+public class AdministradorDelTenantPropietarioEnBase(CaeManagerDbContext db)
     : IAdministradorDelTenantPropietario
 {
     public async Task<bool> EsAdministradorEnBaseAsync(
@@ -23,23 +23,31 @@ public class AdministradorDelTenantPropietarioEnBase(UserManager<ApplicationUser
         // estaba cargada, y IsInRoleAsync busca la afiliación con Find, que también usa el
         // seguimiento. Con un circuito de Blazor de larga vida eso autoriza con un rol ya revocado o
         // con una cuenta ya desactivada (C6/I7: el rol efectivo se lee de BD en cada decisión).
-        var usuario = await userManager.Users.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
-        if (usuario is null) return false;
+        // Proyección y no la cuenta entera: bajo Sesión Privilegiada la conexión lleva
+        // cae_app_soporte, que no lee PasswordHash ni SecurityStamp.
+        var cuenta = await db.Users.AsNoTracking()
+            .Where(u => u.Id == usuarioId)
+            .Select(u => new
+            {
+                u.TenantId,
+                u.LockoutEnd,
+                Roles = db.UserRoles
+                    .Where(ur => ur.UserId == u.Id)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (_, r) => r.Name)
+                    .ToList(),
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (cuenta is null) return false;
 
-        // El tenant primero: es la mitad que distingue a quien concede de quien
-        // recibe, y evita consultar roles de un usuario que ya sabemos que no
-        // pinta nada aquí.
-        if (usuario.TenantId != tenantId) return false;
+        // El tenant primero: es la mitad que distingue a quien concede de quien recibe.
+        if (cuenta.TenantId != tenantId) return false;
 
         // Sin esto, una cuenta desactivada podía seguir autorizando
         // durante la ventana de gracia de EstaDesactivada (cookie/token ya
         // emitidos antes del Desactivar; ver su propio comentario) — hallazgo
         // de la revisión puente del incremento 1b.
-        if (usuario.EstaDesactivada(DateTimeOffset.UtcNow)) return false;
+        if (ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.LockoutEnd, DateTimeOffset.UtcNow)) return false;
 
-        // GetRolesAsync consulta la BD (join de afiliaciones y roles) sin pasar por el seguimiento.
-        var roles = await userManager.GetRolesAsync(usuario);
-        return roles.Contains(Roles.Administrador, StringComparer.OrdinalIgnoreCase);
+        return cuenta.Roles.Contains(Roles.Administrador, StringComparer.OrdinalIgnoreCase);
     }
 }
