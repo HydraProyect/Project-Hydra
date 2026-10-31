@@ -1607,10 +1607,9 @@ public static class DatosPruebaSeeder
         // de dashboard: /configuracion/claves-api y los selectores de filtro
         // no arrancan vacíos (ver CredencialesDemo). La clave «activa» ya no
         // autentica en la API pública V1: la emite una cuenta del propio Tenant
-        // propietario, y no existe delegación de Soporte desde su organización
-        // de origen hacia ese mismo Tenant, que es lo único que se exige al
-        // autenticar además de no estar revocada ni caducada (ver
-        // ApiKeyAuthenticationHandler y CriterioSoporteClaveApi.PuedeAutenticar).
+        // propietario, y no guarda la ventana de Soporte en que se emitió, que es
+        // parte de lo que se exige al autenticar (ver ApiKeyAuthenticationHandler y
+        // CriterioSoporteClaveApi.PuedeAutenticar).
         // Caduca a los 30 días de la siembra ---
         var creadorClaves = coordinadorPrincipal ?? gestoresPrueba.FirstOrDefault();
         if (creadorClaves is not null)

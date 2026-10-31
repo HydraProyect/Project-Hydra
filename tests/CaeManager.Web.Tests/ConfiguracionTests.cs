@@ -66,7 +66,8 @@ public class ConfiguracionTests : BunitContext
         // de la organización añade "organizacion" (otra salida pura): 15. Usuarios y Roles pasan a la
         // sección Equipo del menú lateral (dos menos) y «Mi cuenta» añade dos salidas puras: 15 se mantiene.
         // «Plantillas» (marco de Design, 2026-10-18) añade una salida pura a /plantillas: 16.
-        enlaces.Should().HaveCount(16);
+        // Las claves de API de la organización (SEG-8) añaden un panel: 17.
+        enlaces.Should().HaveCount(17);
         enlaces.Select(enlace => enlace.GetAttribute("href"))
             .Should().OnlyContain(ruta => ruta != null && (ruta.StartsWith("/configuracion/", StringComparison.Ordinal)
                 // «Mi cuenta» (Design, 2026-10-17): Verificación en dos pasos y Mi firma son salidas puras a su

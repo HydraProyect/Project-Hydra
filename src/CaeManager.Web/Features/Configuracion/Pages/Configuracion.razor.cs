@@ -211,6 +211,7 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
             // e identidad» a este bloque al desaparecer ese (el diseño no la dibuja: se mantiene porque un
             // mockup omite comportamiento, no lo deroga).
             new("organizacion", Textos["EntradaOrganizacionNombre"], Textos["EntradaOrganizacionResumen"], null, false),
+            new("api-organizacion", Textos["EntradaApiOrganizacionNombre"], Textos["EntradaApiOrganizacionResumen"], typeof(Features.ApiKeys.Pages.ClavesApiOrganizacion)),
             // "plataforma" es deliberadamente distinta a sus vecinas: TipoPanel
             // queda null a propósito — es lo único que evita el embedding (el
             // <DynamicComponent> de Configuracion.razor solo se renderiza si

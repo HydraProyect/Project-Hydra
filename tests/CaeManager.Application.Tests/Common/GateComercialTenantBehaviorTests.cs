@@ -13,6 +13,7 @@ public class GateComercialTenantBehaviorTests
     private record FalsoCommand : ICommand;
     private record FalsoConValorCommand : ICommand<Guid>;
     private record FalsaQuery : IRequest<string>;
+    private record ReduceExposicionCommand : ICommand, IComandoQueReduceExposicion;
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
     {
@@ -44,6 +45,20 @@ public class GateComercialTenantBehaviorTests
         var resultado = await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
         resultado.Should().Be("ok");
+    }
+
+    // Cortar una credencial filtrada no puede depender de que la suscripción esté al día.
+    [Theory]
+    [InlineData(EstadoComercialTenant.SoloLectura)]
+    [InlineData(EstadoComercialTenant.Suspendida)]
+    public async Task No_bloquea_el_comando_que_reduce_exposicion(EstadoComercialTenant estado)
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(estado);
+        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+
+        var resultado = await behavior.Handle(new ReduceExposicionCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
     }
 
     [Fact]

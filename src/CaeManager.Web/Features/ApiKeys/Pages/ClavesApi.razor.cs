@@ -65,9 +65,9 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private bool HayCambiosGeneracion => !_generando && (!string.IsNullOrWhiteSpace(_nombreNuevaClave)
         || !string.IsNullOrWhiteSpace(_motivoNuevaClave) || !string.IsNullOrWhiteSpace(_caducidadNuevaClave));
     // Mismo corte que ClaveApi.EstaVigente: la clave deja de valer en el instante de su caducidad.
-    private static bool EstaVigente(ClaveApiDto clave) => clave.EstaActiva && DateTime.UtcNow < clave.CaducaEnUtc;
+    private static bool EstaVigente(ClaveApiDto clave) => clave.EstaActiva && !clave.Cortada && DateTime.UtcNow < clave.CaducaEnUtc;
     private string TextoEstado(ClaveApiDto clave) =>
-        !clave.EstaActiva ? "Revocada" : EstaVigente(clave) ? "Activa" : Textos["Caducada"].Value;
+        !clave.EstaActiva ? "Revocada" : clave.Cortada ? Textos["Cortada"].Value : EstaVigente(clave) ? "Activa" : Textos["Caducada"].Value;
     // Último día de negocio en que la clave vale: el anterior al instante de caducidad, que para las
     // emitidas desde esta página es el inicio del día siguiente al elegido en hora peninsular.
     private static string UltimoDiaValido(ClaveApiDto clave) =>

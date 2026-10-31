@@ -29,22 +29,18 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 ///
 /// <para>
 /// Una clave solo autentica si, todo a la vez: no está revocada, no ha llegado a su
-/// <see cref="ClaveApi.CaducaEnUtc"/>, la cuenta que la emitió la sigue respaldando y en su
-/// Tenant propietario existe una delegación de propósito Soporte desde la organización de
-/// origen de esa cuenta (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Al autenticar no se exige que esa
-/// delegación esté activa ni vigente: lo exige la emisión
-/// (<see cref="CriterioSoporteClaveApi.PuedeEmitir"/> en <c>GenerarClaveApiCommand</c>), y la
-/// ventana de <c>AbrirAccesoSoporteCommand</c> dura horas, así que exigirla aquí dejaría la
-/// clave en 401 fuera de ella. Hoy una delegación retirada y una con la ventana cerrada no se
-/// distinguen (las dos están inactivas y las dos dejan autenticar); distinguirlas para que
-/// retirar el soporte invalide sus claves queda como incremento aparte.
+/// <see cref="ClaveApi.CaducaEnUtc"/> y sigue respaldada
+/// (<see cref="IClaveApiRepository.ClaveSigueRespaldadaAsync"/>, OWASP ASVS 4.0.3 V4.1.3 y V4.1.5):
+/// su Tenant propietario no está suspendido, la cuenta emisora no se ha eliminado ni desactivado y
+/// sigue abierta la ventana de Soporte TALVEG en que se emitió
+/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>).
 /// </para>
 ///
 /// <para>
-/// Cuenta emisora (<see cref="IClaveApiRepository.CuentaEmisoraRespaldaClaveAsync"/>, OWASP ASVS
-/// 4.0.3 V4.1.3 y V4.1.5): si se elimina o se desactiva, la clave deja de autenticar, y
-/// reactivarla no la devuelve, igual que no resucita las sesiones anteriores. El bloqueo temporal
-/// por intentos fallidos no la corta: cualquiera que conociera el correo tumbaría la integración.
+/// Lo que corta para siempre: cerrarse la ventana, a mano o por expiración, desactivar la cuenta
+/// emisora y la suspensión operativa del Tenant. Reabrir la ventana o reactivar no devuelve la clave,
+/// igual que no resucita las sesiones anteriores. La suspensión comercial sí es reversible. El bloqueo
+/// temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
 /// </para>
 ///
 /// <para>
@@ -99,8 +95,8 @@ public class ApiKeyAuthenticationHandler(
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
         var ahora = DateTime.UtcNow;
         if (clave is null || !clave.EstaVigente(ahora)
-            || !await claveRepositorio.CuentaEmisoraRespaldaClaveAsync(clave.CreadaPorUsuarioId, clave.CreadoEnUtc, Context.RequestAborted)
-            || !await claveRepositorio.ExisteSoporteDelOrigenEmisorAsync(tenantId.Value, clave.CreadaPorUsuarioId, Context.RequestAborted))
+            || !await claveRepositorio.ClaveSigueRespaldadaAsync(
+                tenantId.Value, clave.CreadaPorUsuarioId, clave.CreadoEnUtc, clave.VentanaSoporteId, clave.VentanaSoporteAbiertaEnUtc, Context.RequestAborted))
             return AuthenticateResult.Fail("Clave inválida o revocada.");
 
         await RegistrarUsoAsync(clave);
