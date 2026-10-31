@@ -60,6 +60,7 @@ public class SoporteSinColumnasSecretasTests
 
     private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
     private const string MigracionQueRetiraCodigoYPayload = "20261101000000_SoporteSinCodigoVerificacionNiPayloadWebhook";
+    private const string MigracionQueRetiraUserLogins = "20261101004000_SoporteSinLecturaDeUserLogins";
 
     /// <summary>
     /// Lo que retira <see cref="MigracionQueRetiraLosJson"/>. Solo rige desde esa migración: las anteriores
@@ -72,7 +73,7 @@ public class SoporteSinColumnasSecretasTests
         ["ExtraccionesIaCache"] = "ExtraccionJson",
     };
 
-    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "CredencialesIntegracion", "CredencialesConexionPlataformaCae"];
+    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "AspNetUserLogins", "CredencialesIntegracion", "CredencialesConexionPlataformaCae"];
 
     /// <summary>
     /// Tablas que Soporte TALVEG lee por columnas, con la columna que nunca se le concede. Las de
@@ -192,6 +193,15 @@ public class SoporteSinColumnasSecretasTests
         foreach (var tabla in new[] { "AspNetUserTokens", "CredencialesIntegracion", "ClavesApi" })
             Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
                 .Should().BeTrue($"el Up de {MigracionQueRetira} retira todo privilegio de cae_app_soporte sobre {tabla}");
+    }
+
+    [Fact]
+    public void La_migracion_de_los_logins_externos_retira_la_tabla_entera_a_soporte()
+    {
+        var up = Up(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraUserLogins + ".cs")));
+
+        Regex.IsMatch(up, @"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""AspNetUserLogins""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+            .Should().BeTrue($"el Up de {MigracionQueRetiraUserLogins} retira todo privilegio de cae_app_soporte sobre AspNetUserLogins");
     }
 
     [Fact]

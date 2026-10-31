@@ -197,10 +197,7 @@ public class DirectorioUsuariosTenant(
             // lista general: quien solo entra por SSO no está pendiente. (Consulta inline: la puerta
             // no es reentrante.)
             var ids = cuentas.Select(u => u.Id).ToList();
-            var conLoginExterno = ids.Count == 0
-                ? new HashSet<Guid>()
-                : (await identidad.UserLogins.Where(l => ids.Contains(l.UserId)).Select(l => l.UserId).Distinct()
-                    .ToListAsync(cancellationToken)).ToHashSet();
+            var conLoginExterno = await LeerIdsConLoginExternoAsync(ids, cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
@@ -301,7 +298,8 @@ public class DirectorioUsuariosTenant(
 
     /// <summary>
     /// Qué usuarios de este lote inician sesión por SSO (tienen al menos un
-    /// login externo), en una sola consulta contra <c>AspNetUserLogins</c>.
+    /// login externo), en una sola consulta. Soporte TALVEG usa una función booleana
+    /// limitada al Tenant del contexto firmado; el runtime consulta <c>AspNetUserLogins</c>.
     ///
     /// Revisión de Codex (2026-09-18): antes de esto, distinguir una cuenta
     /// SSO de una invitación pendiente en <c>/usuarios</c> llamaba
@@ -315,14 +313,38 @@ public class DirectorioUsuariosTenant(
         {
             if (usuarioIds.Count == 0) return new HashSet<Guid>();
 
-            var conLogin = await identidad.UserLogins
-                .Where(l => usuarioIds.Contains(l.UserId))
-                .Select(l => l.UserId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            return conLogin.ToHashSet();
+            return await LeerIdsConLoginExternoAsync(usuarioIds, cancellationToken);
         }, cancellationToken);
+
+    /// <summary>
+    /// La lectura en sí, sin la puerta, para quien ya está dentro de ella. Decide por la identidad efectiva de
+    /// PostgreSQL y no por la selección de Sesión Privilegiada, que es de lo que deriva: lo que se le niega a
+    /// <c>cae_app_soporte</c> es la tabla, y un ámbito elevado con selección vigente no es <c>cae_app_soporte</c>.
+    ///
+    /// <para>
+    /// Con esa identidad, <c>app_cuenta_tiene_login_externo</c> solo responde sobre las cuentas propias del Tenant
+    /// del contexto firmado. Una cuenta de otro Tenant que la RLS deja ver, como la de un Operador CAE externo
+    /// delegado, sale sin login externo aunque lo tenga.
+    /// </para>
+    /// </summary>
+    internal async Task<HashSet<Guid>> LeerIdsConLoginExternoAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (usuarioIds.Count == 0) return [];
+
+        if (identidad.Database.IsNpgsql() &&
+            await identidad.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"")
+                .SingleAsync(cancellationToken) == "cae_app_soporte")
+        {
+            var ids = usuarioIds.ToArray();
+            return (await identidad.Database.SqlQuery<Guid>(
+                $"SELECT id AS \"Value\" FROM unnest({ids}) AS id WHERE public.app_cuenta_tiene_login_externo(id)")
+                .ToListAsync(cancellationToken)).ToHashSet();
+        }
+
+        return (await identidad.UserLogins.Where(l => usuarioIds.Contains(l.UserId))
+            .Select(l => l.UserId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
+    }
 
     /// <summary>
     /// El rol de Identity de cada cuenta del lote, en una sola consulta contra

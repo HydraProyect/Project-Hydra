@@ -262,7 +262,15 @@ public class GestionCuentasUsuarioIdentity(
 
     /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
     private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
-        string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
+        string.IsNullOrEmpty(usuario.PasswordHash) && !await TieneLoginExternoAsync(usuario);
+
+    /// <summary>
+    /// Va al directorio y no a <c>UserManager.GetLoginsAsync</c> porque <c>cae_app_soporte</c> no lee
+    /// <c>AspNetUserLogins</c>. Virtual para los tests de página, cuyo contexto se construye sin proveedor a
+    /// propósito.
+    /// </summary>
+    protected virtual async Task<bool> TieneLoginExternoAsync(ApplicationUser usuario) =>
+        (await directorio.LeerIdsConLoginExternoAsync([usuario.Id], CancellationToken.None)).Contains(usuario.Id);
 
     private async Task<ApplicationUser?> CargarEnFrescoAsync(Guid usuarioId)
     {
