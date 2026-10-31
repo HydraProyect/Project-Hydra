@@ -128,7 +128,7 @@ public class CurrentUserServiceTests
     }
 
     /// <summary>
-    /// EquipoDelOperadorCaeExterno (quién revoca y reactiva el acceso de un Operador CAE externo)
+    /// EquipoDelOperadorCaeExterno (quién revoca el acceso de un Operador CAE externo)
     /// pregunta el rol con el ámbito del Tenant de origen abierto. Ese ámbito no puede devolverle
     /// a una Sesión Privilegiada el rol de su casa: Soporte TALVEG no es Gestor CAE ni Operador CAE.
     /// Control positivo: sin Sesión Privilegiada, el mismo ámbito devuelve el rol de origen.

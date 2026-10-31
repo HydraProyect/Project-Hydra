@@ -480,7 +480,10 @@ public class TerminologiaCanonicaTests
         // entidad ya existente. RevocarOperadorCaeExternoPorSoporteCommand nombra su parámetro DelegacionTenantId (+3:
         // declaración, validador y handler) porque es el Id de esa entidad, y RevocacionOperadorCaeExternoPorSoporte desengancha
         // DelegacionTenant del ChangeTracker tras la escritura por SQL (+1). Los tipos nuevos usan el nombre canónico.
-        ["Delegacion"] = 351,
+        // 351 → 355 (2026-10-31, SEG-7): +4, referencias a tipos ya existentes. Reactivar y su lote reciben
+        // IAutorizacionDelegacionTenant, y AdministradorQueReactiva la declara y llama a PuedeGestionarDelegacionesAsync.
+        // Lo nuevo usa el nombre canónico; el renombrado es un incremento propio.
+        ["Delegacion"] = 355,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
