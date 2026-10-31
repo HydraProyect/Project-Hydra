@@ -20,7 +20,7 @@ namespace CaeManager.Domain.Seguridad;
 /// </para>
 ///
 /// <para>
-/// <b>Conservación: 5 años</b> desde <see cref="EmitidaEnUtc"/>, con la purga de
+/// <b>Conservación: 12 meses</b> desde <see cref="EmitidaEnUtc"/>, con la purga de
 /// <c>app_purgar_sesiones_usuario()</c> (corte fijo dentro de la función). Purgar no reabre nada:
 /// sin fila, la sesión no vale.
 /// </para>
@@ -28,7 +28,7 @@ namespace CaeManager.Domain.Seguridad;
 public class SesionUsuario : EntidadConTenant
 {
     /// <summary>Conservación declarada de las filas.</summary>
-    public const int AnosConservacion = 5;
+    public const int MesesConservacion = 12;
 
     /// <summary>La cuenta a la que se emitió la sesión (el Actor real en una Sesión Privilegiada).</summary>
     public Guid UsuarioId { get; private set; }

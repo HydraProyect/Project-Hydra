@@ -363,9 +363,13 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // dentro de la función, runtime solo tiene EXECUTE). No existe
         // equivalente EF para invocar una función que devuelve un escalar.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
-        // Conservación de 5 años de SesionesUsuario, en la misma pasada y con el
+        // Conservación de 12 meses de SesionesUsuario, en la misma pasada y con el
         // mismo criterio: app_purgar_sesiones_usuario, sin parámetros.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_sesiones_usuario() AS \\\"Value\\\"\")")] = 1,
+        // Conservación de 5 años de los registros de auditoría: app_purgar_registros_auditoria
+        // (SECURITY DEFINER, corte fijo dentro). El único parámetro, un booleano interpolado
+        // que EF envía como parámetro, elige entre contar y borrar.
+        [("src/CaeManager.Infrastructure/Retencion/PurgaRegistrosCaducados.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_registros_auditoria({simular}) AS \\\"Value\\\"\")")] = 1,
         // Revocación de sesión en servidor: cada revalidación (cookie y circuito)
         // pregunta a app_sesion_vigente (SECURITY DEFINER, solo un booleano) antes
         // de que haya Tenant en el contexto. Parámetros interpolados de

@@ -16,6 +16,10 @@ namespace CaeManager.Domain.Cumplimiento;
 /// (ver <see cref="VersionTerminos"/>) crea una fila nueva por cada
 /// aceptación posterior, nunca sobreescribe la anterior; es el mismo
 /// criterio append-only que <c>RechazoAcreditacionDocumentoPlataforma</c>.
+/// La base de datos lo impone: <c>cae_app_runtime</c> no tiene UPDATE ni DELETE.
+///
+/// Se conserva durante el contrato y 5 años más (decisión de 2026-10-31). Sin purga: hoy no
+/// existe ninguna fecha de fin de contrato de la que contar ese plazo.
 /// </summary>
 public class AceptacionTerminos : Entity
 {
