@@ -39,7 +39,11 @@ env:
         - 'http://127\.0\.0\.1:5080/cuenta/iniciar-sesion-microsoft.*'
         - 'http://127\.0\.0\.1:5080/cuenta/microsoft-callback.*'
   parameters:
-    failOnError: true
+    # El documento OpenAPI de la aplicación declara una ruta de webhook con un
+    # parámetro sin definir: ZAP lo marca como error, pero importa el resto. El
+    # plan sigue, y el job decide con su lista de errores conocidos.
+    failOnError: false
+    continueOnFailure: true
     failOnWarning: false
     progressToStdout: true
 

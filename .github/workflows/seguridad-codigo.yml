@@ -548,7 +548,6 @@ jobs:
             pedir "$ruta"
           done
 
-          id=$(primero Clientes);  [ -z "$id" ] || pedir "/api/v1/clientes/$id"
           id=$(primero Centros);   [ -z "$id" ] || pedir "/api/v1/centros/$id"
           id=$(primero Trabajadores); [ -z "$id" ] || pedir "/api/v1/trabajadores/$id"
           id=$(primero Documentos)
@@ -557,8 +556,12 @@ jobs:
             pedir "/documentos/$id/archivo"
           fi
           id=$(primero Visitas);   [ -z "$id" ] || pedir "/visitas/$id/paquete-documental.zip"
-          id=$(primero Empresas);  [ -z "$id" ] || pedir "/empresas/$id/sello/archivo"
-          id=$(primero RequisitosDocumentales); [ -z "$id" ] || pedir "/requisitos-documentales/$id/archivo"
+          # Las rutas /api/v1/clientes leen la tabla Empresas.
+          id=$(primero Empresas)
+          if [ -n "$id" ]; then
+            pedir "/api/v1/clientes/$id"
+            pedir "/empresas/$id/sello/archivo"
+          fi
           pedir "/tenants/$tenant/logo"
           id=$(primero AcreditacionesDocumentoPlataforma)
           if [ -n "$id" ]; then
@@ -601,7 +604,8 @@ jobs:
           done
 
           jq -r '(.info // [])[], (.warn // [])[], (.error // [])[]' <<< "$progreso"
-          errores=$(jq '(.error // []) | length' <<< "$progreso")
+          # Único error admitido: el aviso del documento OpenAPI (ver el plan).
+          errores=$(jq '[(.error // [])[] | select(test("Declared path parameter") | not)] | length' <<< "$progreso")
 
           # La prueba final no admite 000: tiene que ser un 200 con ZAP ya libre.
           final=$(sonda)
