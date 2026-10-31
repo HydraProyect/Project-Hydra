@@ -24,6 +24,7 @@ public class ConectarExtensionInstalacionTests : BunitContext
         this.ConRolDeEscritura(Roles.GestorCae);
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
+        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionSinSesion());
         Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         Services.AddSingleton<IRegistroSesionesUsuario>(new SesionesQueNadieDebeTocar());
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
@@ -32,6 +33,13 @@ public class ConectarExtensionInstalacionTests : BunitContext
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Extension:UrlInstalacion"] = urlInstalacion })
             .Build());
         return Render<ConectarExtension>();
+    }
+
+    private sealed class SeleccionSinSesion : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     /// <summary>Tampoco consulta ninguna sesión: solo se usa al generar el token.</summary>

@@ -1028,8 +1028,10 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 // `--exportar-tenant <TenantId> --solicitante <correo> --destino <ruta.zip>`. Solo desde este modo
 // de CLI, nunca en el arranque normal. Lee con el contexto INYECTADO —rol restringido, bajo RLS— y
 // nunca con FabricaContextoDeBootstrap: ExportacionCompletaTenant se niega si esa identidad puede
-// saltarse RLS, exige que el solicitante sea un Administrador activo del propio Tenant y audita
-// la exportación en ese Tenant antes de escribir. Se lanza con el servicio "app" (el que recibe
+// saltarse RLS, exige que el solicitante sea un Actor de Plataforma TALVEG con concesión AdminPlataforma vigente
+// sobre ese Tenant y audita la exportación en él antes de escribir. El zip va cifrado con AES-256 y
+// la contraseña, aleatoria y nunca aceptada como argumento, solo se muestra por consola al terminar:
+// ejecuta con `docker compose run --rm`, para que el contenedor y su salida no se queden. Se lanza con el servicio "app" (el que recibe
 // CaeManagerDbRuntime) y un --destino en un volumen montado; el fichero no puede existir antes, y
 // si la exportación falla a mitad se borra: un zip incompleto no se entrega.
 if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Argumento))
@@ -1054,6 +1056,7 @@ if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenan
     using var scopeExportacion = app.Services.CreateScope();
     var rutaExportacion = Path.GetFullPath(destinoExportacion);
     var creado = false;
+    var contrasenaExportacion = CaeManager.Application.Exportacion.ArchivoExportacion.GenerarContrasena();
     try
     {
         CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Resultado resultadoExportacion;
@@ -1073,10 +1076,11 @@ if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenan
             resultadoExportacion = await CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ExportarAsync(
                 scopeExportacion.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
                 scopeExportacion.ServiceProvider.GetRequiredService<IFileStorageService>(),
-                tenantIdAExportar, solicitante, ficheroExportacion);
+                tenantIdAExportar, solicitante, contrasenaExportacion, ficheroExportacion);
         }
 
         CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Informar(resultadoExportacion, rutaExportacion, Console.Out);
+        CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.InformarContrasena(contrasenaExportacion, Console.Out);
     }
     // Cualquier excepción: el zip a medias se borra y se sale con 1.
     catch (Exception ex)
