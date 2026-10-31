@@ -773,7 +773,8 @@ public class RevocacionDelegacionTests
 
         var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
             asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantActualFijo(OperadorCae));
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -793,13 +794,63 @@ public class RevocacionDelegacionTests
 
         var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
             asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantActualFijo(TenantPropietario));
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         asignacionRepositorio.Asignaciones.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// El Tenant de origen autoriza y abre la lectura de la fila, pero borrarla exige que el Tenant
+    /// activo sea un extremo: sin esta guarda, RLS no dejaría alcanzar ninguna fila y el guardado
+    /// terminaría en un DbUpdateConcurrencyException.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Desde_el_workspace_de_un_tercero_no_se_retira_un_operador_y_se_pide_volver_a_la_organizacion(bool sinTenantActivo)
+    {
+        var (delegacion, delegacionRepositorio, unitOfWork) = Preparar();
+        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "GestorCae");
+        var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
+        asignacionRepositorio.Agregar(asignacion);
+
+        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+            asignacionRepositorio, delegacionRepositorio,
+            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantActualFijo(sinTenantActivo ? null : Guid.NewGuid()));
+
+        var resultado = await handler.Handle(
+            new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
+        resultado.Error.Mensaje.Should().Be("Para retirar a esta persona, vuelve a tu organización.");
+        asignacionRepositorio.Asignaciones.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Desde_el_workspace_del_Tenant_propietario_se_retira_un_operador()
+    {
+        var (delegacion, delegacionRepositorio, unitOfWork) = Preparar();
+        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "GestorCae");
+        var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
+        asignacionRepositorio.Agregar(asignacion);
+
+        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+            asignacionRepositorio, delegacionRepositorio,
+            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new TenantActualFijo(TenantPropietario));
+
+        var resultado = await handler.Handle(
+            new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        asignacionRepositorio.Asignaciones.Should().BeEmpty();
     }
 
     // ── Arnés ─────────────────────────────────────────────────────────────

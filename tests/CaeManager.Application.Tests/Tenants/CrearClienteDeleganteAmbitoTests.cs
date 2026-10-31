@@ -12,13 +12,15 @@ namespace CaeManager.Application.Tests.Tenants;
 
 public class CrearClienteDeleganteAmbitoTests
 {
-    [Fact]
-    public async Task Un_fallo_del_segundo_guardado_deshace_la_transaccion_y_restaura_el_ambito()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Un_fallo_de_un_guardado_posterior_deshace_la_transaccion_y_restaura_el_ambito(int guardadoQueFalla)
     {
         var origen = Guid.NewGuid();
         using var ambito = AmbitoTenantExplicito.Establecer(origen);
         var transaccion = new TransaccionDeComandoFalsa();
-        var guardados = new GuardadosConTenant(fallarSegundo: true);
+        var guardados = new GuardadosConTenant(fallarEn: guardadoQueFalla);
         var handler = new CrearClienteDeleganteCommandHandler(
             new TenantsFalsos(), new DelegacionTenantRepositorioFalso(),
             new AsignacionOperadorDelegadoRepositorioFalso(), new ParametrosFalsos(),
@@ -26,10 +28,10 @@ public class CrearClienteDeleganteAmbitoTests
             new AsignacionesOperativasWriterFalso(), guardados, transaccion);
 
         Func<Task> ejecutar = async () => await handler.Handle(new("Alta fallida"), CancellationToken.None);
-        await ejecutar.Should().ThrowAsync<InvalidOperationException>().WithMessage("Segundo guardado fallido");
+        await ejecutar.Should().ThrowAsync<InvalidOperationException>().WithMessage("Guardado fallido");
 
-        guardados.Tenants.Should().HaveCount(2).And.OnlyContain(t => t != null && t != origen);
-        guardados.Tenants[0].Should().Be(guardados.Tenants[1]);
+        guardados.Tenants.Should().HaveCount(guardadoQueFalla).And.OnlyContain(t => t != null && t != origen);
+        guardados.Tenants.Distinct().Should().ContainSingle();
         transaccion.Ejecutadas.Should().Be(1);
         transaccion.Deshechas.Should().Be(1);
         transaccion.Confirmadas.Should().Be(0);
@@ -43,30 +45,37 @@ public class CrearClienteDeleganteAmbitoTests
         using var ambito = AmbitoTenantExplicito.Establecer(origen);
         var tenants = new TenantsFalsos();
         var delegaciones = new DelegacionTenantRepositorioFalso();
+        var asignaciones = new AsignacionOperadorDelegadoRepositorioFalso();
         var writer = new AsignacionesOperativasWriterFalso();
-        var guardados = new GuardadosConTenant();
+        var pendientes = new List<(int Delegaciones, int Asignaciones)>();
+        var guardados = new GuardadosConTenant(
+            alGuardar: () => pendientes.Add((delegaciones.Delegaciones.Count, asignaciones.Asignaciones.Count)));
         var handler = new CrearClienteDeleganteCommandHandler(
-            tenants, delegaciones, new AsignacionOperadorDelegadoRepositorioFalso(), new ParametrosFalsos(),
+            tenants, delegaciones, asignaciones, new ParametrosFalsos(),
             AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: origen),
             writer, guardados, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
 
         var resultado = await handler.Handle(new CrearClienteDeleganteCommand("Organización nueva"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        guardados.Tenants.Should().Equal(resultado.Valor, resultado.Valor);
+        guardados.Tenants.Should().Equal(resultado.Valor, resultado.Valor, resultado.Valor);
+        // Sin clave foránea EF no ordena los INSERT de un mismo guardado, y el WITH CHECK de la
+        // asignación busca su delegación: el guardado intermedio la deja escrita antes de añadir la fila.
+        pendientes.Should().Equal((0, 0), (1, 0), (1, 1));
         writer.OperacionesAbiertas.Should().ContainSingle().Which.Should().Be((resultado.Valor, origen));
         delegaciones.Delegaciones.Should().ContainSingle().Which.TenantClienteId.Should().Be(resultado.Valor);
         AmbitoTenantExplicito.TenantIdActual.Should().Be(origen);
     }
 
-    private sealed class GuardadosConTenant(bool fallarSegundo = false) : IUnitOfWork
+    private sealed class GuardadosConTenant(int? fallarEn = null, Action? alGuardar = null) : IUnitOfWork
     {
         public List<Guid?> Tenants { get; } = [];
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             Tenants.Add(AmbitoTenantExplicito.TenantIdActual);
-            if (fallarSegundo && Tenants.Count == 2)
-                throw new InvalidOperationException("Segundo guardado fallido");
+            alGuardar?.Invoke();
+            if (Tenants.Count == fallarEn)
+                throw new InvalidOperationException("Guardado fallido");
             return Task.FromResult(1);
         }
     }
