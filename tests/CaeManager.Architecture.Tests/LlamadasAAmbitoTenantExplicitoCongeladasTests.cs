@@ -464,9 +464,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundRetirada.cs"] =
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenant.Id de un Tenant del piloto que RetiradaTenantDemoService.ValidarTenantRetirableAsync acaba de validar (nombre en la allowlist de demo y marcador), para leer con identidad no privilegiada las claves de los PDF que se eliminan del almacén antes de retirarlo; solo se alcanza desde el modo de CLI --retirar-piloto-outbound"),
         ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
+            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca, se escribe o cuyos roles se leen, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
         ["src/CaeManager.Infrastructure/Identity/TenantClaimsPrincipalFactory.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "1 llamada — user.TenantId de la cuenta que Identity acaba de cargar, para leer la seguridad de acceso de su Tenant propietario al construir el principal"),
+            new(Categoria.IdentificacionDeCuentaSinSesion, "1 llamada — user.TenantId de la cuenta que Identity acaba de cargar, para leer sus roles y la seguridad de acceso de su Tenant propietario al construir el principal"),
         ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
         ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] =

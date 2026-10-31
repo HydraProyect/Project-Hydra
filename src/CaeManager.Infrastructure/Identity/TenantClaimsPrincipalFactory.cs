@@ -97,6 +97,10 @@ public class TenantClaimsPrincipalFactory(
 
     public override async Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
     {
+        // Fuera de sesión (inicio de sesión, revalidación) no hay Tenant actual: el ámbito es el de la
+        // cuenta que Identity acaba de cargar. La clase base lee sus roles dentro de él, para no depender
+        // de que AspNetUserRoles deje ver filas sin Tenant. También vale para el ajuste de su Tenant, abajo.
+        using var enTenantDeLaCuenta = AmbitoTenantExplicito.Establecer(user.TenantId);
         var principal = await base.CreateAsync(user);
 
         // La marca del TOTP de la sesión (precondición de abrir una Sesión Privilegiada) nunca sale
@@ -150,21 +154,17 @@ public class TenantClaimsPrincipalFactory(
         return principal;
     }
 
-    // Fuera de sesión (inicio de sesión, revalidación) no hay Tenant actual: el ámbito es el de
-    // la cuenta que Identity acaba de cargar. Sin fila valen los valores por defecto.
+    // Dentro del ámbito de la cuenta que abre CreateAsync. Sin fila valen los valores por defecto.
     private async Task<(int Minutos, bool ExigeTodos)> LeerSeguridadAccesoAsync(Guid tenantId)
     {
-        using (AmbitoTenantExplicito.Establecer(tenantId))
-        {
-            var ajuste = await dbContext.ParametrosSistema
-                .AsNoTracking()
-                .Where(p => p.TenantId == tenantId)
-                .Select(p => new { p.MinutosInactividadSesion, p.ExigeSegundoFactorTodosLosPerfiles })
-                .SingleOrDefaultAsync();
+        var ajuste = await dbContext.ParametrosSistema
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
+            .Select(p => new { p.MinutosInactividadSesion, p.ExigeSegundoFactorTodosLosPerfiles })
+            .SingleOrDefaultAsync();
 
-            return ajuste is null
-                ? (ParametroSistema.MinutosInactividadSesionPorDefecto, false)
-                : (ajuste.MinutosInactividadSesion, ajuste.ExigeSegundoFactorTodosLosPerfiles);
-        }
+        return ajuste is null
+            ? (ParametroSistema.MinutosInactividadSesionPorDefecto, false)
+            : (ajuste.MinutosInactividadSesion, ajuste.ExigeSegundoFactorTodosLosPerfiles);
     }
 }
