@@ -159,6 +159,15 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Protegir el meu compte</value>
   </data>
+  <data name="SesionPrivilegiadaCambiarContrasena" xml:space="preserve">
+    <value>No es pot canviar la contrasenya durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaDosFactores" xml:space="preserve">
+    <value>No es pot modificar l'autenticació en dos passos durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaRestablecerContrasena" xml:space="preserve">
+    <value>No es pot restablir la contrasenya durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
   <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
     <value>El teu compte de Microsoft no està donat d&apos;alta a {0}. Demana al teu Administrador que et doni d&apos;alta.</value>
   </data>

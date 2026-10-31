@@ -412,6 +412,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
+        EscribirPropiedad(pagina, "Seleccion", new SinSesionPrivilegiadaSeleccionada());
         EscribirPropiedad(pagina, "UserId", userId.ToString());
         EscribirPropiedad(pagina, "Code", codigo);
         return pagina;
@@ -429,6 +430,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
+        EscribirPropiedad(pagina, "Seleccion", new SinSesionPrivilegiadaSeleccionada());
         // Los textos reales del .resx: el mensaje uniforme de contraseña actual incorrecta sale de ahí (S-A-9).
         EscribirPropiedad(pagina, "Textos",
             new Microsoft.Extensions.Localization.StringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta>(
@@ -485,6 +487,16 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         var mi = instancia.GetType().GetMethod(nombre, BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new InvalidOperationException($"No se encontró el método '{nombre}' en {instancia.GetType().Name}.");
         await (Task)mi.Invoke(instancia, null)!;
+    }
+
+    // Las páginas construidas por reflexión no pasan por DI: la guarda de Sesión Privilegiada (ASVS V4.1.5) lee
+    // Seleccion en cuanto se invoca el método, así que el arnés debe proporcionarla. Este doble representa el caso
+    // normal, «sin Sesión Privilegiada seleccionada»; en producto [Inject] no admite null (DI falla si no está registrada).
+    private sealed class SinSesionPrivilegiadaSeleccionada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     private sealed class SinTenantActual : ITenantActual
