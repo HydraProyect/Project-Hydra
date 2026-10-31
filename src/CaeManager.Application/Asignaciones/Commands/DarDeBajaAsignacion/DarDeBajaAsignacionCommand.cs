@@ -44,6 +44,13 @@ public class DarDeBajaAsignacionCommandHandler(
         if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(asignacion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Asignacion.NoEncontrada", "No encontramos esta asignación."));
 
+        // Asignacion no lleva token de versión (sin columna que migrar): la carrera que
+        // importa —dos Gestores CAE dan de baja la misma fila con fechas distintas— se
+        // detecta por su estado. Una baja ya dada no se re-fecha en silencio; para
+        // corregirla está «Deshacer» (ReactivarAsignacionCommand) y volver a darla.
+        if (!asignacion.EstaActiva)
+            return Result.Fallo(Error.Crear("Asignacion.YaDeBaja", "Esta asignación ya estaba dada de baja."));
+
         try
         {
             asignacion.DarDeBaja(request.FechaBaja);
