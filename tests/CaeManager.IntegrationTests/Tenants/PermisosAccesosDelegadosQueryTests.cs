@@ -109,7 +109,7 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
         lote.Should().BeEquivalentTo(individuales);
         ids.Where(d => d.Activa).Should().OnlyContain(d => lote[d.Id].PuedeRevocar,
             "el control positivo evita medir un lote que no autoriza por un fallo de siembra");
-        ids.Where(d => !d.Activa).Should().OnlyContain(d => !lote[d.Id].PuedeReactivar,
+        ids.Where(d => !d.Activa).Should().NotContain(d => lote[d.Id].PuedeReactivar,
             "el Operador CAE externo nunca reactiva");
         despues.Should().Be(4, "una lectura de accesos con plataforma, dos de Identity y una de Carteras, para cualquier N");
         salida.WriteLine($"N={n}: individuales={antes}, lote={despues}");
