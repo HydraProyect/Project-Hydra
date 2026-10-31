@@ -6,11 +6,9 @@
 *@
 @using CaeManager.Application.Auditoria.Queries
 @using CaeManager.Application.Common
-@using CaeManager.Infrastructure.Identity
+@using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta
 @using MediatR
-@using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
-@inject UserManager<ApplicationUser> UserManager
 @inject PuertaAccesoDatos PuertaAccesoDatos
 
 @if (_cargando)
@@ -88,14 +86,12 @@ else
                 .Distinct()
                 .ToList();
 
-            // Por la puerta: UserManager no pasa por MediatR y esta pestaña
-            // carga en paralelo con el resto del circuito sobre el mismo
-            // DbContext scoped (ver PuertaAccesoDatos).
+            // Las consultas comparten la puerta con el resto del circuito.
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id));
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
                     if (usuario is null)
                         _usuariosEliminados.Add(id);

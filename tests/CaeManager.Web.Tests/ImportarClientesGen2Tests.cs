@@ -10,6 +10,7 @@ using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -22,7 +23,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using PaginaImportacion = CaeManager.Web.Features.Importacion.Pages.Importacion;
 
@@ -279,33 +279,20 @@ public partial class ImportarClientesGen2Tests : BunitContext
     /// eliminado)». Nada más se consulta. Registra cada búsqueda y puede
     /// retenerla hasta que el test la suelte.
     /// </summary>
-    private sealed class AlmacenUsuariosVacio : IUserStore<ApplicationUser>
+    private sealed class BuscadorDeUsuariosVacio
     {
-        private static Exception NoDeberia() => new NotSupportedException("La página solo busca usuarios por id.");
-
         public List<string> Buscados { get; } = [];
 
         /// <summary>Si devuelve una tarea, la búsqueda espera a que el test la complete.</summary>
         public Func<string, Task?> Retener { get; set; } = _ => null;
 
-        public async Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken)
+        public async Task<object?> BuscarAsync(string userId)
         {
             Buscados.Add(userId);
             if (Retener(userId) is { } puerta)
                 await puerta;
             return null;
         }
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public void Dispose() { }
     }
 
     /// <summary>
@@ -332,7 +319,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private readonly AlmacenUsuariosVacio _usuarios = new();
+    private readonly BuscadorDeUsuariosVacio _usuarios = new();
 
     private sealed class PlantillaCaeConfiguradaFalsa(bool configurada) : IPlantillaCaeCompletaConfigurada
     {
@@ -346,7 +333,9 @@ public partial class ImportarClientesGen2Tests : BunitContext
     private (IRenderedComponent<PaginaImportacion> Cut, MediadorControlado Mediador) Renderizar(
         Escenario escenario, string url = "importacion?plantilla=clientes", Action? antesDeRenderizar = null)
     {
-        var mediador = new MediadorControlado(escenario.Responder);
+        var mediador = new MediadorControlado((peticion, token) => peticion is ObtenerNombreCuentaQuery nombre
+            ? _usuarios.BuscarAsync(nombre.UsuarioId.ToString())
+            : escenario.Responder(peticion, token));
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(TenantImportacion));
@@ -356,8 +345,6 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
         Services.AddLocalization();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         antesDeRenderizar?.Invoke();
 
@@ -1003,7 +990,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         _usuarios.Buscados.Should().ContainSingle("la primera búsqueda está retenida");
 
         await DisposeComponentsAsync();
-        // UserManager.FindByIdAsync no admite token: la búsqueda en curso termina.
+        // El doble no atiende al token: la búsqueda en curso termina y lo que se corta es la siguiente.
         primeraBusqueda.SetResult();
         await PasarPorLaPuertaDeDatos();
 

@@ -59,6 +59,10 @@ public class SesionPrivilegiadaSinRolDeNegocioMiddleware(RequestDelegate siguien
 
     private static bool TraeSesionPrivilegiada(HttpContext contexto, IDataProtectionProvider dataProtectionProvider)
     {
+        // Una petición de la extensión ya resuelta no tiene más credencial que su
+        // token: si trae cookie de selección no es la suya, ni aquí se lee.
+        if (ContextoExtension.Es(contexto)) return false;
+
         // Sin cookie no hay nada que mirar: el caso de la inmensa mayoría, y
         // sin descifrar nada.
         var valorCookie = contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie];

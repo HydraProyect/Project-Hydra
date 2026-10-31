@@ -143,6 +143,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("UsosConexionPlataformaCae", "ClaveIdempotencia"),
             // Booleano que obliga a cambiar la contraseña en el siguiente acceso; no la contiene.
             ("AspNetUsers", "DebeCambiarContrasena"),
+            // Instante de la última reactivación de la cuenta: una fecha que corta las claves de API anteriores, no una clave.
+            ("AspNetUsers", "ClavesApiValidasDesdeUtc"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
             ("AspNetUsers", "ConcurrencyStamp"),
             // Identity usa el sello del rol para detectar escrituras concurrentes, no para autenticar.

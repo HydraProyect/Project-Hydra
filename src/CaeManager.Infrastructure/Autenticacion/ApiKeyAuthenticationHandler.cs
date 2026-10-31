@@ -29,9 +29,9 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 ///
 /// <para>
 /// Una clave solo autentica si, todo a la vez: no está revocada, no ha llegado a su
-/// <see cref="ClaveApi.CaducaEnUtc"/> y en su Tenant propietario existe una delegación de
-/// propósito Soporte desde la organización de origen de la cuenta que la emitió
-/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Al autenticar no se exige que esa
+/// <see cref="ClaveApi.CaducaEnUtc"/>, la cuenta que la emitió la sigue respaldando y en su
+/// Tenant propietario existe una delegación de propósito Soporte desde la organización de
+/// origen de esa cuenta (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Al autenticar no se exige que esa
 /// delegación esté activa ni vigente: lo exige la emisión
 /// (<see cref="CriterioSoporteClaveApi.PuedeEmitir"/> en <c>GenerarClaveApiCommand</c>), y la
 /// ventana de <c>AbrirAccesoSoporteCommand</c> dura horas, así que exigirla aquí dejaría la
@@ -41,10 +41,10 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// </para>
 ///
 /// <para>
-/// Cuenta emisora: si se elimina, la clave deja de autenticar, porque
-/// <c>app_tenant_de_cuenta</c> devuelve null y no hay origen con el que buscar la delegación.
-/// Si solo se desactiva o se bloquea, la clave sigue autenticando hasta su caducidad o su
-/// revocación: aquí no se comprueba el estado de la cuenta.
+/// Cuenta emisora (<see cref="IClaveApiRepository.CuentaEmisoraRespaldaClaveAsync"/>, OWASP ASVS
+/// 4.0.3 V4.1.3 y V4.1.5): si se elimina o se desactiva, la clave deja de autenticar, y
+/// reactivarla no la devuelve, igual que no resucita las sesiones anteriores. El bloqueo temporal
+/// por intentos fallidos no la corta: cualquiera que conociera el correo tumbaría la integración.
 /// </para>
 ///
 /// <para>
@@ -99,6 +99,7 @@ public class ApiKeyAuthenticationHandler(
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
         var ahora = DateTime.UtcNow;
         if (clave is null || !clave.EstaVigente(ahora)
+            || !await claveRepositorio.CuentaEmisoraRespaldaClaveAsync(clave.CreadaPorUsuarioId, clave.CreadoEnUtc, Context.RequestAborted)
             || !await claveRepositorio.ExisteSoporteDelOrigenEmisorAsync(tenantId.Value, clave.CreadaPorUsuarioId, Context.RequestAborted))
             return AuthenticateResult.Fail("Clave inválida o revocada.");
 

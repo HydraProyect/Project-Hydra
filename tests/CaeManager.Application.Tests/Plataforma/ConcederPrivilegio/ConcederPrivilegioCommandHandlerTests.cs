@@ -74,6 +74,20 @@ public class ConcederPrivilegioCommandHandlerTests
             directorio, unitOfWork);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(37)]
+    public async Task La_vigencia_de_la_concesion_depende_de_los_dias_solicitados(int dias)
+    {
+        var handler = Handler(out var writer, out _);
+
+        var resultado = await handler.Handle(Comando() with { DiasDeVigencia = dias }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var concesion = writer.ConcesionAnadida!;
+        concesion.VigenciaHasta.Should().Be(concesion.VigenciaDesde.AddDays(dias));
+    }
+
     /// <summary>
     /// No puede haber un valor que el validador acepte y el dominio rechace: el
     /// comando en el tope pasa la validación y el manejador, con su reloj real,

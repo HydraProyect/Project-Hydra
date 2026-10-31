@@ -361,86 +361,6 @@ public partial class ClientesListaGen2Tests : BunitContext
         public Guid? TenantId => tenantId;
     }
 
-    /// <summary>
-    /// Con tenant resuelto, el directorio pregunta por los Operadores Delegados
-    /// del tenant con <c>ToDictionaryAsync</c>: aquí no hay ninguno, y las dos
-    /// colecciones van envueltas para que EF acepte recorrerlas en asíncrono.
-    /// </summary>
-    private sealed class TenantsQueryContextSinDelegaciones : ITenantsQueryContext
-    {
-        private static Exception NoDeberia() =>
-            new NotSupportedException("El directorio solo consulta delegaciones y asignaciones; si esto salta, cambió el camino.");
-
-        public IQueryable<Tenant> Tenants => throw NoDeberia();
-        public IQueryable<DelegacionTenant> DelegacionesTenant => new ConsultaAsincrona<DelegacionTenant>(Array.Empty<DelegacionTenant>().AsQueryable());
-        public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => new ConsultaAsincrona<AsignacionOperadorDelegado>(Array.Empty<AsignacionOperadorDelegado>().AsQueryable());
-        public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw NoDeberia();
-    }
-
-    /// <summary>
-    /// <c>IQueryable</c> en memoria que además es <see cref="IAsyncEnumerable{T}"/>,
-    /// que es lo único que piden los operadores asíncronos de EF que usa el
-    /// directorio (mismo patrón que <c>TestAsyncQueryable</c> de Application.Tests).
-    /// </summary>
-    private sealed class ConsultaAsincrona<T>(IQueryable<T> interna) : IOrderedQueryable<T>, IAsyncEnumerable<T>
-    {
-        public Type ElementType => interna.ElementType;
-        public System.Linq.Expressions.Expression Expression => interna.Expression;
-        public IQueryProvider Provider { get; } = new ProveedorAsincrono(interna.Provider);
-
-        public IEnumerator<T> GetEnumerator() => interna.GetEnumerator();
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => interna.GetEnumerator();
-
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
-            new EnumeradorAsincrono<T>(interna.GetEnumerator());
-    }
-
-    private sealed class ProveedorAsincrono(IQueryProvider interno) : IQueryProvider
-    {
-        public IQueryable CreateQuery(System.Linq.Expressions.Expression expression) =>
-            throw new NotSupportedException("El directorio solo compone consultas tipadas.");
-
-        public IQueryable<TElement> CreateQuery<TElement>(System.Linq.Expressions.Expression expression) =>
-            new ConsultaAsincrona<TElement>(interno.CreateQuery<TElement>(expression));
-
-        public object? Execute(System.Linq.Expressions.Expression expression) => interno.Execute(expression);
-
-        public TResult Execute<TResult>(System.Linq.Expressions.Expression expression) => interno.Execute<TResult>(expression);
-    }
-
-    private sealed class EnumeradorAsincrono<T>(IEnumerator<T> interno) : IAsyncEnumerator<T>
-    {
-        public T Current => interno.Current;
-
-        public ValueTask<bool> MoveNextAsync() => ValueTask.FromResult(interno.MoveNext());
-
-        public ValueTask DisposeAsync()
-        {
-            interno.Dispose();
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    /// <summary>
-    /// Almacén que solo sabe una cosa: quién tiene el rol Gestor CAE. Es lo que
-    /// usa <c>ObtenerVisiblesEnRolAsync</c> (vía <c>GetUsersInRoleAsync</c>);
-    /// todo lo demás sigue lanzando.
-    /// </summary>
-    private sealed class AlmacenGestoresCae(IReadOnlyList<ApplicationUser> gestores)
-        : AlmacenUsuariosQueNadieDebeTocar, IUserRoleStore<ApplicationUser>
-    {
-        private static Exception NoDeberia() =>
-            new NotSupportedException("Este almacén solo lista Gestores CAE por rol; si esto salta, cambió el camino.");
-
-        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken cancellationToken) =>
-            Task.FromResult<IList<ApplicationUser>>(roleName == Roles.GestorCae ? gestores.ToList() : []);
-
-        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<bool> IsInRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoDeberia();
-    }
-
     private sealed class TenantsQueryContextQueNadieDebeTocar : ITenantsQueryContext
     {
         private static Exception NoDeberia() =>
@@ -505,26 +425,38 @@ public partial class ClientesListaGen2Tests : BunitContext
 
     /// <param name="gestores">
     /// Sin ninguno, el camino de <see cref="ClientesVacioPorFiltroTests"/>: sin
-    /// tenant, vacío y sin consultar. Con alguno, tenant resuelto y esos
-    /// Gestores CAE como únicos visibles en el rol.
+    /// tenant, vacío y sin consultar. Con alguno, esos Gestores CAE como únicos
+    /// visibles en el rol.
     /// </param>
     private static DirectorioUsuariosTenant CrearDirectorio(IReadOnlyList<ApplicationUser> gestores)
     {
-        var conGestores = gestores.Count > 0;
-        var tenantActual = new TenantActualFalso(conGestores ? TenantDelArnes : null);
+        var tenantActual = new TenantActualFalso(null);
         var identidad = new CaeManagerDbContext(
             new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
             DataProtectionProvider.Create(nameof(ClientesListaGen2Tests)),
             tenantActual);
 
         var userManager = new UserManager<ApplicationUser>(
-            conGestores ? new AlmacenGestoresCae(gestores) : new AlmacenUsuariosQueNadieDebeTocar(),
-            null!, null!, null!, null!, null!, null!, null!, null!);
+            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!);
 
-        return new DirectorioUsuariosTenant(
-            userManager,
-            conGestores ? new TenantsQueryContextSinDelegaciones() : new TenantsQueryContextQueNadieDebeTocar(),
-            tenantActual, new PuertaAccesoDatos(), identidad, null!);
+        return new DirectorioConGestores(
+            gestores, userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, identidad);
+    }
+
+    /// <summary>La consulta real del rol se prueba contra PostgreSQL en la integración.</summary>
+    private sealed class DirectorioConGestores(
+        IReadOnlyList<ApplicationUser> gestores,
+        UserManager<ApplicationUser> userManager,
+        ITenantsQueryContext tenants,
+        ITenantActual tenantActual,
+        CaeManagerDbContext identidad)
+        : DirectorioUsuariosTenant(userManager, tenants, tenantActual, new PuertaAccesoDatos(), identidad, null!)
+    {
+        public override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(
+            string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CuentaVisibleEnRol>>(rol == Roles.GestorCae
+                ? gestores.Select(u => new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar)).ToList()
+                : []);
     }
 
     private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();

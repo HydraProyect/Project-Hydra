@@ -274,6 +274,8 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 // exista la impersonacion.
 builder.Services.AddScoped<IActorAuditoria, ActorAuditoriaDesdeSesion>();
 builder.Services.AddScoped<IClienteActivoSeleccionado, CaeManager.Web.Services.ClienteActivoSeleccionado>();
+// Una petición de la extensión ya resuelta no se vuelve a autenticar (ver EvaluadorPoliticaExtension).
+builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyEvaluator, CaeManager.Web.Services.EvaluadorPoliticaExtension>();
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
@@ -361,6 +363,7 @@ builder.Services.AddOptions<SecurityStampValidatorOptions>()
         opciones.ValidationInterval = TimeSpan.FromSeconds(intervalos.Value.SesionSegundos));
 // HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
 CaducidadSesion.ConfigurarHsts(builder.Services);
+builder.Services.AddSingleton<ActividadSesiones>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -385,8 +388,8 @@ builder.Services.ConfigureApplicationCookie(options =>
     // dependa del rol ni de si el stamp sigue siendo válido, así que saltarse
     // la revalidación ahí no cede ninguna autorización real.
     OmitirRevalidacionDeStampEnRuta.Configurar(options, "/Error");
-    // 8 h de inactividad (deslizante) y 12 h como máximo desde el inicio de
-    // sesión; cookie Secure salvo en Development (ver CaducidadSesion).
+    // 30 min sin interacción y 12 h como máximo desde el inicio de sesión; cookie
+    // no persistente, y Secure salvo en Development (ver CaducidadSesion).
     CaducidadSesion.Configurar(options, builder.Environment);
 });
 
@@ -442,11 +445,10 @@ builder.Services.AddAuthorization(options =>
     // de acreditaciones y «Lo he enviado». Ambos esquemas explícitos porque el
     // FallbackPolicy no fija ninguno y aceptaría solo el de por defecto.
     //
-    // Extension va PRIMERO a propósito. Cuando una política nombra varios
-    // esquemas, el middleware autentica con todos y FUSIONA las identidades;
-    // si una petición trajera a la vez cabecera y cookie, el orden decide cuál
-    // gana en FindFirst. Que gane la que el llamante presentó explícitamente
-    // es lo predecible.
+    // Con el token de extensión no hay fusión de identidades, aunque la petición
+    // traiga también la cookie: ContextoExtensionMiddleware la autentica solo con
+    // ese esquema y EvaluadorPoliticaExtension no vuelve a autenticar. El de la
+    // cookie solo actúa en una sesión interactiva, sin token.
     options.AddPolicy(Policies.SesionOExtension, policy => policy
         .AddAuthenticationSchemes(
             ExtensionAuthenticationSchemeOptions.NombreEsquema,
@@ -1352,6 +1354,18 @@ app.UseRequestLocalization();
 
 app.UseAuthentication();
 
+// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado; el de
+// /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y ANTES de
+// UseContextoExtension y de todo lo que consulta la base: ese es el trabajo que el
+// límite protege, y por eso el cupo de la entrega a la extensión se gasta antes del
+// esquema de extensión, también en una petición que acabe en 401 o 403.
+app.UseRateLimiter();
+
+// Solo en /extension/* y con el token de extensión: fija la identidad de ese esquema y
+// resuelve el Tenant solicitado antes del rol efectivo y de cualquier consulta de
+// negocio. La cookie no entra en esa petición (ver ContextoExtensionMiddleware).
+app.UseContextoExtension();
+
 // Inmediatamente después de UseAuthentication y ANTES de UseAuthorization: una
 // sesión privilegiada de plataforma no lleva rol de negocio, y las puertas
 // [Authorize(Roles = …)] preguntan al principal, no a CurrentUserService (ver
@@ -1378,19 +1392,13 @@ app.UseRolEfectivoDelWorkspace();
 // ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
 app.UseCuentaAMedioActivarSinAcceso();
 
-// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado;
-// el de /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y antes
-// de que ningún endpoint procese la petición.
-app.UseRateLimiter();
-
 app.UseAuthorization();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
 // los endpoints y componentes. No antes de que nada resuelva el tenant:
 // UseRolEfectivoDelWorkspace ya lo hizo más arriba, y entre los dos median
-// UseCuentaAMedioActivarSinAcceso, UseRateLimiter, UseAuthorization y
-// UseAntiforgery, que pueden cortar la petición sin pasar por aquí (REC-189,
+// UseCuentaAMedioActivarSinAcceso, UseAuthorization y UseAntiforgery, que pueden cortar la petición sin pasar por aquí (REC-189,
 // ver el porqué y por qué no es un agujero de autorización en el doc-comment
 // de UseRevalidacionClienteActivo).
 app.UseRevalidacionClienteActivo();
@@ -1434,6 +1442,7 @@ app.MapClienteActivoEndpoints();
 app.MapSesionSoporteEndpoints();
 app.MapExtensionTokenEndpoints();
 app.MapAcreditacionesPendientesEndpoints();
+app.MapTenantsBeneficiariosExtensionEndpoints();
 app.MapMarcarAcreditacionSubidaEndpoints();
 app.MapEntregaArchivoExtensionEndpoints();
 app.MapVistaVocabularioPreviewEndpoints();

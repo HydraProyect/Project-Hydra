@@ -613,6 +613,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
             CaeManager.Infrastructure.Plataforma.ContactosSeguridadPlataforma>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
+        services.AddScoped<CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta.ILectorNombreCuenta, LectorNombreCuentaIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.
         services.AddScoped<CaeManager.Application.Usuarios.IGestionCuentasUsuario, GestionCuentasUsuarioIdentity>();

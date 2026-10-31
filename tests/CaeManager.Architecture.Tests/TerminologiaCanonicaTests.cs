@@ -498,10 +498,13 @@ public class TerminologiaCanonicaTests
         // 78 (antes 77): OperacionesConectorPlataformaCae lee la Sesión Privilegiada seleccionada
         // (IClienteActivoSeleccionado ×1) porque, ya revocada, no revalida y la conexión sigue siendo de
         // cae_app_soporte, sin INSERT sobre el uso; es la misma señal y un consumidor de la interfaz existente.
-        // 79 (antes 78): ObtenerValidacionOficialDocumentoQueryHandler lee la misma señal
+        // 78 -> 84 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
+        // de la interfaz y del tipo concreto (ContextoExtensionMiddleware ×3 y los dos endpoints de entrega), más la
+        // firma de TicketEsDeEstaPeticion; ningún nombre nuevo lleva el término.
+        // 85 (antes 84): ObtenerValidacionOficialDocumentoQueryHandler lee la misma señal
         // (IClienteActivoSeleccionado ×1) para no pedir VerificacionesDocumentoOficial.CodigoVerificacion
         // bajo cae_app_soporte; es otro consumidor de la interfaz existente.
-        ["ClienteActivo"] = 79,
+        ["ClienteActivo"] = 85,
     };
 
     [Theory]

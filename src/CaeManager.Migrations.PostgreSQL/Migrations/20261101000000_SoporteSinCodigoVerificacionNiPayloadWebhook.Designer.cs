@@ -10628,6 +10628,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 

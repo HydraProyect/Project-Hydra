@@ -10,7 +10,6 @@ using CaeManager.Web.Features.Centros.Components;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -176,22 +175,5 @@ public partial class Centro360Gen2Tests
     private void RegistrarHistorialReal()
     {
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenHistorialSinUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
-    }
-
-    private sealed class AlmacenHistorialSinUsuarios : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new InvalidOperationException("Estos registros son del sistema: no se consulta ningún usuario.");
-        public void Dispose() { }
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
     }
 }

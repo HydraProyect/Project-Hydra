@@ -76,10 +76,6 @@ public class RolDeOrigenFueraDeAutorizacionTests
         ["src/CaeManager.Infrastructure/Autorizacion/AdministradorDelTenantPropietarioEnBase.cs"] =
             "pertenencia: solo el Administrador MIEMBRO del Tenant propietario (TenantId de la cuenta) delega su Tenant "
             + "o cambia su logo; el predicado se extrajo de AutorizacionDelegacionPorAdministradorDelCliente, que lo usa",
-        ["src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs"] =
-            "directorio de cuentas del Tenant (GetUsersInRoleAsync): identidad de terceros para /usuarios y /roles, "
-            + "no decide la autoridad del usuario actual; los Operadores delegados se muestran con el rol que ejercen "
-            + "(TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario, la etiqueta de /delegaciones)",
         ["src/CaeManager.Infrastructure/Autorizacion/PerfilDePropiedadEnOrigenEnBase.cs"] =
             "solo eleva bajo Encargo de administración vigente del Tenant propietario, con cartera y con techo "
             + "(D-8): su único consumidor es TechoDeRolPorEncargo, que exige las tres cosas antes de preguntar",

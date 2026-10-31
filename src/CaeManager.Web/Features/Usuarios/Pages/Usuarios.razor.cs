@@ -584,7 +584,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerVisiblesAsync(cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
-    protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
+    protected virtual Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
         DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>

@@ -4,12 +4,12 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Web.Services;
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Auditoria;
-using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
+using CaeManager.Infrastructure.Identity;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Auditoria;
 
@@ -104,10 +104,9 @@ public static class AuditoriaEndpoints
     {
         // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
         // — el único filtro de la pantalla es el tipo de entidad. Resuelve
-        // nombre de usuario aquí (no en Application, que no conoce Identity),
-        // mismo criterio que Auditoria.razor.cs.
+        // nombre de usuario con el mismo criterio que Auditoria.razor.cs.
         endpoints.MapGet("/auditoria/exportar.xlsx", async (
-            string? entidad, IMediator mediator, UserManager<ApplicationUser> userManager, CancellationToken cancellationToken) =>
+            string? entidad, IMediator mediator, CancellationToken cancellationToken) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Auditoría");
@@ -141,7 +140,7 @@ public static class AuditoriaEndpoints
                 }
                 else if (!usuariosPorId.TryGetValue(registro.UsuarioId.Value, out nombreUsuario!))
                 {
-                    var usuario = await userManager.FindByIdAsync(registro.UsuarioId.Value.ToString());
+                    var usuario = await mediator.Send(new ObtenerNombreCuentaQuery(registro.UsuarioId.Value), cancellationToken);
                     nombreUsuario = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
                     usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
                 }

@@ -32,11 +32,9 @@ public partial class PestanaHistorialPuertaAccesoDatosTests
         });
         RegistroAuditoriaListaDto Fila(Guid? usuarioId) =>
             new(Guid.NewGuid(), tipo, entidadId, "Modificado", usuarioId, DateTime.UtcNow, false, false);
-        Services.AddScoped<IMediator>(_ => new MediatorHistorial([Fila(personaId), Fila(null), Fila(eliminadoId)]));
+        Services.AddScoped<IMediator>(_ => new MediatorHistorial([Fila(personaId), Fila(null), Fila(eliminadoId)], almacen));
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            almacen, null!, null!, null!, null!, null!, null!, null!, null!));
 
         var cut = Render<PestanaHistorial>(p => p.Add(x => x.EntidadTipo, tipo).Add(x => x.EntidadId, entidadId));
 

@@ -8,8 +8,8 @@ namespace CaeManager.Web.Services;
 /// Límite de ritmo de la entrega de archivos a la extensión de navegador (política <c>ExtensionEntrega</c>).
 ///
 /// <para>
-/// El limitador corre antes de <c>UseAuthorization</c> y el esquema de extensión aún no se ha ejecutado (ver
-/// <see cref="LimitadorApiPublica"/>), así que la partición lee ella misma el token: descifrarlo no toca la base, y
+/// El limitador corre antes de <see cref="ContextoExtensionMiddleware"/> y el esquema de extensión aún no se ha ejecutado
+/// (ver <see cref="LimitadorApiPublica"/>), así que la partición lee ella misma el token: descifrarlo no toca la base, y
 /// solo se usa para repartir el cupo, nunca para autorizar. El cupo es por usuario y sesión de inicio, no por IP ni por
 /// token: en una oficina varios Gestores CAE comparten IP, y emitir otro token desde la misma sesión no da un cupo nuevo.
 /// Lleva la sesión porque aquí aún no se comprueba la revocación: un token revocado de una sesión anterior no agota el

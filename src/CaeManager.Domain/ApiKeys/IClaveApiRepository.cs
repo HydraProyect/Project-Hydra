@@ -40,5 +40,14 @@ public interface IClaveApiRepository
     /// </summary>
     Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// ¿La cuenta <paramref name="creadaPorUsuarioId"/> sigue respaldando una clave emitida en
+    /// <paramref name="emitidaEnUtc"/>? False si la cuenta ya no existe, si está desactivada o si
+    /// se reactivó después de emitirla, aunque la emitiera ya desactivada; un bloqueo temporal por
+    /// intentos fallidos no cuenta. La cuenta es de otra organización que el Tenant propietario
+    /// de la clave, así que esta comprobación no puede leer su fila bajo RLS.
+    /// </summary>
+    Task<bool> CuentaEmisoraRespaldaClaveAsync(Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default);
+
     void Agregar(ClaveApi clave);
 }
