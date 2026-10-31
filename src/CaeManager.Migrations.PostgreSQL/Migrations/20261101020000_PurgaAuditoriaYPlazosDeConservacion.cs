@@ -49,7 +49,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         RAISE EXCEPTION 'El rol % no evita la RLS: la purga de sesiones no vería ninguna fila', current_user;
                     END IF;
                     DELETE FROM public."SesionesUsuario"
-                     WHERE "EmitidaEnUtc" < pg_catalog.now() - interval '5 years';
+                     WHERE "EmitidaEnUtc" < pg_catalog.now() - interval '12 months';
                     GET DIAGNOSTICS v_filas = ROW_COUNT;
                     RETURN v_filas;
                 END;
@@ -60,7 +60,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 DECLARE
-                    v_corte timestamp with time zone := pg_catalog.now() - interval '4 years';
+                    v_corte timestamp with time zone := pg_catalog.now() - interval '5 years';
                     v_filas integer;
                     v_total integer := 0;
                 BEGIN
@@ -69,7 +69,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         RAISE EXCEPTION 'El rol % no evita la RLS: la purga de auditoría no vería ninguna fila', current_user;
                     END IF;
 
-                    IF p_simular THEN
+                    IF p_simular IS NOT FALSE THEN
                         SELECT (SELECT count(*) FROM public."RegistrosAuditoria" WHERE "FechaUtc" < v_corte)
                              + (SELECT count(*) FROM public."RegistrosAccesoDocumentoSensible" WHERE "OcurridoEnUtc" < v_corte)
                              + (SELECT count(*) FROM public."RegistrosActividadSoporte" WHERE "OcurridaEnUtc" < v_corte)
@@ -91,7 +91,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     GET DIAGNOSTICS v_filas = ROW_COUNT;
                     v_total := v_total + v_filas;
                     DELETE FROM public."AuditoriasExtraccionIa" a
-                     WHERE a."CreadaEnUtc" < v_corte;
+                     WHERE a."CreadaEnUtc" < v_corte
+                       AND NOT EXISTS (SELECT 1 FROM public."RevisionesIaDocumento" r
+                                        WHERE r."AuditoriaExtraccionIaId" = a."Id" AND NOT r."Resuelta");
                     GET DIAGNOSTICS v_filas = ROW_COUNT;
                     v_total := v_total + v_filas;
                     RETURN v_total;
@@ -100,8 +102,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 REVOKE ALL ON FUNCTION public.app_purgar_registros_auditoria(boolean) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_purgar_registros_auditoria(boolean) TO cae_app_runtime;
 
-                
-                
+                REVOKE UPDATE, DELETE, TRUNCATE ON TABLE public."AceptacionesTerminos" FROM cae_app_runtime;
+                REVOKE DELETE, TRUNCATE ON TABLE public."AuditoriasExtraccionIa" FROM cae_app_runtime;
                 """);
         }
 

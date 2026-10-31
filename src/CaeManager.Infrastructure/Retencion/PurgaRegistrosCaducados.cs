@@ -29,7 +29,7 @@ public class PurgaRegistrosCaducados(
     /// <summary>Devuelve las filas borradas o, con la purga apagada, las que se borrarían.</summary>
     public async Task<int> EjecutarAsync(CancellationToken cancellationToken = default)
     {
-        var simular = opciones.Value.PurgaRegistrosActiva && false;
+        var simular = !opciones.Value.PurgaRegistrosActiva;
 
         var filas = await db.Database
             .SqlQuery<int>($"SELECT public.app_purgar_registros_auditoria({simular}) AS \"Value\"")
