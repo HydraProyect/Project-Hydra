@@ -202,6 +202,8 @@ pasos_previos="$(sed -n '/^  build-and-test:$/,/^        id: exigir$/p' <<< "$ym
 contrato "el agregador prueba la guarda de orden de migraciones antes de «Exigir…»" 1 "$(grep -cF 'run: python3 scripts/verificar-orden-migraciones.tests.py' <<< "$pasos_previos" || true)"
 contrato "el agregador ejecuta la guarda de orden de migraciones contra HEAD antes de «Exigir…»" 1 "$(grep -cF 'python3 scripts/verificar-orden-migraciones.py "$base" HEAD' <<< "$pasos_previos" || true)"
 contrato "la guarda de orden de migraciones corre en la PR y en la cola" 1 "$(grep -FA1 -- "      - name: Comprobar el orden de las migraciones" <<< "$pasos_previos" | grep -cxF "        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'" || true)"
+contrato "el agregador prueba la guarda del modelo de migración" 1 "$(grep -cF 'run: python3 scripts/verificar-modelo-migracion.tests.py' <<< "$pasos_previos" || true)"
+contrato "la guarda del modelo compara los mismos árboles en la PR y en la cola" 1 "$(grep -cF 'python3 scripts/verificar-modelo-migracion.py "$base" HEAD' <<< "$pasos_previos" || true)"
 contrato "en la cola la guarda compara con lo que va delante (base_sha)" 1 "$(grep -cF 'BASE_COLA: ${{ github.event.merge_group.base_sha }}' <<< "$pasos_previos" || true)"
 for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ needs.e2e-tests.result }}" "R_ALCANCE: \${{ needs.alcance.result }}" "ALCANCE_INTEGRACION: \${{ needs.alcance.outputs.integracion }}" "ALCANCE_E2E: \${{ needs.alcance.outputs.e2e }}" "EVENTO: \${{ github.event_name }}"; do
   contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"

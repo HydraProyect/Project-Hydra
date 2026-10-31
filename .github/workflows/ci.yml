@@ -802,8 +802,13 @@ jobs:
       # Solo trae la base con profundidad 1: basta con comparar los dos árboles.
       # En `merge_group` la base es `base_sha`, la punta de lo que va delante en
       # la cola, que es lo que cierra la carrera entre dos PR paralelas.
+      # La guarda del modelo comparte paso y árboles con la de orden, y corre
+      # también sin migraciones nuevas para ver un snapshot cambiado por libre.
       - name: Probar la guarda de orden de migraciones
         run: python3 scripts/verificar-orden-migraciones.tests.py
+
+      - name: Probar la guarda del modelo de migración
+        run: python3 scripts/verificar-modelo-migracion.tests.py
 
       - name: Comprobar el orden de las migraciones
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -817,6 +822,7 @@ jobs:
           test -n "$base"
           git fetch --no-tags --depth=1 origin "$base"
           python3 scripts/verificar-orden-migraciones.py "$base" HEAD
+          python3 scripts/verificar-modelo-migracion.py "$base" HEAD
 
       - name: Exigir que las dependencias hayan pasado
         id: exigir
