@@ -65,7 +65,8 @@ namespace CaeManager.Web.Services;
 /// <c>caemanager-app-verde:8080</c> (las dos ranuras de producción, P1-F2)
 /// directamente, saltándose Caddy: desde ahí sí se puede imponer cualquier
 /// <c>X-Forwarded-For</c>. El alcance de ese hueco es lo que lee la IP del
-/// cliente: el limitador de tasa del login, el techo por IP de <c>/api/v1</c>
+/// cliente: el limitador de tasa del login, el cupo global de <c>/extension</c> sin token
+/// descifrable (<c>LimitadorExtension</c>), el techo por IP de <c>/api/v1</c>
 /// (<c>LimitadorApiPublica</c>: una IP impuesta de otro cliente le daría 429 a
 /// sus integraciones), y la IP y el país de
 /// <c>RegistrosInicioSesion</c>, que no usan este middleware sino su propia
