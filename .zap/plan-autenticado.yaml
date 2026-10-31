@@ -1,0 +1,104 @@
+# Plan de ZAP (Automation Framework) del job «ZAP autenticado (instancia local)»
+# de .github/workflows/seguridad-codigo.yml.
+#
+# No lleva credenciales: la cookie de sesión y la clave de API las añade el job
+# como reglas del Replacer de ZAP, por su API, antes de lanzar este plan.
+#
+# El alcance es lo que sí es HTTP. Blazor Server resuelve la interacción por
+# SignalR, que ZAP no ataca como peticiones, y por eso `/_blazor` queda fuera y
+# no se usa AJAX spider: sin el circuito, el navegador no vería nada que el
+# spider tradicional no vea ya en el HTML prerenderizado.
+#
+# Tiempos: la sesión caduca tras 30 min sin interacción (CaducidadSesion) y ZAP
+# repite la misma cookie, así que spider + escaneo activo + esperas no pueden
+# acercarse a ese plazo. Si se pasara, la sonda del job lo detecta y falla.
+env:
+  contexts:
+    - name: talveg-http
+      # El Automation Framework incluye todo lo que cuelga de cada url.
+      urls:
+        - http://127.0.0.1:5080/api/v1
+        - http://127.0.0.1:5080/cuenta
+        - http://127.0.0.1:5080/extension
+        - http://127.0.0.1:5080/reportes
+      includePaths:
+        # Descargas y exportaciones de documentos, que son endpoints mínimos.
+        - 'http://127\.0\.0\.1:5080/.+\.(xlsx|pdf|zip)(\?.*)?'
+        - 'http://127\.0\.0\.1:5080/.+/(archivo|archivo-anterior|evidencia|logo)(\?.*)?'
+        - 'http://127\.0\.0\.1:5080/sesion/actividad'
+      excludePaths:
+        # SignalR: no es HTTP atacable y un circuito falso solo genera ruido.
+        - 'http://127\.0\.0\.1:5080/_blazor.*'
+        # Cierran o destruyen la sesión del escaneo.
+        - 'http://127\.0\.0\.1:5080/cuenta/cerrar-sesion.*'
+        - 'http://127\.0\.0\.1:5080/cuenta/cambiar-contrasena.*'
+        - 'http://127\.0\.0\.1:5080/cuenta/configurar-2fa.*'
+        - 'http://127\.0\.0\.1:5080/cuenta/no-he-sido-yo.*'
+        - 'http://127\.0\.0\.1:5080/cuenta/soporte/.*'
+        # Saldrían hacia Microsoft, fuera del runner.
+        - 'http://127\.0\.0\.1:5080/cuenta/iniciar-sesion-microsoft.*'
+        - 'http://127\.0\.0\.1:5080/cuenta/microsoft-callback.*'
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: openapi
+    parameters:
+      apiUrl: http://127.0.0.1:5080/api/v1/openapi.json
+      context: talveg-http
+      targetUrl: http://127.0.0.1:5080
+
+  # Los formularios SSR de /cuenta: las rutas sin formulario ya las ha sembrado
+  # el job a través del proxy, con identificadores reales de la siembra.
+  - type: spider
+    parameters:
+      context: talveg-http
+      url: http://127.0.0.1:5080/cuenta/iniciar-sesion
+      maxDuration: 2
+      maxDepth: 4
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 2
+
+  - type: activeScan
+    parameters:
+      context: talveg-http
+      maxRuleDurationInMins: 2
+      maxScanDurationInMins: 20
+      threadPerHost: 4
+      handleAntiCSRFTokens: true
+    policyDefinition:
+      defaultStrength: medium
+      defaultThreshold: medium
+      rules:
+        # XSS basado en DOM: necesita un navegador con el circuito de Blazor.
+        - id: 40026
+          threshold: "off"
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 2
+
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk
+      reportFile: informe-zap-autenticado.html
+      reportTitle: ZAP autenticado (instancia local)
+
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk
+      reportFile: informe-zap-autenticado.json
+      reportTitle: ZAP autenticado (instancia local)
+
+  - type: report
+    parameters:
+      template: traditional-md
+      reportDir: /zap/wrk
+      reportFile: informe-zap-autenticado.md
+      reportTitle: ZAP autenticado (instancia local)

@@ -22,6 +22,10 @@ name: Seguridad del código
 # ZAP se lanza contra una instancia levantada dentro de este mismo runner,
 # nunca contra staging: staging envía correo real por SMTP y un escáner que
 # recorre formularios podría disparar envíos.
+#
+# El escaneo autenticado (job zap-autenticado) solo corre en el semanal y a mano:
+# tarda ~40 min, con sesión propia y escaneo activo, y no aporta nada a una PR
+# que no lo espera. Tampoco es obligatorio.
 on:
   push:
     branches: [main]
@@ -265,5 +269,417 @@ jobs:
         with:
           name: informe-zap-baseline
           path: zap/informe-zap.*
+          retention-days: 90
+          if-no-files-found: ignore
+
+  # Escaneo activo como usuario autenticado, contra la misma clase de instancia
+  # local que el baseline. Falla solo por hallazgos de riesgo alto, por perder la
+  # sesión durante el escaneo o porque el escaneo no haya ocurrido: un verde sin
+  # sesión no demostraría nada. El alcance y las rutas excluidas viven en
+  # .zap/plan-autenticado.yaml.
+  zap-autenticado:
+    name: ZAP autenticado (instancia local)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ZAP_BASE: http://127.0.0.1:5080
+      ZAP_API: http://127.0.0.1:8090
+      # Cuenta de la siembra de demo: rol sin 2FA obligatorio y Tenant propietario
+      # con datos. Su contraseña la genera este job.
+      ZAP_CUENTA: prueba.coordinadorcae1@caemanager.local
+      # Sirve a una cuenta con sesión; sin ella contesta 401. Devuelve los Tenants
+      # de la cuenta, así que un 200 con lista demuestra quién pregunta.
+      ZAP_SONDA: /extension/tenants-beneficiarios
+    services:
+      postgres:
+        # Espejo GHCR, mismo digest que producción: ver el job zap-baseline.
+        image: ghcr.io/hydraproyect/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Compilar la aplicación
+        run: dotnet build src/CaeManager.Web -c Release
+
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      - name: Dar LOGIN al rol de tráfico
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -c "ALTER ROLE cae_app_runtime LOGIN PASSWORD 'zap-ci-efimera';"
+
+      # Credenciales que solo existen en este runner. No son secretos del
+      # repositorio: mueren con el job, igual que la base.
+      - name: Generar credenciales efímeras
+        run: |
+          contrasena="Zap-$(openssl rand -hex 16)-Aa1!"
+          clave="hydra_$(openssl rand -hex 32)"
+          echo "::add-mask::$contrasena"
+          echo "::add-mask::$clave"
+          {
+            echo "ZAP_CONTRASENA=$contrasena"
+            echo "ZAP_CLAVE_API=$clave"
+          } >> "$GITHUB_ENV"
+
+      # Segunda barrera del correo, por si alguien configura SMTP en este job: el
+      # contador de esta regla se comprueba al final (paso «Comprobar el correo»).
+      - name: Cerrar la salida de correo del runner
+        run: >
+          sudo iptables -I OUTPUT -p tcp -m multiport --dports 25,465,587,2525
+          -m comment --comment zap-correo -j REJECT
+
+      # Como el baseline, entorno distinto de Development y tráfico por
+      # cae_app_runtime, ahora con la siembra de demo para tener cuentas y datos.
+      # Sin Smtp__Host ni credenciales, SmtpEmailService no envía nada. Los topes
+      # de peticiones se suben porque el escáner, desde una sola IP, solo vería
+      # 429 (mismo ajuste que el fixture de E2E).
+      - name: Arrancar la aplicación
+        env:
+          ASPNETCORE_ENVIRONMENT: Escaneo
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+          ConnectionStrings__CaeManagerDb: Host=localhost;Database=cae_zap;Username=postgres;Password=postgres
+          ConnectionStrings__CaeManagerDbRuntime: Host=localhost;Database=cae_zap;Username=cae_app_runtime;Password=zap-ci-efimera
+          Smtp__UrlBasePublica: https://escaneo-zap.invalid
+          DatosPrueba__Activo: "true"
+          RateLimiting__Cuenta__LimiteAnonimo: "1000000"
+          RateLimiting__Cuenta__LimiteAutenticado: "1000000"
+          RateLimiting__Extension__LimiteGlobalPorMinuto: "1000000"
+          RateLimiting__Extension__LimitePorMinuto: "1000000"
+          ApiPublica__RateLimitPorMinuto: "1000000"
+          ApiPublica__RateLimitPorMinutoPorIp: "1000000"
+        run: |
+          export DatosPrueba__Contrasena="$ZAP_CONTRASENA"
+          export DatosPrueba__ClaveApiActiva="$ZAP_CLAVE_API"
+          cd src/CaeManager.Web/bin/Release/net10.0
+          nohup dotnet CaeManager.Web.dll > "$RUNNER_TEMP/app.log" 2>&1 &
+          # La siembra de demo va antes de Kestrel y tarda bastante más que el
+          # arranque del baseline.
+          for i in $(seq 1 300); do
+            if curl -fsS -o /dev/null http://127.0.0.1:5080/salud; then
+              echo "La aplicación responde en /salud tras ${i} intentos."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::La aplicación no respondió en /salud."
+          tail -n 200 "$RUNNER_TEMP/app.log"
+          exit 1
+
+      # Una clave de la API pública solo autentica con su ventana de Soporte
+      # abierta (CriterioSoporteClaveApi), y la de la siembra no la lleva. Se abre
+      # aquí por SQL porque emitirla exige una Sesión Privilegiada interactiva, y
+      # esta base muere con el job.
+      - name: Respaldar la clave de API con una ventana de Soporte
+        env:
+          PGPASSWORD: postgres
+        run: |
+          hash=$(printf '%s' "$ZAP_CLAVE_API" | sha256sum | cut -d' ' -f1)
+          psql -h localhost -U postgres -d cae_zap -v ON_ERROR_STOP=1 -At <<SQL
+          WITH ventana AS (
+            UPDATE "DelegacionesTenant" d
+            SET "Activa" = true,
+                "ActivadaEnUtc" = date_trunc('milliseconds', now()),
+                "ExpiraEnUtc" = now() + interval '3 hours',
+                "MotivoActivacion" = 'Escaneo ZAP en el runner de CI'
+            FROM "AspNetUsers" u
+            WHERE u."NormalizedEmail" = upper('$ZAP_CUENTA')
+              AND d."TenantClienteId" = u."TenantId"
+              AND d."Proposito" = 'Soporte'
+            RETURNING d."Id", d."ActivadaEnUtc"
+          )
+          UPDATE "ClavesApi" c
+          SET "VentanaSoporteId" = v."Id", "VentanaSoporteAbiertaEnUtc" = v."ActivadaEnUtc"
+          FROM ventana v
+          WHERE c."HashClave" = '$hash'
+          RETURNING 'clave respaldada';
+          SQL
+
+      # Imagen oficial fijada por el mismo digest que el baseline. Modo demonio y
+      # no zap-full-scan: mantener ZAP vivo es lo que permite preguntarle por la
+      # sesión mientras escanea y cargar las credenciales por su API, sin
+      # escribirlas en ningún fichero. La API escucha solo en el bucle local de
+      # un runner efímero, por eso va sin clave.
+      - name: Arrancar ZAP
+        run: |
+          mkdir -p zap
+          cp .zap/plan-autenticado.yaml zap/
+          chmod -R 777 zap
+          docker run -d --name zap --network host -v "$PWD/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
+            zap.sh -daemon -host 127.0.0.1 -port 8090 \
+            -config api.disablekey=true -config start.checkForUpdates=false
+          for i in $(seq 1 60); do
+            if curl -fsS "$ZAP_API/JSON/core/view/version/"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::ZAP no respondió por su API."
+          docker logs --tail 50 zap
+          exit 1
+
+      # Inicio de sesión real por el formulario de Blazor con curl, y la cookie se
+      # entrega a ZAP como regla del Replacer: ZAP no reintenta el login por su
+      # cuenta, de modo que perder la sesión se nota y no se tapa. Las pantallas
+      # anónimas quedan sin cookie para que ZAP vea sus formularios.
+      - name: Iniciar sesión y autenticar a ZAP
+        run: |
+          tmp=$(mktemp -d)
+          curl -fsS -c "$tmp/jar" -o "$tmp/login.html" "$ZAP_BASE/cuenta/iniciar-sesion"
+          token=$(sed -n 's/.*name="__RequestVerificationToken"[^>]*value="\([^"]*\)".*/\1/p' "$tmp/login.html" | head -n 1)
+          if [ -z "$token" ]; then
+            echo "::error::El formulario de inicio de sesión no trae token antiforgery."
+            exit 1
+          fi
+          curl -sS -b "$tmp/jar" -c "$tmp/jar" -o /dev/null -w 'Inicio de sesión: HTTP %{http_code}\n' \
+            --data-urlencode "__RequestVerificationToken=$token" \
+            --data-urlencode "_handler=iniciar-sesion" \
+            --data-urlencode "Entrada.Email=$ZAP_CUENTA" \
+            --data-urlencode "Entrada.Password=$ZAP_CONTRASENA" \
+            "$ZAP_BASE/cuenta/iniciar-sesion"
+          if ! grep -q 'AspNetCore.Identity.Application' "$tmp/jar"; then
+            echo "::error::El inicio de sesión no emitió la cookie de sesión."
+            exit 1
+          fi
+          # Todas las cookies, también la de antiforgery: los formularios que ZAP
+          # lea con esta sesión van emparejados con ella.
+          cookies=$(awk -F'\t' 'NF == 7 { printf "%s%s=%s", sep, $6, $7; sep = "; " }' "$tmp/jar")
+          echo "::add-mask::$cookies"
+          rm -rf "$tmp"
+
+          regla() {
+            curl -fsS -o /dev/null "$ZAP_API/JSON/replacer/action/addRule/" \
+              --data-urlencode "description=$1" --data-urlencode "enabled=true" \
+              --data-urlencode "matchType=REQ_HEADER" --data-urlencode "matchRegex=false" \
+              --data-urlencode "matchString=$2" --data-urlencode "replacement=$3" \
+              --data-urlencode "url=$4"
+          }
+          regla sesion Cookie "$cookies" \
+            '^http://127\.0\.0\.1:5080/(?!api/v1/|cuenta/(iniciar-sesion|olvide-contrasena|restablecer-contrasena|verificar-2fa)).*'
+          regla clave-api Authorization "ApiKey $ZAP_CLAVE_API" \
+            '^http://127\.0\.0\.1:5080/api/v1/.*'
+
+          # La sonda tiene que distinguir: sin ZAP (sin cookie) no puede dar 200.
+          anonimo=$(curl -sS -o /dev/null -w '%{http_code}' "$ZAP_BASE$ZAP_SONDA")
+          sesion=$(curl -sS -o /dev/null -w '%{http_code}' -x "$ZAP_API" "$ZAP_BASE$ZAP_SONDA")
+          api_anonimo=$(curl -sS -o /dev/null -w '%{http_code}' "$ZAP_BASE/api/v1/clientes")
+          api=$(curl -sS -o /dev/null -w '%{http_code}' -x "$ZAP_API" "$ZAP_BASE/api/v1/clientes")
+          echo "Sonda de sesión: sin ZAP $anonimo, por ZAP $sesion. API: sin ZAP $api_anonimo, por ZAP $api."
+          if [ "$sesion" != 200 ] || [ "$anonimo" = 200 ] || [ "$api" != 200 ] || [ "$api_anonimo" = 200 ]; then
+            echo "::error::ZAP no quedó autenticado antes de escanear."
+            exit 1
+          fi
+
+      # Control positivo: pide un restablecimiento para una cuenta que existe y
+      # exige que el servicio de correo diga que no hay SMTP. Si ese camino cambia,
+      # este paso falla en vez de dar por apagado un correo que no se ha probado.
+      - name: Comprobar que el correo está apagado
+        run: |
+          tmp=$(mktemp -d)
+          curl -fsS -c "$tmp/jar" -o "$tmp/form.html" "$ZAP_BASE/cuenta/olvide-contrasena"
+          token=$(sed -n 's/.*name="__RequestVerificationToken"[^>]*value="\([^"]*\)".*/\1/p' "$tmp/form.html" | head -n 1)
+          handler=$(sed -n 's/.*name="_handler"[^>]*value="\([^"]*\)".*/\1/p' "$tmp/form.html" | head -n 1)
+          curl -sS -b "$tmp/jar" -o /dev/null -w 'Solicitud de restablecimiento: HTTP %{http_code}\n' \
+            --data-urlencode "__RequestVerificationToken=$token" \
+            --data-urlencode "_handler=$handler" \
+            --data-urlencode "Entrada.Email=$ZAP_CUENTA" \
+            "$ZAP_BASE/cuenta/olvide-contrasena"
+          rm -rf "$tmp"
+          for i in $(seq 1 30); do
+            if grep -q 'Se intentó enviar un correo sin Smtp' "$RUNNER_TEMP/app.log"; then
+              echo "El servicio de correo rechaza el envío: SMTP sin configurar."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::El restablecimiento no llegó al aviso de SMTP sin configurar."
+          exit 1
+
+      # ZAP solo ataca lo que conoce. Las rutas con identificador salen de la
+      # siembra para que las descargas lleguen a su manejador y no a un 404.
+      - name: Sembrar las rutas HTTP en ZAP
+        env:
+          PGPASSWORD: postgres
+        run: |
+          sql() { psql -h localhost -U postgres -d cae_zap -At -c "$1" 2>/dev/null | head -n 1; }
+          tenant=$(sql "SELECT \"TenantId\" FROM \"AspNetUsers\" WHERE \"NormalizedEmail\" = upper('$ZAP_CUENTA')")
+          primero() { sql "SELECT \"Id\" FROM \"$1\" WHERE \"TenantId\" = '$tenant' ORDER BY \"Id\" LIMIT 1"; }
+          pedir() { curl -sS -o /dev/null -w "%{http_code} $1\n" -x "$ZAP_API" "$ZAP_BASE$1" || true; }
+
+          for ruta in \
+            /cuenta/iniciar-sesion /cuenta/olvide-contrasena /cuenta/restablecer-contrasena \
+            /cuenta/verificar-2fa /cuenta/pendiente-de-rol \
+            /extension/tenants-beneficiarios /extension/acreditaciones-pendientes \
+            /asignaciones/exportar.xlsx /auditoria/exportar.xlsx /centros/exportar.xlsx \
+            /clientes/exportar.xlsx /clientes/plantilla.xlsx /clientes/plantilla-combinada.xlsx \
+            /documentos/exportar.xlsx /documentos/plantilla.xlsx /empresas/exportar.xlsx \
+            /facturacion/resumen.xlsx /gestiones/exportar.xlsx /incidencias/exportar.xlsx \
+            /proyectos/exportar.xlsx /subcontratas/exportar.xlsx /trabajadores/exportar.xlsx \
+            /vehiculos/exportar.xlsx /visitas/exportar.xlsx /mi-firma/archivo \
+            /reportes/vigencia.xlsx /reportes/vigencia.pdf \
+            /reportes/asignaciones.xlsx /reportes/asignaciones.pdf; do
+            pedir "$ruta"
+          done
+
+          id=$(primero Clientes);  [ -z "$id" ] || pedir "/api/v1/clientes/$id"
+          id=$(primero Centros);   [ -z "$id" ] || pedir "/api/v1/centros/$id"
+          id=$(primero Trabajadores); [ -z "$id" ] || pedir "/api/v1/trabajadores/$id"
+          id=$(primero Documentos)
+          if [ -n "$id" ]; then
+            pedir "/api/v1/documentos/$id"
+            pedir "/documentos/$id/archivo"
+          fi
+          id=$(primero Visitas);   [ -z "$id" ] || pedir "/visitas/$id/paquete-documental.zip"
+          id=$(primero Empresas);  [ -z "$id" ] || pedir "/empresas/$id/sello/archivo"
+          id=$(primero RequisitosDocumentales); [ -z "$id" ] || pedir "/requisitos-documentales/$id/archivo"
+          pedir "/tenants/$tenant/logo"
+          id=$(primero AcreditacionesDocumentoPlataforma)
+          if [ -n "$id" ]; then
+            pedir "/extension/acreditaciones/$id/archivo"
+            curl -sS -o /dev/null -w "%{http_code} POST /extension/acreditaciones/$id/subida\n" -x "$ZAP_API" \
+              -H 'Content-Type: application/json' -d '{}' "$ZAP_BASE/extension/acreditaciones/$id/subida" || true
+          fi
+
+      # Una petición por ZAP cada 30 s: la cookie la pone el Replacer, así que un
+      # 200 demuestra que ZAP sigue autenticado en ese momento, no solo que la
+      # cookie valía. 000 (sonda agotada con ZAP ocupado) no prueba nada en ningún
+      # sentido y se cuenta aparte; cualquier otro código es sesión perdida.
+      - name: Escanear con ZAP autenticado
+        run: |
+          sonda() {
+            local cuerpo codigo
+            cuerpo=$(mktemp)
+            codigo=$(curl -sS -o "$cuerpo" -w '%{http_code}' --max-time 45 -x "$ZAP_API" "$ZAP_BASE$ZAP_SONDA" || true)
+            if [ "$codigo" = 200 ] && ! jq -e '.tenants | length > 0' "$cuerpo" > /dev/null 2>&1; then
+              codigo=vacio
+            fi
+            rm -f "$cuerpo"
+            echo "$(date -u +%H:%M:%S) $codigo" >> zap/sesion-zap.txt
+            echo "$codigo"
+          }
+
+          plan=$(curl -fsS "$ZAP_API/JSON/automation/action/runPlan/" \
+            --data-urlencode "filePath=/zap/wrk/plan-autenticado.yaml" | jq -r '.planId')
+          echo "Plan de ZAP en marcha: $plan"
+          perdida=0
+          while :; do
+            sleep 30
+            codigo=$(sonda)
+            case "$codigo" in 200|000) ;; *) perdida=$((perdida + 1)) ;; esac
+            progreso=$(curl -fsS "$ZAP_API/JSON/automation/view/planProgress/" \
+              --data-urlencode "planId=$plan" -G || echo '{}')
+            if [ -n "$(jq -r '.finished // empty' <<< "$progreso")" ]; then
+              break
+            fi
+          done
+
+          jq -r '(.info // [])[], (.warn // [])[], (.error // [])[]' <<< "$progreso"
+          errores=$(jq '(.error // []) | length' <<< "$progreso")
+
+          # La prueba final no admite 000: tiene que ser un 200 con ZAP ya libre.
+          final=$(sonda)
+          muestras=$(wc -l < zap/sesion-zap.txt)
+          sin_datos=$(grep -c ' 000$' zap/sesion-zap.txt || true)
+          duracion=$(jq -r '"\(.started) -> \(.finished)"' <<< "$progreso")
+          curl -fsS "$ZAP_API/JSON/stats/view/siteStats/" --data-urlencode "site=$ZAP_BASE" -G \
+            > zap/estadisticas-zap.json || echo '{}' > zap/estadisticas-zap.json
+          peticiones=$(jq '[.. | objects | to_entries[] | select(.key | test("code\\.[0-9]+$")) | .value | tonumber] | add // 0' zap/estadisticas-zap.json)
+
+          {
+            echo "### ZAP autenticado"
+            echo ""
+            echo "- Plan: $duracion"
+            echo "- Sondas de sesión por ZAP: $muestras (perdidas $perdida, sin respuesta $sin_datos, final $final)"
+            echo "- Peticiones de ZAP con respuesta: $peticiones"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Sondas: $muestras, perdidas: $perdida, sin respuesta: $sin_datos, final: $final. Peticiones: $peticiones. Errores del plan: $errores."
+
+          if [ "$errores" -gt 0 ]; then
+            echo "::error::El plan de ZAP terminó con errores."
+            exit 1
+          fi
+          if [ "$perdida" -gt 0 ] || [ "$final" != 200 ]; then
+            echo "::error::ZAP perdió la sesión durante el escaneo: el resultado no vale."
+            exit 1
+          fi
+          # Sin este mínimo, un plan que no llegara a atacar pasaría por escaneo limpio.
+          if [ "$peticiones" -lt 1000 ]; then
+            echo "::error::ZAP solo hizo $peticiones peticiones: el escaneo no ha ocurrido."
+            exit 1
+          fi
+
+      - name: Comprobar el correo tras el escaneo
+        run: |
+          paquetes=$(sudo iptables -L OUTPUT -v -n -x | awk '/zap-correo/ { print $1 }')
+          echo "Paquetes hacia puertos de correo durante el job: ${paquetes:-sin regla}"
+          if [ "$paquetes" != 0 ]; then
+            echo "::error::Algo intentó salir por un puerto de correo."
+            exit 1
+          fi
+
+      # Solo recuentos: el repositorio es público y el resumen del run también.
+      - name: Evaluar hallazgos
+        run: |
+          informe=zap/informe-zap-autenticado.json
+          if [ ! -s "$informe" ]; then
+            echo "::error::ZAP no generó el informe."
+            exit 1
+          fi
+          contar() {
+            jq --arg riesgo "$1" \
+              '[.site[]?.alerts[]? | select(.riskcode == $riesgo and .confidence != "0")] | length' "$informe"
+          }
+          altos=$(contar 3)
+          {
+            echo "- Hallazgos: altos $altos, medios $(contar 2), bajos $(contar 1), informativos $(contar 0)"
+            echo "- El detalle está en el artefacto informe-zap-autenticado."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$altos" -gt 0 ]; then
+            echo "::error::ZAP ha encontrado $altos hallazgos de riesgo alto: ver el informe."
+            exit 1
+          fi
+
+      - name: Log de la aplicación si falla
+        if: failure()
+        run: |
+          tail -n 100 "$RUNNER_TEMP/app.log" || true
+          docker logs --tail 30 zap || true
+
+      - name: Publicar informe de ZAP
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: informe-zap-autenticado
+          path: |
+            zap/informe-zap-autenticado.*
+            zap/sesion-zap.txt
+            zap/estadisticas-zap.json
           retention-days: 90
           if-no-files-found: ignore
