@@ -335,9 +335,11 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         {
             var proteccion = sp.GetRequiredService<IDataProtectionProvider>();
             contexto.Request.Headers[EntregaArchivoExtensionEndpoints.CabeceraTicket] =
-                TicketEntregaExtension.Proteger(proteccion, usuario, id, _documentoAcreditado, PortalDeLaPrueba);
+                TicketEntregaExtension.Proteger(proteccion, usuario, tenant, null, id, _documentoAcreditado, PortalDeLaPrueba);
             return EntregaArchivoExtensionEndpoints.ServirAsync(
-                id, contexto, Mediador(), sp.GetRequiredService<ICurrentUserService>(), proteccion, Almacen(), Registro(), Registros(), ct);
+                id, contexto, Mediador(), sp.GetRequiredService<ICurrentUserService>(),
+                sp.GetRequiredService<ITenantActual>(), sp.GetRequiredService<IClienteActivoSeleccionado>(),
+                proteccion, Almacen(), Registro(), Registros(), ct);
         }
 
         IResult? resultado = ruta switch
@@ -397,6 +399,7 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
 
         var resultado = await EntregaArchivoExtensionEndpoints.PrepararAsync(
             id, contexto.Request, sp.GetRequiredService<IMediator>(), sp.GetRequiredService<ICurrentUserService>(),
+            sp.GetRequiredService<ITenantActual>(), sp.GetRequiredService<IClienteActivoSeleccionado>(),
             sp.GetRequiredService<IDataProtectionProvider>(), CancellationToken.None);
         await resultado.ExecuteAsync(contexto);
         return contexto.Response.StatusCode;

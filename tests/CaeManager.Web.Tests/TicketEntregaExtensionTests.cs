@@ -12,12 +12,25 @@ public class TicketEntregaExtensionTests
     [Fact]
     public void Devuelve_lo_que_se_emitio()
     {
-        var (usuario, acreditacion, documento) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (usuario, tenant, operacion) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var (acreditacion, documento) = (Guid.NewGuid(), Guid.NewGuid());
 
         var carga = TicketEntregaExtension.Leer(
-            _proveedor, TicketEntregaExtension.Proteger(_proveedor, usuario, acreditacion, documento, "app.dokify.net"));
+            _proveedor, TicketEntregaExtension.Proteger(_proveedor, usuario, tenant, operacion, acreditacion, documento, "app.dokify.net"));
 
-        carga.Should().Be(new CargaUtilTicketEntrega(usuario, acreditacion, documento, "app.dokify.net"));
+        carga.Should().Be(new CargaUtilTicketEntrega(usuario, tenant, operacion, acreditacion, documento, "app.dokify.net"));
+    }
+
+    [Fact]
+    public void En_el_Tenant_de_origen_no_lleva_Asignacion_de_Operacion()
+    {
+        var tenant = Guid.NewGuid();
+
+        var carga = TicketEntregaExtension.Leer(
+            _proveedor, TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), tenant, null, Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net"));
+
+        carga!.TenantId.Should().Be(tenant);
+        carga.AsignacionOperacionId.Should().BeNull();
     }
 
     [Fact]
@@ -27,9 +40,9 @@ public class TicketEntregaExtensionTests
     public void La_caducidad_que_lleva_el_ticket_es_la_de_su_vigencia()
     {
         var emitido = DateTimeOffset.UtcNow;
-        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
+        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
 
-        _proveedor.CreateProtector("CaeManager.Extension.EntregaArchivo.v1").ToTimeLimitedDataProtector()
+        _proveedor.CreateProtector("CaeManager.Extension.EntregaArchivo.v2").ToTimeLimitedDataProtector()
             .Unprotect(ticket, out var caducidad);
 
         caducidad.Should().BeCloseTo(emitido.Add(TicketEntregaExtension.Vigencia), TimeSpan.FromSeconds(5));
@@ -39,7 +52,7 @@ public class TicketEntregaExtensionTests
     public void Un_token_de_sesion_no_vale_como_ticket_ni_al_reves()
     {
         var token = TokenSesionExtension.Proteger(_proveedor, Guid.NewGuid(), "SELLO", Guid.NewGuid());
-        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
+        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
 
         TicketEntregaExtension.Leer(_proveedor, token).Should().BeNull();
         TokenSesionExtension.Leer(_proveedor, ticket).Should().BeNull();
@@ -55,7 +68,7 @@ public class TicketEntregaExtensionTests
     [Fact]
     public void Un_ticket_alterado_no_entrega_nada()
     {
-        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
+        var ticket = TicketEntregaExtension.Proteger(_proveedor, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid(), Guid.NewGuid(), "app.dokify.net");
 
         TicketEntregaExtension.Leer(_proveedor, ticket[..^4] + "AAAA").Should().BeNull();
     }
@@ -63,11 +76,14 @@ public class TicketEntregaExtensionTests
     [Theory]
     [InlineData("")]
     [InlineData("a|b|c")]
-    [InlineData("00000000000000000000000000000000|11111111111111111111111111111111|22222222222222222222222222222222|host")]
-    [InlineData("11111111111111111111111111111111|00000000000000000000000000000000|22222222222222222222222222222222|host")]
-    [InlineData("11111111111111111111111111111111|22222222222222222222222222222222|00000000000000000000000000000000|host")]
-    [InlineData("11111111111111111111111111111111|22222222222222222222222222222222|33333333333333333333333333333333| ")]
-    [InlineData("11111111111111111111111111111111|22222222222222222222222222222222|33333333333333333333333333333333|host|extra")]
+    [InlineData("11111111111111111111111111111111|22222222222222222222222222222222|33333333333333333333333333333333|host")]
+    [InlineData("00000000000000000000000000000000|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|11111111111111111111111111111111|22222222222222222222222222222222|host")]
+    [InlineData("cccccccccccccccccccccccccccccccc|00000000000000000000000000000000|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|11111111111111111111111111111111|22222222222222222222222222222222|host")]
+    [InlineData("cccccccccccccccccccccccccccccccc|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|no-es-un-guid|11111111111111111111111111111111|22222222222222222222222222222222|host")]
+    [InlineData("cccccccccccccccccccccccccccccccc|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|00000000000000000000000000000000|22222222222222222222222222222222|host")]
+    [InlineData("cccccccccccccccccccccccccccccccc|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|11111111111111111111111111111111|00000000000000000000000000000000|host")]
+    [InlineData("cccccccccccccccccccccccccccccccc|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|11111111111111111111111111111111|22222222222222222222222222222222| ")]
+    [InlineData("cccccccccccccccccccccccccccccccc|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb|11111111111111111111111111111111|22222222222222222222222222222222|host|extra")]
     public void Una_carga_malformada_se_rechaza(string carga) =>
         TicketEntregaExtension.ParsearCargaUtil(carga).Should().BeNull();
 }
