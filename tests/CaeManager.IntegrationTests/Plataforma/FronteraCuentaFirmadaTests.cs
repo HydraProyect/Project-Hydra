@@ -545,8 +545,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
 
     /// <summary>
     /// La misma lista bajo soporte y sin las columnas de credenciales: responde sin pedirlas, y la RLS sigue decidiendo.
-    /// <c>AspNetUserRoles</c> y <c>AspNetRoles</c> no tienen política, así que la Administradora de otro Tenant cumple
-    /// todo el predicado de la consulta y solo la política de <c>AspNetUsers</c> la deja fuera.
+    /// La política de <c>AspNetUserRoles</c> deriva su visibilidad de la cuenta en <c>AspNetUsers</c>.
     /// </summary>
     [Fact]
     public async Task Bajo_soporte_la_lista_de_avisos_no_amplia_lo_que_la_RLS_deja_ver()

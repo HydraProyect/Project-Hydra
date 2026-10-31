@@ -49,7 +49,9 @@ namespace CaeManager.Infrastructure.Identity;
 /// (Id, nombre, correo) resuelven primero el Tenant de la cuenta con una función
 /// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
-/// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Las
+/// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Los roles
+/// de la cuenta se leen igual: <c>AspNetUserRoles</c> sigue la visibilidad de
+/// <c>AspNetUsers</c> (migración <c>ProtegeRolesDeCuentaConRls</c>). Las
 /// escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
 /// de la contraseña, el vínculo de la identidad de Microsoft) corren en el Tenant de la cuenta que se
 /// escribe. Fuera de ese ámbito, o con Tenant, el almacén se comporta como el de
@@ -114,6 +116,9 @@ public class AlmacenUsuarios(
             () => base.FindByEmailAsync(normalizedEmail, cancellationToken));
     }
 
+    public override Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
+        EnTenantDeLaCuentaAsync(user, () => base.GetRolesAsync(user, cancellationToken));
+
     public override Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
         EnTenantDeLaCuentaAsync(user, () => base.CreateAsync(user, cancellationToken));
 
@@ -125,17 +130,17 @@ public class AlmacenUsuarios(
 
     /// <summary>
     /// Una cuenta que un camino sin Tenant ya tiene delante (la cargó por su clave
-    /// dentro del mismo ámbito, o le está vinculando el SSO su identidad) se escribe en su
-    /// propio Tenant. Con Tenant en el contexto, o fuera del ámbito, decide la
-    /// política con el contexto que haya.
+    /// dentro del mismo ámbito, o le está vinculando el SSO su identidad) se escribe, y sus
+    /// roles se leen, en su propio Tenant. Con Tenant en el contexto, o fuera del ámbito,
+    /// decide la política con el contexto que haya.
     /// </summary>
-    private async Task<IdentityResult> EnTenantDeLaCuentaAsync(ApplicationUser user, Func<Task<IdentityResult>> escribir)
+    private async Task<T> EnTenantDeLaCuentaAsync<T>(ApplicationUser user, Func<Task<T>> operar)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (!ResuelveSinTenant || user.TenantId == Guid.Empty) return await escribir();
+        if (!ResuelveSinTenant || user.TenantId == Guid.Empty) return await operar();
 
         using (AmbitoTenantExplicito.Establecer(user.TenantId))
-            return await escribir();
+            return await operar();
     }
 
     private static async Task<ApplicationUser?> EnTenantAsync(Guid? tenantId, Func<Task<ApplicationUser?>> leer)

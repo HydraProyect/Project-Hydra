@@ -262,6 +262,38 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// <c>AspNetUserRoles</c> no lleva Tenant propio y sigue a la cuenta: RLS con FORCE y dos políticas. La
+    /// lectura es la visibilidad de <c>AspNetUsers</c> y solo es SELECT; la escritura exige que el Tenant de
+    /// la cuenta sea el Tenant activo, con el contexto firmado.
+    /// </summary>
+    [Fact]
+    public async Task Los_roles_de_cuenta_tienen_RLS_forzada_y_solo_se_escriben_en_el_Tenant_de_la_cuenta()
+    {
+        var estado = await LeerEstadoRlsAsync(["AspNetUserRoles"]);
+        var tabla = estado["AspNetUserRoles"];
+        tabla.Habilitado.Should().BeTrue();
+        tabla.Forzado.Should().BeTrue();
+        tabla.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(["roles_cuenta_lectura", "roles_cuenta_escritura"]);
+
+        var lectura = tabla.Politicas.Single(p => p.Nombre == "roles_cuenta_lectura");
+        lectura.Permisiva.Should().BeTrue();
+        lectura.Comando.Should().Be('r', "ver la cuenta solo abre la lectura");
+        lectura.WithCheck.Should().BeNull();
+        lectura.Using.Should().NotBeNull();
+        lectura.Using!.Should().Contain("AspNetUsers");
+
+        var escritura = tabla.Politicas.Single(p => p.Nombre == "roles_cuenta_escritura");
+        escritura.Permisiva.Should().BeTrue();
+        escritura.Comando.Should().Be('*');
+        foreach (var expresion in new[] { escritura.Using, escritura.WithCheck })
+        {
+            expresion.Should().NotBeNull();
+            expresion!.Should().Contain("AspNetUsers").And.Contain("TenantId").And.Contain("app_ctx_tenant_id()")
+                .And.NotContain("app_ctx_tenant_origen_id()").And.NotContain("current_setting(");
+        }
+    }
+
+    /// <summary>
     /// Categoría 2: RLS implementado con semántica distinta. No llevan
     /// <c>TenantId</c> —la fila enlaza dos tenants— así que el barrido por el
     /// modelo no las alcanza y hay que nombrarlas.

@@ -29,8 +29,8 @@ public interface ILecturaPersonasDelegadas
 
 /// <summary>
 /// Implementación de <see cref="ILecturaPersonasDelegadas"/>. Sin rastreo y en una sola sentencia: los roles cuelgan de
-/// la fila de <c>AspNetUsers</c> que la política dejó pasar, así que no hay roles de una cuenta que no se vea (ni
-/// <c>AspNetUserRoles</c> ni <c>AspNetRoles</c> tienen RLS propia). Comparte contexto scoped, así que desde un circuito
+/// la fila de <c>AspNetUsers</c> que la política dejó pasar; la política de <c>AspNetUserRoles</c> aplica
+/// esa misma visibilidad para lectura. Comparte contexto scoped, así que desde un circuito
 /// de Blazor se llama dentro de <c>PuertaAccesoDatos</c>.
 /// </summary>
 public sealed class LecturaPersonasDelegadas(CaeManagerDbContext db) : ILecturaPersonasDelegadas
