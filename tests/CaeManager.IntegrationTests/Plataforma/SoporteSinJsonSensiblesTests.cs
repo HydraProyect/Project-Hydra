@@ -16,6 +16,10 @@ public class SoporteSinJsonSensiblesTests : IAsyncLifetime
     [InlineData("SELECT \"ContextoJson\" FROM \"LotesGeneracionDocumento\"")]
     [InlineData("SELECT \"ExtraccionJson\" FROM \"ExtraccionesIaCache\"")]
     [InlineData("SELECT \"Id\" FROM \"SolicitudesConexionMicrosoft365\"")]
+    [InlineData("SELECT \"CodigoVerificacion\" FROM \"VerificacionesDocumentoOficial\"")]
+    [InlineData("SELECT * FROM \"VerificacionesDocumentoOficial\"")]
+    [InlineData("SELECT \"PayloadCrudo\" FROM \"EventosWebhook\"")]
+    [InlineData("SELECT * FROM \"EventosWebhook\"")]
     public async Task Soporte_no_lee_lo_retirado_y_runtime_conserva_la_lectura(string sql)
     {
         await using var runtime = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
@@ -51,6 +55,8 @@ public class SoporteSinJsonSensiblesTests : IAsyncLifetime
 
     /// <summary>Contra el catálogo: una columna que falte en el GRANT dejaría en 42501 a las proyecciones.</summary>
     [Theory]
+    [InlineData("VerificacionesDocumentoOficial", "CodigoVerificacion")]
+    [InlineData("EventosWebhook", "PayloadCrudo")]
     [InlineData("LotesGeneracionDocumento", "ContextoJson")]
     [InlineData("ExtraccionesIaCache", "ExtraccionJson")]
     public async Task Soporte_lee_todas_las_columnas_salvo_la_retirada(string tabla, string retirada)

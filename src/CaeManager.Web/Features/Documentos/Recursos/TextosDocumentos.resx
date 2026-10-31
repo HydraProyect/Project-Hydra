@@ -339,4 +339,5 @@
   <data name="ListaHaceDias" xml:space="preserve"><value>hace {0} días</value></data>
   <data name="ListaEnDias" xml:space="preserve"><value>en {0} días</value></data>
   <data name="ValidacionOficialErrorTitulo" xml:space="preserve"><value>No pudimos comprobar la validación del documento</value></data>
+  <data name="ValidacionOficialCodigoNoDisponibleSoporte" xml:space="preserve"><value>No disponible para Soporte TALVEG</value></data>
 </root>

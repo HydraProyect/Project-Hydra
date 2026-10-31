@@ -35,12 +35,13 @@ public class Documento360Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public FichaDocumento360Dto? Ficha { get; set; }
+        public ValidacionOficialDocumentoDto? Validacion { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             request switch
             {
                 ObtenerFichaDocumento360Query => Task.FromResult((TResponse)(object?)Ficha!),
-                ObtenerValidacionOficialDocumentoQuery => Task.FromResult(default(TResponse)!),
+                ObtenerValidacionOficialDocumentoQuery => Task.FromResult((TResponse)(object?)Validacion!),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             };
 
@@ -132,6 +133,21 @@ public class Documento360Tests : BunitContext
         cut.FindAll(".fila-relacion .fila-relacion-nombre").Select(n => n.TextContent.Trim()).ToList();
 
     // ── Estructura ────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(false, null, "No disponible para Soporte TALVEG")]
+    [InlineData(true, "CSV-123", "CSV-123")]
+    public void La_validacion_muestra_la_disponibilidad_del_codigo(bool disponible, string? codigo, string esperado)
+    {
+        var mediador = Montar();
+        mediador.Validacion = new ValidacionOficialDocumentoDto(
+            PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
+            DecisionValidacionOficial.AutoValidado, ResultadoCotejoDocumentoOficial.Coincide,
+            "", codigo, null, null, null, null, DateTime.UtcNow, [], disponible);
+        var cut = Renderizar();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Validaci\u00f3n")).Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(esperado));
+    }
 
     [Fact]
     public void Las_pestanas_salen_con_los_rotulos_y_el_orden_del_mockup_y_la_primera_es_Donde_se_exige()

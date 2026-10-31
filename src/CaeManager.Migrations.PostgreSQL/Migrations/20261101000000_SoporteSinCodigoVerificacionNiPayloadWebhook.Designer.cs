@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261031233000_FronteraCuentaFirmadaParaSoporte")]
-    partial class FronteraCuentaFirmadaParaSoporte
+    [Migration("20261101000000_SoporteSinCodigoVerificacionNiPayloadWebhook")]
+    partial class SoporteSinCodigoVerificacionNiPayloadWebhook
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -10627,6 +10627,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("Avatar")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
