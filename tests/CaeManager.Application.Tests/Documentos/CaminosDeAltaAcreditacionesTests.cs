@@ -245,7 +245,9 @@ public class CaminosDeAltaAcreditacionesTests
         var mundo = new MundoAcreditaciones();
         var centro = mundo.Centro();
         var tipo = mundo.Tipo(RequisitoDocumental.No);
-        var almacen = new FileStorageServiceFalso();
+        var tenantId = Guid.NewGuid();
+        AsignarTenant(centro, tenantId);
+        var almacen = new FileStorageServiceFalso { TenantId = tenantId };
         var (contenido, extension) = caso switch
         {
             "pdf-bueno" => ("%PDF-1.7"u8.ToArray(), "pdf"),
@@ -254,7 +256,7 @@ public class CaminosDeAltaAcreditacionesTests
             "docx-sin-estructura" => (new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x14, 0x00 }, "docx"),
             _ => ("MZ"u8.ToArray(), "pdf")
         };
-        var clave = caso == "inexistente" ? "inexistente.pdf" : await almacen.GuardarAsync(new MemoryStream(contenido), $"archivo.{extension}");
+        var clave = caso == "inexistente" ? $"{tenantId:N}/inexistente.pdf" : await almacen.GuardarAsync(new MemoryStream(contenido), $"archivo.{extension}");
         var filas = new TipoDocumentoCentroRepositorioFalso();
         // Una clave que la fila ya tenía (anterior a esta validación) no se vuelve a exigir al editar otros campos.
         if (claveYaGuardada)
@@ -277,7 +279,9 @@ public class CaminosDeAltaAcreditacionesTests
         var mundo = new MundoAcreditaciones();
         var centro = mundo.Centro();
         var tipo = mundo.Tipo(RequisitoDocumental.No);
-        var almacen = new FileStorageServiceFalso();
+        var tenantId = Guid.NewGuid();
+        AsignarTenant(centro, tenantId);
+        var almacen = new FileStorageServiceFalso { TenantId = tenantId };
         var claveAnterior = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "anterior.pdf");
         var claveNueva = await almacen.GuardarAsync(new MemoryStream("MZ"u8.ToArray()), "nueva.pdf");
         var filas = new TipoDocumentoCentroRepositorioFalso();
@@ -294,6 +298,98 @@ public class CaminosDeAltaAcreditacionesTests
         unit.VecesGuardado.Should().Be(0);
         filas.Relaciones.Single().ArchivoUrl.Should().Be(claveAnterior);
     }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    public async Task Requisito_de_centro_solo_admite_clave_nueva_del_tenant_propietario(
+        bool clavePropia, bool claveSinCambios, bool admitida)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tenantPropietario = Guid.NewGuid();
+        AsignarTenant(centro, tenantPropietario);
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var almacen = new FileStorageServiceFalso { TenantId = clavePropia ? tenantPropietario : Guid.NewGuid() };
+        var clave = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "archivo.pdf");
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        if (claveSinCambios)
+            filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, clave, "archivo.pdf", null));
+        var unit = new UnitOfWorkFalso();
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, true, null, false, clave, "archivo.pdf", 5), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(admitida);
+        unit.VecesGuardado.Should().Be(admitida ? 1 : 0);
+        if (!admitida) resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
+        else filas.Relaciones.Single().ArchivoUrl.Should().Be(clave);
+    }
+
+    // El mismo Error para todas: quien prueba claves no distingue una que existe en otro Tenant de una que no existe.
+    // «propia-con-segmentos» existe en el almacén y es un PDF válido: solo la rechaza la forma de la clave.
+    [Theory]
+    [InlineData("ajena-existente")]
+    [InlineData("ajena-inexistente")]
+    [InlineData("propia-inexistente")]
+    [InlineData("propia-con-segmentos")]
+    [InlineData("sin-carpeta")]
+    public async Task Requisito_de_centro_rechaza_con_el_mismo_error_toda_clave_fuera_de_la_carpeta_del_tenant(string caso)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tenantPropietario = Guid.NewGuid();
+        AsignarTenant(centro, tenantPropietario);
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var tenantAjeno = Guid.NewGuid();
+        var almacen = new FileStorageServiceFalso { TenantId = tenantAjeno };
+        var claveAjena = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "archivo.pdf");
+        almacen.TenantId = tenantPropietario;
+        var claveConSegmentos = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "../archivo.pdf");
+        var clave = caso switch
+        {
+            "ajena-existente" => claveAjena,
+            "ajena-inexistente" => $"{tenantAjeno:N}/archivo.pdf",
+            "propia-inexistente" => $"{tenantPropietario:N}/archivo.pdf",
+            "propia-con-segmentos" => claveConSegmentos,
+            _ => "archivo.pdf"
+        };
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        var unit = new UnitOfWorkFalso();
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, true, null, false, clave, "archivo.pdf", null), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
+        resultado.Error.Mensaje.Should().Be(CaeManager.Application.Common.Archivos.ValidadorFirmaArchivo.MensajeRequisitoNoValido);
+        unit.VecesGuardado.Should().Be(0);
+        filas.Relaciones.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("11111111111111111111111111111111/archivo.pdf", true)]
+    [InlineData("11111111111111111111111111111111/", false)]
+    [InlineData("11111111111111111111111111111111/sub/archivo.pdf", false)]
+    [InlineData("11111111111111111111111111111111/..archivo.pdf", false)]
+    [InlineData("22222222222222222222222222222222/archivo.pdf", false)]
+    [InlineData("11111111111111111111111111111111archivo.pdf", false)]
+    [InlineData("archivo.pdf", false)]
+    public void Una_clave_es_del_tenant_solo_si_es_un_archivo_directo_de_su_carpeta(string clave, bool esDelTenant) =>
+        CaeManager.Application.ContratosAcceso.EvidenciasInbound.OriginalesInbound
+            .EsDelTenant(clave, Guid.Parse("11111111111111111111111111111111"))
+            .Should().Be(esDelTenant);
+
+    private static void AsignarTenant(CaeManager.Domain.Common.EntidadConTenant entidad, Guid tenantId) =>
+        typeof(CaeManager.Domain.Common.EntidadConTenant).GetProperty(nameof(entidad.TenantId))!.SetValue(entidad, tenantId);
+
     [Fact]
     public async Task Que_un_centro_pase_a_exigir_un_tipo_acredita_los_documentos_de_ese_tipo_de_quienes_trabajan_alli()
     {
