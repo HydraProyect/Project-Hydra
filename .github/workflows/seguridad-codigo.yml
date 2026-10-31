@@ -291,9 +291,9 @@ jobs:
       # Cuenta de la siembra de demo: rol sin 2FA obligatorio y Tenant propietario
       # con datos. Su contraseña la genera este job.
       ZAP_CUENTA: prueba.coordinadorcae1@caemanager.local
-      # Sirve a una cuenta con sesión; sin ella contesta 401. Devuelve los Tenants
-      # de la cuenta, así que un 200 con lista demuestra quién pregunta.
-      ZAP_SONDA: /extension/tenants-beneficiarios
+      # Política SesionOExtension: con cookie contesta 200 y una lista JSON, y sin
+      # ella 401. Otras rutas de /extension son SoloExtension y nunca aceptan cookie.
+      ZAP_SONDA: /extension/acreditaciones-pendientes
     services:
       postgres:
         # Espejo GHCR, mismo digest que producción: ver el job zap-baseline.
@@ -577,8 +577,8 @@ jobs:
             local cuerpo codigo
             cuerpo=$(mktemp)
             codigo=$(curl -sS -o "$cuerpo" -w '%{http_code}' --max-time 45 -x "$ZAP_API" "$ZAP_BASE$ZAP_SONDA" || true)
-            if [ "$codigo" = 200 ] && ! jq -e '.tenants | length > 0' "$cuerpo" > /dev/null 2>&1; then
-              codigo=vacio
+            if [ "$codigo" = 200 ] && ! jq -e 'type == "array"' "$cuerpo" > /dev/null 2>&1; then
+              codigo=no-es-lista
             fi
             rm -f "$cuerpo"
             echo "$(date -u +%H:%M:%S) $codigo" >> zap/sesion-zap.txt
