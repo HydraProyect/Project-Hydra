@@ -409,7 +409,7 @@ public class ConexionesPlataformaCaeBajoRuntimeTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("'Inventado'", "NULL", "NULL", "CK_UsosConexionPlataformaCae_Resultado")]
+    [InlineData("'Inventado'", "now()", "NULL", "CK_UsosConexionPlataformaCae_Resultado")]
     [InlineData("'EnCurso'", "now()", "NULL", "CK_UsosConexionPlataformaCae_Cierre")]
     [InlineData("'Denegado'", "now()", "NULL", "CK_UsosConexionPlataformaCae_Motivo")]
     public async Task La_base_rechaza_un_uso_incoherente(string resultado, string finalizado, string motivo, string restriccion)

@@ -139,6 +139,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         // Solo columnas que NO son secretas aunque su nombre lo parezca. Un secreto real no entra aquí.
         var noSecretas = new HashSet<(string Tabla, string Columna)>
         {
+            // Guid opaco que distingue reintentos ante la plataforma CAE: la puerta rechaza cualquier otro valor.
+            ("UsosConexionPlataformaCae", "ClaveIdempotencia"),
             // Booleano que obliga a cambiar la contraseña en el siguiente acceso; no la contiene.
             ("AspNetUsers", "DebeCambiarContrasena"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
