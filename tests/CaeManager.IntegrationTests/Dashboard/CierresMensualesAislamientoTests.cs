@@ -93,7 +93,7 @@ public class CierresMensualesAislamientoTests
     }
 
     [Fact]
-    public async Task Un_mes_reabierto_el_mes_pasado_se_recierra_aunque_la_reapertura_fuera_a_las_23_30_del_ultimo_dia_de_Madrid()
+    public async Task Un_mes_reabierto_el_mes_pasado_se_recierra_con_reapertura_a_las_23_30_del_ultimo_dia_de_Madrid()
     {
         await using var arnes = await ArnesPilotoOutbound.CrearAsync();
         var tenant = await PrimerTenantAsync(arnes);
@@ -107,6 +107,20 @@ public class CierresMensualesAislamientoTests
         var cierre = await LeerCierreAsync(arnes, tenant, mes);
         cierre.ReabiertoEnUtc.Should().BeNull("la reapertura es de un día de negocio anterior al día 1 del mes actual");
     }
+
+    [Theory]
+    [InlineData("2026-11-05T12:00:00Z", "2026-11-15", false)] // reabierto este mes, vuelta a mitad de mes
+    [InlineData("2026-11-05T12:00:00Z", "2026-11-30", false)]
+    [InlineData("2026-10-31T23:30:00Z", "2026-11-20", false)] // 00:30 del 1 de noviembre en Madrid: ya es este mes
+    [InlineData("2026-10-31T22:30:00Z", "2026-11-01", true)]  // 23:30 del 31 de octubre en Madrid: mes pasado
+    [InlineData("2026-09-10T12:00:00Z", "2026-11-02", true)]  // varios meses atrás
+    public void ReaperturaVencida_solo_si_el_dia_de_negocio_es_anterior_al_dia_1_del_mes_actual(string reabierto, string hoy, bool esperado) =>
+        CierreMensualCuadroDireccionHostedService.ReaperturaVencida(
+            DateTime.Parse(reabierto, null, System.Globalization.DateTimeStyles.AdjustToUniversal), DateOnly.Parse(hoy)).Should().Be(esperado);
+
+    [Fact]
+    public void ReaperturaVencida_es_falsa_sin_reapertura() =>
+        CierreMensualCuadroDireccionHostedService.ReaperturaVencida(null, new DateOnly(2026, 11, 15)).Should().BeFalse();
 
     // El Tenant del arnés nace ahora: el mes de su alta es el primero que la recuperación mira.
     private static DateOnly MesDelTenant()
