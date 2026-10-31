@@ -78,7 +78,9 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// <c>TenantsAlcanzadosPorConcesion</c> no tienen FK física hacia
 /// <c>Tenants</c> (ver los comentarios "Sin HasQueryFilter" de sus
 /// configuraciones) — dejarlos sería basura huérfana silenciosa, pero
-/// Postgres no los habría bloqueado. <c>AsignacionesCartera</c> y
+/// Postgres no los habría bloqueado. <c>ReclamacionesBuzonIntegracion</c> tampoco
+/// tiene FK, y dejarla mantendría el buzón reclamado para siempre: no es un catálogo
+/// global, cada fila es de un Tenant propietario. <c>AsignacionesCartera</c> y
 /// <c>AsignacionesOperacion</c> son distintas: SÍ llevan FK compuesta
 /// <c>Restrict</c> hacia Empresa/Centro/Trabajador/Proyecto por
 /// <c>PropietarioTenantId</c> (ADR-011, plano 2) — sin limpiarlas primero,
@@ -242,6 +244,14 @@ public static class RetiradaTenantDemoService
                     filasBorradas++;
                 }
             }
+
+            // No hereda de EntidadConTenant, así que el bucle de arriba no la alcanza, y sin borrarla el buzón
+            // seguiría reclamado para siempre. No tiene FK: no condiciona el orden del guardado final. La acota el
+            // Where: la identidad de bootstrap (superusuario en staging y producción) salta RLS incluso con FORCE.
+            var reclamaciones = await dbContext.ReclamacionesBuzonIntegracion
+                .Where(r => r.TenantPropietarioId == tenantId).ToListAsync(cancellationToken);
+            dbContext.RemoveRange(reclamaciones);
+            filasBorradas += reclamaciones.Count;
 
             // AsignacionesCartera/AsignacionesOperacion (plano 2, ADR-011): NO
             // heredan de EntidadConTenant (cruzan tenants por naturaleza, ver

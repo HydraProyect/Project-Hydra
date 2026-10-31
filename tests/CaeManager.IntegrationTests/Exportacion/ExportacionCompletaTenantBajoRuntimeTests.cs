@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Exportacion;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Exportacion;
@@ -69,6 +70,11 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         _propietario.Tenants.AddRange(tenantA, tenantB, tenantPlataforma);
         await _propietario.SaveChangesAsync();
         (_tenantA, _tenantB, _tenantPlataforma) = (tenantA.Id, tenantB.Id, tenantPlataforma.Id);
+
+        _propietario.ReclamacionesBuzonIntegracion.AddRange(
+            new ReclamacionBuzonIntegracion("exportado@example.com", _tenantA, Guid.NewGuid(), DateTime.UtcNow),
+            new ReclamacionBuzonIntegracion("ajeno@example.com", _tenantB, Guid.NewGuid(), DateTime.UtcNow));
+        await _propietario.SaveChangesAsync();
 
         var administrador = await _propietario.Roles.Where(r => r.Name == Roles.Administrador).Select(r => r.Id).SingleAsync();
         var consulta = await _propietario.Roles.Where(r => r.Name == Roles.Consulta).Select(r => r.Id).SingleAsync();
@@ -139,6 +145,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 
             resultado.Recuentos["Empresa"].Should().Be(1);
             resultado.Recuentos["Usuario"].Should().Be(4);
+            resultado.Recuentos["ReclamacionBuzonIntegracion"].Should().Be(1);
         }
 
         destino.Position = 0;
@@ -162,6 +169,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         texto.Should().NotContain(ContrasenaPortal);
         texto.Should().NotContain("PasswordHash").And.NotContain("SecurityStamp");
         texto.Should().NotContain(ContrasenaZip);
+        texto.Should().NotContain("ajeno@example.com");
 
         using var manifiesto = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry(ArchivoExportacion.RutaManifiesto)));
         manifiesto.RootElement.GetProperty("tenantId").GetGuid().Should().Be(_tenantA);
@@ -170,6 +178,11 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 
         using var empresas = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry("datos/Empresa.json")));
         empresas.RootElement.EnumerateArray().Select(e => e.GetProperty("TenantId").GetGuid()).Should().Equal(_tenantA);
+
+        using var reclamaciones = await JsonDocument.ParseAsync(zip.GetInputStream(zip.GetEntry("datos/ReclamacionBuzonIntegracion.json")));
+        reclamaciones.RootElement.GetArrayLength().Should().Be(1);
+        reclamaciones.RootElement[0].GetProperty("TenantPropietarioId").GetGuid().Should().Be(_tenantA);
+        reclamaciones.RootElement[0].GetProperty("BuzonEmail").GetString().Should().Be("exportado@example.com");
 
         await using var control = CrearPropietario();
         var auditoria = await control.RegistrosAuditoria.IgnoreQueryFilters()
