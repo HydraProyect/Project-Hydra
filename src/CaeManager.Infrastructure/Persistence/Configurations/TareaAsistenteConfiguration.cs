@@ -22,21 +22,18 @@ public class TareaAsistenteConfiguration : IEntityTypeConfiguration<TareaAsisten
         // Mis tareas: la lista de la persona dentro del Tenant, las más recientes primero.
         builder.HasIndex(t => new { t.TenantId, t.ActorRealUsuarioId, t.ActualizadaEnUtc });
 
-        // FK de EF de una sola columna, igual que Conversacion → Mensajes: la
-        // FK compuesta (TareaAsistenteId, TenantId) → TareasAsistente (Id,
-        // TenantId) la crea en SQL la migración AgregarTareasAsistente, contra
-        // la clave alternativa AK_TareasAsistente_Id_TenantId, invisible al
-        // modelo Fluent para no disparar el fixup del ChangeTracker antes de
-        // que TenantSelladoInterceptor selle el tenant.
+        // FK compuesta con TenantId, igual que Conversacion → Mensajes.
         builder.HasMany(t => t.Turnos)
             .WithOne()
-            .HasForeignKey(u => u.TareaAsistenteId)
+            .HasForeignKey(u => new { u.TenantId, u.TareaAsistenteId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(t => t.Turnos).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasMany(t => t.Pasos)
             .WithOne()
-            .HasForeignKey(p => p.TareaAsistenteId)
+            .HasForeignKey(p => new { p.TenantId, p.TareaAsistenteId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(t => t.Pasos).UsePropertyAccessMode(PropertyAccessMode.Field);
 

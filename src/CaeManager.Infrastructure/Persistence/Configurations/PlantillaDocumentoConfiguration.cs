@@ -27,7 +27,8 @@ public class PlantillaDocumentoConfiguration : IEntityTypeConfiguration<Plantill
         // y no hay ningún flujo en este MVP que borre una PlantillaDocumentoVersion.
         builder.HasOne<PlantillaDocumentoVersion>()
             .WithMany()
-            .HasForeignKey(p => p.VersionActualId)
+            .HasForeignKey(p => new { p.TenantId, p.VersionActualId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Mismo criterio que Documento → TipoDocumento (DocumentoConfiguration).

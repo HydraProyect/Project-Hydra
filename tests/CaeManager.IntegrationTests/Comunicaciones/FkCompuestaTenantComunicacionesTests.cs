@@ -10,10 +10,9 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 
 /// <summary>
 /// Auditoría Módulo 8: prueba la FK compuesta (Xxx, TenantId) → padre
-/// (Id, TenantId) que la migración FkCompuestaTenantComunicaciones añade en
-/// SQL crudo para Mensaje/ParticipanteConversacion (hijos de Conversacion) y
-/// AdjuntoMensaje (hijo de Mensaje) — invisible al modelo Fluent a propósito
-/// (ver ConversacionConfiguration/MensajeConfiguration), así que solo un
+/// (TenantId, Id) para Mensaje/ParticipanteConversacion (hijos de Conversacion) y
+/// AdjuntoMensaje (hijo de Mensaje), declarada en el modelo Fluent (ver
+/// ConversacionConfiguration/MensajeConfiguration). Solo un
 /// UPDATE crudo que la viole puede demostrar que existe de verdad. Mismo
 /// patrón que CheckXorPropietarioDocumentoTests: UPDATE directo sobre la
 /// columna que rompe la regla, no un INSERT completo.

@@ -31,14 +31,16 @@ public class AcreditacionDocumentoPlataformaConfiguration : IEntityTypeConfigura
         // campo privado — mismo patrón que Conversacion.Mensajes.
         builder.HasMany(a => a.HistorialRechazos)
             .WithOne()
-            .HasForeignKey(r => r.AcreditacionId)
+            .HasForeignKey(r => new { r.TenantId, r.AcreditacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(a => a.HistorialRechazos).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // Cambios de estado anotados a mano desde Centro 360: mismo patrón que el historial de rechazos.
         builder.HasMany(a => a.CambiosEstado)
             .WithOne()
-            .HasForeignKey(c => c.AcreditacionId)
+            .HasForeignKey(c => new { c.TenantId, c.AcreditacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(a => a.CambiosEstado).UsePropertyAccessMode(PropertyAccessMode.Field);
 

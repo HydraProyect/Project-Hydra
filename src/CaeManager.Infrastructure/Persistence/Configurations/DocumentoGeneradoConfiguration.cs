@@ -26,12 +26,14 @@ public class DocumentoGeneradoConfiguration : IEntityTypeConfiguration<Documento
         // visible, no arrastrarlos en silencio.
         builder.HasOne<PlantillaDocumentoVersion>()
             .WithMany()
-            .HasForeignKey(d => d.PlantillaDocumentoVersionId)
+            .HasForeignKey(d => new { d.TenantId, d.PlantillaDocumentoVersionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Documento>()
             .WithMany()
-            .HasForeignKey(d => d.DocumentoId)
+            .HasForeignKey(d => new { d.TenantId, d.DocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.

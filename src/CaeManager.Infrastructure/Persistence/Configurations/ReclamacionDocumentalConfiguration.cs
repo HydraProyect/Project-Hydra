@@ -51,7 +51,8 @@ public class ReclamacionDocumentalConfiguration : IEntityTypeConfiguration<Recla
         // dispararse casi nunca, pero la regla la fija el modelo, no el uso.
         builder.HasOne<Conversacion>()
             .WithMany()
-            .HasForeignKey(r => r.ConversacionId)
+            .HasForeignKey(r => new { r.TenantId, r.ConversacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Mensajes/Participantes de Conversacion es el mismo patrón: colección
@@ -59,7 +60,8 @@ public class ReclamacionDocumentalConfiguration : IEntityTypeConfiguration<Recla
         // campo directamente.
         builder.HasMany(r => r.Documentos)
             .WithOne()
-            .HasForeignKey(d => d.ReclamacionDocumentalId)
+            .HasForeignKey(d => new { d.TenantId, d.ReclamacionDocumentalId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(r => r.Documentos).UsePropertyAccessMode(PropertyAccessMode.Field);
 

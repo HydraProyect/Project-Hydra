@@ -31,29 +31,38 @@ public class ContactoAgendaConfiguration : IEntityTypeConfiguration<ContactoAgen
         // repositorio: borrar un Cliente con agenda debe fallar de forma
         // visible, no llevarse los contactos por delante en silencio.
         //
-        // F3b — ClienteId/SubcontrataId repuntan contra Empresas.Id (ver
-        // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §2): a diferencia
-        // de las otras constraints de este repunteo, aquí no hay
-        // HasPrincipalKey ni TenantId en la FK — ya no lo había contra
-        // Cliente/Subcontrata tampoco, así que apuntan igual que antes, solo
-        // que ahora a Empresa.Id (su PK, globalmente única). Cubierto por su
-        // propio test de integridad (EsquemaFinalTrasCompactacionTests, para
-        // ClienteId y SubcontrataId), no asume el patrón compuesto de las
-        // demás.
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.ClienteId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.EmpresaId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(c => c.SubcontrataId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<Centro>().WithMany().HasForeignKey(c => c.CentroId).OnDelete(DeleteBehavior.Restrict);
+        // F3b — ClienteId/SubcontrataId apuntan a Empresas (ver
+        // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md §2).
+        // Todas compuestas con TenantId: la agenda de un Tenant no puede colgar
+        // de una Empresa ni de un Centro de otro.
+        builder.HasOne<Empresa>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.ClienteId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Empresa>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.EmpresaId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Empresa>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.SubcontrataId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Centro>().WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.CentroId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(c => c.TiposDocumento)
             .WithOne()
-            .HasForeignKey(t => t.ContactoAgendaId)
+            .HasForeignKey(t => new { t.TenantId, t.ContactoAgendaId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.TiposDocumento).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasMany(c => c.Roles)
             .WithOne()
-            .HasForeignKey(r => r.ContactoAgendaId)
+            .HasForeignKey(r => new { r.TenantId, r.ContactoAgendaId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(c => c.Roles).UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -77,7 +86,8 @@ public class ContactoAgendaTipoDocumentoConfiguration : IEntityTypeConfiguration
 
         builder.HasOne<TipoDocumento>()
             .WithMany()
-            .HasForeignKey(t => t.TipoDocumentoId)
+            .HasForeignKey(t => new { t.TenantId, t.TipoDocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.

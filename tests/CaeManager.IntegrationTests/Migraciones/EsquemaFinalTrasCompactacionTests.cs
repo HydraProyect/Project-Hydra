@@ -26,11 +26,11 @@ public class EsquemaFinalTrasCompactacionTests : IAsyncLifetime
     [InlineData("FK_Documentos_Empresas_TenantId_ClienteId", "Documentos")]
     [InlineData("FK_Proyectos_Empresas_TenantId_ClienteId", "Proyectos")]
     [InlineData("FK_TarifasCliente_Empresas_TenantId_ClienteId", "TarifasCliente")]
-    [InlineData("FK_ContactosAgenda_Empresas_ClienteId", "ContactosAgenda")]
+    [InlineData("FK_ContactosAgenda_Empresas_TenantId_ClienteId", "ContactosAgenda")]
     [InlineData("FK_Trabajadores_Empresas_TenantId_SubcontrataId", "Trabajadores")]
     [InlineData("FK_Vehiculos_Empresas_TenantId_SubcontrataId", "Vehiculos")]
     [InlineData("FK_VerificacionesExternaSubcontrata_Empresas_TenantId_Subcontr~", "VerificacionesExternaSubcontrata")]
-    [InlineData("FK_ContactosAgenda_Empresas_SubcontrataId", "ContactosAgenda")]
+    [InlineData("FK_ContactosAgenda_Empresas_TenantId_SubcontrataId", "ContactosAgenda")]
     [InlineData("FK_AsignacionesOperacion_Empresas_PropietarioTenantId_AmbitoRe~", "AsignacionesOperacion")]
     [InlineData("FK_AsignacionesCartera_Empresas_PropietarioTenantId_AmbitoRela~", "AsignacionesCartera")]
     public async Task Las_FKs_de_cliente_y_subcontrata_apuntan_a_Empresas(string restriccion, string tabla)
