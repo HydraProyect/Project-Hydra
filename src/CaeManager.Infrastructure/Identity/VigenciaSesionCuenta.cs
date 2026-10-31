@@ -18,6 +18,14 @@ public interface IVigenciaSesionCuenta
     /// identificador de sesión no está revocado. Lo que no se pueda afirmar es <c>false</c>.
     /// </summary>
     Task<bool> SigueVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default);
+
+    /// <summary>
+    /// Lo mismo, devolviendo el principal con el que medir ahora el circuito, o <c>null</c> si ya no vale. Sin
+    /// Sesión Privilegiada es el que emitiría la cookie (misma fábrica), con el ajuste vigente del Tenant. Con
+    /// ella es el propio <paramref name="principal"/>: rehacerlo exigiría cargar la cuenta bajo
+    /// <c>cae_app_soporte</c>, así que ese circuito conserva el plazo con que se conectó hasta recargar.
+    /// </summary>
+    Task<ClaimsPrincipal?> PrincipalVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -61,6 +69,18 @@ public sealed class VigenciaSesionCuenta(
     IOptions<IdentityOptions> opciones,
     ILogger<VigenciaSesionCuenta> logger) : IVigenciaSesionCuenta
 {
+    public async Task<ClaimsPrincipal?> PrincipalVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+
+        if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            return await SigueVigenteAsync(principal, ct) ? principal : null;
+
+        return await signInManager.ValidateSecurityStampAsync(principal) is { } cuenta
+            ? await signInManager.ClaimsFactory.CreateAsync(cuenta)
+            : null;
+    }
+
     public async Task<bool> SigueVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(principal);

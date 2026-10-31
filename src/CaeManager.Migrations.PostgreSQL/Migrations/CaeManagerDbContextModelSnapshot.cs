@@ -1821,6 +1821,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("ExcluirFueraDeJornadaEnMetricas")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("ExigeSegundoFactorTodosLosPerfiles")
+                        .HasColumnType("boolean");
+
                     b.Property<TimeOnly>("HoraFinJornada")
                         .HasColumnType("time without time zone");
 
@@ -1838,6 +1841,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("MedicionTiempoActiva")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("MinutosInactividadSesion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(30);
 
                     b.Property<decimal?>("PresupuestoMensualIaUsd")
                         .HasColumnType("numeric");
@@ -1866,12 +1874,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         {
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             ExcluirFueraDeJornadaEnMetricas = true,
+                            ExigeSegundoFactorTodosLosPerfiles = false,
                             HoraFinJornada = new TimeOnly(18, 0, 0),
                             HoraInicioJornada = new TimeOnly(8, 0, 0),
                             HorasAvisoVisita = 48,
                             HorasCriticasVisita = 24,
                             HorasJornadaMensualGestor = 160,
                             MedicionTiempoActiva = false,
+                            MinutosInactividadSesion = 30,
                             SegundosInactividadPausa = 120,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UmbralAmbarDias = 30,

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Security.Claims;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
@@ -544,6 +545,98 @@ public class CaducidadSesionTests
         CaducidadSesion.SigueActiva(new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(CaducidadSesion.MarcaInteraccion, Marca(Ahora.AddMinutes(-minutos)))], "cookie")), null, Ahora).Should().Be(activa);
 
+    /// <summary>El plazo del ticket manda; un dato que no se entiende nunca da más de 30 minutos.</summary>
+    [Theory]
+    [InlineData("10", 9, true)]
+    [InlineData("10", 10, false)]
+    [InlineData("45", 44, true)]
+    [InlineData("45", 45, false)]
+    [InlineData("480", 479, true)]
+    [InlineData("481", 31, false)]
+    [InlineData("4", 29, true)]
+    [InlineData("4", 30, false)]
+    [InlineData("no-es-un-numero", 31, false)]
+    [InlineData("-45", 31, false)]
+    [InlineData("99999999999", 31, false)]
+    [InlineData("", 31, false)]
+    public void El_plazo_es_el_del_Tenant_y_uno_invalido_vale_treinta_minutos(string plazo, int minutos, bool activa) =>
+        CaducidadSesion.SigueActiva(new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(CaducidadSesion.MarcaInteraccion, Marca(Ahora.AddMinutes(-minutos))),
+            new Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, plazo),
+        ], "cookie")), null, Ahora).Should().Be(activa);
+
+    /// <summary>
+    /// La revalidación trae un plazo más corto del Tenant. La señal que la dispara no salva
+    /// una sesión que con ese plazo ya había caducado.
+    /// </summary>
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(6, false)]
+    public async Task La_senal_no_salva_la_sesion_vencida_con_el_plazo_nuevo(int minutos, bool renueva)
+    {
+        Task Validador(CookieValidatePrincipalContext contexto)
+        {
+            contexto.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(
+                contexto.Principal!.Claims
+                    .Where(c => c.Type is not (CaducidadSesion.MarcaInicio or CaducidadSesion.MarcaInteraccion))
+                    .Append(new Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, "5")), "aplicacion")));
+            contexto.ShouldRenew = true;
+            return Task.CompletedTask;
+        }
+        var (app, cliente, reloj) = await ArrancarAsync(Validador);
+        await using var _ = app;
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+        reloj.Ahora = Ahora.AddMinutes(minutos);
+
+        using var respuesta = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post);
+
+        CookieDe(respuesta).Should().NotBeNull();
+        (CookieDe(respuesta) != ".AspNetCore.aplicacion=").Should().Be(renueva);
+    }
+
+    /// <summary>La cookie aplica el plazo del Tenant igual que el circuito, en las dos direcciones.</summary>
+    [Theory]
+    [InlineData("10", 9, HttpStatusCode.OK)]
+    [InlineData("10", 11, HttpStatusCode.Unauthorized)]
+    [InlineData("60", 59, HttpStatusCode.OK)]
+    [InlineData("60", 61, HttpStatusCode.Unauthorized)]
+    public async Task La_cookie_aplica_el_plazo_del_Tenant(string plazo, int minutos, HttpStatusCode esperado)
+    {
+        var (app, cliente, reloj) = await ArrancarAsync(claimsExtra:
+            [new Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, plazo)]);
+        await using var _ = app;
+
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+        reloj.Ahora = Ahora.AddMinutes(minutos);
+
+        (await Pedir(cliente, "/yo", cookie)).StatusCode.Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData(30, 30, 20, false, false, true)]   // Plazo igual: sigue.
+    [InlineData(30, 5, 6, false, false, false)]    // Plazo reducido y ya vencido: se corta.
+    [InlineData(30, 5, 4, false, false, true)]     // Plazo reducido sin vencer: sigue.
+    [InlineData(30, 30, 20, false, true, false)]   // Activación nueva: se corta.
+    [InlineData(30, 30, 20, true, true, true)]     // Ya en activación: la está resolviendo.
+    public void El_circuito_toma_el_ajuste_vigente_del_Tenant(
+        int plazoDelCircuito, int plazoVigente, int minutos, bool activacionEnCircuito, bool activacionVigente, bool admitido)
+    {
+        Claim[] Claims(int plazo, bool activacion) =>
+        [
+            new(CaducidadSesion.MarcaInteraccion, Ahora.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
+            new(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, plazo.ToString(CultureInfo.InvariantCulture)),
+            .. activacion ? [new Claim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true")] : Array.Empty<Claim>(),
+        ];
+
+        CaducidadSesion.CircuitoAdmitido(
+                new ClaimsPrincipal(new ClaimsIdentity(Claims(plazoDelCircuito, activacionEnCircuito), "aplicacion")),
+                new ClaimsPrincipal(new ClaimsIdentity(Claims(plazoVigente, activacionVigente), "aplicacion")),
+                null,
+                Ahora.AddMinutes(minutos))
+            .Should().Be(admitido);
+    }
+
     [Fact]
     public void Sin_marca_de_interaccion_cuenta_el_inicio_de_sesion() =>
         CaducidadSesion.SigueActiva(new ClaimsPrincipal(new ClaimsIdentity(
@@ -608,7 +701,7 @@ public class CaducidadSesionTests
     }
 
     private static async Task<(WebApplication App, HttpClient Cliente, RelojManual Reloj)> ArrancarAsync(
-        Func<CookieValidatePrincipalContext, Task>? validador = null)
+        Func<CookieValidatePrincipalContext, Task>? validador = null, Claim[]? claimsExtra = null)
     {
         var reloj = new RelojManual(Ahora);
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
@@ -627,7 +720,7 @@ public class CaducidadSesionTests
         var app = builder.Build();
         app.UseAuthentication();
         app.MapGet("/entrar", (HttpContext contexto) => contexto.SignInAsync("aplicacion",
-            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1"), sid], "aplicacion")),
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1"), sid, .. claimsExtra ?? []], "aplicacion")),
             new AuthenticationProperties { IsPersistent = true }));
         app.MapGet("/yo", (HttpContext contexto) => contexto.User.Identity?.IsAuthenticated == true ? Results.Ok() : Results.Unauthorized());
         app.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.Ok());

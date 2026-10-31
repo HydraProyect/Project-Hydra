@@ -231,6 +231,23 @@ public class MainLayoutFallaCerradoTests : BunitContext
     }
 
     /// <summary>
+    /// El Tenant exige el segundo factor a todos los perfiles: la marca del ticket lleva a
+    /// configurarlo también a quien no es Administrador.
+    /// </summary>
+    [Fact]
+    public void La_exigencia_del_Tenant_lleva_a_configurar_el_segundo_factor()
+    {
+        _cuenta.Devuelve(CuentaEnRegla(Roles.GestorCae));
+        _autenticacion.Anadir(new Claim(
+            TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
+            TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores));
+
+        Render<MainLayout>();
+
+        _navegacion.Destinos.Should().ContainSingle().Which.Should().EndWith("/cuenta/configurar-2fa");
+    }
+
+    /// <summary>
     /// La trampa del propio arreglo. Al renderizar en el servidor,
     /// <c>NavigateTo</c> no vuelve: señala la redirección lanzando
     /// <see cref="NavigationException"/>. Un catch que la atrapara se tragaría
@@ -347,6 +364,8 @@ public class MainLayoutFallaCerradoTests : BunitContext
             new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, id.ToString()), new Claim(ClaimTypes.Name, nombreUsuario)],
                 authenticationType: "prueba"));
+
+        public void Anadir(Claim claim) => ((ClaimsIdentity)_principal.Identity!).AddClaim(claim);
 
         public void Falla(Exception excepcion) => _excepcion = excepcion;
 

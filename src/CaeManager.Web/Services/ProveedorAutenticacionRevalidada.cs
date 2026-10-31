@@ -86,7 +86,10 @@ public sealed class ProveedorAutenticacionRevalidada(
 
         // Inactividad (ver CaducidadSesion): la conexión viva del circuito no cuenta,
         // solo las señales de interacción. Tampoco consulta la base.
-        if (!CaducidadSesion.SigueActiva(authenticationState.User, actividad?.Leer(sid), ahora))
+        // Se lee una sola vez, junto a la hora del ciclo: una señal que llegara durante las
+        // consultas quedaría en el futuro de esa hora y expulsaría a quien acaba de interactuar.
+        var ultimaRegistrada = actividad?.Leer(sid);
+        if (!CaducidadSesion.SigueActiva(authenticationState.User, ultimaRegistrada, ahora))
         {
             _sesionInvalidada = true;
             return false;
@@ -98,7 +101,12 @@ public sealed class ProveedorAutenticacionRevalidada(
             {
                 await using var ambito = scopeFactory.CreateAsyncScope();
                 var vigencia = ambito.ServiceProvider.GetRequiredService<IVigenciaSesionCuenta>();
-                var vigente = await vigencia.SigueVigenteAsync(authenticationState.User, cancellationToken);
+                // El principal del circuito no cambia: lo que el Administrador del Tenant haya
+                // ajustado desde que se conectó llega en el principal vigente.
+                var principalVigente = await vigencia.PrincipalVigenteAsync(authenticationState.User, cancellationToken);
+                var vigente = principalVigente is not null
+                    && CaducidadSesion.CircuitoAdmitido(
+                        authenticationState.User, principalVigente, ultimaRegistrada, ahora);
                 if (!vigente) _sesionInvalidada = true;
                 return vigente;
             }

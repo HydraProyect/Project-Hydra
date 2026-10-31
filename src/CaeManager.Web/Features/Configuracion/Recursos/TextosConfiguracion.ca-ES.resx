@@ -654,4 +654,40 @@
   <data name="OrganizacionSoloLecturaSoporte" xml:space="preserve">
     <value>Aquesta sessió de suport no té la capacitat d'aprovisionament sobre aquesta organització: només pots veure el logotip.</value>
   </data>
+  <data name="SeguridadTitulo" xml:space="preserve">
+    <value>Seguretat d’accés</value>
+  </data>
+  <data name="SeguridadEntradilla" xml:space="preserve">
+    <value>Aquests ajustos s’apliquen a tots els comptes d’aquesta organització.</value>
+  </data>
+  <data name="SeguridadMinutosEtiqueta" xml:space="preserve">
+    <value>Tancar la sessió després de … minuts sense activitat</value>
+  </data>
+  <data name="SeguridadMinutosUnidad" xml:space="preserve">
+    <value>minuts</value>
+  </data>
+  <data name="SeguridadMinutosRango" xml:space="preserve">
+    <value>Entre 5 i 480 minuts.</value>
+  </data>
+  <data name="SeguridadMinutosAyuda" xml:space="preserve">
+    <value>Compta com a activitat fer clic, escriure o enviar un formulari; llegir sense tocar res no compta. La sessió acaba sempre a les 12 hores.</value>
+  </data>
+  <data name="SeguridadDosPasosEtiqueta" xml:space="preserve">
+    <value>Exigir verificació en dos passos a tots els perfils</value>
+  </data>
+  <data name="SeguridadDosPasosFija" xml:space="preserve">
+    <value>L’Administrador de l’organització la té sempre obligatòria.</value>
+  </data>
+  <data name="SeguridadDosPasosAviso" xml:space="preserve">
+    <value>Els comptes que encara no la tinguin l’hauran de configurar a la seva pròxima pantalla.</value>
+  </data>
+  <data name="SeguridadGuardar" xml:space="preserve">
+    <value>Desar</value>
+  </data>
+  <data name="SeguridadGuardando" xml:space="preserve">
+    <value>Desant…</value>
+  </data>
+  <data name="ToastSeguridadActualizada" xml:space="preserve">
+    <value>Seguretat d’accés actualitzada.</value>
+  </data>
 </root>

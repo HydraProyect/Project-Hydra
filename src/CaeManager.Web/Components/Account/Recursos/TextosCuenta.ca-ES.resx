@@ -12,6 +12,9 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="DosFactoresObligatorioPorTenant" xml:space="preserve">
+    <value>La teva organització exigeix l’autenticació en dos passos a tots els comptes. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
+  </data>
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>El teu rol d’Administrador exigeix l’autenticació en dos passos. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
   </data>
