@@ -196,6 +196,13 @@ done
 contrato "la descarga de la cobertura de la Web lleva id: recoger-cobertura-web justo debajo" 1 "$(grep -FA1 -- "      - name: Recoger la cobertura de la Web (bUnit)" <<< "$yml" | grep -cxF "        id: recoger-cobertura-web" || true)"
 contrato "el trinquete de la Web exige «Exigir…» y la descarga de su artefacto" 1 "$(grep -FA1 -- "      - name: Umbral de cobertura de la Web (ratchet)" <<< "$yml" | grep -cxF "        if: always() && steps.exigir.outcome == 'success' && steps.recoger-cobertura-web.outcome == 'success'" || true)"
 contrato "el agregador corre siempre y depende de alcance, integración y E2E" 1 "$(sed -n '/^    needs: \[alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses\]$/,/^    steps:$/p' <<< "$yml" | grep -cE '^    if: always\(\)$' || true)"
+# La guarda de orden de migraciones no tiene otra red: su arnés corre en el mismo job, y si alguien borra los pasos no
+# queda nada que falle. Van en este job porque es el que corre siempre, también cuando `alcance` salta los tests.
+pasos_previos="$(sed -n '/^  build-and-test:$/,/^        id: exigir$/p' <<< "$yml")"
+contrato "el agregador prueba la guarda de orden de migraciones antes de «Exigir…»" 1 "$(grep -cF 'run: python3 scripts/verificar-orden-migraciones.tests.py' <<< "$pasos_previos" || true)"
+contrato "el agregador ejecuta la guarda de orden de migraciones contra HEAD antes de «Exigir…»" 1 "$(grep -cF 'python3 scripts/verificar-orden-migraciones.py "$base" HEAD' <<< "$pasos_previos" || true)"
+contrato "la guarda de orden de migraciones corre en la PR y en la cola" 1 "$(grep -FA1 -- "      - name: Comprobar el orden de las migraciones" <<< "$pasos_previos" | grep -cxF "        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'" || true)"
+contrato "en la cola la guarda compara con lo que va delante (base_sha)" 1 "$(grep -cF 'BASE_COLA: ${{ github.event.merge_group.base_sha }}' <<< "$pasos_previos" || true)"
 for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ needs.e2e-tests.result }}" "R_ALCANCE: \${{ needs.alcance.result }}" "ALCANCE_INTEGRACION: \${{ needs.alcance.outputs.integracion }}" "ALCANCE_E2E: \${{ needs.alcance.outputs.e2e }}" "EVENTO: \${{ github.event_name }}"; do
   contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"
 done
