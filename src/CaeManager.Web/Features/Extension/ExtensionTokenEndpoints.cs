@@ -30,9 +30,11 @@ namespace CaeManager.Web.Features.Extension;
 /// <b>Una sesión privilegiada o un workspace delegado no se heredan.</b> El
 /// token solo nombra al usuario; el tenant lo resuelve después
 /// <see cref="TenantClaimsPrincipalFactory"/> desde <c>user.TenantId</c>, que
-/// es el tenant PROPIO. El tenant visitado vive en la cookie de contexto, que
-/// la extensión no tiene. El token es por tanto siempre igual o más estrecho
-/// que la sesión que lo emitió, nunca más ancho.
+/// es el tenant PROPIO. La cookie de contexto no entra en una petición con
+/// token, y un Tenant beneficiario solo se alcanza solicitándolo en cada
+/// petición: <see cref="ContextoExtensionMiddleware"/> lo resuelve con la
+/// autorización vigente, nunca con lo que había al emitir el token. El token
+/// no da por sí mismo más alcance que el Tenant de origen del usuario.
 /// </para>
 /// </summary>
 public static class ExtensionTokenEndpoints

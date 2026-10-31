@@ -23,10 +23,9 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// <b>Persistente, no de sesión</b>: el inicio de sesión usa
-/// <c>isPersistent: true</c>, así que con una cookie de sesión cerrar y
-/// reabrir el navegador dejaba la sesión viva en español aunque la cuenta
-/// estuviera en catalán. <see cref="Eliminar"/> usa el mismo <c>Path</c> con
+/// <b>Persistente, no de sesión</b>: la preferencia de idioma sobrevive al
+/// cierre del navegador, aunque la sesión ya no lo haga (ver
+/// <see cref="CaducidadSesion"/>). <see cref="Eliminar"/> usa el mismo <c>Path</c> con
 /// el que se escribió: un borrado con otro <c>Path</c> no expira la cookie en
 /// el navegador.
 /// </para>

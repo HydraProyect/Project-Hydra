@@ -53,8 +53,11 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         ILogger<RevalidacionClienteActivoMiddleware> logger)
     {
         // Sin cookie no hay nada que revalidar: cero coste para el usuario
-        // normal, que es la inmensa mayoría.
-        if (string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
+        // normal, que es la inmensa mayoría. Una petición de la extensión ya se
+        // resolvió con el mismo predicado en ContextoExtensionMiddleware, y si
+        // trajera cookie no es la suya: ni se lee ni se borra.
+        if (ContextoExtension.Es(contexto)
+            || string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
         {
             await siguiente(contexto);
             return;
@@ -390,10 +393,10 @@ public static class RevalidacionClienteActivoMiddlewareExtensions
     /// puede comprobar de quién es el token— y antes de los endpoints y de
     /// los componentes. <b>No es cierto que vaya antes de que nada resuelva
     /// el tenant</b>: <c>UseRolEfectivoDelWorkspace</c> ya lo resolvió antes,
-    /// y entre los dos hay <b>cuatro capas que pueden cortar la petición sin
+    /// y entre los dos hay <b>tres capas que pueden cortar la petición sin
     /// pasar por aquí</b> — <c>UseCuentaAMedioActivarSinAcceso</c>,
-    /// <c>UseRateLimiter</c>, <c>UseAuthorization</c> y
-    /// <c>UseAntiforgery</c> (ver <c>Program.cs</c>). Una petición que corte
+    /// <c>UseAuthorization</c> y <c>UseAntiforgery</c> (ver <c>Program.cs</c>;
+    /// <c>UseRateLimiter</c> corta antes de resolver nada). Una petición que corte
     /// ahí no revalida, no borra la cookie y no emite ninguno de los dos
     /// avisos de este middleware (REC-189).
     ///

@@ -657,6 +657,9 @@ jobs:
       - name: background.js — la subida se entrega a la pestaña que la pidió
         run: node extension/pruebas/comprobar-enrutado-subida.mjs extension/background.js
 
+      - name: background.js — cada flujo conserva su Tenant y la selección retirada no cae a otro
+        run: node extension/pruebas/comprobar-tenant-beneficiario.mjs extension/background.js
+
       - name: background.js — el código de conexión que empaqueta el C# se lee aquí
         run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
 

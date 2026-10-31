@@ -4,8 +4,8 @@ using Xunit;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// <c>Program.cs</c> aplica a la cookie de aplicación la caducidad de TALVEG (8 h
-/// de inactividad, tope de 12 h desde el inicio de sesión, Secure) y registra el
+/// <c>Program.cs</c> aplica a la cookie de aplicación la caducidad de TALVEG (30 min
+/// sin interacción, tope de 12 h desde el inicio de sesión, no persistente, Secure) y registra el
 /// HSTS de 365 días. Sin la llamada vuelve la cookie de Identity por defecto: 14
 /// días deslizante sin tope. El comportamiento lo prueba <c>CaducidadSesionTests</c>
 /// en Web.Tests; este trinquete solo vigila que <c>Program.cs</c> lo llame, y

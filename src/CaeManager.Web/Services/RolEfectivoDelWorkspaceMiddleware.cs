@@ -219,8 +219,10 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     private static bool DebeAjustarse(HttpContext contexto, IClienteActivoSeleccionado seleccion)
     {
         // Sin cookie no hay selección que valga, y no se descifra nada: el caso
-        // de la inmensa mayoría de las peticiones.
-        if (string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
+        // de la inmensa mayoría de las peticiones. La extensión es la excepción:
+        // su selección no viene de la cookie, la fijó ContextoExtensionMiddleware.
+        if (!ContextoExtension.Es(contexto)
+            && string.IsNullOrEmpty(contexto.Request.Cookies[ClienteActivoSeleccionado.NombreCookie]))
             return false;
 
         if (PrefijosSinAutorizacionDeRol.Any(

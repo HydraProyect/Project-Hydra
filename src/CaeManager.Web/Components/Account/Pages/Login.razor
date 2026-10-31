@@ -143,7 +143,7 @@
         // el bloqueo por intentos pone una ventana corta, la desactivación
         // manual una indefinida — ambos caen en IsLockedOut.
         var resultado = await SignInManager.PasswordSignInAsync(
-            Entrada.Email, Entrada.Password, isPersistent: true, lockoutOnFailure: true);
+            Entrada.Email, Entrada.Password, isPersistent: false, lockoutOnFailure: true);
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
         // El correo NO entra en el registro de autenticación. Serilog lo
