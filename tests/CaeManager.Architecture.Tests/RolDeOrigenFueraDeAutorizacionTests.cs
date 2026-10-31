@@ -29,15 +29,16 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Lo que SÍ observa</b>, por nombre exacto de símbolo (<c>\b…\b</c>, nunca por prefijo): cada
 /// fichero <c>.cs</c>/<c>.razor</c> de <c>src/</c> que nombra <c>ObtenerRolOrigenAsync</c> fuera de
 /// su declaración, y, dentro de las zonas de autorización y alcance, además las lecturas directas del
-/// rol de Identity (<c>GetRolesAsync</c>, <c>IsInRoleAsync</c>, <c>GetUsersInRoleAsync</c>). Los
+/// rol de Identity (<c>GetRolesAsync</c>, <c>IsInRoleAsync</c>, <c>GetUsersInRoleAsync</c>) y las proyecciones
+/// sobre <c>.UserRoles</c>, que es como lo leen los predicados que no pueden materializar la cuenta. Los
 /// consumidores se comparan por igualdad exacta de ruta con listas cerradas, así que un consumidor
 /// nuevo y una entrada que ya sobra ponen el test en rojo por igual.
 /// </para>
 ///
 /// <para>
-/// <b>Lo que NO observa</b> (huecos declarados): el rol de origen obtenido por otra vía (un
-/// <c>DbContext</c> que haga el join de <c>AspNetUserRoles</c> a mano, o un servicio intermedio que
-/// lo reexponga con otro nombre); zonas de autorización fuera de las que enumera
+/// <b>Lo que NO observa</b> (huecos declarados): el rol de origen obtenido por otra vía (SQL que
+/// haga el join de <c>AspNetUserRoles</c> a mano, o un servicio intermedio que lo reexponga con otro
+/// nombre); zonas de autorización fuera de las que enumera
 /// <see cref="EsZonaDeAutorizacionOAlcance"/>; se descartan comentarios, no literales de texto.
 /// </para>
 /// </summary>
@@ -50,7 +51,7 @@ public class RolDeOrigenFueraDeAutorizacionTests
         @"Task<string\?>\s+ObtenerRolOrigenAsync\s*\(\s*\)", RegexOptions.Compiled);
 
     private static readonly Regex LeeRolDeIdentity = new(
-        @"\b(?:GetRolesAsync|IsInRoleAsync|GetUsersInRoleAsync)\b", RegexOptions.Compiled);
+        @"\b(?:GetRolesAsync|IsInRoleAsync|GetUsersInRoleAsync)\b|\.UserRoles\b", RegexOptions.Compiled);
 
     private static readonly Regex Comentarios = new(
         @"@\*.*?\*@|/\*.*?\*/|//[^\n]*", RegexOptions.Compiled | RegexOptions.Singleline);
@@ -73,6 +74,11 @@ public class RolDeOrigenFueraDeAutorizacionTests
     {
         ["src/CaeManager.Infrastructure/Autorizacion/VistaDemoActual.cs"] =
             "AlcanceDatosService interseca con la lente: una respuesta equivocada solo estrecha de más",
+        ["src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs"] =
+            "directorio: lee el rol de la cuenta consultada, no el de quien pregunta. Congelada al ampliar el detector a "
+            + ".UserRoles: que ningún consumidor autorice con ella no está revisado aquí",
+        ["src/CaeManager.Infrastructure/Autorizacion/LecturaPersonasDelegadas.cs"] =
+            "muestra el rol de las personas delegadas en /delegaciones; no decide sobre quien pregunta",
         ["src/CaeManager.Infrastructure/Autorizacion/AdministradorDelTenantPropietarioEnBase.cs"] =
             "pertenencia: solo el Administrador MIEMBRO del Tenant propietario (TenantId de la cuenta) delega su Tenant "
             + "o cambia su logo; el predicado se extrajo de AutorizacionDelegacionPorAdministradorDelCliente, que lo usa",
@@ -147,7 +153,7 @@ public class RolDeOrigenFueraDeAutorizacionTests
             .ToList();
 
         enZona.Should().Contain("src/CaeManager.Infrastructure/Autorizacion/AdministradorDelTenantPropietarioEnBase.cs",
-            "control positivo: lee IsInRoleAsync dentro de Autorizacion; si no aparece, la zona o el detector están ciegos");
+            "control positivo: proyecta UserRoles dentro de Autorizacion; si no aparece, la zona o el detector están ciegos");
 
         enZona.Should().BeEquivalentTo(ExcepcionesEnZona.Keys,
             "autorización y alcance usan ObtenerRolEfectivoAsync; el rol de origen solo entra con una excepción que "
@@ -190,6 +196,8 @@ public class RolDeOrigenFueraDeAutorizacionTests
 
         LeeRolDeIdentity.IsMatch("await userManager.IsInRoleAsync(u, r)").Should().BeTrue();
         LeeRolDeIdentity.IsMatch("await userManager.IsInRoleAsyncX(u, r)").Should().BeFalse();
+        LeeRolDeIdentity.IsMatch("Roles = db.UserRoles.Where(ur => ur.UserId == u.Id)").Should().BeTrue(
+            "la proyección lee el mismo rol de origen que GetRolesAsync");
         LeeRolDeIdentity.IsMatch("principal.IsInRole(r)").Should().BeFalse("el claim ya es el rol efectivo");
 
         EsZonaDeAutorizacionOAlcance("src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs").Should().BeTrue();

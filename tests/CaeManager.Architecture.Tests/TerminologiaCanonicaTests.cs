@@ -510,10 +510,12 @@ public class TerminologiaCanonicaTests
         // 89 (antes 86, 2026-10-31): EmisorTokenExtension deniega con esa misma señal y la recibe de sus dos
         // entradas, ExtensionTokenEndpoints y ConectarExtension (IClienteActivoSeleccionado ×1 cada uno): son
         // consumidores de la interfaz existente; ningún nombre nuevo lleva el término.
+        // 94 (antes 92, 2026-10-31): SeleccionDescartadaEnIdentificacionMiddleware nombra el puerto y la clase concreta, la
+        // única que expone DescartarEnEstaPeticion; no es un identificador nuevo con este término.
         // 92 (antes 89, 2026-10-31): CambiarContrasena, ConfigurarAutenticadorDosFactores y RestablecerContrasena deniegan
         // con esa misma señal (IClienteActivoSeleccionado ×1 cada una): consumidores de la interfaz existente; ningún
         // nombre nuevo lleva el término.
-        ["ClienteActivo"] = 92,
+        ["ClienteActivo"] = 94,
     };
 
     [Theory]

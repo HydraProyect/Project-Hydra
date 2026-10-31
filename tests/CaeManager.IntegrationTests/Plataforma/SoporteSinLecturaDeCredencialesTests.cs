@@ -412,7 +412,9 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             contexto.Tenants.Add(otroTenant);
-            contexto.Users.AddRange(Cuenta(delTenantVisitado, _tenant), Cuenta(deOtroTenant, otroTenant.Id));
+            contexto.Users.Add(Cuenta(delTenantVisitado, _tenant));
+            await contexto.SaveChangesAsync();
+            contexto.Users.Add(Cuenta(deOtroTenant, otroTenant.Id));
             await contexto.SaveChangesAsync();
         }
 

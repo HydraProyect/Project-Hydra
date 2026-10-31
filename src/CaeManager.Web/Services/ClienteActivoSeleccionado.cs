@@ -214,7 +214,7 @@ public class ClienteActivoSeleccionado(
     /// Descarta la selección para toda la petición, sin borrar la cookie: a diferencia de <see cref="Invalidar"/>, alcanza
     /// también a los ámbitos que la petición abra después, que volverían a leerla de la cookie. Lo llama
     /// <see cref="SeleccionDescartadaEnIdentificacionMiddleware"/> en las rutas que identifican a una persona con sus
-    /// propias credenciales o con el token de su buzón, que nunca corren bajo una Sesión Privilegiada. Solo quita una
+    /// propias credenciales o con el token de su buzón, que no deben correr bajo una Sesión Privilegiada. Solo quita una
     /// coordenada: quien tenía cookie sigue resolviendo a su Tenant de origen, como cualquier sesión sin selección.
     /// </summary>
     public void DescartarEnEstaPeticion()
