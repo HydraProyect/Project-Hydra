@@ -88,6 +88,7 @@
   <data name="ValDecisionSinFirma" xml:space="preserve"><value>Sin firma válida</value></data>
   <data name="ValMotivos" xml:space="preserve"><value>Motivos</value></data>
   <data name="ValCodigo" xml:space="preserve"><value>Código de verificación (CSV)</value></data>
+  <data name="ValCodigoNoDisponibleSoporte" xml:space="preserve"><value>No disponible para Soporte TALVEG</value></data>
   <data name="ValCif" xml:space="preserve"><value>CIF detectado</value></data>
   <data name="ValEmision" xml:space="preserve"><value>Fecha de emisión detectada</value></data>
   <data name="ValPeriodo" xml:space="preserve"><value>Periodo detectado</value></data>

@@ -209,7 +209,7 @@
                                         {
                                             <DatoRejilla Etiqueta="@Textos["ValMotivos"]" Valor="@_validacion.Motivos" Ancho="true" />
                                         }
-                                        <DatoRejilla Etiqueta="@Textos["ValCodigo"]" Valor="@(_validacion.CodigoVerificacion ?? Textos["InfoSinDato"])" />
+                                        <DatoRejilla Etiqueta="@Textos["ValCodigo"]" Valor="@(_validacion.CodigoVerificacionDisponible ? (_validacion.CodigoVerificacion ?? Textos["InfoSinDato"]) : Textos["ValCodigoNoDisponibleSoporte"])" />
                                         <DatoRejilla Etiqueta="@Textos["ValCif"]" Valor="@(_validacion.CifDetectado ?? Textos["InfoSinDato"])" />
                                         <DatoRejilla Etiqueta="@Textos["ValEmision"]" Valor="@(_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? Textos["InfoSinDato"])" />
                                         <DatoRejilla Etiqueta="@Textos["ValPeriodo"]" Valor="@(_validacion.PeriodoDetectado ?? Textos["InfoSinDato"])" />

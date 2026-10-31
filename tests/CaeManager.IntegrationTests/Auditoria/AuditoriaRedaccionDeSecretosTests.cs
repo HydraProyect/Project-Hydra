@@ -258,6 +258,31 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Al_crearse_el_codigo_de_verificacion_y_el_payload_no_se_copian_en_la_auditoria()
+    {
+        const string codigo = "CODIGO-SECRETO-VERIFICACION";
+        const string payload = "PAYLOAD-SECRETO-WEBHOOK";
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var empresa = new Empresa("Empresa de prueba S.L.", "B10380194");
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+            var conexion = new ConexionIntegracion("+34600000000", "Linea de pruebas", proveedor: ProveedorIntegracion.WhatsApp);
+            contexto.AddRange(tipo, empresa, documento, conexion);
+            contexto.Add(new VerificacionDocumentoOficial(documento.Id, PerfilDocumentoOficial.CorrienteTgss,
+                NivelConfianzaDocumental.FirmaValidaSinRevocacion, codigo, null, null, null, null,
+                ResultadoCotejoDocumentoOficial.Coincide, DecisionValidacionOficial.AutoValidado, ""));
+            contexto.Add(new EventoWebhook(conexion.Id, payload));
+            await contexto.SaveChangesAsync();
+        }
+
+        var verificacion = await ObtenerRegistroAsync(nameof(VerificacionDocumentoOficial));
+        var evento = await ObtenerRegistroAsync(nameof(EventoWebhook));
+        verificacion.DatosDespues.Should().NotContain(codigo).And.Contain("\"CodigoVerificacion\":\"***\"");
+        evento.DatosDespues.Should().NotContain(payload).And.Contain("\"PayloadCrudo\":\"***\"");
+    }
+
+    [Fact]
     public async Task Los_json_sensibles_no_aparecen_en_claro_en_la_auditoria()
     {
         const string contextoSecreto = "{\"secreto\":\"CONTEXTO-no-debe-aparecer-en-claro\"}";
