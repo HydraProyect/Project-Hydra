@@ -44,7 +44,7 @@ public class SenalActividadSesionTests
             .ToList();
 
         ficheros.Should().Contain(f => f.EndsWith("Login.razor"), "control: el barrido alcanza los inicios de sesión");
-        ficheros.Where(f => File.ReadAllText(f).Contains("isPersistent: true")).Should().BeEmpty();
+        ficheros.Where(f => Regex.IsMatch(File.ReadAllText(f), @"[iI]sPersistent\s*[:=]\s*true")).Should().BeEmpty();
     }
 
     private static string RaizDelRepositorio()

@@ -45,7 +45,8 @@ public static class IdentityEndpointsExtensions
 
         // Señal de interacción de actividad-sesion.js. Lo hace todo la validación de la cookie
         // (CaducidadSesion); sin sesión, responde el desafío y no se mueve nada. Sin formulario ni
-        // antiforgery: SameSite=Lax deja fuera las peticiones de otro sitio, y la señal no cambia datos.
+        // antiforgery: la señal no cambia datos y solo cuenta con Sec-Fetch-Site: same-origin. Fuera de
+        // /cuenta para no consumir el limitador por IP de esa ruta.
         endpoints.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent()).RequireAuthorization();
 
         static async Task<IResult> SalirAsync(SignInManager<ApplicationUser> signInManager, HttpContext httpContext)

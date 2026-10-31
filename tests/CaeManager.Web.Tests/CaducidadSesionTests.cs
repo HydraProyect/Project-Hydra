@@ -191,15 +191,15 @@ public class CaducidadSesionTests
     private static Claim ClaimSid() =>
         new(CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.ClaimSid, Guid.NewGuid().ToString("N"));
 
-    public enum Reemision { Deslizante, ConPropiedadesDelTicket }
+    public enum Reemision { PorSenal, ConPropiedadesDelTicket }
 
     /// <summary>
-    /// Manejador de cookies real, con interacción cada 20 min: a las 5 h la cookie se
-    /// reemite (deslizante o como <c>RefreshSignInAsync</c>), a las 11 h 59 min sigue
+    /// Manejador de cookies real, con interacción cada 20 min: cada señal reemite la cookie
+    /// (y a las 5 h también como <c>RefreshSignInAsync</c>), a las 11 h 59 min sigue
     /// valiendo y a las 12 h 1 min, con la cookie más reciente, se rechaza y se borra.
     /// </summary>
     [Theory]
-    [InlineData(Reemision.Deslizante)]
+    [InlineData(Reemision.PorSenal)]
     [InlineData(Reemision.ConPropiedadesDelTicket)]
     public async Task Reemitir_la_cookie_no_reinicia_el_tope_de_doce_horas(Reemision reemision)
     {
@@ -245,14 +245,14 @@ public class CaducidadSesionTests
         }
 
         await InteractuarHasta(Ahora.AddHours(5));
-        using (var renovacion = await Pedir(cliente, reemision == Reemision.Deslizante ? "/yo" : "/refrescar", cookie))
+        using (var renovacion = await Pedir(cliente, reemision == Reemision.PorSenal ? "/yo" : "/refrescar", cookie))
         {
             renovacion.StatusCode.Should().Be(HttpStatusCode.OK);
             cookie = CookieDe(renovacion) ?? cookie;
         }
 
         // Actividad intermedia: la reemisión con las propiedades del ticket conserva
-        // también su ExpiresUtc, y solo el deslizamiento lo alarga.
+        // también su ExpiresUtc, y solo la señal lo alarga.
         await InteractuarHasta(Ahora.AddHours(8).AddMinutes(-1));
         using (var actividad = await Pedir(cliente, "/yo", cookie))
         {
@@ -381,7 +381,7 @@ public class CaducidadSesionTests
         await using var servicios = new ServiceCollection().AddSingleton<TimeProvider>(new RelojManual(Ahora))
             .AddSingleton(actividad).AddSingleton<IAuthenticationService, AutenticacionFalsa>().BuildServiceProvider();
         var http = new DefaultHttpContext { RequestServices = servicios };
-        var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddHours(-6) };
+        var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddHours(-6), IsPersistent = true };
         propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddHours(-6));
         var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
         var contexto = new CookieValidatePrincipalContext(http, esquema, opciones,
@@ -390,8 +390,91 @@ public class CaducidadSesionTests
         await opciones.Events.OnValidatePrincipal(contexto);
 
         contexto.Principal.Should().NotBeNull();
-        contexto.ShouldRenew.Should().BeTrue();
         propiedades.Items[CaducidadSesion.MarcaInteraccion].Should().Be(Marca(Ahora));
+        propiedades.IsPersistent.Should().BeFalse("la cookie anterior deja de ser persistente en su siguiente reemisión");
+        contexto.ShouldRenew.Should().BeFalse("en /Error no se reemite: lo guarda la siguiente revalidación del sello");
+    }
+
+    [Theory]
+    [InlineData("same-site")]
+    [InlineData("cross-site")]
+    [InlineData(null)]
+    public async Task Una_senal_de_otro_origen_no_mueve_el_plazo(string? sitio)
+    {
+        var (app, cliente, reloj) = await ArrancarAsync();
+        await using var _ = app;
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+
+        reloj.Ahora = Ahora.AddMinutes(20);
+        using (var ajena = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post, sitio))
+            cookie = CookieDe(ajena) ?? cookie;
+
+        reloj.Ahora = Ahora.AddMinutes(31);
+        using var despues = await Pedir(cliente, "/yo", cookie);
+        despues.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Respuestas cruzadas: el último <c>Set-Cookie</c> puede ser el de una petición que salió
+    /// antes de la señal. La marca anotada en el servidor impide que eso cierre la sesión.
+    /// </summary>
+    [Fact]
+    public async Task La_cookie_con_la_marca_retrasada_vale_si_la_senal_esta_anotada()
+    {
+        var (app, cliente, reloj) = await ArrancarAsync();
+        await using var _ = app;
+        var cookieAntigua = CookieDe(await cliente.GetAsync("/entrar"))!;
+
+        reloj.Ahora = Ahora.AddMinutes(29);
+        (await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookieAntigua, HttpMethod.Post)).Dispose();
+
+        reloj.Ahora = Ahora.AddMinutes(31);
+        using var cruzada = await Pedir(cliente, "/yo", cookieAntigua);
+        cruzada.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// El validador falso aplica la regla del <c>SecurityStampValidator</c>: revalida sin
+    /// <c>IssuedUtc</c> o pasado el intervalo, y al revalidar reemplaza el principal por uno sin
+    /// las marcas. Señales cada 50 s, menos que el intervalo, no aplazan esa revalidación, y la
+    /// reemisión que sigue a una revalidación correcta conserva las marcas.
+    /// </summary>
+    [Fact]
+    public async Task Las_senales_seguidas_no_aplazan_la_revalidacion_del_sello()
+    {
+        var revocada = false;
+        Task Validador(CookieValidatePrincipalContext contexto)
+        {
+            var ahora = contexto.HttpContext.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
+            if (contexto.Properties.IssuedUtc is { } emitida && ahora - emitida <= TimeSpan.FromSeconds(60))
+                return Task.CompletedTask;
+            if (revocada)
+            {
+                contexto.RejectPrincipal();
+                return contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
+            }
+            contexto.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(
+                contexto.Principal!.Claims.Where(c => c.Type is not (CaducidadSesion.MarcaInicio or CaducidadSesion.MarcaInteraccion)), "aplicacion")));
+            contexto.ShouldRenew = true;
+            return Task.CompletedTask;
+        }
+        var (app, cliente, reloj) = await ArrancarAsync(Validador);
+        await using var _ = app;
+        var cookie = CookieDe(await cliente.GetAsync("/entrar"))!;
+
+        reloj.Ahora = Ahora.AddSeconds(50);
+        using (var viva = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post))
+            cookie = CookieDe(viva).Should().NotBeNull().And.Subject;
+
+        reloj.Ahora = Ahora.AddSeconds(70);
+        using (var conMarcas = await Pedir(cliente, "/yo", cookie))
+            conMarcas.StatusCode.Should().Be(HttpStatusCode.OK, "la reemisión tras revalidar conserva las marcas");
+
+        revocada = true;
+        reloj.Ahora = Ahora.AddSeconds(100);
+        using var rechazada = await Pedir(cliente, CaducidadSesion.RutaSenalInteraccion, cookie, HttpMethod.Post);
+        rechazada.Headers.GetValues("Set-Cookie").Should().Contain(c => c.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase),
+            "la señal revalida el sello aunque no haya pasado el intervalo");
     }
 
     [Theory]
@@ -488,7 +571,8 @@ public class CaducidadSesionTests
         actividad.Leer(reciente).Should().Be(Ahora.AddHours(-1));
     }
 
-    private static async Task<(WebApplication App, HttpClient Cliente, RelojManual Reloj)> ArrancarAsync()
+    private static async Task<(WebApplication App, HttpClient Cliente, RelojManual Reloj)> ArrancarAsync(
+        Func<CookieValidatePrincipalContext, Task>? validador = null)
     {
         var reloj = new RelojManual(Ahora);
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
@@ -497,8 +581,13 @@ public class CaducidadSesionTests
         builder.Services.AddSingleton<TimeProvider>(reloj);
         var sid = ClaimSid();
         builder.Services.AddAuthentication("aplicacion").AddCookie("aplicacion");
-        builder.Services.Configure<CookieAuthenticationOptions>("aplicacion",
-            opciones => CaducidadSesion.Configurar(opciones, builder.Environment));
+        builder.Services.AddSingleton<ActividadSesiones>();
+        builder.Services.Configure<CookieAuthenticationOptions>("aplicacion", opciones =>
+        {
+            if (validador is not null)
+                opciones.Events.OnValidatePrincipal = validador;
+            CaducidadSesion.Configurar(opciones, builder.Environment);
+        });
         var app = builder.Build();
         app.UseAuthentication();
         app.MapGet("/entrar", (HttpContext contexto) => contexto.SignInAsync("aplicacion",
@@ -514,10 +603,13 @@ public class CaducidadSesionTests
         return (app, cliente, reloj);
     }
 
-    private static async Task<HttpResponseMessage> Pedir(HttpClient cliente, string ruta, string cookie, HttpMethod? metodo = null)
+    private static async Task<HttpResponseMessage> Pedir(
+        HttpClient cliente, string ruta, string cookie, HttpMethod? metodo = null, string? sitio = "same-origin")
     {
         using var peticion = new HttpRequestMessage(metodo ?? HttpMethod.Get, ruta);
         peticion.Headers.Add("Cookie", cookie);
+        if (sitio is not null)
+            peticion.Headers.Add("Sec-Fetch-Site", sitio);
         return await cliente.SendAsync(peticion);
     }
 

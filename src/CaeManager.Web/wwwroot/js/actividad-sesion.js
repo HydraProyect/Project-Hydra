@@ -11,20 +11,28 @@
 // `isTrusted` deja fuera lo que dispare un guion: tiene que actuar la persona.
 
 (function () {
-    const RUTA = '/cuenta/sesion/actividad';
+    const RUTA = '/sesion/actividad';
     const MILISEGUNDOS_ENTRE_SENALES = 60000;
     let ultimaSenal = -Infinity;
+    let senalPendiente = null;
 
-    function alInteractuar(evento) {
-        if (!evento.isTrusted) return;
-
-        const ahora = performance.now();
-        if (ahora - ultimaSenal < MILISEGUNDOS_ENTRE_SENALES) return;
-        ultimaSenal = ahora;
+    function enviar() {
+        senalPendiente = null;
+        ultimaSenal = performance.now();
 
         // Sin sesión el servidor responde con un desafío: `manual` evita seguirlo.
         fetch(RUTA, { method: 'POST', credentials: 'same-origin', redirect: 'manual', keepalive: true })
             .catch(function () { });
+    }
+
+    function alInteractuar(evento) {
+        if (!evento.isTrusted || senalPendiente !== null) return;
+
+        // Una interacción dentro del minuto no se pierde: sale al terminar ese minuto. Así el
+        // límite de señales nunca acorta el plazo; como mucho lo alarga unos segundos.
+        const espera = ultimaSenal + MILISEGUNDOS_ENTRE_SENALES - performance.now();
+        if (espera > 0) senalPendiente = setTimeout(enviar, espera);
+        else enviar();
     }
 
     for (const tipo of ['click', 'input', 'change', 'submit']) {

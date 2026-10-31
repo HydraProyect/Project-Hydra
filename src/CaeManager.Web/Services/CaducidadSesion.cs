@@ -38,6 +38,8 @@ namespace CaeManager.Web.Services;
 /// pestañas comparten el mismo plazo, y la anota en <see cref="ActividadSesiones"/>
 /// para los circuitos abiertos, que no ven la cookie. El dato vive en la cookie del
 /// navegador y en memoria: no se persiste en la base, y no es un registro de jornada.
+/// Un relevo de ranuras deja los circuitos viejos sin ver las señales nuevas: pueden
+/// caer antes de plazo, pero al recargar sigue valiendo la cookie.
 /// El cliente puede mentir con su propia cookie, pero eso no alarga el tope de 12 h;
 /// el plazo protege un puesto desatendido, no frente a quien ya tiene la sesión.
 /// </para>
@@ -46,8 +48,9 @@ namespace CaeManager.Web.Services;
 /// <b>Fallo cerrado.</b> La cookie sin hora de inicio legible o con más de 12 horas se
 /// rechaza y se borra, y también la que supera el plazo de inactividad o trae una marca
 /// ilegible. La cookie vigente al desplegar este cambio aún no lleva marca de
-/// interacción: se le pone en su primera petición, en vez de cerrar sesiones activas,
-/// y el tope de 12 h limita esa tolerancia. El circuito de Blazor no hace peticiones
+/// interacción: se le pone en sus primeras peticiones, en vez de cerrar sesiones activas,
+/// y queda guardada en la siguiente revalidación del sello; el tope de 12 h limita esa
+/// tolerancia. El circuito de Blazor no hace peticiones
 /// HTTP: <see cref="ProveedorAutenticacionRevalidada"/> mira el tope y la inactividad en
 /// cada ciclo de revalidación y pasa a anónimo sin consultar la base.
 /// </para>
@@ -75,7 +78,7 @@ public static class CaducidadSesion
     public const string MarcaInteraccion = "talveg:ultima-interaccion";
 
     /// <summary>POST sin cuerpo que envía <c>actividad-sesion.js</c> cuando la persona interactúa.</summary>
-    public const string RutaSenalInteraccion = "/cuenta/sesion/actividad";
+    public const string RutaSenalInteraccion = "/sesion/actividad";
 
     public static readonly TimeSpan Inactividad = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan DuracionMaxima = TimeSpan.FromHours(12);
@@ -128,34 +131,57 @@ public static class CaducidadSesion
         {
             var ahora = Reloj(contexto.HttpContext).GetUtcNow();
             var propiedades = contexto.Properties.Items;
+            var actividad = contexto.HttpContext.RequestServices.GetService<ActividadSesiones>();
+            var sid = CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.LeerSid(contexto.Principal);
             var sinMarcaInteraccion = !propiedades.TryGetValue(MarcaInteraccion, out var interaccion) || interaccion is null;
             if (!propiedades.TryGetValue(MarcaInicio, out var inicio)
                 || inicio is null
                 || !EsVigente(inicio, ahora)
                 // La cookie emitida antes de los identificadores de sesión no se puede revocar:
                 // se rechaza en la primera petición, sin esperar a la revalidación del sello.
-                || CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.LeerSid(contexto.Principal) is not { } sid
-                || (!sinMarcaInteraccion && !SigueActiva(Leer(interaccion), ahora)))
+                || sid is null
+                || (!sinMarcaInteraccion && !SigueActiva(Leer(interaccion), actividad?.Leer(sid.Value), ahora)))
             {
                 contexto.RejectPrincipal();
                 await contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
                 return;
             }
 
-            // Después de comprobar el plazo: una señal tardía no revive una sesión ya caducada.
-            var conInteraccion = sinMarcaInteraccion || EsSenalInteraccion(contexto.Request);
-            if (conInteraccion)
+            // Una cookie emitida antes de este cambio puede ser persistente: deja de serlo en
+            // su siguiente reemisión.
+            contexto.Properties.IsPersistent = false;
+            if (sinMarcaInteraccion)
+            {
                 interaccion = Sello(ahora);
+                propiedades[MarcaInteraccion] = interaccion;
+            }
 
-            await validarOriginal(contexto);
+            // Después de comprobar el plazo: una señal tardía no revive una sesión ya caducada.
+            var conInteraccion = EsSenalInteraccion(contexto.Request);
+            if (conInteraccion)
+            {
+                // La señal renueva la cookie, y con ella IssuedUtc, que es lo que decide cuándo
+                // revalida el SecurityStampValidator. Sin IssuedUtc revalida ahora: si no, señales
+                // seguidas mantendrían viva una sesión revocada o una cuenta desactivada.
+                var emitida = contexto.Properties.IssuedUtc;
+                contexto.Properties.IssuedUtc = null;
+                await validarOriginal(contexto);
+                contexto.Properties.IssuedUtc = emitida;
+            }
+            else
+            {
+                await validarOriginal(contexto);
+            }
+
             if (contexto.Principal is null)
                 return;
 
             if (conInteraccion)
             {
+                interaccion = Sello(ahora);
                 propiedades[MarcaInteraccion] = interaccion;
                 contexto.ShouldRenew = true;
-                contexto.HttpContext.RequestServices.GetService<ActividadSesiones>()?.Anotar(sid, ahora);
+                actividad?.Anotar(sid.Value, ahora);
             }
 
             // El SecurityStampValidator reemplaza el principal por uno recién
@@ -181,12 +207,22 @@ public static class CaducidadSesion
         return SigueActiva(marca is null || marca < ultimaRegistrada ? ultimaRegistrada : marca, ahora);
     }
 
+    /// <summary>
+    /// Para la cookie: si dos respuestas se cruzan, gana el último <c>Set-Cookie</c> y la marca
+    /// puede retroceder, así que también vale lo anotado. Una marca ilegible no vale nunca.
+    /// </summary>
+    private static bool SigueActiva(DateTimeOffset? marca, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
+        marca is { } legible && SigueActiva(legible < ultimaRegistrada ? ultimaRegistrada : legible, ahora);
+
     private static bool SigueActiva(DateTimeOffset? ultima, DateTimeOffset ahora) =>
         ultima is { } momento && momento <= ahora && ahora - momento < Inactividad;
 
+    // Sec-Fetch-Site: SameSite=Lax deja pasar un POST desde otro subdominio del mismo sitio, y
+    // una página así no debe poder mantener viva una sesión. Sin la cabecera, no cuenta.
     private static bool EsSenalInteraccion(HttpRequest peticion) =>
         HttpMethods.IsPost(peticion.Method)
-        && peticion.Path.Equals(RutaSenalInteraccion, StringComparison.OrdinalIgnoreCase);
+        && peticion.Path.Equals(RutaSenalInteraccion, StringComparison.OrdinalIgnoreCase)
+        && peticion.Headers["Sec-Fetch-Site"] == "same-origin";
 
     private static bool EsVigente(string? marca, DateTimeOffset ahora) =>
         Leer(marca) is { } inicio && inicio <= ahora && ahora - inicio < DuracionMaxima;

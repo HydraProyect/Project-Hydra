@@ -23,7 +23,7 @@ public class InactividadSesionE2ETests(WebAppFixtureListados fixture)
         Assert.Equal(-1, cookies.Single(c => c.Name == ".AspNetCore.Identity.Application").Expires);
 
         var senal = page.WaitForResponseAsync(r =>
-            r.Request.Method == "POST" && r.Url.EndsWith("/cuenta/sesion/actividad", StringComparison.Ordinal));
+            r.Request.Method == "POST" && r.Url.EndsWith("/sesion/actividad", StringComparison.Ordinal));
         await page.Locator("body").ClickAsync(new LocatorClickOptions { Position = new Position { X = 1, Y = 1 } });
 
         Assert.Equal(204, (await senal).Status);
