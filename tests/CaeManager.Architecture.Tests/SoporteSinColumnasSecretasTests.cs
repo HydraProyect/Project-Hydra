@@ -37,6 +37,11 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
+/// <c>SoporteSinCodigoVerificacionNiPayloadWebhook</c> retiró <c>CodigoVerificacion</c> de
+/// <c>VerificacionesDocumentoOficial</c> y <c>PayloadCrudo</c> de <c>EventosWebhook</c> (ASVS V4.1.3).
+/// </para>
+///
+/// <para>
 /// Solo cuenta el <c>Up</c>: el <c>Down</c> de la propia migración vuelve a conceder lo que retiró, que es
 /// lo que debe hacer. Las migraciones anteriores (la línea base) quedan cubiertas porque la que retira va
 /// después; que esa migración siga retirando lo comprueba el segundo test. Lo que hay en la base migrada,
@@ -54,6 +59,7 @@ public class SoporteSinColumnasSecretasTests
     private const string MigracionQueRetiraSid = "20261031000000_SoporteSinSidSesionUsuario";
 
     private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
+    private const string MigracionQueRetiraCodigoYPayload = "20261101000000_SoporteSinCodigoVerificacionNiPayloadWebhook";
 
     /// <summary>
     /// Lo que retira <see cref="MigracionQueRetiraLosJson"/>. Solo rige desde esa migración: las anteriores
@@ -257,8 +263,44 @@ public class SoporteSinColumnasSecretasTests
         concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("VerificacionesDocumentoOficial", "CodigoVerificacion")]
+    [InlineData("EventosWebhook", "PayloadCrudo")]
+    public void El_detector_impide_reconceder_las_nuevas_columnas(string tabla, string columna)
+    {
+        EsInfractora((MigracionQueRetiraCodigoYPayload, "SELECT", $"public.\"{tabla}\"")).Should().BeTrue();
+        EsInfractora((MigracionQueRetiraCodigoYPayload, $"SELECT (\"Id\", \"{columna}\")", $"public.\"{tabla}\"")).Should().BeTrue();
+        EsInfractora((MigracionQueRetiraCodigoYPayload, "SELECT (\"Id\")", $"public.\"{tabla}\"")).Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_migracion_de_codigo_y_payload_retira_el_grant_de_tabla_y_concede_por_columnas()
+    {
+        var up = Up(SinComentarios(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraCodigoYPayload + ".cs"))));
+        foreach (var tabla in new[] { "VerificacionesDocumentoOficial", "EventosWebhook" })
+            Regex.IsMatch(up, $@"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""{tabla}""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+                .Should().BeTrue();
+        var concesiones = ConcesionesASoporteEn(MigracionQueRetiraCodigoYPayload, up).ToList();
+        concesiones.Should().HaveCount(2);
+        concesiones.Where(EsInfractora).Should().BeEmpty();
+    }
+
     private static bool EsInfractora((string Migracion, string Privilegios, string Objeto) concesion)
     {
+        if (string.CompareOrdinal(concesion.Migracion, MigracionQueRetiraCodigoYPayload) >= 0)
+        {
+            var tablaCodigo = TablaDe(concesion.Objeto);
+            var columna = tablaCodigo.Equals("VerificacionesDocumentoOficial", StringComparison.OrdinalIgnoreCase)
+                ? "CodigoVerificacion"
+                : tablaCodigo.Equals("EventosWebhook", StringComparison.OrdinalIgnoreCase) ? "PayloadCrudo" : null;
+            if (columna is not null)
+            {
+                var listas = Regex.Matches(concesion.Privilegios, @"\((?<columnas>[^)]*)\)");
+                if (listas.Count == 0 || Regex.Split(concesion.Privilegios, @",(?![^(]*\))").Any(p => !p.Contains('('))
+                    || listas.SelectMany(m => m.Groups["columnas"].Value.Split(',')).Any(c => c.Trim().Trim('"').Equals(columna, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+        }
         if (string.CompareOrdinal(concesion.Migracion, MigracionQueRetiraLosJson) >= 0)
         {
             var tablaNueva = TablaDe(concesion.Objeto);

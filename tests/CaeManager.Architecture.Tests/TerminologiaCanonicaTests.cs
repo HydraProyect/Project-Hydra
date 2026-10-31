@@ -495,7 +495,7 @@ public class TerminologiaCanonicaTests
         // la Sesión Privilegiada seleccionada (IClienteActivoSeleccionado ×1 cada uno) para no pedir
         // ConexionesIntegracion.UltimoError bajo cae_app_soporte; es la misma señal con la que
         // TenantRlsConnectionInterceptor adopta ese rol, y son consumidores de la interfaz existente.
-        ["ClienteActivo"] = 77,
+        ["ClienteActivo"] = 78,
     };
 
     [Theory]
