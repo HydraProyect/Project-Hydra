@@ -10,6 +10,8 @@
   <data name="LimiteCaducidad" xml:space="preserve"><value>Tria fins a quin dia val la clau, des d’avui i com a màxim d’aquí a 364 dies. Deixa de valer abans si es tanca l’accés de suport en què la generes, si se suspèn l’organització o si la revoques.</value></data>
   <data name="OrganizacionTitulo" xml:space="preserve"><value>Claus d'API de l'organització</value></data>
   <data name="OrganizacionDescripcion" xml:space="preserve"><value>Claus de l'API pública emeses per a aquesta organització. Pots revocar-ne qualsevol. Una clau deixa de ser vàlida si es tanca la finestra de suport en què es va emetre, si es desactiva el compte que la va emetre o si se suspèn l'organització.</value></data>
+  <data name="OrganizacionSinAutoridadTitulo" xml:space="preserve"><value>Sense accés a aquestes claus</value></data>
+  <data name="OrganizacionSinAutoridadDescripcion" xml:space="preserve"><value>Només l'Administrador d'aquesta organització pot veure i revocar les seves claus.</value></data>
   <data name="OrganizacionVacioTitulo" xml:space="preserve"><value>Sense claus emeses</value></data>
   <data name="OrganizacionVacioDescripcion" xml:space="preserve"><value>Aquesta organització no té cap clau de l'API pública.</value></data>
   <data name="Nombre" xml:space="preserve"><value>Nom</value></data>

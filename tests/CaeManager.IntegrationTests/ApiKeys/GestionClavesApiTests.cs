@@ -6,6 +6,7 @@ using CaeManager.Application.ApiKeys.Commands.RevocarClaveApiDeMiOrganizacion;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Tenants;
@@ -298,7 +299,7 @@ public class GestionClavesApiTests : IAsyncLifetime
             await using var contexto = CrearContexto();
             return await new RevocarClaveApiDeMiOrganizacionCommandHandler(
                     new ClaveApiRepository(contexto), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
-                    new AdministradorDePrueba(tenantActual), contexto)
+                    new AdministradorDePrueba(tenantActual), new SinSesionPrivilegiada(), contexto)
                 .Handle(new RevocarClaveApiDeMiOrganizacionCommand(claveId), CancellationToken.None);
         }
 
@@ -330,7 +331,7 @@ public class GestionClavesApiTests : IAsyncLifetime
         await using var contextoTenant = CrearContexto();
         var delTenant = await new ObtenerClavesApiDeMiOrganizacionQueryHandler(
                 contextoTenant, new ClaveApiRepository(contextoTenant), new TenantActualPorAmbito(), new CurrentUserServiceFalso(Guid.NewGuid()),
-                new AdministradorDePrueba(_tenantClienteId))
+                new AdministradorDePrueba(_tenantClienteId), new SinSesionPrivilegiada())
             .Handle(new ObtenerClavesApiDeMiOrganizacionQuery(), CancellationToken.None);
 
         delTenant.Should().BeEquivalentTo(dePlataforma);
@@ -340,6 +341,14 @@ public class GestionClavesApiTests : IAsyncLifetime
     private ObtenerClavesApiQueryHandler HandlerConsulta(CaeManagerDbContext contexto) => new(
         contexto, new ClaveApiRepository(contexto), contexto, new AutorizacionClavesApiDePrueba(_tenantClienteId),
         new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId));
+
+    private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+    }
 
     private sealed class AdministradorDePrueba(Guid tenantDelAdministrador) : IAdministradorDelTenantPropietario
     {

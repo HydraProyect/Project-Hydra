@@ -1607,8 +1607,8 @@ public static class DatosPruebaSeeder
         // de dashboard: /configuracion/claves-api y los selectores de filtro
         // no arrancan vacíos (ver CredencialesDemo). La clave «activa» ya no
         // autentica en la API pública V1: la emite una cuenta del propio Tenant
-        // propietario, y no existe ventana de Soporte desde su organización de
-        // origen hacia ese mismo Tenant, que es parte de lo que se exige al
+        // propietario, y no guarda la ventana de Soporte en que se emitió, que es
+        // parte de lo que se exige al
         // autenticar (ver ApiKeyAuthenticationHandler y
         // CriterioSoporteClaveApi.PuedeAutenticar).
         // Caduca a los 30 días de la siembra ---

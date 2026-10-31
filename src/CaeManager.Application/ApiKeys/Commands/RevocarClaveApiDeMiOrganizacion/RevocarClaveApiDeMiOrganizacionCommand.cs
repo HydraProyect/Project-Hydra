@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
@@ -28,12 +29,13 @@ public class RevocarClaveApiDeMiOrganizacionCommandHandler(
     ITenantActual tenantActual,
     ICurrentUserService currentUserService,
     IAdministradorDelTenantPropietario administradorDelTenant,
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IUnitOfWork unitOfWork)
     : IRequestHandler<RevocarClaveApiDeMiOrganizacionCommand, Result>
 {
     public async Task<Result> Handle(RevocarClaveApiDeMiOrganizacionCommand request, CancellationToken cancellationToken)
     {
-        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, cancellationToken))
+        if (!await AutoridadClavesApiDelTenant.PuedeGestionarAsync(tenantActual, currentUserService, administradorDelTenant, sesionPrivilegiadaActual, cancellationToken))
             return Result.Fallo(AutoridadClavesApiDelTenant.SoloAdministradorDelTenant);
 
         var clave = await claveRepositorio.ObtenerPorIdAsync(request.ClaveApiId, cancellationToken);

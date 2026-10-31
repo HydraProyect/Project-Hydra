@@ -14,6 +14,7 @@
         <Descripcion>@Textos["OrganizacionDescripcion"]</Descripcion>
     </CabeceraPagina>
     @if (_cargando) { <EstadoCargando Filas="3" /> }
+    else if (_sinAutoridad) { <EstadoVacio Titulo="@Textos["OrganizacionSinAutoridadTitulo"]" Descripcion="@Textos["OrganizacionSinAutoridadDescripcion"]" /> }
     else if (_claves.Count == 0) { <EstadoVacio Titulo="@Textos["OrganizacionVacioTitulo"]" Descripcion="@Textos["OrganizacionVacioDescripcion"]" /> }
     else
     {

@@ -378,8 +378,8 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         lector.GetBoolean(5).Should().BeFalse("nada para PUBLIC");
     }
 
-    // Otra ventana del mismo origen, abierta después de emitir, no respalda la clave; una inactiva
-    // tampoco la tumba si sigue abierta la suya.
+    // Otra ventana del mismo origen, abierta ya al emitir, no respalda la clave si se cierra la suya;
+    // tampoco la tumba si la suya sigue abierta.
     [Theory]
     [InlineData(true, HttpStatusCode.Unauthorized)]
     [InlineData(false, HttpStatusCode.OK)]
@@ -388,12 +388,10 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         await using (var contexto = CrearContextoPropietario())
         {
             var otra = DelegacionTenant.ParaSoporte(_tenantPlataformaId, _tenantClienteId);
-            if (cerrarLaDeLaEmision)
-            {
-                (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
-                otra.ActivarParaSoporte("Nueva ventana de prueba", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
-            }
+            otra.ActivarParaSoporte("Otra ventana de prueba", DateTime.UtcNow.AddHours(1), DateTime.UtcNow.AddHours(-1));
             contexto.DelegacionesTenant.Add(otra);
+            if (cerrarLaDeLaEmision)
+                (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
             await contexto.SaveChangesAsync();
         }
 

@@ -2,10 +2,12 @@ using CaeManager.Application.ApiKeys;
 using CaeManager.Application.ApiKeys.Commands.RevocarClaveApiDeMiOrganizacion;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApiDeMiOrganizacion;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Tenants;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 
 namespace CaeManager.Application.Tests.ApiKeys;
@@ -21,6 +23,7 @@ public class ClavesApiDeMiOrganizacionTests
     [InlineData("sin Tenant actual")]
     [InlineData("sin usuario")]
     [InlineData("no es Administrador del Tenant actual")]
+    [InlineData("Sesión Privilegiada con Usuario simulado Administrador")]
     public async Task Sin_autoridad_no_lista_ni_revoca(string caso)
     {
         var tenant = Guid.NewGuid();
@@ -29,15 +32,16 @@ public class ClavesApiDeMiOrganizacionTests
         var usuario = new CurrentUserServiceFalso(caso == "sin usuario" ? null : Guid.NewGuid());
         var tenantActual = new TenantActualFijo(caso == "sin Tenant actual" ? null : tenant);
         var administrador = new AdministradorFalso(caso == "no es Administrador del Tenant actual" ? Guid.NewGuid() : tenant);
+        var sesion = new SesionFalsa(caso.StartsWith("Sesión Privilegiada", StringComparison.Ordinal));
 
         var claves = await new ObtenerClavesApiDeMiOrganizacionQueryHandler(
-                new ContextoQueNoSeLee(), new RepositorioClaves(clave), tenantActual, usuario, administrador)
+                new ContextoQueNoSeLee(), new RepositorioClaves(clave), tenantActual, usuario, administrador, sesion)
             .Handle(new ObtenerClavesApiDeMiOrganizacionQuery(), CancellationToken.None);
         var resultado = await new RevocarClaveApiDeMiOrganizacionCommandHandler(
-                new RepositorioClaves(clave), tenantActual, usuario, administrador, guardado)
+                new RepositorioClaves(clave), tenantActual, usuario, administrador, sesion, guardado)
             .Handle(new RevocarClaveApiDeMiOrganizacionCommand(clave.Id), CancellationToken.None);
 
-        claves.Should().BeEmpty();
+        claves.Should().BeNull("sin autoridad no se distingue de nada: ni lista vacía ni filas");
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(AutoridadClavesApiDelTenant.SoloAdministradorDelTenant.Codigo);
         clave.EstaActiva.Should().BeTrue();
@@ -52,7 +56,7 @@ public class ClavesApiDeMiOrganizacionTests
         var guardado = new UnitOfWorkFalso();
 
         var resultado = await new RevocarClaveApiDeMiOrganizacionCommandHandler(
-                new RepositorioClaves(clave), new TenantActualFijo(tenant), new CurrentUserServiceFalso(Guid.NewGuid()), new AdministradorFalso(tenant), guardado)
+                new RepositorioClaves(clave), new TenantActualFijo(tenant), new CurrentUserServiceFalso(Guid.NewGuid()), new AdministradorFalso(tenant), new SesionFalsa(false), guardado)
             .Handle(new RevocarClaveApiDeMiOrganizacionCommand(clave.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -69,7 +73,7 @@ public class ClavesApiDeMiOrganizacionTests
         var guardado = new UnitOfWorkFalso();
 
         var resultado = await new RevocarClaveApiDeMiOrganizacionCommandHandler(
-                new RepositorioClaves(clave), new TenantActualFijo(tenant), new CurrentUserServiceFalso(Guid.NewGuid()), new AdministradorFalso(tenant), guardado)
+                new RepositorioClaves(clave), new TenantActualFijo(tenant), new CurrentUserServiceFalso(Guid.NewGuid()), new AdministradorFalso(tenant), new SesionFalsa(false), guardado)
             .Handle(new RevocarClaveApiDeMiOrganizacionCommand(Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -85,6 +89,15 @@ public class ClavesApiDeMiOrganizacionTests
     {
         public Task<bool> EsAdministradorEnBaseAsync(Guid usuarioId, Guid tenantId, CancellationToken cancellationToken = default) =>
             Task.FromResult(tenantDelAdministrador == tenantId);
+    }
+
+    private sealed class SesionFalsa(bool activa) : ISesionPrivilegiadaActual
+    {
+        private SesionPrivilegiadaActiva? Sesion => activa
+            ? new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, Guid.NewGuid())
+            : null;
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(Sesion);
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(Sesion);
     }
 
     private sealed class TenantActualFijo(Guid? tenantId) : ITenantActual
@@ -104,6 +117,6 @@ public class ClavesApiDeMiOrganizacionTests
         public void Agregar(ClaveApi clave) => throw new NotSupportedException();
         public Task<ClaveApi?> ObtenerPorHashAsync(string hashClave, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Guid?> ObtenerTenantPorHashAsync(string hashClave, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

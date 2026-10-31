@@ -19,7 +19,7 @@ internal static class ListadoClavesApi
         // (migración SoporteSinLecturaDeCredenciales).
         var filas = await claveContext.ClavesApi
             .OrderByDescending(c => c.CreadoEnUtc)
-            .Select(c => new { c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.RevocadaEnUtc, c.CaducaEnUtc, c.CreadaPorUsuarioId })
+            .Select(c => new { c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.RevocadaEnUtc, c.CaducaEnUtc, c.CreadaPorUsuarioId, c.VentanaSoporteId, c.VentanaSoporteAbiertaEnUtc })
             .ToListAsync(cancellationToken);
 
         var ahora = DateTime.UtcNow;
@@ -29,7 +29,8 @@ internal static class ListadoClavesApi
             // Mismo criterio que ApiKeyAuthenticationHandler. Revocada o caducada ya no autentica
             // y su estado lo cuenta la propia fila.
             var cortada = c.RevocadaEnUtc is null && ahora < c.CaducaEnUtc
-                && !await claveRepositorio.ClaveSigueRespaldadaAsync(tenantPropietarioId, c.CreadaPorUsuarioId, c.CreadoEnUtc, cancellationToken);
+                && !await claveRepositorio.ClaveSigueRespaldadaAsync(
+                    tenantPropietarioId, c.CreadaPorUsuarioId, c.CreadoEnUtc, c.VentanaSoporteId, c.VentanaSoporteAbiertaEnUtc, cancellationToken);
 
             claves.Add(new ClaveApiDto(c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.RevocadaEnUtc == null, c.CaducaEnUtc, cortada));
         }

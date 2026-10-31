@@ -25,6 +25,14 @@ public class ClaveApi : EntidadBase
     public DateTime CaducaEnUtc { get; private set; }
     public string? MotivoEmision { get; private set; }
 
+    /// <summary>
+    /// La ventana de Soporte TALVEG en que se emitió: la delegación y su apertura exacta. Las dos
+    /// juntas identifican la ventana, porque reabrir reutiliza la fila
+    /// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Sin ellas la clave no autentica.
+    /// </summary>
+    public Guid? VentanaSoporteId { get; private set; }
+    public DateTime? VentanaSoporteAbiertaEnUtc { get; private set; }
+
     public bool EstaActiva => RevocadaEnUtc is null;
 
     private ClaveApi()
@@ -33,7 +41,7 @@ public class ClaveApi : EntidadBase
     }
 
     public ClaveApi(string nombreDescriptivo, string prefijoVisible, string hashClave, Guid creadaPorUsuarioId,
-        DateTime caducaEnUtc, string motivoEmision)
+        DateTime caducaEnUtc, string motivoEmision, Guid? ventanaSoporteId = null, DateTime? ventanaSoporteAbiertaEnUtc = null)
     {
         if (string.IsNullOrWhiteSpace(nombreDescriptivo))
             throw new ArgumentException("La clave necesita un nombre que identifique para qué se usa.", nameof(nombreDescriptivo));
@@ -55,6 +63,8 @@ public class ClaveApi : EntidadBase
         CreadaPorUsuarioId = creadaPorUsuarioId;
         CaducaEnUtc = caducaEnUtc;
         MotivoEmision = motivoEmision.Trim();
+        VentanaSoporteId = ventanaSoporteId;
+        VentanaSoporteAbiertaEnUtc = ventanaSoporteAbiertaEnUtc;
     }
 
     public void Revocar()

@@ -76,6 +76,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("UltimoUsoUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("VentanaSoporteAbiertaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VentanaSoporteId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");

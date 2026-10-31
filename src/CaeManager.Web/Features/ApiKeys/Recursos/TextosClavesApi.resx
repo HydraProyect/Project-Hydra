@@ -10,6 +10,8 @@
   <data name="LimiteCaducidad" xml:space="preserve"><value>Elige hasta qué día vale la clave, desde hoy y como máximo dentro de 364 días. Deja de valer antes si se cierra el acceso de soporte en que la generas, si se suspende la organización o si la revocas.</value></data>
   <data name="OrganizacionTitulo" xml:space="preserve"><value>Claves de API de la organización</value></data>
   <data name="OrganizacionDescripcion" xml:space="preserve"><value>Claves de la API pública emitidas para esta organización. Puedes revocar cualquiera. Una clave deja de valer si se cierra la ventana de soporte en que se emitió, si se desactiva la cuenta que la emitió o si se suspende la organización.</value></data>
+  <data name="OrganizacionSinAutoridadTitulo" xml:space="preserve"><value>Sin acceso a estas claves</value></data>
+  <data name="OrganizacionSinAutoridadDescripcion" xml:space="preserve"><value>Solo el Administrador de esta organización puede ver y revocar sus claves.</value></data>
   <data name="OrganizacionVacioTitulo" xml:space="preserve"><value>Sin claves emitidas</value></data>
   <data name="OrganizacionVacioDescripcion" xml:space="preserve"><value>Esta organización no tiene ninguna clave de la API pública.</value></data>
   <data name="Nombre" xml:space="preserve"><value>Nombre</value></data>

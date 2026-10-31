@@ -95,7 +95,8 @@ public class ApiKeyAuthenticationHandler(
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
         var ahora = DateTime.UtcNow;
         if (clave is null || !clave.EstaVigente(ahora)
-            || !await claveRepositorio.ClaveSigueRespaldadaAsync(tenantId.Value, clave.CreadaPorUsuarioId, clave.CreadoEnUtc, Context.RequestAborted))
+            || !await claveRepositorio.ClaveSigueRespaldadaAsync(
+                tenantId.Value, clave.CreadaPorUsuarioId, clave.CreadoEnUtc, clave.VentanaSoporteId, clave.VentanaSoporteAbiertaEnUtc, Context.RequestAborted))
             return AuthenticateResult.Fail("Clave inválida o revocada.");
 
         await RegistrarUsoAsync(clave);

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
 
@@ -9,7 +10,8 @@ namespace CaeManager.Application.ApiKeys;
 /// leído en la base (<see cref="IAdministradorDelTenantPropietario"/>; decisión del 2026-10-31;
 /// OWASP ASVS 4.0.3 V4.1.1 y V4.1.3). Con otro Tenant seleccionado por la vía de Operación, un
 /// Gestor CAE o el Administrador del Operador CAE externo no pasan, y Soporte TALVEG en Sesión
-/// Privilegiada tampoco: tenant isolation ≠ operational delegation ≠ platform privilege. El Tenant
+/// Privilegiada tampoco, ni siquiera con un Usuario simulado que sea Administrador, porque el Actor
+/// real no lo es: tenant isolation ≠ operational delegation ≠ platform privilege. El Tenant
 /// es siempre el actual, nunca un parámetro. El Actor de Plataforma TALVEG revoca por su propia
 /// vía, <see cref="Commands.RevocarClaveApi.RevocarClaveApiCommand"/>.
 /// </summary>
@@ -23,8 +25,10 @@ public static class AutoridadClavesApiDelTenant
         ITenantActual tenantActual,
         ICurrentUserService currentUserService,
         IAdministradorDelTenantPropietario administradorDelTenant,
+        ISesionPrivilegiadaActual sesionPrivilegiadaActual,
         CancellationToken cancellationToken) =>
         tenantActual.TenantId is { } tenantId
+        && await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
         && await currentUserService.ObtenerUsuarioActualIdAsync() is { } usuarioId
         && await administradorDelTenant.EsAdministradorEnBaseAsync(usuarioId, tenantId, cancellationToken);
 }

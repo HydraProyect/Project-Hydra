@@ -86,6 +86,8 @@ public class GenerarClaveApiCommandTests
         clave.MotivoEmision.Should().Be("Motivo registrado");
         clave.CaducaEnUtc.Should().Be(peticion.CaducaEnUtc);
         clave.CreadaPorUsuarioId.Should().Be(usuarioId);
+        clave.VentanaSoporteId.Should().Be(delegacion.Id);
+        clave.VentanaSoporteAbiertaEnUtc.Should().Be(delegacion.ActivadaEnUtc).And.NotBeNull();
         claves.TenantAlAgregar.Should().Be(objetivo);
         guardado.VecesGuardado.Should().Be(1);
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
@@ -100,6 +102,6 @@ public class GenerarClaveApiCommandTests
         public Task<ClaveApi?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClaveApi?> ObtenerPorHashAsync(string hashClave, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Guid?> ObtenerTenantPorHashAsync(string hashClave, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

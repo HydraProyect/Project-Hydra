@@ -28,7 +28,7 @@ public class ApiKeyAuthenticationHandlerTests
     [InlineData("soporte retirado", false)]
     [InlineData("soporte vencido", false)]
     [InlineData("soporte reabierto tras emitir", false)]
-    [InlineData("soporte de otro origen", false)]
+    [InlineData("otra ventana abierta", false)]
     [InlineData("delegacion comercial del mismo origen", false)]
     [InlineData("soporte hacia otro Tenant", false)]
     [InlineData("sin delegacion", false)]
@@ -41,14 +41,17 @@ public class ApiKeyAuthenticationHandlerTests
         var tenant = Guid.NewGuid();
         var origen = Guid.NewGuid();
         var ahora = DateTime.UtcNow;
-        var clave = new ClaveApi("ERP Alfa", "hydra_prueba", hash, Guid.NewGuid(), ahora.AddDays(30), "Prueba");
+        var delegaciones = Delegaciones(caso, origen, tenant, ahora);
+        var ventana = delegaciones.FirstOrDefault();
+        var clave = new ClaveApi("ERP Alfa", "hydra_prueba", hash, Guid.NewGuid(), ahora.AddDays(30), "Prueba",
+            caso == "otra ventana abierta" ? Guid.NewGuid() : ventana?.Id,
+            caso == "soporte reabierto tras emitir" ? ahora.AddMinutes(-1) : ventana?.ActivadaEnUtc);
         Asignar(clave, nameof(ClaveApi.TenantId), tenant);
         if (caso == "caducada")
             Asignar(clave, nameof(ClaveApi.CaducaEnUtc), ahora.AddDays(-1));
         if (caso == "revocada") clave.Revocar();
-        var repositorio = new Repositorio(clave, tenant,
-            caso == "cuenta emisora eliminada" ? null : origen, Delegaciones(caso, origen, tenant, ahora),
-            cuentaRespalda: caso != "cuenta emisora desactivada");
+        var repositorio = new Repositorio(clave, tenant, delegaciones,
+            cuentaRespalda: caso is not ("cuenta emisora desactivada" or "cuenta emisora eliminada"));
         var guardado = new Guardado();
         using var servicios = new ServiceCollection().AddLogging().BuildServiceProvider();
         using var logger = LoggerFactory.Create(_ => { });
@@ -80,8 +83,6 @@ public class ApiKeyAuthenticationHandlerTests
                 return [];
             case "delegacion comercial del mismo origen":
                 return [new DelegacionTenant(origen, tenant)];
-            case "soporte de otro origen":
-                return [Abierta(DelegacionTenant.ParaSoporte(Guid.NewGuid(), tenant), ahora)];
             case "soporte hacia otro Tenant":
                 return [Abierta(DelegacionTenant.ParaSoporte(origen, Guid.NewGuid()), ahora)];
             case "soporte con ventana cerrada":
@@ -131,8 +132,8 @@ public class ApiKeyAuthenticationHandlerTests
     }
 
     // Doble del repositorio que aplica el mismo criterio que ClaveApiRepository sobre una lista en
-    // memoria: el origen de la cuenta emisora (null si se eliminó) y las delegaciones del caso.
-    private sealed class Repositorio(ClaveApi clave, Guid tenant, Guid? origenEmisor, List<DelegacionTenant> delegaciones, bool cuentaRespalda) : IClaveApiRepository
+    // memoria: las delegaciones del caso, y si la cuenta emisora respalda la clave.
+    private sealed class Repositorio(ClaveApi clave, Guid tenant, List<DelegacionTenant> delegaciones, bool cuentaRespalda) : IClaveApiRepository
     {
         public (Guid Tenant, Guid Cuenta, DateTime EmitidaEnUtc)? RespaldoComprobado { get; private set; }
         public Task<Guid?> ObtenerTenantPorHashAsync(string hashClave, CancellationToken cancellationToken = default)
@@ -145,12 +146,13 @@ public class ApiKeyAuthenticationHandlerTests
             AmbitoTenantExplicito.TenantIdActual.Should().Be(tenant);
             return Task.FromResult<ClaveApi?>(hashClave == clave.HashClave ? clave : null);
         }
-        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
+        public Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default)
         {
             AmbitoTenantExplicito.TenantIdActual.Should().Be(tenant);
             RespaldoComprobado = (tenantPropietarioId, creadaPorUsuarioId, emitidaEnUtc);
-            return Task.FromResult(cuentaRespalda && creadaPorUsuarioId == clave.CreadaPorUsuarioId && origenEmisor is { } o
-                && delegaciones.AsQueryable().Any(CriterioSoporteClaveApi.PuedeAutenticar(o, tenantPropietarioId, emitidaEnUtc, DateTime.UtcNow)));
+            return Task.FromResult(cuentaRespalda && creadaPorUsuarioId == clave.CreadaPorUsuarioId
+                && ventanaSoporteId is { } ventana && ventanaSoporteAbiertaEnUtc is { } abierta
+                && delegaciones.AsQueryable().Any(CriterioSoporteClaveApi.PuedeAutenticar(ventana, abierta, tenantPropietarioId, DateTime.UtcNow)));
         }
         public Task<ClaveApi?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public void Agregar(ClaveApi clave) => throw new NotSupportedException();

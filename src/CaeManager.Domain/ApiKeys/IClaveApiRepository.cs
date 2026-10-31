@@ -36,11 +36,12 @@ public interface IClaveApiRepository
     /// temporal por intentos fallidos no cuenta) y sigue abierta la ventana de Soporte en que se
     /// emitió (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). No mira revocación ni
     /// caducidad, que son de la propia clave. Una sola interpretación para autenticar y para los
-    /// listados. El origen se resuelve por la cuenta, no por la sesión: al autenticar por clave no
-    /// hay persona. La cuenta es de otra organización, así que no se puede leer su fila bajo RLS.
+    /// listados. La cuenta es de otra organización, así que no se puede leer su fila bajo RLS.
     /// Se llama dentro del <c>AmbitoTenantExplicito</c> del Tenant propietario.
     /// </summary>
-    Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default);
+    Task<bool> ClaveSigueRespaldadaAsync(
+        Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc,
+        Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default);
 
     void Agregar(ClaveApi clave);
 }

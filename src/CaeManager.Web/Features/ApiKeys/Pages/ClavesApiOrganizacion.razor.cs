@@ -26,6 +26,7 @@ public partial class ClavesApiOrganizacion : CaeManager.Web.Components.PaginaInt
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
     private IReadOnlyList<ClaveApiDto> _claves = [];
+    private bool _sinAutoridad;
     private bool _cargando = true;
     private ClaveApiDto? _claveARevocar;
     private bool _revocando;
@@ -36,7 +37,12 @@ public partial class ClavesApiOrganizacion : CaeManager.Web.Components.PaginaInt
 
     private async Task CargarAsync()
     {
-        try { _claves = await Mediator.Send(new ObtenerClavesApiDeMiOrganizacionQuery(), _ciclo.Token); }
+        try
+        {
+            var claves = await Mediator.Send(new ObtenerClavesApiDeMiOrganizacionQuery(), _ciclo.Token);
+            _sinAutoridad = claves is null;
+            _claves = claves ?? [];
+        }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
         catch (Exception ex) { Logger.LogError(ex, "Error al cargar las claves API de la organización."); ToastService.Mostrar(Textos["ErrorCarga"].Value, TonoToast.Error); }
         finally { if (!_desechado) _cargando = false; }

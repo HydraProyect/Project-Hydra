@@ -19,19 +19,19 @@ public class ClavesApiOrganizacionTests : BunitContext
     private sealed class Mediador : IMediator
     {
         public List<object> Enviadas { get; } = [];
-        public IReadOnlyList<ClaveApiDto> Claves { get; set; } = [];
+        public IReadOnlyList<ClaveApiDto>? Claves { get; set; } = [];
         public string? FallaRevocarCon { get; set; }
         public Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            object respuesta = request switch
+            object? respuesta = request switch
             {
                 ObtenerClavesApiDeMiOrganizacionQuery => Claves,
                 RevocarClaveApiDeMiOrganizacionCommand when FallaRevocarCon is { } motivo => Result.Fallo(Error.Crear("ClaveApi.Rechazada", motivo)),
                 RevocarClaveApiDeMiOrganizacionCommand => Result.Exito(),
                 _ => throw new NotSupportedException(),
             };
-            return Task.FromResult((T)respuesta);
+            return Task.FromResult((T)respuesta!);
         }
         public Task Send<T>(T request, CancellationToken cancellationToken = default) where T : IRequest => Task.CompletedTask;
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => Task.FromResult<object?>(null);
@@ -66,6 +66,20 @@ public class ClavesApiOrganizacionTests : BunitContext
         Fila("ERP cortada").Should().Contain("Sin efecto").And.Contain("Revocar", "una clave cortada puede volver a valer y hay que poder retirarla");
         Fila("ERP caducada").Should().Contain("Caducada");
         Fila("ERP revocada").Should().Contain("Revocada").And.NotContain("Revocar");
+    }
+
+    // Quien no es Administrador del Tenant propietario no debe leer que no hay claves.
+    [Fact]
+    public void Sin_autoridad_no_dice_que_la_organizacion_no_tiene_claves()
+    {
+        var mediator = new Mediador { Claves = null };
+        Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddScoped<ToastService>();
+        Services.AddLocalization();
+
+        var cut = Render<ClavesApiOrganizacion>();
+
+        cut.Markup.Should().Contain("Sin acceso a estas claves").And.NotContain("Sin claves emitidas");
     }
 
     [Fact]

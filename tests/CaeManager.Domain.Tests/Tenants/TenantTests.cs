@@ -213,6 +213,18 @@ public class TenantTests
     public void Admite_una_clave_de_API_segun_el_estado_del_Tenant(EstadoTenant estado, EstadoComercialTenant comercial, bool admite) =>
         Tenant.AdmiteClaveEmitidaEn(estado, comercial, null, DateTime.UtcNow).Should().Be(admite);
 
+    // Sin pasar por Reactivar: el sello de Suspender basta aunque Estado se devuelva por otra vía.
+    [Fact]
+    public void Suspender_deja_fuera_la_clave_de_API_emitida_antes_aunque_no_se_reactive_por_el_dominio()
+    {
+        var tenant = new Tenant("Tenant de prueba");
+        var emitida = DateTime.UtcNow.AddMinutes(-1);
+
+        tenant.Suspender();
+
+        Tenant.AdmiteClaveEmitidaEn(EstadoTenant.Activo, EstadoComercialTenant.Activa, tenant.ClavesApiValidasDesdeUtc, emitida).Should().BeFalse();
+    }
+
     [Fact]
     public void Reactivar_no_devuelve_la_clave_de_API_emitida_antes()
     {

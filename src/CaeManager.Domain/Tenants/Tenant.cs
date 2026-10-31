@@ -162,12 +162,20 @@ public class Tenant : Entity
 
     public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;
 
-    public void Suspender() => Estado = EstadoTenant.Suspendido;
+    /// <summary>
+    /// Sella <see cref="ClavesApiValidasDesdeUtc"/> al suspender, no solo al reactivar: una clave
+    /// anterior queda fuera aunque la reactivación no pase por <see cref="Reactivar"/>.
+    /// </summary>
+    public void Suspender()
+    {
+        ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+        Estado = EstadoTenant.Suspendido;
+    }
 
     /// <summary>
     /// Reactivar la suspensión operativa no devuelve las claves de API anteriores: quedan fuera
     /// por <see cref="ClavesApiValidasDesdeUtc"/>, igual que con la cuenta emisora (decisión del
-    /// 2026-10-28 concretada el 2026-10-31).
+    /// 2026-10-28 concretada el 2026-10-31). Una clave emitida durante la suspensión tampoco vale.
     /// </summary>
     public void Reactivar()
     {
@@ -177,7 +185,7 @@ public class Tenant : Entity
         Estado = EstadoTenant.Activo;
     }
 
-    /// <summary>Instante de la última reactivación: una clave de API de este Tenant solo vale si se emitió después.</summary>
+    /// <summary>Instante de la última suspensión o reactivación: una clave de API de este Tenant solo vale si se emitió después.</summary>
     public DateTime? ClavesApiValidasDesdeUtc { get; private set; }
 
     /// <summary>

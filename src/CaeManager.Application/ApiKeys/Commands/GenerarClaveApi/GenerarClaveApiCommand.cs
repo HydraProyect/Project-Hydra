@@ -126,7 +126,7 @@ public class GenerarClaveApiCommandHandler(
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(claveEnClaro))).ToLowerInvariant();
 
         var clave = new ClaveApi(request.NombreDescriptivo, prefijoVisible, hash, usuarioId.Value,
-            request.CaducaEnUtc!.Value, request.Motivo);
+            request.CaducaEnUtc!.Value, request.Motivo, delegacion.Id, delegacion.ActivadaEnUtc);
 
         // La clave pertenece al Tenant propietario, igual que RegistroActividadSoporte
         // en AbrirAccesoSoporteCommand: sin este ámbito explícito, el

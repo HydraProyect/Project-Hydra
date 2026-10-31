@@ -46,7 +46,9 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
 
     public void Agregar(ClaveApi clave) => dbContext.ClavesApi.Add(clave);
 
-    public async Task<bool> ClaveSigueRespaldadaAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc, CancellationToken cancellationToken = default)
+    public async Task<bool> ClaveSigueRespaldadaAsync(
+        Guid tenantPropietarioId, Guid creadaPorUsuarioId, DateTime emitidaEnUtc,
+        Guid? ventanaSoporteId, DateTime? ventanaSoporteAbiertaEnUtc, CancellationToken cancellationToken = default)
     {
         var ahora = DateTime.UtcNow;
 
@@ -64,15 +66,11 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
                 estado.FinBloqueo, estado.ClavesApiValidasDesdeUtc, emitidaEnUtc, new DateTimeOffset(ahora)))
             return false;
 
-        // Corre bajo el ámbito del Tenant propietario de la clave. Ambas lecturas funcionan
-        // desde ese ámbito, así que una clave legítima no puede dar un falso negativo por RLS:
-        // - la cuenta emisora es de otra organización y "AspNetUsers" bajo RLS no la vería; su
-        //   Tenant se resuelve con app_tenant_de_cuenta (SECURITY DEFINER, devuelve solo el
-        //   TenantId de esa cuenta), sin ampliar la política;
-        // - "DelegacionesTenant" no tiene filtro global de EF, pero su RLS permite leer
-        //   desde el Tenant propietario de la clave (TenantClienteId).
-        var origen = await AlmacenUsuarios.TenantDeCuentaAsync(dbContext, creadaPorUsuarioId, cancellationToken);
-        return origen is { } tenantOrigenId && await dbContext.DelegacionesTenant
-            .AnyAsync(CriterioSoporteClaveApi.PuedeAutenticar(tenantOrigenId, tenantPropietarioId, emitidaEnUtc, ahora), cancellationToken);
+        // Corre bajo el ámbito del Tenant propietario de la clave: "DelegacionesTenant" no tiene
+        // filtro global de EF, y su RLS permite leer desde ese Tenant (TenantClienteId), así que
+        // una clave legítima no puede dar un falso negativo por RLS.
+        return ventanaSoporteId is { } ventana && ventanaSoporteAbiertaEnUtc is { } abierta
+            && await dbContext.DelegacionesTenant
+                .AnyAsync(CriterioSoporteClaveApi.PuedeAutenticar(ventana, abierta, tenantPropietarioId, ahora), cancellationToken);
     }
 }
