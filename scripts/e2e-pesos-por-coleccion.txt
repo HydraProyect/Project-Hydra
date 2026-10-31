@@ -30,5 +30,6 @@ AppCollectionSoporte 56
 # Estimado, sin medir (#1757): dos tests cortos más el arranque. Sustituir por el p50 en la próxima regeneración.
 AppCollectionVega 55
 AppCollectionBajoRuntime 53
+AppCollectionSoporteBajoRuntime 90
 AppCollectionRetencion 53
 AppCollectionCuentaAMedioActivar 50
