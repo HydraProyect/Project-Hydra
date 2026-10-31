@@ -328,10 +328,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Guarda,
                 "un :EsPlataforma real en PuedeReactivarAsync, proyectado sobre el Tenant propietario " +
                 "(TenantClienteId) de la delegación. Nació en la ronda 2 de Codex sobre el delta del " +
-                "incremento 1b (commit 2830297e); desde las decisiones del 2026-10-26 la autoridad es " +
-                "EquipoDelOperadorCaeExterno, que mira el Tenant de origen del Operador CAE externo y no " +
-                "excluye por sí sola el Tenant de plataforma como Tenant propietario, así que una " +
-                "DelegacionTenant heredada sobre TALVEG podría reactivarse sin este corte. El comentario que " +
+                "incremento 1b (commit 2830297e); desde la decisión SEG-7 del 2026-10-31 la autoridad es " +
+                "AdministradorQueReactiva, que no excluye por sí sola el Tenant de plataforma como Tenant " +
+                "propietario, así que el Administrador inicial de TALVEG podría reactivar una " +
+                "DelegacionTenant heredada sobre TALVEG sin este corte. El comentario que " +
                 "lo explica ya no nombra el campo, por eso el recuento es 1. Se corta DESPUÉS de la autoridad " +
                 "(mismo orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
@@ -342,7 +342,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "PermisosAccesosDelegadosQuery: un :EsPlataforma real proyectado sobre el Tenant propietario " +
                 "de cada acceso delegado, en el Tenant activo y bajo RLS como la lectura individual, para que " +
                 "la pantalla de Delegaciones no ofrezca reactivar una DelegacionTenant heredada sobre TALVEG. " +
-                "Solo resta permisos (PermiteReactivar exige además la autoridad de EquipoDelOperadorCaeExterno); " +
+                "Solo resta permisos (PermiteReactivar exige además la autoridad de AdministradorQueReactiva); " +
                 "no concede nada. TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)"),
         ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
             new(1, CategoriaUso.Guarda,

@@ -32,10 +32,9 @@ public static class RelevoDePrincipalDeCartera
     /// <para>
     /// La marca solo vuelve a quien <b>sigue pudiendo llevarla</b>: su cartera se repuso y hoy es
     /// una cuenta activa del Operador CAE con rol Gestor CAE o Coordinador CAE, leído en Identity.
-    /// Si no, se aplica el relevo de siempre (<see cref="ResolverRelevoAsync"/>,
-    /// <see cref="RelevarAsync"/>): a su Coordinador CAE y, si no hay, por escalado a la única
-    /// cuenta del primer perfil con alguien; si tampoco, la operación queda sin principal y en la
-    /// alerta. Nunca se le da a otro Gestor CAE: nadie lo decidió.
+    /// Si no, se releva a su Coordinador CAE (<see cref="ResolverCoordinadorAsync"/>,
+    /// <see cref="RelevarAsync"/>) cuando su cuenta se ve; si tampoco, la operación queda sin
+    /// principal y en la alerta. Nunca se le da a otro Gestor CAE: nadie lo decidió.
     /// </para>
     ///
     /// <para>
@@ -45,14 +44,15 @@ public static class RelevoDePrincipalDeCartera
     /// </para>
     ///
     /// <para>
-    /// Lo ejecuta el equipo del Operador CAE externo (decisiones del 2026-10-26,
-    /// <c>EquipoDelOperadorCaeExterno</c>), dentro de su transacción y con el Tenant propietario como
-    /// Tenant activo: el ámbito de Tenant explícito acota las consultas, pero RLS sigue siendo el de
-    /// su sesión, cuyo Tenant de origen es el del Operador CAE, y la política de cuentas le deja leer
-    /// las de su propia organización. Su Coordinador CAE y los perfiles del escalado se comprueban
-    /// aunque nunca hayan operado sobre ese Tenant. Si no hay relevo ni cuenta única en el escalado,
-    /// la operación queda sin principal y en la alerta del Operador CAE, que la toma con «Asumir».
-    /// No se ensancha RLS para nada de esto.
+    /// Lo ejecuta el Administrador del Tenant propietario (decisión SEG-7 del 2026-10-31,
+    /// <c>AdministradorQueReactiva</c>), dentro de su transacción y con el Tenant propietario como
+    /// Tenant activo. El ámbito de Tenant explícito acota las consultas, pero RLS sigue siendo el
+    /// firmado al abrirla: de las cuentas del Operador CAE externo solo ve las vinculadas a ese
+    /// Tenant (política cuentas_lectura), no su organigrama. Por eso aquí no se escala
+    /// (<c>EscaladoDePrincipalDeCartera</c>): contar «la única cuenta» sobre una vista parcial daría
+    /// la marca a quien no es la única. Un Coordinador CAE sin vínculo con el Tenant propietario no
+    /// se ve y cuenta como no relevable. En los dos casos la operación queda sin principal y en la
+    /// alerta del Operador CAE, que la toma con «Asumir». No se ensancha RLS para nada de esto.
     /// </para>
     ///
     /// Devuelve <c>false</c> si un guardado perdió una carrera: el comando debe fallar para que la
@@ -92,11 +92,11 @@ public static class RelevoDePrincipalDeCartera
             }
         }
 
-        var relevo = await ResolverRelevoAsync(
+        var coordinador = await ResolverCoordinadorAsync(
             anteriorPrincipalUsuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera,
             cancellationToken);
 
-        return await RelevarAsync(catalogo, [operacion], operadorTenantId, relevo, cancellationToken);
+        return await RelevarAsync(catalogo, [operacion], operadorTenantId, coordinador, cancellationToken);
     }
 
     /// <summary>

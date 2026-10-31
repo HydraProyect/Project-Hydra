@@ -4,17 +4,18 @@ using CaeManager.Application.Operaciones;
 namespace CaeManager.Application.Tenants;
 
 /// <summary>
-/// Quién revoca y reactiva el acceso de un Operador CAE externo a un Tenant propietario: la
-/// Asignación de Operación delegada entera (legacy <c>DelegacionTenant</c> de propósito
-/// <c>OperadorExterno</c>). Decisiones de producto del 2026-10-26: revoca y reactiva el equipo
-/// del propio Operador CAE externo —Gestor CAE, Coordinador CAE, Dirección CAE y
-/// Administrador—, siempre que tenga alcance sobre ese Tenant propietario. No pueden el
-/// Administrador del Tenant propietario ni nadie de otro Operador CAE. La salida a petición del
-/// Tenant propietario la hace Soporte TALVEG con Sesión Privilegiada, no este camino.
+/// Quién revoca el acceso de un Operador CAE externo a un Tenant propietario: la Asignación de
+/// Operación delegada entera (legacy <c>DelegacionTenant</c> de propósito
+/// <c>OperadorExterno</c>). Decisiones de producto del 2026-10-26: revoca el equipo del propio
+/// Operador CAE externo —Gestor CAE, Coordinador CAE, Dirección CAE y Administrador—, siempre
+/// que tenga alcance sobre ese Tenant propietario. No pueden el Administrador del Tenant
+/// propietario ni nadie de otro Operador CAE. La salida a petición del Tenant propietario la
+/// hace Soporte TALVEG con Sesión Privilegiada, no este camino. Reactivar no es de este equipo:
+/// es solo del Tenant propietario (<see cref="AdministradorQueReactiva"/>, decisión SEG-7).
 ///
 /// <para>
-/// Una sola regla para los dos comandos y para las consultas con las que la pantalla decide
-/// si pinta «Revocar acceso» y «Reactivar». Hacen falta todas estas condiciones:
+/// Una sola regla para el comando y para las consultas con las que la pantalla decide si pinta
+/// «Revocar acceso». Hacen falta todas estas condiciones:
 /// </para>
 /// <list type="bullet">
 /// <item>Hay usuario y Tenant de origen en la sesión (fallo cerrado fuera de un circuito
@@ -36,12 +37,6 @@ namespace CaeManager.Application.Tenants;
 /// necesitan una Asignación de Cartera viva propia sobre ese Tenant propietario, bajo una
 /// Asignación de Operación de este Operador CAE externo.</item>
 /// </list>
-///
-/// <para>
-/// Consecuencia aceptada (decisión del 2026-10-26): revocar cierra las carteras en cascada, así
-/// que tras revocar ningún Gestor CAE ni Coordinador CAE puede reactivar; lo hacen el
-/// Administrador o la Dirección CAE del Operador CAE externo, o Soporte TALVEG.
-/// </para>
 /// </summary>
 public static class EquipoDelOperadorCaeExterno
 {
@@ -52,7 +47,7 @@ public static class EquipoDelOperadorCaeExterno
     internal const string CoordinadorCae = "CoordinadorCae";
     internal const string GestorCae = "GestorCae";
 
-    /// <summary>Si el usuario actual puede revocar o reactivar ese acceso.</summary>
+    /// <summary>Si el usuario actual puede revocar ese acceso.</summary>
     public static async Task<bool> PuedeAsync(
         Guid operadorTenantId,
         Guid tenantPropietarioId,

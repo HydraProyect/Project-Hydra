@@ -31,6 +31,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     private readonly Guid _gestorConsultora = Guid.NewGuid();
     private readonly Guid _direccionConsultora = Guid.NewGuid();
     private readonly Guid _gestorPropietario = Guid.NewGuid();
+    private readonly Guid _administradorPropietario = Guid.NewGuid();
     private Guid _consultora;
     private Guid _propietario;
     private Guid _clienteId;
@@ -42,6 +43,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         await inicial.Database.MigrateAsync();
 
         var consultora = new Tenant("Consultora F1", PerfilVocabularioTenant.Consultora);
+        consultora.HabilitarComoOperadorCaeExterno();
         var propietario = new Tenant("Propietario F1", PerfilVocabularioTenant.ClienteDirecto);
         inicial.Tenants.Add(consultora);
         inicial.Tenants.Add(propietario);
@@ -414,10 +416,10 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // la operación: el operador entraba al workspace y no veía un dato.
         await using (var contexto = CrearContexto(_propietario))
         {
-            // Reactivar exige ser Gestor CAE del Operador CAE externo (decisión
-            // del 2026-10-26). Lo que este test comprueba es otra cosa —que
-            // reactivar devuelva también las carteras—, así que entra con la
-            // autoridad correcta.
+            // Reactivar exige ser Administrador del Tenant propietario (decisión
+            // SEG-7 del 2026-10-31). Lo que este test comprueba es otra cosa
+            // —que reactivar devuelva también las carteras—, así que entra con
+            // la autoridad correcta.
             var handler = CrearReactivar(contexto);
 
             var resultado = await handler.Handle(
@@ -660,19 +662,30 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())));
 
     private ReactivarDelegacionTenantCommandHandler CrearReactivar(CaeManagerDbContext contexto) =>
-        new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(),
+        new(new DelegacionTenantRepository(contexto), AdministradorDelPropietario(),
             CrearWriter(contexto), contexto, contexto,
             new TransaccionDeComando(contexto),
             new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
             new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-            new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
+            new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario },
+            new CuentaAdministradoraEnBase());
 
     private CurrentUserServiceFalso DireccionDeLaConsultora() => new(_direccionConsultora, Roles.DireccionCae, _consultora);
+
+    private CurrentUserServiceFalso AdministradorDelPropietario() => new(_administradorPropietario, Roles.Administrador, _propietario);
+
+    /// <summary>Quién reactiva se mide bajo RLS real en <c>AutorizarOperadorCaeExternoRlsTests</c>; aquí, las carteras.</summary>
+    private sealed class CuentaAdministradoraEnBase : IAutorizacionDelegacionTenant
+    {
+        public Task<bool> PuedeGestionarDelegacionesAsync(
+            Guid usuarioId, Guid tenantClienteId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+    }
 
     /// <summary>
     /// Estos tests miden qué carteras repone la reactivación, con el contexto del propietario de la base.
     /// La cuenta del anterior principal (Gestor CAE) se da por válida aquí, y la de quien revoca o reactiva
-    /// (Dirección CAE) también; que
+    /// (Dirección CAE, Administrador) también; que
     /// una cuenta desactivada o de otro rol no recupere la marca, y el relevo, se prueban con Identity real
     /// en <c>PrincipalDeCarteraBajoRuntimeTests</c>.
     /// </summary>

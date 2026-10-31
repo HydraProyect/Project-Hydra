@@ -20,7 +20,8 @@ namespace CaeManager.Application.Tests.Operaciones;
 /// </summary>
 public class RestaurarPrincipalAlReactivarTests
 {
-    private static readonly Guid Operador = Guid.NewGuid();
+    private static readonly Tenant TenantDelOperador = OperadorElegible();
+    private static readonly Guid Operador = TenantDelOperador.Id;
     private static readonly Guid Propietario = Guid.NewGuid();
     private static readonly Guid Operacion = Guid.NewGuid();
     private static readonly Guid AnteriorPrincipal = Guid.NewGuid();
@@ -117,13 +118,13 @@ public class RestaurarPrincipalAlReactivarTests
         _cuentas.Desactivar(AnteriorPrincipal);
         _cuentas.Desactivar(Coordinador);
 
-        (await Restaurar()).Should().BeTrue("quedar sin principal no es un fallo: lo recoge el escalado");
+        (await Restaurar()).Should().BeTrue("quedar sin principal no es un fallo: lo recoge la alerta del Operador CAE externo");
 
         Principales().Should().BeEmpty("nadie decidió que el Gestor CAE de apoyo responda del Tenant");
     }
 
     [Fact]
-    public async Task Sin_Coordinador_CAE_se_escala_a_la_unica_cuenta_del_primer_perfil_que_tiene_alguna()
+    public async Task Sin_Coordinador_CAE_no_se_escala_aunque_se_vea_una_sola_cuenta_porque_la_vista_del_Tenant_propietario_es_parcial()
     {
         var direccion = Guid.NewGuid();
         _cuentas.Asignar(direccion, Operador, "DireccionCae");
@@ -132,7 +133,8 @@ public class RestaurarPrincipalAlReactivarTests
 
         (await Restaurar()).Should().BeTrue();
 
-        Principales().Should().Equal([direccion], "el escalado de la enmienda, punto 4: no hay Coordinador CAE y Dirección CAE tiene una sola cuenta");
+        Principales().Should().BeEmpty(
+            "el Administrador del Tenant propietario no ve todas las cuentas del Operador CAE externo: «una sola» no es cierto");
     }
 
     [Fact]
@@ -219,17 +221,23 @@ public class RestaurarPrincipalAlReactivarTests
             },
         };
         var transaccion = new TransaccionDeComandoFalsa();
-        // Reactiva la Dirección CAE del Operador CAE externo, desde su casa (decisiones del 2026-10-26):
-        // alcanza a toda la organización sin cartera propia. Un Gestor CAE no podría, porque revocar le
-        // cerró la cartera en cascada.
-        var quienReactiva = Guid.NewGuid();
-        _cuentas.Asignar(quienReactiva, Operador, "DireccionCae");
+        // Reactiva el Administrador del Tenant propietario, desde su casa (decisión SEG-7 del 2026-10-31).
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.Add(TenantDelOperador);
         var handler = new ReactivarDelegacionTenantCommandHandler(
             repositorio,
-            new CurrentUserServiceFalso(quienReactiva, "DireccionCae", Operador), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
-            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Operador));
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Propietario), escritor, new UnitOfWorkFalso(), tenants,
+            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario),
+            CaeManager.Application.Tests.Tenants.AutorizacionDelegacionFalsa.AdministradorDe(Propietario));
 
         return (handler, delegacion, transaccion);
+    }
+
+    private static Tenant OperadorElegible()
+    {
+        var tenant = new Tenant("Operador CAE externo");
+        tenant.HabilitarComoOperadorCaeExterno();
+        return tenant;
     }
 
     private void Repuesta(Guid usuarioId, string rol, Guid? operacionId = null) =>

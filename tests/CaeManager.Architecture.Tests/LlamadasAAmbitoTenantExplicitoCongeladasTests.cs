@@ -317,7 +317,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
-            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al equipo del Operador CAE externo en origen con alcance sobre el Tenant propietario (EquipoDelOperadorCaeExterno, decisiones del 2026-10-26) y validar que el contexto es su casa o el Tenant propietario; la transacción entera se abre en el Tenant propietario y guarda la operación y las carteras restauradas"),
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al Administrador del Tenant propietario en su Tenant de origen, con ese Tenant activo (AdministradorQueReactiva, decisión SEG-7 del 2026-10-31); la transacción entera se abre en el Tenant propietario y guarda la operación y las carteras restauradas"),
         ["src/CaeManager.Application/Tenants/EquipoDelOperadorCaeExterno.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario, "el Tenant de origen del usuario (ICurrentUserService.ObtenerTenantOrigenIdAsync), y solo si coincide con el Operador CAE externo; lee el rol del equipo de su propia cuenta y sus carteras vivas en origen, mismo criterio que ContextoOperadorCae y AutoridadSobreCarteraDeGestorCae"),
         ["src/CaeManager.Application/Tenants/Commands/DesactivarDelegacionTenant/DesactivarDelegacionTenantCommand.cs"] =

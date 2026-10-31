@@ -433,9 +433,8 @@ public partial class DelegacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
-    /// exige ser del equipo del Operador CAE externo con alcance sobre el Tenant propietario
-    /// (decisiones del 2026-10-26) — NO basta
-    /// con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
+    /// exige ser Administrador del Tenant propietario, desde su casa (decisión SEG-7 del
+    /// 2026-10-31) — NO basta con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
     /// que la aserción exija lo contrario y el test caiga.
     /// </summary>
     [Fact]

@@ -91,7 +91,9 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
         var revocar = new DesactivarDelegacionTenantCommandHandler(
             null!, sesion, null!, db, null!, directorio, db, catalogo);
         var reactivar = new ReactivarDelegacionTenantCommandHandler(
-            null!, sesion, null!, db, db, null!, catalogo, null!, directorio, null!, null!);
+            null!, sesion, null!, db, db, null!, catalogo, null!, directorio, null!, null!, null!);
+        PermisosAccesosDelegadosQueryHandler Lote() => new(db, sesion, directorio, catalogo,
+            new TenantActualAmbiental { TenantId = _operador }, null!);
         var individuales = new Dictionary<Guid, PermisosAccesoDelegadoDto>();
         foreach (var (id, activa) in ids)
             individuales[id] = activa
@@ -99,21 +101,21 @@ public class PermisosAccesosDelegadosQueryTests(ITestOutputHelper salida) : IAsy
                 : new(false, await reactivar.Handle(new PuedeReactivarQuery(id), CancellationToken.None));
 
         var antes = contador.Total;
-        antes.Should().Be(4 * n + ids.Count(d => !d.Activa),
-            "por fila se leen acceso, cuenta, rol y Cartera; reactivar añade el Tenant de plataforma");
+        antes.Should().Be(4 * ids.Count(d => d.Activa) + ids.Count(d => !d.Activa),
+            "por acceso activo se leen acceso, cuenta, rol y Cartera; del revocado, ajeno a su origen, solo el acceso");
         contador.Total = 0;
-        var lote = await new PermisosAccesosDelegadosQueryHandler(db, sesion, directorio, catalogo)
-            .Handle(new PermisosAccesosDelegadosQuery(ids.Select(d => d.Id).ToArray()), CancellationToken.None);
+        var lote = await Lote().Handle(new PermisosAccesosDelegadosQuery(ids.Select(d => d.Id).ToArray()), CancellationToken.None);
         var despues = contador.Total;
         lote.Should().BeEquivalentTo(individuales);
-        lote.Values.Should().OnlyContain(p => p.PuedeRevocar || p.PuedeReactivar,
+        ids.Where(d => d.Activa).Should().OnlyContain(d => lote[d.Id].PuedeRevocar,
             "el control positivo evita medir un lote que no autoriza por un fallo de siembra");
+        ids.Where(d => !d.Activa).Should().OnlyContain(d => !lote[d.Id].PuedeReactivar,
+            "el Operador CAE externo nunca reactiva");
         despues.Should().Be(4, "una lectura de accesos con plataforma, dos de Identity y una de Carteras, para cualquier N");
         salida.WriteLine($"N={n}: individuales={antes}, lote={despues}");
 
         contador.Total = 0;
-        var vacio = await new PermisosAccesosDelegadosQueryHandler(db, sesion, directorio, catalogo)
-            .Handle(new PermisosAccesosDelegadosQuery([]), CancellationToken.None);
+        var vacio = await Lote().Handle(new PermisosAccesosDelegadosQuery([]), CancellationToken.None);
         vacio.Should().BeEmpty();
         contador.Total.Should().Be(0);
     }

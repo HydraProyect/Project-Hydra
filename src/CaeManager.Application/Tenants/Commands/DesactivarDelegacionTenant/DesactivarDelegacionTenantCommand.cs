@@ -138,8 +138,9 @@ public class DesactivarDelegacionTenantCommandHandler(
     /// <summary>
     /// Las dos partes: el Tenant de origen del usuario es el que presta el servicio o el
     /// dueño de los datos, sin mirar rol. <b>Ya no decide la revocación ni la reactivación de
-    /// la Asignación de Operación de un Operador CAE externo</b>: esa es de su equipo
-    /// (<see cref="EquipoDelOperadorCaeExterno"/>, decisiones del 2026-10-26). Queda para lo
+    /// la Asignación de Operación de un Operador CAE externo</b>: revocar es de su equipo
+    /// (<see cref="EquipoDelOperadorCaeExterno"/>, decisiones del 2026-10-26) y reactivar, del
+    /// Administrador del Tenant propietario (<see cref="AdministradorQueReactiva"/>). Queda para lo
     /// que la decisión no cubre: revocar una de Soporte (ver el comando) y
     /// retirar a una persona concreta sin cortar el acceso entero
     /// (<c>RevocarAsignacionOperadorDelegadoCommand</c>).
