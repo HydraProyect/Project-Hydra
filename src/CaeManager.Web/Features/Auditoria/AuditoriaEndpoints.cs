@@ -100,72 +100,97 @@ public static class AuditoriaEndpoints
         return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
     }
 
+    /// <summary>
+    /// El filtro es texto libre y el rastro no admite datos personales: solo se nombra un tipo
+    /// de entidad del dominio. Cualquier otro valor consta como «otro», porque sí filtró.
+    /// </summary>
+    private static string? EntidadParaElRastro(string? entidad) =>
+        string.IsNullOrWhiteSpace(entidad) ? null : EntidadesDelDominio.Contains(entidad) ? entidad : "otro";
+
+    private static readonly HashSet<string> EntidadesDelDominio =
+        typeof(RegistroAuditoria).Assembly.GetExportedTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+
+    public static async Task<IResult> ExportarAsync(
+        string? entidad, IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion, CancellationToken cancellationToken)
+    {
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Auditoría");
+
+        // La hoja sale de la aplicación y una celda de Excel no lleva zona: se
+        // rotula para que nadie la lea como UTC ni como la hora de su equipo.
+        hoja.Cell(1, 1).Value = "Fecha (hora peninsular)";
+        hoja.Cell(1, 2).Value = "Entidad";
+        hoja.Cell(1, 3).Value = "Acción";
+        hoja.Cell(1, 4).Value = "Usuario";
+        hoja.Row(1).Style.Font.Bold = true;
+
+        // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7): no
+        // materializa todo el histórico de auditoría del tenant de golpe.
+        // La caché de nombres de usuario se sigue rellenando una sola vez
+        // por UsuarioId (igual que antes con el .Distinct() previo), solo
+        // que ahora perezosamente a medida que aparecen en cada lote.
+        var usuariosPorId = new Dictionary<Guid, string>();
+        var fila = 2;
+        await foreach (var registro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerAuditoriaQuery(
+                    EntidadTipo: string.IsNullOrWhiteSpace(entidad) ? null : entidad,
+                    UsuarioId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                cancellationToken)))
+        {
+            string nombreUsuario;
+            if (registro.UsuarioId is null)
+            {
+                nombreUsuario = "Sistema";
+            }
+            else if (!usuariosPorId.TryGetValue(registro.UsuarioId.Value, out nombreUsuario!))
+            {
+                var usuario = await mediator.Send(new ObtenerNombreCuentaQuery(registro.UsuarioId.Value), cancellationToken);
+                nombreUsuario = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
+            }
+
+            hoja.Cell(fila, 1).Value = registro.FechaUtc.EnHoraPeninsular();
+            hoja.Cell(fila, 2).Value = registro.EntidadTipo;
+            hoja.Cell(fila, 3).Value = registro.Accion;
+            hoja.Cell(fila, 4).Value = nombreUsuario;
+            fila++;
+        }
+
+        hoja.Columns().AdjustToContents();
+
+        // Se escribe directo en el stream que consume la respuesta HTTP
+        // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+        // y duplicarlo otra vez con ToArray().
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(RegistroAuditoria), fila - 2,
+                CriteriosExportacion.Desde(("listado", "auditoria"), ("entidad", EntidadParaElRastro(entidad))),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "auditoria.xlsx");
+    }
+
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
         // — el único filtro de la pantalla es el tipo de entidad. Resuelve
         // nombre de usuario con el mismo criterio que Auditoria.razor.cs.
-        endpoints.MapGet("/auditoria/exportar.xlsx", async (
-            string? entidad, IMediator mediator, CancellationToken cancellationToken) =>
-        {
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Auditoría");
-
-            // La hoja sale de la aplicación y una celda de Excel no lleva zona: se
-            // rotula para que nadie la lea como UTC ni como la hora de su equipo.
-            hoja.Cell(1, 1).Value = "Fecha (hora peninsular)";
-            hoja.Cell(1, 2).Value = "Entidad";
-            hoja.Cell(1, 3).Value = "Acción";
-            hoja.Cell(1, 4).Value = "Usuario";
-            hoja.Row(1).Style.Font.Bold = true;
-
-            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7): no
-            // materializa todo el histórico de auditoría del tenant de golpe.
-            // La caché de nombres de usuario se sigue rellenando una sola vez
-            // por UsuarioId (igual que antes con el .Distinct() previo), solo
-            // que ahora perezosamente a medida que aparecen en cada lote.
-            var usuariosPorId = new Dictionary<Guid, string>();
-            var fila = 2;
-            await foreach (var registro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerAuditoriaQuery(
-                        EntidadTipo: string.IsNullOrWhiteSpace(entidad) ? null : entidad,
-                        UsuarioId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
-                    cancellationToken)))
-            {
-                string nombreUsuario;
-                if (registro.UsuarioId is null)
-                {
-                    nombreUsuario = "Sistema";
-                }
-                else if (!usuariosPorId.TryGetValue(registro.UsuarioId.Value, out nombreUsuario!))
-                {
-                    var usuario = await mediator.Send(new ObtenerNombreCuentaQuery(registro.UsuarioId.Value), cancellationToken);
-                    nombreUsuario = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
-                    usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
-                }
-
-                hoja.Cell(fila, 1).Value = registro.FechaUtc.EnHoraPeninsular();
-                hoja.Cell(fila, 2).Value = registro.EntidadTipo;
-                hoja.Cell(fila, 3).Value = registro.Accion;
-                hoja.Cell(fila, 4).Value = nombreUsuario;
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            // Se escribe directo en el stream que consume la respuesta HTTP
-            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
-            // y duplicarlo otra vez con ToArray().
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "auditoria.xlsx");
-        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
+        endpoints.MapGet("/auditoria/exportar.xlsx", ExportarAsync).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/auditoria/{id:guid}/archivo-anterior", ServirArchivoAnteriorAsync).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
