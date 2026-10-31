@@ -256,6 +256,27 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_sesion_de_usuario_no_deja_su_identificador_en_la_auditoria()
+    {
+        var sid = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto())
+        {
+            // La Empresa del mismo guardado es el control del instrumento: ese guardado sí audita.
+            contexto.Add(new Empresa("Empresa de prueba S.L.", "B10380194"));
+            contexto.SesionesUsuario.Add(new CaeManager.Domain.Seguridad.SesionUsuario(Guid.NewGuid(), sid, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await ObtenerRegistroAsync(nameof(Empresa));
+        await using var lectura = CrearContexto();
+        var registros = await lectura.RegistrosAuditoria.ToListAsync();
+
+        registros.Should().NotContain(r => r.EntidadTipo == nameof(CaeManager.Domain.Seguridad.SesionUsuario));
+        registros.Should().NotContain(r => r.DatosDespues != null && r.DatosDespues.Contains(sid.ToString()));
+    }
+
+    [Fact]
     public async Task Actualizar_un_solo_campo_no_duplica_el_resto_de_la_entidad_en_Antes_y_Despues()
     {
         Guid credencialId;

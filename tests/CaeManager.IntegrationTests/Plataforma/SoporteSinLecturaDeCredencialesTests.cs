@@ -19,7 +19,7 @@ namespace CaeManager.IntegrationTests.Plataforma;
 
 /// <summary>
 /// Soporte TALVEG no lee credenciales (migración <c>SoporteSinLecturaDeCredenciales</c>; OWASP ASVS 4.0.3
-/// V1.4.3 y V2.10.4): <c>cae_app_soporte</c>, el rol de la conexión en Sesión Privilegiada, no tiene
+/// V4.1.3 y V2.10.4): <c>cae_app_soporte</c>, el rol de la conexión en Sesión Privilegiada, no tiene
 /// ningún privilegio sobre <c>AspNetUserTokens</c> ni <c>CredencialesIntegracion</c>, y de
 /// <c>ClavesApi</c> lee todas las columnas salvo <c>HashClave</c>.
 ///

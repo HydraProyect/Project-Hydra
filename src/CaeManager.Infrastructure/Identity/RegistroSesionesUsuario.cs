@@ -22,7 +22,9 @@ public interface IRegistroSesionesUsuario
     /// <summary>
     /// ¿Existe la sesión <paramref name="sid"/> de esa cuenta y no está revocada? Se pregunta
     /// antes de conocer el Tenant (validador de la cookie), por eso va por la función
-    /// SECURITY DEFINER <c>app_sesion_vigente</c>.
+    /// SECURITY DEFINER <c>app_sesion_vigente</c>. Además, en una Sesión Privilegiada la conexión
+    /// adopta <c>cae_app_soporte</c>, que no lee <c>Sid</c> (migración <c>SoporteSinSidSesionUsuario</c>):
+    /// una consulta directa a la tabla rompería la revalidación de esa sesión.
     /// </summary>
     Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default);
 

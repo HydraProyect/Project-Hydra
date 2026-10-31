@@ -428,7 +428,9 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // Sesiones de cookie: cada fila lleva el identificador de sesión que viaja en la cookie,
             // y copiarlo a RegistroAuditoria (sin purga) lo dejaría fuera de la conservación de
             // 5 años de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
-            // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión.
+            // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión. Por eso Sid no está en
+            // PropiedadesSensiblesPorTipo: cae_app_soporte no puede leerlo (SoporteSinSidSesionUsuario,
+            // OWASP ASVS 4.0.3 V4.1.3), y esta exclusión es lo que evita que lo lea en RegistrosAuditoria.
             if (entrada.Entity is CaeManager.Domain.Seguridad.SesionUsuario) continue;
 
             // Cada llamada a una plataforma CAE de terceros: el propio UsoConexionPlataformaCae ya es el

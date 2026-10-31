@@ -26,6 +26,6 @@ public class SesionUsuarioConfiguration : IEntityTypeConfiguration<SesionUsuario
 
         // Sin FK hacia AspNetUsers, como RegistroInicioSesion: el rastro sobrevive a la baja de la
         // cuenta hasta su conservación. RLS, permisos, función de vigencia y purga: migración
-        // AnadeSesionesUsuario.
+        // AnadeSesionesUsuario; SoporteSinSidSesionUsuario retira Sid a cae_app_soporte.
     }
 }
