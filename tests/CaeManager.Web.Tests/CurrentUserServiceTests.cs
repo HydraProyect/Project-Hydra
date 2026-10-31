@@ -128,6 +128,50 @@ public class CurrentUserServiceTests
     }
 
     /// <summary>
+    /// El rol de origen sale de una proyección de la cuenta del Actor real, también en una Sesión
+    /// Privilegiada: la selección no cambia de cuenta (el token no lleva Usuario simulado) y lo que se lee no
+    /// trae credenciales. El orden hace determinista un estado que no debería existir.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_rol_de_origen_se_proyecta_de_la_cuenta_del_Actor_real(bool enSesionPrivilegiada)
+    {
+        var lectura = new LecturaCuentaFalsa(new EstadoCuentaPropia(false, false, ["GestorCae", "Administrador"]));
+        var servicios = new ServiceCollection().AddSingleton<ILecturaCuentaPropia>(lectura).BuildServiceProvider();
+        var servicio = new CurrentUserService(
+            new AuthenticationStateProviderFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador")),
+            new HttpContextAccessorFalso(null),
+            enSesionPrivilegiada ? new ClienteActivoSeleccionadoConSesionPrivilegiadaFalso() : new ClienteActivoSeleccionadoFalso(),
+            servicios);
+
+        (await servicio.ObtenerRolOrigenAsync()).Should().Be("Administrador");
+        lectura.Preguntadas.Should().Equal(UsuarioIdDeEjemplo);
+    }
+
+    [Fact]
+    public async Task Sin_cuenta_visible_no_hay_rol_de_origen()
+    {
+        var servicios = new ServiceCollection().AddSingleton<ILecturaCuentaPropia>(new LecturaCuentaFalsa(null)).BuildServiceProvider();
+        var servicio = new CurrentUserService(
+            new AuthenticationStateProviderFalso(UsuarioAutenticadoCon(UsuarioIdDeEjemplo, "Administrador")),
+            new HttpContextAccessorFalso(null), new ClienteActivoSeleccionadoFalso(), servicios);
+
+        (await servicio.ObtenerRolOrigenAsync()).Should().BeNull();
+    }
+
+    private sealed class LecturaCuentaFalsa(EstadoCuentaPropia? estado) : ILecturaCuentaPropia
+    {
+        public List<Guid> Preguntadas { get; } = [];
+
+        public Task<EstadoCuentaPropia?> ObtenerAsync(Guid usuarioId, CancellationToken ct = default)
+        {
+            Preguntadas.Add(usuarioId);
+            return Task.FromResult(estado);
+        }
+    }
+
+    /// <summary>
     /// EquipoDelOperadorCaeExterno (quién revoca el acceso de un Operador CAE externo)
     /// pregunta el rol con el ámbito del Tenant de origen abierto. Ese ámbito no puede devolverle
     /// a una Sesión Privilegiada el rol de su casa: Soporte TALVEG no es Gestor CAE ni Operador CAE.

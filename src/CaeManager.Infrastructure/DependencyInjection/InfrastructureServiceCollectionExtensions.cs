@@ -246,6 +246,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Ni la marca de inicio de sesión, que el alta del TOTP lee como autenticación reciente.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        services.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
+        services.AddScoped<ILecturaCuentaPropia, LecturaCuentaPropia>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.

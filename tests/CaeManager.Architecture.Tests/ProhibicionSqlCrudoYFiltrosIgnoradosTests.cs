@@ -365,6 +365,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de que haya Tenant en el contexto. Parámetros interpolados de
         // FormattableString: EF los envía como parámetros, no como texto.
         [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
+        // Revalidación del circuito en una Sesión Privilegiada: app_cuenta_firmada_vigente
+        // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
+        // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.
+        [("src/CaeManager.Infrastructure/Identity/VigenciaSesionCuenta.cs", ".SqlQuery<bool>($\"SELECT public.app_cuenta_firmada_vigente({sello}) AS \\\"Value\\\"\")")] = 1,
 
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.
