@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -28,6 +29,51 @@ namespace CaeManager.IntegrationTests.Retirada;
 /// </summary>
 public class RetiradaTenantDemoServiceTests
 {
+    [Fact]
+    public async Task La_retirada_libera_el_buzon_del_Tenant_propietario_y_conserva_el_ajeno()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var retirado = new Tenant(DelegacionDemoSeeder.NombreTenantClienteDemo);
+        var ajeno = new Tenant("Tenant propietario ajeno");
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            foreach (var tenant in new[] { retirado, ajeno })
+            {
+                // Dar de alta el Tenant audita, y esa fila necesita Tenant resuelto.
+                using var ambito = AmbitoTenantExplicito.Establecer(tenant.Id);
+                db.Tenants.Add(tenant);
+                db.ReclamacionesBuzonIntegracion.Add(new ReclamacionBuzonIntegracion(
+                    tenant == retirado ? "retirado@example.com" : "ajeno@example.com", tenant.Id, Guid.NewGuid(), DateTime.UtcNow));
+                await db.SaveChangesAsync();
+                db.ChangeTracker.Clear();
+                (await db.ReclamacionesBuzonIntegracion.CountAsync()).Should().Be(1);
+            }
+        }
+
+        using (var scope = arnes.Servicios.CreateScope())
+        await using (var bootstrap = CrearContextoBootstrap(arnes))
+        {
+            var validado = await RetiradaTenantDemoService.ValidarTenantRetirableAsync(
+                scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>(), retirado.Id);
+            await RetiradaTenantDemoService.RetirarAsync(bootstrap, validado, NullLogger.Instance);
+        }
+
+        using (var scope = arnes.Servicios.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(retirado.Id))
+                (await db.ReclamacionesBuzonIntegracion.CountAsync()).Should().Be(0);
+            using (AmbitoTenantExplicito.Establecer(ajeno.Id))
+            {
+                (await db.ReclamacionesBuzonIntegracion.SingleAsync()).BuzonEmail.Should().Be("ajeno@example.com");
+                db.ReclamacionesBuzonIntegracion.Add(new ReclamacionBuzonIntegracion(
+                    "retirado@example.com", ajeno.Id, Guid.NewGuid(), DateTime.UtcNow));
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
     [Fact]
     public async Task La_retirada_rechaza_el_tenant_de_plataforma()
     {

@@ -54,7 +54,8 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// integraciones, clientState, payloads crudos de webhooks: todas las de conversor texto→texto),
 /// ni el hash de las claves de API, ni hashes de contraseña, sellos de seguridad o secretos TOTP
 /// de Identity (de los Usuarios solo se proyectan campos de perfil). Tampoco los catálogos
-/// globales sin Tenant.
+/// globales sin Tenant; <c>ReclamacionesBuzonIntegracion</c> no lo es, aunque no herede de
+/// <see cref="EntidadConTenant"/>, y sale en su propio fichero.
 /// </para>
 ///
 /// <para>
@@ -235,6 +236,28 @@ public static class ExportacionCompletaTenant
 
                 archivo.RegistrarRecuento(RecuentoEnPapelera, enPapelera);
                 recuentos[RecuentoEnPapelera] = enPapelera;
+
+                // Lleva TenantPropietarioId y no hereda de EntidadConTenant: TiposExportables no la alcanza. Se lee
+                // igual, bajo la RLS del Tenant pedido y con la guarda fila a fila.
+                var reclamaciones = 0L;
+                await archivo.EscribirAsync("datos/ReclamacionBuzonIntegracion.json", async salida =>
+                {
+                    await using var escritor = new Utf8JsonWriter(salida);
+                    escritor.WriteStartArray();
+                    var tipo = contexto.Model.FindEntityType(typeof(CaeManager.Domain.Integraciones.ReclamacionBuzonIntegracion))!;
+                    await foreach (var reclamacion in contexto.ReclamacionesBuzonIntegracion.AsNoTracking()
+                        .Where(r => r.TenantPropietarioId == tenantId).AsAsyncEnumerable().WithCancellation(cancellationToken))
+                    {
+                        GuardaTenantExportacion.Exigir(tenantId, reclamacion.TenantPropietarioId, tipo.ClrType.Name);
+                        EscribirEntidad(escritor, tipo, reclamacion);
+                        reclamaciones++;
+                        if (escritor.BytesPending > 64 * 1024)
+                            await escritor.FlushAsync(cancellationToken);
+                    }
+                    escritor.WriteEndArray();
+                }, cancellationToken);
+                archivo.RegistrarRecuento("ReclamacionBuzonIntegracion", reclamaciones);
+                recuentos["ReclamacionBuzonIntegracion"] = reclamaciones;
 
                 var usuarios = await EscribirUsuariosAsync(contexto, archivo, tenantId, cancellationToken);
                 archivo.RegistrarRecuento("Usuario", usuarios);
