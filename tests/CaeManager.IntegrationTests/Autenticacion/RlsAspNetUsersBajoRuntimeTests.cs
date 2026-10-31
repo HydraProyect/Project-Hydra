@@ -136,6 +136,14 @@ public class RlsAspNetUsersBajoRuntimeTests
         (await EjecutarAsync(conexion,
             """INSERT INTO "AspNetUserRoles" ("UserId", "RoleId") SELECT @id, "Id" FROM "AspNetRoles" WHERE "Name" = 'Consulta'""",
             e.PropiaX.Id)).Should().Be(1);
+
+        await using var traslado = new NpgsqlCommand(
+            """UPDATE "AspNetUserRoles" SET "UserId" = @ajena WHERE "UserId" = @propia""", conexion);
+        traslado.Parameters.AddWithValue("ajena", e.OperadorDelegadoY.Id);
+        traslado.Parameters.AddWithValue("propia", e.PropiaX.Id);
+        var trasladar = () => traslado.ExecuteNonQueryAsync();
+        (await trasladar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501",
+            "el WITH CHECK impide llevar el rol propio a una cuenta de otro Tenant");
     }
 
     [Fact]

@@ -18,8 +18,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// cuenta: lo que ve quien opera otro Tenant sigue siendo lo que ya veía al cruzar las dos tablas.</item>
 /// <item><c>roles_cuenta_escritura</c> (todas las órdenes, USING y WITH CHECK): el Tenant de origen de la
 /// cuenta es el Tenant activo. Es la frontera de <c>EditarUsuarioCommand</c> y
-/// <c>AsignarRolACuentaCommand</c>, que solo gobiernan cuentas propias del Tenant activo: ver a un Operador
-/// CAE externo delegado no da derecho a cambiar su rol.</item>
+/// <c>AsignarRolACuentaCommand</c>, que solo gobiernan cuentas propias del Tenant activo: ver la cuenta de un
+/// Gestor CAE del Operador CAE externo delegado no da derecho a cambiar su rol.</item>
 /// </list>
 ///
 /// <para>
@@ -29,7 +29,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations;
 /// <c>app_conceder_administrador_por_plataforma</c> y las demás) corren como el rol propietario, superusuario
 /// en todos los entornos, que evita RLS. Si dejara de serlo seguirían funcionando: <c>AspNetUsers</c> no lleva
 /// FORCE, así que la lectura ve la cuenta sin contexto, y la concesión por plataforma escribe en una cuenta
-/// del Tenant del contexto. Las claves foráneas en cascada no pasan por las políticas.
+/// del Tenant del contexto. No vale lo mismo para los seeders: con un propietario sometido a RLS, escribir un
+/// rol por la identidad de bootstrap exigiría un contexto firmado con el Tenant de la cuenta. Las claves
+/// foráneas en cascada no pasan por las políticas.
+/// </para>
+///
+/// <para>
+/// Exige la versión anterior ya desplegada (expand/contract): el migrador corre mientras la ranura anterior
+/// sigue sirviendo, y una versión que lea los roles sin Tenant en el inicio de sesión construiría el principal
+/// sin rol.
 /// </para>
 ///
 /// <para>

@@ -50,9 +50,9 @@ namespace CaeManager.Infrastructure.Identity;
 /// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
 /// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Los roles
-/// de la cuenta se leen igual: <c>AspNetUserRoles</c> sigue la visibilidad de
-/// <c>AspNetUsers</c> (migración <c>ProtegeRolesDeCuentaConRls</c>). Las
-/// escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
+/// de la cuenta (<c>GetRolesAsync</c>; no <c>IsInRoleAsync</c> ni <c>GetUsersInRoleAsync</c>)
+/// se leen en ese mismo ámbito, para no depender de que <c>AspNetUserRoles</c> deje ver
+/// filas sin Tenant. Las escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
 /// de la contraseña, el vínculo de la identidad de Microsoft) corren en el Tenant de la cuenta que se
 /// escribe. Fuera de ese ámbito, o con Tenant, el almacén se comporta como el de
 /// Identity y la política decide.

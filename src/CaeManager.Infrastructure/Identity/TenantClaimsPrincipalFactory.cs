@@ -98,8 +98,8 @@ public class TenantClaimsPrincipalFactory(
     public override async Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
     {
         // Fuera de sesión (inicio de sesión, revalidación) no hay Tenant actual: el ámbito es el de la
-        // cuenta que Identity acaba de cargar. La clase base lee sus roles, y AspNetUserRoles tiene RLS:
-        // sin este ámbito el principal saldría sin rol. También vale para el ajuste de su Tenant, abajo.
+        // cuenta que Identity acaba de cargar. La clase base lee sus roles dentro de él, para no depender
+        // de que AspNetUserRoles deje ver filas sin Tenant. También vale para el ajuste de su Tenant, abajo.
         using var enTenantDeLaCuenta = AmbitoTenantExplicito.Establecer(user.TenantId);
         var principal = await base.CreateAsync(user);
 
