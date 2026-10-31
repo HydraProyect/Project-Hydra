@@ -337,12 +337,13 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         _mediador.Almacen.AddRange(
         [
             Acceso(tipo: TipoAccesoDocumentoSensible.Apertura, ocurrido: Base, documentoId: documento),
-            Acceso(tipo: TipoAccesoDocumentoSensible.VersionAnterior, ocurrido: Base.AddMinutes(-1))
+            Acceso(tipo: TipoAccesoDocumentoSensible.VersionAnterior, ocurrido: Base.AddMinutes(-1)),
+            Acceso(tipo: TipoAccesoDocumentoSensible.EntregaExtension, ocurrido: Base.AddMinutes(-2))
         ]);
         var cut = Renderizar();
 
         var filas = Filas(cut);
-        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior"]);
+        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior", "Entrega a la extensión"]);
         Celda(filas[0], 2).Should().Be(documento.ToString());
         cut.FindAll(".accesos-sensibles-tabla tbody a, .accesos-sensibles-tabla tbody button")
             .Should().BeEmpty("es una pantalla de solo lectura");

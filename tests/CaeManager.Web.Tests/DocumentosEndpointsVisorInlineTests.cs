@@ -31,7 +31,7 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// <b>Qué no observa.</b> Si un navegador real pinta el PDF: eso depende de su visor integrado, no del
-/// servidor. Tampoco recorre el routing ni <c>Policies.SesionOExtension</c>, que este cambio no toca.
+/// servidor. Tampoco recorre el routing ni la autorización (solo cookie de sesión).
 /// </para>
 /// </summary>
 public class DocumentosEndpointsVisorInlineTests
