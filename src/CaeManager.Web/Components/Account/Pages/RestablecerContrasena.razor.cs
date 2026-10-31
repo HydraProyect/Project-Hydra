@@ -1,11 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
+using CaeManager.Web.Components.Account.Recursos;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Components.Account.Pages;
@@ -18,6 +21,8 @@ public partial class RestablecerContrasena : ComponentBase
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
     [Inject] private IEleccionLiderService CerrojoCredencial { get; set; } = default!;
+    [Inject] private IClienteActivoSeleccionado Seleccion { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosCuenta> Textos { get; set; } = default!;
 
     [SupplyParameterFromQuery(Name = "userId")]
     private string? UserId { get; set; }
@@ -55,6 +60,7 @@ public partial class RestablecerContrasena : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        if (DenegarSesionPrivilegiada()) return;
         if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code))
         {
             _enlaceInvalido = true;
@@ -84,8 +90,24 @@ public partial class RestablecerContrasena : ComponentBase
         _correoCuenta = _usuario.Email;
     }
 
+    // Coherencia con el rol de solo lectura que TenantRlsConnectionInterceptor adopta con esta misma coordenada:
+    // la guarda da un mensaje y un aviso en vez del fallo de Postgres (ASVS 4.0.3 V4.1.5). Solo actúa con la sesión
+    // iniciada y la selección viva: sin sesión, o con una selección caducada, retirada o de otro usuario, es null.
+    private bool DenegarSesionPrivilegiada()
+    {
+        if (Seleccion.SesionPrivilegiadaIdSeleccionada is { } sesionId)
+        {
+            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog).LogWarning(
+                "Restablecimiento de contraseña denegado durante la Sesión Privilegiada {SesionPrivilegiadaId}.", sesionId);
+            _mensajeError = Textos["SesionPrivilegiadaRestablecerContrasena"];
+            return true;
+        }
+        return false;
+    }
+
     private async Task GuardarAsync()
     {
+        if (DenegarSesionPrivilegiada()) return;
         if (_usuario is null || _token is null || Entrada is null) return;
 
         // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS

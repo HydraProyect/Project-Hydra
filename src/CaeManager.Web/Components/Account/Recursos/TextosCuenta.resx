@@ -164,6 +164,15 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Proteger mi cuenta</value>
   </data>
+  <data name="SesionPrivilegiadaCambiarContrasena" xml:space="preserve">
+    <value>No se puede cambiar la contraseña durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaDosFactores" xml:space="preserve">
+    <value>No se puede modificar la autenticación en dos pasos durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaRestablecerContrasena" xml:space="preserve">
+    <value>No se puede restablecer la contraseña durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
   <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
     <value>Tu cuenta de Microsoft no está dada de alta en {0}. Pide a tu Administrador que te dé de alta.</value>
   </data>

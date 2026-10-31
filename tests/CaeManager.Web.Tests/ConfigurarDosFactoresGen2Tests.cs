@@ -38,6 +38,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     public ConfigurarDosFactoresGen2Tests()
     {
         _almacen.Usuario = _usuario;
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         _almacen.Clave = ClavePrueba;
 
         var usuarios = CrearUsuarios(_almacen);

@@ -8,6 +8,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
 using CaeManager.Web.Components.Layout;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
@@ -49,6 +50,142 @@ public class AccesoCuentaEscenaTests : BunitContext
         Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
         Services.AddLocalization();
         AddAuthorization();
+    }
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_cambia_contrasena()
+    {
+        var seleccion = new SeleccionPrivilegiadaDePrueba();
+        Services.AddSingleton<IClienteActivoSeleccionado>(seleccion);
+        var avisos = new AvisosCapturados();
+        Services.AddSingleton<ILoggerFactory>(new LoggerFactory([avisos]));
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.es", DebeCambiarContrasena = true };
+        _almacen.Usuario = usuario;
+        var hash = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _almacen.HashContrasena = hash;
+        AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.HashContrasena.Should().Be(hash);
+        usuario.DebeCambiarContrasena.Should().BeTrue();
+        avisos.Mensajes.Should().ContainSingle().Which.Should().Contain(seleccion.SesionPrivilegiadaIdSeleccionada!.Value.ToString());
+    }
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_restablece_contrasena_con_enlace_valido()
+    {
+        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionPrivilegiadaDePrueba());
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.es", DebeCambiarContrasena = true };
+        _almacen.Usuario = usuario;
+        var hash = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _almacen.HashContrasena = hash;
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.HashContrasena.Should().Be(hash);
+        usuario.DebeCambiarContrasena.Should().BeTrue();
+    }
+
+    public enum SeleccionEnCookie { Viva, SinSesion, DeOtroUsuario, Ilegible, Retirada }
+
+    /// <summary>
+    /// Con la clase real, no con un doble: una cookie que nombra una Sesión Privilegiada solo cuenta con la sesión
+    /// iniciada, el token legible y de ese usuario, y sin que la revalidación la haya retirado. «Ilegible» es la rama
+    /// del token caducado (<c>CryptographicException</c> en <c>LeerCargaUtil</c>).
+    /// </summary>
+    private static ClienteActivoSeleccionado SeleccionDesdeCookie(SeleccionEnCookie caso, Guid usuarioId)
+    {
+        var proteccion = new EphemeralDataProtectionProvider();
+        var emisor = caso == SeleccionEnCookie.Ilegible ? new EphemeralDataProtectionProvider() : proteccion;
+        var usuarioDelToken = caso == SeleccionEnCookie.DeOtroUsuario ? Guid.NewGuid() : usuarioId;
+        var contexto = new DefaultHttpContext
+        {
+            User = caso == SeleccionEnCookie.SinSesion
+                ? new ClaimsPrincipal(new ClaimsIdentity())
+                : new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "test")),
+        };
+        contexto.Request.Headers.Cookie =
+            $"{ClienteActivoSeleccionado.NombreCookie}={ClienteActivoSeleccionado.Proteger(emisor, usuarioDelToken, Guid.NewGuid(), null, Guid.NewGuid())}";
+
+        var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessor { HttpContext = contexto }, proteccion);
+        if (caso == SeleccionEnCookie.Retirada)
+        {
+            seleccion.SesionPrivilegiadaIdSeleccionada.Should().NotBeNull("la selección estaba viva antes de retirarla");
+            seleccion.Invalidar();
+        }
+        return seleccion;
+    }
+
+    private async Task<(IRenderedComponent<RestablecerContrasena> Pagina, string HashAnterior)> RestablecerConSeleccionAsync(SeleccionEnCookie caso)
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.es" };
+        Services.AddSingleton<IClienteActivoSeleccionado>(SeleccionDesdeCookie(caso, usuario.Id));
+        _almacen.Usuario = usuario;
+        var hash = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _almacen.HashContrasena = hash;
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(new AutenticacionCapturada(new ClaimsPrincipal(new ClaimsIdentity()))).BuildServiceProvider();
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+        return (cut, hash);
+    }
+
+    [Theory]
+    [InlineData(SeleccionEnCookie.SinSesion)]
+    [InlineData(SeleccionEnCookie.DeOtroUsuario)]
+    [InlineData(SeleccionEnCookie.Ilegible)]
+    [InlineData(SeleccionEnCookie.Retirada)]
+    public async Task Una_cookie_residual_de_Sesion_Privilegiada_no_deja_a_nadie_sin_restablecer_su_contrasena(SeleccionEnCookie caso)
+    {
+        var (cut, hash) = await RestablecerConSeleccionAsync(caso);
+
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Contrase\u00f1a actualizada");
+        _almacen.HashContrasena.Should().NotBe(hash);
+    }
+
+    [Fact]
+    public async Task Una_seleccion_viva_leida_de_la_cookie_si_impide_restablecer_la_contrasena()
+    {
+        var avisos = new AvisosCapturados();
+        Services.AddSingleton<ILoggerFactory>(new LoggerFactory([avisos]));
+
+        var (cut, hash) = await RestablecerConSeleccionAsync(SeleccionEnCookie.Viva);
+
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.HashContrasena.Should().Be(hash);
+        avisos.Mensajes.Should().Contain(m => m.Contains("Sesión Privilegiada"));
+    }
+
+    private sealed class AvisosCapturados : ILoggerProvider, ILogger
+    {
+        public List<string> Mensajes { get; } = [];
+        public ILogger CreateLogger(string categoryName) => this;
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                Mensajes.Add(formatter(state, exception));
+        }
+
+        public void Dispose() { }
     }
 
     [Theory]

@@ -45,6 +45,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     public ConfigurarAutenticadorDosFactoresEscrituraTests()
     {
         _gestor = new GestorUsuariosFallaAVoluntad(_almacen);
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<UserManager<ApplicationUser>>(_gestor);
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
@@ -60,6 +61,56 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     private readonly AutenticacionFalsa _autenticacion = new(UsuarioId);
 
     private const string ContrasenaCorrecta = "Contrasena-De-Prueba-1";
+
+    [Fact]
+    public void Sesion_privilegiada_no_genera_clave_al_cargar()
+    {
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionPrivilegiadaDePrueba());
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.ClaveGuardada.Should().BeNull();
+        _registro.Mensajes.Should().Contain(m => m.Contains("Sesión Privilegiada"));
+    }
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_activa_factor_con_clave_existente()
+    {
+        var seleccion = new SeleccionPrivilegiadaDePrueba { SesionPrivilegiadaIdSeleccionada = null };
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(seleccion);
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        seleccion.SesionPrivilegiadaIdSeleccionada = Guid.NewGuid();
+        await EnviarCodigoAsync(cut);
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.DosFactoresActivo.Should().BeFalse();
+        _signIn.SesionReemitida.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_reautentica_ni_genera_clave()
+    {
+        var seleccion = new SeleccionPrivilegiadaDePrueba { SesionPrivilegiadaIdSeleccionada = null };
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(seleccion);
+        SinAutenticacionReciente();
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        seleccion.SesionPrivilegiadaIdSeleccionada = Guid.NewGuid();
+        await EnviarContrasenaAsync(cut, ContrasenaCorrecta);
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _almacen.ClaveGuardada.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_regenera_codigos()
+    {
+        var seleccion = new SeleccionPrivilegiadaDePrueba { SesionPrivilegiadaIdSeleccionada = null };
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(seleccion);
+        _almacen.DosFactoresActivo = true;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        seleccion.SesionPrivilegiadaIdSeleccionada = Guid.NewGuid();
+        await cut.Find("#codigo-regenerar").ChangeAsync(new ChangeEventArgs { Value = "123456" });
+        await cut.Find(".tarjeta-regenerar form").SubmitAsync();
+        cut.Find("[role=alert]").TextContent.Should().Contain("Sesión Privilegiada");
+        _mediador.CodigoAutenticador.Should().BeNull();
+    }
 
     private void SinAutenticacionReciente(bool conContrasena = true)
     {

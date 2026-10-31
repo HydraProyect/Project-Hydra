@@ -11,6 +11,7 @@
 @attribute [Authorize]
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
+@using CaeManager.Application.Common
 @using CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
@@ -31,6 +32,7 @@
 @inject IMediator Mediator
 @inject CaeManager.Infrastructure.Coordinacion.IEleccionLiderService CerrojoVerificacion
 @inject IDataProtectionProvider ProteccionDatos
+@inject IClienteActivoSeleccionado Seleccion
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -297,6 +299,13 @@
         Regenerar ??= new DatosRegenerar();
         Reautenticacion ??= new DatosReautenticacion();
 
+        if (DenegarEscrituraPrivilegiada())
+        {
+            _errorCarga = MensajeSesionPrivilegiada;
+            _cargando = false;
+            return;
+        }
+
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _principal = estadoAutenticacion.User;
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -374,6 +383,7 @@
 
     private async Task ReautenticarAsync()
     {
+        if (DenegarEscrituraPrivilegiada()) { mensajeError = MensajeSesionPrivilegiada; return; }
         if (_usuario is null || _dosFactoresActivo || _reautenticado || _reautenticacionConMicrosoft
             || Reautenticacion is null || Entrada is null)
             return;
@@ -465,6 +475,7 @@
 
     private async Task VerificarAsync()
     {
+        if (DenegarEscrituraPrivilegiada()) { mensajeError = MensajeSesionPrivilegiada; return; }
         if (Entrada is null || _usuario is null) return;
 
         // Se comprueba otra vez al activar, no solo al enseñar la clave: el POST del código es una
@@ -540,8 +551,22 @@
         _codigosRecuperacion = codigos.Valor;
     }
 
+    private string MensajeSesionPrivilegiada => Textos["SesionPrivilegiadaDosFactores"];
+
+    // Coherencia con el rol de solo lectura que TenantRlsConnectionInterceptor adopta con esta misma coordenada:
+    // la guarda da un mensaje y un aviso en vez del fallo de Postgres (ASVS 4.0.3 V4.1.5), también al cargar, que
+    // generaría la clave. Una selección caducada, retirada o de otro usuario ya llega aquí como null.
+    private bool DenegarEscrituraPrivilegiada()
+    {
+        if (Seleccion.SesionPrivilegiadaIdSeleccionada is not { } sesionId) return false;
+        LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog).LogWarning(
+            "Modificación de la autenticación en dos pasos denegada durante la Sesión Privilegiada {SesionPrivilegiadaId}.", sesionId);
+        return true;
+    }
+
     private async Task RegenerarCodigosAsync()
     {
+        if (DenegarEscrituraPrivilegiada()) { mensajeError = MensajeSesionPrivilegiada; return; }
         if (_usuario is null || !_dosFactoresActivo) return;
 
         // Mismo cerrojo no bloqueante que LoginCon2fa (verificar-2fa:{userId}): la página es SSR
