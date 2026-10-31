@@ -61,12 +61,22 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
                 "AsignacionOperadorDelegado.NoAutorizado",
                 "Para retirar a esta persona, vuelve a tu organización."));
 
+        // La de un Operador CAE externo cierra además su cartera, que es dato del Tenant
+        // propietario: desde la casa del Operador CAE externo posicion_en_la_asignacion deja
+        // leerla pero no escribirla, y el guardado fallaría entero. Se rechaza antes de
+        // tocar nada, tenga o no cartera vigente, para que la regla no dependa del dato.
+        var deOperadorExterno = delegacion.Proposito == PropositoDelegacion.OperadorExterno;
+        if (deOperadorExterno && tenantActivo != tenantPropietarioId)
+            return Result.Fallo(Error.Crear(
+                "AsignacionOperadorDelegado.RequiereTenantPropietario",
+                "Pide a la organización cuyos datos gestiona que retire a esta persona."));
+
         repositorio.Eliminar(asignacion);
 
         // La fila antigua se borra; la cartera se CIERRA. La diferencia es
         // deliberada: el modelo nuevo conserva el rastro de quién operó qué y
         // hasta cuándo, y borrarla perdería exactamente eso.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
+        if (deOperadorExterno)
             await asignacionesWriter.CerrarCarteraOperadorAsync(
                 tenantPropietarioId, delegacion.TenantConsultoraId,
                 asignacion.UsuarioId, MotivoCierreAsignacion.Revocada, cancellationToken);
