@@ -124,6 +124,8 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.AccesoPlataformaCaeEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesIntegracion =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
+    private readonly IDataProtector _protectorCredencialesConexionPlataformaCae =
+        dataProtectionProvider.CreateProtector("CaeManager.CredencialConexionPlataformaCae.Credenciales.v1");
     // Protector propio, separado del de credenciales (auditoría módulo 6):
     // el payload crudo de un webhook es PHI/PII de conversación (cuerpos,
     // teléfonos, nombres), no un secreto de autenticación — un compromiso de
@@ -446,6 +448,9 @@ public class CaeManagerDbContext(
     public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
     IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
+    public DbSet<ConexionPlataformaCae> ConexionesPlataformaCae => Set<ConexionPlataformaCae>();
+    public DbSet<CredencialConexionPlataformaCae> CredencialesConexionPlataformaCae => Set<CredencialConexionPlataformaCae>();
+    public DbSet<UsoConexionPlataformaCae> UsosConexionPlataformaCae => Set<UsoConexionPlataformaCae>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
     public DbSet<ReclamacionBuzonIntegracion> ReclamacionesBuzonIntegracion => Set<ReclamacionBuzonIntegracion>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
@@ -562,6 +567,13 @@ public class CaeManagerDbContext(
         // (LineaWhatsApp es satélite de ConexionIntegracion) — mismo
         // protector, mismo criterio que RefreshToken/ClientState.
         builder.Entity<LineaWhatsApp>().Property(l => l.TokenAcceso).HasConversion(conversorCredencialesIntegracion);
+
+        // Protector propio: la credencial de API de un acuerdo con una plataforma CAE de terceros.
+        var conversorCredencialesConexionPlataformaCae = new ValueConverter<string, string>(
+            valorPlano => _protectorCredencialesConexionPlataformaCae.Protect(valorPlano),
+            valorCifrado => _protectorCredencialesConexionPlataformaCae.Unprotect(valorCifrado));
+
+        builder.Entity<CredencialConexionPlataformaCae>().Property(c => c.SecretoApi).HasConversion(conversorCredencialesConexionPlataformaCae);
 
         // Payload crudo de webhook cifrado en reposo (auditoría módulo 6):
         // compatibilidad con lo ya escrito antes de este cambio, mismo

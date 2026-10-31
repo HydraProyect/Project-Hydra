@@ -6893,6 +6893,77 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ConexionesIntegracion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.ConexionPlataformaCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("ProveedorPlataformaCaeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProveedorPlataformaCaeId");
+
+                    b.HasIndex("TenantId", "Nombre")
+                        .IsUnique()
+                        .HasFilter("\"EstaEliminado\" = false");
+
+                    b.ToTable("ConexionesPlataformaCae", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.CredencialConexionPlataformaCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConexionPlataformaCaeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SecretoApi")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ConexionPlataformaCaeId")
+                        .IsUnique();
+
+                    b.ToTable("CredencialesConexionPlataformaCae", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Integraciones.CredencialIntegracion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7266,6 +7337,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<bool>("ConectorApiActivo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Grupo")
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
@@ -7288,6 +7362,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000001"),
                             Activo = true,
                             Codigo = "nalanda",
+                            ConectorApiActivo = false,
                             Grupo = "Once For All",
                             Nombre = "Nalanda"
                         },
@@ -7296,6 +7371,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000002"),
                             Activo = true,
                             Codigo = "dokify",
+                            ConectorApiActivo = false,
                             Grupo = "Once For All",
                             Nombre = "Dokify"
                         },
@@ -7304,6 +7380,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000003"),
                             Activo = true,
                             Codigo = "twind",
+                            ConectorApiActivo = false,
                             Grupo = "Twind (CTAIMA Group)",
                             Nombre = "Twind"
                         },
@@ -7312,6 +7389,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000004"),
                             Activo = true,
                             Codigo = "ctaimacae-legacy",
+                            ConectorApiActivo = false,
                             Grupo = "Twind (CTAIMA Group)",
                             Nombre = "CTAIMACAE (legacy)"
                         },
@@ -7320,6 +7398,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000005"),
                             Activo = true,
                             Codigo = "e-coordina",
+                            ConectorApiActivo = false,
                             Grupo = "Twind (CTAIMA Group)",
                             Nombre = "e-coordina"
                         },
@@ -7328,6 +7407,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000006"),
                             Activo = true,
                             Codigo = "metacontratas",
+                            ConectorApiActivo = false,
                             Nombre = "Metacontratas"
                         },
                         new
@@ -7335,6 +7415,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000007"),
                             Activo = true,
                             Codigo = "coordinaplus",
+                            ConectorApiActivo = false,
                             Grupo = "Addingplus",
                             Nombre = "CoordinaPlus"
                         },
@@ -7343,6 +7424,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000008"),
                             Activo = true,
                             Codigo = "ucae",
+                            ConectorApiActivo = false,
                             Nombre = "UCAE"
                         },
                         new
@@ -7350,6 +7432,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000009"),
                             Activo = true,
                             Codigo = "validate",
+                            ConectorApiActivo = false,
                             Nombre = "Validate"
                         },
                         new
@@ -7357,6 +7440,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000001"),
                             Activo = true,
                             Codigo = "egestiona",
+                            ConectorApiActivo = false,
                             Nombre = "eGestiona"
                         },
                         new
@@ -7364,6 +7448,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000002"),
                             Activo = true,
                             Codigo = "smartosh",
+                            ConectorApiActivo = false,
                             Grupo = "Prevencontrol",
                             Nombre = "SmartOSH"
                         },
@@ -7372,6 +7457,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000003"),
                             Activo = true,
                             Codigo = "ecogestor",
+                            ConectorApiActivo = false,
                             Grupo = "Eurofins",
                             Nombre = "EcoGestor"
                         },
@@ -7380,6 +7466,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000004"),
                             Activo = true,
                             Codigo = "sabentis",
+                            ConectorApiActivo = false,
                             Nombre = "Sabentis"
                         },
                         new
@@ -7387,6 +7474,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000005"),
                             Activo = true,
                             Codigo = "unifikas",
+                            ConectorApiActivo = false,
                             Nombre = "Unifikas"
                         },
                         new
@@ -7394,6 +7482,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000006"),
                             Activo = true,
                             Codigo = "quiron-prevencion",
+                            ConectorApiActivo = false,
                             Grupo = "Quirónprevención",
                             Nombre = "Quirón Prevención"
                         },
@@ -7402,6 +7491,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000007"),
                             Activo = true,
                             Codigo = "previntegral",
+                            ConectorApiActivo = false,
                             Nombre = "Previntegral"
                         },
                         new
@@ -7409,6 +7499,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000008"),
                             Activo = true,
                             Codigo = "norprevencion",
+                            ConectorApiActivo = false,
                             Grupo = "Vithas",
                             Nombre = "Norprevención"
                         },
@@ -7417,6 +7508,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000a-0000-0000-0000-000000000009"),
                             Activo = true,
                             Codigo = "ergasia",
+                            ConectorApiActivo = false,
                             Nombre = "Ergasia"
                         },
                         new
@@ -7424,6 +7516,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000b-0000-0000-0000-000000000001"),
                             Activo = true,
                             Codigo = "valora",
+                            ConectorApiActivo = false,
                             Nombre = "Avanta Prevención"
                         },
                         new
@@ -7431,6 +7524,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000b-0000-0000-0000-000000000002"),
                             Activo = true,
                             Codigo = "playcae",
+                            ConectorApiActivo = false,
                             Nombre = "PlayCAE"
                         },
                         new
@@ -7438,6 +7532,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000b-0000-0000-0000-000000000003"),
                             Activo = true,
                             Codigo = "docuprl",
+                            ConectorApiActivo = false,
                             Nombre = "DocuPRL"
                         },
                         new
@@ -7445,6 +7540,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000b-0000-0000-0000-000000000004"),
                             Activo = false,
                             Codigo = "arch",
+                            ConectorApiActivo = false,
                             Nombre = "Arch"
                         },
                         new
@@ -7452,6 +7548,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("6000000b-0000-0000-0000-000000000005"),
                             Activo = false,
                             Codigo = "opground",
+                            ConectorApiActivo = false,
                             Nombre = "Opground"
                         });
                 });
@@ -7548,6 +7645,58 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("SuscripcionesWebhook", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.UsoConexionPlataformaCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AcreditacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClaveIdempotencia")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ConexionPlataformaCaeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("FinalizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("IniciadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Operacion")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ConexionPlataformaCaeId", "IniciadoEnUtc");
+
+                    b.ToTable("UsosConexionPlataformaCae", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Notificaciones.NotificacionUsuario", b =>
@@ -9831,6 +9980,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AddOnSubidaAutomaticaActivo")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -9896,6 +10048,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         new
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
+                            AddOnSubidaAutomaticaActivo = false,
                             CreadoEnUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
                             EsPlataforma = true,
                             Estado = "Activo",
@@ -11287,6 +11440,25 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.ConexionPlataformaCae", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Integraciones.ProveedorPlataformaCae", null)
+                        .WithMany()
+                        .HasForeignKey("ProveedorPlataformaCaeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.CredencialConexionPlataformaCae", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Integraciones.ConexionPlataformaCae", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ConexionPlataformaCaeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
                 {
                     b.HasOne("CaeManager.Domain.Integraciones.ConexionIntegracion", null)
@@ -11303,6 +11475,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany("MiembrosPool")
                         .HasForeignKey("LineaWhatsAppId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Integraciones.UsoConexionPlataformaCae", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Integraciones.ConexionPlataformaCae", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ConexionPlataformaCaeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

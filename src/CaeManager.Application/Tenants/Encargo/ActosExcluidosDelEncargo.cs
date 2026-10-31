@@ -5,6 +5,8 @@ using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
+using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
@@ -103,6 +105,8 @@ public static class ActosExcluidosDelEncargo
         typeof(ReactivarConexionCommand),
         typeof(CrearLineaWhatsAppCommand),
         typeof(ActualizarLineaWhatsAppCommand),
+        typeof(GuardarConexionPlataformaCaeCommand),
+        typeof(RetirarConexionPlataformaCaeCommand),
         typeof(ObtenerLineasWhatsAppQuery),
         // Configuración global de IA del Tenant propietario y su presupuesto.
         typeof(ActualizarLecturaIaGlobalCommand),

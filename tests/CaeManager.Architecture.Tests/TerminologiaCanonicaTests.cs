@@ -495,7 +495,13 @@ public class TerminologiaCanonicaTests
         // la Sesión Privilegiada seleccionada (IClienteActivoSeleccionado ×1 cada uno) para no pedir
         // ConexionesIntegracion.UltimoError bajo cae_app_soporte; es la misma señal con la que
         // TenantRlsConnectionInterceptor adopta ese rol, y son consumidores de la interfaz existente.
-        ["ClienteActivo"] = 78,
+        // 78 (antes 77): OperacionesConectorPlataformaCae lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) porque, ya revocada, no revalida y la conexión sigue siendo de
+        // cae_app_soporte, sin INSERT sobre el uso; es la misma señal y un consumidor de la interfaz existente.
+        // 79 (antes 78): ObtenerValidacionOficialDocumentoQueryHandler lee la misma señal
+        // (IClienteActivoSeleccionado ×1) para no pedir VerificacionesDocumentoOficial.CodigoVerificacion
+        // bajo cae_app_soporte; es otro consumidor de la interfaz existente.
+        ["ClienteActivo"] = 79,
     };
 
     [Theory]
