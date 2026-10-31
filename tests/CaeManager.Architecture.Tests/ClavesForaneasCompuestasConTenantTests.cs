@@ -96,7 +96,7 @@ public class ClavesForaneasCompuestasConTenantTests
                 Padre: fk.PrincipalEntityType.GetTableName())))
             .ToHashSet();
 
-        ComprobacionTenantClavesForaneas.Relaciones.Should().HaveCount(34);
+        ComprobacionTenantClavesForaneas.Relaciones.Should().HaveCount(34).And.OnlyHaveUniqueItems();
         ComprobacionTenantClavesForaneas.Relaciones
             .Where(r => !compuestas.Contains((r.Hija, r.Columna, r.Padre)))
             .Should().BeEmpty();

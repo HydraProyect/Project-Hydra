@@ -146,6 +146,33 @@ public class ClavesForaneasCompuestasConTenantTests : IAsyncLifetime
         ((long)(await verificacion.ExecuteScalarAsync())!).Should().Be(1, "la comprobación no corrige nada");
     }
 
+    [Fact]
+    public async Task La_comprobacion_previa_aborta_con_un_rol_sujeto_a_RLS_en_vez_de_contar_cero()
+    {
+        await using var conexion = await AbrirConexionAsync();
+        await EjecutarAsync(conexion, "SET ROLE cae_app_runtime");
+
+        var excepcion = await Record.ExceptionAsync(() =>
+            EjecutarAsync(conexion, ComprobacionTenantClavesForaneas.SqlComprobacionPrevia));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.MessageText.Should().Contain("no evita la RLS");
+    }
+
+    [Fact]
+    public async Task Un_hijo_nuevo_por_navegacion_en_un_padre_cargado_se_persiste_con_su_Tenant()
+    {
+        await using (var contexto = CrearContexto(_tenantA))
+        {
+            var contacto = await contexto.ContactosAgenda.Include(c => c.Roles).SingleAsync(c => c.Id == _contactoA.Id);
+            contacto.EstablecerRoles([RolContacto.ContactoCae]);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var verificacion = CrearContexto(_tenantA);
+        var rol = await verificacion.ContactosAgendaRoles.SingleAsync(r => r.ContactoAgendaId == _contactoA.Id);
+        rol.TenantId.Should().Be(_tenantA);
+    }
+
     private async Task EsperarRechazoEnBAsync(Action<CaeManagerDbContext> anadir)
     {
         await using var contexto = CrearContexto(_tenantB);
