@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Security.Claims;
+using CaeManager.Domain.Configuracion;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
@@ -7,8 +9,8 @@ namespace CaeManager.Web.Services;
 
 /// <summary>
 /// Caducidad de la sesión de la cookie de aplicación (decisiones de 2026-10-28 y
-/// 2026-10-31; ASVS 4.0.3 V3.3.2, V3.4.1): 30 minutos sin interacción del usuario,
-/// como máximo 12 horas desde el inicio de sesión aunque haya actividad, y cookie
+/// 2026-10-31; ASVS 4.0.3 V3.3.2, V3.4.1): el plazo de inactividad del Tenant
+/// propietario de la cuenta, 30 minutos sin interacción si no lo cambió, y como máximo 12 horas desde el inicio de sesión aunque haya actividad, y cookie
 /// no persistente, que termina al cerrar el navegador.
 ///
 /// <para>
@@ -42,6 +44,14 @@ namespace CaeManager.Web.Services;
 /// caer antes de plazo, pero al recargar sigue valiendo la cookie.
 /// El cliente puede mentir con su propia cookie, pero eso no alarga el tope de 12 h;
 /// el plazo protege un puesto desatendido, no frente a quien ya tiene la sesión.
+/// </para>
+///
+/// <para>
+/// <b>Plazo del Tenant.</b> Viaja en el ticket
+/// (<see cref="TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad"/>), así que la
+/// cookie toma un cambio en la siguiente revalidación del sello y el circuito se queda con
+/// el que tenía al conectarse, hasta que recarga. Sin claim legible y en rango, vale
+/// <see cref="Inactividad"/>: nunca un plazo mayor por un dato que no se entiende.
 /// </para>
 ///
 /// <para>
@@ -80,12 +90,13 @@ public static class CaducidadSesion
     /// <summary>POST sin cuerpo que envía <c>actividad-sesion.js</c> cuando la persona interactúa.</summary>
     public const string RutaSenalInteraccion = "/sesion/actividad";
 
-    public static readonly TimeSpan Inactividad = TimeSpan.FromMinutes(30);
+    /// <summary>El plazo cuando el ticket no trae uno válido del Tenant: ver <see cref="PlazoInactividad"/>.</summary>
+    public static readonly TimeSpan Inactividad = TimeSpan.FromMinutes(ParametroSistema.MinutosInactividadSesionPorDefecto);
     public static readonly TimeSpan DuracionMaxima = TimeSpan.FromHours(12);
 
     /// <summary>
     /// Vida de la cookie en el manejador: solo es una cota exterior. El plazo efectivo
-    /// es <see cref="Inactividad"/>.
+    /// es el de <see cref="PlazoInactividad"/>.
     /// </summary>
     public static readonly TimeSpan VidaCookie = TimeSpan.FromHours(8);
 
@@ -135,6 +146,7 @@ public static class CaducidadSesion
             var sid = CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.LeerSid(contexto.Principal);
             var ultimaRegistrada = sid is { } sesion ? actividad?.Leer(sesion) : null;
             var sinMarcaInteraccion = !propiedades.TryGetValue(MarcaInteraccion, out var interaccion) || interaccion is null;
+            var plazo = PlazoInactividad(contexto.Principal);
             if (!propiedades.TryGetValue(MarcaInicio, out var inicio)
                 || inicio is null
                 || !EsVigente(inicio, ahora)
@@ -142,8 +154,8 @@ public static class CaducidadSesion
                 // se rechaza en la primera petición, sin esperar a la revalidación del sello.
                 || sid is null
                 || !(sinMarcaInteraccion
-                    ? ultimaRegistrada is null || SigueActiva(ultimaRegistrada, ahora)
-                    : SigueActiva(Leer(interaccion), ultimaRegistrada, ahora)))
+                    ? ultimaRegistrada is null || SigueActiva(ultimaRegistrada, ahora, plazo)
+                    : SigueActiva(Leer(interaccion), ultimaRegistrada, ahora, plazo)))
             {
                 contexto.RejectPrincipal();
                 await contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
@@ -203,7 +215,18 @@ public static class CaducidadSesion
         EsVigente(principal.FindFirst(MarcaInicio)?.Value, ahora);
 
     /// <summary>
-    /// ¿Hubo una interacción hace menos de <see cref="Inactividad"/>? Vale la más reciente
+    /// El plazo de inactividad del principal. Un claim ausente, ilegible o fuera de rango vale
+    /// <see cref="Inactividad"/>.
+    /// </summary>
+    public static TimeSpan PlazoInactividad(ClaimsPrincipal? principal) =>
+        int.TryParse(principal?.FindFirst(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad)?.Value,
+                NumberStyles.None, CultureInfo.InvariantCulture, out var minutos)
+        && ParametroSistema.MinutosInactividadSesionValidos(minutos)
+            ? TimeSpan.FromMinutes(minutos)
+            : Inactividad;
+
+    /// <summary>
+    /// ¿Hubo una interacción dentro del <see cref="PlazoInactividad"/>? Vale la más reciente
     /// entre la del principal y <paramref name="ultimaRegistrada"/>, porque el principal de
     /// un circuito se queda como estaba al conectarse. Sin marca de interacción cuenta el
     /// inicio de sesión, nunca el momento actual.
@@ -211,18 +234,18 @@ public static class CaducidadSesion
     public static bool SigueActiva(ClaimsPrincipal principal, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora)
     {
         var marca = Leer(principal.FindFirst(MarcaInteraccion)?.Value) ?? Leer(principal.FindFirst(MarcaInicio)?.Value);
-        return SigueActiva(marca is null || marca < ultimaRegistrada ? ultimaRegistrada : marca, ahora);
+        return SigueActiva(marca is null || marca < ultimaRegistrada ? ultimaRegistrada : marca, ahora, PlazoInactividad(principal));
     }
 
     /// <summary>
     /// Para la cookie: si dos respuestas se cruzan, gana el último <c>Set-Cookie</c> y la marca
     /// puede retroceder, así que también vale lo anotado. Una marca ilegible no vale nunca.
     /// </summary>
-    private static bool SigueActiva(DateTimeOffset? marca, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora) =>
-        marca is { } legible && SigueActiva(legible < ultimaRegistrada ? ultimaRegistrada : legible, ahora);
+    private static bool SigueActiva(DateTimeOffset? marca, DateTimeOffset? ultimaRegistrada, DateTimeOffset ahora, TimeSpan plazo) =>
+        marca is { } legible && SigueActiva(legible < ultimaRegistrada ? ultimaRegistrada : legible, ahora, plazo);
 
-    private static bool SigueActiva(DateTimeOffset? ultima, DateTimeOffset ahora) =>
-        ultima is { } momento && momento <= ahora && ahora - momento < Inactividad;
+    private static bool SigueActiva(DateTimeOffset? ultima, DateTimeOffset ahora, TimeSpan plazo) =>
+        ultima is { } momento && momento <= ahora && ahora - momento < plazo;
 
     // Sec-Fetch-Site: SameSite=Lax deja pasar un POST desde otro subdominio del mismo sitio, y
     // una página así no debe poder mantener viva una sesión. Sin la cabecera, no cuenta.

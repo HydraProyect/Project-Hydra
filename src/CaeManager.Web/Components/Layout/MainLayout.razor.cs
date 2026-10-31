@@ -137,8 +137,14 @@ public partial class MainLayout
                 // del sistema, y hoy activar la autenticación en dos pasos era
                 // opt-in — nadie la exigía. ConfigurarAutenticadorDosFactores.razor
                 // usa AuthLayout, no este Layout, así que no vuelve a pasar por
-                // aquí y no hay bucle de redirección.
-                if (roles.Contains(Roles.Administrador) && !await UserManager.GetTwoFactorEnabledAsync(usuario))
+                // aquí y no hay bucle de redirección. Si el Tenant la exige a todos los
+                // perfiles, la marca del ticket lo dice (TenantClaimsPrincipalFactory): así este
+                // guard no vuelve a leer el ajuste, y el dato de 2FA sigue siendo el de la base.
+                var dosFactoresExigidos = roles.Contains(Roles.Administrador)
+                    || estadoAutenticacion.User.HasClaim(
+                        TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
+                        TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores);
+                if (dosFactoresExigidos && !await UserManager.GetTwoFactorEnabledAsync(usuario))
                     Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
             });
         }

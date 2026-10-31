@@ -66,6 +66,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.EditarFichaTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
         // Al restaurar, quita la Delegación o el Oficio que se eliminaron mientras el Trabajador estaba eliminado.
         ("Trabajadores.RestaurarTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),
+        // La seguridad de acceso no se edita en el Tenant de plataforma: lo comprueba
+        // AutoridadSeguridadAcceso con el catálogo de Tenants.
+        ("Configuracion.ActualizarSeguridadAccesoCommandHandler", "ITenantsQueryContext"),
+        ("Configuracion.ObtenerSeguridadAccesoQueryHandler", "ITenantsQueryContext"),
         // La lista de Tenants beneficiarios autorizados incluye la vía de
         // Operación (lote 0 del selector de Tenant beneficiario): lee los
         // catálogos de asignación a través del predicado único

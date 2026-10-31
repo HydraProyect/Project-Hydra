@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
@@ -138,6 +139,78 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
             .Should().Be(_tenant.ToString());
     }
 
+    [Fact]
+    public async Task Si_el_Tenant_lo_exige_cualquier_perfil_sin_dos_factores_queda_a_medio_activar()
+    {
+        await AjustarTenantAsync(minutos: 45, exigeTodos: true);
+
+        var principal = await PrincipalDeAsync(
+            "gestor-exigido@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: false);
+
+        RequiereActivacion(principal).Should().BeTrue();
+        MotivoPendiente(principal).Should().Be(TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores);
+        principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad)?.Value.Should().Be("45");
+    }
+
+    [Fact]
+    public async Task Con_la_exigencia_cumplida_la_cuenta_no_queda_a_medio_activar()
+    {
+        await AjustarTenantAsync(minutos: 30, exigeTodos: true);
+
+        var principal = await PrincipalDeAsync(
+            "gestor-cumple@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: true);
+
+        RequiereActivacion(principal).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_la_exigencia_del_Tenant_un_perfil_que_no_es_Administrador_entra_sin_dos_factores()
+    {
+        await AjustarTenantAsync(minutos: 30, exigeTodos: false);
+
+        var principal = await PrincipalDeAsync(
+            "gestor-libre@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: false);
+
+        RequiereActivacion(principal).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_fila_de_parametros_valen_treinta_minutos_y_no_se_exige_nada()
+    {
+        var principal = await PrincipalDeAsync(
+            "sin-fila@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: false);
+
+        RequiereActivacion(principal).Should().BeFalse();
+        principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad)?.Value.Should().Be("30");
+    }
+
+    /// <summary>Un plazo guardado en AspNetUserClaims no puede sustituir al del Tenant.</summary>
+    [Fact]
+    public async Task Un_plazo_guardado_en_la_cuenta_no_cuenta()
+    {
+        await AjustarTenantAsync(minutos: 10, exigeTodos: false);
+
+        var principal = await PrincipalDeAsync(
+            "plazo-guardado@x.test", Roles.GestorCae, debeCambiarContrasena: false, dosFactores: false,
+            claimGuardado: new System.Security.Claims.Claim(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad, "480"));
+
+        principal.FindAll(TenantClaimsPrincipalFactory.TipoClaimMinutosInactividad).Select(c => c.Value)
+            .Should().ContainSingle().Which.Should().Be("10");
+    }
+
+    private async Task AjustarTenantAsync(int minutos, bool exigeTodos)
+    {
+        using var ambito = _servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(_tenant))
+        {
+            var parametros = new ParametroSistema(30, 15);
+            parametros.ActualizarSeguridadAcceso(minutos, exigeTodos);
+            contexto.ParametrosSistema.Add(parametros);
+            await contexto.SaveChangesAsync();
+        }
+    }
+
     private static string? MotivoPendiente(System.Security.Claims.ClaimsPrincipal principal) =>
         principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente)?.Value;
 
@@ -145,7 +218,8 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
         principal.HasClaim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true");
 
     private async Task<System.Security.Claims.ClaimsPrincipal> PrincipalDeAsync(
-        string email, string rol, bool debeCambiarContrasena, bool dosFactores)
+        string email, string rol, bool debeCambiarContrasena, bool dosFactores,
+        System.Security.Claims.Claim? claimGuardado = null)
     {
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -162,6 +236,8 @@ public class ClaimDeActivacionDeCuentaTests : IAsyncLifetime
 
         (await userManager.CreateAsync(usuario)).Succeeded.Should().BeTrue();
         (await userManager.AddToRoleAsync(usuario, rol)).Succeeded.Should().BeTrue();
+        if (claimGuardado is not null)
+            (await userManager.AddClaimAsync(usuario, claimGuardado)).Succeeded.Should().BeTrue();
 
         var factory = ambito.ServiceProvider
             .GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();

@@ -3,6 +3,7 @@ using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
+using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Facturacion.Commands.EliminarTarifaCliente;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
@@ -36,6 +37,7 @@ public class ExclusionesDelEncargoBehaviorTests
         { "Integraciones (por tipo)", new DesconectarBuzonCommand(Guid.NewGuid()) },
         { "TiposDocumento (por tipo)", new ActualizarLecturaIaGlobalCommand(Guid.NewGuid(), true) },
         { "Configuracion (por tipo)", new ActualizarPresupuestoIaCommand(10m) },
+        { "Seguridad de acceso (por tipo)", new ActualizarSeguridadAccesoCommand(30, false) },
     };
 
     public static TheoryData<string, object> ConsultasExcluidas => new()

@@ -274,6 +274,10 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":50 proyección y :53 exención — DOS apariciones en el mismo fichero, que es " +
                 "exactamente por lo que esta lista lleva conteo y no solo ruta. D-4 (d) retira la exención " +
                 "sin compensación: el tenant #1 nace en SinSuscripcion, que ya pasa el gate"),
+        ["src/CaeManager.Application/Configuracion/AutoridadSeguridadAcceso.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":34 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +
+                "evita rebajar el plazo o la exigencia de los Actores de Plataforma TALVEG"),
         ["src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":69 rechaza suscribir al tenant de plataforma. D-4: SE CONSERVA — es el invariante que " +

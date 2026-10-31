@@ -1,5 +1,6 @@
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
+using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
@@ -114,6 +115,8 @@ public static class ActosExcluidosDelEncargo
         typeof(ActualizarDeteccionTrabajadoresGlobalCommand),
         typeof(ActualizarPerfilDocumentoOficialGlobalCommand),
         typeof(ActualizarPresupuestoIaCommand),
+        // Seguridad de acceso del Tenant: solo su Administrador, leído en la base. Leerla sigue permitido.
+        typeof(ActualizarSeguridadAccesoCommand),
     };
 
     /// <summary>

@@ -7,6 +7,43 @@ namespace CaeManager.Domain.Tests.Configuracion;
 public class ParametroSistemaTests
 {
     [Fact]
+    public void La_seguridad_de_acceso_nace_con_30_minutos_y_sin_exigir_segundo_factor()
+    {
+        var parametros = new ParametroSistema(30, 15);
+
+        parametros.MinutosInactividadSesion.Should().Be(30);
+        parametros.ExigeSegundoFactorTodosLosPerfiles.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(5)]
+    [InlineData(480)]
+    public void ActualizarSeguridadAcceso_admite_los_limites_del_rango(int minutos)
+    {
+        var parametros = new ParametroSistema(30, 15);
+
+        parametros.ActualizarSeguridadAcceso(minutos, exigeSegundoFactorTodosLosPerfiles: true);
+
+        parametros.MinutosInactividadSesion.Should().Be(minutos);
+        parametros.ExigeSegundoFactorTodosLosPerfiles.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(481)]
+    [InlineData(0)]
+    public void ActualizarSeguridadAcceso_rechaza_lo_que_queda_fuera_del_rango(int minutos)
+    {
+        var parametros = new ParametroSistema(30, 15);
+
+        var accion = () => parametros.ActualizarSeguridadAcceso(minutos, exigeSegundoFactorTodosLosPerfiles: true);
+
+        accion.Should().Throw<ArgumentException>();
+        parametros.MinutosInactividadSesion.Should().Be(30);
+        parametros.ExigeSegundoFactorTodosLosPerfiles.Should().BeFalse();
+    }
+
+    [Fact]
     public void El_constructor_admite_valores_por_defecto_para_los_umbrales_de_visita()
     {
         var parametros = new ParametroSistema(30, 15);
