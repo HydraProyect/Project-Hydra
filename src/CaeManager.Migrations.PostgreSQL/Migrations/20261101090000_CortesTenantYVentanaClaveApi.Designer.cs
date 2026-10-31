@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261101020000_CortesTenantYVentanaClaveApi")]
+    [Migration("20261101090000_CortesTenantYVentanaClaveApi")]
     partial class CortesTenantYVentanaClaveApi
     {
         /// <inheritdoc />
@@ -10654,6 +10654,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FechaBajaUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("timestamp with time zone");
