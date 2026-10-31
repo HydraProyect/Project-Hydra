@@ -51,6 +51,16 @@ public partial class Trabajador360Gen2Tests
             Task.FromResult<VersionEstadoLeida?>(new VersionEstadoLeida(TenantLeido, 1));
     }
 
+    /// <summary>
+    /// Cierra la página como lo haría el renderizador al retirarla: su <c>Dispose</c>, en el despachador, serializado con
+    /// cualquier renderizado en vuelo. No se usa <c>DisposeComponentsAsync</c> de bUnit para esto: vacía su lista de raíces
+    /// justo después de encolar la baja en el despachador (<c>BunitRenderer.DisposeComponents</c>), y con el despachador
+    /// ocupado (un repintado por aviso en curso, una máquina cargada) la baja encuentra la lista ya vacía y no retira
+    /// nada, sin error ni reintento posible: la página seguía viva y escuchando.
+    /// </summary>
+    private static Task CerrarPaginaAsync(IRenderedComponent<CaeManager.Web.Features.Trabajadores.Pages.TrabajadorDetalle> cut) =>
+        cut.InvokeAsync(() => ((IDisposable)cut.Instance).Dispose());
+
     /// <summary>Cuántos oyentes tiene <see cref="CacheEstadoCircuito.CambioRecibido"/> (el campo del evento).</summary>
     private static int OyentesDe(CacheEstadoCircuito cache) =>
         (typeof(CacheEstadoCircuito)
@@ -109,7 +119,7 @@ public partial class Trabajador360Gen2Tests
 
         // Cerrada la página, la suscripción se da de baja y un aviso ya no relee nada (esperando de verdad).
         var antesDeCerrar = mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
-        await DisposeComponentsAsync();
+        await CerrarPaginaAsync(cut);
         OyentesDe(cache).Should().Be(0, "la página se dio de baja al cerrarse");
         notificador.Publicar(new AvisoCambioEstado(TenantLeido, 3, [id]));
         await Task.Delay(EsperaNegativa);
