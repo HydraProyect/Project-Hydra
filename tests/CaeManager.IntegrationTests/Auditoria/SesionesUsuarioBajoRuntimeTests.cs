@@ -12,7 +12,7 @@ namespace CaeManager.IntegrationTests.Auditoria;
 /// <c>SesionesUsuario</c> (revocación de sesión en servidor) bajo la identidad real de la aplicación
 /// (<c>cae_app_runtime</c>): RLS del Tenant propietario de la cuenta, solo la propia cuenta revoca,
 /// una revocación no se deshace, sin DELETE, <c>app_sesion_vigente</c> sin Tenant en el contexto y
-/// purga a 5 años.
+/// purga a 12 meses.
 /// </summary>
 public class SesionesUsuarioBajoRuntimeTests
 {
@@ -112,7 +112,7 @@ public class SesionesUsuarioBajoRuntimeTests
     }
 
     [Fact]
-    public async Task La_purga_borra_solo_lo_que_pasa_de_5_anos_y_el_runtime_solo_puede_pedirla()
+    public async Task La_purga_borra_solo_lo_que_pasa_de_12_meses_y_el_runtime_solo_puede_pedirla()
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         var cuenta = Guid.NewGuid();
@@ -126,8 +126,8 @@ public class SesionesUsuarioBajoRuntimeTests
             await using var sembrar = new NpgsqlCommand(
                 """
                 INSERT INTO "SesionesUsuario" ("Id", "UsuarioId", "Sid", "EmitidaEnUtc", "TenantId")
-                VALUES (@id1, @usuario, @viejo, now() - interval '61 months', @tenant),
-                       (@id2, @usuario, @reciente, now() - interval '59 months', @tenant);
+                VALUES (@id1, @usuario, @viejo, now() - interval '13 months', @tenant),
+                       (@id2, @usuario, @reciente, now() - interval '11 months', @tenant);
                 """, propietario);
             sembrar.Parameters.AddWithValue("id1", Guid.CreateVersion7());
             sembrar.Parameters.AddWithValue("id2", Guid.CreateVersion7());

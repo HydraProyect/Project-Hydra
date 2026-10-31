@@ -231,7 +231,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // lo que el usuario dejó puesto en un listado, y un filtro guardado
         // incluye la búsqueda libre: quien busca a un Trabajador por su DNI y
         // guarda el filtro dejaría ese DNI en datos antes/después, legible
-        // desde /auditoria y sin purga cuando el Trabajador se borra. El
+        // desde /auditoria aunque el Trabajador se borre. El
         // rastro conserva quién guardó, cambió o borró qué filtro, de qué
         // pantalla y con qué nombre, y cuándo; los valores siguen en la fila
         // FiltrosGuardados mientras exista. La vista recordada no escribe la
@@ -438,26 +438,26 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
 
             // Inicios de sesión: el propio RegistroInicioSesion ya es el registro
             // de auditoría, con retención de 12 meses y su purga. Duplicarlo como
-            // «Creado» en RegistroAuditoria (sin purga, P1-M2) guardaría para
-            // siempre IP, ciudad, coordenadas y huella de dispositivo de cada
+            // «Creado» en RegistroAuditoria (5 años) guardaría durante años
+            // IP, ciudad, coordenadas y huella de dispositivo de cada
             // intento, y rompería la minimización del RGPD.
             if (entrada.Entity is CaeManager.Domain.Seguridad.RegistroInicioSesion) continue;
 
             // Sesiones de cookie: cada fila lleva el identificador de sesión que viaja en la cookie,
-            // y copiarlo a RegistroAuditoria (sin purga) lo dejaría fuera de la conservación de
-            // 5 años de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
+            // y copiarlo a RegistroAuditoria (5 años) lo dejaría fuera de la conservación de
+            // 12 meses de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
             // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión. Por eso Sid no está en
             // PropiedadesSensiblesPorTipo: cae_app_soporte no puede leerlo (SoporteSinSidSesionUsuario,
             // OWASP ASVS 4.0.3 V4.1.3), y esta exclusión es lo que evita que lo lea en RegistrosAuditoria.
             if (entrada.Entity is CaeManager.Domain.Seguridad.SesionUsuario) continue;
 
             // Cada llamada a una plataforma CAE de terceros: el propio UsoConexionPlataformaCae ya es el
-            // registro, y duplicarlo en RegistroAuditoria (sin purga) metería dos filas por llamada.
+            // registro, y duplicarlo en RegistroAuditoria metería dos filas por llamada.
             if (entrada.Entity is UsoConexionPlataformaCae) continue;
 
             // Estado materializado: dato derivado que el recálculo rehace en la misma transacción que la acción. La acción
             // ya se audita; auditar además cada fila recalculada metería miles de «Creado» o «Modificado» por una sola
-            // acción (una Empresa con 800 Centros) en una tabla sin purga.
+            // acción (una Empresa con 800 Centros) en una tabla que se conserva 5 años.
             if (entrada.Entity.GetType().Namespace == typeof(CaeManager.Domain.EstadoMaterializado.EstadoRequisito).Namespace) continue;
 
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
