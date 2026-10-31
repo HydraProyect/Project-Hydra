@@ -301,7 +301,39 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(pregunta).ToBeHiddenAsync();
         // La vista pasa a ser la de la URL de destino: sin Cliente empresarial, con su búsqueda y su estado.
         // La franja, el buscador y las filas son además la barrera de la ausencia del panel, más abajo.
-        await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
+        try
+        {
+            await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
+        }
+        catch (PlaywrightException ex)
+        {
+            var urlActual = page.Url;
+            var estado = "No se pudo obtener el estado de los botones.";
+            var snapshot = "No se pudo obtener el aria snapshot de la franja.";
+            try
+            {
+                estado = await page.EvaluateAsync<string>("""
+                    () => JSON.stringify(Array.from(document.querySelectorAll('.franja-estado-boton'),
+                        boton => ({ texto: boton.innerText, estado: boton.getAttribute('data-estado'),
+                            ariaPressed: boton.getAttribute('aria-pressed'), html: boton.outerHTML })), null, 2)
+                    """);
+            }
+            catch (Exception diagnostico)
+            {
+                estado += $" {diagnostico.Message}";
+            }
+
+            try
+            {
+                snapshot = await page.Locator(".franja-estado").AriaSnapshotAsync(new() { Timeout = 1000 });
+            }
+            catch (Exception diagnostico)
+            {
+                snapshot += $" {diagnostico.Message}";
+            }
+
+            throw new PlaywrightException($"{ex.Message}\nURL actual: {urlActual}\nBotones de la franja: {estado}\nAria snapshot: {snapshot}", ex);
+        }
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "false");
         await Expect(buscador).ToHaveValueAsync(termino!);
         await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente");
