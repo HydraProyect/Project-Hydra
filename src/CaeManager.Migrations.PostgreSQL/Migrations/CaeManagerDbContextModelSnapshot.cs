@@ -8676,6 +8676,90 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.EnvioAvisoIncidenteSeguridad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Asunto")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("ConfirmadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConfirmadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cuerpo")
+                        .IsRequired()
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)");
+
+                    b.Property<string>("DestinatarioCorreo")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("DestinatarioNombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("EnviadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("IncidenteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Plantilla")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("SinContactoValidado")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantAfectadoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UltimoError")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UltimoIntentoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UltimoIntentoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidenteId", "Plantilla", "TenantAfectadoId", "DestinatarioCorreo")
+                        .IsUnique();
+
+                    b.ToTable("EnviosAvisoIncidenteSeguridad", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_EnviadoConHora", "(\"Estado\" = 'Enviado') = (\"EnviadoEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Estado", "\"Estado\" IN ('Enviando', 'Enviado', 'Fallido')");
+
+                            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Intentos", "\"Intentos\" >= 1");
+
+                            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Plantilla", "\"Plantilla\" IN ('PrimerAviso', 'NotificacionCompleta')");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma", b =>
                 {
                     b.Property<Guid>("Id")
@@ -11670,6 +11754,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "PlantillaDocumentoVersionId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.EnvioAvisoIncidenteSeguridad", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado", null)
+                        .WithMany()
+                        .HasForeignKey("IncidenteId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

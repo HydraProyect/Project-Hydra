@@ -212,6 +212,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 1,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<FilaDestinatarioAvisoSeguridad>(")] = 1,
 
+        // Aviso de violaciones de seguridad, incremento 3b: la página del incidente lee los nombres de los
+        // Tenants afectados, que son de otros Tenants (mismo criterio que la cola de contactos de seguridad).
+        // Decidir, reclamar y resolver un envío van por app_decidir_incidente_seguridad,
+        // app_reclamar_envio_aviso_seguridad y app_resolver_envio_aviso_seguridad, SECURITY DEFINER que repiten
+        // contexto firmado, concesión AdminPlataforma global y cuenta de plataforma, y devuelven un código.
+        // Valores parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", "return await contexto.Tenants.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 2,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<FilaEnvioReclamado>(")] = 1,
+
         // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
         // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
         // conexión lleva cae_app_soporte (solo SELECT sobre RegistrosAccesoDocumentoSensible),
