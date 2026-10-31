@@ -27,7 +27,8 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <c>SoporteSinCodigoSeguroDocumentosGenerados</c> hizo lo mismo con <c>CodigoSeguroVerificacion</c> de
-/// <c>DocumentosGenerados</c> (ASVS V4.1.3).
+/// <c>DocumentosGenerados</c> (ASVS V4.1.3), y <c>SoporteSinSidSesionUsuario</c>, con <c>Sid</c> de
+/// <c>SesionesUsuario</c> (ASVS V4.1.3).
 /// </para>
 ///
 /// <para>
@@ -50,6 +51,8 @@ public class SoporteSinColumnasSecretasTests
 
     private const string MigracionQueRetiraElCodigoSeguro = "20261030230000_SoporteSinCodigoSeguroDocumentosGenerados";
 
+    private const string MigracionQueRetiraSid = "20261031000000_SoporteSinSidSesionUsuario";
+
     private const string MigracionQueRetiraLosJson = "20261031020000_SoporteSinJsonSensibles";
 
     /// <summary>
@@ -67,8 +70,9 @@ public class SoporteSinColumnasSecretasTests
 
     /// <summary>
     /// Tablas que Soporte TALVEG lee por columnas, con la columna que nunca se le concede. Las de
-    /// <c>SoporteSinColumnasSecretasRestantes</c> y <c>SoporteSinCodigoSeguroDocumentosGenerados</c>, y
-    /// <c>AccesosPlataformaCaeEmpresa</c>, que <c>AnadePlataformaCaeDeClienteEmpresarial</c> ya le retiró entera.
+    /// <c>SoporteSinColumnasSecretasRestantes</c>, <c>SoporteSinCodigoSeguroDocumentosGenerados</c> y
+    /// <c>SoporteSinSidSesionUsuario</c>, y <c>AccesosPlataformaCaeEmpresa</c>, que
+    /// <c>AnadePlataformaCaeDeClienteEmpresarial</c> ya le retiró entera.
     /// </summary>
     private static readonly Dictionary<string, string[]> ColumnasSecretasPorTabla = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -81,6 +85,7 @@ public class SoporteSinColumnasSecretasTests
         ["LineasWhatsApp"] = ["TokenAcceso"],
         ["ConexionesIntegracion"] = ["UltimoError"],
         ["DocumentosGenerados"] = ["CodigoSeguroVerificacion"],
+        ["SesionesUsuario"] = ["Sid"],
     };
 
     /// <summary>Lo que retira <see cref="MigracionQueRetiraElResto"/>: grant de tabla fuera, columnas sin el secreto.</summary>
@@ -137,6 +142,9 @@ public class SoporteSinColumnasSecretasTests
     [InlineData("""GRANT SELECT ON TABLE public."DocumentosGenerados" TO cae_app_soporte;""", true)]
     [InlineData("""GRANT SELECT ("Id", "CodigoSeguroVerificacion") ON TABLE public."DocumentosGenerados" TO cae_app_soporte;""", true)]
     [InlineData("""GRANT SELECT ("Id", "Estado") ON TABLE public."DocumentosGenerados" TO cae_app_soporte;""", false)]
+    [InlineData("""GRANT SELECT ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "Sid") ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", true)]
+    [InlineData("""GRANT SELECT ("Id", "UsuarioId") ON TABLE public."SesionesUsuario" TO cae_app_soporte;""", false)]
     public void El_detector_reconoce_las_concesiones_prohibidas(string sql, bool infractora)
     {
         // Sin esto, un detector que no marcara nada dejaría el test principal en verde.
@@ -153,7 +161,7 @@ public class SoporteSinColumnasSecretasTests
         // sobre un conjunto vacío.
         concesiones.Where(c => string.CompareOrdinal(c.Migracion, MigracionQueRetira) < 0)
             .Select(c => TablaDe(c.Objeto))
-            .Should().Contain(["AspNetUserTokens", "CredencialesIntegracion", "ClavesApi", "DocumentosGenerados", .. TablasQueRetiraElResto]);
+            .Should().Contain(["AspNetUserTokens", "CredencialesIntegracion", "ClavesApi", "DocumentosGenerados", "SesionesUsuario", .. TablasQueRetiraElResto]);
 
         var infractoras = concesiones
             .Where(c => string.CompareOrdinal(c.Migracion, MigracionQueRetira) >= 0)
@@ -164,7 +172,8 @@ public class SoporteSinColumnasSecretasTests
         infractoras.Should().BeEmpty(
             "Soporte TALVEG no lee tokens de Identity, tokens de integraciones, hashes de claves API, " +
             "contraseñas de plataformas y portales, el ClientState de los webhooks, el token de WhatsApp, " +
-            "el último error de las conexiones ni el código seguro de los documentos generados; " +
+            "el último error de las conexiones, el código seguro de los documentos generados ni el identificador " +
+            "de las sesiones de usuario; " +
             "si una lectura de Sesión Privilegiada necesita una columna de esas tablas, se concede por columna " +
             "y nunca la secreta");
     }
@@ -234,6 +243,17 @@ public class SoporteSinColumnasSecretasTests
                 .Should().BeTrue();
         var concesiones = ConcesionesASoporteEn(MigracionQueRetiraLosJson, up).ToList();
         concesiones.Should().HaveCount(3);
+        concesiones.Where(EsInfractora).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_migracion_de_sid_retira_el_grant_de_tabla_y_concede_las_demas_columnas()
+    {
+        var up = Up(SinComentarios(File.ReadAllText(Path.Combine(DirectorioMigraciones(), MigracionQueRetiraSid + ".cs"))));
+        var concesiones = ConcesionesASoporteEn(MigracionQueRetiraSid, up).ToList();
+        Regex.IsMatch(up, @"REVOKE\s+ALL\s+ON\s+TABLE\s+public\.""SesionesUsuario""\s+FROM\s+cae_app_soporte\s*;", RegexOptions.IgnoreCase)
+            .Should().BeTrue();
+        concesiones.Should().ContainSingle(c => TablaDe(c.Objeto) == "SesionesUsuario" && c.Privilegios.StartsWith("SELECT (", StringComparison.Ordinal));
         concesiones.Where(EsInfractora).Should().BeEmpty();
     }
 

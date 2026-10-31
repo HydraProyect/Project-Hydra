@@ -379,6 +379,7 @@ src/CaeManager.Domain/Telemetria/RegistroTiempoGestion.cs :: clienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: TenantClienteId = 2
 src/CaeManager.Domain/Tenants/DelegacionTenant.cs :: tenantClienteId = 8
 src/CaeManager.Domain/Tenants/IDelegacionTenantRepository.cs :: tenantClienteId = 1
+src/CaeManager.Infrastructure/Auditing/AuditoriaInterceptor.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: AmbitoRelacionClienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteId = 9
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ClienteIds = 4
