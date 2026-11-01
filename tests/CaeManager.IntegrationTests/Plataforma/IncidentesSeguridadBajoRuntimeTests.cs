@@ -3,9 +3,11 @@ using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Seguridad.Incidentes;
+using CaeManager.Migrations.PostgreSQL.Migrations;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -146,6 +148,7 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
     [Theory]
     [InlineData("""INSERT INTO "IncidentesSeguridadSospechados" ("Id", "Senal", "SujetoClave", "DetectadoEnUtc", "UltimaDeteccionEnUtc", "Detecciones", "TenantsAfectados", "Evidencia", "Estado") VALUES (gen_random_uuid(), 'ExtraccionMasiva', 'x', now(), now(), 1, '{}', '{}', 'Sospechado')""")]
     [InlineData("""UPDATE "IncidentesSeguridadSospechados" SET "Estado" = 'Descartado'""")]
+    [InlineData("""UPDATE "IncidentesSeguridadSospechados" SET "ContextoUsuarioId" = gen_random_uuid()""")]
     [InlineData("""DELETE FROM "TransicionesIncidenteSeguridad" """)]
     public async Task Ni_siquiera_el_AdminPlataforma_global_escribe_las_tablas_directamente(string sql)
     {
@@ -261,6 +264,20 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
 
         var leer = () => ContarAsync(conexion, tabla);
         (await leer.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Theory]
+    [InlineData("cae_app_soporte", """SELECT "ContextoUsuarioId" FROM "IncidentesSeguridadSospechados" """)]
+    [InlineData("cae_app_soporte", """UPDATE "IncidentesSeguridadSospechados" SET "ContextoUsuarioId" = gen_random_uuid()""")]
+    [InlineData("cae_app_aprovisionamiento", """SELECT "ContextoUsuarioId" FROM "IncidentesSeguridadSospechados" """)]
+    [InlineData("cae_app_aprovisionamiento", """UPDATE "IncidentesSeguridadSospechados" SET "ContextoUsuarioId" = gen_random_uuid()""")]
+    public async Task Los_roles_de_Sesion_Privilegiada_no_alcanzan_la_columna_que_decide_la_agrupacion(string rol, string sql)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_adminPlataformaGlobal, _tenantA, rol);
+
+        var accion = () => EjecutarAsync(conexion, sql);
+
+        (await accion.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [Fact]
@@ -421,12 +438,67 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
         var (heredado, _) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
         await EjecutarComoSuperusuarioAsync(
-            """UPDATE "IncidentesSeguridadSospechados" SET "Evidencia" = "Evidencia" - 'contexto_usuario_id' WHERE "Id" = @id""", heredado);
+            """UPDATE "IncidentesSeguridadSospechados" SET "ContextoUsuarioId" = NULL, "Evidencia" = "Evidencia" - 'contexto_usuario_id' WHERE "Id" = @id""", heredado);
 
         var (siguiente, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
 
-        nuevo.Should().BeTrue("sin la marca es igual que uno plantado sin usuario: el coste es un incidente de más, no una alerta perdida");
+        nuevo.Should().BeTrue("sin la columna es igual que uno plantado sin usuario: el coste es un incidente de más, no una alerta perdida");
         siguiente.Should().NotBe(heredado);
+    }
+
+    [Fact]
+    public async Task Un_incidente_anterior_con_la_marca_fabricada_en_la_evidencia_no_absorbe_la_senal_real()
+    {
+        // La función anterior guardaba lo que escribiera quien llama: la fila que deja es esta, con la clave
+        // del usuario víctima en la evidencia, sin marca de «sin usuario» y con la columna nula.
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        await using var sinUsuario = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
+        var (plantado, _) = await RegistrarAsync(sinUsuario, "ExtraccionMasiva", sujeto, [_tenantA]);
+        await EjecutarComoSuperusuarioAsync(
+            $$"""UPDATE "IncidentesSeguridadSospechados" SET "Evidencia" = ("Evidencia" - 'sin_usuario_en_contexto') || '{"contexto_usuario_id": "{{_usuarioDelTenant:D}}"}'::jsonb WHERE "Id" = @id""", plantado);
+
+        await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var (real, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        nuevo.Should().BeTrue("la alerta depende de es_nuevo: agrupar aquí suprimiría el aviso de la señal autenticada");
+        real.Should().NotBe(plantado);
+        (await DeteccionesAsync(plantado)).Should().Be(1);
+        (await ContextoUsuarioAsync(plantado)).Should().BeNull("la clave de la evidencia no vale como usuario");
+        (await ContextoUsuarioAsync(real)).Should().Be(_usuarioDelTenant);
+    }
+
+    [Fact]
+    public async Task La_inversa_rechaza_sin_firma_no_agrupa_y_la_migracion_se_puede_volver_a_aplicar()
+    {
+        // El SQL de la migración sobre el catálogo ya migrado: esta base es solo de este test.
+        var migracion = new RegistroIncidenteDistingueSinUsuario();
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        await using var propietario = await AbrirAsync();
+        var migrada = await DefinicionAsync(propietario);
+
+        await EjecutarAsync(propietario, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        await EjecutarAsync(propietario, """ALTER TABLE "IncidentesSeguridadSospechados" DROP COLUMN "ContextoUsuarioId";""");
+
+        await using (var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA))
+        {
+            var (primero, _) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+            var (segundo, segundoNuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+            segundoNuevo.Should().BeTrue("sin la columna no se agrupa: un incidente de más, nunca una alerta perdida");
+            segundo.Should().NotBe(primero);
+        }
+
+        await using (var sinFirma = await AbrirAsync())
+        {
+            await EjecutarAsync(sinFirma, "SELECT set_config('app.contexto', '', false); SET ROLE cae_app_runtime;");
+            var registrar = () => RegistrarAsync(sinFirma, "ExtraccionMasiva", sujeto, [_tenantA]);
+            (await registrar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        }
+
+        await EjecutarAsync(propietario, """ALTER TABLE "IncidentesSeguridadSospechados" ADD COLUMN "ContextoUsuarioId" uuid;""");
+        await EjecutarAsync(propietario, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+
+        (await DefinicionAsync(propietario)).Should().Be(migrada);
     }
 
     [Fact]
@@ -531,6 +603,29 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         consulta.CommandText = """SELECT "Detecciones" FROM "IncidentesSeguridadSospechados" WHERE "Id" = @id""";
         consulta.Parameters.AddWithValue("id", id);
         return (int)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private static async Task EjecutarAsync(NpgsqlConnection conexion, string sql)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<string> DefinicionAsync(NpgsqlConnection conexion)
+    {
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT pg_get_functiondef('public.app_registrar_incidente_seguridad(uuid,uuid,text,text,uuid[],jsonb,integer)'::regprocedure)";
+        return (string)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private async Task<Guid?> ContextoUsuarioAsync(Guid id)
+    {
+        await using var superusuario = await AbrirAsync();
+        await using var consulta = superusuario.CreateCommand();
+        consulta.CommandText = """SELECT "ContextoUsuarioId" FROM "IncidentesSeguridadSospechados" WHERE "Id" = @id""";
+        consulta.Parameters.AddWithValue("id", id);
+        return await consulta.ExecuteScalarAsync() as Guid?;
     }
 
     private async Task<string?> EvidenciaAsync(Guid id, string clave)

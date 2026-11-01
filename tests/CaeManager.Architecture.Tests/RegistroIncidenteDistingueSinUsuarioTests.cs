@@ -37,7 +37,21 @@ public class RegistroIncidenteDistingueSinUsuarioTests
         return cuerpo;
     }
 
-    private static string CuerpoReescrito() => Aplicar(CuerpoOriginal(), RegistroIncidenteDistingueSinUsuario.Cambios);
+    private static string CuerpoReescrito() => Aplicar(
+        CuerpoOriginal(), RegistroIncidenteDistingueSinUsuario.CambiosDeContexto.Concat(RegistroIncidenteDistingueSinUsuario.CambiosDeColumna));
+
+    /// <summary>Lo que aplica el <c>Down</c>: los cambios de columna, al revés.</summary>
+    private static string CuerpoTrasElDown() => Aplicar(
+        CuerpoReescrito(), Enumerable.Reverse(RegistroIncidenteDistingueSinUsuario.CambiosDeColumna).Select(c => (c.Despues, c.Antes)));
+
+    /// <summary>La búsqueda del incidente que absorbería la señal.</summary>
+    private static string Agrupacion(string cuerpo)
+    {
+        var inicio = cuerpo.IndexOf("SELECT i.\"Id\" INTO v_existente", StringComparison.Ordinal);
+        inicio.Should().BePositive();
+        var fin = cuerpo.IndexOf("LIMIT 1;", inicio, StringComparison.Ordinal);
+        return cuerpo[inicio..fin];
+    }
 
     [Fact]
     public void Sin_contexto_firmado_se_rechaza_antes_de_tocar_nada()
@@ -57,21 +71,39 @@ public class RegistroIncidenteDistingueSinUsuarioTests
 
         cuerpo.Should().Contain("v_sin_usuario := v_ctx_usuario IS NULL;");
         cuerpo.Should().Contain("pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true)");
-        cuerpo.Should().Contain("AND NOT v_sin_usuario AND NOT (i.\"Evidencia\" ? 'sin_usuario_en_contexto')",
-            "ni abre un oráculo sobre incidentes ajenos, ni un registro sin usuario absorbe una señal real");
         cuerpo.Should().Contain("' sin usuario en el contexto'");
     }
 
     [Fact]
-    public void Agrupar_exige_la_marca_del_mismo_usuario_del_contexto()
+    public void Agrupar_exige_la_columna_del_mismo_usuario_del_contexto_y_nunca_lee_la_evidencia()
+    {
+        var agrupacion = Agrupacion(CuerpoReescrito());
+
+        agrupacion.Should().Contain("AND i.\"ContextoUsuarioId\" = v_ctx_usuario",
+            "es una igualdad: sin usuario en el contexto, o con la columna nula, no coincide con nada");
+        agrupacion.Should().NotContain("Evidencia",
+            "la función anterior guardaba la evidencia que escribía quien llama: una clave fabricada plantaría una fila que suprime una alerta");
+        agrupacion.Should().NotContain(" OR ", "una excepción dejaría agrupar a los registros de procedencia desconocida");
+    }
+
+    [Fact]
+    public void La_columna_solo_la_rellena_la_funcion_con_el_usuario_del_contexto_y_lo_anterior_queda_nulo()
     {
         var cuerpo = CuerpoReescrito();
 
-        cuerpo.Should().Contain("v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('contexto_usuario_id', v_ctx_usuario::text);",
-            "todo registro con usuario en el contexto lo guarda, coincida o no con el sujeto");
-        cuerpo.Should().Contain("AND i.\"Evidencia\" ->> 'contexto_usuario_id' = v_ctx_usuario::text",
-            "un registro anterior sin la marca es de procedencia desconocida y no agrupa");
-        cuerpo.Should().NotContain("NOT v_distinto OR", "una excepción por sujeto coincidente dejaría agrupar a los registros sin marca");
+        cuerpo.Should().Contain("v_ctx_usuario := public.app_ctx_usuario_id();")
+            .And.Contain("\"ConfirmadoEnUtc\", \"ContextoUsuarioId\")")
+            .And.Contain("v_tenants, v_evidencia, 'Sospechado', NULL, v_ctx_usuario);");
+        cuerpo.Should().NotContain("\"ContextoUsuarioId\" = i.").And.NotContain("\"ContextoUsuarioId\" = p_",
+            "al agrupar no se reescribe, y ningún parámetro la alimenta");
+        CuerpoOriginal().Should().NotContain("ContextoUsuarioId", "la función anterior no pudo escribirla, así que ninguna fila suya la trae");
+
+        var columna = new RegistroIncidenteDistingueSinUsuario().UpOperations.OfType<AddColumnOperation>().Should().ContainSingle().Subject;
+        columna.Table.Should().Be("IncidentesSeguridadSospechados");
+        columna.IsNullable.Should().BeTrue();
+        columna.DefaultValue.Should().BeNull("una columna nula no se puede confundir con un registro de la función corregida");
+        columna.DefaultValueSql.Should().BeNull();
+        columna.ComputedColumnSql.Should().BeNull();
     }
 
     [Fact]
@@ -94,11 +126,41 @@ public class RegistroIncidenteDistingueSinUsuarioTests
     }
 
     [Fact]
-    public void El_Down_devuelve_el_cuerpo_exacto()
+    public void El_Down_no_restaura_la_vulnerabilidad_y_deja_de_agrupar()
     {
-        var inversos = Enumerable.Reverse(RegistroIncidenteDistingueSinUsuario.Cambios).Select(c => (c.Despues, c.Antes));
+        var cuerpo = CuerpoTrasElDown();
 
-        Aplicar(CuerpoReescrito(), inversos).Should().Be(CuerpoOriginal());
+        cuerpo.Should().NotBe(CuerpoOriginal());
+        cuerpo.Should().Contain(RegistroIncidenteDistingueSinUsuario.GuardiaDeContextoFirmado, "sin firma se sigue rechazando")
+            .And.Contain("sin contexto firmado' USING ERRCODE = '42501'")
+            .And.Contain("p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_usuario_en_contexto', 'tenants_afectados_truncados']::text[]")
+            .And.Contain("pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true)")
+            .And.NotContain("ContextoUsuarioId\"", "el Down quita la columna, y la función no puede seguir nombrándola");
+        Agrupacion(cuerpo).Should().Contain("AND false", "sin la columna no queda nada de lo que fiarse: cada señal abre su incidente y su alerta")
+            .And.NotContain("Evidencia", "la evidencia de las filas anteriores la pudo escribir quien llama");
+    }
+
+    [Fact]
+    public void El_Down_reescribe_antes_de_quitar_la_columna_y_el_Up_se_puede_volver_a_aplicar()
+    {
+        var migracion = new RegistroIncidenteDistingueSinUsuario();
+
+        migracion.DownOperations.Should().HaveCount(2);
+        migracion.DownOperations[0].Should().BeOfType<SqlOperation>();
+        migracion.DownOperations[1].Should().BeOfType<DropColumnOperation>()
+            .Which.Name.Should().Be("ContextoUsuarioId");
+        migracion.DownOperations.OfType<SqlOperation>().Single().Sql.Should()
+            .Contain("AND false", "el Down solo cambia la agrupación y lo que escribe la columna")
+            .And.NotContain("app_ctx_valido", "no toca el rechazo sin contexto firmado")
+            .And.NotContain("sin_usuario_en_contexto", "no toca las marcas ni la retirada de las que llegan")
+            .And.NotContain("sujeto_distinto_del_contexto", "no recupera la agrupación por evidencia");
+
+        Aplicar(CuerpoTrasElDown(), RegistroIncidenteDistingueSinUsuario.CambiosDeColumna).Should().Be(CuerpoReescrito(),
+            "partiendo del Down, el Up solo devuelve lo que necesita la columna");
+        CuerpoOriginal().Should().NotContain(RegistroIncidenteDistingueSinUsuario.GuardiaDeContextoFirmado,
+            "la guardia es lo que distingue los dos puntos de partida del Up");
+        migracion.UpOperations.OfType<SqlOperation>().Single().Sql.Should()
+            .Contain($"strpos(definicion, $texto${RegistroIncidenteDistingueSinUsuario.GuardiaDeContextoFirmado}$texto$) > 0");
     }
 
     [Fact]

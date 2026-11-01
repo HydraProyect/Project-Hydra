@@ -86,6 +86,15 @@ public class IncidenteSeguridadSospechado : Entity
     /// <summary>JSON con identificadores, recuentos y códigos; nunca nombres ni correos.</summary>
     public string Evidencia { get; private set; } = "{}";
 
+    /// <summary>
+    /// Usuario del contexto RLS firmado cuando se registró el incidente (en una Sesión Privilegiada, el
+    /// Usuario simulado, no el Actor real); nulo si no había, y en los registros anteriores a la columna,
+    /// de procedencia desconocida. La deduplicación solo agrupa con este valor y nunca con la evidencia:
+    /// lo escribe la función de registro, sin parámetro, y ningún rol de la aplicación puede cambiarlo.
+    /// <see cref="SujetoClave"/> va aparte.
+    /// </summary>
+    public Guid? ContextoUsuarioId { get; private set; }
+
     public EstadoIncidenteSeguridad Estado { get; private set; }
 
     /// <summary>Hora en que el Actor de Plataforma TALVEG de guardia confirma la violación: desde aquí cuentan las 24 y las 36 horas.</summary>

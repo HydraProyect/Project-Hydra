@@ -8894,6 +8894,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("ConfirmadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ContextoUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("Detecciones")
                         .HasColumnType("integer");
 
