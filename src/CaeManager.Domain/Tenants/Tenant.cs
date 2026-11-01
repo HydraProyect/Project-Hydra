@@ -199,15 +199,16 @@ public class Tenant : Entity
 
     /// <summary>
     /// ¿Este Tenant propietario admite una clave de API emitida en <paramref name="emitidaEnUtc"/>?
-    /// No mientras esté suspendido, operativa o comercialmente, ni si se reactivó de la suspensión
-    /// operativa después de emitirla. La suspensión comercial es reversible: al levantarse, la
-    /// clave vuelve a valer. <see cref="EstadoComercialTenant.SoloLectura"/> no corta: la API
-    /// pública solo lee. Recibe los datos y no el Tenant porque se evalúa sobre una proyección.
+    /// No mientras esté suspendido, operativa o comercialmente, ni en
+    /// <see cref="EstadoComercialTenant.SoloLectura"/>, ni si se reactivó de la suspensión operativa
+    /// después de emitirla. Los dos cortes comerciales son reversibles: al revertirse, la clave vuelve
+    /// a valer. Es la regla única de las dos clases de clave, la Clave de Soporte TALVEG y la Clave de
+    /// Integración del Tenant. Recibe los datos y no el Tenant porque se evalúa sobre una proyección.
     /// </summary>
     public static bool AdmiteClaveEmitidaEn(
         EstadoTenant estado, EstadoComercialTenant estadoComercial, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc) =>
         estado is EstadoTenant.Activo
-        && estadoComercial is not EstadoComercialTenant.Suspendida
+        && estadoComercial is not (EstadoComercialTenant.Suspendida or EstadoComercialTenant.SoloLectura)
         && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     public void RenombrarA(string nombre) => EstablecerNombre(nombre);

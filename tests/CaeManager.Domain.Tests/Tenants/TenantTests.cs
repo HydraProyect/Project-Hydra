@@ -207,7 +207,7 @@ public class TenantTests
     [Theory]
     [InlineData(EstadoTenant.Activo, EstadoComercialTenant.SinSuscripcion, true)]
     [InlineData(EstadoTenant.Activo, EstadoComercialTenant.Activa, true)]
-    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.SoloLectura, true)]
+    [InlineData(EstadoTenant.Activo, EstadoComercialTenant.SoloLectura, false)]
     [InlineData(EstadoTenant.Activo, EstadoComercialTenant.Suspendida, false)]
     [InlineData(EstadoTenant.Suspendido, EstadoComercialTenant.Activa, false)]
     public void Admite_una_clave_de_API_segun_el_estado_del_Tenant(EstadoTenant estado, EstadoComercialTenant comercial, bool admite) =>

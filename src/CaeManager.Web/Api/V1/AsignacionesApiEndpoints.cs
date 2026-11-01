@@ -1,4 +1,5 @@
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignaciones;
+using CaeManager.Domain.ApiKeys;
 using MediatR;
 
 namespace CaeManager.Web.Api.V1;
@@ -15,7 +16,7 @@ public static class AsignacionesApiEndpoints
             Results.Ok(await mediator.Send(
                 new ObtenerAsignacionesQuery(
                     busqueda, Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
-                cancellationToken)));
+                cancellationToken))).RequiereAlcanceIntegracion(AlcancesIntegracion.AsignacionesLeer);
 
         return endpoints;
     }

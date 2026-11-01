@@ -326,6 +326,11 @@ authenticationBuilder.AddIdentityCookies();
 authenticationBuilder.AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
     ApiKeyAuthenticationSchemeOptions.NombreEsquema, options => { });
 
+// Clave de Integración del Tenant: esquema propio, para que un fallo aquí no
+// pueda convertir un privilegio de Soporte TALVEG en una integración duradera.
+authenticationBuilder.AddScheme<ClaveIntegracionAuthenticationSchemeOptions, ClaveIntegracionAuthenticationHandler>(
+    ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema, options => { });
+
 // Extensión de navegador (MVP1 de integración con plataformas CAE). Esquema
 // propio por el mismo motivo que el de arriba, pero con una diferencia de
 // fondo: este NO fabrica claims ni fija un rol: reconstruye el principal del
@@ -436,11 +441,13 @@ builder.Services.AddAuthorization(options =>
         .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
             CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles)));
 
-    // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
+    // Solo los dos esquemas de clave — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con
     // sesión de navegador podría llamar a /api/v1 sin clave.
     options.AddPolicy("ApiPublica", policy => policy
-        .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
+        .AddAuthenticationSchemes(
+            ApiKeyAuthenticationSchemeOptions.NombreEsquema,
+            ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
 
     // Lo que sirve tanto a una pestaña de Hydra como a la extensión: la lista
@@ -483,6 +490,7 @@ var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPor
 // Nunca por debajo del cupo por clave: un techo menor haría inalcanzable el cupo de una sola clave.
 var rateLimitPorMinutoPorIp = Math.Max(
     builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 3000), rateLimitPorMinuto);
+var rateLimitTokenPorMinuto = builder.Configuration.GetValue("ApiPublica:TokenPorMinuto", 10);
 // La entrega de archivos a la extensión: 30 peticiones al minuto son 15 documentos,
 // más de lo que una persona pone a mano en un formulario de una plataforma CAE.
 var rateLimitEntregaExtensionPorMinuto = builder.Configuration.GetValue("RateLimiting:Extension:LimitePorMinuto", 30);
@@ -490,7 +498,10 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy(LimitadorApiPublica.Politica, httpContext =>
-        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto));
+        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto,
+            httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
+    options.AddPolicy(LimitadorApiPublica.PoliticaToken, httpContext =>
+        LimitadorApiPublica.ParticionToken(httpContext, rateLimitTokenPorMinuto));
     options.AddPolicy(LimitadorEntregaExtension.Politica, httpContext =>
         LimitadorEntregaExtension.ParticionPorUsuario(httpContext, rateLimitEntregaExtensionPorMinuto,
             httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
@@ -1482,16 +1493,21 @@ app.MapWebhookStripeEndpoints();
 var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
     .RequireRateLimiting("ApiPublica")
-    .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
-apiV1.MapClientesApiEndpoints();
-apiV1.MapCentrosApiEndpoints();
-apiV1.MapTrabajadoresApiEndpoints();
-apiV1.MapDocumentosApiEndpoints();
-apiV1.MapAsignacionesApiEndpoints();
+    .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
+    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>();
+apiV1.MapRecursosApiV1();
 
-// El documento OpenAPI no expone datos, solo forma — no requiere auth
-// (misma práctica habitual que /swagger.json en una API privada).
-app.MapOpenApi("/api/v1/openapi.json").AllowAnonymous();
+// Fuera del grupo: quien pide el token aún no lo tiene.
+app.MapTokenIntegracionEndpoint();
+
+// El documento OpenAPI describe una API sin anunciar (OWASP API9:2023): exige
+// clave mientras no se decida publicarlo. Solo el entorno del escaneo ZAP de CI
+// lo abre, y por entorno: una variable suelta podría reabrirlo en producción.
+var documentoOpenApi = app.MapOpenApi("/api/v1/openapi.json");
+if (app.Environment.IsEnvironment("Escaneo"))
+    documentoOpenApi.AllowAnonymous();
+else
+    documentoOpenApi.RequireAuthorization("ApiPublica");
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

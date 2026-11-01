@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 
-public record ObtenerDocumentoPorIdQuery(Guid Id) : IRequest<DocumentoDetalleDto?>;
+/// <param name="ExcluirCategoriaEspecialSalud">Un documento de salud responde como inexistente, igual que uno fuera de alcance.</param>
+public record ObtenerDocumentoPorIdQuery(Guid Id, bool ExcluirCategoriaEspecialSalud = false) : IRequest<DocumentoDetalleDto?>;
 
 /// <summary>
 /// <paramref name="Version"/> viaja al formulario para volver en
@@ -95,11 +96,13 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 t.CriteriosValidacion,
                 t.SeSolicitaA,
                 t.Observaciones,
-                t.PerfilDocumentoOficial
+                t.PerfilDocumentoOficial,
+                t.Sensibilidad
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (tipoDocumento is null) return null;
+        if (request.ExcluirCategoriaEspecialSalud && tipoDocumento.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud) return null;
 
         var (ambito, propietarioNombre) = documento.TrabajadorId is not null
             ? (AmbitoAplicacion.Trabajador, await trabajadoresContext.Trabajadores

@@ -68,6 +68,13 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0.14@sha256:de0ee358cdd672f7017a003bed21
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
+# Esta imagen entrega todo el correo detrás de la guarda EnvioCorreo__Modo (C-04).
+# deploy/relevo-app.sh la lee antes de arrancar una imagen: sin esta etiqueta, una
+# imagen anterior ignoraría el modo y enviaría con lo que tenga configurado. Va en
+# el Dockerfile y no en el `docker build` de deploy.yml para que la lleven solo los
+# commits que tienen la guarda. Quítala si la guarda deja de envolver el envío.
+LABEL es.talveg.guarda-correo="1"
+
 # libreoffice-writer (no el paquete "libreoffice" completo, que instala
 # también Calc/Impress/etc. sin necesidad) aporta el binario "soffice" que
 # LibreOfficeConversorWordPdfService invoca en modo headless para convertir
