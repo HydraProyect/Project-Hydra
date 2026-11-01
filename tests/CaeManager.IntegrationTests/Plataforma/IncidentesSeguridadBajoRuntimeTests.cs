@@ -341,14 +341,14 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Con_contexto_firmado_sin_usuario_queda_registrado_como_deteccion_sin_Actor()
+    public async Task Con_contexto_firmado_sin_usuario_queda_registrado_sin_Actor()
     {
         await using var conexion = await AbrirRestringidaComoAsync(usuarioId: null, _tenantA);
 
         var (id, nuevo) = await RegistrarAsync(conexion, "InicioSesionNoReconocido", $"usuario:{_usuarioDelTenant:D}", [_tenantA]);
 
         nuevo.Should().BeTrue("«No he sido yo» llega por un enlace del correo, sin sesión: la detección no se pierde");
-        (await EvidenciaAsync(id, "sin_actor_en_contexto")).Should().Be("true");
+        (await EvidenciaAsync(id, "sin_usuario_en_contexto")).Should().Be("true");
         (await EvidenciaAsync(id, "sujeto_distinto_del_contexto")).Should().BeNull();
         (await EvidenciaAsync(id, "contexto_usuario_id")).Should().BeNull("sin usuario en el contexto no se inventa un Actor");
 
@@ -359,19 +359,19 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         await using var lector = await consulta.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue();
         lector.GetBoolean(0).Should().BeTrue();
-        lector.GetString(1).Should().Be("Detectado por la señal InicioSesionNoReconocido sin Actor en el contexto");
+        lector.GetString(1).Should().Be("Detectado por la señal InicioSesionNoReconocido sin usuario en el contexto");
     }
 
     [Fact]
-    public async Task Sin_Actor_cada_registro_abre_su_incidente_y_no_revela_si_ya_habia_otro()
+    public async Task Sin_usuario_cada_registro_abre_su_incidente_y_no_revela_si_ya_habia_otro()
     {
         var sujeto = $"usuario:{_usuarioDelTenant:D}";
         await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
         var (real, _) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
 
-        await using var sinActor = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
-        var (primero, primeroNuevo) = await RegistrarAsync(sinActor, "ExtraccionMasiva", sujeto, [_tenantB]);
-        var (segundo, segundoNuevo) = await RegistrarAsync(sinActor, "ExtraccionMasiva", sujeto, [_tenantB]);
+        await using var sinUsuario = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
+        var (primero, primeroNuevo) = await RegistrarAsync(sinUsuario, "ExtraccionMasiva", sujeto, [_tenantB]);
+        var (segundo, segundoNuevo) = await RegistrarAsync(sinUsuario, "ExtraccionMasiva", sujeto, [_tenantB]);
 
         primeroNuevo.Should().BeTrue("si agrupara con el incidente real, es_nuevo diría que existe");
         segundoNuevo.Should().BeTrue();
@@ -380,11 +380,11 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_incidente_sin_Actor_no_absorbe_la_senal_real_del_sujeto()
+    public async Task Un_incidente_sin_usuario_no_absorbe_la_senal_real_del_sujeto()
     {
         var sujeto = $"usuario:{_usuarioDelTenant:D}";
-        await using (var sinActor = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null))
-            await RegistrarAsync(sinActor, "ExtraccionMasiva", sujeto, [_tenantA]);
+        await using (var sinUsuario = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null))
+            await RegistrarAsync(sinUsuario, "ExtraccionMasiva", sujeto, [_tenantA]);
 
         await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
         var (_, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
@@ -397,21 +397,39 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
     {
         var sujeto = $"usuario:{_usuarioDelTenant:D}";
         var otroUsuario = Guid.NewGuid();
-        var forjada = $$"""{"recuento": 1, "sujeto_distinto_del_contexto": true, "contexto_usuario_id": "{{otroUsuario:D}}", "sin_actor_en_contexto": true}""";
+        var forjada = $$"""{"recuento": 1, "sujeto_distinto_del_contexto": true, "contexto_usuario_id": "{{otroUsuario:D}}", "sin_usuario_en_contexto": true, "tenants_afectados_truncados": true}""";
 
         await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
         var (conUsuario, _) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA], forjada);
 
-        await using var sinActor = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
-        var (sinUsuario, _) = await RegistrarAsync(sinActor, "InicioSesionNoReconocido", sujeto, [_tenantA], forjada);
+        await using var sinUsuario = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
+        var (delSinUsuario, _) = await RegistrarAsync(sinUsuario, "InicioSesionNoReconocido", sujeto, [_tenantA], forjada);
 
         (await EvidenciaAsync(conUsuario, "recuento")).Should().Be("1", "el resto de la evidencia se conserva");
         (await EvidenciaAsync(conUsuario, "sujeto_distinto_del_contexto")).Should().BeNull();
         (await EvidenciaAsync(conUsuario, "contexto_usuario_id")).Should().BeNull();
-        (await EvidenciaAsync(conUsuario, "sin_actor_en_contexto")).Should().BeNull();
-        (await EvidenciaAsync(sinUsuario, "contexto_usuario_id")).Should().BeNull("la evidencia no puede nombrar un Actor que el contexto no tiene");
-        (await EvidenciaAsync(sinUsuario, "sujeto_distinto_del_contexto")).Should().BeNull();
-        (await EvidenciaAsync(sinUsuario, "sin_actor_en_contexto")).Should().Be("true");
+        (await EvidenciaAsync(conUsuario, "sin_usuario_en_contexto")).Should().BeNull();
+        (await EvidenciaAsync(conUsuario, "tenants_afectados_truncados")).Should().BeNull();
+        (await EvidenciaAsync(delSinUsuario, "contexto_usuario_id")).Should().BeNull("la evidencia no puede nombrar un Actor que el contexto no tiene");
+        (await EvidenciaAsync(delSinUsuario, "sujeto_distinto_del_contexto")).Should().BeNull();
+        (await EvidenciaAsync(delSinUsuario, "sin_usuario_en_contexto")).Should().Be("true");
+    }
+
+    [Fact]
+    public async Task Un_registro_marcado_solo_agrupa_con_los_del_mismo_usuario_del_contexto()
+    {
+        var sujeto = $"usuario:{Guid.NewGuid():D}";
+        await using var plantador = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var (plantado, _) = await RegistrarAsync(plantador, "ExtraccionMasiva", sujeto, [_tenantA]);
+        var (repetido, repetidoNuevo) = await RegistrarAsync(plantador, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        await using var otro = await AbrirRestringidaComoAsync(Guid.NewGuid(), _tenantA);
+        var (ajeno, ajenoNuevo) = await RegistrarAsync(otro, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        repetidoNuevo.Should().BeFalse("el mismo usuario del contexto sigue deduplicando");
+        repetido.Should().Be(plantado);
+        ajenoNuevo.Should().BeTrue("si agrupara, un incidente plantado suprimiría la alerta de otro y revelaría que existe");
+        ajeno.Should().NotBe(plantado);
     }
 
     [Fact]

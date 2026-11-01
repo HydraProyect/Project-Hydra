@@ -68,12 +68,12 @@ public class IncidenteSeguridadSospechado : Entity
 
     public SenalIncidenteSeguridad Senal { get; private set; }
 
-    /// <summary>Sobre quién recae la señal, seudónimo (p. ej. <c>usuario:{guid}</c>). Clave de la deduplicación junto a la señal.</summary>
+    /// <summary>Sobre quién recae la señal, seudónimo (p. ej. <c>usuario:{guid}</c>). La deduplicación agrupa por señal y sujeto, dentro de la misma procedencia del registro.</summary>
     public string SujetoClave { get; private set; } = string.Empty;
 
     public DateTime DetectadoEnUtc { get; private set; }
 
-    /// <summary>Última vez que la misma señal sobre el mismo sujeto se repitió dentro de la ventana de deduplicación.</summary>
+    /// <summary>Última vez que la señal se agrupó en este incidente dentro de la ventana de deduplicación.</summary>
     public DateTime UltimaDeteccionEnUtc { get; private set; }
 
     /// <summary>Cuántas veces se ha detectado la señal agrupada en este incidente (1 al nacer).</summary>

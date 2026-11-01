@@ -51,15 +51,17 @@ public class RegistroIncidenteDistingueSinActorTests
     }
 
     [Fact]
-    public void La_deteccion_sin_Actor_se_registra_como_tal_y_nunca_agrupa_ni_es_agrupada()
+    public void La_deteccion_sin_usuario_se_registra_como_tal_y_nunca_agrupa_ni_es_agrupada()
     {
         var cuerpo = CuerpoReescrito();
 
-        cuerpo.Should().Contain("v_sin_actor := v_ctx_usuario IS NULL;");
-        cuerpo.Should().Contain("pg_catalog.jsonb_build_object('sin_actor_en_contexto', true)");
-        cuerpo.Should().Contain("AND NOT v_sin_actor AND NOT (i.\"Evidencia\" ? 'sin_actor_en_contexto')",
-            "ni abre un oráculo sobre incidentes ajenos, ni un registro sin Actor absorbe una señal real");
-        cuerpo.Should().Contain("' sin Actor en el contexto'");
+        cuerpo.Should().Contain("v_sin_usuario := v_ctx_usuario IS NULL;");
+        cuerpo.Should().Contain("pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true)");
+        cuerpo.Should().Contain("AND NOT v_sin_usuario AND NOT (i.\"Evidencia\" ? 'sin_usuario_en_contexto')",
+            "ni abre un oráculo sobre incidentes ajenos, ni un registro sin usuario absorbe una señal real");
+        cuerpo.Should().Contain("AND (NOT v_distinto OR i.\"Evidencia\" ->> 'contexto_usuario_id' = v_ctx_usuario::text)",
+            "un registro marcado solo agrupa con los del mismo usuario del contexto");
+        cuerpo.Should().Contain("' sin usuario en el contexto'");
     }
 
     [Fact]
@@ -78,7 +80,7 @@ public class RegistroIncidenteDistingueSinActorTests
         var cuerpo = CuerpoReescrito();
 
         cuerpo.Should().Contain(
-            "p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_actor_en_contexto']::text[]");
+            "p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_usuario_en_contexto', 'tenants_afectados_truncados']::text[]");
     }
 
     [Fact]

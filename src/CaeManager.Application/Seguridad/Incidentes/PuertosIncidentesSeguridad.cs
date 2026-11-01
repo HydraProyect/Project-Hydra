@@ -9,7 +9,7 @@ public readonly record struct IncidenteRegistrado(Guid IncidenteId, bool EsNuevo
 /// Puerto de persistencia de los incidentes de seguridad sospechados. La implementación
 /// llama a la función <c>app_registrar_incidente_seguridad</c>, única puerta de escritura
 /// de la tabla, que deduplica dentro de la ventana bajo un cerrojo por señal y sujeto,
-/// salvo sin usuario en el contexto firmado: esa detección se marca sin Actor y abre
+/// salvo sin usuario en el contexto firmado: esa detección se marca como tal y abre
 /// siempre su incidente, para que no absorba una señal real ni revele si existe.
 /// Puede lanzar: quien la llama (<see cref="SenalesIncidenteSeguridad"/>) lo absorbe.
 /// </summary>

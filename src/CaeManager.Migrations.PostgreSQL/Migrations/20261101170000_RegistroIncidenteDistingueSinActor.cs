@@ -12,21 +12,32 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// un incidente nuevo, la suprimía; y <c>es_nuevo</c> respondía si existía una señal agrupable.
     ///
     /// <para>
-    /// Tres casos. <b>Sin contexto firmado</b> se rechaza con 42501: la aplicación siempre firma, salvo
-    /// sin clave vigente, y entonces tampoco hay tráfico bajo RLS; un token inválido ya se rechazaba
-    /// dentro de <c>app_contexto_validado</c>, y solo el vacío pasaba. <b>Con contexto firmado sin
-    /// usuario</b> la detección sigue funcionando, y es legítima: el enlace «No he sido yo» llega por
-    /// correo y sin sesión. Se registra como tal: <c>sin_actor_en_contexto</c> en la evidencia, Actor nulo
-    /// en la transición y motivo que lo dice; no se deduce ni se inventa un Actor. Y nunca agrupa ni es
-    /// agrupada: en la base una señal plantada y una legítima sin usuario son indistinguibles, así que
-    /// cada una abre su incidente; el enlace es de un solo uso, de modo que no multiplica alertas.
-    /// <b>Con usuario</b> nada cambia: el sujeto sigue siendo el Actor real y el contexto, el Usuario
-    /// simulado en una Sesión Privilegiada, cada uno en su campo.
+    /// <b>Sin contexto firmado</b> se rechaza con 42501: la aplicación siempre firma, salvo sin clave
+    /// vigente, y entonces tampoco hay tráfico bajo RLS; un token inválido ya se rechazaba dentro de
+    /// <c>app_contexto_validado</c>, y solo el vacío pasaba.
     /// </para>
     ///
     /// <para>
-    /// Las tres marcas son de la función: se retiran de la evidencia que llega, para que quien llama no
-    /// atribuya el registro a otro usuario ni lo presente como sin Actor.
+    /// <b>Con contexto firmado sin usuario</b> la detección sigue funcionando, y es legítima: el enlace
+    /// «No he sido yo» llega por correo y sin sesión, y una señal nacida en un circuito de Blazor se
+    /// registra en un ámbito nuevo que no tiene su identidad. Queda dicho lo que el contexto muestra:
+    /// <c>sin_usuario_en_contexto</c> en la evidencia, Actor nulo en la transición y motivo que lo dice;
+    /// no se deduce ni se inventa un Actor. Y nunca agrupa ni es agrupada: en la base una señal plantada y
+    /// una legítima sin usuario son indistinguibles, así que cada una abre su incidente. No multiplica
+    /// alertas: las señales con umbral saltan una vez por ventana en <c>VentanaDeslizantePorSujeto</c>, y
+    /// «No he sido yo» es una confirmación humana.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Con usuario distinto del sujeto</b> solo agrupa con registros marcados por ese mismo usuario del
+    /// contexto: otro no puede absorber su señal ni sondear si existe. Sujeto y usuario del contexto
+    /// siguen en campos separados (Actor real y Usuario simulado). <b>Con usuario igual al sujeto</b> nada
+    /// cambia.
+    /// </para>
+    ///
+    /// <para>
+    /// Las marcas son de la función: se retiran de la evidencia que llega, para que quien llama no
+    /// atribuya el registro a otro usuario ni lo presente como sin usuario.
     /// </para>
     ///
     /// <para>
@@ -47,7 +58,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         [
             Cambio("v_distinto boolean;", """
                 v_distinto boolean;
-                    v_sin_actor boolean;
+                    v_sin_usuario boolean;
                 """),
             Cambio("IF p_incidente_id IS NULL OR p_transicion_id IS NULL OR p_senal IS NULL OR p_sujeto IS NULL", """
                 IF NOT public.app_ctx_valido() THEN
@@ -57,20 +68,21 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 """),
             Cambio("v_distinto := v_ctx_usuario IS NOT NULL AND p_sujeto <> 'usuario:' || v_ctx_usuario::text;", """
                 v_distinto := v_ctx_usuario IS NOT NULL AND p_sujeto <> 'usuario:' || v_ctx_usuario::text;
-                    v_sin_actor := v_ctx_usuario IS NULL;
+                    v_sin_usuario := v_ctx_usuario IS NULL;
                 """),
             Cambio("v_evidencia := p_evidencia;", """
-                v_evidencia := p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_actor_en_contexto']::text[];
-                    IF v_sin_actor THEN
-                        v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('sin_actor_en_contexto', true);
+                v_evidencia := p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_usuario_en_contexto', 'tenants_afectados_truncados']::text[];
+                    IF v_sin_usuario THEN
+                        v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true);
                     END IF;
                 """),
             Cambio("""AND (i."Evidencia" ? 'sujeto_distinto_del_contexto') = v_distinto""", """
                 AND (i."Evidencia" ? 'sujeto_distinto_del_contexto') = v_distinto
-                       AND NOT v_sin_actor AND NOT (i."Evidencia" ? 'sin_actor_en_contexto')
+                       AND (NOT v_distinto OR i."Evidencia" ->> 'contexto_usuario_id' = v_ctx_usuario::text)
+                       AND NOT v_sin_usuario AND NOT (i."Evidencia" ? 'sin_usuario_en_contexto')
                 """),
             Cambio("'Detectado por la señal ' || p_senal);", """
-                'Detectado por la señal ' || p_senal || CASE WHEN v_sin_actor THEN ' sin Actor en el contexto' ELSE '' END);
+                'Detectado por la señal ' || p_senal || CASE WHEN v_sin_usuario THEN ' sin usuario en el contexto' ELSE '' END);
                 """),
         ];
 
