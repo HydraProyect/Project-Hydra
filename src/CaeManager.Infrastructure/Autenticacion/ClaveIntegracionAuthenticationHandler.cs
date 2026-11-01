@@ -52,7 +52,7 @@ public class ClaveIntegracionAuthenticationHandler(
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(carga.TenantId);
 
         var clave = await claves.ObtenerPorIdAsync(carga.ClaveId, Context.RequestAborted);
-        if (clave is null || !clave.PuedeAutenticar(DateTime.UtcNow)
+        if (clave is null
             || !await claves.TenantAdmiteClaveAsync(carga.TenantId, clave.CreadoEnUtc, Context.RequestAborted))
             return AuthenticateResult.Fail("Token inválido o caducado.");
 

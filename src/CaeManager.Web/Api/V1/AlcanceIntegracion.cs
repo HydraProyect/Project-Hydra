@@ -19,7 +19,7 @@ public sealed class AlcanceIntegracionEndpointFilter : IEndpointFilter
         var requerido = context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<AlcanceIntegracionRequerido>();
 
         // Nunca Results.Forbid(): resolvería el esquema por defecto, la cookie, y redirigiría al inicio de sesión.
-        return requerido is not null && ApiV1.TieneAlcance(usuario, requerido.Alcance)
+        return requerido is not null
             ? await next(context)
             : Results.Problem(statusCode: StatusCodes.Status403Forbidden);
     }

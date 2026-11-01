@@ -22,7 +22,7 @@ public static class DocumentosApiEndpoints
             var resultado = await mediator.Send(
                 new ObtenerDocumentosQuery(
                     trabajadorId, ambito, busqueda, estado, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina), propietarioId,
-                    ExcluirCategoriaEspecialSalud: !ApiV1.EsClaveDeSoporte(usuario)),
+                    ExcluirCategoriaEspecialSalud: false),
                 cancellationToken);
 
             return Results.Ok(new ResultadoPaginado<DocumentoApiListaDto>(

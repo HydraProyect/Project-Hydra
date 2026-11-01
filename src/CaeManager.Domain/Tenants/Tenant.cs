@@ -208,7 +208,7 @@ public class Tenant : Entity
     public static bool AdmiteClaveEmitidaEn(
         EstadoTenant estado, EstadoComercialTenant estadoComercial, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc) =>
         estado is EstadoTenant.Activo
-        && estadoComercial is not (EstadoComercialTenant.Suspendida or EstadoComercialTenant.SoloLectura)
+        && estadoComercial is not (EstadoComercialTenant.Suspendida)
         && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     public void RenombrarA(string nombre) => EstablecerNombre(nombre);

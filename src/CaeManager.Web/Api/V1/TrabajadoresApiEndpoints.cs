@@ -88,7 +88,7 @@ public static class TrabajadoresApiEndpoints
                 new ObtenerTrabajadoresQuery(
                     // Sin ConDesgloseDocumental: el desglose no se publica (TrabajadorApiListaDto), así que no se pide.
                     busqueda, empresaId, subcontrataId, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina),
-                    BusquedaSinDni: !veDatosPersonales),
+                    BusquedaSinDni: false),
                 cancellationToken);
 
             if (ApiV1.EsClaveDeSoporte(usuario))

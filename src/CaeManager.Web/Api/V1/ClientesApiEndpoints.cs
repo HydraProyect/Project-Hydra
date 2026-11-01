@@ -23,7 +23,7 @@ public static class ClientesApiEndpoints
             var resultado = await mediator.Send(
                 new ObtenerClientesQuery(busqueda, soloCriticos, Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
                 cancellationToken);
-            return ApiV1.EsClaveDeSoporte(usuario) ? Results.Ok(resultado) : Results.Ok(ClienteApiListaDto.DesdeInterno(resultado));
+            return Results.Ok(resultado);
         }).RequiereAlcanceIntegracion(AlcancesIntegracion.ClientesLeer);
 
         endpoints.MapGet("/clientes/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
