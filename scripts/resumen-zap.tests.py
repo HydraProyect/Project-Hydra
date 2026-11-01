@@ -154,14 +154,27 @@ CASOS = [
         ["| Alerta |", "Sin clasificar"],
     ),
     (
-        "site como objeto, igual que lo recorre jq",
-        json.dumps({"site": {"alerts": [alerta("Alerta suelta")]}}),
-        [fila("Medio", "Alerta suelta", "2")],
-        [],
+        "Una dirección sin esquema sale como número de regla",
+        informe(alerta("Fallo en 127.0.0.1:5080/cuenta/tok123", regla="40012")),
+        [fila("Medio", "Regla 40012", "2")],
+        ["tok123"],
+    ),
+    (
+        "Una ruta de varios tramos sale como número de regla",
+        informe(alerta("Fallo en /cuenta/tok123/x", regla="40012")),
+        [fila("Medio", "Regla 40012", "2")],
+        ["tok123"],
+    ),
+    (
+        "Una carga de ataque sale como número de regla",
+        informe(alerta("Reflejo ' OR 1 -- x", regla="40012"), alerta("Reflejo OR 1 -- x", regla="40014")),
+        [fila("Medio", "Regla 40012", "2"), fila("Medio", "Regla 40014", "2")],
+        ["Reflejo"],
     ),
     ("JSON roto", '{"site": [' + FILTRADO, ["ZAP no dejó un informe legible."], []),
     ("JSON con otra forma", json.dumps(["no", "es", "un", "informe"]), ["ZAP no dejó un informe legible."], []),
     ("Alertas con otra forma", json.dumps({"site": ["texto"]}), ["ZAP no dejó un informe legible."], []),
+    ("site como objeto", json.dumps({"site": {"alerts": [alerta("Alerta suelta")]}}), ["ZAP no dejó un informe legible."], []),
     ("Informe ausente", None, ["ZAP no dejó un informe legible."], []),
 ]
 

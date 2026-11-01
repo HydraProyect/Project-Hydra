@@ -657,7 +657,8 @@ jobs:
             fi
           done
 
-          jq -r '(.info // [])[], (.warn // [])[], (.error // [])[]' <<< "$progreso"
+          # Recuentos y no el texto: los avisos del plan son libres y citan rutas.
+          jq -r '"Plan de ZAP: \(.info // [] | length) mensajes, \(.warn // [] | length) avisos, \(.error // [] | length) errores."' <<< "$progreso"
           # Único error admitido: el aviso del documento OpenAPI (ver el plan).
           errores=$(jq '[(.error // [])[] | select(test("Declared path parameter") | not)] | length' <<< "$progreso")
 

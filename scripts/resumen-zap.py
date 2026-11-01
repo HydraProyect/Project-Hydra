@@ -14,7 +14,7 @@ falso positivo marcado en el plan y no cuenta.
 
 El nombre de una alerta viene del catálogo de reglas, pero el informe lo escribe
 ZAP tras atacar la aplicación. Si no parece un nombre de catálogo (trae una URL,
-un valor o marcado), sale el número de regla en su lugar.
+una dirección, un valor, marcado o una carga), sale el número de regla en su lugar.
 
 Sale siempre con 0: el umbral lo decide el job, y un informe ausente o ilegible
 ya tiene su propio error allí. Aquí solo se deja dicho en el resumen.
@@ -30,7 +30,8 @@ RIESGOS = {"3": "Alto", "2": "Medio", "1": "Bajo", "0": "Informativo"}
 SIN_CLASIFICAR = "Sin clasificar"
 ORDEN = [*RIESGOS.values(), SIN_CLASIFICAR]
 
-NOMBRE_DE_CATALOGO = re.compile(r"[\w .,:;()'\"/&+-]{1,120}")
+NOMBRE_DE_CATALOGO = re.compile(r"[\w .,:()\"/-]{1,120}")
+DATO_DE_ATAQUE = re.compile(r"://|--|\d\.\d|:\d|/\w+/")
 AVISO = (
     "Solo recuentos: el repositorio es público. La URL, el parámetro y la evidencia "
     "de cada hallazgo no se publican; se obtienen repitiendo el escaneo en local."
@@ -38,16 +39,13 @@ AVISO = (
 
 
 def alertas(informe):
-    sitios = informe.get("site") or []
-    if isinstance(sitios, dict):
-        sitios = [sitios]
-    for sitio in sitios:
+    for sitio in informe.get("site") or []:
         yield from sitio.get("alerts") or []
 
 
 def nombre_publicable(alerta):
     nombre = str(alerta.get("name") or alerta.get("alert") or "")
-    if NOMBRE_DE_CATALOGO.fullmatch(nombre) and "://" not in nombre:
+    if NOMBRE_DE_CATALOGO.fullmatch(nombre) and not DATO_DE_ATAQUE.search(nombre):
         return nombre
     regla = str(alerta.get("pluginid") or "")
     return f"Regla {regla}" if regla.isascii() and regla.isdigit() else "Regla sin identificar"
