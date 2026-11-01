@@ -437,9 +437,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
-            if (busquedaCentro == ResultadoBusquedaPorNombre.Unico)
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Unico && existente is not null)
             {
-                existente = existente!;
                 var codigoCentro = ResolverTexto(existente.CodigoCentro, fila.CodigoCentro, reemplazar);
                 var direccion = ResolverTexto(existente.Direccion, fila.Direccion, reemplazar);
                 var contacto = ResolverTexto(existente.Contacto, fila.Contacto, reemplazar);
