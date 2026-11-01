@@ -82,7 +82,7 @@ public static class CatalogoAutomatizaciones
         new(IngestaCorreoM365, "Ingesta de correo M365", "Lee los buzones conectados y extrae los adjuntos.", Conmutable: true),
         new(IngestaWhatsApp, "Ingesta de WhatsApp", "Lee las líneas de WhatsApp conectadas y extrae los mensajes entrantes.", Conmutable: true),
         new(AlertasVencimientoDiarias, "Alertas de vencimiento diarias", "Correo diario a Administrador y Dirección CAE con la documentación pendiente de toda la cartera.", Conmutable: true, Cadencia: TimeSpan.FromHours(24)),
-        new(VigilanciaVisitasUrgentes, "Vigilancia de gestiones urgentes de visita", "Avisa por hora cuando hay visitas o sugerencias dentro de la ventana mínima de validación.", Conmutable: true, Cadencia: TimeSpan.FromHours(1)),
+        new(VigilanciaVisitasUrgentes, "Vigilancia de gestiones urgentes de visita", "Comprueba cada hora si hay visitas o sugerencias dentro de la ventana mínima de validación y mantiene un aviso por destinatario con su número. Se retira al llegar a cero; leído, vuelve a avisar mientras queden.", Conmutable: true, Cadencia: TimeSpan.FromHours(1)),
         new(VigilanciaNormativaBoe, "Vigilancia normativa BOE", "Detecta publicaciones del BOE que afectan al catálogo de Tipos de documento — global para todas las organizaciones, no se apaga por una sola sin afectar al resto.", Conmutable: false, Cadencia: TimeSpan.FromHours(12)),
         new(BarridoRetencionDatos, "Barrido de retención de datos", "Con política de retención aprobada, detecta lo purgable y deja propuestas pendientes de revisión; sin política, solo diagnostica.", Conmutable: true, Cadencia: TimeSpan.FromHours(24))
     ];

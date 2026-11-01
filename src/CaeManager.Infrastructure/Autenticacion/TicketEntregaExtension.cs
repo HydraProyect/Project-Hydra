@@ -24,6 +24,12 @@ public static class TicketEntregaExtension
     /// <summary>
     /// Nombre del protector. Cambiarlo invalida los tickets vivos, que duran un minuto. v2: la carga añade el Tenant y la
     /// Asignación de Operación; un ticket v1 no se puede reinterpretar sin inventarlos.
+    ///
+    /// <para>
+    /// No hay convivencia v1/v2: el binario de la extensión que emitía tickets v1 salió de producción el 2026-10-31, así
+    /// que la recogida solo conoce v2. Un ticket emitido con una versión del protector y recogido por otra no se descifra
+    /// y la recogida responde 404, igual que un ticket caducado o manipulado; no se intenta leerlo con la versión anterior.
+    /// </para>
     /// </summary>
     private const string PropositoProtector = "CaeManager.Extension.EntregaArchivo.v2";
 

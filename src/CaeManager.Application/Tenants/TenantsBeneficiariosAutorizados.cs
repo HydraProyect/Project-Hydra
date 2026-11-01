@@ -257,7 +257,8 @@ public static class TenantsBeneficiariosAutorizados
     /// TALVEG, con una operación acotada, caducada o ausente, o con el perfil de origen
     /// desconocido.</item>
     /// </list>
-    /// Es una etiqueta, no autoridad: ninguna puerta lo lee.
+    /// Es una etiqueta, no autoridad: ninguna puerta de acceso lo lee. Solo estrecha los destinatarios
+    /// del aviso de gestiones urgentes (<c>VigilanciaVisitasUrgentesHostedService</c>).
     /// </summary>
     public static string RolEjercidoEnTenantBeneficiario(
         bool esSoporte, bool operacionDelTenantEntero, string rolGuardado, string? rolDeOrigen) =>
