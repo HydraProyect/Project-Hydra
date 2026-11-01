@@ -15,14 +15,15 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Plataforma;
 
 /// <summary>
-/// Migración <c>PartePoliticasHijasDeConcesionPorOperacion</c> (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1),
-/// contra PostgreSQL real y como <c>cae_app_runtime</c>: como superusuario las políticas no se
-/// evaluarían.
+/// Migraciones <c>PartePoliticasHijasDeConcesionPorOperacion</c> y
+/// <c>AlcanceDeConcesionSoloEnSuCreacion</c> (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1), contra PostgreSQL real
+/// y como <c>cae_app_runtime</c>: como superusuario las políticas no se evaluarían.
 ///
 /// <para>
 /// El caso que la motiva: un técnico de Soporte TALVEG con una concesión de
 /// <c>RestablecimientoSegundoFactor</c> acotada al Tenant A no puede ampliarla al Tenant B por debajo
-/// del dominio, ni abrir una Sesión Privilegiada sobre B, ni reescribir o borrar una sesión. La mitad
+/// del dominio, ni abrir una Sesión Privilegiada sobre B, ni reescribir o borrar una sesión. Tampoco
+/// la amplía quien se la concedió: el alcance solo se fija en la transacción que la crea. La mitad
 /// de control positivo recorre las escrituras legítimas de hoy con el mismo código que la aplicación:
 /// la concesión a otra persona, con su fila de alcance, y la apertura y el cierre de la sesión. Sin
 /// ella, los rechazos pasarían igual con una política que lo prohibiera todo.
@@ -158,36 +159,115 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     // ── TenantsAlcanzadosPorConcesion ──────────────────────────────────────
 
     [Fact]
-    public async Task El_titular_no_amplia_su_concesion_a_otro_Tenant()
+    public async Task Quien_concede_no_amplia_una_concesion_ya_creada_a_otro_Tenant_que_si_cubre()
     {
-        await using var conexion = await AbrirRestringidaComoAsync(_tecnico);
+        // El hallazgo: _admin concedió sobre A y cubre también B. Todas las condiciones de autoridad
+        // se cumplen; solo falla que la concesión ya no se esté creando.
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            _tecnico, CapacidadPrivilegio.RestablecimientoSegundoFactor, [_tenantA],
+            ahora, ahora.AddDays(7), concedidaPorUsuarioId: _admin, motivoConcesion: "Restablecer en A");
+        await using (var contexto = CrearContexto(_admin))
+        {
+            new PlataformaWriter(contexto).AnadirConcesion(concesion);
+            await contexto.SaveChangesAsync();
+        }
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var accion = async () => await InsertarAlcanceAsync(conexion, concesion.Id, _tenantB);
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "el alcance se fija al crear la concesión: añadirlo después la amplía sin nuevo acto ni motivo");
+        (await ContarAlcanceComoPropietarioAsync(concesion.Id, _tenantB)).Should().Be(0);
+        (await AbrirComoTecnicoAsync(concesion.Id, _tenantB)).EsFallido.Should().BeTrue(
+            "sin la fila de alcance, la concesión no abre una Sesión Privilegiada sobre B");
+        var sobreA = await AbrirComoTecnicoAsync(concesion.Id, _tenantA);
+        sobreA.EsExitoso.Should().BeTrue(sobreA.EsFallido ? sobreA.Error.Codigo : "");
+    }
+
+    [Fact]
+    public async Task Un_alta_dentro_de_una_transaccion_exterior_falla_cerrada()
+    {
+        // Con una transacción abierta, EF Core guarda dentro de un punto de guardado, y sus filas llevan
+        // el xid de la subtransacción. Por eso ConcederPrivilegioCommand no usa ITransaccionDeComando.
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantB],
+            ahora, ahora.AddDays(7), concedidaPorUsuarioId: _admin, motivoConcesion: "Alta de B");
+        await using var contexto = CrearContexto(_admin);
+        await using var exterior = await contexto.Database.BeginTransactionAsync();
+        new PlataformaWriter(contexto).AnadirConcesion(concesion);
+
+        var accion = async () => await contexto.SaveChangesAsync();
+
+        (await accion.Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Cerrar_la_concesion_en_la_misma_transaccion_no_reabre_su_alcance()
+    {
+        // Un UPDATE deja en la concesión el xmin de esta transacción, pero bajo RLS solo puede cerrarla.
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        (await EjecutarAsync(conexion,
+                @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = @id;", _concesionDelTecnico))
+            .Should().Be(1);
 
         var accion = async () => await InsertarAlcanceAsync(conexion, _concesionDelTecnico, _tenantB);
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Una_concesion_nace_con_varios_Tenants_en_el_mismo_SaveChanges_bajo_runtime()
+    {
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantA, _tenantB],
+            ahora, ahora.AddDays(7), concedidaPorUsuarioId: _admin, motivoConcesion: "Alta de A y B");
+
+        await using (var contexto = CrearContexto(_admin))
+        {
+            new PlataformaWriter(contexto).AnadirConcesion(concesion);
+            await contexto.SaveChangesAsync();
+        }
+
+        (await ContarAlcanceComoPropietarioAsync(concesion.Id, _tenantA)).Should().Be(1);
+        (await ContarAlcanceComoPropietarioAsync(concesion.Id, _tenantB)).Should().Be(1);
+    }
+
+    // Los casos siguientes crean la concesión en la misma transacción que la fila de alcance, para que
+    // el rechazo venga de la condición que nombran y no de que la concesión ya exista. Sin este control
+    // positivo pasarían también con una política que lo prohibiera todo.
+
+    [Fact]
+    public async Task En_el_alta_quien_concede_escribe_el_alcance_de_un_Tenant_que_cubre()
+    {
+        (await AnadirAlcanceDentroDelAltaAsync(usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_titular_no_amplia_su_concesion_a_otro_Tenant()
+    {
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _tecnico, beneficiario: _tecnico, concedente: _admin, _tenantB);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
                 "la fila de alcance la escribe quien concede: si la escribiera el titular, una concesión " +
                 "acotada a un Tenant valdría para cualquier otro");
-        (await ContarAlcanceComoPropietarioAsync(_concesionDelTecnico, _tenantB)).Should().Be(0);
     }
 
     [Fact]
     public async Task Quien_concede_no_amplia_una_concesion_a_un_Tenant_que_no_cubre()
     {
-        Guid concesionId;
-        var ahora = DateTime.UtcNow;
-        var concesion = ConcesionPrivilegio.SobreTenants(
-            _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantA],
-            ahora, ahora.AddDays(7), concedidaPorUsuarioId: _adminSoloDeA, motivoConcesion: "Alta de A");
-        await using (var contexto = CrearContexto(_adminSoloDeA))
-        {
-            new PlataformaWriter(contexto).AnadirConcesion(concesion);
-            await contexto.SaveChangesAsync();
-            concesionId = concesion.Id;
-        }
-
-        await using var conexion = await AbrirRestringidaComoAsync(_adminSoloDeA);
-        var accion = async () => await InsertarAlcanceAsync(conexion, concesionId, _tenantB);
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _adminSoloDeA, beneficiario: _tecnico, concedente: _adminSoloDeA, _tenantB);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
@@ -197,10 +277,9 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Quien_no_concedio_la_concesion_no_le_anade_alcance()
     {
-        // _adminSoloDeA cubre A, pero la concesión del técnico la concedió _admin.
-        await using var conexion = await AbrirRestringidaComoAsync(_adminSoloDeA);
-
-        var accion = async () => await InsertarAlcanceAsync(conexion, _concesionDelTecnico, _tenantA);
+        // _adminSoloDeA cubre A, pero la concesión la concedió _admin.
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _adminSoloDeA, beneficiario: _tecnico, concedente: _admin, _tenantA);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
@@ -209,24 +288,10 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Quien_se_dio_a_si_mismo_una_concesion_acotada_no_la_amplia()
     {
-        // La siembra el propietario: _admin, que es AdminPlataforma de todos los Tenants, es a la vez
-        // titular y concedente de una concesión acotada a A. Solo la condición de que quien concede
-        // no sea el titular le impide añadir B.
-        Guid concesionId;
-        await using (var contexto = CrearContexto(_admin, cadena: _cadenaConexion))
-        {
-            var ahora = DateTime.UtcNow;
-            var concesion = ConcesionPrivilegio.SobreTenants(
-                _admin, CapacidadPrivilegio.RestablecimientoSegundoFactor, [_tenantA],
-                ahora.AddMinutes(-10), ahora.AddDays(1), concedidaPorUsuarioId: _admin,
-                motivoConcesion: "Autoconcesión sembrada (test)");
-            contexto.ConcesionesPrivilegio.Add(concesion);
-            await contexto.SaveChangesAsync();
-            concesionId = concesion.Id;
-        }
-        await using var conexion = await AbrirRestringidaComoAsync(_admin);
-
-        var accion = async () => await InsertarAlcanceAsync(conexion, concesionId, _tenantB);
+        // _admin, que es AdminPlataforma de todos los Tenants, es a la vez titular y concedente. Solo la
+        // condición de que quien concede no sea el titular le impide añadir B.
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _admin, concedente: _admin, _tenantB);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
@@ -236,11 +301,18 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Una_concesion_cerrada_no_recibe_alcance_nuevo()
     {
-        await EjecutarComoPropietarioAsync(
-            @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = @id;", _concesionDelTecnico);
-        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB, estado: "Revocada");
 
-        var accion = async () => await InsertarAlcanceAsync(conexion, _concesionDelTecnico, _tenantB);
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Una_concesion_global_no_recibe_alcance()
+    {
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB, esAlcanceGlobal: true);
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
@@ -512,6 +584,49 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         comando.Parameters.AddWithValue("concesion", concesionId);
         comando.Parameters.AddWithValue("tenant", tenantId);
         return await comando.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Crea la concesión como propietario, que no pasa por las políticas de alta, y en la misma
+    /// transacción baja a <c>cae_app_runtime</c> para escribir la fila de alcance. Así
+    /// <c>alcance_por_quien_concede</c> ve la concesión recién creada, con la forma que cada caso pide,
+    /// y solo decide el resto de su <c>WITH CHECK</c>.
+    /// </summary>
+    private async Task<int> AnadirAlcanceDentroDelAltaAsync(
+        Guid usuario, Guid beneficiario, Guid concedente, Guid tenantId,
+        string estado = "Vigente", bool esAlcanceGlobal = false)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, usuarioId: usuario);
+        await using var alta = await conexion.BeginTransactionAsync();
+
+        var concesionId = Guid.NewGuid();
+        await using (var insertar = conexion.CreateCommand())
+        {
+            insertar.CommandText = @"
+INSERT INTO public.""ConcesionesPrivilegio""
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
+VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days', @estado, @concedente,
+        'Alta por debajo del dominio (test)', now(), gen_random_uuid(), 'Ordinaria');";
+            insertar.Parameters.AddWithValue("id", concesionId);
+            insertar.Parameters.AddWithValue("beneficiario", beneficiario);
+            // CK_ConcesionesPrivilegio_AlcanceGlobalSoloCapacidadesAdmitidas: lo global no es Aprovisionamiento.
+            insertar.Parameters.AddWithValue("capacidad", esAlcanceGlobal ? "SoporteLectura" : "Aprovisionamiento");
+            insertar.Parameters.AddWithValue("global", esAlcanceGlobal);
+            insertar.Parameters.AddWithValue("estado", estado);
+            insertar.Parameters.AddWithValue("concedente", concedente);
+            await insertar.ExecuteNonQueryAsync();
+        }
+
+        await using (var setRol = conexion.CreateCommand())
+        {
+            setRol.CommandText = "SET LOCAL ROLE cae_app_runtime;";
+            await setRol.ExecuteNonQueryAsync();
+        }
+
+        return await InsertarAlcanceAsync(conexion, concesionId, tenantId);
     }
 
     private static async Task<int> InsertarSesionAsync(

@@ -849,7 +849,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     private static readonly (string Tabla, string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeTablasHijas =
     [
         ("TenantsAlcanzadosPorConcesion", "alcance_por_quien_concede", 'a',
-            ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente"], []),
+            ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente",
+             "c.xmin", "pg_current_xact_id()", "VigenciaDesde", "00:05:00"], []),
         ("SesionesPrivilegiadas", "sesion_privilegiada_apertura", 'a',
             ["app_ctx_usuario_id()", "UsuarioPlataformaId", "TenantsAlcanzadosPorConcesion", "TenantObjetivoId", "Vigente",
              "VigenciaHasta", "UsuarioSimuladoId", "04:00:00", "00:05:00"], []),
@@ -859,8 +860,9 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
     /// <summary>
     /// <b>Ninguna política de DELETE ni FOR ALL en las tablas hijas, y es una aserción</b>: la fila de
-    /// alcance la escribe solo quien concede y una Sesión Privilegiada es el rastro de quién entró en
-    /// qué Tenant. Una permisiva FOR ALL se combinaría con OR con las de escritura y devolvería al
+    /// alcance la escribe solo quien concede, en la misma transacción que crea la concesión
+    /// (<c>AlcanceDeConcesionSoloEnSuCreacion</c>), y una Sesión Privilegiada es el rastro de quién entró
+    /// en qué Tenant. Una permisiva FOR ALL se combinaría con OR con las de escritura y devolvería al
     /// titular la ampliación de su propia concesión a cualquier Tenant. Y la apertura de sesión
     /// nombra cada capacidad que <see cref="CapacidadesQuePuedenAbrirSesion"/> admite, para que la lista
     /// de C# y la de la base no diverjan en silencio.
