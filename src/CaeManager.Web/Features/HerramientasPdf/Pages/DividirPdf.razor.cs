@@ -28,6 +28,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 {
     /// <summary>Ancho con el que se rasteriza: el de «Grandes», que las otras dos escalan.</summary>
     private const int AnchoMiniaturaPixeles = 168;
+    private const int AnchoVistaGrandePixeles = 720;
 
     /// <summary>Tope de vistas previas en un circuito; más allá, la página sale en blanco pero se puede cortar igual.</summary>
     private const int MaximoMiniaturas = 120;
@@ -53,6 +54,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private readonly CancellationTokenSource _ciclo = new();
     private readonly Dictionary<int, string> _miniaturas = [];
+    private readonly Dictionary<int, string> _grandes = [];
+    private readonly HashSet<int> _grandesPedidas = [];
 
     private bool _inicializando = true;
     private bool _disponible;
@@ -126,17 +129,66 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _selectorVisible = contexto.Activa is not null;
         _tenantEsperadoId = TenantActual.TenantId;
 
+        // La Empresa gestionada sale solo del selector de la barra lateral (o de la unica Empresa del Tenant):
+        // la pantalla no ofrece un segundo selector.
         if (!_sinEmpresa)
         {
             _empresas = await PuertaAccesoDatos.EjecutarAsync(
                 () => Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _ciclo.Token));
-            _empresaId = _empresas.Count == 1 ? _empresas[0].Id : null;
+            if (contexto.Activa is { } activa && _empresas.FirstOrDefault(e => string.Equals(e.RazonSocial, activa.Nombre, StringComparison.OrdinalIgnoreCase)) is { } coincidente)
+                _empresaId = coincidente.Id;
+            else if (_empresas.Count == 1)
+                _empresaId = _empresas[0].Id;
+            else if (_empresas.Count > 1)
+                _sinEmpresa = true;
         }
 
         _inicializando = false;
     }
 
-    private void ElegirEmpresa(string valor) => _empresaId = Identificador(valor);
+    private string? NombreEmpresaActiva => _empresas.FirstOrDefault(e => e.Id == _empresaId)?.RazonSocial;
+
+    protected override async Task OnAfterRenderAsync(bool primeraVez)
+    {
+        await base.OnAfterRenderAsync(primeraVez);
+        if (_division is not { } division || _desechado)
+            return;
+
+        if (_paso == PasoAsistente.Asignar && division.Rangos.Count > 0)
+            _ = CargarVistaGrandeAsync(division.Rangos[Math.Clamp(_indiceTramo, 0, division.Rangos.Count - 1)].Inicial);
+        if (_paginaAmpliada is { } ampliada)
+            _ = CargarVistaGrandeAsync(ampliada);
+    }
+
+    /// <summary>Vista de una sola pagina a tamano de lectura, bajo demanda: solo la del tramo abierto o ampliada.</summary>
+    private async Task CargarVistaGrandeAsync(int pagina)
+    {
+        if (_almacen is not { } almacen || _original is not { } original || !_grandesPedidas.Add(pagina))
+            return;
+
+        var token = _ciclo.Token;
+        try
+        {
+            using var reserva = await PresupuestoMemoria.ReservarAsync(original.TamanoBytes, token);
+            var contenido = await almacen.LeerAsync(original, token);
+            var vista = await Task.Run(() => Rasterizador.RasterizarMiniatura(contenido, pagina - 1, AnchoVistaGrandePixeles, token), token);
+            if (vista.EsFallido)
+                return;
+
+            _grandes[pagina] = Convert.ToBase64String(vista.Valor);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or IOException)
+        {
+            _grandesPedidas.Remove(pagina);
+            Logger.LogInformation(ex, "Dividir PDF sigue sin vista grande");
+        }
+    }
+
+    private string? Grande(int pagina) => _grandes.GetValueOrDefault(pagina);
 
     private void ElegirTamano(string valor) =>
         _tamanoPaginas = int.TryParse(valor, CultureInfo.InvariantCulture, out var tamano) ? tamano : _tamanoPaginas;
@@ -381,6 +433,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         RetirarOriginal();
         _division = null;
         _miniaturas.Clear();
+        _grandes.Clear();
+        _grandesPedidas.Clear();
         _resultados = [];
         _error = null;
         _firmado = false;
@@ -415,10 +469,10 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private static Guid? Identificador(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
     private static string TextoFecha(DateOnly? fecha) =>
-        fecha?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
+        fecha?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static DateOnly? Fecha(string valor) =>
-        DateOnly.TryParseExact(valor, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ? fecha : null;
+        DateOnly.TryParseExact(valor?.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha) ? fecha : null;
 
     public void Dispose()
     {

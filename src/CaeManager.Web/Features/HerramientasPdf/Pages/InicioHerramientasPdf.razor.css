@@ -3,3 +3,4 @@
 .tarjeta-herramienta h2 { font: var(--font-h4); margin: 0; }
 .tarjeta-herramienta p { color: var(--color-text-muted); flex: 1; font: var(--font-body-md); margin: 0; }
 .icono-herramienta { align-items: center; background: var(--color-surface-subtle); border-radius: var(--radius-md); color: var(--color-text); display: inline-flex; flex: none; height: 40px; justify-content: center; width: 40px; }
+.tarjeta-herramienta ::deep a.boton { text-decoration: none; }

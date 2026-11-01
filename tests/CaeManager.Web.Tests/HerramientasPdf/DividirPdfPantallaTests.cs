@@ -176,10 +176,10 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
     private static void PonerEmision(IRenderedComponent<DividirPdf> cut)
     {
-        cut.WaitForAssertion(() => cut.FindAll("input[type=date]").Should().NotBeEmpty());
-        cut.FindAll("input[type=date]")[0].Input("2026-01-15");
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]").Should().NotBeEmpty());
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].Input("15/01/2026");
         // CampoTexto retiene 300 ms lo tecleado y lo entrega al perder el foco, que en el navegador va antes del clic.
-        cut.FindAll("input[type=date]")[0].Blur();
+        cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].Blur();
     }
 
     [Fact]
@@ -194,13 +194,13 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         var cut = Renderizar(tenantId: TenantOrigenId);
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Elige primero una Empresa gestionada en el selector de la barra lateral"));
+        cut.WaitForAssertion(() => cut.Find(".aviso-dividir").TextContent.Should().Contain("Elige primero una Empresa gestionada en el selector de la barra lateral"));
         cut.FindAll(".zona-soltar-archivo").Should().BeEmpty();
         cut.Find(".zona-bloqueada").TextContent.Should().Contain("Elige una Empresa gestionada para poder subir el PDF");
     }
 
     [Fact]
-    public void Con_varias_Empresas_propias_no_se_sube_hasta_elegir_una()
+    public void Con_varias_Empresas_propias_y_sin_selector_se_bloquea_sin_ofrecer_un_selector_en_la_pagina()
     {
         var otra = new EmpresaSelectorDto(Guid.NewGuid(), "Otra Empresa S.L.");
         _mediador.Empresas = [new EmpresaSelectorDto(EmpresaId, "Montajes Norte S.L."), otra];
@@ -208,9 +208,8 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
 
         cut.WaitForAssertion(() => cut.FindAll(".zona-bloqueada").Should().ContainSingle());
-        cut.Find("select").Change(otra.Id.ToString());
-
-        cut.FindAll(".zona-soltar-archivo").Should().ContainSingle();
+        cut.FindAll("select").Should().BeEmpty("la Empresa sale solo del selector de la barra lateral");
+        cut.FindAll(".zona-soltar-archivo").Should().BeEmpty();
     }
 
     [Fact]
@@ -291,7 +290,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
 
         Pulsar(cut, "Asignar documentos");
 
-        cut.WaitForAssertion(() => cut.FindAll("input[type=date]")[0].GetAttribute("value").Should().Be("2026-01-15"));
+        cut.WaitForAssertion(() => cut.FindAll("input[placeholder=\"dd/mm/aaaa\"]")[0].GetAttribute("value").Should().Be("15/01/2026"));
     }
 
     [Fact]

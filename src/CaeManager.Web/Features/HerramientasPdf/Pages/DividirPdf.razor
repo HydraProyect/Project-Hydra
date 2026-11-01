@@ -27,8 +27,25 @@
         {
             if (_paso != PasoAsistente.Resultado)
             {
-                <IndicadorPasos Pasos="Pasos(division)" PasoActual="@ClavePasoActual" PasosCompletados="PasosCompletados"
-                                PermitirVolver="true" OnPasoSeleccionado="IrAlPasoAsync" EtiquetaGrupo="@Textos["PasosEtiqueta"]" />
+                @PintarCabecera()
+                <ol class="pasos-dividir" aria-label="@Textos["PasosEtiqueta"]">
+                    @foreach (var paso in Pasos(division))
+                    {
+                        var clave = paso.Clave;
+                        var activo = clave == ClavePasoActual;
+                        var hecho = PasosCompletados.Contains(clave) && !activo;
+                        <li>
+                            @if (hecho)
+                            {
+                                <button type="button" class="paso-pastilla paso-hecho" @onclick="() => IrAlPasoAsync(clave)"><Icono Nombre="check" />@paso.Titulo</button>
+                            }
+                            else
+                            {
+                                <span class="paso-pastilla @(activo ? "paso-actual" : "paso-pendiente")" aria-current="@(activo ? "step" : null)">@paso.Titulo</span>
+                            }
+                        </li>
+                    }
+                </ol>
             }
 
             if (!string.IsNullOrEmpty(_error))
@@ -57,7 +74,7 @@
     <Modal Visible="_paginaAmpliada is not null" VisibleChanged="v => { if (!v) _paginaAmpliada = null; }"
            Titulo="@(Textos["PaginaAmpliada", _paginaAmpliada ?? 0].Value)" Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="true">
         <ChildContent>
-            @if (_paginaAmpliada is { } ampliada && Miniatura(ampliada) is { } imagen)
+            @if (_paginaAmpliada is { } ampliada && (Grande(ampliada) ?? Miniatura(ampliada)) is { } imagen)
             {
                 <img class="pagina-ampliada" src="data:image/png;base64,@imagen" alt="@Textos["PaginaAmpliada", ampliada]" />
             }
@@ -79,14 +96,20 @@
     private RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
         @<Boton Variante="VarianteBoton.Primario" Deshabilitado="deshabilitado" Cargando="cargando" OnClick="accion" Href="@href">@texto</Boton>;
 
+    private RenderFragment PintarCabecera() => @<div class="cabecera-dividir">
+        <h1>@Textos["DividirTitulo"]</h1>
+        @if (NombreEmpresaActiva is { } nombreEmpresa)
+        {
+            <p>@Textos["EmpresaGestionadaDe"] <strong>@nombreEmpresa</strong> · @Textos["LaDelSelector"]</p>
+        }
+    </div>;
+
     private RenderFragment PintarSubir() => @<text>
-        <CabeceraPagina Titulo="@Textos["SubirTitulo"]">
-            <Descripcion>@Textos["SubirDescripcion"]</Descripcion>
-        </CabeceraPagina>
+        @PintarCabecera()
 
         @if (_sinEmpresa)
         {
-            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SinEmpresaAviso"]</span></div>
+            <div class="aviso-dividir" role="note"><Icono Nombre="advertencia" /><span><strong>@Textos["SinEmpresaAvisoNegrita"]</strong> @Textos["SinEmpresaAvisoResto"]</span></div>
         }
         else if (_soloLectura)
         {
@@ -96,37 +119,26 @@
         {
             <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SinEmpresaPropia"]</span></div>
         }
-        else if (_empresas.Count > 1)
-        {
-            <CampoSelect Etiqueta="@Textos["EmpresaGestionada"]" Valor="@(_empresaId?.ToString() ?? string.Empty)" ValorChanged="ElegirEmpresa">
-                <option value="">@Textos["ElegirEmpresa"]</option>
-                @foreach (var empresa in _empresas)
-                {
-                    <option value="@empresa.Id">@empresa.RazonSocial</option>
-                }
-            </CampoSelect>
-        }
-        else
-        {
-            <p class="empresa-activa">@Textos[_selectorVisible ? "EmpresaDelSelector" : "EmpresaUnica", _empresas[0].RazonSocial]</p>
-        }
 
         @if (!string.IsNullOrEmpty(_error))
         {
             <div class="aviso-dividir aviso-error" role="alert"><Icono Nombre="advertencia" /><span>@_error</span></div>
         }
 
-        @if (PuedeSubir)
-        {
-            <ZonaSoltarArchivo Titulo="@Textos["ZonaTitulo"]" FormatosTexto="@Textos["ZonaFormatos", LimitesDivisionPdf.TamanoMaximoOriginalMb]"
-                               Accept=".pdf,application/pdf" Cargando="_cargando" OnChange="CargarArchivoAsync" />
-        }
-        else
-        {
-            <div class="zona-bloqueada"><Icono Nombre="documentos" /><span>@Textos["ZonaBloqueada"]</span></div>
-        }
+        <section class="isla-dividir isla-subir" aria-labelledby="titulo-subir">
+            <h2 id="titulo-subir">@Textos["SubirTitulo"]</h2>
+            @if (PuedeSubir)
+            {
+                <ZonaSoltarArchivo Titulo="@Textos["ZonaTitulo"]" FormatosTexto="@Textos["ZonaFormatos", LimitesDivisionPdf.TamanoMaximoOriginalMb]"
+                                   Accept=".pdf,application/pdf" Cargando="_cargando" OnChange="CargarArchivoAsync" />
+            }
+            else
+            {
+                <div class="zona-bloqueada"><Icono Nombre="documentos" /><span>@Textos["ZonaBloqueada"]</span></div>
+            }
 
-        <p class="texto-suave">@Textos["SubirPie"]</p>
+            <p class="texto-suave">@Textos["SubirPie"]</p>
+        </section>
     </text>;
 
     private RenderFragment PintarDividir(EstadoDivisionPdf division) => @<text>
@@ -155,10 +167,10 @@
         <aside class="detectado" aria-label="@Textos["DetectadoTitulo"]">
             <h2>@Textos["DetectadoTitulo"]</h2>
             <ol>
-                @foreach (var rango in division.Rangos)
+                @foreach (var (rango, posicion) in division.Rangos.Select((r, i) => (r, i)))
                 {
                     var asignacion = division.Asignacion(rango);
-                    <li>
+                    <li class="marca-@(posicion % 6)">
                         <strong>@TextoPaginas(rango)</strong>
                         @if (asignacion.Sugerencia is { TipoNombre: not null } or { TitularNombre: not null })
                         {
@@ -181,7 +193,7 @@
 
         <section class="dividir-paginas" aria-label="@Textos["PaginasEtiqueta"]">
             <div class="dividir-herramientas">
-                <span class="texto-suave">@Textos["PistaTijeras"]</span>
+                <h2>@Textos["PaginasTitulo"] <span class="texto-suave">· @Textos[division.Rangos.Count == 1 ? "DocumentosUno" : "DocumentosVarios", division.Rangos.Count]</span></h2>
                 <div class="tamanos-paginas" role="group" aria-label="@Textos["TamanoPaginas"]">
                     @foreach (var (valor, clave) in new[] { (84, "TamanoPequenas"), (112, "TamanoMedianas"), (168, "TamanoGrandes") })
                     {
@@ -190,12 +202,18 @@
                     }
                 </div>
             </div>
+            @if (division.PropuestasSinConfirmar == 0)
+            {
+                <span class="texto-suave">@Textos["PistaTijeras"]</span>
+            }
             <div class="rejilla-paginas" style="--ancho-pagina: @(_tamanoPaginas)px">
                 @for (var i = 1; i <= division.NumeroPaginas; i++)
                 {
                     var pagina = i;
                     var corte = division.CorteTras(pagina);
-                    <div class="pagina-pdf">
+                    var posicionTramo = division.Rangos.ToList().FindIndex(x => pagina >= x.Inicial && pagina <= x.Final);
+                    <div class="pagina-pdf marca-@(Math.Max(posicionTramo, 0) % 6)">
+                        <span class="rotulo-pagina">@(posicionTramo >= 0 && division.Rangos[posicionTramo].Inicial == pagina ? Textos["RotuloDocumento", posicionTramo + 1].Value : string.Empty)</span>
                         <button type="button" class="hoja-pdf" aria-label="@Textos["VerPagina", pagina]" @onclick="() => _paginaAmpliada = pagina">
                             @if (Miniatura(pagina) is { } miniatura)
                             {
@@ -238,7 +256,7 @@
 
             <div class="ficha-tramo">
                 <div class="vista-tramo">
-                    @if (Miniatura(rango.Inicial) is { } miniatura)
+                    @if ((Grande(rango.Inicial) ?? Miniatura(rango.Inicial)) is { } miniatura)
                     {
                         <img src="data:image/png;base64,@miniatura" alt="@Textos["VerPagina", rango.Inicial]" />
                     }
@@ -320,7 +338,7 @@
                         }
                     </CampoSelect>
 
-                    <CampoTexto Etiqueta="@Textos["FechaEmision"]" Type="date" Deshabilitado="asignacion.Omitido" Valor="@TextoFecha(asignacion.FechaEmision)" ValorChanged="v => asignacion.FechaEmision = Fecha(v)" />
+                    <CampoTexto Etiqueta="@Textos["FechaEmision"]" Placeholder="dd/mm/aaaa" Deshabilitado="asignacion.Omitido" Valor="@TextoFecha(asignacion.FechaEmision)" ValorChanged="v => asignacion.FechaEmision = Fecha(v)" />
 
                     @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
                     {
@@ -328,7 +346,7 @@
                     }
                     else
                     {
-                        <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Type="date" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
+                        <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Placeholder="dd/mm/aaaa" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
                         <label class="marca-tramo">
                             <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]
@@ -344,12 +362,12 @@
                     {
                         <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@TextoPendientes(pendientes)</span></div>
                     }
-                </div>
-            </div>
 
-            <div class="barra-acciones-dividir">
-                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@(_indiceTramo == 0 ? Textos["VolverADividir"] : Textos["Anterior"])</Boton>
-                @BotonPrincipal(Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"], EventCallback.Factory.Create(this, SiguienteTramo))
+                    <div class="barra-acciones-dividir barra-en-ficha">
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="AnteriorTramo">@(_indiceTramo == 0 ? Textos["VolverADividir"] : Textos["Anterior"])</Boton>
+                        @BotonPrincipal(Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"], EventCallback.Factory.Create(this, SiguienteTramo))
+                    </div>
+                </div>
             </div>
         </text>;
     }
@@ -360,8 +378,8 @@
         var aCrear = division.TramosACrear().Count;
 
         return @<text>
-            <h2 class="titulo-revision">@Textos["RevisarTitulo"]</h2>
-            <div class="tabla-dividir">
+            <div class="tabla-dividir isla-revision">
+                <h2 class="titulo-revision">@Textos["RevisarTitulo"]</h2>
                 <table>
                     <thead>
                         <tr>
@@ -403,12 +421,11 @@
                         }
                     </tbody>
                 </table>
-            </div>
-
-            <div class="barra-acciones-dividir">
-                <Boton Variante="VarianteBoton.Fantasma" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
-                @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
-                    EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0, cargando: _creando)
+                <div class="barra-acciones-dividir barra-en-ficha">
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
+                    @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
+                        EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0, cargando: _creando)
+                </div>
             </div>
         </text>;
     }
@@ -418,11 +435,13 @@
         var creados = _resultados.Count(r => r.Resultado.Estado == EstadoTramoCreado.Creado);
 
         return @<text>
-            <CabeceraPagina Titulo="@Textos[creados == 1 ? "ResultadoUno" : "ResultadoVarios", creados]">
-                <Descripcion>@Textos["ResultadoDe", _nombreOriginal, division.Catalogo.EmpresaGestionada.RazonSocial] @Textos["ResultadoHora", _horaCreacion]</Descripcion>
-            </CabeceraPagina>
+            <div class="cabecera-dividir">
+                <h1>@Textos[creados == 1 ? "ResultadoUno" : "ResultadoVarios", creados]</h1>
+                <p>@Textos["ResultadoDe", _nombreOriginal, division.Catalogo.EmpresaGestionada.RazonSocial] @Textos["ResultadoHora", _horaCreacion]</p>
+            </div>
 
-            <div class="tabla-dividir">
+            <div class="tabla-dividir isla-revision">
+                <h2 class="titulo-revision">@Textos["ResultadoDocumentos"]</h2>
                 <table>
                     <thead>
                         <tr>

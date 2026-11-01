@@ -384,4 +384,34 @@
   <data name="MotivoMatricula" xml:space="preserve">
     <value>Matrícula en la pág. {0}</value>
   </data>
+  <data name="LaDelSelector" xml:space="preserve">
+    <value>la del selector de la barra lateral</value>
+  </data>
+  <data name="EmpresaGestionadaDe" xml:space="preserve">
+    <value>Empresa gestionada:</value>
+  </data>
+  <data name="SinEmpresaAvisoNegrita" xml:space="preserve">
+    <value>Elige primero una Empresa gestionada</value>
+  </data>
+  <data name="DocumentosUno" xml:space="preserve">
+    <value>1 documento</value>
+  </data>
+  <data name="PaginasTitulo" xml:space="preserve">
+    <value>Páginas</value>
+  </data>
+  <data name="SinEmpresaAvisoResto" xml:space="preserve">
+    <value>en el selector de la barra lateral. Los documentos se crean en ella.</value>
+  </data>
+  <data name="DividirTitulo" xml:space="preserve">
+    <value>Dividir un PDF</value>
+  </data>
+  <data name="RotuloDocumento" xml:space="preserve">
+    <value>Documento {0}</value>
+  </data>
+  <data name="DocumentosVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="ResultadoDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
 </root>
