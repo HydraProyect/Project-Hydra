@@ -26,6 +26,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                        (TG_OP = 'INSERT' OR OLD."Sensibilidad" IS DISTINCT FROM 'CategoriaEspecialSalud') THEN
                         NEW."LecturaIaActiva" := false;
                         NEW."VerificacionIaActiva" := false;
+                        NEW."DeteccionTrabajadoresActiva" := false;
                     END IF;
                     RETURN NEW;
                 END
@@ -37,9 +38,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     BEFORE INSERT OR UPDATE ON public."TiposDocumento"
                     FOR EACH ROW EXECUTE FUNCTION public.proteger_lectura_ia_inicial_salud();
 
-                UPDATE public."TiposDocumento"
-                SET "LecturaIaActiva" = false, "VerificacionIaActiva" = false
-                WHERE "Sensibilidad" = 'CategoriaEspecialSalud';
                 """);
         }
 

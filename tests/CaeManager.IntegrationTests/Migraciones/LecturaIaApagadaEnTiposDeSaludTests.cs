@@ -52,13 +52,13 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
     [Fact]
     public async Task Apaga_la_IA_de_los_tipos_de_salud_de_cualquier_Tenant_y_solo_de_esos()
     {
-        (await LeerAsync(_deSalud)).Should().Be((true, true), "guarda del instrumento: la copia parte encendida");
+        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "guarda del instrumento: la copia parte encendida");
 
         await using (var contexto = NuevoContexto())
             await contexto.GetService<IMigrator>().MigrateAsync(MigracionDelCambio);
 
-        (await LeerAsync(_deSalud)).Should().Be((false, false));
-        (await LeerAsync(_sinSalud)).Should().Be((true, true));
+        (await LeerAsync(_deSalud)).Should().Be((false, false, true));
+        (await LeerAsync(_sinSalud)).Should().Be((true, true, true));
     }
 
     [Fact]
@@ -67,42 +67,46 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         await using var contexto = NuevoContexto();
         var migrador = contexto.GetService<IMigrator>();
         await migrador.MigrateAsync(MigracionDelCambio);
-        // Una versión anterior crea esta fila después del primer apagado.
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", _deSalud);
+        await migrador.MigrateAsync(MigracionProteccion);
+        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "la protección conserva una activación anterior");
+
+        // Una versión anterior inserta esta fila con los tres indicadores encendidos durante el relevo.
         var duranteRelevo = Guid.NewGuid();
         await SembrarCopiaAsync(duranteRelevo, "Durante relevo", "CategoriaEspecialSalud");
-        (await LeerAsync(duranteRelevo)).Should().Be((true, true));
-        await migrador.MigrateAsync(MigracionProteccion);
-        (await LeerAsync(duranteRelevo)).Should().Be((false, false));
+        (await LeerAsync(duranteRelevo)).Should().Be((false, false, false));
 
         var nuevaSalud = Guid.NewGuid();
         var nuevaNoSalud = Guid.NewGuid();
         await SembrarCopiaAsync(nuevaSalud, "Alta salud", "CategoriaEspecialSalud");
         await SembrarCopiaAsync(nuevaNoSalud, "Alta no salud", "DatosPersonales");
-        (await LeerAsync(nuevaSalud)).Should().Be((false, false));
-        (await LeerAsync(nuevaNoSalud)).Should().Be((true, true));
+        (await LeerAsync(nuevaSalud)).Should().Be((false, false, false));
+        (await LeerAsync(nuevaNoSalud)).Should().Be((true, true, true));
 
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Sensibilidad\" = 'CategoriaEspecialSalud' WHERE \"Id\" = @id", nuevaNoSalud);
-        (await LeerAsync(nuevaNoSalud)).Should().Be((false, false));
+        (await LeerAsync(nuevaNoSalud)).Should().Be((false, false, false));
 
         var cambioYActivacion = Guid.NewGuid();
         await SembrarCopiaAsync(cambioYActivacion, "Cambio y activación", "DatosPersonales");
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = false, \"VerificacionIaActiva\" = false WHERE \"Id\" = @id", cambioYActivacion);
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Sensibilidad\" = 'CategoriaEspecialSalud', \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", cambioYActivacion);
-        (await LeerAsync(cambioYActivacion)).Should().Be((false, false));
+        (await LeerAsync(cambioYActivacion)).Should().Be((false, false, false));
 
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", nuevaSalud);
-        (await LeerAsync(nuevaSalud)).Should().Be((false, true));
+        (await LeerAsync(nuevaSalud)).Should().Be((false, true, false));
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", nuevaSalud);
-        (await LeerAsync(nuevaSalud)).Should().Be((true, true));
+        (await LeerAsync(nuevaSalud)).Should().Be((true, true, false));
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Nombre\" = 'Actualizado' WHERE \"Id\" = @id", nuevaSalud);
-        (await LeerAsync(nuevaSalud)).Should().Be((true, true));
+        (await LeerAsync(nuevaSalud)).Should().Be((true, true, false));
 
         var anterior = contexto.Database.GetMigrations().ToList();
         await migrador.MigrateAsync(anterior[anterior.IndexOf(MigracionProteccion) - 1]);
         var trasBajar = Guid.NewGuid();
         await SembrarCopiaAsync(trasBajar, "Tras bajar", "CategoriaEspecialSalud");
-        (await LeerAsync(trasBajar)).Should().Be((false, false));
+        (await LeerAsync(trasBajar)).Should().Be((false, false, false));
         await migrador.MigrateAsync(MigracionProteccion);
+        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "reaplicar la protección conserva la activación");
+        (await LeerAsync(nuevaSalud)).Should().Be((true, true, false));
     }
 
     private async Task EjecutarAsync(string sql, Guid id)
@@ -122,7 +126,7 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
             """
             CREATE TEMP TABLE copia AS SELECT * FROM "TiposDocumento" WHERE "Id" = @base::uuid;
             UPDATE copia SET "Id" = @id, "TenantId" = @tenant, "Nombre" = @nombre, "Sensibilidad" = @sensibilidad,
-                "LecturaIaActiva" = true, "VerificacionIaActiva" = true;
+                "LecturaIaActiva" = true, "VerificacionIaActiva" = true, "DeteccionTrabajadoresActiva" = true;
             INSERT INTO "TiposDocumento" SELECT * FROM copia;
             DROP TABLE copia;
             """, conexion);
@@ -134,16 +138,16 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         (await comando.ExecuteNonQueryAsync()).Should().BePositive();
     }
 
-    private async Task<(bool Lectura, bool Verificacion)> LeerAsync(Guid id)
+    private async Task<(bool Lectura, bool Verificacion, bool Deteccion)> LeerAsync(Guid id)
     {
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var comando = new NpgsqlCommand(
-            """SELECT "LecturaIaActiva", "VerificacionIaActiva" FROM "TiposDocumento" WHERE "Id" = @id""", conexion);
+            """SELECT "LecturaIaActiva", "VerificacionIaActiva", "DeteccionTrabajadoresActiva" FROM "TiposDocumento" WHERE "Id" = @id""", conexion);
         comando.Parameters.AddWithValue("id", id);
         await using var lector = await comando.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue();
-        return (lector.GetBoolean(0), lector.GetBoolean(1));
+        return (lector.GetBoolean(0), lector.GetBoolean(1), lector.GetBoolean(2));
     }
 
     private CaeManagerDbContext NuevoContexto()
