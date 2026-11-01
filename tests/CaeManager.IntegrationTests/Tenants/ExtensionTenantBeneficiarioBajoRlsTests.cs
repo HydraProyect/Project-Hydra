@@ -128,10 +128,12 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
         enA.Operacion.Should().Be(_operacionA.Id);
         enA.Rol.Should().Be(Roles.GestorCae);
         enA.Empresas.Should().Equal(["Cliente de A"], "sin filtros de EF, la RLS firmada solo deja ver A");
+        enA.TenantConfirmado.Should().Be(_a.ToString("D"));
 
         enB.Tenant.Should().Be(_b);
         enB.Operacion.Should().Be(_operacionB.Id);
         enB.Empresas.Should().Equal(["Cliente de B"]);
+        enB.TenantConfirmado.Should().Be(_b.ToString("D"));
     }
 
     [Fact]
@@ -142,6 +144,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
         resultado.Paso.Should().BeTrue();
         resultado.Tenant.Should().BeNull();
         resultado.Empresas.Should().Equal(["Cliente de origen"]);
+        resultado.TenantConfirmado.Should().Be(_origen.ToString("D"));
     }
 
     [Fact]
@@ -153,6 +156,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
         resultado.Estado.Should().Be(StatusCodes.Status403Forbidden);
         resultado.Empresas.Should().BeEmpty();
         resultado.SenalesDeRechazo.Should().Be(1);
+        resultado.TenantConfirmado.Should().BeEmpty();
     }
 
     [Fact]
@@ -296,6 +300,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
             .AddSingleton<IAuthenticationService>(new AutenticacionDeLaPrueba(principal))
             .AddSingleton<IClienteActivoSeleccionado>(seleccion)
             .AddSingleton<ICurrentUserService>(usuarioActual)
+            .AddSingleton<ITenantActual>(tenantActual)
             .AddSingleton<IOperacionesQueryContext>(runtime)
             .AddSingleton(senales)
             .BuildServiceProvider();
@@ -323,7 +328,8 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
 
         return new Resultado(
             http.Response.StatusCode, paso, vista.Tenant, vista.Operacion, vista.Sesion, empresas, rol,
-            ((EspiaDeSenales)(object)senales).Rechazos);
+            ((EspiaDeSenales)(object)senales).Rechazos,
+            http.Response.Headers[ContextoExtension.CabeceraTenantEfectivo].ToString());
     }
 
     private CaeManagerDbContext CrearRuntime(Guid usuario, ITenantActual tenantActual, IClienteActivoSeleccionado seleccion)
@@ -400,7 +406,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
 
     private sealed record Resultado(
         int Estado, bool Paso, Guid? Tenant, Guid? Operacion, Guid? SesionPrivilegiada,
-        IReadOnlyList<string> Empresas, string? Rol, int SenalesDeRechazo);
+        IReadOnlyList<string> Empresas, string? Rol, int SenalesDeRechazo, string TenantConfirmado);
 
     private sealed class TenantActualPorAmbito : ITenantActual
     {

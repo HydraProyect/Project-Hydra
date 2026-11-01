@@ -37,6 +37,14 @@ namespace CaeManager.Web.Services;
 /// origen, que es lo que hacían las versiones anteriores. Lo que no se pueda resolver se rechaza con 403, sin caer a
 /// otro Tenant.
 /// </para>
+///
+/// <para>
+/// <b>La respuesta confirma el Tenant efectivo</b> (<see cref="ContextoExtension.CabeceraTenantEfectivo"/>). Sale de
+/// <see cref="ITenantActual"/>, lo mismo que firma el contexto RLS, y no de la cabecera de la solicitud: repetirla no
+/// demostraría nada. Un binario que ignore la solicitud no manda la confirmación, y la extensión falla en cerrado en
+/// vez de presentar como del Tenant beneficiario lo que es del Tenant de origen. Lo que corre después de este middleware
+/// en una petición de extensión no cambia la selección, así que el valor sigue siendo cierto al final de la petición.
+/// </para>
 /// </summary>
 public class ContextoExtensionMiddleware(RequestDelegate siguiente)
 {
@@ -74,6 +82,7 @@ public class ContextoExtensionMiddleware(RequestDelegate siguiente)
         var cabecera = contexto.Request.Headers[ContextoExtension.CabeceraTenant];
         if (cabecera.Count == 0)
         {
+            ContextoExtension.ConfirmarTenantEfectivo(contexto);
             await siguiente(contexto);
             return;
         }
@@ -91,6 +100,7 @@ public class ContextoExtensionMiddleware(RequestDelegate siguiente)
             return; // la extensión abandonó la petición: no es un error del servidor.
         }
 
+        ContextoExtension.ConfirmarTenantEfectivo(contexto);
         await siguiente(contexto);
     }
 
@@ -135,6 +145,12 @@ public static class ContextoExtension
     /// <summary>El Tenant que la extensión solicita para esta petición.</summary>
     public const string CabeceraTenant = "X-Tenant-Beneficiario";
 
+    /// <summary>
+    /// El Tenant en el que el servidor resolvió esta petición: el Tenant beneficiario solicitado o el Tenant de origen,
+    /// que son cosas distintas. Es una confirmación para la extensión, no una credencial: nadie la lee en el servidor.
+    /// </summary>
+    public const string CabeceraTenantEfectivo = "X-Tenant-Efectivo";
+
     /// <summary>Título estable del 403: la extensión lo distingue de cualquier otro para avisar a la persona.</summary>
     public const string TituloSeleccionNoAutorizada = "Extension.SeleccionNoAutorizada";
 
@@ -159,6 +175,16 @@ public static class ContextoExtension
         return cabecera.Count == 1
                && Guid.TryParseExact(cabecera[0], "D", out tenantId)
                && tenantId != Guid.Empty;
+    }
+
+    /// <summary>
+    /// Se llama con la petición ya resuelta y nunca en un rechazo. Una petición sin Tenant no confirma ninguno: la
+    /// extensión lo trata igual que a un servidor que no sabe confirmarlo.
+    /// </summary>
+    public static void ConfirmarTenantEfectivo(HttpContext contexto)
+    {
+        if (contexto.RequestServices.GetRequiredService<ITenantActual>().TenantId is { } tenantEfectivo)
+            contexto.Response.Headers[CabeceraTenantEfectivo] = tenantEfectivo.ToString("D");
     }
 
     /// <summary>Con cuerpo: un 403 vacío lo reescribiría <c>UseStatusCodePagesWithReExecute</c> y la extensión no sabría por qué.</summary>

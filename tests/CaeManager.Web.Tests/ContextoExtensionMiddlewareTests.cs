@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Security.Claims;
 using CaeManager.Application.Common;
@@ -9,7 +10,11 @@ using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -23,6 +28,7 @@ public class ContextoExtensionMiddlewareTests
 {
     private static readonly Guid Usuario = Guid.NewGuid();
     private static readonly Guid TenantOrigen = Guid.NewGuid();
+    private static readonly Guid OtroTenant = Guid.NewGuid();
     private const string TokenDePrueba = "Extension token-de-prueba";
     private readonly EphemeralDataProtectionProvider _proteccion = new();
 
@@ -106,6 +112,94 @@ public class ContextoExtensionMiddlewareTests
         escena.Seleccion.TenantIdSeleccionado.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Sin_cabecera_la_respuesta_confirma_el_Tenant_de_origen()
+    {
+        var escena = Escena();
+
+        await escena.EjecutarAsync();
+
+        escena.TenantConfirmado.Should().Be(TenantOrigen.ToString("D"));
+    }
+
+    [Fact]
+    public async Task La_confirmacion_es_el_Tenant_efectivo_y_no_el_eco_de_la_solicitud()
+    {
+        var escena = Escena(tenantEfectivo: OtroTenant);
+        escena.Contexto.Request.Headers[ContextoExtension.CabeceraTenant] = TenantOrigen.ToString();
+
+        await escena.EjecutarAsync();
+
+        escena.Paso.Should().BeTrue();
+        escena.TenantConfirmado.Should().Be(OtroTenant.ToString("D"));
+    }
+
+    [Fact]
+    public async Task Sin_Tenant_efectivo_no_se_confirma_ninguno()
+    {
+        var escena = Escena(tenantEfectivo: null);
+
+        await escena.EjecutarAsync();
+
+        escena.TenantConfirmado.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_rechazo_no_confirma_ningun_Tenant()
+    {
+        var escena = Escena();
+        escena.Contexto.Request.Headers[ContextoExtension.CabeceraTenant] = "no-es-un-guid";
+
+        await escena.EjecutarAsync();
+
+        escena.DebeHaberRechazado();
+        escena.TenantConfirmado.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Fuera_del_contexto_de_la_extension_no_se_confirma_nada()
+    {
+        var escena = Escena("/documentos");
+
+        await escena.EjecutarAsync();
+
+        escena.Paso.Should().BeTrue();
+        escena.TenantConfirmado.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Un 404 sin cuerpo de la entrega lo reejecuta <c>UseStatusCodePagesWithReExecute</c>, con contenedor nuevo. Si ahí se
+    /// perdiera la confirmación, la extensión tomaría un 404 legítimo por un Tenant sin confirmar y no soltaría el envío.
+    /// </summary>
+    [Fact]
+    public async Task La_confirmacion_sobrevive_a_la_reejecucion_de_un_404_sin_cuerpo()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddSingleton<ITenantActual>(new TenantEfectivoDeLaPrueba(OtroTenant));
+        await using var app = builder.Build();
+        app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.Use((contexto, siguiente) =>
+        {
+            if (contexto.Request.Path.StartsWithSegments("/extension"))
+                ContextoExtension.ConfirmarTenantEfectivo(contexto);
+            return siguiente();
+        });
+        app.MapGet("/extension/archivo", () => Results.NotFound());
+        app.MapGet("/not-found", () => Results.Text("página de error"));
+        await app.StartAsync();
+        using var cliente = new HttpClient
+        {
+            BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()),
+        };
+
+        using var respuesta = await cliente.GetAsync("/extension/archivo");
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("página de error", "si no, no se habría reejecutado");
+        respuesta.Headers.GetValues(ContextoExtension.CabeceraTenantEfectivo).Should().Equal(OtroTenant.ToString("D"));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("no-es-un-guid")]
@@ -177,7 +271,10 @@ public class ContextoExtensionMiddlewareTests
         ofrecidos.Select(t => t.TenantId).Should().Equal(origen, gestionado);
     }
 
-    private Escenario Escena(string ruta = "/extension/acreditaciones-pendientes", string autorizacion = TokenDePrueba, bool autenticado = true)
+    private Escenario Escena(string ruta = "/extension/acreditaciones-pendientes", string autorizacion = TokenDePrueba, bool autenticado = true) =>
+        Escena(TenantOrigen, ruta, autorizacion, autenticado);
+
+    private Escenario Escena(Guid? tenantEfectivo, string ruta = "/extension/acreditaciones-pendientes", string autorizacion = TokenDePrueba, bool autenticado = true)
     {
         var contexto = new DefaultHttpContext();
         contexto.Request.Path = ruta;
@@ -193,6 +290,7 @@ public class ContextoExtensionMiddlewareTests
         contexto.RequestServices = new ServiceCollection()
             .AddSingleton<IAuthenticationService>(autenticacion)
             .AddSingleton<IClienteActivoSeleccionado>(seleccion)
+            .AddSingleton<ITenantActual>(new TenantEfectivoDeLaPrueba(tenantEfectivo))
             .AddSingleton(usuario)
             .BuildServiceProvider();
 
@@ -205,6 +303,7 @@ public class ContextoExtensionMiddlewareTests
         public ClienteActivoSeleccionado Seleccion { get; } = seleccion;
         public bool Paso { get; private set; }
         public int Autenticaciones => autenticacion.Llamadas;
+        public string TenantConfirmado => Contexto.Response.Headers[ContextoExtension.CabeceraTenantEfectivo].ToString();
 
         public Task EjecutarAsync() => new ContextoExtensionMiddleware(_ =>
         {
@@ -221,6 +320,11 @@ public class ContextoExtensionMiddlewareTests
             new StreamReader(Contexto.Response.Body).ReadToEnd().Should().Contain(ContextoExtension.TituloSeleccionNoAutorizada);
             Seleccion.TenantIdSeleccionado.Should().BeNull();
         }
+    }
+
+    private sealed class TenantEfectivoDeLaPrueba(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
     }
 
     private sealed class AutenticacionFalsa(bool autenticado) : IAuthenticationService
