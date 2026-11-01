@@ -108,12 +108,24 @@ max_drenaje() { [ "$1" = staging ] && echo "$DRENAJE_MAX_STAGING" || echo "$DREN
 unidad_drenaje() { echo "talveg-drenaje-$1"; }
 
 en_marcha() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = "true" ]; }
+# Falso solo si consta que no corre: parado o inexistente. A diferencia de en_marcha,
+# un estado ilegible o un fallo de Docker no cuentan como parado. Lo inexistente solo
+# se distingue por el mensaje de Docker: si cambiara, el error iría del lado de cerrar.
+puede_estar_en_marcha() {
+    local salida
+    if salida="$(docker inspect -f '{{.State.Running}}' "$1" 2>&1)"; then
+        [ "$salida" != false ]
+    else
+        [[ "$salida" != *[Nn]"o such"* ]]
+    fi
+}
 # En marcha y, si tiene healthcheck, healthy. Es lo que se exige a la ranura
-# que se queda sirviendo antes de retirar otra.
+# que se queda sirviendo antes de retirar otra. Una salud vacía es que no tiene
+# healthcheck; si la lectura falla, no está sana.
 sana() {
     local salud
     en_marcha "$1" || return 1
-    salud="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$1" 2>/dev/null || true)"
+    salud="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$1" 2>/dev/null)" || return 1
     [ -z "$salud" ] || [ "$salud" = healthy ]
 }
 id_de() { docker inspect -f '{{.Id}}' "$1" 2>/dev/null || true; }
@@ -429,11 +441,7 @@ saliente_ignora_la_guarda() {
     ! medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$MODO_CORREO_SIN_GUARDA"
 }
 
-# Solo «false» cuenta como parada: en_marcha no distingue un contenedor parado de
-# uno cuyo estado no se pudo leer, y aquí eso daría por parada una imagen viva.
-parada_confirmada() {
-    [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = false ]
-}
+parada_confirmada() { ! puede_estar_en_marcha "$1"; }
 
 # Para el contenedor o devuelve 1: hasta RELEVO_INTENTOS_PARADA vueltas de stop y
 # kill, cada orden con su tope (unos 190 s en el peor caso). El código de salida de
@@ -474,6 +482,22 @@ retirar_sin_guarda() {
         *) docker rm "$contenedor" > /dev/null 2>&1 || true ;;
     esac
     echo "$contenedor retirada."
+}
+
+# Contenedores del entorno fuera de <anotados> que ignoran la guarda y pueden seguir
+# vivos. El fichero de ranuras se reescribe antes de confirmar la parada, así que un
+# relevo fallido pudo borrar de él una imagen viva, y fiarse de lo anotado daría este
+# por bueno. Se miran los tres nombres posibles: una ranura la recrearía el up, pero
+# el contenedor anterior a las ranuras no pertenece a ningún servicio del compose.
+sin_guarda_sin_anotar() {
+    local entorno="$1" sha="$2" servicio="$3" anotados="$4" base c
+    base="$(prefijo "$entorno")"
+    for c in "$base" "$base-azul" "$base-verde"; do
+        [[ $'\n'"$anotados"$'\n' == *$'\n'"$c"$'\n'* ]] && continue
+        if puede_estar_en_marcha "$c" && saliente_ignora_la_guarda "$entorno" "$sha" "$servicio" "$c"; then
+            echo "$c"
+        fi
+    done
 }
 
 # La ranura que sirve de verdad: la primera del fichero que esté SANA (en marcha
@@ -575,12 +599,13 @@ desplegar() {
     echo "Caddy conmutado: $entorno sirve $cont_nueva (caemanager:$sha)."
 
     # Salientes de relevos anteriores que no son la activa ni la nueva: ya
-    # fuera de Caddy, se paran ahora que la nueva sirve. Una que ya no corre no
-    # puede enviar, y su etiqueta quizá ni se pueda leer.
+    # fuera de Caddy, se paran ahora que la nueva sirve. Una que consta parada o
+    # que ya no existe no puede enviar, y su etiqueta quizá ni se pueda leer.
+    previas+=$'\n'"$(sin_guarda_sin_anotar "$entorno" "$sha" "app-$nueva" "$cont_nueva"$'\n'"$activa_"$'\n'"$previas")"
     for previa in $previas; do
         [ "$previa" = "$cont_nueva" ] && continue
         echo "Saliente de un relevo anterior: se retira $previa."
-        if en_marcha "$previa" && saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$previa"; then
+        if puede_estar_en_marcha "$previa" && saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$previa"; then
             retirar_sin_guarda "$previa" "$cont_nueva" || sin_guarda_viva=1
             continue
         fi
@@ -608,9 +633,10 @@ desplegar() {
     fi
 
     # La nueva ya sirve, pero el relevo no se da por bueno: quien llama no lo
-    # registra y queda en rojo. Repetir el despliegue recrea esa ranura.
+    # registra y queda en rojo. Repetir el despliegue la vuelve a buscar aunque
+    # ya no figure en el fichero de ranuras.
     if [ "$sin_guarda_viva" != 0 ]; then
-        echo "::error::Relevo de $entorno incompleto: $cont_nueva ya conmutó, pero sigue en marcha una imagen que ignora $CLAVE_GUARDA_CORREO y puede enviar correo. Párala a mano, o repite el despliegue para recrear su ranura." >&2
+        echo "::error::Relevo de $entorno incompleto: $cont_nueva ya conmutó, pero sigue en marcha una imagen que ignora $CLAVE_GUARDA_CORREO y puede enviar correo. Párala a mano, o repite el despliegue, que vuelve a intentarlo." >&2
         return 1
     fi
 }
