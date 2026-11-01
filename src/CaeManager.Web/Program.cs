@@ -1403,6 +1403,11 @@ app.UseRolEfectivoDelWorkspace();
 app.UseCuentaAMedioActivarSinAcceso();
 
 app.UseAuthorization();
+
+// Antes de UseAntiforgery: la reejecución de /not-found tras un 400 de antiforgery reentra aquí con el
+// rechazo de la primera pasada y, sin esto, el framework lanza y la respuesta acaba en 500 (ver
+// RechazoDeAntiforgeryReejecutadoMiddleware).
+app.UseRechazoDeAntiforgeryReejecutado();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
