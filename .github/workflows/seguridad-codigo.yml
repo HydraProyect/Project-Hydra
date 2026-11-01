@@ -23,6 +23,12 @@ name: Seguridad del código
 # nunca contra staging: staging envía correo real por SMTP y un escáner que
 # recorre formularios podría disparar envíos.
 #
+# El repositorio es público y sus artefactos, logs y resúmenes de run se descargan
+# sin cuenta. De ZAP solo sale lo que escribe scripts/resumen-zap.py: recuentos por
+# riesgo y por nombre de alerta. El informe completo y el log de la aplicación se
+# quedan en el runner y mueren con él; para ver un detalle se repite el escaneo en
+# local.
+#
 # El escaneo autenticado (job zap-autenticado) solo corre en el semanal y a mano:
 # tarda ~40 min, con sesión propia y escaneo activo, y no aporta nada a una PR
 # que no lo espera. Tampoco es obligatorio.
@@ -235,15 +241,15 @@ jobs:
             fi
             sleep 2
           done
-          echo "::error::La aplicación no respondió en /salud."
-          tail -n 200 "$RUNNER_TEMP/app.log"
+          echo "::error::La aplicación no respondió en /salud. Su log no se publica: reproduce el arranque en local."
           exit 1
 
       # Imagen oficial de ZAP fijada por digest (2.17.0) en vez de la acción de
       # terceros: la acción pide permiso para abrir issues y aquí solo hace
       # falta el informe. Escaneo pasivo: araña las páginas públicas sin enviar
       # formularios. -I: los avisos no hacen fallar el job; solo las reglas
-      # marcadas FAIL en .zap/reglas-baseline.tsv.
+      # marcadas FAIL en .zap/reglas-baseline.tsv. -s: sin -s, ZAP escribe en el
+      # log las URL de ejemplo de cada aviso.
       - name: Escanear con ZAP baseline
         run: |
           mkdir -p zap
@@ -251,25 +257,23 @@ jobs:
           chmod -R 777 zap
           docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
-            zap-baseline.py -t http://127.0.0.1:5080 -m 3 -I \
-            -c reglas-baseline.tsv -r informe-zap.html -J informe-zap.json -w informe-zap.markdown
+            zap-baseline.py -t http://127.0.0.1:5080 -m 3 -I -s \
+            -c reglas-baseline.tsv -J informe-zap.json
 
-      - name: Resumen del escaneo
+      - name: Resumir los hallazgos
         if: always()
         run: |
-          if [ -f zap/informe-zap.markdown ]; then cat zap/informe-zap.markdown >> "$GITHUB_STEP_SUMMARY"; fi
+          mkdir -p zap
+          python3 scripts/resumen-zap.py zap/informe-zap.json zap/resumen-zap-baseline.md "ZAP baseline"
+          cat zap/resumen-zap-baseline.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Log de la aplicación si falla
-        if: failure()
-        run: tail -n 200 "$RUNNER_TEMP/app.log" || true
-
-      - name: Publicar informe de ZAP
+      - name: Publicar resumen de ZAP
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: informe-zap-baseline
-          path: zap/informe-zap.*
-          retention-days: 90
+          name: resumen-zap-baseline
+          path: zap/resumen-zap-baseline.md
+          retention-days: 7
           if-no-files-found: ignore
 
   # Escaneo activo como usuario autenticado, contra la misma clase de instancia
@@ -335,6 +339,30 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
           -c "ALTER ROLE cae_app_runtime LOGIN PASSWORD 'zap-ci-efimera';"
 
+      # El runner vuelca al log público del job, al parar, el log del contenedor de
+      # Postgres. Tras un escaneo activo traería las sentencias que fallan y los
+      # valores con los que ZAP las hace fallar. Solo cambia lo que se registra: esta
+      # base muere con el job y nada lee ese log. Va antes de arrancar la aplicación
+      # para que no se escape ninguna sentencia.
+      - name: Callar el log de Postgres
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET log_min_messages = 'panic'" \
+            -c "ALTER SYSTEM SET log_min_error_statement = 'panic'" \
+            -c "SELECT pg_reload_conf()"
+          for i in $(seq 1 10); do
+            ajuste=$(psql -h localhost -U postgres -d postgres -At \
+              -c "SELECT current_setting('log_min_messages') || ' ' || current_setting('log_min_error_statement')")
+            if [ "$ajuste" = "panic panic" ]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Postgres no aplicó el ajuste de log: sus errores llegarían al log público."
+          exit 1
+
       # Credenciales que solo existen en este runner. No son secretos del
       # repositorio: mueren con el job, igual que la base.
       - name: Generar credenciales efímeras
@@ -388,8 +416,7 @@ jobs:
             fi
             sleep 2
           done
-          echo "::error::La aplicación no respondió en /salud."
-          tail -n 200 "$RUNNER_TEMP/app.log"
+          echo "::error::La aplicación no respondió en /salud. Su log no se publica: reproduce el arranque en local."
           exit 1
 
       # Una clave de la API pública solo autentica con su ventana de Soporte
@@ -441,8 +468,7 @@ jobs:
             fi
             sleep 2
           done
-          echo "::error::ZAP no respondió por su API."
-          docker logs --tail 50 zap
+          echo "::error::ZAP no respondió por su API. Estado del contenedor: $(docker inspect --format '{{.State.Status}}, código {{.State.ExitCode}}' zap || echo desconocido)."
           exit 1
 
       # Inicio de sesión real por el formulario de Blazor con curl, y la cookie se
@@ -691,7 +717,15 @@ jobs:
             exit 1
           fi
 
-      # Solo recuentos: el repositorio es público y el resumen del run también.
+      # Antes de evaluar y con always(): un escaneo con hallazgos altos o con otro
+      # fallo también deja su resumen.
+      - name: Resumir los hallazgos
+        if: always()
+        run: |
+          mkdir -p zap
+          python3 scripts/resumen-zap.py zap/informe-zap-autenticado.json zap/resumen-zap-autenticado.md "ZAP autenticado"
+          cat zap/resumen-zap-autenticado.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Evaluar hallazgos
         run: |
           informe=zap/informe-zap-autenticado.json
@@ -704,33 +738,16 @@ jobs:
               '[.site[]?.alerts[]? | select(.riskcode == $riesgo and .confidence != "0")] | length' "$informe"
           }
           altos=$(contar 3)
-          {
-            echo "- Hallazgos: altos $altos, medios $(contar 2), bajos $(contar 1), informativos $(contar 0)"
-            echo "- El detalle está en el artefacto informe-zap-autenticado."
-          } >> "$GITHUB_STEP_SUMMARY"
           if [ "$altos" -gt 0 ]; then
-            echo "::error::ZAP ha encontrado $altos hallazgos de riesgo alto: ver el informe."
+            echo "::error::ZAP ha encontrado $altos hallazgos de riesgo alto. El detalle no se publica: repite el escaneo en local."
             exit 1
           fi
 
-      # Al artefacto y no al log del run, a diferencia del baseline: tras un
-      # escaneo activo este log trae las trazas que provocan sus ataques.
-      - name: Guardar los logs si falla
-        if: failure()
-        run: |
-          cp "$RUNNER_TEMP/app.log" zap/app.log || true
-          docker logs --tail 200 zap > zap/zap.log 2>&1 || true
-
-      - name: Publicar informe de ZAP
+      - name: Publicar resumen de ZAP
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: informe-zap-autenticado
-          path: |
-            zap/informe-zap-autenticado.*
-            zap/sesion-zap.txt
-            zap/estadisticas-zap.json
-            zap/app.log
-            zap/zap.log
-          retention-days: 90
+          name: resumen-zap-autenticado
+          path: zap/resumen-zap-autenticado.md
+          retention-days: 7
           if-no-files-found: ignore
