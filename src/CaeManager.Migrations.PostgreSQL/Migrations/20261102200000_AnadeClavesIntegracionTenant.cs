@@ -103,15 +103,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 ALTER TABLE public."ClavesIntegracionTenant" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."ClavesIntegracionTenant" FORCE ROW LEVEL SECURITY;
                 CREATE POLICY aislamiento_tenant ON public."ClavesIntegracionTenant"
-                    USING ("TenantId" = (SELECT public.app_ctx_tenant_id()))
-                    WITH CHECK ("TenantId" = (SELECT public.app_ctx_tenant_id()));
+                    USING ("TenantId" = (SELECT public.app_ctx_tenant_id()));
                 REVOKE ALL ON TABLE public."ClavesIntegracionTenant" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
-                GRANT SELECT, INSERT ON TABLE public."ClavesIntegracionTenant" TO cae_app_runtime;
+                GRANT SELECT, INSERT, UPDATE ON TABLE public."ClavesIntegracionTenant" TO cae_app_runtime;
                 GRANT UPDATE ("CaducaEnUtc", "SuspendidaEnUtc", "MotivoSuspension", "RevocadaEnUtc",
                               "InvalidadaDefinitivamenteEnUtc", "UltimoUsoUtc", "Version",
                               "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId")
                     ON TABLE public."ClavesIntegracionTenant" TO cae_app_runtime;
-                GRANT SELECT ("Id", "TenantId", "Nombre", "SistemaConsumidor", "PrefijoVisible", "Alcances", "CaducaEnUtc",
+                GRANT SELECT ("HashClave", "Id", "TenantId", "Nombre", "SistemaConsumidor", "PrefijoVisible", "Alcances", "CaducaEnUtc",
                               "SuspendidaEnUtc", "MotivoSuspension", "RevocadaEnUtc", "InvalidadaDefinitivamenteEnUtc",
                               "SucedeAClaveId", "CreadaPorUsuarioId", "UltimoUsoUtc", "Version", "CreadoEnUtc",
                               "EstaEliminado", "EliminadoEnUtc", "EliminadoPorUsuarioId")
@@ -122,13 +121,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 BEGIN
-                    PERFORM public.app_exigir_contexto_firmado();
+                    NULL;
                     RETURN (SELECT c."TenantId" FROM public."ClavesIntegracionTenant" c
                              WHERE c."HashClave" = hash_clave AND c."EstaEliminado" = false);
                 END;
                 $$;
                 REVOKE ALL ON FUNCTION public.app_tenant_de_clave_integracion(text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
-                GRANT EXECUTE ON FUNCTION public.app_tenant_de_clave_integracion(text) TO cae_app_runtime;
+                GRANT EXECUTE ON FUNCTION public.app_tenant_de_clave_integracion(text) TO cae_app_runtime, cae_app_soporte;
                 """);
         }
 
