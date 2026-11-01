@@ -659,6 +659,12 @@ comprobar "  el reintento lo encuentra sin estar anotado: si sigue vivo, otra ve
 comprobar "  nombrándolo" si "$(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
 relevo -- desplegar staging "$A"
 comprobar "  y en cuanto se puede parar, lo retira y el relevo vale" "0 <no existe>" "$codigo $(en_marcha "$LEGADO_STG")"
+ranura_sin_anotar() {
+  limpio; contenedor "$LEGADO_STG" "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
+  fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+ranura_sin_anotar; relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "una ranura sin anotar que ignora la guarda también se busca" "1 true" "$codigo $(en_marcha "$VERDE_STG")"
 limpio; contenedor caemanager-staging-app "$A"; sin_guarda caemanager-staging-app
 fichero staging "to caemanager-staging-app:8080"; fichero produccion "to caemanager-app-azul:8080"
 relevo -- desplegar staging "$B"
@@ -892,7 +898,11 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   esc_ausente() { saliente_previa; rm -rf "$ESTADO/c/$VERDE_STG"; bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
   comp_ausente() { [ "$codigo" != 0 ] && echo si || echo no; }
   mutar "un contenedor inexistente cuenta como vivo" \
-    's#^        \[\[ "\$salida" != \*\[Nn\]"o such"\* \]\]$#        true#' esc_ausente comp_ausente
+    's#^        \*\[Nn\]"o such object"\*|\*\[Nn\]"o such container"\*) return 1 ;;$#        nunca) return 1 ;;#' esc_ausente comp_ausente
+
+  esc_ranura_sin_anotar() { ranura_sin_anotar; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "solo se busca sin anotar el contenedor anterior a las ranuras" \
+    's#^    for c in "\$base" "\$base-azul" "\$base-verde"; do$#    for c in "$base"; do#' esc_ranura_sin_anotar comp_parada
 
   esc_salud() { saliente_staging; INSPECT_SALUD_FALLA=caemanager-staging-app-verde bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
   mutar "un fallo al leer la salud cuenta como sin healthcheck" \

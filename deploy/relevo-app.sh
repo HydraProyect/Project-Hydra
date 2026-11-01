@@ -41,7 +41,9 @@
 #         4. Lanza el drenaje de la anterior (systemd-run si existe), salvo que
 #            la anterior no declare la guarda y el modo no sea Abierto: esa nunca
 #            drena. Se saca de Caddy y se para con reintentos acotados, stop y
-#            kill, solo si la nueva está sana.
+#            kill, solo si la nueva está sana. Lo mismo vale para las salientes
+#            del paso 1 y para cualquier contenedor del entorno que ignore la
+#            guarda aunque el fichero ya no lo anote (sin_guarda_sin_anotar).
 #       Sale con 0 solo si la nueva ranura quedó sirviendo y no queda en marcha
 #       ninguna imagen que ignore la guarda con modo distinto de Abierto.
 #   relevo-app.sh comprobar-guarda <staging|produccion> <sha>
@@ -113,11 +115,13 @@ en_marcha() { [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || tr
 # se distingue por el mensaje de Docker: si cambiara, el error iría del lado de cerrar.
 puede_estar_en_marcha() {
     local salida
-    if salida="$(docker inspect -f '{{.State.Running}}' "$1" 2>&1)"; then
+    if salida="$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null)"; then
         [ "$salida" != false ]
-    else
-        [[ "$salida" != *[Nn]"o such"* ]]
+        return
     fi
+    case "$(docker inspect -f '{{.State.Running}}' "$1" 2>&1 > /dev/null || true)" in
+        *[Nn]"o such object"*|*[Nn]"o such container"*) return 1 ;;
+    esac
 }
 # En marcha y, si tiene healthcheck, healthy. Es lo que se exige a la ranura
 # que se queda sirviendo antes de retirar otra. Una salud vacía es que no tiene
