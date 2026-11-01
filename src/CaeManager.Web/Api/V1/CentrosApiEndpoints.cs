@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using MediatR;
 
@@ -18,13 +19,13 @@ public static class CentrosApiEndpoints
                 new ObtenerCentrosQuery(
                     busqueda, clienteId,
                     Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
-                cancellationToken)));
+                cancellationToken))).RequiereAlcanceIntegracion(AlcancesIntegracion.CentrosLeer);
 
         endpoints.MapGet("/centros/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
             var centro = await mediator.Send(new ObtenerCentroPorIdQuery(id), cancellationToken);
             return centro is null ? Results.NotFound() : Results.Ok(CentroApiDetalleDto.DesdeInterno(centro));
-        });
+        }).RequiereAlcanceIntegracion(AlcancesIntegracion.CentrosLeer);
 
         return endpoints;
     }

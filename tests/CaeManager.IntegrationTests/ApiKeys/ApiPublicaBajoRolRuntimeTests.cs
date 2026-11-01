@@ -215,14 +215,15 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
 
     /// <summary>
     /// Decisión del 2026-10-28 concretada el 2026-10-31: la suspensión operativa corta y reactivar
-    /// no devuelve la clave; la comercial corta y al revertirse vuelve a valer; solo lectura no corta.
+    /// no devuelve la clave; Suspendida y SoloLectura cortan y al revertirse vuelve a valer.
     /// </summary>
     [Theory]
     [InlineData("suspendido", HttpStatusCode.Unauthorized)]
     [InlineData("reactivado", HttpStatusCode.Unauthorized)]
     [InlineData("comercial suspendida", HttpStatusCode.Unauthorized)]
     [InlineData("comercial revertida", HttpStatusCode.OK)]
-    [InlineData("solo lectura", HttpStatusCode.OK)]
+    [InlineData("solo lectura", HttpStatusCode.Unauthorized)]
+    [InlineData("solo lectura revertida", HttpStatusCode.OK)]
     public async Task Bajo_RLS_el_estado_del_Tenant_propietario_decide_la_clave(string caso, HttpStatusCode esperado)
     {
         await using (var contexto = CrearContextoPropietario())
@@ -239,8 +240,8 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
                     break;
                 default:
                     tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
-                    tenant.ActualizarEstadoComercial(caso == "solo lectura" ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
-                    if (caso == "comercial revertida") tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    tenant.ActualizarEstadoComercial(caso.StartsWith("solo lectura", StringComparison.Ordinal) ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
+                    if (caso.EndsWith("revertida", StringComparison.Ordinal)) tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
                     break;
             }
             await contexto.SaveChangesAsync();

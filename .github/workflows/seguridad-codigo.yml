@@ -402,6 +402,7 @@ jobs:
           RateLimiting__Extension__LimitePorMinuto: "1000000"
           ApiPublica__RateLimitPorMinuto: "1000000"
           ApiPublica__RateLimitPorMinutoPorIp: "1000000"
+          ApiPublica__OpenApiAnonimo: "true"
         run: |
           export DatosPrueba__Contrasena="$ZAP_CONTRASENA"
           export DatosPrueba__ClaveApiActiva="$ZAP_CLAVE_API"
