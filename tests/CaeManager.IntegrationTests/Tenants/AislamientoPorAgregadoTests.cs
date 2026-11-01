@@ -215,6 +215,12 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_ClaveApi() => VerificarAislamientoAsync(
         () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba de aislamiento"));
 
+    [Fact]
+    public Task Aislamiento_ClaveIntegracionTenant() => VerificarAislamientoAsync(
+        () => new ClaveIntegracionTenant(
+            "ERP de nóminas", "ERP", "talveg_int_ab12", $"{Guid.NewGuid():N}{Guid.NewGuid():N}", [AlcancesIntegracion.ClientesLeer],
+            DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
+
     // Command Palette, grupo "Recientes" (ver plan de implementación) — mismo
     // UsuarioId en ambos tenants a propósito: el aislamiento tiene que venir
     // del TenantId, no de que los usuarios de prueba resulten distintos.

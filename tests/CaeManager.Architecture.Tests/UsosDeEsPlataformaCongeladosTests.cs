@@ -698,6 +698,9 @@ public class UsosDeEsPlataformaCongeladosTests
         // Add-on de subida automática: solo toca su propia columna.
         "AddOnSubidaAutomaticaActivo",
         "CambiarAddOnSubidaAutomatica",
+        // Habilitación de la vía de integración: solo toca su propia columna.
+        "CambiarIntegracionHabilitada",
+        "IntegracionHabilitada",
         "CambiarPerfilVocabulario",
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",
