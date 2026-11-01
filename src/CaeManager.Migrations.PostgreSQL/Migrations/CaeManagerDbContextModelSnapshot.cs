@@ -99,7 +99,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.PrimitiveCollection<List<string>>("_alcances")
+                    b.PrimitiveCollection<List<string>>("AlcancesConcedidos")
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("Alcances");

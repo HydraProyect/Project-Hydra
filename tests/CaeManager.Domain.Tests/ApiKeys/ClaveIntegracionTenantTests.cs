@@ -132,11 +132,11 @@ public class ClaveIntegracionTenantTests
     }
 
     [Fact]
-    public async Task Una_clave_caducada_no_se_reactiva()
+    public void Una_clave_caducada_no_se_reactiva()
     {
-        var clave = Crear(caducaEnUtc: DateTime.UtcNow.AddMilliseconds(100));
+        var clave = Crear();
         clave.Suspender("Incidente");
-        await Task.Delay(150);
+        typeof(ClaveIntegracionTenant).GetProperty(nameof(clave.CaducaEnUtc))!.SetValue(clave, DateTime.UtcNow.AddSeconds(-1));
 
         var accion = clave.Reactivar;
 

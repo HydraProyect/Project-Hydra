@@ -15,7 +15,7 @@ public class ClaveIntegracionTenantConfiguration : IEntityTypeConfiguration<Clav
         builder.Property(c => c.SistemaConsumidor).HasMaxLength(ClaveIntegracionTenant.LongitudMaximaSistemaConsumidor).IsRequired();
         builder.Property(c => c.PrefijoVisible).HasMaxLength(ClaveIntegracionTenant.LongitudMaximaPrefijoVisible).IsRequired();
         builder.Property(c => c.HashClave).HasMaxLength(ClaveIntegracionTenant.LongitudHashClave).IsRequired();
-        builder.Property<List<string>>("_alcances")
+        builder.Property<List<string>>("AlcancesConcedidos")
             .HasColumnName("Alcances")
             .HasColumnType("text[]")
             .IsRequired();

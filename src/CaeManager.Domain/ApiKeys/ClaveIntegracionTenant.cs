@@ -43,8 +43,9 @@ public class ClaveIntegracionTenant : EntidadBase
 
     public string HashClave { get; private set; } = string.Empty;
 
-    private List<string> _alcances = [];
-    public IReadOnlyList<string> Alcances => _alcances.AsReadOnly();
+    /// <summary>Lo que persiste EF. Es propiedad, no campo, porque la exportación del Tenant solo lee propiedades.</summary>
+    private List<string> AlcancesConcedidos { get; set; } = [];
+    public IReadOnlyList<string> Alcances => AlcancesConcedidos.AsReadOnly();
 
     public DateTime CaducaEnUtc { get; private set; }
     public DateTime? SuspendidaEnUtc { get; private set; }
@@ -84,7 +85,7 @@ public class ClaveIntegracionTenant : EntidadBase
         SistemaConsumidor = sistemaConsumidor.Trim();
         PrefijoVisible = prefijoVisible;
         HashClave = hashClave;
-        _alcances = ValidarAlcances(alcances);
+        AlcancesConcedidos = ValidarAlcances(alcances);
         CaducaEnUtc = caducaEnUtc;
         CreadaPorUsuarioId = creadaPorUsuarioId;
     }
@@ -104,7 +105,7 @@ public class ClaveIntegracionTenant : EntidadBase
         {
             SucedeAClaveId = Id,
         };
-        if (!sucesora._alcances.All(_alcances.Contains))
+        if (!sucesora.AlcancesConcedidos.All(AlcancesConcedidos.Contains))
             throw new ArgumentException("Rotar no puede ampliar los alcances de la clave.", nameof(alcances));
 
         var finConvivencia = ahora.AddDays(DiasConvivenciaTrasRotar);

@@ -59,6 +59,17 @@ public class ExportacionCompletaTenantTests
         ExportacionCompletaTenant.EsSecreta(columna!).Should().BeTrue();
     }
 
+    /// <summary>La exportación solo escribe columnas con propiedad: mapeados a un campo, los alcances se perderían.</summary>
+    [Fact]
+    public void Los_alcances_de_la_clave_de_integracion_se_exportan()
+    {
+        var columna = Modelo.FindEntityType(typeof(ClaveIntegracionTenant))!.FindProperty("AlcancesConcedidos");
+
+        columna.Should().NotBeNull();
+        columna!.PropertyInfo.Should().NotBeNull();
+        ExportacionCompletaTenant.EsSecreta(columna).Should().BeFalse();
+    }
+
     [Fact]
     public void Solo_se_exportan_tablas_con_Tenant_y_estan_las_del_dominio_CAE()
     {
