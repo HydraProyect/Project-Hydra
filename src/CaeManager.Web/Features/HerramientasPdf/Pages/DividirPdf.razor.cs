@@ -61,6 +61,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _disponible;
     private bool _soloLectura;
     private bool _sinEmpresa;
+    private bool _elegirEmpresaAqui;
     private bool _selectorVisible;
     private bool _cargando;
     private bool _creando;
@@ -129,8 +130,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _selectorVisible = contexto.Activa is not null;
         _tenantEsperadoId = TenantActual.TenantId;
 
-        // La Empresa gestionada sale solo del selector de la barra lateral (o de la unica Empresa del Tenant):
-        // la pantalla no ofrece un segundo selector.
+        // La Empresa gestionada sale del selector de la barra lateral o de la unica Empresa del Tenant. Solo si esa
+        // barra no ofrece selector y hay varias Empresas propias se elige aqui: no hay otro sitio donde hacerlo.
         if (!_sinEmpresa)
         {
             _empresas = await PuertaAccesoDatos.EjecutarAsync(
@@ -139,6 +140,8 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
                 _empresaId = coincidente.Id;
             else if (_empresas.Count == 1)
                 _empresaId = _empresas[0].Id;
+            else if (_empresas.Count > 1 && contexto.Activa is null)
+                _elegirEmpresaAqui = true;
             else if (_empresas.Count > 1)
                 _sinEmpresa = true;
         }

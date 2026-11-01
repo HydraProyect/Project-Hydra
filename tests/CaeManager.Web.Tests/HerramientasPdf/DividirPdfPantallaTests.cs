@@ -200,7 +200,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     [Fact]
-    public void Con_varias_Empresas_propias_y_sin_selector_se_bloquea_sin_ofrecer_un_selector_en_la_pagina()
+    public void Con_varias_Empresas_propias_y_sin_selector_lateral_se_elige_en_la_pagina_antes_de_subir()
     {
         var otra = new EmpresaSelectorDto(Guid.NewGuid(), "Otra Empresa S.L.");
         _mediador.Empresas = [new EmpresaSelectorDto(EmpresaId, "Montajes Norte S.L."), otra];
@@ -208,8 +208,11 @@ public sealed class DividirPdfPantallaTests : BunitContext
         var cut = Renderizar();
 
         cut.WaitForAssertion(() => cut.FindAll(".zona-bloqueada").Should().ContainSingle());
-        cut.FindAll("select").Should().BeEmpty("la Empresa sale solo del selector de la barra lateral");
         cut.FindAll(".zona-soltar-archivo").Should().BeEmpty();
+
+        cut.Find("select").Change(EmpresaId.ToString());
+
+        cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
     }
 
     [Fact]

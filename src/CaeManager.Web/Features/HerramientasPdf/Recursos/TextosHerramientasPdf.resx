@@ -57,6 +57,9 @@
   <data name="SinEmpresaPropia" xml:space="preserve">
     <value>Aún no hay ninguna Empresa gestionada a la que asignar documentos.</value>
   </data>
+  <data name="ElegirEmpresaGestionada" xml:space="preserve">
+    <value>Elige una Empresa gestionada</value>
+  </data>
   <data name="EmpresaGestionada" xml:space="preserve">
     <value>Empresa gestionada</value>
   </data>

@@ -119,6 +119,16 @@
         {
             <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SinEmpresaPropia"]</span></div>
         }
+        else if (_elegirEmpresaAqui)
+        {
+            <CampoSelect Etiqueta="@Textos["EmpresaGestionada"]" Valor="@Texto(_empresaId)" ValorChanged="v => _empresaId = Identificador(v)">
+                <option value="">@Textos["ElegirEmpresaGestionada"]</option>
+                @foreach (var empresa in _empresas)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
+        }
 
         @if (!string.IsNullOrEmpty(_error))
         {
