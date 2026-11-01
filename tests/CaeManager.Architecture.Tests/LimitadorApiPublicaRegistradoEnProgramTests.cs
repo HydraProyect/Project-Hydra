@@ -59,6 +59,44 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
             .Should().BeTrue("sin RequireRateLimiting el grupo /api/v1 solo tendría el techo por IP");
     }
 
+    [Fact]
+    public void Los_recursos_de_la_API_v1_pasan_por_el_filtro_de_alcance_y_el_canje_del_token_tiene_cupo_propio()
+    {
+        var codigo = ProgramSinComentarios();
+
+        Regex.IsMatch(codigo, @"MapGroup\(""/api/v1""\)[^;]*\.AddEndpointFilter<AlcanceIntegracionEndpointFilter>\(\)\s*;\s*apiV1\.MapRecursosApiV1\(\)")
+            .Should().BeTrue("sin el filtro en el grupo, el metadato de alcance de cada ruta no lo mira nadie");
+        Regex.Matches(codigo, @"apiV1\.Map\w+").Should().ContainSingle("un recurso mapeado fuera de MapRecursosApiV1 no lo recorre RutasApiV1DeclaranAlcanceTests");
+        Regex.IsMatch(codigo, @"AddPolicy\(LimitadorApiPublica\.PoliticaToken,\s*httpContext\s*=>\s*LimitadorApiPublica\.ParticionToken\(")
+            .Should().BeTrue();
+        Regex.IsMatch(codigo, @"\.AddAuthenticationSchemes\(\s*ApiKeyAuthenticationSchemeOptions\.NombreEsquema,\s*ClaveIntegracionAuthenticationSchemeOptions\.NombreEsquema\)\s*\.RequireAuthenticatedUser\(\)")
+            .Should().BeTrue("la política ApiPublica fija sus dos esquemas: sin ellos aceptaría la cookie de Identity");
+
+        var token = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Api", "V1", "TokenIntegracionEndpoints.cs"));
+        token.Should().Contain("RequireRateLimiting(LimitadorApiPublica.PoliticaToken)");
+    }
+
+    [Fact]
+    public void Ninguna_ruta_de_la_API_v1_se_mapea_fuera_del_grupo()
+    {
+        var web = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web");
+        var mapeos = Directory.EnumerateFiles(web, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"\.Map\w*\(\s*\$?@?""/?api(?:/v1[^""]*)?""").Select(m => Regex.Replace(m.Value, @"\s+", "")))
+            .ToList();
+
+        mapeos.Should().BeEquivalentTo(
+            [@".MapGroup(""/api/v1""", @".MapPost(""/api/v1/token""", @".MapOpenApi(""/api/v1/openapi.json"""],
+            "una ruta con su propio mapeo no la recorre RutasApiV1DeclaranAlcanceTests ni pasa por el filtro de alcance");
+    }
+
+    [Fact]
+    public void El_documento_OpenAPI_exige_clave_salvo_en_el_entorno_del_escaneo()
+    {
+        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\);")
+            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023)");
+    }
+
     private static string ProgramSinComentarios()
     {
         var program = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));

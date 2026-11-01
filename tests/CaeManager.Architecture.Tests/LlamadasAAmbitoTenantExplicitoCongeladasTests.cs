@@ -419,6 +419,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         // ── CREDENCIAL VERIFICADA INMEDIATAMENTE ANTES ──────────────────────────────
         ["src/CaeManager.Infrastructure/Autenticacion/ApiKeyAuthenticationHandler.cs"] =
             new(Categoria.CredencialVerificadaInmediatamenteAntes, "clave.TenantId, tras validar el hash de la clave de API recibida"),
+        ["src/CaeManager.Infrastructure/Autenticacion/EmisorTokenClaveIntegracion.cs"] =
+            new(Categoria.CredencialVerificadaInmediatamenteAntes, "tenantId, resuelto por la función a partir del hash del secreto recibido"),
+        ["src/CaeManager.Infrastructure/Autenticacion/ClaveIntegracionAuthenticationHandler.cs"] =
+            new(Categoria.CredencialVerificadaInmediatamenteAntes, "carga.TenantId, del token que Data Protection acaba de verificar"),
         ["src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs"] =
             new(Categoria.IdentificacionWebhookSinSesion, "tenantId, resuelto por la función de la conexión; solo se lee la suscripción para verificar su secreto"),
         ["src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs"] =

@@ -45,13 +45,17 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// que pintan esa plataforma en la columna «Plataformas» del listado.
 /// </param>
 /// <param name="AgruparPorAmbito">Ordena primero por ámbito y calcula su resumen sobre todos los resultados filtrados.</param>
+/// <param name="ExcluirCategoriaEspecialSalud">
+/// Quita los documentos de salud del universo, también de los totales. Lo pide la Clave de Integración
+/// del Tenant, que no los ve con ningún alcance.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
     Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null,
-    bool AgruparPorAmbito = false, bool ConDestinosEnCentros = false)
+    bool AgruparPorAmbito = false, bool ConDestinosEnCentros = false, bool ExcluirCategoriaEspecialSalud = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>
 {
     /// <summary>
@@ -114,6 +118,13 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         var consulta = await ConstruirUniversoAsync(
             string.IsNullOrWhiteSpace(request.Busqueda) ? null : request.Busqueda,
             cancellationToken);
+
+        if (request.ExcluirCategoriaEspecialSalud)
+        {
+            var tiposDeSalud = tiposDocumentoContext.TiposDocumento
+                .Where(t => t.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud).Select(t => t.Id);
+            consulta = consulta.Where(x => !tiposDeSalud.Contains(x.TipoDocumentoId));
+        }
 
         // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
         // El constructor compartido ya acota las cinco ramas al alcance: solo estrecha.

@@ -61,13 +61,17 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero;
 /// los faltantes y el estado combinado llegan siempre.
 /// </para>
+/// <para>
+/// <c>BusquedaSinDni</c> saca el DNI de la búsqueda de texto: quien no puede leerlo tampoco puede
+/// probar valores contra él.
+/// </para>
 /// </summary>
 public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
     bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null,
-    Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null)
+    Guid? DelegacionEmpresaId = null, Guid? OficioEmpresaId = null, bool BusquedaSinDni = false)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
@@ -207,7 +211,7 @@ public class ObtenerTrabajadoresQueryHandler(
             consulta = consulta.Where(x =>
                 TextoDeBusqueda.Contiene(x.trabajador.Nombre, busqueda) ||
                 TextoDeBusqueda.Contiene(x.trabajador.Apellidos, busqueda) ||
-                TextoDeBusqueda.Contiene(x.trabajador.Dni, busqueda) ||
+                (!request.BusquedaSinDni && TextoDeBusqueda.Contiene(x.trabajador.Dni, busqueda)) ||
                 (x.trabajador.Alias != null && TextoDeBusqueda.Contiene(x.trabajador.Alias, busqueda)));
         }
 

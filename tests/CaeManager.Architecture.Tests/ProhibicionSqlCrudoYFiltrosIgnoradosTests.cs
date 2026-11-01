@@ -153,6 +153,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por EF, no concatenado.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
+        // Mismo patrón para la Clave de Integración del Tenant: app_tenant_de_clave_integracion.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveIntegracionTenantRepository.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_integracion({hashClave}) AS \"Value\"")""")] = 1,
 
         // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
         // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER

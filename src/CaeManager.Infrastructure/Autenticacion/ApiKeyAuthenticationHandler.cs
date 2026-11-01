@@ -39,8 +39,8 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// <para>
 /// Lo que corta para siempre: cerrarse la ventana, a mano o por expiración, desactivar la cuenta
 /// emisora y la suspensión operativa del Tenant. Reabrir la ventana o reactivar no devuelve la clave,
-/// igual que no resucita las sesiones anteriores. La suspensión comercial sí es reversible. El bloqueo
-/// temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
+/// igual que no resucita las sesiones anteriores. Los cortes comerciales, Suspendida y SoloLectura, sí
+/// son reversibles. El bloqueo temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
 /// </para>
 ///
 /// <para>
