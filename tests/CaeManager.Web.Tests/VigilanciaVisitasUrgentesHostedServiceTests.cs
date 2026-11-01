@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Visitas;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +19,34 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
 {
     private static readonly Guid TenantQueFalla = Guid.NewGuid();
     private static readonly Guid TenantSiguiente = Guid.NewGuid();
+
+    /// <summary>
+    /// El aviso cuenta el Tenant entero. Quien llega por su rol de origen en otra organización y aquí
+    /// ejerce otro no lo recibe; quien de verdad lo ejerce, propio o delegado, sí.
+    /// </summary>
+    [Fact]
+    public void Un_delegado_solo_recibe_el_aviso_si_ejerce_aqui_el_rol()
+    {
+        var propio = Cuenta();
+        var delegadoConOperacionEntera = Cuenta();
+        var delegadoConCarteraAcotada = Cuenta();
+        var soporte = Cuenta();
+        var direccion = Cuenta();
+
+        var destinatarios = VigilanciaVisitasUrgentesHostedService.DestinatariosDelAviso(
+            [propio, delegadoConOperacionEntera, delegadoConCarteraAcotada, soporte],
+            [direccion, propio],
+            new Dictionary<Guid, string>
+            {
+                [delegadoConOperacionEntera.Id] = Roles.Administrador,
+                [delegadoConCarteraAcotada.Id] = "GestorCae",
+                [soporte.Id] = "Consulta",
+            });
+
+        destinatarios.Should().BeEquivalentTo([propio, delegadoConOperacionEntera, direccion]);
+    }
+
+    private static CuentaVisibleEnRol Cuenta() => new(Guid.NewGuid(), "Cuenta", null, null);
 
     [Fact]
     public async Task El_fallo_de_un_Tenant_se_registra_y_no_deja_sin_ciclo_al_siguiente()

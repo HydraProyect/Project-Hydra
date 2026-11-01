@@ -32,10 +32,10 @@ namespace CaeManager.Infrastructure.Visitas;
 /// sugerencias se calculan con <c>CalcularAsync</c> y <c>centroIdsVisibles: null</c>, sin pasar por
 /// la Query de la cola ni por <see cref="IAlcanceDatosService"/>: ese servicio depende del usuario
 /// de la sesión, inexistente en un job de fondo, y sin usuario el alcance es vacío, así que el aviso
-/// nunca saldría y el trabajo se registraría «exitoso, 0 evaluados». Es la misma visión total que
-/// tienen los destinatarios en Mi trabajo.
+/// nunca saldría y el trabajo se registraría «exitoso, 0 evaluados».
 ///
-/// Destinatarios: Administrador y DireccionCae, mismo criterio (y misma
+/// Destinatarios: quienes ejercen Administrador o DireccionCae en el Tenant, porque el recuento es
+/// del Tenant entero (ver <see cref="DestinatariosDelAviso"/>). Mismo criterio (y misma
 /// limitación documentada) que el resumen de alertas por correo — atribuir
 /// una gestión urgente a "el" Gestor CAE responsable exigiría resolver
 /// Trabajador/Centro → Empresa/Subcontrata → Cliente, y esa relación puede
@@ -200,6 +200,22 @@ public class VigilanciaVisitasUrgentesHostedService(
             + sugerencias.Count(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
     }
 
+    /// <summary>
+    /// <c>ObtenerVisiblesEnRolAsync</c> mira el rol de origen, y el de un Operador Delegado es el de
+    /// otra organización: un Administrador del Operador CAE externo con cartera acotada, o el
+    /// personal de Soporte TALVEG en su ventana, no ejercen ese rol aquí y no deben recibir el
+    /// recuento del Tenant entero. El rol ejercido solo estrecha a quién se avisa: no concede acceso.
+    /// </summary>
+    internal static IReadOnlyList<CuentaVisibleEnRol> DestinatariosDelAviso(
+        IEnumerable<CuentaVisibleEnRol> administradores,
+        IEnumerable<CuentaVisibleEnRol> direccionCae,
+        IReadOnlyDictionary<Guid, string> rolesEjercidosPorDelegados) =>
+        administradores.Concat(direccionCae)
+            .DistinctBy(u => u.Id)
+            .Where(u => !rolesEjercidosPorDelegados.TryGetValue(u.Id, out var rolEjercido)
+                        || rolEjercido is Roles.Administrador or Roles.DireccionCae)
+            .ToList();
+
     /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
     private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
@@ -210,7 +226,9 @@ public class VigilanciaVisitasUrgentesHostedService(
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
         var direccionCae = await directorio.ObtenerVisiblesEnRolAsync(Roles.DireccionCae, stoppingToken);
 
-        var destinatarios = administradores.Concat(direccionCae).DistinctBy(u => u.Id).ToList();
+        var rolesEjercidosPorDelegados = await directorio.ObtenerRolesDeOperadoresDelegadosAsync(stoppingToken);
+
+        var destinatarios = DestinatariosDelAviso(administradores, direccionCae, rolesEjercidosPorDelegados);
         if (destinatarios.Count == 0) return gestionesUrgentes;
 
         var repositorio = ambito.ServiceProvider.GetRequiredService<INotificacionUsuarioRepository>();

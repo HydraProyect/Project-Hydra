@@ -179,7 +179,10 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
                 var directorio = sp.GetRequiredService<DirectorioUsuariosTenant>();
                 var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador);
                 var direccionCae = await directorio.ObtenerVisiblesEnRolAsync(Roles.DireccionCae);
-                return administradores.Concat(direccionCae).Select(u => u.Id).Distinct().ToList();
+                var rolesEjercidos = await directorio.ObtenerRolesDeOperadoresDelegadosAsync();
+                return VigilanciaVisitasUrgentesHostedService
+                    .DestinatariosDelAviso(administradores, direccionCae, rolesEjercidos)
+                    .Select(u => u.Id).ToList();
             });
             if (destinatarios.Count > 0)
                 return (tenant, destinatarios);
