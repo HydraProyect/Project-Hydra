@@ -26,6 +26,7 @@
   <data name="PrimerAvisoAyuda" xml:space="preserve"><value>Revisa el text. En confirmar, l&apos;incident queda confirmat i l&apos;avís s&apos;envia a cada organització afectada. No s&apos;envia res sense aquest clic.</value></data>
   <data name="BotonReintentarPrimerAviso" xml:space="preserve"><value>Torna a provar els enviaments pendents</value></data>
   <data name="BotonReintentarPrimerAvisoSecundario" xml:space="preserve"><value>Torna a provar el primer avís</value></data>
+  <data name="TextoComunAyuda" xml:space="preserve"><value>Cada organització afectada rep aquest mateix text: no hi incloguis dades ni el nom d'una altra.</value></data>
   <data name="PrimerAvisoPendienteAyuda" xml:space="preserve"><value>El primer avís no ha arribat a tots els destinataris. Pots tornar-ho a provar aquí mateix; no cal esperar la notificació completa.</value></data>
   <data name="BotonConfirmarYEnviar" xml:space="preserve"><value>Confirma i envia el primer avís</value></data>
   <data name="BotonMasTiempo" xml:space="preserve"><value>Necessito més temps per avaluar-ho</value></data>

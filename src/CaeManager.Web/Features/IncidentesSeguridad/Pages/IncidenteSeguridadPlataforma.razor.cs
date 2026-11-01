@@ -112,11 +112,12 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
 
     /// <summary>
     /// Todos los destinatarios de todos los Tenants afectados tienen esa plantilla Enviada. Es también lo que
-    /// da el plazo por cumplido: con un solo Tenant afectado avisado, la cuenta atrás de los demás sigue.
+    /// da el plazo por cumplido: con un solo Tenant afectado avisado, la cuenta atrás de los demás sigue, y un
+    /// Tenant afectado sin destinatario no ha recibido nada, así que tampoco lo da por cumplido.
     /// </summary>
     private bool TodoEnviado(PlantillaAvisoIncidenteSeguridad plantilla)
     {
-        if (_vista is null)
+        if (_vista is null || _vista.Tenants.Any(t => !t.Destinatarios.Any()))
             return false;
         var esperados = _vista.Tenants.SelectMany(t => t.Destinatarios.Select(d => (t.TenantId, Correo: d.Correo.Trim().ToLowerInvariant()))).ToList();
         if (esperados.Count == 0)

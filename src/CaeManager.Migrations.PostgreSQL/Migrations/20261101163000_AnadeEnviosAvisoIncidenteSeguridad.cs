@@ -65,8 +65,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // Las tres son SECURITY DEFINER con search_path fijado, mismo régimen que
             // app_resolver_contacto_seguridad, y empiezan por app_actor_plataforma_aviso_seguridad(): contexto RLS
-            // firmado válido, concesión AdminPlataforma global vigente y cuenta de un Tenant de plataforma
+            // firmado válido, concesión AdminPlataforma global vigente y cuenta activa de un Tenant de plataforma
             // trabajando desde su propio Tenant (no dentro de otro Tenant ni en una Sesión Privilegiada sobre él).
+            // Cuenta activa con el umbral de ApplicationUser.UmbralDeCuentaDesactivada, como
+            // app_cuenta_firmada_vigente: la concesión no caduca al desactivar la cuenta, y el circuito abierto
+            // sigue vivo hasta la siguiente revalidación.
             // Esa ayudante no se concede a nadie: solo la llaman las otras tres, que corren como su propietario.
             //
             // - app_decidir_incidente_seguridad: Evaluar (Sospechado → EnEvaluacion), Confirmar (Sospechado o
@@ -84,8 +87,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //   enviarse deja una fila de auditoría en el Tenant afectado, sin el correo ni el cuerpo.
             //
             // Como las de los incrementos 1 y 3a, dependen de que su propietario (el rol de las migraciones) sea
-            // superusuario o tenga BYPASSRLS; lo comprueban y fallan en vez de callar. EXECUTE solo para
-            // cae_app_runtime.
+            // superusuario o tenga BYPASSRLS; lo comprueban y fallan en vez de callar, y la comprobación final lo
+            // exige aquí para que el fallo salga al desplegar y no en el clic de confirmar, con el plazo corriendo.
+            // EXECUTE solo para cae_app_runtime.
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."EnviosAvisoIncidenteSeguridad" ENABLE ROW LEVEL SECURITY;
@@ -120,14 +124,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   IF NOT EXISTS (
                       SELECT 1 FROM public."AspNetUsers" a
                       JOIN public."Tenants" tp ON tp."Id" = a."TenantId"
-                      WHERE a."Id" = v_actor AND tp."EsPlataforma" AND a."TenantId" = v_tenant_contexto)
+                      WHERE a."Id" = v_actor AND tp."EsPlataforma" AND a."TenantId" = v_tenant_contexto
+                        AND (a."LockoutEnd" IS NULL OR a."LockoutEnd" <= pg_catalog.now() + interval '365 days'))
                   THEN
                     RETURN NULL;
                   END IF;
                   RETURN v_actor;
                 END;
                 $$;
-                REVOKE ALL ON FUNCTION public.app_actor_plataforma_aviso_seguridad() FROM PUBLIC;
+                REVOKE ALL ON FUNCTION public.app_actor_plataforma_aviso_seguridad() FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
 
                 CREATE FUNCTION public.app_decidir_incidente_seguridad(p_incidente uuid, p_decision text, p_motivo text) RETURNS text
                     LANGUAGE plpgsql SECURITY DEFINER
@@ -206,7 +211,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   RETURN v_codigo;
                 END;
                 $$;
-                REVOKE ALL ON FUNCTION public.app_decidir_incidente_seguridad(uuid, text, text) FROM PUBLIC;
+                REVOKE ALL ON FUNCTION public.app_decidir_incidente_seguridad(uuid, text, text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_decidir_incidente_seguridad(uuid, text, text) TO cae_app_runtime;
 
                 CREATE FUNCTION public.app_reclamar_envio_aviso_seguridad(
@@ -306,7 +311,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   RETURN QUERY SELECT 'ok'::text, v_fila.id, true, 'Enviando'::text, v_fila.asunto::text, v_fila.cuerpo::text;
                 END;
                 $$;
-                REVOKE ALL ON FUNCTION public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text) FROM PUBLIC;
+                REVOKE ALL ON FUNCTION public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text) TO cae_app_runtime;
 
                 CREATE FUNCTION public.app_resolver_envio_aviso_seguridad(p_envio uuid, p_enviado boolean, p_error text) RETURNS text
@@ -367,16 +372,40 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   RETURN 'fallido';
                 END;
                 $$;
-                REVOKE ALL ON FUNCTION public.app_resolver_envio_aviso_seguridad(uuid, boolean, text) FROM PUBLIC;
+                REVOKE ALL ON FUNCTION public.app_resolver_envio_aviso_seguridad(uuid, boolean, text) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_resolver_envio_aviso_seguridad(uuid, boolean, text) TO cae_app_runtime;
+
+                DO $comprobacion$
+                DECLARE
+                  v_incumplen text;
+                BEGIN
+                  SELECT string_agg(p.oid::regprocedure::text, ', ') INTO v_incumplen
+                  FROM pg_catalog.pg_proc p
+                  JOIN pg_catalog.pg_roles r ON r.oid = p.proowner
+                  WHERE p.oid IN ('public.app_actor_plataforma_aviso_seguridad()'::regprocedure,
+                                  'public.app_decidir_incidente_seguridad(uuid, text, text)'::regprocedure,
+                                  'public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text)'::regprocedure,
+                                  'public.app_resolver_envio_aviso_seguridad(uuid, boolean, text)'::regprocedure)
+                    AND NOT (r.rolsuper OR r.rolbypassrls);
+                  IF v_incumplen IS NOT NULL THEN
+                    RAISE EXCEPTION 'Aviso de seguridad: el propietario de % no evita la RLS y el envío fallaría', v_incumplen;
+                  END IF;
+                END
+                $comprobacion$;
                 """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Lo enviado es la documentación de la violación (art. 33.5 RGPD): revertir no la descarta en silencio.
             migrationBuilder.Sql(
                 """
+                DO $evidencia$ BEGIN
+                  IF EXISTS (SELECT 1 FROM public."EnviosAvisoIncidenteSeguridad") THEN
+                    RAISE EXCEPTION 'No se puede eliminar la evidencia de los avisos de seguridad enviados';
+                  END IF;
+                END $evidencia$;
                 DROP FUNCTION public.app_resolver_envio_aviso_seguridad(uuid, boolean, text);
                 DROP FUNCTION public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text);
                 DROP FUNCTION public.app_decidir_incidente_seguridad(uuid, text, text);

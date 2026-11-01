@@ -26,6 +26,7 @@
   <data name="PrimerAvisoAyuda" xml:space="preserve"><value>Revisa el texto. Al confirmar, el incidente queda confirmado y el aviso se envía a cada organización afectada. Nada se envía sin este clic.</value></data>
   <data name="BotonReintentarPrimerAviso" xml:space="preserve"><value>Reintentar los envíos pendientes</value></data>
   <data name="BotonReintentarPrimerAvisoSecundario" xml:space="preserve"><value>Reintentar el primer aviso</value></data>
+  <data name="TextoComunAyuda" xml:space="preserve"><value>Este mismo texto lo recibe cada organización afectada: no incluyas datos ni el nombre de otra.</value></data>
   <data name="PrimerAvisoPendienteAyuda" xml:space="preserve"><value>El primer aviso no ha llegado a todos los destinatarios. Puedes reintentarlo aquí mismo; no hace falta esperar a la notificación completa.</value></data>
   <data name="BotonConfirmarYEnviar" xml:space="preserve"><value>Confirmar y enviar el primer aviso</value></data>
   <data name="BotonMasTiempo" xml:space="preserve"><value>Necesito más tiempo para evaluarlo</value></data>

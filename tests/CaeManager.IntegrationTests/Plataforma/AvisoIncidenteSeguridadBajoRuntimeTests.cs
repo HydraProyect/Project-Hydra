@@ -129,6 +129,106 @@ public class AvisoIncidenteSeguridadBajoRuntimeTests : IAsyncLifetime
         (await EstadoIncidenteAsync(incidente)).Should().Be("Sospechado");
     }
 
+    [Fact]
+    public async Task Con_concesion_global_en_una_cuenta_que_no_es_de_plataforma_no_se_decide()
+    {
+        var incidente = await SembrarIncidenteAsync();
+        var cuenta = Guid.NewGuid();
+        await using (var propietario = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            SembrarCuenta(propietario, "concesion-fuera-de-plataforma", _tenantAjeno, cuenta, null);
+            propietario.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+                cuenta, vigenciaDesde: DateTime.UtcNow.AddMinutes(-10), vigenciaHasta: null));
+            await propietario.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto(_tenantAjeno, actor: cuenta, tenantOrigen: _tenantAjeno);
+
+        (await LlamarDecidirAsync(contexto, incidente, "Confirmar", null)).Should().Be("no_autorizado",
+            "EsPlataforma restringe: la concesión global en otra cuenta no abre el aviso");
+        (await EstadoIncidenteAsync(incidente)).Should().Be("Sospechado");
+    }
+
+    /// <summary>
+    /// La concesión sigue vigente al desactivar la cuenta y el circuito abierto vive hasta la siguiente
+    /// revalidación: la base corta ahí, con el mismo umbral que <see cref="ApplicationUser.UmbralDeCuentaDesactivada"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(-1, "en_evaluacion")]
+    [InlineData(1, "no_autorizado")]
+    public async Task Una_cuenta_desactivada_no_decide_aunque_conserve_la_concesion(int minutosRespectoDelUmbral, string esperado)
+    {
+        var incidente = await SembrarIncidenteAsync();
+        var hasta = DateTimeOffset.UtcNow + ApplicationUser.UmbralDeCuentaDesactivada + TimeSpan.FromMinutes(minutosRespectoDelUmbral);
+        await using (var conexion = new NpgsqlConnection(_cadenaConexion))
+        {
+            await conexion.OpenAsync();
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = """UPDATE "AspNetUsers" SET "LockoutEnd" = @hasta WHERE "Id" = @id""";
+            comando.Parameters.AddWithValue("hasta", hasta);
+            comando.Parameters.AddWithValue("id", _adminPlataforma);
+            await comando.ExecuteNonQueryAsync();
+        }
+
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+
+        (await LlamarDecidirAsync(contexto, incidente, "Evaluar", null)).Should().Be(esperado);
+    }
+
+    // ── Catálogo ──────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("public.app_actor_plataforma_aviso_seguridad()", false)]
+    [InlineData("public.app_decidir_incidente_seguridad(uuid, text, text)", true)]
+    [InlineData("public.app_reclamar_envio_aviso_seguridad(uuid, text, uuid, text, text, boolean, text, text)", true)]
+    [InlineData("public.app_resolver_envio_aviso_seguridad(uuid, boolean, text)", true)]
+    public async Task Cada_funcion_fija_su_search_path_y_solo_la_ejecuta_quien_debe(string funcion, bool runtimeLaEjecuta)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand($"""
+            SELECT p.prosecdef, p.proconfig,
+                   EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0),
+                   has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE')
+            FROM pg_proc p WHERE p.oid = '{funcion}'::regprocedure;
+            """, conexion);
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+
+        lector.GetBoolean(0).Should().BeTrue("es SECURITY DEFINER");
+        lector.GetFieldValue<string[]>(1).Should().ContainSingle(c => c.StartsWith("search_path=", StringComparison.Ordinal));
+        lector.GetBoolean(2).Should().BeFalse("PUBLIC no la ejecuta");
+        lector.GetBoolean(3).Should().Be(runtimeLaEjecuta);
+        lector.GetBoolean(4).Should().BeFalse("Soporte TALVEG no es Actor de Plataforma del aviso");
+        lector.GetBoolean(5).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task La_tabla_de_envios_tiene_RLS_forzada_y_solo_el_runtime_la_lee()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand("""
+            SELECT c.relrowsecurity, c.relforcerowsecurity,
+                   has_table_privilege('cae_app_runtime', c.oid, 'SELECT'),
+                   has_table_privilege('cae_app_runtime', c.oid, 'INSERT, UPDATE, DELETE'),
+                   has_table_privilege('cae_app_soporte', c.oid, 'SELECT'),
+                   has_table_privilege('cae_app_aprovisionamiento', c.oid, 'SELECT')
+            FROM pg_class c WHERE c.oid = 'public."EnviosAvisoIncidenteSeguridad"'::regclass;
+            """, conexion);
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+
+        lector.GetBoolean(0).Should().BeTrue();
+        lector.GetBoolean(1).Should().BeTrue();
+        lector.GetBoolean(2).Should().BeTrue();
+        lector.GetBoolean(3).Should().BeFalse("las funciones SECURITY DEFINER son la única puerta de escritura");
+        lector.GetBoolean(4).Should().BeFalse("nombre, correo y cuerpo del aviso no son para Soporte TALVEG");
+        lector.GetBoolean(5).Should().BeFalse();
+    }
+
     // ── Decidir ───────────────────────────────────────────────────────────────
 
     [Fact]

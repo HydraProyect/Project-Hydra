@@ -112,6 +112,7 @@
                 @if (esPrimerAviso)
                 {
                     <p class="incidente-ayuda">@Textos["PrimerAvisoAyuda"]</p>
+                    <p class="incidente-ayuda" data-testid="aviso-texto-comun">@Textos["TextoComunAyuda"]</p>
                     <FormularioContenidoAviso Contenido="_primerAviso" ConConsecuencias="false" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
                 }
                 else
@@ -124,6 +125,7 @@
                     {
                         <p class="incidente-ayuda" data-testid="apartados-pendientes">@Textos["ApartadosPendientes", string.Join(", ", pendientes)]</p>
                     }
+                    <p class="incidente-ayuda" data-testid="aviso-texto-comun">@Textos["TextoComunAyuda"]</p>
                     <FormularioContenidoAviso Contenido="_completa" ConConsecuencias="true" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
                 }
                 <div class="incidente-acciones">

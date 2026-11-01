@@ -83,8 +83,9 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
     public void Enviado_el_primer_aviso_su_plazo_queda_cumplido()
     {
         var confirmado = DateTime.UtcNow.AddHours(-30);
-        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Confirmado, confirmado,
+        var vista = Vista(EstadoIncidenteSeguridad.Confirmado, confirmado,
             enviosPrimerAviso: EstadoEnvioAvisoIncidenteSeguridad.Enviado);
+        _mediador.Vista = vista with { Tenants = [.. vista.Tenants.Where(t => t.TenantId != TenantC)] };
 
         var cut = Pagina();
 
@@ -92,6 +93,30 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
         var plazos = cut.FindAll(".incidente-plazo strong").Select(p => p.TextContent.Trim()).ToList();
         plazos[0].Should().Be("Enviado");
         plazos[1].Should().MatchRegex(@"^Quedan 5 h \d+ min$");
+    }
+
+    [Fact]
+    public void Un_Tenant_afectado_sin_destinatario_no_da_el_plazo_por_cumplido()
+    {
+        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Confirmado, DateTime.UtcNow.AddHours(-2),
+            enviosPrimerAviso: EstadoEnvioAvisoIncidenteSeguridad.Enviado);
+
+        var cut = Pagina();
+
+        cut.WaitForAssertion(() => cut.FindAll(".incidente-plazo strong").Should().HaveCount(2));
+        cut.FindAll(".incidente-plazo strong")[0].TextContent.Trim().Should().MatchRegex(@"^Quedan 2\d h \d+ min$",
+            "Org C no ha recibido nada, aunque todos los destinatarios resueltos estén Enviados");
+    }
+
+    [Fact]
+    public void El_formulario_avisa_de_que_cada_organizacion_recibe_el_mismo_texto()
+    {
+        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Sospechado, confirmadoEnUtc: null);
+
+        var cut = Pagina();
+
+        cut.WaitForAssertion(() => cut.Find("[data-testid='aviso-texto-comun']").TextContent
+            .Should().Contain("no incluyas datos ni el nombre de otra"));
     }
 
     [Fact]
