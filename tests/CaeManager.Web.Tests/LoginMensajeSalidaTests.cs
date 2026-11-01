@@ -46,6 +46,11 @@ public class LoginMensajeSalidaTests : BunitContext
         var bloqueada = await EnviarYLeerAlertaAsync();
 
         bloqueada.Should().Be(invalidas, "un texto distinto dejaría enumerar qué cuentas existen y están bloqueadas");
+
+        _signIn.Resultado = SignInResult.NotAllowed;
+        var noPermitida = await EnviarYLeerAlertaAsync();
+
+        noPermitida.Should().Be(invalidas, "tampoco la cuenta a la que no se deja entrar (p. ej. país no permitido) puede distinguirse");
         invalidas.Should().Contain("restablece tu contraseña");
         invalidas.Should().Contain("quien gestiona tu acceso");
         invalidas.Should().NotContain("soporte@", "el buzón de soporte aún no existe");
