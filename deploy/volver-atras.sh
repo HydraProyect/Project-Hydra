@@ -14,7 +14,9 @@
 #
 # Orden, y en cada paso se detiene con un mensaje y código distinto de 0:
 #   1. Cerrojo de despliegue (el mismo que ci-deploy.sh): nunca a la vez que un
-#      despliegue ni que otra vuelta atrás.
+#      despliegue ni que otra vuelta atrás. Si el destino ya sirve y /salud
+#      responde, recarga Caddy, retira lo que un relevo fallido dejó vivo sin
+#      guarda de correo (relevo-app.sh retirar-sin-guarda) y termina.
 #   2. La imagen existe y su etiqueta OCI de revisión es ese SHA.
 #   3. GUARDA DE CORREO: la misma comprobación que hará el relevo
 #      (relevo-app.sh comprobar-guarda), antes del paso 4 porque ese paso puede

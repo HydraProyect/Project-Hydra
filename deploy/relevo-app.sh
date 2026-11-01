@@ -521,10 +521,12 @@ sin_guarda_sin_anotar() {
 
 # Para quien da por bueno un <sha> que ya sirve sin pasar por `desplegar`: un relevo
 # a ese sha pudo conmutar y acabar en error con una imagen sin guarda viva. Con el
-# cerrojo de despliegue tomado por quien llama. Devuelve 1 si alguna sigue viva.
+# cerrojo de despliegue tomado por quien llama. Devuelve 1 si alguna sigue viva. Se
+# queda la primera del fichero, la que quien llama comprobó, no ranura_que_sirve: si
+# esa no estuviera sana, esta devolvería la saliente y la excluiría de la búsqueda.
 retirar_sin_guarda_pendientes() {
     local entorno="$1" sha="$2" activa_ c en_caddy fallo=0
-    activa_="$(ranura_que_sirve "$entorno")"
+    activa_="$(activa "$entorno" || true)"
     if [ -z "$activa_" ]; then
         echo "::error::$entorno no tiene ninguna ranura en marcha: no se pueden retirar las imágenes que ignoran la guarda de correo." >&2
         return 1

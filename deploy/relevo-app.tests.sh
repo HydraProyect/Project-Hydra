@@ -682,10 +682,13 @@ comprobar "retirar-sin-guarda: si sigue viva, sale con 1 y la nombra" "1 true si
   "$codigo $(en_marcha "$LEGADO_STG") $(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
 relevo -- retirar-sin-guarda staging "$B"
 comprobar "  y en cuanto se puede, la retira" "0 <no existe> to caemanager-staging-app-azul:8080" "$codigo $(en_marcha "$LEGADO_STG") $(ranuras staging)"
-relevo -- retirar-sin-guarda staging "$B"
-comprobar "  sin nada pendiente no toca nada" "0 0" "$codigo $(grep -c '^docker stop.*caemanager-staging-app-azul' "$LOG")"
+: > "$LOG"; relevo -- retirar-sin-guarda staging "$B"
+comprobar "  sin nada pendiente no toca nada" "0 0" "$codigo $(grep -cE '^(docker (stop|kill|update|rm)|RECARGA)' "$LOG")"
 saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
 relevo -- desplegar staging "$B"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  con la que sirve aún sin sanar no para la anotada y sale con 1" "1 true to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
 rm "$ESTADO/c/caemanager-staging-app-verde/salud"
 relevo -- retirar-sin-guarda staging "$B"
 comprobar "  una que siguiera anotada también sale de Caddy" "0 false to caemanager-staging-app-verde:8080" "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
@@ -934,6 +937,12 @@ if [ -z "${RELEVO_GUION:-}" ]; then
                      STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; codigo=$?; }
   mutar "retirar-sin-guarda sale bien con la imagen viva" \
     's#^    return "\$fallo"$#    return 0#' esc_pendientes comp_parada
+
+  esc_pendiente_insana() { saliente_staging; mkdir -p "$ESTADO/c/$VERDE_STG"; echo unhealthy > "$ESTADO/c/$VERDE_STG/salud"
+                           bash "$1" desplegar staging "$B" > /dev/null 2>&1
+                           bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "retirar-sin-guarda excluye la saliente si la primera no está sana" \
+    's#^    activa_="\$(activa "\$entorno" || true)"$#    activa_="$(ranura_que_sirve "$entorno")"#' esc_pendiente_insana comp_parada
 
   esc_reinicio() { saliente_staging; REINICIA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
   mutar "no se quita la política de reinicio" \
