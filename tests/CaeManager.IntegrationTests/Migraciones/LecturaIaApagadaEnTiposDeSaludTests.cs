@@ -69,9 +69,10 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         await migrador.MigrateAsync(MigracionDelCambio);
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", _deSalud);
         await migrador.MigrateAsync(MigracionProteccion);
-        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "la protección conserva una activación anterior");
+        (await LeerAsync(_deSalud)).Should().Be((false, false, false), "la primera aplicación cierra la ventana del relevo");
+        (await LeerAsync(_sinSalud)).Should().Be((true, true, true));
 
-        // Una versión anterior inserta esta fila con los tres indicadores encendidos durante el relevo.
+        // Una versión anterior intenta insertar una fila con los tres indicadores encendidos tras instalar la protección.
         var duranteRelevo = Guid.NewGuid();
         await SembrarCopiaAsync(duranteRelevo, "Durante relevo", "CategoriaEspecialSalud");
         (await LeerAsync(duranteRelevo)).Should().Be((false, false, false));
@@ -104,8 +105,9 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         var trasBajar = Guid.NewGuid();
         await SembrarCopiaAsync(trasBajar, "Tras bajar", "CategoriaEspecialSalud");
         (await LeerAsync(trasBajar)).Should().Be((false, false, false));
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true, \"DeteccionTrabajadoresActiva\" = true WHERE \"Id\" = @id", _deSalud);
         await migrador.MigrateAsync(MigracionProteccion);
-        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "reaplicar la protección conserva la activación");
+        (await LeerAsync(_deSalud)).Should().Be((true, true, true), "reaplicar conserva la activación deliberada tras bajar");
         (await LeerAsync(nuevaSalud)).Should().Be((true, true, false));
     }
 

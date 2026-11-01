@@ -9,13 +9,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
-                DO $$
+                -- La creación del trigger y el barrido comparten la transacción de la migración.
+                -- #1905 no está en producción: allí no puede haber activaciones posteriores que perder.
+                -- En la primera aplicación se apagan también activaciones legítimas indistinguibles
+                -- de las filas creadas durante el relevo; al reaplicar se conservan.
+                LOCK TABLE public."TiposDocumento" IN SHARE ROW EXCLUSIVE MODE;
+                DO $migracion$
+                DECLARE
+                    trigger_existia boolean;
                 BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
                         RAISE EXCEPTION 'ProtegeLecturaIaInicialSalud necesita un migrador superusuario o con BYPASSRLS';
                     END IF;
-                END
-                $$;
+                    SELECT EXISTS (
+                        SELECT 1 FROM pg_catalog.pg_trigger
+                        WHERE tgrelid = 'public."TiposDocumento"'::regclass
+                          AND tgname = 'proteger_lectura_ia_inicial_salud'
+                          AND NOT tgisinternal
+                    ) INTO trigger_existia;
 
                 CREATE OR REPLACE FUNCTION public.proteger_lectura_ia_inicial_salud() RETURNS trigger
                 LANGUAGE plpgsql
@@ -38,6 +49,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     BEFORE INSERT OR UPDATE ON public."TiposDocumento"
                     FOR EACH ROW EXECUTE FUNCTION public.proteger_lectura_ia_inicial_salud();
 
+                    IF NOT trigger_existia THEN
+                        UPDATE public."TiposDocumento"
+                        SET "LecturaIaActiva" = false,
+                            "VerificacionIaActiva" = false,
+                            "DeteccionTrabajadoresActiva" = false
+                        WHERE "Sensibilidad" = 'CategoriaEspecialSalud';
+                    END IF;
+                END
+                $migracion$;
                 """);
         }
 
