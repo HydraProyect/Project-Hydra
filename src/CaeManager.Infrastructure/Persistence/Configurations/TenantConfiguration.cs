@@ -80,6 +80,7 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             // SinSuscripcion para siempre, y GateComercialTenantBehavior lo
             // exime del gate igualmente por EsPlataforma.
             AddOnSubidaAutomaticaActivo = false,
+            IntegracionHabilitada = false,
             EstadoComercial = EstadoComercialTenant.SinSuscripcion,
         });
     }

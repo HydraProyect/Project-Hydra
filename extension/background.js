@@ -211,6 +211,13 @@ async function peticionAutenticada(ruta, opciones = {}, tenantId = null) {
     return { ok: false, seleccionRetirada: true, error: AVISO_SELECCION_RETIRADA };
   }
 
+  // Quien pidió un Tenant solo acepta lo que TALVEG confirme de ese Tenant. Un binario
+  // que ignore la solicitud contestaría con datos del Tenant de origen, y aquí nada los
+  // distinguiría de los pedidos. No se desconecta ni se retira la selección: la
+  // selección sigue siendo válida y un relevo se pasa solo.
+  if (tenantId && puedeTraerDatosDeUnTenant(respuesta) && !tenantConfirmado(respuesta, tenantId))
+    return { ok: false, tenantSinConfirmar: true, error: AVISO_TENANT_SIN_CONFIRMAR };
+
   return { ok: true, respuesta };
 }
 
@@ -222,6 +229,23 @@ const CLAVE_TENANT_SELECCIONADO = "tenantSeleccionado";
 const CLAVE_SELECCION_RETIRADA = "seleccionRetirada";
 const CLAVE_TENANT_POR_PESTANA = "tenantPorPestana";
 const AVISO_SELECCION_RETIRADA = "Esa empresa ya no está autorizada para tu usuario. Elige otra en la extensión.";
+const CABECERA_TENANT_EFECTIVO = "X-Tenant-Efectivo";
+const AVISO_TENANT_SIN_CONFIRMAR = "TALVEG no ha confirmado la empresa gestionada, así que no se muestra ni se pone nada. Inténtalo de nuevo en unos minutos.";
+const AVISO_DESHACER_SIN_CONFIRMAR = "TALVEG no ha confirmado la empresa gestionada. Corrígelo desde Centro 360.";
+
+// La confirmación sale del servidor (ContextoExtensionMiddleware). Otro Tenant vale tan
+// poco como ninguno: ni el de origen sustituye al Tenant beneficiario pedido, ni al revés.
+function tenantConfirmado(respuesta, tenantId) {
+  const efectivo = respuesta.headers?.get?.(CABECERA_TENANT_EFECTIVO);
+  return typeof efectivo === "string" && efectivo.trim().toLowerCase() === tenantId.toLowerCase();
+}
+
+// Un 429 lo da el limitador antes de resolver ningún Tenant y un 5xx es un fallo del
+// servidor: ninguno lleva datos de negocio de un Tenant ni, por tanto, confirmación, y
+// quien llama ya los trata como fallo con su propio mensaje.
+function puedeTraerDatosDeUnTenant(respuesta) {
+  return respuesta.status !== 429 && respuesta.status < 500;
+}
 
 async function esSeleccionRetirada(respuesta) {
   try {
@@ -720,6 +744,8 @@ async function deshacerEnvio({ acreditacionId }, idPestana) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ cambioId: confirmado.cambioId, version: confirmado.version }),
   }, confirmado.tenantId ?? null);
+  // La ventana de «Deshacer» es de segundos y ya se consumió: no se invita a reintentar.
+  if (deshecho.tenantSinConfirmar) return { ...deshecho, error: AVISO_DESHACER_SIN_CONFIRMAR };
   if (!deshecho.ok) return deshecho;
   if (!deshecho.respuesta.ok) {
     const detalle = await leerDetalleDelProblema(deshecho.respuesta);

@@ -81,6 +81,13 @@ public class Tenant : Entity
     public bool AddOnSubidaAutomaticaActivo { get; private set; }
 
     /// <summary>
+    /// La vía de integración duradera está habilitada para este Tenant propietario: sin ella, ninguna
+    /// de sus Claves de Integración autentica, y al recuperarla vuelven a valer. Lo cambia un Actor de
+    /// Plataforma TALVEG (decisión D-5 de la vía de integración).
+    /// </summary>
+    public bool IntegracionHabilitada { get; private set; }
+
+    /// <summary>
     /// Marca de finalización de <c>DatosPruebaSeeder</c> para ESTE tenant —
     /// null hasta que una siembra completa termina sin cortarse. Incidente de
     /// producción del 2026-08-28: el guard anterior ("¿existe algún Cliente
@@ -161,6 +168,8 @@ public class Tenant : Entity
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
 
     public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;
+
+    public void CambiarIntegracionHabilitada(bool habilitada) => IntegracionHabilitada = habilitada;
 
     /// <summary>
     /// Sella <see cref="ClavesApiValidasDesdeUtc"/> al suspender, no solo al reactivar: una clave
