@@ -59,9 +59,19 @@ public class RegistroIncidenteDistingueSinUsuarioTests
         cuerpo.Should().Contain("pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true)");
         cuerpo.Should().Contain("AND NOT v_sin_usuario AND NOT (i.\"Evidencia\" ? 'sin_usuario_en_contexto')",
             "ni abre un oráculo sobre incidentes ajenos, ni un registro sin usuario absorbe una señal real");
-        cuerpo.Should().Contain("AND (NOT v_distinto OR i.\"Evidencia\" ->> 'contexto_usuario_id' = v_ctx_usuario::text)",
-            "un registro marcado solo agrupa con los del mismo usuario del contexto");
         cuerpo.Should().Contain("' sin usuario en el contexto'");
+    }
+
+    [Fact]
+    public void Agrupar_exige_la_marca_del_mismo_usuario_del_contexto()
+    {
+        var cuerpo = CuerpoReescrito();
+
+        cuerpo.Should().Contain("v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('contexto_usuario_id', v_ctx_usuario::text);",
+            "todo registro con usuario en el contexto lo guarda, coincida o no con el sujeto");
+        cuerpo.Should().Contain("AND i.\"Evidencia\" ->> 'contexto_usuario_id' = v_ctx_usuario::text",
+            "un registro anterior sin la marca es de procedencia desconocida y no agrupa");
+        cuerpo.Should().NotContain("NOT v_distinto OR", "una excepción por sujeto coincidente dejaría agrupar a los registros sin marca");
     }
 
     [Fact]

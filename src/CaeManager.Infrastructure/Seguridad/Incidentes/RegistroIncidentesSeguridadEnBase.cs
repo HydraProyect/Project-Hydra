@@ -26,8 +26,8 @@ namespace CaeManager.Infrastructure.Seguridad.Incidentes;
 /// error aquí la abortaría, y detectar no puede romper la operación que disparó la señal.
 /// En una petición HTTP el contexto RLS (Tenant y usuario) fluye por el ámbito. La
 /// función no autoriza con él, pero sí lo exige y lo contrasta: sin contexto firmado
-/// rechaza; con usuario distinto del sujeto lo marca en la evidencia; y sin usuario (el
-/// enlace «No he sido yo» llega sin sesión, y este ámbito nuevo no hereda la identidad de
+/// rechaza; con usuario guarda el suyo en la evidencia y solo agrupa con ese mismo
+/// usuario, y si es distinto del sujeto lo marca además; y sin usuario (el enlace «No he sido yo» llega sin sesión, y este ámbito nuevo no hereda la identidad de
 /// un circuito de Blazor) lo marca también, sin inventar un Actor, y la detección nunca
 /// agrupa ni es agrupada.
 /// </para>

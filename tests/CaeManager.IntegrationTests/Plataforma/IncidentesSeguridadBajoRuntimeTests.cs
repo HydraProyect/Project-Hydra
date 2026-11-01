@@ -319,6 +319,7 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
 
         nuevo.Should().BeTrue("no se rechaza: una Sesión Privilegiada registra al Actor real con el Usuario simulado en el contexto");
         (await EvidenciaAsync(propio, "sujeto_distinto_del_contexto")).Should().BeNull();
+        (await EvidenciaAsync(propio, "contexto_usuario_id")).Should().Be(_usuarioDelTenant.ToString("D"));
         (await EvidenciaAsync(ajeno, "sujeto_distinto_del_contexto")).Should().Be("true");
         (await EvidenciaAsync(ajeno, "contexto_usuario_id")).Should().Be(_usuarioDelTenant.ToString("D"));
     }
@@ -393,6 +394,42 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_incidente_anterior_sin_marcas_no_absorbe_la_senal_real_y_no_gana_usuario()
+    {
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        await using var sinUsuario = await AbrirRestringidaComoAsync(usuarioId: null, tenantId: null);
+        var (heredado, _) = await RegistrarAsync(sinUsuario, "ExtraccionMasiva", sujeto, [_tenantA]);
+        await EjecutarComoSuperusuarioAsync(
+            """UPDATE "IncidentesSeguridadSospechados" SET "Evidencia" = "Evidencia" - 'sin_usuario_en_contexto' WHERE "Id" = @id""", heredado);
+
+        await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var (real, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+        var (repetido, repetidoNuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        nuevo.Should().BeTrue("antes del relevo un registro sin usuario nacía sin marca: es de procedencia desconocida y no puede suprimir la alerta");
+        real.Should().NotBe(heredado);
+        repetidoNuevo.Should().BeFalse("la señal siguiente del mismo usuario agrupa con el incidente nuevo");
+        repetido.Should().Be(real);
+        (await DeteccionesAsync(heredado)).Should().Be(1);
+        (await EvidenciaAsync(heredado, "contexto_usuario_id")).Should().BeNull("la procedencia desconocida no se rellena con un usuario deducido");
+    }
+
+    [Fact]
+    public async Task Un_incidente_anterior_del_propio_usuario_tampoco_agrupa_porque_no_se_distingue()
+    {
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        await using var propia = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var (heredado, _) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+        await EjecutarComoSuperusuarioAsync(
+            """UPDATE "IncidentesSeguridadSospechados" SET "Evidencia" = "Evidencia" - 'contexto_usuario_id' WHERE "Id" = @id""", heredado);
+
+        var (siguiente, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        nuevo.Should().BeTrue("sin la marca es igual que uno plantado sin usuario: el coste es un incidente de más, no una alerta perdida");
+        siguiente.Should().NotBe(heredado);
+    }
+
+    [Fact]
     public async Task Quien_llama_no_fija_las_marcas_que_pone_la_funcion()
     {
         var sujeto = $"usuario:{_usuarioDelTenant:D}";
@@ -407,7 +444,7 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
 
         (await EvidenciaAsync(conUsuario, "recuento")).Should().Be("1", "el resto de la evidencia se conserva");
         (await EvidenciaAsync(conUsuario, "sujeto_distinto_del_contexto")).Should().BeNull();
-        (await EvidenciaAsync(conUsuario, "contexto_usuario_id")).Should().BeNull();
+        (await EvidenciaAsync(conUsuario, "contexto_usuario_id")).Should().Be(_usuarioDelTenant.ToString("D"), "manda el contexto, no la evidencia que llega");
         (await EvidenciaAsync(conUsuario, "sin_usuario_en_contexto")).Should().BeNull();
         (await EvidenciaAsync(conUsuario, "tenants_afectados_truncados")).Should().BeNull();
         (await EvidenciaAsync(delSinUsuario, "contexto_usuario_id")).Should().BeNull("la evidencia no puede nombrar un Actor que el contexto no tiene");

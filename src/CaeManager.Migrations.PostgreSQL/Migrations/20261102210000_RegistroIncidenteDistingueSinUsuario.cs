@@ -29,10 +29,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// </para>
     ///
     /// <para>
-    /// <b>Con usuario distinto del sujeto</b> solo agrupa con registros marcados por ese mismo usuario del
-    /// contexto: otro no puede absorber su señal ni sondear si existe. Sujeto y usuario del contexto
-    /// siguen en campos separados (Actor real y Usuario simulado). <b>Con usuario igual al sujeto</b> nada
-    /// cambia.
+    /// <b>Con usuario en el contexto</b>, igual o distinto del sujeto, la evidencia guarda
+    /// <c>contexto_usuario_id</c> y solo agrupa con registros de ese mismo usuario: otro no puede absorber
+    /// su señal ni sondear si existe. Sujeto y usuario del contexto siguen en campos separados (Actor real
+    /// y Usuario simulado).
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Registros anteriores a esta migración:</b> los que no tienen <c>contexto_usuario_id</c> pudieron
+    /// nacer con usuario igual al sujeto o sin usuario, y la base no los distingue (la transición nunca
+    /// guardó Actor). Son de procedencia desconocida: no agrupan, y la señal siguiente abre su incidente y
+    /// su alerta. No se reescriben ni se les deduce usuario. Agrupar exige la marca, así que no hace falta
+    /// una fecha de corte, tampoco para lo que la función anterior aún escriba durante el relevo; el
+    /// efecto dura lo que la ventana de cada señal, 24 h como mucho, y su coste es un incidente de más.
+    /// La marca no prueba nada en una fila anterior que ya trajera esa clave, porque la función anterior
+    /// no la retiraba: exige haber llamado con evidencia escrita a mano, la aplicación no la emite y
+    /// caduca con la misma ventana.
     /// </para>
     ///
     /// <para>
@@ -74,11 +86,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 v_evidencia := p_evidencia - ARRAY['sujeto_distinto_del_contexto', 'contexto_usuario_id', 'sin_usuario_en_contexto', 'tenants_afectados_truncados']::text[];
                     IF v_sin_usuario THEN
                         v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('sin_usuario_en_contexto', true);
+                    ELSE
+                        v_evidencia := v_evidencia || pg_catalog.jsonb_build_object('contexto_usuario_id', v_ctx_usuario::text);
                     END IF;
                 """),
             Cambio("""AND (i."Evidencia" ? 'sujeto_distinto_del_contexto') = v_distinto""", """
                 AND (i."Evidencia" ? 'sujeto_distinto_del_contexto') = v_distinto
-                       AND (NOT v_distinto OR i."Evidencia" ->> 'contexto_usuario_id' = v_ctx_usuario::text)
+                       AND i."Evidencia" ->> 'contexto_usuario_id' = v_ctx_usuario::text
                        AND NOT v_sin_usuario AND NOT (i."Evidencia" ? 'sin_usuario_en_contexto')
                 """),
             Cambio("'Detectado por la señal ' || p_senal);", """
