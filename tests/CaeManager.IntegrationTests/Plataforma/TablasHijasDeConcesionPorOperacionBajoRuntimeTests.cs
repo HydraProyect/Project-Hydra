@@ -761,7 +761,7 @@ VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days
 
         await using (var mantener = conexion.CreateCommand())
         {
-            // now() queda fijo en la primera sentencia y pg_sleep no asigna xid.
+            // now() queda fijo al empezar la transacción y pg_sleep no asigna xid.
             mantener.CommandText = "SELECT pg_sleep(1.1);";
             await mantener.ExecuteNonQueryAsync();
         }

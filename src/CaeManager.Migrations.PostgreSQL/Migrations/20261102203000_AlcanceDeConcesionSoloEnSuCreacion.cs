@@ -36,11 +36,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// fecha no lo cierra: con <c>now()</c>, fijado al empezar la transacción, bastaría abrirla dentro
     /// de la ventana y mantenerla sin xid; con <c>clock_timestamp()</c> quedarían los minutos de la
     /// ventana, en los que un clúster recién restaurado aún puede consumir los identificadores que le
-    /// faltan. El inicio se compara por igualdad y no depende de ninguna ventana: toda transacción del
-    /// clúster restaurado empieza después que la que creó la concesión, también si se mantiene abierta,
-    /// y el par no se repite. Dentro de un clúster, dos transacciones pueden empezar en el mismo
-    /// microsegundo, y de eso responde <c>xid8</c>. La caducidad del contexto firmado no aportaría nada:
-    /// no ata la escritura a la concesión.
+    /// faltan. El inicio se compara por igualdad y no depende de ninguna ventana: con el reloj en hora,
+    /// toda transacción del clúster restaurado empieza después que la que creó la concesión, también si
+    /// se mantiene abierta. Si el host restaurado fuera atrasado, haría falta además empezar en el
+    /// microsegundo exacto del sello con el xid exacto, y <c>now()</c> no se elige. Dentro de un clúster,
+    /// dos transacciones pueden empezar en el mismo microsegundo, y de eso responde <c>xid8</c>. La
+    /// caducidad del contexto firmado no aportaría nada: no ata la escritura a la concesión.
     /// </para>
     ///
     /// <para>
