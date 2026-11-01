@@ -268,7 +268,7 @@ public class ProyectosEstado4aTests : BunitContext
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
 
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
         puerta.SetResult();
@@ -292,7 +292,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         var cut = Render<Proyectos>();
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         puerta.SetResult();
         await EsperarFinDeResolucionAsync(pagina);
 
@@ -316,7 +316,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         var cut = Render<Proyectos>();
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         puerta.SetResult();
         await EsperarFinDeResolucionAsync(pagina);
 

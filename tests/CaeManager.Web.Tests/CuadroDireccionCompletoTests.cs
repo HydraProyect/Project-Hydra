@@ -480,8 +480,14 @@ public partial class CuadroDireccionTests
     public void El_calendario_de_gestiones_por_dia_pinta_un_cuadro_por_dia_laborable()
     {
         var hoy = DiaDeNegocio.Hoy();
+        // El calendario solo pinta de lunes a viernes, y el día 1 puede caer en fin de semana.
+        var diaLaborable = new DateOnly(hoy.Year, hoy.Month, 1);
+        while (diaLaborable.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            diaLaborable = diaLaborable.AddDays(1);
+        }
         var dias = new GestionesPorDiaCuadroDireccionDto(
-            [new GestionesPorDiaTenantDto(TenantA, "Refrielectric S.A.", [new GestionesDelDiaDto(new DateOnly(hoy.Year, hoy.Month, 1), 5)])], 0);
+            [new GestionesPorDiaTenantDto(TenantA, "Refrielectric S.A.", [new GestionesDelDiaDto(diaLaborable, 5)])], 0);
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
             serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)), gestionesDia: dias);
 

@@ -297,7 +297,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
             .ToList();
 
         tokensCarga.Should().HaveCount(3, "el control positivo confirma que el ciclo inició las tres consultas");
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         tokensCarga.Should().OnlyContain(token => token.IsCancellationRequested, "Dispose cancela el ciclo de carga antes de liberar sus recursos");
     }

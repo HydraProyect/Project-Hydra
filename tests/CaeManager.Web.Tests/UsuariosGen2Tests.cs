@@ -1135,8 +1135,8 @@ public partial class UsuariosGen2Tests : BunitContext
     [Fact]
     public async Task Si_el_correo_falla_tras_retirarse_de_la_pantalla_el_fallo_se_avisa_igual()
     {
-        _ = await AltaConCorreoQueNoContestaAsync();
-        await DisposeComponentsAsync();
+        var cut = await AltaConCorreoQueNoContestaAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
 

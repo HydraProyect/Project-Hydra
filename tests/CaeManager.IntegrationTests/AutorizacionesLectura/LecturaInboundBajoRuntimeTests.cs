@@ -13,10 +13,12 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Migrations.PostgreSQL.Migrations;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Npgsql;
 using Xunit;
 
@@ -500,7 +502,8 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         }
 
         // El supuesto del que depende la migración: las tablas tienen FORCE ROW LEVEL SECURITY, así que un propietario
-        // sin rolsuper ni rolbypassrls vería sus propias políticas y las funciones no leerían nada del Tenant de Y.
+        // sin rolsuper ni rolbypassrls vería sus propias políticas y no leería nada del Tenant de Y. Las tres funciones
+        // públicas fallan cerradas en ese caso (FalloCerradoLecturaInbound), en vez de confundirlo con «sin autorización».
         await using var propietarios = new NpgsqlCommand(
             """
             SELECT r.rolname, r.rolsuper OR r.rolbypassrls
@@ -517,6 +520,83 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         saltaRls.Should().HaveCount(funciones.Count);
         saltaRls.Should().AllSatisfy(p => p.SaltaRls.Should().BeTrue(
             $"{p.Rol} es propietario de las funciones app_inbound_* y debe tener rolsuper o rolbypassrls (FORCE ROW LEVEL SECURITY)"));
+    }
+
+    [Fact]
+    public async Task La_migracion_de_fallo_cerrado_solo_anade_la_guardia_y_su_Down_solo_la_quita()
+    {
+        // El SQL de la migración sobre el catálogo ya migrado, dentro de una transacción: no depende de las migraciones
+        // que lleguen después ni de que su Down funcione, y aun así reescribe los cuerpos reales, con su contexto firmado.
+        var migracion = new FalloCerradoLecturaInbound();
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        var protegidas = await FuncionesInboundAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.DownOperations.OfType<SqlOperation>().Single().Sql);
+        var anteriores = await FuncionesInboundAsync(conexion, transaccion);
+        await EjecutarAsync(conexion, transaccion, migracion.UpOperations.OfType<SqlOperation>().Single().Sql);
+
+        (await FuncionesInboundAsync(conexion, transaccion)).Should().Equal(protegidas);
+        foreach (var (nombre, anterior) in anteriores)
+        {
+            var protegida = protegidas[nombre];
+            anterior.PropietarioYPermisos.Should().Be(protegida.PropietarioYPermisos, nombre);
+            anterior.Definicion.Should().NotContain("no evita la RLS", nombre);
+            anterior.Definicion.Should().Contain("app_ctx_valido()", $"{nombre}: conserva la comprobación del contexto firmado");
+
+            var inicio = protegida.Definicion.IndexOf("BEGIN", StringComparison.Ordinal) + "BEGIN".Length;
+            protegida.Definicion[inicio..].TrimStart().Should().StartWith("IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles",
+                $"{nombre}: la guardia va antes que cualquier lectura");
+            var fin = protegida.Definicion.IndexOf("END IF;", inicio, StringComparison.Ordinal) + "END IF;".Length;
+            protegida.Definicion.Remove(inicio, fin - inicio).Should().Be(anterior.Definicion, $"{nombre}: nada más cambia");
+        }
+
+        await transaccion.RollbackAsync();
+    }
+
+    [Theory]
+    [InlineData("app_inbound_autorizacion_del_contrato(uuid)", "SELECT * FROM public.app_inbound_autorizacion_del_contrato(NULL)")]
+    [InlineData("app_inbound_documentos_autorizados(uuid)", "SELECT * FROM public.app_inbound_documentos_autorizados(NULL)")]
+    [InlineData("app_inbound_archivo_autorizado(uuid,uuid)", "SELECT * FROM public.app_inbound_archivo_autorizado(NULL, NULL)")]
+    public async Task Sin_propietario_que_evita_rls_la_lectura_falla_cerrada(string firma, string consulta)
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await EjecutarAsync(conexion, transaccion, $"ALTER FUNCTION public.{firma} OWNER TO cae_app_runtime");
+
+        await using var leer = new NpgsqlCommand(consulta, conexion, transaccion);
+        var excepcion = await Assert.ThrowsAsync<PostgresException>(() => leer.ExecuteNonQueryAsync());
+
+        excepcion.MessageText.Should().Contain("no evita la RLS").And.Contain("Tenant propietario");
+        await transaccion.RollbackAsync();
+    }
+
+    private sealed record FuncionInbound(string Definicion, string PropietarioYPermisos);
+
+    private static async Task<Dictionary<string, FuncionInbound>> FuncionesInboundAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion)
+    {
+        await using var comando = new NpgsqlCommand(
+            """
+            SELECT proname, pg_get_functiondef(oid), pg_get_userbyid(proowner) || ' ' || COALESCE(proacl::text, '')
+            FROM pg_proc
+            WHERE oid IN ('public.app_inbound_autorizacion_del_contrato(uuid)'::regprocedure,
+                          'public.app_inbound_documentos_autorizados(uuid)'::regprocedure,
+                          'public.app_inbound_archivo_autorizado(uuid,uuid)'::regprocedure)
+            """, conexion, transaccion);
+        var funciones = new Dictionary<string, FuncionInbound>();
+        await using var filas = await comando.ExecuteReaderAsync();
+        while (await filas.ReadAsync())
+            funciones.Add(filas.GetString(0), new FuncionInbound(filas.GetString(1), filas.GetString(2)));
+        funciones.Should().HaveCount(3);
+        return funciones;
+    }
+
+    private static async Task EjecutarAsync(NpgsqlConnection conexion, NpgsqlTransaction transaccion, string sql)
+    {
+        await using var comando = new NpgsqlCommand(sql, conexion, transaccion);
+        await comando.ExecuteNonQueryAsync();
     }
 
     [Fact]

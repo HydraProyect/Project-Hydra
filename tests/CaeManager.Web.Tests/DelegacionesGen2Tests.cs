@@ -282,7 +282,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         consultas.Should().HaveCount(2, "control positivo: se observaron ambas consultas de carga");
         consultas.Select(x => x.Token.CanBeCanceled).Should().OnlyContain(x => x, "ambas consultas reciben el token del ciclo");
         var token = consultas[0].Token;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue();
     }
 
@@ -341,7 +341,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             await campoNombre.BlurAsync(new FocusEventArgs());
             creacion = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
             mediador.Enviadas.Where(x => x.Peticion is CrearClienteDeleganteCommand).Should().ContainSingle("control positivo: el comando de creación quedó pendiente");
-            await DisposeComponentsAsync();
+            await CierreDePagina.CerrarPaginaAsync(cut, this);
             mediador.EsperaCreacion.SetResult();
             await creacion.WaitAsync(TimeSpan.FromSeconds(10));
             toasts.Mensajes.Should().BeEmpty("un componente desechado no puede publicar el éxito de la creación");

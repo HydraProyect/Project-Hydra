@@ -449,13 +449,13 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<ResultadoPaginado<AccesoDocumentoSensibleDto>>();
         _mediador.Retener = _ => respuesta.Task;
         Registrar();
-        Render<AccesosDocumentosSensibles>();
+        var cut = Render<AccesosDocumentosSensibles>();
 
         var token = _mediador.Tokens.Single();
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult(_mediador.Paginar(new ObtenerAccesosDocumentosSensiblesQuery()));

@@ -59,47 +59,111 @@ public class CierresMensualesAislamientoTests
     }
 
     [Fact]
-    public async Task El_servicio_cierra_el_mes_anterior_una_vez_y_vuelve_a_cerrar_el_mes_reabierto()
+    public async Task El_servicio_cierra_el_mes_anterior_una_vez()
     {
         // Composición real (AddApplication + AddInfrastructure): el cierre resuelve la medición de Application.
         await using var arnes = await ArnesPilotoOutbound.CrearAsync();
-        Tenant tenant;
-        using (var scope = arnes.Servicios.CreateScope())
-            tenant = await scope.ServiceProvider.GetRequiredService<CaeManager.Application.Tenants.ITenantsQueryContext>()
-                .Tenants.OrderBy(t => t.Id).FirstAsync();
-
-        var servicio = new CierreMensualCuadroDireccionHostedService(
-            arnes.FabricaDeAmbitos, new LiderSiempre(), TimeProvider.System,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<CierreMensualCuadroDireccionHostedService>.Instance);
+        var tenant = await PrimerTenantAsync(arnes);
+        var servicio = CrearServicio(arnes, TimeProvider.System);
         await servicio.ProcesarAsync(CancellationToken.None);
         await servicio.ProcesarAsync(CancellationToken.None);
 
         var ahora = DiaDeNegocio.De(DateTime.UtcNow);
         var mesAnterior = new DateOnly(ahora.Year, ahora.Month, 1).AddMonths(-1);
-        DateTime cerradoPrimero;
-        using (AmbitoTenantExplicito.Establecer(tenant.Id))
-        using (var scope = arnes.Servicios.CreateScope())
-        {
-            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync(c => c.Anyo == mesAnterior.Year && c.Mes == mesAnterior.Month);
-            cierre.TenantId.Should().Be(tenant.Id);
-            (cierre.Anyo, cierre.Mes).Should().Be((mesAnterior.Year, mesAnterior.Month));
-            cierre.Estimado.Should().Be(new MesCuadroDireccion(mesAnterior.Year, mesAnterior.Month).CierreEsEstimado);
-            cerradoPrimero = cierre.CerradoEnUtc;
-            cierre.Reabrir("Corrección del mes", DateTime.UtcNow);
-            await runtime.SaveChangesAsync();
-        }
+        var cierre = await LeerCierreAsync(arnes, tenant, mesAnterior);
+        cierre.TenantId.Should().Be(tenant.Id);
+        cierre.Estimado.Should().Be(new MesCuadroDireccion(mesAnterior.Year, mesAnterior.Month).CierreEsEstimado);
+    }
 
-        await servicio.ProcesarAsync(CancellationToken.None);
+    [Fact]
+    public async Task Un_mes_reabierto_este_mes_sigue_abierto_tras_otra_vuelta_aunque_en_UTC_caiga_en_el_mes_anterior()
+    {
+        // El mes M se cierra en la primera pasada con el reloj dentro del mes M+1; la reapertura ocurre 10 minutos
+        // después de las 00:00 de Madrid del día 1 de M+1 (en UTC puede ser aún el último día de M).
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var tenant = await PrimerTenantAsync(arnes);
+        var mes = MesDelTenant();
+        var inicioSiguiente = DiaDeNegocio.InicioEnUtc(mes.AddMonths(1));
+        var reabierto = await CerrarYReabrirAsync(arnes, tenant, mes, inicioSiguiente.AddMinutes(5), inicioSiguiente.AddMinutes(10));
 
-        using (AmbitoTenantExplicito.Establecer(tenant.Id))
-        using (var scope = arnes.Servicios.CreateScope())
-        {
-            var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-            var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync(c => c.Anyo == mesAnterior.Year && c.Mes == mesAnterior.Month);
-            cierre.ReabiertoEnUtc.Should().BeNull("el cierre siguiente vuelve a congelar el mes reabierto");
-            cierre.CerradoEnUtc.Should().BeAfter(cerradoPrimero);
-        }
+        await CrearServicio(arnes, new RelojFijo(inicioSiguiente.AddHours(1))).ProcesarAsync(CancellationToken.None);
+
+        var cierre = await LeerCierreAsync(arnes, tenant, mes);
+        cierre.ReabiertoEnUtc.Should().Be(reabierto, "la reapertura sigue vigente hasta el próximo día 1 de Madrid");
+    }
+
+    [Fact]
+    public async Task Un_mes_reabierto_el_mes_pasado_se_recierra_con_reapertura_a_las_23_30_del_ultimo_dia_de_Madrid()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var tenant = await PrimerTenantAsync(arnes);
+        var mes = MesDelTenant();
+        var inicioSiguiente = DiaDeNegocio.InicioEnUtc(mes.AddMonths(1));
+        var inicioSubsiguiente = DiaDeNegocio.InicioEnUtc(mes.AddMonths(2));
+        await CerrarYReabrirAsync(arnes, tenant, mes, inicioSiguiente.AddMinutes(5), inicioSubsiguiente.AddMinutes(-30));
+
+        await CrearServicio(arnes, new RelojFijo(inicioSubsiguiente.AddHours(1))).ProcesarAsync(CancellationToken.None);
+
+        var cierre = await LeerCierreAsync(arnes, tenant, mes);
+        cierre.ReabiertoEnUtc.Should().BeNull("la reapertura es de un día de negocio anterior al día 1 del mes actual");
+    }
+
+    [Theory]
+    [InlineData("2026-11-05T12:00:00Z", "2026-11-15", false)] // reabierto este mes, vuelta a mitad de mes
+    [InlineData("2026-11-05T12:00:00Z", "2026-11-30", false)]
+    [InlineData("2026-10-31T23:30:00Z", "2026-11-20", false)] // 00:30 del 1 de noviembre en Madrid: ya es este mes
+    [InlineData("2026-10-31T22:30:00Z", "2026-11-01", true)]  // 23:30 del 31 de octubre en Madrid: mes pasado
+    [InlineData("2026-09-10T12:00:00Z", "2026-11-02", true)]  // varios meses atrás
+    public void ReaperturaVencida_solo_si_el_dia_de_negocio_es_anterior_al_dia_1_del_mes_actual(string reabierto, string hoy, bool esperado) =>
+        CierreMensualCuadroDireccionHostedService.ReaperturaVencida(
+            DateTime.Parse(reabierto, null, System.Globalization.DateTimeStyles.AdjustToUniversal), DateOnly.Parse(hoy)).Should().Be(esperado);
+
+    [Fact]
+    public void ReaperturaVencida_es_falsa_sin_reapertura() =>
+        CierreMensualCuadroDireccionHostedService.ReaperturaVencida(null, new DateOnly(2026, 11, 15)).Should().BeFalse();
+
+    // El Tenant del arnés nace ahora: el mes de su alta es el primero que la recuperación mira.
+    private static DateOnly MesDelTenant()
+    {
+        var hoy = DiaDeNegocio.De(DateTime.UtcNow);
+        return new DateOnly(hoy.Year, hoy.Month, 1);
+    }
+
+    private static CierreMensualCuadroDireccionHostedService CrearServicio(ArnesPilotoOutbound arnes, TimeProvider reloj) =>
+        new(arnes.FabricaDeAmbitos, new LiderSiempre(), reloj,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CierreMensualCuadroDireccionHostedService>.Instance);
+
+    private static async Task<Tenant> PrimerTenantAsync(ArnesPilotoOutbound arnes)
+    {
+        using var scope = arnes.Servicios.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<CaeManager.Application.Tenants.ITenantsQueryContext>()
+            .Tenants.OrderBy(t => t.Id).FirstAsync();
+    }
+
+    private static async Task<CierreMensualTenantBeneficiario> LeerCierreAsync(ArnesPilotoOutbound arnes, Tenant tenant, DateOnly mes)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenant.Id);
+        using var scope = arnes.Servicios.CreateScope();
+        var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        return await runtime.CierresMensualesTenantBeneficiario.AsNoTracking().SingleAsync(c => c.Anyo == mes.Year && c.Mes == mes.Month);
+    }
+
+    private static async Task<DateTime> CerrarYReabrirAsync(ArnesPilotoOutbound arnes, Tenant tenant, DateOnly mes, DateTime cierraEn, DateTime reabreEn)
+    {
+        await CrearServicio(arnes, new RelojFijo(cierraEn)).ProcesarAsync(CancellationToken.None);
+        reabreEn = DateTime.SpecifyKind(reabreEn, DateTimeKind.Utc);
+        using var ambito = AmbitoTenantExplicito.Establecer(tenant.Id);
+        using var scope = arnes.Servicios.CreateScope();
+        var runtime = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var cierre = await runtime.CierresMensualesTenantBeneficiario.SingleAsync(c => c.Anyo == mes.Year && c.Mes == mes.Month);
+        cierre.Reabrir("Corrección del mes", reabreEn);
+        await runtime.SaveChangesAsync();
+        return reabreEn;
+    }
+
+    private sealed class RelojFijo(DateTime instanteUtc) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(DateTime.SpecifyKind(instanteUtc, DateTimeKind.Utc));
     }
 
     private sealed class LiderSiempre : CaeManager.Infrastructure.Coordinacion.IEleccionLiderService
