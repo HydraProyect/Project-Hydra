@@ -104,20 +104,21 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1440, 900);
-        // El Administrador, como AtajosFicha360Tests: ve el Tenant sin alcance de cartera, así que la
-        // Empresa que se busca abajo está a la vista sea cual sea la cartera del Gestor CAE de prueba.
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        var gestor = Ayudas.EmailPrueba("gestorcae", 1);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, gestor, Ayudas.ContrasenaUsuariosPrueba);
         var panel = page.Locator(".workspace-panel");
 
         // La ventana de contexto solo existe en los documentos con acreditaciones en plataformas. La
         // siembra (CicloDocumentalDatosPruebaSeeder.SembrarAcreditacionesAsync) las pone en cinco
         // documentos de UNA Empresa, y esa Empresa compite con el resto: con «?Ambito=Empresa» a secas
-        // entran los tipos obligatorios de las 24 empresas de la siembra, que pueden pasar de los 100
-        // de la página mayor; el orden por severidad desempata por Id (UUIDv7, distinto en cada
-        // siembra) y los cinco podían quedar fuera de esa página (#1700; inferido del código, el total
-        // no queda en los artefactos). Se acota a esa Empresa por su Id, leído de la propia base como en
-        // AsumirPrincipalDeOperacionE2ETests: la página trae entonces todos sus documentos. La lectura
-        // pide lo mismo que el listado (DocumentoOperativo): ni eliminado ni sustituido.
+        // entran los documentos obligatorios de todas las Empresas de la siembra, que pueden pasar de
+        // los 100 de la página mayor. Qué cinco documentos reciben la acreditación y dónde caen en el
+        // orden por severidad lo deciden empates resueltos por Id, y el Id es un UUIDv7 cuyo resto
+        // dentro del mismo milisegundo es aleatorio: en cada siembra los cinco podían caer dentro o
+        // fuera de esa página (#1700). Se acota a esa Empresa por su Id, leído de la propia base como
+        // en AsumirPrincipalDeOperacionE2ETests: la página trae entonces todos sus documentos. La
+        // lectura pide lo mismo que el listado (Operativos): ni eliminado ni sustituido. El Gestor CAE
+        // de prueba tiene de cartera el Tenant entero (DatosPruebaSeeder, D-7), así que la ve.
         var empresaConAcreditaciones = await fixture.LeerValorSqlAsync(
             """
             SELECT d."EmpresaId"::text
@@ -129,7 +130,7 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             ORDER BY d."EmpresaId"
             LIMIT 1
             """,
-            ("email", Ayudas.EmailAdministrador));
+            ("email", gestor));
         await Ayudas.NavegarYEsperarAsync(page,
             $"{fixture.BaseUrl}/documentos?Ambito=Empresa&Propietario={empresaConAcreditaciones}");
         // Como en VistaRecordadaE2ETests: abrir y cerrar una pastilla confirma que
