@@ -28,12 +28,25 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Visitas por estado de la documentación con los demás
 /// filtros aplicados y sin el de estado. Los cuatro estados parten la lista, así que su suma es el total.
 /// </param>
+/// <param name="SoloPorEmpezar">
+/// Solo las Visitas que aún no han empezado. <c>SoloUrgentes</c> no las separa, porque el listado también
+/// quiere ver en ese filtro las que están en curso; <see cref="GestionesUrgentesDeVisita"/> no las cuenta.
+/// </param>
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? VisitaId = null,
     IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false,
-    string? ClienteFiltro = null, string? EmpresaFiltro = null, int? VentanaDias = null, bool AgruparPorCliente = false)
+    string? ClienteFiltro = null, string? EmpresaFiltro = null, int? VentanaDias = null, bool AgruparPorCliente = false,
+    bool SoloPorEmpezar = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
+
+/// <summary>
+/// Todas las Visitas urgentes que el usuario puede ver, sin página: lo que enseñan /bandeja y Mi trabajo. El aviso
+/// de la vigilancia horaria enlaza allí, así que un tope aquí dejaría contar una gestión que la cola no enseña. Lo
+/// acota el propio criterio, <see cref="GestionesUrgentesDeVisita.ConsultaCandidatas"/>: solo trae las Visitas por
+/// empezar dentro de la ventana de aviso.
+/// </summary>
+public record ObtenerVisitasUrgentesQuery : IRequest<IReadOnlyList<VisitaListaDto>>;
 
 public record VisitaListaDto(
     Guid Id,
@@ -104,10 +117,15 @@ public record VisitaListaDto(
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
 public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ITrabajadoresQueryContext trabajadoresContext)
-    : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
+    : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>,
+      IRequestHandler<ObtenerVisitasUrgentesQuery, IReadOnlyList<VisitaListaDto>>
 {
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken) =>
         await CalcularAsync(request, await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
+
+    public async Task<IReadOnlyList<VisitaListaDto>> Handle(ObtenerVisitasUrgentesQuery request, CancellationToken cancellationToken) =>
+        await LeerTodasAsync(
+            GestionesUrgentesDeVisita.ConsultaCandidatas(), await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
 
     /// <summary>
     /// El listado con el alcance de Centros ya resuelto. <see cref="Handle"/> lo resuelve para el
@@ -207,6 +225,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             var limiteAviso = hoy.AddDays(parametros.HorasAvisoVisita / 24);
             consulta = consulta.Where(x => x.visita.FechaFin >= hoy && x.visita.FechaInicio <= limiteAviso);
         }
+
+        if (request.SoloPorEmpezar)
+            consulta = consulta.Where(x => x.visita.FechaInicio > hoy);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

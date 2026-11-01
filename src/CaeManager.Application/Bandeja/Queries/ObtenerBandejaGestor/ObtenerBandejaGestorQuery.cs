@@ -210,7 +210,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
         var revisiones = await mediator.Send(new ObtenerRevisionesIaPendientesQuery(), cancellationToken);
         var requisitos = await mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), cancellationToken);
-        var visitasUrgentes = await mediator.Send(GestionesUrgentesDeVisita.ConsultaCandidatas(), cancellationToken);
+        var visitasUrgentes = await mediator.Send(new ObtenerVisitasUrgentesQuery(), cancellationToken);
         var sugerenciasVisita = await mediator.Send(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), cancellationToken);
         var detecciones = await mediator.Send(new ObtenerDeteccionesPendientesQuery(), cancellationToken);
         var pendientesPlataforma = await mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(), cancellationToken);
@@ -219,7 +219,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         var hoy = DiaDeNegocio.Hoy();
 
         return Fusionar(
-            alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
+            alertas, revisiones, requisitos, visitasUrgentes, sugerenciasVisita, detecciones, pendientesPlataforma,
             hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
     }
 

@@ -11,11 +11,13 @@ namespace CaeManager.Application.Visitas;
 public static class GestionesUrgentesDeVisita
 {
     /// <summary>
-    /// Las Visitas candidatas. Solo es la candidatura: trae también las Visitas en curso, que
-    /// <see cref="EsUrgente(VisitaListaDto)"/> descarta.
+    /// Las Visitas por empezar dentro de la ventana de aviso, ya en SQL: son justo las que
+    /// <see cref="EsUrgente(VisitaListaDto)"/> acepta, para que las Visitas en curso no ocupen sitio en la
+    /// lectura. El tamaño es el de cada página de <c>LeerTodasAsync</c>, no un tope: leer solo una página
+    /// dejaría contar en un sitio una Visita que otro no enseña.
     /// </summary>
     public static ObtenerVisitasQuery ConsultaCandidatas() =>
-        new(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200);
+        new(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200, SoloPorEmpezar: true);
 
     public static bool EsUrgente(VisitaListaDto visita) =>
         visita.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica;

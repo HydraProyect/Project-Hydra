@@ -12,7 +12,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendientes;
-using CaeManager.Application.Visitas;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -256,7 +256,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
         var revisiones = await mediator.Send(new ObtenerRevisionesIaPendientesQuery(), cancellationToken);
         var requisitos = await mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), cancellationToken);
-        var visitasUrgentes = await mediator.Send(GestionesUrgentesDeVisita.ConsultaCandidatas(), cancellationToken);
+        var visitasUrgentes = await mediator.Send(new ObtenerVisitasUrgentesQuery(), cancellationToken);
         var sugerenciasVisita = await mediator.Send(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), cancellationToken);
         var detecciones = await mediator.Send(new ObtenerDeteccionesPendientesQuery(), cancellationToken);
         // IncluirSubidas: true — a diferencia de /bandeja (Nivel 0), Mi trabajo
@@ -275,7 +275,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         // vencidas en plataforma entran después. El orden se fija más abajo,
         // una sola vez, cuando ya se sabe qué Rechazada cierra su Centro.
         var fusionados = ObtenerBandejaGestorQueryHandler.Fusionar(
-                alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
+                alertas, revisiones, requisitos, visitasUrgentes, sugerenciasVisita, detecciones, pendientesPlataforma,
                 hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita)
             .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas))
             .ToList();

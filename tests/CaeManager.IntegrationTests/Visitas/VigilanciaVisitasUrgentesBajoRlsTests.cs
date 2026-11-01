@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Visitas;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -208,6 +209,11 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
             sp.GetRequiredService<IMediator>().Send(GestionesUrgentesDeVisita.ConsultaCandidatas()));
 
         resultado.TotalElementos.Should().Be(0);
+
+        var urgentes = await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+            sp.GetRequiredService<IMediator>().Send(new ObtenerVisitasUrgentesQuery()));
+
+        urgentes.Should().BeEmpty();
     }
 
     [Fact]
@@ -237,11 +243,11 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
     }
 
     /// <summary>
-    /// Las Visitas en curso son candidatas, van delante por fecha y no cuentan como urgentes: con más
-    /// de una página de ellas, leer solo la primera se quedaría sin la urgente que viene detrás.
+    /// Con más de una página de urgentes, leer solo la primera contaría de menos. Las Visitas en curso
+    /// van delante por fecha y no cuentan. Es la ejecución del recorrido por clave sobre PostgreSQL.
     /// </summary>
     [Fact]
-    public async Task Las_Visitas_en_curso_de_la_primera_pagina_no_tapan_una_urgente_de_la_siguiente()
+    public async Task Cuenta_mas_de_una_pagina_de_Visitas_urgentes_aunque_haya_mas_de_una_en_curso()
     {
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(DateTimeOffset.UtcNow));
         using var actor = AmbitoActorAuditoria.EstablecerSistema();
@@ -251,11 +257,12 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         await CicloAsync();
         var inicial = await EstadoAsync(tenant);
 
-        await AnadirVisitasAsync(tenant, GestionesUrgentesDeVisita.ConsultaCandidatas().TamanoPagina + 1, hoy.AddDays(-1), hoy.AddDays(1));
-        await AnadirVisitasAsync(tenant, 1, hoy.AddDays(1), hoy.AddDays(1));
+        var masDeUnaPagina = GestionesUrgentesDeVisita.ConsultaCandidatas().TamanoPagina + 1;
+        await AnadirVisitasAsync(tenant, masDeUnaPagina, hoy.AddDays(-1), hoy.AddDays(1));
+        await AnadirVisitasAsync(tenant, masDeUnaPagina, hoy.AddDays(1), hoy.AddDays(1));
         await CicloAsync();
 
-        (await EstadoAsync(tenant)).UltimosElementosEvaluados.Should().Be(inicial.UltimosElementosEvaluados + 1);
+        (await EstadoAsync(tenant)).UltimosElementosEvaluados.Should().Be(inicial.UltimosElementosEvaluados + masDeUnaPagina);
     }
 
     // ---- Ayudas ----

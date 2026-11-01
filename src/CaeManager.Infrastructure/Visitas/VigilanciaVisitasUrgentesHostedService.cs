@@ -172,10 +172,10 @@ public class VigilanciaVisitasUrgentesHostedService(
     }
 
     /// <summary>
-    /// Cuántas gestiones urgentes hay en el Tenant entero. Lee todas las candidatas: las Visitas en
-    /// curso lo son, van delante por fecha y no cuentan, así que una sola página podría quedarse sin
-    /// ninguna urgente de verdad. Un cero aquí retira el aviso (ver <see cref="SincronizarAvisos"/>), de
-    /// ahí que <c>LeerTodasAsync</c> no pueda saltarse una fila aunque otras cambien durante la lectura.
+    /// Cuántas gestiones urgentes hay en el Tenant entero. Lee todas las candidatas, como /bandeja y Mi
+    /// trabajo (<see cref="ObtenerVisitasUrgentesQuery"/>): el aviso enlaza allí y no puede contar una que
+    /// la cola no enseñe. Un cero aquí retira el aviso (ver <see cref="SincronizarAvisos"/>), de ahí que
+    /// <c>LeerTodasAsync</c> no pueda saltarse una fila aunque otras cambien durante la lectura.
     /// </summary>
     protected virtual async Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
