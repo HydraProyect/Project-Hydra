@@ -264,9 +264,10 @@ public class VerificacionIaTardiaBajoRuntimeTests
         contexto.Trabajadores.Add(trabajador);
         var tipo = new TipoDocumento("Apto médico", 12, aplicaVencimientoAutomatico: true, orden: 1,
             AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        contexto.TiposDocumento.Add(tipo);
+        await contexto.SaveChangesAsync();
         tipo.EstablecerLecturaIaActiva(true);
         tipo.EstablecerVerificacionIaActiva(true);
-        contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
         var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, Emision, VigenciaDocumento.NoCaduca, "original.pdf");
