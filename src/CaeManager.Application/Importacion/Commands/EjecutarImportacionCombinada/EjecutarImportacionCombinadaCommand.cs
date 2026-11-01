@@ -295,6 +295,18 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
+            // Un Cliente asociado ambiguo deja la fila sin resolver: se omite ENTERA antes de tocar la Empresa o sus
+            // Relaciones. Seguir sin él haría que Reemplazar lo viera como "ausente" y cerrase por error una Relación
+            // Empresarial vigente, y la fila saldría a la vez omitida y contada.
+            var clientesAmbiguos = fila.ClientesAsociados
+                .Where(nombre => clientesIdPorRazonSocial.Buscar(nombre) == ResultadoBusquedaPorNombre.Ambiguo).ToList();
+            if (clientesAmbiguos.Count > 0)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empresas", fila.Fila, fila.RazonSocial, MotivoVariosClientes(clientesAmbiguos)));
+                continue;
+            }
+
             var esNueva = busquedaEmpresa == ResultadoBusquedaPorNombre.NoExiste;
 
             if (esNueva)
@@ -330,11 +342,6 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 var busqueda = clientesIdPorRazonSocial.Buscar(nombre, out var idDelCliente);
                 return (Nombre: nombre, Busqueda: busqueda, Id: idDelCliente);
             }).ToList();
-
-            // No se asocia a un Cliente elegido al azar; el resto de la fila sigue.
-            foreach (var ambiguo in asociadosBuscados.Where(a => a.Busqueda == ResultadoBusquedaPorNombre.Ambiguo))
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empresas", fila.Fila, fila.RazonSocial, MotivoVariosClientes(ambiguo.Nombre)));
 
             var clienteIdsDeseados = asociadosBuscados
                 .Where(a => a.Busqueda == ResultadoBusquedaPorNombre.Unico)
@@ -378,8 +385,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
             empresasPorRazonSocial.Entradas, e => e.Nombre, e => e.Valor.Id);
 
         var centrosExistentes = await centrosContext.Centros.ToListAsync(cancellationToken);
-        var centrosPorClienteYNombre = centrosExistentes.ToDictionary(
-            c => (c.ClienteId, c.Nombre.ToUpperInvariant()), c => c);
+        // Centros no tiene índice único por nombre (solo CrearCentro lo vigila, con una comprobación previa): dos del
+        // mismo Cliente empresarial que solo difieren en mayúsculas dejan el nombre AMBIGUO en vez de lanzar.
+        static string ClaveCentro(Guid clienteId, string nombre) => $"{clienteId:N}|{nombre}";
+        var centrosPorClienteYNombre = CatalogoPorNombre<Centro>.De(
+            centrosExistentes, c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
 
         var centrosCreados = 0;
         var centrosActualizados = 0;
@@ -390,7 +400,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (busquedaClienteDelCentro == ResultadoBusquedaPorNombre.Ambiguo)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros", fila.Fila, fila.Nombre, MotivoVariosClientes(fila.RazonSocialCliente)));
+                    "Centros", fila.Fila, fila.Nombre, MotivoVariosClientes([fila.RazonSocialCliente])));
                 continue;
             }
 
@@ -416,10 +426,20 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
-            var clave = (clienteId, fila.Nombre.ToUpperInvariant());
+            var clave = ClaveCentro(clienteId, fila.Nombre);
 
-            if (centrosPorClienteYNombre.TryGetValue(clave, out var existente))
+            var busquedaCentro = centrosPorClienteYNombre.Buscar(clave, out var existente);
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Ambiguo)
             {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Centros", fila.Fila, fila.Nombre,
+                    $"Hay varios centros llamados \"{fila.Nombre}\" en este Cliente empresarial (el nombre solo cambia en mayúsculas); la importación no puede saber cuál actualizar. Unifica o renombra los duplicados y vuelve a importar."));
+                continue;
+            }
+
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Unico)
+            {
+                existente = existente!;
                 var codigoCentro = ResolverTexto(existente.CodigoCentro, fila.CodigoCentro, reemplazar);
                 var direccion = ResolverTexto(existente.Direccion, fila.Direccion, reemplazar);
                 var contacto = ResolverTexto(existente.Contacto, fila.Contacto, reemplazar);
@@ -442,7 +462,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 var centro = new Centro(
                     clienteId, empresaId, fila.Nombre, fila.CodigoCentro, fila.Direccion, fila.Contacto, fila.ContratoVigenteHasta);
                 centroRepositorio.Agregar(centro);
-                centrosPorClienteYNombre[clave] = centro;
+                centrosPorClienteYNombre.Agregar(clave, centro);
                 centrosCreados++;
             }
             catch (ArgumentException ex)
@@ -466,6 +486,16 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         foreach (var fila in plan.Trabajadores)
         {
+            // C-07: un DNI en la Papelera no está en el diccionario de activos, pero el índice (TenantId, Dni) lo
+            // incluye: el alta haría fallar el guardado de todo el archivo (23505). Se omite solo esta fila, y antes
+            // que cualquier otra causal, como en el Importador simple.
+            if (!trabajadoresExistentes.ContainsKey(fila.Dni) && dnisEnPapelera.Contains(DnisEnPapelera.Normalizar(fila.Dni)))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
+                continue;
+            }
+
             var busquedaEmpresaDelTrabajador = empresasIdPorRazonSocial.Buscar(fila.RazonSocialEmpresa, out var empresaId);
             if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.Ambiguo)
             {
@@ -498,15 +528,6 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
-            // C-07: un DNI en la Papelera no está en el diccionario de activos, pero el índice (TenantId, Dni) lo
-            // incluye: el alta haría fallar el guardado de todo el archivo (23505). Se omite solo esta fila.
-            if (dnisEnPapelera.Contains(DnisEnPapelera.Normalizar(fila.Dni)))
-            {
-                omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
-                continue;
-            }
-
             try
             {
                 var trabajador = Trabajador.DeEmpresa(empresaId, fila.Nombre, fila.Apellidos, fila.Dni, fila.FechaNacimiento, fila.Email);
@@ -535,8 +556,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
     private static string MotivoVariasEmpresas(string razonSocial) =>
         $"Hay varias empresas con la razón social \"{razonSocial}\" en el sistema (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila. Unifica o renombra las empresas duplicadas y vuelve a importar.";
 
-    private static string MotivoVariosClientes(string razonSocial) =>
-        $"Hay varios Clientes empresariales con la razón social \"{razonSocial}\" en el sistema (el nombre solo cambia en mayúsculas) y este archivo no los identifica por CIF en la hoja Clientes; la importación no puede saber a cuál se refiere. Incluye el Cliente en la hoja Clientes, con su CIF, o unifica los duplicados.";
+    private static string MotivoVariosClientes(IReadOnlyCollection<string> razonesSociales) =>
+        $"Hay varios Clientes empresariales que coinciden con {string.Join(", ", razonesSociales.Select(r => $"\"{r}\""))} salvo por mayúsculas (en el sistema o entre las filas de la hoja Clientes de este archivo) y la importación no puede saber a cuál se refiere esta fila. Unifica o renombra los duplicados y vuelve a importar.";
 
     /// <summary>
     /// Con Reemplazar=true, el valor del archivo gana siempre que venga

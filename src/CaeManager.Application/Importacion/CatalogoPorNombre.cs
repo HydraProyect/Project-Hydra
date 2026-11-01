@@ -49,8 +49,23 @@ internal sealed class CatalogoPorNombre<TValor>
             lista.Add(valor);
     }
 
-    /// <summary>Declara a qué entidad se refiere el nombre, sustituyendo cualquier otra con ese nombre (p. ej. la hoja Clientes, que identifica por CIF).</summary>
-    public void Fijar(string nombre, TValor valor) => _entradas[nombre] = [valor];
+    private readonly HashSet<string> _fijados = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Declara a qué entidad se refiere el nombre cuando la fuente la identifica por otra clave (la hoja Clientes, por
+    /// CIF). Desambigua solo si la entidad ya era una de las candidatas con ese nombre y nadie lo había fijado antes a
+    /// otra: si el nombre lo llevaba otra entidad, o ya lo fijó otra fila, queda AMBIGUO. Nunca gana la última fila ni
+    /// se pisa a otra entidad que ya llevaba ese nombre.
+    /// </summary>
+    public void Fijar(string nombre, TValor valor)
+    {
+        var esCandidata = _entradas.TryGetValue(nombre, out var lista) && lista.Contains(valor, _igualdad);
+        if (esCandidata && (!_fijados.Contains(nombre) || lista!.Count == 1))
+            _entradas[nombre] = [valor];
+        else
+            Agregar(nombre, valor);
+        _fijados.Add(nombre);
+    }
 
     public ResultadoBusquedaPorNombre Buscar(string nombre, out TValor? valor)
     {

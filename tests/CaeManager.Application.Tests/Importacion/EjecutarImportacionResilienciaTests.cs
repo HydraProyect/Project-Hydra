@@ -207,15 +207,19 @@ public class EjecutarImportacionResilienciaTests
     }
 
     [Fact]
-    public async Task Un_DNI_activo_no_se_confunde_con_uno_de_la_Papelera()
+    public async Task Un_DNI_activo_ni_se_consulta_contra_la_Papelera()
     {
         var escenario = new EscenarioImportacion().ConEmpresaExistente().ConTrabajadorExistente();
-        escenario.TrabajadorRepositorio.DnisEnPapelera.Add(EscenarioImportacion.DniConocido);
         var plan = EscenarioImportacion.Plan(trabajadores:
-            [new TrabajadorImportadoDto(EscenarioImportacion.EmpresaConocida, "Marta", "Ruiz", EscenarioImportacion.DniConocido, null, null, YaExiste: true)]);
+        [
+            new TrabajadorImportadoDto(EscenarioImportacion.EmpresaConocida, "Marta", "Ruiz", EscenarioImportacion.DniConocido, null, null, YaExiste: true),
+            Trabajador(EscenarioImportacion.EmpresaConocida, EscenarioImportacion.DniDesconocido),
+        ]);
 
         var resultado = await escenario.EjecutarAsync(plan);
 
-        resultado.Omitidos.Should().BeEmpty("el DNI está activo: es una reutilización anunciada, no un alta ni una Papelera");
+        resultado.Omitidos.Should().BeEmpty();
+        escenario.TrabajadorRepositorio.DnisConsultadosEnPapelera.Should().BeEquivalentTo([EscenarioImportacion.DniDesconocido],
+            "el DNI de un Trabajador activo no puede estar además en la Papelera: preguntar por él solo ensancha la consulta");
     }
 }
