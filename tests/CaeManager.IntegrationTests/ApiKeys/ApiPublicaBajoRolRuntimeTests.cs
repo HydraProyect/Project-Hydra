@@ -241,7 +241,14 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
                 default:
                     tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
                     tenant.ActualizarEstadoComercial(caso.StartsWith("solo lectura", StringComparison.Ordinal) ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
-                    if (caso.EndsWith("revertida", StringComparison.Ordinal)) tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    if (caso.EndsWith("revertida", StringComparison.Ordinal))
+                    {
+                        // Guardado y observado antes de revertir: si no, el test solo vería el estado final.
+                        await contexto.SaveChangesAsync();
+                        (await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro)).Estado
+                            .Should().Be(HttpStatusCode.Unauthorized, "control: el corte está aplicado");
+                        tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    }
                     break;
             }
             await contexto.SaveChangesAsync();

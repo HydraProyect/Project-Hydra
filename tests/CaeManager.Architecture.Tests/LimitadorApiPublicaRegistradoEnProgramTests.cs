@@ -76,6 +76,13 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
         token.Should().Contain("RequireRateLimiting(LimitadorApiPublica.PoliticaToken)");
     }
 
+    [Fact]
+    public void El_documento_OpenAPI_exige_clave_salvo_en_el_entorno_del_escaneo()
+    {
+        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\);")
+            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023)");
+    }
+
     private static string ProgramSinComentarios()
     {
         var program = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));

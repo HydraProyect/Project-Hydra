@@ -43,20 +43,26 @@ public record TrabajadorApiDetalleDto(Guid Id, Guid? EmpresaId, Guid? Subcontrat
 /// <summary>
 /// Lo que ve una Clave de Integración del Tenant con <c>trabajadores.leer</c> y sin
 /// <c>trabajadores.datos-personales.leer</c>. Es otro tipo, no el anterior con nulos: el campo no concedido
-/// no llega a existir en la respuesta (OWASP API3:2023).
+/// no llega a existir en la respuesta (OWASP API3:2023). Tampoco el estado documental ni sus recuentos, con
+/// ningún alcance: se calculan con todos los documentos, y un reconocimiento médico caducado se leería en ellos.
 /// </summary>
-public record TrabajadorApiListaSinDatosPersonalesDto(
-    Guid Id, string Nombre, string Apellidos, string EmpleadorNombre, EstadoDocumento? EstadoDocumental)
+public record TrabajadorApiListaSinDatosPersonalesDto(Guid Id, string Nombre, string Apellidos, string EmpleadorNombre)
 {
     public static TrabajadorApiListaSinDatosPersonalesDto DesdeInterno(TrabajadorListaDto dto) =>
-        new(dto.Id, dto.Nombre, dto.Apellidos, dto.EmpleadorNombre, dto.EstadoDocumental);
+        new(dto.Id, dto.Nombre, dto.Apellidos, dto.EmpleadorNombre);
 
     public static ResultadoPaginado<TrabajadorApiListaSinDatosPersonalesDto> DesdeInterno(ResultadoPaginado<TrabajadorListaDto> resultado) =>
-        new(resultado.Elementos.Select(DesdeInterno).ToList(), resultado.TotalElementos, resultado.Pagina, resultado.TamanoPagina)
-        {
-            RecuentosPorEstado = resultado.RecuentosPorEstado,
-            TotalSinFiltroDeEstado = resultado.TotalSinFiltroDeEstado
-        };
+        new(resultado.Elementos.Select(DesdeInterno).ToList(), resultado.TotalElementos, resultado.Pagina, resultado.TamanoPagina);
+}
+
+/// <summary>Lo que ve una Clave de Integración del Tenant que además tiene <c>trabajadores.datos-personales.leer</c>.</summary>
+public record TrabajadorApiListaConDatosPersonalesDto(Guid Id, string Nombre, string Apellidos, string? Dni, string EmpleadorNombre)
+{
+    public static TrabajadorApiListaConDatosPersonalesDto DesdeInterno(TrabajadorListaDto dto) =>
+        new(dto.Id, dto.Nombre, dto.Apellidos, dto.Dni, dto.EmpleadorNombre);
+
+    public static ResultadoPaginado<TrabajadorApiListaConDatosPersonalesDto> DesdeInterno(ResultadoPaginado<TrabajadorListaDto> resultado) =>
+        new(resultado.Elementos.Select(DesdeInterno).ToList(), resultado.TotalElementos, resultado.Pagina, resultado.TamanoPagina);
 }
 
 /// <summary>Mismo criterio que <see cref="TrabajadorApiListaSinDatosPersonalesDto"/>, en el detalle.</summary>
@@ -85,8 +91,11 @@ public static class TrabajadoresApiEndpoints
                     BusquedaSinDni: !veDatosPersonales),
                 cancellationToken);
 
+            if (ApiV1.EsClaveDeSoporte(usuario))
+                return Results.Ok(TrabajadorApiListaDto.DesdeInterno(resultado));
+
             return veDatosPersonales
-                ? Results.Ok(TrabajadorApiListaDto.DesdeInterno(resultado))
+                ? Results.Ok(TrabajadorApiListaConDatosPersonalesDto.DesdeInterno(resultado))
                 : Results.Ok(TrabajadorApiListaSinDatosPersonalesDto.DesdeInterno(resultado));
         }).RequiereAlcanceIntegracion(AlcancesIntegracion.TrabajadoresLeer);
 

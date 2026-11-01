@@ -80,7 +80,11 @@ public static class LimitadorApiPublica
         return VentanaFija(carga is null ? $"ip:{IpDelCliente(contexto)}" : $"integracion:{carga.ClaveId:N}", limitePorMinuto);
     }
 
-    /// <summary>Partición de <see cref="PoliticaToken"/>: huella del secreto presentado, o IP si no hay.</summary>
+    /// <summary>
+    /// Partición de <see cref="PoliticaToken"/>: el Id de la clave presentada junto con la IP, o solo la IP si no
+    /// hay. Por el Id y no por el secreto, que daría un cupo nuevo a cada secreto probado; con la IP, porque el Id
+    /// no es secreto y por sí solo dejaría a cualquiera agotar el cupo de la integración ajena.
+    /// </summary>
     public static RateLimitPartition<string> ParticionToken(HttpContext contexto, int limitePorMinuto)
     {
         var credenciales = CabeceraClaveIntegracion.ExtraerCredenciales(contexto.Request.Headers.Authorization.ToString());
@@ -88,7 +92,7 @@ public static class LimitadorApiPublica
         return VentanaFija(
             credenciales is null
                 ? $"token-ip:{IpDelCliente(contexto)}"
-                : $"token:{CabeceraClaveApi.HuellaParaLimitador(credenciales.Secreto)}",
+                : $"token:{credenciales.ClaveId:N}:{IpDelCliente(contexto)}",
             limitePorMinuto);
     }
 

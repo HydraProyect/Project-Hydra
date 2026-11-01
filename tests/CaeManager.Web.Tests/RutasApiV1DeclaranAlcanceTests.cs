@@ -39,6 +39,14 @@ public class RutasApiV1DeclaranAlcanceTests
         }
     }
 
+    // El estado documental sale de todos los documentos del Trabajador, también de los de salud.
+    [Theory]
+    [InlineData(typeof(TrabajadorApiListaSinDatosPersonalesDto))]
+    [InlineData(typeof(TrabajadorApiListaConDatosPersonalesDto))]
+    [InlineData(typeof(TrabajadorApiDetalleSinDatosPersonalesDto))]
+    public void Las_proyecciones_de_la_Clave_de_Integracion_no_llevan_estado_documental(Type proyeccion) =>
+        proyeccion.GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Estado", StringComparison.Ordinal));
+
     [Theory]
     [InlineData(ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema, AlcancesIntegracion.ClientesLeer, AlcancesIntegracion.ClientesLeer, true)]
     [InlineData(ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema, AlcancesIntegracion.ClientesLeer, AlcancesIntegracion.CentrosLeer, false)]

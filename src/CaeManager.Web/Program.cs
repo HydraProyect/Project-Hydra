@@ -1501,9 +1501,10 @@ apiV1.MapRecursosApiV1();
 app.MapTokenIntegracionEndpoint();
 
 // El documento OpenAPI describe una API sin anunciar (OWASP API9:2023): exige
-// clave mientras no se decida publicarlo. Solo el escaneo ZAP de CI lo abre.
+// clave mientras no se decida publicarlo. Solo el entorno del escaneo ZAP de CI
+// lo abre, y por entorno: una variable suelta podría reabrirlo en producción.
 var documentoOpenApi = app.MapOpenApi("/api/v1/openapi.json");
-if (app.Configuration.GetValue("ApiPublica:OpenApiAnonimo", false))
+if (app.Environment.IsEnvironment("Escaneo"))
     documentoOpenApi.AllowAnonymous();
 else
     documentoOpenApi.RequireAuthorization("ApiPublica");

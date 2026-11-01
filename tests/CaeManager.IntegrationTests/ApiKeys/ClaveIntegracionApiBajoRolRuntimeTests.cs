@@ -97,7 +97,7 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
             contexto.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 7));
             await contexto.SaveChangesAsync();
 
-            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", DniDelTrabajador);
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Perez", DniDelTrabajador);
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
             _trabajadorA = trabajador.Id;
@@ -116,7 +116,7 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
             contexto.Empresas.Add(empresa);
             contexto.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 7));
             await contexto.SaveChangesAsync();
-            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Luis", "García", "00000000T");
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "Luis", "Garcia", "00000000T");
             contexto.Trabajadores.Add(trabajador);
             await contexto.SaveChangesAsync();
             _trabajadorB = trabajador.Id;
@@ -218,11 +218,11 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         (await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorB}")).Estado.Should().Be(HttpStatusCode.NotFound);
         var (estado, cuerpo) = await api.GetAsync(token, "/api/v1/trabajadores");
         estado.Should().Be(HttpStatusCode.OK, cuerpo);
-        cuerpo.Should().NotContain("García");
+        cuerpo.Should().NotContain("Garcia");
     }
 
     [Fact]
-    public async Task Sin_el_alcance_de_la_ruta_responde_403_y_no_ejecuta_la_consulta()
+    public async Task Sin_el_alcance_de_la_ruta_responde_403_sin_datos_del_recurso()
     {
         const string secreto = $"{ClaveIntegracionTenant.PrefijoSecreto}solo-clientes0123456789ab";
         var clave = await EmitirClaveAsync(_tenantA, secreto, [AlcancesIntegracion.ClientesLeer]);
@@ -232,7 +232,7 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         (await api.GetAsync(token, "/api/v1/clientes")).Estado.Should().Be(HttpStatusCode.OK, "control positivo");
         var (estado, cuerpo) = await api.GetAsync(token, "/api/v1/trabajadores");
         estado.Should().Be(HttpStatusCode.Forbidden);
-        cuerpo.Should().NotContain("Pérez");
+        cuerpo.Should().NotContain("Perez");
         (await api.GetAsync(token, $"/api/v1/documentos/{_documentoGeneral}")).Estado.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -247,15 +247,30 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
 
         var lista = await api.GetAsync(token, "/api/v1/trabajadores");
         lista.Estado.Should().Be(HttpStatusCode.OK, lista.Cuerpo);
-        lista.Cuerpo.Should().Contain("Pérez", "control positivo").And.NotContain(DniDelTrabajador).And.NotContain("\"dni\"");
+        lista.Cuerpo.Should().Contain("Perez", "control positivo").And.NotContain(DniDelTrabajador).And.NotContain("\"dni\"")
+            .And.NotContain("estadoDocumental", "el estado se calcula también con los documentos de salud");
 
         var detalle = await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorA}");
-        detalle.Cuerpo.Should().Contain("Pérez", "control positivo").And.NotContain(DniDelTrabajador).And.NotContain("\"dni\"");
+        detalle.Cuerpo.Should().Contain("Perez", "control positivo").And.NotContain(DniDelTrabajador).And.NotContain("\"dni\"");
 
         (await api.GetAsync(tokenConAlcance, $"/api/v1/trabajadores?busqueda={DniDelTrabajador}")).Cuerpo
-            .Should().Contain("Pérez", "control positivo: con el alcance el DNI se busca");
+            .Should().Contain("Perez", "control positivo: con el alcance el DNI se busca");
         (await api.GetAsync(token, $"/api/v1/trabajadores?busqueda={DniDelTrabajador}")).Cuerpo
-            .Should().NotContain("Pérez", "buscar por DNI confirmaría a quién pertenece");
+            .Should().NotContain("Perez", "buscar por DNI confirmaría a quién pertenece");
+    }
+
+    [Fact]
+    public async Task Ni_con_el_alcance_de_datos_personales_llega_el_estado_documental_que_delataria_un_documento_de_salud()
+    {
+        await using var api = await Api.IniciarAsync(this);
+
+        var (estado, cuerpo) = await api.GetAsync(await api.TokenAsync(_claveId, Secreto), "/api/v1/trabajadores");
+
+        estado.Should().Be(HttpStatusCode.OK, cuerpo);
+        cuerpo.Should().Contain(DniDelTrabajador, "control positivo").And.NotContain("estadoDocumental");
+        using var json = JsonDocument.Parse(cuerpo);
+        if (json.RootElement.TryGetProperty("recuentosPorEstado", out var recuentos))
+            recuentos.ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -275,25 +290,20 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// § 7 de la propuesta: el token ya emitido cae en la petición siguiente a cada corte, y vuelve a valer
-    /// solo donde el corte es reversible.
+    /// § 7 de la propuesta: el token ya emitido cae en la petición siguiente a cada corte.
     /// </summary>
     [Theory]
     [InlineData("clave caducada", HttpStatusCode.Unauthorized)]
     [InlineData("clave revocada", HttpStatusCode.Unauthorized)]
     [InlineData("clave invalidada", HttpStatusCode.Unauthorized)]
     [InlineData("clave suspendida", HttpStatusCode.Unauthorized)]
-    [InlineData("clave reactivada", HttpStatusCode.OK)]
     [InlineData("Tenant suspendido", HttpStatusCode.Unauthorized)]
     [InlineData("Tenant reactivado", HttpStatusCode.Unauthorized)]
     [InlineData("comercial suspendida", HttpStatusCode.Unauthorized)]
-    [InlineData("comercial suspendida revertida", HttpStatusCode.OK)]
     [InlineData("solo lectura", HttpStatusCode.Unauthorized)]
-    [InlineData("solo lectura revertida", HttpStatusCode.OK)]
     [InlineData("integracion deshabilitada", HttpStatusCode.Unauthorized)]
-    [InlineData("integracion rehabilitada", HttpStatusCode.OK)]
     [InlineData("emisor dado de baja", HttpStatusCode.OK)]
-    public async Task Cada_corte_alcanza_al_token_ya_emitido_y_solo_los_reversibles_devuelven_el_acceso(string caso, HttpStatusCode esperado)
+    public async Task Cada_corte_alcanza_al_token_ya_emitido_y_al_canje(string caso, HttpStatusCode esperado)
     {
         await using var api = await Api.IniciarAsync(this);
         var token = await api.TokenAsync(_claveId, Secreto);
@@ -305,6 +315,41 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         estado.Should().Be(esperado, "caso {0}. Detalle: {1}", caso, cuerpo);
         (await api.CanjearAsync(_claveId, Secreto)).StatusCode
             .Should().Be(esperado, "el canje aplica los mismos cortes. Caso {0}", caso);
+    }
+
+    /// <summary>El corte se guarda y se observa antes de revertirlo: si no, el test solo vería el estado final.</summary>
+    [Theory]
+    [InlineData("clave suspendida")]
+    [InlineData("comercial suspendida")]
+    [InlineData("solo lectura")]
+    [InlineData("integracion deshabilitada")]
+    public async Task Un_corte_reversible_devuelve_el_acceso_al_mismo_token_y_a_la_misma_clave(string caso)
+    {
+        await using var api = await Api.IniciarAsync(this);
+        var token = await api.TokenAsync(_claveId, Secreto);
+        await AplicarCorteAsync(caso);
+        (await api.GetAsync(token, "/api/v1/clientes")).Estado.Should().Be(HttpStatusCode.Unauthorized, "control: el corte está aplicado");
+
+        await RevertirCorteAsync(caso);
+
+        var (estado, cuerpo) = await api.GetAsync(token, "/api/v1/clientes");
+        estado.Should().Be(HttpStatusCode.OK, "caso {0}. Detalle: {1}", caso, cuerpo);
+        (await api.CanjearAsync(_claveId, Secreto)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private async Task RevertirCorteAsync(string caso)
+    {
+        await using var contexto = CrearContextoPropietario();
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
+        var tenant = await contexto.Tenants.SingleAsync(t => t.Id == _tenantA);
+
+        if (caso == "clave suspendida")
+            (await contexto.ClavesIntegracionTenant.SingleAsync(c => c.Id == _claveId)).Reactivar();
+        else if (caso == "integracion deshabilitada")
+            tenant.CambiarIntegracionHabilitada(true);
+        else
+            tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+        await contexto.SaveChangesAsync();
     }
 
     private async Task AplicarCorteAsync(string caso)
@@ -328,10 +373,6 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
             case "clave suspendida":
                 clave.Suspender("Incidente");
                 break;
-            case "clave reactivada":
-                clave.Suspender("Incidente");
-                clave.Reactivar();
-                break;
             case "Tenant suspendido":
                 tenant.Suspender();
                 break;
@@ -339,22 +380,16 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
                 tenant.Suspender();
                 tenant.Reactivar();
                 break;
-            case "comercial suspendida" or "comercial suspendida revertida":
+            case "comercial suspendida":
                 tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
                 tenant.ActualizarEstadoComercial(EstadoComercialTenant.Suspendida);
-                if (caso.EndsWith("revertida", StringComparison.Ordinal)) tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
                 break;
-            case "solo lectura" or "solo lectura revertida":
+            case "solo lectura":
                 tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
                 tenant.ActualizarEstadoComercial(EstadoComercialTenant.SoloLectura);
-                if (caso.EndsWith("revertida", StringComparison.Ordinal)) tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
                 break;
             case "integracion deshabilitada":
                 tenant.CambiarIntegracionHabilitada(false);
-                break;
-            case "integracion rehabilitada":
-                tenant.CambiarIntegracionHabilitada(false);
-                tenant.CambiarIntegracionHabilitada(true);
                 break;
             case "emisor dado de baja":
                 (await contexto.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == _usuarioId)).Desactivar();

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Threading.RateLimiting;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Web.Services;
@@ -155,19 +155,29 @@ public class LimitadorApiPublicaTests
     }
 
     [Fact]
-    public void La_particion_del_token_lleva_una_huella_del_secreto_y_nunca_el_secreto()
+    public void El_canje_cuenta_por_la_clave_y_probar_otro_secreto_no_da_un_cupo_nuevo()
     {
         const string secreto = "talveg_int_secreto-de-prueba";
+        var claveId = Guid.NewGuid();
         var contexto = new DefaultHttpContext();
         contexto.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
-        var credencial = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{Guid.NewGuid()}:{secreto}"));
-        contexto.Request.Headers.Authorization = $"Basic {credencial}";
 
-        LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey
-            .Should().StartWith("token:").And.NotContain(secreto).And.NotContain(CabeceraClaveApi.HashDeClave(secreto));
+        string Particion(Guid id, string candidato)
+        {
+            var credencial = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{id}:{candidato}"));
+            contexto.Request.Headers.Authorization = $"Basic {credencial}";
+            return LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey;
+        }
+
+        Particion(claveId, secreto).Should().Be($"token:{claveId:N}:203.0.113.9").And.Be(Particion(claveId, "talveg_int_otro")).And.NotContain(secreto);
+        Particion(Guid.NewGuid(), secreto).Should().NotBe(Particion(claveId, secreto));
+
+        var desdeLaIpDeLaIntegracion = Particion(claveId, "talveg_int_otro");
+        contexto.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.7");
+        Particion(claveId, secreto).Should().NotBe(desdeLaIpDeLaIntegracion, "quien conoce el Id no agota el cupo de la integración desde otra IP");
 
         contexto.Request.Headers.Authorization = "Basic basura";
-        LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey.Should().Be("token-ip:203.0.113.9");
+        LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey.Should().Be("token-ip:198.51.100.7");
     }
 
     [Theory]
