@@ -18,23 +18,43 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// las de <c>ConcesionesPrivilegio</c> y <c>sesion_privilegiada_apertura</c>.
     ///
     /// <para>
-    /// <b>La condición.</b> El <c>WITH CHECK</c> es copia íntegra del vigente con dos condiciones más.
-    /// La primera es <c>c.xmin = pg_current_xact_id()::xid</c>: la versión visible de la concesión madre la escribió
-    /// esta misma transacción. Se apoya en dos hechos de la base y no en un dato que el llamador pueda
-    /// aportar. <c>xmin</c> no se escribe desde SQL, y el <c>EXISTS</c> ya exige
-    /// <c>Estado = 'Vigente'</c>, un estado al que un <c>UPDATE</c> bajo RLS no puede llegar:
-    /// <c>privilegio_cierre_de_vigente</c> solo admite la fila de llegada <c>Revocada</c> o
-    /// <c>Expirada</c>, así que una versión de la concesión escrita por esta transacción y aún
-    /// <c>Vigente</c> es necesariamente su <c>INSERT</c>. Reescribir la concesión para que
-    /// <c>xmin</c> cambie la cierra, y cerrada no admite alcance.
+    /// <b>La identidad de la transacción.</b> Cada concesión guarda en <c>TransaccionDeAlta</c>
+    /// (<c>xid8</c>) el <c>pg_current_xact_id()</c> de la transacción que la crea, y el <c>WITH CHECK</c>
+    /// exige que coincida con el de la transacción que escribe el alcance. <c>xid8</c> lleva la época:
+    /// son 64 bits que no dan la vuelta, y por eso no sirve <c>xmin</c>, que trunca a 32 bits y
+    /// coincidiría con una transacción posterior tras unos 4.000 millones de ellas, que quien concedió
+    /// puede forzar. <c>pg_current_xact_id()</c> devuelve siempre la transacción de nivel superior, así
+    /// que el alta dentro de un punto de guardado también pasa, cosa que <c>xmin</c> no permitía.
     /// </para>
     ///
     /// <para>
-    /// <b>Y una cota de fecha.</b> <c>xmin</c> son 32 bits y al congelar la fila conserva su valor, así
-    /// que tras unos 4.000 millones de transacciones, que quien concedió puede forzar, una concesión
-    /// vieja volvería a coincidir. <c>VigenciaDesde >= now() - 5 minutos</c> lo descarta sin tocar el
-    /// alta legítima: en esta misma transacción <c>privilegio_concesion_a_tercero</c> exigió esa misma
-    /// cota con el mismo <c>now()</c>, y <c>concesion_privilegio_solo_se_cierra</c> impide reescribirla.
+    /// <b>Trigger y no <c>DEFAULT</c>.</b> Un <c>DEFAULT</c> se puede falsificar: la tabla concede
+    /// <c>INSERT</c> entero a <c>cae_app_runtime</c>, que podría escribir a mano un identificador futuro
+    /// y ampliar su concesión cuando la cuenta llegara a él. El trigger <c>BEFORE INSERT</c>
+    /// <c>concesion_privilegio_sella_su_alta</c> pisa siempre lo que venga, y un <c>GRANT</c> por columnas
+    /// dependería de que nadie vuelva a conceder la tabla entera. Los <c>UPDATE</c> no lo tocan bajo RLS:
+    /// <c>concesion_privilegio_solo_se_cierra</c> compara todas las columnas salvo <c>Estado</c>,
+    /// <c>VigenciaHasta</c> y <c>Version</c>, y la columna nueva entra sola en esa comparación. Un
+    /// cierre tampoco reabre nada: <c>Estado = 'Vigente'</c> sigue en el <c>EXISTS</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>La cota de fecha se queda.</b> <c>VigenciaDesde >= now() - 5 minutos</c> ya no hace falta para
+    /// la vuelta de los 32 bits, y sí tras una restauración lógica: las copias son <c>pg_dump</c>
+    /// (<c>scripts/backup-borg.sh</c>), y <c>pg_restore</c> carga los datos en un clúster cuya cuenta de
+    /// transacciones empieza de cero, así que una concesión restaurada guarda un número que el clúster
+    /// aún no ha usado. La cota deja fuera esa coincidencia salvo en los minutos siguientes a crear la
+    /// concesión. No toca el alta legítima: en esta misma transacción
+    /// <c>privilegio_concesion_a_tercero</c> exigió esa misma cota con el mismo <c>now()</c>, y
+    /// <c>concesion_privilegio_solo_se_cierra</c> impide reescribirla.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Filas existentes y ranura anterior.</b> <c>ADD COLUMN</c> sin valor por defecto deja
+    /// <c>NULL</c> en las concesiones anteriores, y <c>NULL</c> nunca coincide: ninguna admite alcance
+    /// nuevo. La columna no entra en el modelo de EF Core porque ni el dominio ni la aplicación la leen
+    /// ni la escriben, así que ninguna versión la conoce y el trigger la rellena en todas: la ranura
+    /// anterior sirviendo no nota el cambio. No cambia el modelo ni el snapshot.
     /// </para>
     ///
     /// <para>
@@ -44,33 +64,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// </para>
     ///
     /// <para>
-    /// <b>Solo con la fecha no bastaría.</b> Comparar únicamente con <c>VigenciaDesde</c> dejaría ampliar
-    /// la concesión durante 5 minutos, y una columna nueva cambiaría el modelo y obligaría a la ranura
-    /// anterior a escribirla.
-    /// </para>
-    ///
-    /// <para>
     /// <b>Las altas legítimas, medidas en el código.</b> <c>ConcesionPrivilegio.SobreTenants</c> la
     /// llama solo <c>ConcederPrivilegioCommand</c>, que añade la concesión con sus filas hijas en la
-    /// colección del agregado y hace un único <c>SaveChanges</c>, sin transacción exterior ni punto de
-    /// guardado: EF Core las escribe, padre antes que hijas, en una transacción. El código es el mismo
-    /// desde que existe esta política, así que la ranura anterior sirviendo no nota el cambio. Las
-    /// concesiones globales (<c>RaizDeBootstrap</c>, <c>SoporteLecturaGlobal</c>) no llevan filas hijas
-    /// y esta política nunca les aplicó, así que el bootstrap y la auto-concesión raíz no cambian. La
-    /// siembra con el propietario y la retirada de un Tenant de demo no pasan por RLS.
+    /// colección del agregado y hace un único <c>SaveChanges</c>: EF Core las escribe, padre antes que
+    /// hijas, en una transacción. Las concesiones globales (<c>RaizDeBootstrap</c>,
+    /// <c>SoporteLecturaGlobal</c>) no llevan filas hijas y esta política nunca les aplicó, así que el
+    /// bootstrap y la auto-concesión raíz no cambian. La siembra con el propietario y la retirada de un
+    /// Tenant de demo no pasan por RLS.
     /// </para>
     ///
     /// <para>
-    /// <b>Límite conocido.</b> <c>pg_current_xact_id()</c> devuelve la transacción de nivel superior y
-    /// una fila escrita dentro de un punto de guardado lleva el identificador de la subtransacción. Si
-    /// alguien envolviera el alta en una transacción exterior, EF Core abriría un punto de guardado y
-    /// la concesión fallaría cerrada con <c>42501</c>. Está a favor de la seguridad, y lo fija
-    /// <c>Un_alta_dentro_de_una_transaccion_exterior_falla_cerrada</c>.
-    /// </para>
-    ///
-    /// <para>
-    /// Las filas de alcance ya existentes no cambian. Ningún <c>GRANT</c> cambia, ni el esquema, ni el
-    /// modelo, ni <c>deploy/bootstrap/roles-de-cluster.sql</c>.
+    /// Las filas de alcance ya existentes no cambian. Ningún <c>GRANT</c> cambia, ni
+    /// <c>deploy/bootstrap/roles-de-cluster.sql</c>.
     /// </para>
     /// </summary>
     public partial class AlcanceDeConcesionSoloEnSuCreacion : Migration
@@ -80,6 +85,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
             migrationBuilder.Sql(
                 """
+                ALTER TABLE public."ConcesionesPrivilegio" ADD COLUMN "TransaccionDeAlta" xid8;
+
+                CREATE FUNCTION public.app_concesion_privilegio_sella_su_alta() RETURNS trigger
+                    LANGUAGE plpgsql
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                BEGIN
+                    NEW."TransaccionDeAlta" := pg_catalog.pg_current_xact_id();
+                    RETURN NEW;
+                END;
+                $$;
+                REVOKE ALL ON FUNCTION public.app_concesion_privilegio_sella_su_alta() FROM PUBLIC;
+                CREATE TRIGGER concesion_privilegio_sella_su_alta
+                    BEFORE INSERT ON public."ConcesionesPrivilegio"
+                    FOR EACH ROW EXECUTE FUNCTION public.app_concesion_privilegio_sella_su_alta();
+
                 ALTER POLICY alcance_por_quien_concede ON public."TenantsAlcanzadosPorConcesion"
                     WITH CHECK (((EXISTS (SELECT 1 FROM public."ConcesionesPrivilegio" c
                             WHERE ((c."Id" = "TenantsAlcanzadosPorConcesion"."ConcesionPrivilegioId")
@@ -87,7 +108,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                                 AND (c."UsuarioPlataformaId" <> (SELECT public.app_ctx_usuario_id()))
                                 AND (c."EsAlcanceGlobal" = false)
                                 AND ((c."Estado")::text = 'Vigente'::text)
-                                AND (c.xmin = (pg_catalog.pg_current_xact_id())::xid)
+                                AND (c."TransaccionDeAlta" = pg_catalog.pg_current_xact_id())
                                 AND (c."VigenciaDesde" >= (now() - '00:05:00'::interval)))))
                         AND public.app_es_admin_plataforma_sobre((SELECT public.app_ctx_usuario_id()), "TenantId")));
                 """);
@@ -106,6 +127,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                                 AND (c."EsAlcanceGlobal" = false)
                                 AND ((c."Estado")::text = 'Vigente'::text))))
                         AND public.app_es_admin_plataforma_sobre((SELECT public.app_ctx_usuario_id()), "TenantId")));
+
+                DROP TRIGGER concesion_privilegio_sella_su_alta ON public."ConcesionesPrivilegio";
+                DROP FUNCTION public.app_concesion_privilegio_sella_su_alta();
+                ALTER TABLE public."ConcesionesPrivilegio" DROP COLUMN "TransaccionDeAlta";
                 """);
         }
     }

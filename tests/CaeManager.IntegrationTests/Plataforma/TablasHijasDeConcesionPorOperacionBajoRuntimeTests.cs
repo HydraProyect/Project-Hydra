@@ -187,36 +187,118 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_alta_dentro_de_una_transaccion_exterior_falla_cerrada()
+    public async Task Un_alta_dentro_de_una_transaccion_exterior_guarda_su_alcance()
     {
-        // Con una transacción abierta, EF Core guarda dentro de un punto de guardado, y sus filas llevan
-        // el xid de la subtransacción. Por eso ConcederPrivilegioCommand no usa ITransaccionDeComando.
+        // Con una transacción abierta, EF Core guarda dentro de un punto de guardado. La identidad es la
+        // de la transacción de nivel superior, así que el alta no depende de quién abra la transacción.
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
             _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantB],
             ahora, ahora.AddDays(7), concedidaPorUsuarioId: _admin, motivoConcesion: "Alta de B");
-        await using var contexto = CrearContexto(_admin);
-        await using var exterior = await contexto.Database.BeginTransactionAsync();
-        new PlataformaWriter(contexto).AnadirConcesion(concesion);
+        await using (var contexto = CrearContexto(_admin))
+        {
+            await using var exterior = await contexto.Database.BeginTransactionAsync();
+            new PlataformaWriter(contexto).AnadirConcesion(concesion);
+            await contexto.SaveChangesAsync();
+            await exterior.CommitAsync();
+        }
 
-        var accion = async () => await contexto.SaveChangesAsync();
+        (await ContarAlcanceComoPropietarioAsync(concesion.Id, _tenantB)).Should().Be(1);
+    }
 
-        (await accion.Should().ThrowAsync<DbUpdateException>())
-            .Which.InnerException.Should().BeOfType<PostgresException>()
+    [Fact]
+    public async Task El_alcance_entra_en_el_alta_aunque_la_concesion_se_cree_en_un_punto_de_guardado()
+    {
+        // La subtransacción es la que xmin no reconocía: aquí la concesión nace dentro de ella y la fila
+        // de alcance se escribe después de liberarla.
+        (await AnadirAlcanceDentroDelAltaAsync(
+                usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB, enPuntoDeGuardado: true))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Una_concesion_sin_transaccion_de_alta_no_recibe_alcance()
+    {
+        // Es lo que queda en las filas anteriores a la migración: NULL nunca coincide.
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB,
+            trasElAlta: @"UPDATE ""ConcesionesPrivilegio"" SET ""TransaccionDeAlta"" = NULL WHERE ""Id"" = @id;");
+
+        (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Una_concesion_con_mas_de_cinco_minutos_no_recibe_alcance_aunque_coincida_la_transaccion()
+    {
+        // La coincidencia que deja una restauración lógica, que reinicia la cuenta de transacciones.
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB,
+            vigenciaDesde: "now() - interval '6 minutes'");
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task La_transaccion_de_alta_no_se_elige_en_el_INSERT()
+    {
+        // Sin el trigger, quien concede anotaría un identificador futuro y ampliaría la concesión al
+        // llegar la cuenta a él. Es la falsificación que un DEFAULT no impide.
+        var ahora = DateTime.UtcNow;
+        var concesion = Guid.NewGuid();
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var insertar = conexion.CreateCommand())
+        {
+            insertar.CommandText = @"
+INSERT INTO public.""ConcesionesPrivilegio""
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"",
+     ""TransaccionDeAlta"")
+VALUES (@id, @beneficiario, 'Aprovisionamiento', false, @desde, @hasta, 'Vigente', @concedente,
+        'Alta por debajo del dominio (test)', @desde, gen_random_uuid(), 'Ordinaria',
+        (pg_current_xact_id()::text::numeric + 1000)::text::xid8);";
+            insertar.Parameters.AddWithValue("id", concesion);
+            insertar.Parameters.AddWithValue("beneficiario", _tecnico);
+            insertar.Parameters.AddWithValue("desde", ahora);
+            insertar.Parameters.AddWithValue("hasta", ahora.AddDays(7));
+            insertar.Parameters.AddWithValue("concedente", _admin);
+            (await insertar.ExecuteNonQueryAsync()).Should().Be(1);
+        }
+
+        await using var leer = conexion.CreateCommand();
+        leer.CommandText =
+            @"SELECT ""TransaccionDeAlta"" = pg_current_xact_id() FROM ""ConcesionesPrivilegio"" WHERE ""Id"" = @id;";
+        leer.Parameters.AddWithValue("id", concesion);
+
+        ((bool)(await leer.ExecuteScalarAsync())!).Should().BeTrue(
+            "el trigger pisa cualquier valor que venga en el INSERT");
+    }
+
+    [Theory]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""TransaccionDeAlta"" = pg_current_xact_id() WHERE ""Id"" = @id;",
+        PostgresErrorCodes.InsufficientPrivilege)]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada', ""TransaccionDeAlta"" = pg_current_xact_id() WHERE ""Id"" = @id;",
+        PostgresErrorCodes.CheckViolation)]
+    public async Task La_transaccion_de_alta_no_se_reescribe_despues(string sql, string sqlState)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var accion = async () => await EjecutarAsync(conexion, sql, _concesionDelTecnico);
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(sqlState,
+                "una vigente no se reescribe sin cerrarse, y cerrarla solo cambia su estado y su fin");
     }
 
     [Fact]
     public async Task Cerrar_la_concesion_en_la_misma_transaccion_no_reabre_su_alcance()
     {
-        // Un UPDATE deja en la concesión el xmin de esta transacción, pero bajo RLS solo puede cerrarla.
-        await using var conexion = await AbrirRestringidaComoAsync(_admin);
-        await using var transaccion = await conexion.BeginTransactionAsync();
-        (await EjecutarAsync(conexion,
-                @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = @id;", _concesionDelTecnico))
-            .Should().Be(1);
-
-        var accion = async () => await InsertarAlcanceAsync(conexion, _concesionDelTecnico, _tenantB);
+        // La identidad de la transacción coincide: solo Estado = 'Vigente' lo rechaza.
+        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
+            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB,
+            trasElAlta: @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = @id;");
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
@@ -594,21 +676,25 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
     /// </summary>
     private async Task<int> AnadirAlcanceDentroDelAltaAsync(
         Guid usuario, Guid beneficiario, Guid concedente, Guid tenantId,
-        string estado = "Vigente", bool esAlcanceGlobal = false)
+        string estado = "Vigente", bool esAlcanceGlobal = false, string vigenciaDesde = "now()",
+        bool enPuntoDeGuardado = false, string? trasElAlta = null)
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
         await ContextoRlsDePruebas.FijarAsync(conexion, usuarioId: usuario);
         await using var alta = await conexion.BeginTransactionAsync();
 
+        if (enPuntoDeGuardado)
+            await alta.SaveAsync("alta_de_la_concesion");
+
         var concesionId = Guid.NewGuid();
         await using (var insertar = conexion.CreateCommand())
         {
-            insertar.CommandText = @"
+            insertar.CommandText = $@"
 INSERT INTO public.""ConcesionesPrivilegio""
     (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
      ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
-VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days', @estado, @concedente,
+VALUES (@id, @beneficiario, @capacidad, @global, {vigenciaDesde}, now() + interval '7 days', @estado, @concedente,
         'Alta por debajo del dominio (test)', now(), gen_random_uuid(), 'Ordinaria');";
             insertar.Parameters.AddWithValue("id", concesionId);
             insertar.Parameters.AddWithValue("beneficiario", beneficiario);
@@ -619,6 +705,12 @@ VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days
             insertar.Parameters.AddWithValue("concedente", concedente);
             await insertar.ExecuteNonQueryAsync();
         }
+
+        if (enPuntoDeGuardado)
+            await alta.ReleaseAsync("alta_de_la_concesion");
+
+        if (trasElAlta is not null)
+            await EjecutarAsync(conexion, trasElAlta, concesionId);
 
         await using (var setRol = conexion.CreateCommand())
         {

@@ -178,10 +178,8 @@ public class ConcederPrivilegioCommandHandler(
             concedidaPorUsuarioId: concedenteId.Value,
             motivoConcesion: request.Motivo);
 
-        // La concesión y su alcance van en un único SaveChanges y fuera de cualquier
-        // transacción exterior: alcance_por_quien_concede solo admite la fila hija en la
-        // transacción de nivel superior que creó la concesión, y una exterior haría que
-        // EF Core abriera un punto de guardado y el alta fallara cerrada con 42501.
+        // La concesión y su alcance van en un único SaveChanges: alcance_por_quien_concede
+        // solo admite la fila hija en la transacción de nivel superior que creó la concesión.
         writer.AnadirConcesion(concesion);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
