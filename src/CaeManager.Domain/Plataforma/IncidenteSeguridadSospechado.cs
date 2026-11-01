@@ -70,12 +70,12 @@ public class IncidenteSeguridadSospechado : Entity
 
     public SenalIncidenteSeguridad Senal { get; private set; }
 
-    /// <summary>Sobre quién recae la señal, seudónimo (p. ej. <c>usuario:{guid}</c>). Clave de la deduplicación junto a la señal.</summary>
+    /// <summary>Sobre quién recae la señal, seudónimo (p. ej. <c>usuario:{guid}</c>). La deduplicación agrupa por señal y sujeto, dentro de la misma procedencia del registro.</summary>
     public string SujetoClave { get; private set; } = string.Empty;
 
     public DateTime DetectadoEnUtc { get; private set; }
 
-    /// <summary>Última vez que la misma señal sobre el mismo sujeto se repitió dentro de la ventana de deduplicación.</summary>
+    /// <summary>Última vez que la señal se agrupó en este incidente dentro de la ventana de deduplicación.</summary>
     public DateTime UltimaDeteccionEnUtc { get; private set; }
 
     /// <summary>Cuántas veces se ha detectado la señal agrupada en este incidente (1 al nacer).</summary>
@@ -85,6 +85,15 @@ public class IncidenteSeguridadSospechado : Entity
 
     /// <summary>JSON con identificadores, recuentos y códigos; nunca nombres ni correos.</summary>
     public string Evidencia { get; private set; } = "{}";
+
+    /// <summary>
+    /// Usuario del contexto RLS firmado cuando se registró el incidente (en una Sesión Privilegiada, el
+    /// Usuario simulado, no el Actor real); nulo si no había, y en los registros anteriores a la columna,
+    /// de procedencia desconocida. La deduplicación solo agrupa con este valor y nunca con la evidencia:
+    /// lo escribe la función de registro, sin parámetro, y ningún rol de la aplicación puede cambiarlo.
+    /// <see cref="SujetoClave"/> va aparte.
+    /// </summary>
+    public Guid? ContextoUsuarioId { get; private set; }
 
     public EstadoIncidenteSeguridad Estado { get; private set; }
 
