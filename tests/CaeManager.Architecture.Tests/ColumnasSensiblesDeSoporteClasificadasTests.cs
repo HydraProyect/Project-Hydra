@@ -70,6 +70,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["DocumentosGenerados.CodigoSeguroVerificacion"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["DocumentosGenerados.DatosUtilizadosJson"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["DocumentosGenerados.HashSha256Impreso"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
+        ["EnviosAvisoIncidenteSeguridad.Cuerpo"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG: la migración retira todo privilegio de la tabla (REVOKE ALL)."),
         ["EventosWebhook.PayloadCrudo"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["EventosWebhook.PayloadRedactado"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
         ["ExtraccionesIaCache.ExtraccionJson"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),

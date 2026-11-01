@@ -345,11 +345,13 @@ public class EjecutarImportacionCommandHandler(
 
             try
             {
-                // El archivo de importación no trae vencimiento: si el tipo no
-                // tiene vigencia en meses, el documento entra sin vigencia
-                // confirmada, nunca como «no caduca».
-                var vigencia = VigenciaDocumento.DesdeFechaOpcional(
-                    CalculadoraEstadoDocumento.CalcularFechaVencimiento(fila.FechaEmision, tipoDocumento.VigenciaMeses));
+                // Misma regla que el resto de productores: el archivo no trae
+                // vencimiento manual ni confirmación de «no caduca», así que
+                // solo un tipo con vencimiento automático calcula fecha; en los
+                // demás el documento entra sin vigencia confirmada.
+                var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
+                    tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+                    fila.FechaEmision, fechaVencimientoManual: null, noCaducaConfirmado: false);
                 var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia);
                 documentoRepositorio.Agregar(documento);
                 documentosNuevos.Add(documento);
