@@ -148,7 +148,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
         await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
         await enlaceFicha.ClickAsync();
-        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        // Aserción de URL, no WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación mejorada (sin documento nuevo) que cae entre ambos no la ve.
         await Assertions.Expect(page).ToHaveURLAsync(
             new System.Text.RegularExpressions.Regex(@"/trabajadores/[0-9a-fA-F-]{36}(\?.*)?$"),
             new PageAssertionsToHaveURLOptions { Timeout = 15_000 });

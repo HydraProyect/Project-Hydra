@@ -808,6 +808,11 @@ jobs:
       - name: Probar la guarda del modelo de migración
         run: python3 scripts/verificar-modelo-migracion.tests.py
 
+      # Es lo único que sale de ZAP a un repositorio público, y seguridad-codigo.yml
+      # no es obligatorio: aquí un filtro roto sí bloquea la PR.
+      - name: Probar el resumen publicable de ZAP
+        run: python3 scripts/resumen-zap.tests.py
+
       - name: Comprobar el orden de las migraciones
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         env:

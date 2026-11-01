@@ -19,10 +19,11 @@ namespace CaeManager.Infrastructure.Identity;
 /// </para>
 ///
 /// <para>
-/// Este validador pregunta a las funciones <c>SECURITY DEFINER</c> de
-/// <c>RlsAspNetUsers</c>, que devuelven el <c>Id</c> y el Tenant de la cuenta con esa
-/// clave y nada más. Solo informa cuando la cuenta en conflicto NO es visible: si lo
-/// es, el validador de serie ya da el mismo error y no se duplica. El mensaje es el
+/// Este validador pregunta a <c>app_nombre_en_uso_por_otra_cuenta</c> y
+/// <c>app_correo_en_uso_por_otra_cuenta</c>, funciones <c>SECURITY DEFINER</c> que solo
+/// dicen si otra cuenta usa ese valor: ni su <c>Id</c> ni su Tenant salen de la base.
+/// Solo informa cuando la cuenta en conflicto NO es visible: si lo es, el validador de
+/// serie ya da el mismo error y no se duplica. El mensaje es el
 /// mismo que el de serie, así que no revela más de lo que Identity ya revelaba antes
 /// de la política: que ese nombre o correo está en uso.
 /// </para>
@@ -39,8 +40,7 @@ public class ValidadorUnicidadGlobalCuenta(CaeManagerDbContext db) : IUserValida
         var nombre = await manager.GetUserNameAsync(user);
         if (!string.IsNullOrWhiteSpace(nombre)
             && await manager.FindByNameAsync(nombre) is null
-            && (await AlmacenUsuarios.CuentasPorNombreNormalizadoAsync(db, manager.NormalizeName(nombre), default))
-                .Any(c => c.CuentaId != user.Id))
+            && await AlmacenUsuarios.NombreEnUsoPorOtraCuentaAsync(db, manager.NormalizeName(nombre), user.Id, default))
         {
             errores.Add(manager.ErrorDescriber.DuplicateUserName(nombre));
         }
@@ -50,8 +50,7 @@ public class ValidadorUnicidadGlobalCuenta(CaeManagerDbContext db) : IUserValida
             var email = await manager.GetEmailAsync(user);
             if (!string.IsNullOrWhiteSpace(email)
                 && await manager.FindByEmailAsync(email) is null
-                && (await AlmacenUsuarios.CuentasPorEmailNormalizadoAsync(db, manager.NormalizeEmail(email), default))
-                    .Any(c => c.CuentaId != user.Id))
+                && await AlmacenUsuarios.CorreoEnUsoPorOtraCuentaAsync(db, manager.NormalizeEmail(email), user.Id, default))
             {
                 errores.Add(manager.ErrorDescriber.DuplicateEmail(email));
             }

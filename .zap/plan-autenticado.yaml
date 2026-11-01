@@ -101,13 +101,7 @@ jobs:
     parameters:
       maxDuration: 2
 
-  - type: report
-    parameters:
-      template: traditional-html
-      reportDir: /zap/wrk
-      reportFile: informe-zap-autenticado.html
-      reportTitle: ZAP autenticado (instancia local)
-
+  # Lo lee el job y no se publica: ver la cabecera de seguridad-codigo.yml.
   - type: report
     parameters:
       template: traditional-json

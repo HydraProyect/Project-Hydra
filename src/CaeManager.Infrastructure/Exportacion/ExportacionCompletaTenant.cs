@@ -34,7 +34,8 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// operativo al servidor), y exige además nombrar a un Actor de Plataforma TALVEG: una cuenta activa
 /// de un Tenant de plataforma con una concesión AdminPlataforma vigente que alcance el Tenant
 /// propietario (ASVS 4.0.3 V4.1.3). Lo comprueba la función <c>app_actor_plataforma_que_exporta</c>,
-/// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS. Quien ejecuta la CLI no se
+/// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS, que solo responde en el contexto
+/// firmado del Tenant exportado y sin usuario: se llama dentro de su ámbito. Quien ejecuta la CLI no se
 /// autentica en la aplicación, así que el Actor real consta como declarado en los datos de la fila.
 /// No hay Usuario simulado. Va en los datos y no en las columnas de autor, porque esas columnas
 /// afirman una identidad autenticada y abren la cuenta a la lectura bajo RLS del Tenant propietario

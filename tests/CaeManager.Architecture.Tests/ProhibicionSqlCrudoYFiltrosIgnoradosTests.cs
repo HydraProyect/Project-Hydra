@@ -72,6 +72,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
+        // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
@@ -180,14 +183,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
         // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
-        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
-        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
-        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
-        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        // 20260925184521_RlsAspNetUsers) exigen el contexto firmado (migración
+        // OraculosTransversalesExigenContextoFirmado) y de ellas solo se lee el
+        // TenantId; la fila se lee después por EF dentro del AmbitoTenantExplicito
+        // de su Tenant. La unicidad global de nombre y correo
+        // (ValidadorUnicidadGlobalCuenta) no recibe identificadores: solo un
+        // booleano. Parámetros por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
-            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+            "await db.Database.SqlQuery<Guid>(")] = 2,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_nombre_en_uso_por_otra_cuenta({nombreNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({emailNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
         // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
         // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",

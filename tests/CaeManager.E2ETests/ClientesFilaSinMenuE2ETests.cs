@@ -112,8 +112,8 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // (si el clic llegara a la fila, la URL de destino llevaría el «ctx» del panel). Con el
         // panel cerrado: abierto, a este ancho tapa el final de la fila.
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        // Con la aserción de URL, no con WaitForURLAsync: la navegación mejorada de Blazor no es un documento
-        // nuevo y la espera de «load» de WaitForURLAsync caducaba a los 30 s aunque la página ya hubiera cambiado.
+        // Con la aserción de URL, no con WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación
+        // mejorada (sin documento nuevo) que cae entre ambos no la ve: caducaba a los 30 s con la página ya cambiada.
         await Expect(page).ToHaveURLAsync(new Regex(@"/clientes/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");

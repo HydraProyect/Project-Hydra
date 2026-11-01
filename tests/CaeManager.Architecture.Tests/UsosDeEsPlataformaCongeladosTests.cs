@@ -456,6 +456,10 @@ public class UsosDeEsPlataformaCongeladosTests
                 "doc-comment y predicado de app_actor_plataforma_que_exporta (M-36, decisión de Chris del 2026-10-31): " +
                 "la cuenta que pide --exportar-tenant debe ser de un Tenant de plataforma, además de la concesión " +
                 "AdminPlataforma que alcanza el Tenant. Solo restringe, no concede."),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101180000_OraculosTransversalesExigenContextoFirmado.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "el mismo predicado de app_actor_plataforma_que_exporta en el Up y en el Down: la función se reescribe " +
+                "para exigir el contexto firmado y no cambia qué cuenta admite. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +

@@ -1,5 +1,5 @@
 # Esperas fijas de la suite E2E (EsperasFijasDeE2ECongeladasTests, 2026-10-10): 50 WaitForTimeoutAsync y 12 Task.Delay en 29 ficheros.
-# Solo baja: una espera nueva se sustituye por la condición que se espera (Expect(...), WaitForFunctionAsync, WaitForURLAsync);
+# Solo baja: una espera nueva se sustituye por la condición que se espera (Expect(...), WaitForFunctionAsync);
 # retirar una baja o borra su línea. Una espera que ES un reloj del servidor lleva encima un comentario que dice cuál.
 # Medida: 'fichero :: llamada = n' con n invocaciones en código (comentarios y cadenas no cuentan). Thread.Sleep también se mide: hoy no hay ninguno.
 # Reloj del servidor: espera a que venza el intervalo de revalidación del SecurityStamp de la colección AppCollectionBajoRuntime.
@@ -13,6 +13,8 @@ tests/CaeManager.E2ETests/CoordinadorCaeTenantBeneficiarioTests.cs :: WaitForTim
 tests/CaeManager.E2ETests/DesactivarCortaLaSesionTests.cs :: Task.Delay = 1
 # Pausa de un bucle de sondeo con límite de 15 s (relectura de un valor en base de datos).
 tests/CaeManager.E2ETests/EncargoAdministracionE2ETests.cs :: Task.Delay = 1
+# Reloj del servidor: tres ciclos de 2 s de la revalidación del circuito (AppCollectionRevalidacionRapida) antes de afirmar que el circuito sigue vivo; un circuito caído se manifiesta navegando al acceso, sin señal por ciclo.
+tests/CaeManager.E2ETests/ExpiracionPorInactividadE2ETests.cs :: Task.Delay = 1
 # Pausa de un bucle de sondeo con vencimiento (20 mediciones de geometría hasta que dos seguidas coinciden).
 tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: WaitForTimeoutAsync = 1
 # Reloj del servidor: debounce de 150 ms de CampoBuscarSelect antes de resolver el Id elegido; el DOM no lo expone hasta guardar.

@@ -42,7 +42,7 @@ public partial class FiltrosEnLaUrlTests(WebAppFixtureListados fixture)
         Assert.False(nombreEmpresa is null, "la siembra debe ofrecer al menos una Empresa en la pastilla");
         await pastillas.GetByRole(AriaRole.Menuitemradio, new LocatorGetByRoleOptions { Name = nombreEmpresa, Exact = true }).ClickAsync();
 
-        await page.WaitForURLAsync(EmpresaEnLaUrl(), new PageWaitForURLOptions { Timeout = 30_000 });
+        await Expect(page).ToHaveURLAsync(EmpresaEnLaUrl(), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         var urlConFiltro = page.Url;
 
         // Carga en frío en otra pestaña con esa URL exacta: reproduce compartir el

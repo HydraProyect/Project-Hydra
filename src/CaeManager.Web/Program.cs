@@ -298,6 +298,8 @@ builder.Services.AddScoped<CaeManager.Web.Services.IVentanaDeSoporteActual>(
 // tzdata, que el arranque falle aquí y no en la primera fecha que se juzgue.
 _ = CaeManager.Domain.Common.DiaDeNegocio.Zona;
 // Reloj de AvisoVentanaSoporte; inyectable para poder fijar la hora en los tests.
+// El arnés E2E (solo Development) registra aquí un reloj desplazado; es el último AddSingleton de TimeProvider y por eso gana a los TryAdd anteriores: ver RelojDesplazadoPorFichero.
+CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, builder.Configuration, builder.Environment);
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
@@ -1403,6 +1405,11 @@ app.UseRolEfectivoDelWorkspace();
 app.UseCuentaAMedioActivarSinAcceso();
 
 app.UseAuthorization();
+
+// Antes de UseAntiforgery: la reejecución de /not-found tras un 400 de antiforgery reentra aquí con el
+// rechazo de la primera pasada y, sin esto, el framework lanza y la respuesta acaba en 500 (ver
+// RechazoDeAntiforgeryReejecutadoMiddleware).
+app.UseRechazoDeAntiforgeryReejecutado();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
