@@ -62,7 +62,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var pastilla = page.Locator(".marco-lista-empresas button.badge-deteccion").First;
         await Expect(pastilla).ToBeVisibleAsync();
         await pastilla.ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}/deteccion-trabajadores$"));
+        await Expect(page).ToHaveURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}/deteccion-trabajadores$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Expect(page).ToHaveURLAsync(new Regex(@"/deteccion-trabajadores$"));
         await Expect(panel).ToHaveCountAsync(0);
@@ -81,7 +81,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        // Aserción de URL, no WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación mejorada (sin documento nuevo) que cae entre ambos no la ve.
         await Expect(page).ToHaveURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
 

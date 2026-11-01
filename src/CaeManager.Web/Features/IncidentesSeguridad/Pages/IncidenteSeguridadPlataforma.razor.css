@@ -1,0 +1,178 @@
+.pagina-incidente-seguridad {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.incidente-estado {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    margin-right: var(--space-2);
+    border-radius: var(--radius-full);
+    font: var(--font-label-md);
+    background: var(--color-surface-subtle);
+    color: var(--color-text);
+}
+
+.incidente-estado-sospechado,
+.incidente-estado-enevaluacion {
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+}
+
+.incidente-estado-confirmado {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+.incidente-error {
+    margin: 0;
+    color: var(--color-danger-700);
+    font: var(--font-body-md);
+}
+
+.incidente-aviso {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-body-md);
+}
+
+.incidente-bloque {
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.incidente-bloque h2 {
+    margin: 0 0 var(--space-3);
+    font: var(--font-heading-sm);
+    color: var(--color-text);
+}
+
+.incidente-ayuda {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.incidente-plazos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface-subtle);
+}
+
+.incidente-plazo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.incidente-plazo-etiqueta {
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+}
+
+.incidente-plazo strong {
+    font: var(--font-heading-md);
+    color: var(--color-text);
+}
+
+.incidente-plazo-nota {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.incidente-tenants,
+.incidente-registro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.incidente-tenants li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.incidente-destinatarios {
+    flex-basis: 100%;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    overflow-wrap: anywhere;
+}
+
+.incidente-marca {
+    display: inline-block;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-caption);
+}
+
+.incidente-marca-grave {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+}
+
+.incidente-registro li {
+    font: var(--font-body-sm);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.incidente-registro time {
+    margin-right: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.incidente-motivo {
+    color: var(--color-text-muted);
+}
+
+.incidente-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+@media (max-width: 640px) {
+    .incidente-bloque,
+    .incidente-plazos {
+        padding: var(--space-3) var(--space-4);
+    }
+
+    .incidente-plazos {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* En el móvil el primario va arriba, a todo el ancho y con altura de dedo: es el clic que confirma la
+       violación y envía el aviso, y no puede quedar detrás del de descartar. */
+    .incidente-acciones {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .incidente-acciones ::deep button {
+        width: 100%;
+        min-height: 44px;
+        justify-content: center;
+    }
+}

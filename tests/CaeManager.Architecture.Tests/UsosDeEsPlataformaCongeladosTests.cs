@@ -456,6 +456,10 @@ public class UsosDeEsPlataformaCongeladosTests
                 "doc-comment y predicado de app_actor_plataforma_que_exporta (M-36, decisión de Chris del 2026-10-31): " +
                 "la cuenta que pide --exportar-tenant debe ser de un Tenant de plataforma, además de la concesión " +
                 "AdminPlataforma que alcanza el Tenant. Solo restringe, no concede."),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101180000_OraculosTransversalesExigenContextoFirmado.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "el mismo predicado de app_actor_plataforma_que_exporta en el Up y en el Down: la función se reescribe " +
+                "para exigir el contexto firmado y no cambia qué cuenta admite. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
@@ -465,6 +469,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +
                 "incremento 3a): quien valida o rechaza debe ser una cuenta de un Tenant de plataforma trabajando desde " +
                 "ese Tenant, además de la concesión AdminPlataforma global. Solo restringe, como el segundo factor"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101163000_AnadeEnviosAvisoIncidenteSeguridad.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "comentario y predicado de app_actor_plataforma_aviso_seguridad (aviso de violaciones de seguridad, " +
+                "incremento 3b): quien decide sobre un incidente o envía su aviso debe ser una cuenta de un Tenant de " +
+                "plataforma trabajando desde ese Tenant, además de la concesión AdminPlataforma global. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261028070101_ContactoSeguridadCuatroOjos.cs"] =
             new(4, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad en Up (cuerpo nuevo con los cuatro ojos) y en " +

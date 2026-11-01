@@ -180,14 +180,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
         // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
-        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
-        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
-        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
-        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        // 20260925184521_RlsAspNetUsers) exigen el contexto firmado (migración
+        // OraculosTransversalesExigenContextoFirmado) y de ellas solo se lee el
+        // TenantId; la fila se lee después por EF dentro del AmbitoTenantExplicito
+        // de su Tenant. La unicidad global de nombre y correo
+        // (ValidadorUnicidadGlobalCuenta) no recibe identificadores: solo un
+        // booleano. Parámetros por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
-            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+            "await db.Database.SqlQuery<Guid>(")] = 2,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_nombre_en_uso_por_otra_cuenta({nombreNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({emailNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
         // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
         // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
@@ -219,6 +225,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 2,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 1,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<FilaDestinatarioAvisoSeguridad>(")] = 1,
+
+        // Aviso de violaciones de seguridad, incremento 3b: la página del incidente lee los nombres de los
+        // Tenants afectados, que son de otros Tenants (mismo criterio que la cola de contactos de seguridad).
+        // Decidir, reclamar y resolver un envío van por app_decidir_incidente_seguridad,
+        // app_reclamar_envio_aviso_seguridad y app_resolver_envio_aviso_seguridad, SECURITY DEFINER que repiten
+        // contexto firmado, concesión AdminPlataforma global y cuenta de plataforma, y devuelven un código.
+        // Valores parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", "return await contexto.Tenants.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 2,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<FilaEnvioReclamado>(")] = 1,
 
         // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
         // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa

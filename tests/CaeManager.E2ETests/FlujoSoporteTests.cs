@@ -136,9 +136,9 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // marco de Design (marco-talveg.js), el grupo «Plataforma» nace plegado:
         // se abre antes, como haría la persona.
         await Ayudas.AbrirGrupoYClickAsync(page, "plataforma", page.Locator("a.nav-item[href='delegaciones']"));
-        // Navegación mejorada de Blazor (pushState, sin documento nuevo): el evento «load» que espera
-        // WaitForURLAsync por defecto no llega, y el test caía por «Timeout 30000ms … until Load». Se espera
-        // a la URL con la aserción de Playwright, que solo mira la dirección.
+        // Navegación mejorada de Blazor (sin documento nuevo): WaitForURLAsync mira la URL y se suscribe después,
+        // y el cambio que cae entre ambos no lo ve (el test caía por «Timeout 30000ms … until Load»). Se espera
+        // a la URL con la aserción de Playwright, que sondea la dirección.
         await Assertions.Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/delegaciones",
             new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
