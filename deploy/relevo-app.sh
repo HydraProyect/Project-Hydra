@@ -535,8 +535,10 @@ retirar_sin_guarda_pendientes() {
         return 1
     fi
     servicio="app-$(ranura_libre "$activa_")"
-    if saliente_ignora_la_guarda "$entorno" "$sha" "$servicio" "$activa_"; then
-        echo "::error::$activa_ sirve $entorno e ignora la guarda de correo con un modo distinto de $MODO_CORREO_SIN_GUARDA o que no se pudo leer: puede enviar correo." >&2
+    # Lo mismo que rechaza exigir_guarda_de_correo al arrancarla: staging nunca admite
+    # una imagen sin la guarda, sea cual sea el modo.
+    if saliente_ignora_la_guarda "$entorno" "$sha" "$servicio" "$activa_" || { [ "$entorno" = staging ] && ! declara_guarda_de_correo "$activa_"; }; then
+        echo "::error::$activa_ sirve $entorno e ignora la guarda de correo con un modo que no lo admite o que no se pudo leer: puede enviar correo." >&2
         return 1
     fi
     candidatas="$(sin_guarda_sin_anotar "$entorno" "$sha" "$servicio" "$activa_")"

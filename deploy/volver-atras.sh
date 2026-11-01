@@ -235,7 +235,7 @@ main_volver_atras() {
         # El relevo que dejó aquí esta imagen pudo acabar en error con otra viva
         # que ignora la guarda de correo: esa no se da por buena aunque /salud responda.
         bash "$RELEVO_APP" retirar-sin-guarda "$entorno" "$sha" < /dev/null \
-            || detener "$entorno corre ${sha}, pero no se da por bueno: hay en marcha una imagen que ignora la guarda de correo y puede enviar. El error de arriba dice cuál y qué se ha parado."
+            || detener "$entorno corre ${sha}, pero no se da por bueno: hay en marcha una imagen que ignora la guarda de correo y puede enviar. El error de arriba dice cuál."
         echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} y /salud responde: nada que hacer."
         exit 0
     fi

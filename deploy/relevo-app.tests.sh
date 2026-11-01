@@ -707,7 +707,11 @@ saliente_staging; relevo -- retirar-sin-guarda staging "$A"
 comprobar "  la imagen que sirve sin la guarda con modo Cerrado no se da por buena ni se para" "1 true 0 si" \
   "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::$AZUL_STG sirve staging e ignora" "$salida")"
 saliente_staging; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- retirar-sin-guarda staging "$A"
-comprobar "  y con modo Abierto hace lo que esa imagen haría: vale" "0 true" "$codigo $(en_marcha "$AZUL_STG")"
+comprobar "  staging tampoco la da por buena con modo Abierto, como al arrancarla" "1 true" "$codigo $(en_marcha "$AZUL_STG")"
+limpio; contenedor caemanager-app-azul "$A"; sin_guarda caemanager-app-azul
+fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo -- retirar-sin-guarda produccion "$A"
+comprobar "  producción con modo Abierto hace lo que esa imagen haría: vale" "0 true" "$codigo $(en_marcha caemanager-app-azul)"
 ranura_sin_anotar() {
   limpio; contenedor "$LEGADO_STG" "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
   fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
@@ -956,7 +960,10 @@ if [ -z "${RELEVO_GUION:-}" ]; then
 
   esc_activa_sin_guarda() { saliente_staging; bash "$1" retirar-sin-guarda staging "$A" > /dev/null 2>&1; codigo=$?; }
   mutar "retirar-sin-guarda da por buena la imagen que sirve sin la guarda" \
-    's#^    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_"; then$#    if false; then#' esc_activa_sin_guarda comp_parada
+    's#^    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_" || {.*; then$#    if false; then#' esc_activa_sin_guarda comp_parada
+  esc_activa_abierto() { saliente_staging; CORREO_VERDE='      EnvioCorreo__Modo: Abierto' bash "$1" retirar-sin-guarda staging "$A" > /dev/null 2>&1; codigo=$?; }
+  mutar "staging da por buena la imagen que sirve sin la guarda con modo Abierto" \
+    's#^\(    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_"\) || {.*; then$#\1; then#' esc_activa_abierto comp_parada
 
   esc_interrumpida_recarga() { interrumpida; RECARGA_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
   esc_interrumpida_modo() { interrumpida; CONFIG_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
