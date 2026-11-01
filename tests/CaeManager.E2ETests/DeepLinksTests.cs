@@ -53,7 +53,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // desde ahí "⋯ → Editar" abre el Context Workspace — el mismo camino
         // que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
         await page.Locator(".marco-lista-trabajadores a.boton-360-pagina").First.ClickAsync();
-        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        // Aserción de URL, no WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación mejorada (sin documento nuevo) que cae entre ambos no la ve.
         await Assertions.Expect(page).ToHaveURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         // La guarda es el resultado en el DOM: un único
         // ".menu-acciones-disparador" (el de la cabecera de Trabajador 360,
@@ -99,7 +99,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         // como pendiente junto al deep-link): el botón "×" quita "ctx" de la
         // URL en vez de dejarlo colgado.
         await paginaFria.Locator(".workspace-cerrar").ClickAsync();
-        await paginaFria.WaitForURLAsync(url => !url.Contains("ctx="));
+        await Assertions.Expect(paginaFria).Not.ToHaveURLAsync(new Regex("ctx="), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
     }
 
     /// <summary>
@@ -329,7 +329,8 @@ public class DeepLinksTests(WebAppFixture fixture)
         // así que si la URL no cambia el fallo es de la feature, no del clic.
         try
         {
-            await page.WaitForURLAsync(url => url.Contains("conversacion=") && url != urlConversacionOriginal);
+            await page.WaitForFunctionAsync(
+                "original => location.href !== original && location.href.includes('conversacion=')", urlConversacionOriginal);
         }
         catch (TimeoutException ex)
         {
