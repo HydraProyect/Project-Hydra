@@ -3,16 +3,6 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Instancia propia bajo <c>cae_app_runtime</c>: la concesión de SoporteLectura que
-/// siembran estos tests, y la Sesión Privilegiada que abren, no deben aparecer en
-/// ninguna pantalla de <see cref="AccesoBajoRolRuntimeTests"/>.
-/// </summary>
-public sealed class WebAppFixtureSoporteBajoRuntime : WebAppFixtureBajoRuntime;
-
-[CollectionDefinition("AppCollectionSoporteBajoRuntime")]
-public class AppCollectionSoporteBajoRuntime : ICollectionFixture<WebAppFixtureSoporteBajoRuntime>;
-
-/// <summary>
 /// Actor de Plataforma TALVEG con Sesión Privilegiada y sin Usuario simulado, en los
 /// listados de <c>/centros</c>, <c>/trabajadores</c> y <c>/empresas</c>, con la conexión
 /// autenticada como <c>cae_app_runtime</c> y el <c>SET ROLE cae_app_soporte</c> real del
@@ -26,10 +16,11 @@ public class AppCollectionSoporteBajoRuntime : ICollectionFixture<WebAppFixtureS
 /// pantalla publica hoy ese formulario.
 /// </para>
 /// </summary>
-[Collection("AppCollectionSoporteBajoRuntime")]
-public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRuntime fixture)
+[Collection("AppCollectionBajoRuntime")]
+public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureBajoRuntime fixture)
 {
     private const int CargasPorRuta = 5;
+    private const int IntentosExpandir = 4;
 
     private static readonly string[] Rutas = ["/centros", "/trabajadores", "/empresas"];
 
@@ -50,7 +41,7 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
             var respuesta = await pagina.GotoAsync($"{fixture.BaseUrl}{ruta}");
 
             Assert.True(respuesta!.Status == 200, $"{ruta}, carga {carga}: respondió {respuesta.Status}.");
-            await EsperarListadoConFilasAsync(pagina);
+            await EsperarListadoEnSesionPrivilegiadaAsync(pagina, ruta);
         }
 
         Assert.Empty(fallos);
@@ -73,6 +64,8 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
         {
             var respuesta = await pagina.GotoAsync($"{fixture.BaseUrl}{ruta}");
             Assert.True(respuesta!.Status == 200, $"{ruta} respondió {respuesta.Status}.");
+            AsegurarRuta(pagina, ruta);
+            await Assertions.Expect(pagina.Locator(".nav-principal")).ToBeVisibleAsync();
         }
 
         Assert.Empty(fallos);
@@ -99,8 +92,7 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
         var modal = pagina.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Abrir acceso de soporte", Exact = true });
         await modal.GetByLabel("Motivo", new LocatorGetByLabelOptions { Exact = true }).FillAsync("E2E: ventana de soporte bajo runtime");
         await modal.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Abrir acceso", Exact = true }).ClickAsync();
-        await tarjeta.GetByText("Acceso abierto", new LocatorGetByTextOptions { Exact = true })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await Assertions.Expect(modal).ToBeHiddenAsync(new LocatorAssertionsToBeHiddenOptions { Timeout = 10_000 });
 
         await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/");
         await Ayudas.CambiarClienteActivoAsync(pagina, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
@@ -110,8 +102,10 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
         {
             var respuesta = await pagina.GotoAsync($"{fixture.BaseUrl}{ruta}");
             Assert.True(respuesta!.Status == 200, $"{ruta} respondió {respuesta.Status}.");
-            await pagina.Locator(".aviso-sesion-soporte").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await Assertions.Expect(pagina.Locator("[data-limite-errores]")).ToHaveCountAsync(0);
+            AsegurarRuta(pagina, ruta);
+            await Assertions.Expect(pagina.Locator(".aviso-sesion-soporte")).Not.ToHaveCountAsync(0);
+            await ExpandirPorElCircuitoAsync(pagina);
+            await AsegurarListadoSinErroresAsync(pagina);
         }
 
         Assert.Empty(fallos);
@@ -137,9 +131,10 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
             var respuesta = await pagina.GotoAsync($"{fixture.BaseUrl}/centros");
 
             Assert.Equal(200, respuesta!.Status);
-            await Assertions.Expect(pagina.GetByText("No pudimos cargar los centros"))
+            await Assertions.Expect(pagina.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Reintentar", Exact = true }))
                 .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 30_000 });
             await Assertions.Expect(pagina.Locator(".enlace-nombre-fila")).ToHaveCountAsync(0);
+            await Assertions.Expect(pagina.Locator("[data-limite-errores]")).ToHaveCountAsync(0);
         }
         finally
         {
@@ -180,12 +175,12 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
             """,
             ("usuario", usuarioId));
 
-        var token = await pagina.Locator("input[name=__RequestVerificationToken]").First.GetAttributeAsync("value");
+        var token = await pagina.EvaluateAsync<string>("document.querySelector('input[name=__RequestVerificationToken]').value");
         var respuesta = await contexto.APIRequest.PostAsync($"{fixture.BaseUrl}/cuenta/soporte/abrir", new APIRequestContextOptions
         {
             MaxRedirects = 0,
             Form = contexto.APIRequest.CreateFormData()
-                .Set("__RequestVerificationToken", token!)
+                .Set("__RequestVerificationToken", token)
                 .Set("concesionPrivilegioId", concesion)
                 .Set("tenantObjetivoId", tenantObjetivo)
                 .Set("motivo", "E2E: Soporte TALVEG bajo runtime")
@@ -197,16 +192,57 @@ public class SoporteTalvegEnListadosBajoRuntimeTests(WebAppFixtureSoporteBajoRun
         Assert.Equal("/", respuesta.Headers["location"]);
 
         await pagina.GotoAsync(fixture.BaseUrl);
-        await pagina.Locator(".aviso-sesion-soporte").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Assertions.Expect(pagina.Locator(".form-salir-sesion-soporte")).ToHaveCountAsync(1);
     }
 
-    private static async Task EsperarListadoConFilasAsync(IPage pagina)
+    /// <summary>
+    /// El botón de salir solo existe en la rama de Sesión Privilegiada de <c>TrazaSoporte</c>,
+    /// no en la de ventana de Soporte. Las filas llegan ya con el prerender, así que no prueban
+    /// la carga del circuito: esa la prueba el clic atendido, y después la lista sigue con filas.
+    /// </summary>
+    private static async Task EsperarListadoEnSesionPrivilegiadaAsync(IPage pagina, string ruta)
     {
-        await pagina.Locator(".aviso-sesion-soporte").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await pagina.Locator(".enlace-nombre-fila").First.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        AsegurarRuta(pagina, ruta);
+        await Assertions.Expect(pagina.Locator(".form-salir-sesion-soporte")).ToHaveCountAsync(1);
+        await ExpandirPorElCircuitoAsync(pagina);
+        await AsegurarListadoSinErroresAsync(pagina);
     }
 
-    /// <summary>También las peticiones secundarias: un 500 del circuito o de un endpoint no aparece en la navegación.</summary>
+    /// <summary>Un clic anterior a la conexión del circuito se pierde en silencio: se repite solo si nada se abrió.</summary>
+    private static async Task ExpandirPorElCircuitoAsync(IPage pagina)
+    {
+        const string filaAbierta = ".boton-expandir-fila[aria-expanded=true]";
+        var expandir = pagina.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Expandir todo", Exact = true });
+
+        for (var intento = 1; ; intento++)
+        {
+            if (await pagina.Locator(filaAbierta).CountAsync() == 0)
+                await expandir.ClickAsync(new LocatorClickOptions { Timeout = 30_000 });
+
+            try
+            {
+                await pagina.WaitForSelectorAsync(filaAbierta, new PageWaitForSelectorOptions { Timeout = 5_000 });
+                return;
+            }
+            catch (TimeoutException) when (intento < IntentosExpandir)
+            {
+            }
+        }
+    }
+
+    private static async Task AsegurarListadoSinErroresAsync(IPage pagina)
+    {
+        await Assertions.Expect(pagina.Locator(".enlace-nombre-fila")).Not.ToHaveCountAsync(0);
+        await Assertions.Expect(pagina.Locator("[data-limite-errores]")).ToHaveCountAsync(0);
+        await Assertions.Expect(pagina.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Reintentar", Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(pagina.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
+    }
+
+    /// <summary>GotoAsync sigue redirecciones: el 200 de una pantalla de login o de acceso denegado no es el listado.</summary>
+    private static void AsegurarRuta(IPage pagina, string ruta) =>
+        Assert.Equal(ruta, new Uri(pagina.Url).AbsolutePath);
+
+    /// <summary>También las peticiones secundarias; los errores por el WebSocket del circuito no pasan por aquí.</summary>
     private static List<string> RegistrarRespuestasFallidas(IPage pagina)
     {
         var fallos = new List<string>();

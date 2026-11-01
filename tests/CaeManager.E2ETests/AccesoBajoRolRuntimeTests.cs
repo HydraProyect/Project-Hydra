@@ -18,7 +18,7 @@ namespace CaeManager.E2ETests;
 /// exista contexto de Tenant— corra dentro del test.
 /// </para>
 /// </summary>
-public class WebAppFixtureBajoRuntime : WebAppFixture
+public sealed class WebAppFixtureBajoRuntime : WebAppFixture
 {
     private const string ContrasenaRuntimeDePruebas = "runtime-de-pruebas";
 
