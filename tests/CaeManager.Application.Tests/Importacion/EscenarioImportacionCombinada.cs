@@ -18,6 +18,7 @@ internal sealed class EscenarioImportacionCombinada
 {
     public EmpresaRepositorioConFallo EmpresaRepositorio { get; } = new();
     public OperacionImportacionRepositorioFalso OperacionImportacionRepositorio { get; } = new();
+    public CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso TrabajadorRepositorio { get; } = new();
 
     public EjecutarImportacionCombinadaCommandHandler Handler()
     {
@@ -29,7 +30,7 @@ internal sealed class EscenarioImportacionCombinada
         return new EjecutarImportacionCombinadaCommandHandler(
             EmpresaRepositorio, new RelacionesNoUsadas(),
             new CaeManager.Application.Tests.Centros.CentroRepositorioFalso(),
-            new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
+            TrabajadorRepositorio,
             new PlantillasFalsas.CentrosQueryContextFalso(), empresas, new PlantillasFalsas.TrabajadoresQueryContextFalso(),
             OperacionImportacionRepositorio, new AdministracionPermitida());
     }
