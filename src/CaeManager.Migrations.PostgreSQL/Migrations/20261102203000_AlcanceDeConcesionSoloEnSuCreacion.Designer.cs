@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261101193000_AlcanceDeConcesionSoloEnSuCreacion")]
+    [Migration("20261102203000_AlcanceDeConcesionSoloEnSuCreacion")]
     partial class AlcanceDeConcesionSoloEnSuCreacion
     {
         /// <inheritdoc />
@@ -94,6 +94,95 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("ClavesApi", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ApiKeys.ClaveIntegracionTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<string>>("AlcancesConcedidos")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("Alcances");
+
+                    b.Property<DateTime>("CaducaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("HashClave")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("InvalidadaDefinitivamenteEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MotivoSuspension")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PrefijoVisible")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SistemaConsumidor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("SucedeAClaveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SuspendidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UltimoUsoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HashClave")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "SucedeAClaveId")
+                        .IsUnique()
+                        .HasFilter("\"SucedeAClaveId\" IS NOT NULL");
+
+                    b.ToTable("ClavesIntegracionTenant", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
@@ -10092,6 +10181,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateTime?>("EstadoComercialActualizadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IntegracionHabilitada")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("LogoActualizadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -10141,6 +10233,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             EsPlataforma = true,
                             Estado = "Activo",
                             EstadoComercial = "SinSuscripcion",
+                            IntegracionHabilitada = false,
                             Nombre = "Organización principal",
                             PerfilVocabulario = "ClienteDirecto",
                             PuedeActuarComoOperadorCaeExterno = false
