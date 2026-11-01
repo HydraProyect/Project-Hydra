@@ -172,9 +172,10 @@ public class VigilanciaVisitasUrgentesHostedService(
     }
 
     /// <summary>
-    /// Cuántas gestiones urgentes hay en el Tenant entero. Recorre todas las páginas: las Visitas en
-    /// curso son candidatas, van delante por fecha y no cuentan, así que una sola página podría
-    /// quedarse sin ninguna urgente de verdad.
+    /// Cuántas gestiones urgentes hay en el Tenant entero. Lee todas las candidatas: las Visitas en
+    /// curso lo son, van delante por fecha y no cuentan, así que una sola página podría quedarse sin
+    /// ninguna urgente de verdad. Un cero aquí retira el aviso (ver <see cref="SincronizarAvisos"/>), de
+    /// ahí que <c>LeerTodasAsync</c> no pueda saltarse una fila aunque otras cambien durante la lectura.
     /// </summary>
     protected virtual async Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
@@ -188,23 +189,14 @@ public class VigilanciaVisitasUrgentesHostedService(
             dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos, dbContext);
         var sugerenciasHandler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(dbContext, dbContext, dbContext, alcanceDatos);
 
-        var visitas = new List<VisitaListaDto>();
-        var numeroPagina = 1;
-        ResultadoPaginado<VisitaListaDto> pagina;
-        do
-        {
-            pagina = await visitasHandler.CalcularAsync(
-                GestionesUrgentesDeVisita.ConsultaCandidatas(numeroPagina++), centroIdsVisibles: null, stoppingToken);
-            visitas.AddRange(pagina.Elementos);
-        }
-        while (pagina.Elementos.Count > 0 && visitas.Count < pagina.TotalElementos);
+        var visitas = await visitasHandler.LeerTodasAsync(
+            GestionesUrgentesDeVisita.ConsultaCandidatas(), centroIdsVisibles: null, stoppingToken);
 
         var sugerencias = await sugerenciasHandler.CalcularAsync(centroIdsVisibles: null, stoppingToken);
         var parametros = await dbContext.ParametrosSistema.SingleAsync(stoppingToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        // DistinctBy: la paginación no usa instantánea y una Visita podría repetirse entre dos páginas.
-        return visitas.DistinctBy(v => v.Id).Count(GestionesUrgentesDeVisita.EsUrgente)
+        return visitas.Count(GestionesUrgentesDeVisita.EsUrgente)
             + sugerencias.Count(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
     }
 

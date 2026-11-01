@@ -14,8 +14,8 @@ public static class GestionesUrgentesDeVisita
     /// Las Visitas candidatas. Solo es la candidatura: trae también las Visitas en curso, que
     /// <see cref="EsUrgente(VisitaListaDto)"/> descarta.
     /// </summary>
-    public static ObtenerVisitasQuery ConsultaCandidatas(int pagina = 1) =>
-        new(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, Pagina: pagina, TamanoPagina: 200);
+    public static ObtenerVisitasQuery ConsultaCandidatas() =>
+        new(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200);
 
     public static bool EsUrgente(VisitaListaDto visita) =>
         visita.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica;
