@@ -93,11 +93,12 @@
             else
             {
                 <ul class="lista-items-subida-masiva">
+                    @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var item in ItemsFiltrados)
                     {
-                        <li @key="item.ClaveLocal" class="@(item.Expandido ? "item-subida-masiva item-subida-masiva-abierto" : "item-subida-masiva")">
+                        <li @key="claves.De(item.ClaveLocal)" class="@(item.Expandido ? "item-subida-masiva item-subida-masiva-abierto" : "item-subida-masiva")">
                             <div class="item-subida-masiva-fila">
-                                @if (item.MiniaturaBase64 is not null) { <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="@Textos["MiniaturaAlt", item.NombreArchivo]" /> }
+                                @if (item.MiniaturaDataUri is { } miniatura) { <img class="miniatura-subida-masiva" src="@miniatura" alt="@Textos["MiniaturaAlt", item.NombreArchivo]" /> }
                                 else { <div class="miniatura-subida-masiva miniatura-subida-masiva-vacia"><Icono Nombre="documentos" /></div> }
                                 <div class="item-subida-masiva-info">
                                     <span class="item-subida-masiva-nombre">@item.NombreArchivo</span>
@@ -126,7 +127,7 @@
                                     @if (item.MensajeError is not null) { <span class="item-subida-masiva-error">@item.MensajeError</span> }
                                 </div>
                                 <div class="item-subida-masiva-acciones">
-                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-expanded="@(item.Expandido ? "true" : "false")" OnClick="() => AlternarExpandido(item)">@Textos["Gestionar"]</Boton> }
+                                    @if (!_esSoloLectura && item.Estado == EstadoItem.PendienteConfirmar) { <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" aria-expanded="@(item.Expandido ? "true" : "false")" OnClick="() => AlternarExpandidoAsync(item)">@Textos["Gestionar"]</Boton> }
                                     else if (item.Estado is EstadoItem.Error or EstadoItem.Descartado) { <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => QuitarDeLaLista(item)">@Textos["QuitarDeLaLista"]</Boton> }
                                     else if (item.Estado == EstadoItem.Creado && item.DocumentoId is { } documentoId) { <a class="enlace-gestionar-subida" href="@($"/documentos?documentoId={documentoId}")">@Textos["Gestionar"]</a> }
                                 </div>
@@ -135,7 +136,7 @@
                             {
                                 <div class="item-subida-masiva-confirmacion">
                                     <div class="item-subida-masiva-vista">
-                                        @if (item.ContenidoPdf is not null) { <iframe class="previsualizacion-documento" src="@ConstruirDataUriPdf(item.ContenidoPdf)" title="@Textos["VistaPreviaTitulo", item.NombreArchivo]"></iframe> }
+                                        @if (VistaPreviaDe(item) is { } vistaPrevia) { <iframe class="previsualizacion-documento" src="@vistaPrevia" title="@Textos["VistaPreviaTitulo", item.NombreArchivo]"></iframe> }
                                         <span class="ayuda-vista-subida">@Textos["VistaPreviaPie"]</span>
                                     </div>
                                     <div class="item-subida-masiva-formulario">
@@ -158,7 +159,7 @@
                                         }
                                         <div class="acciones-formulario">
                                             <Boton Variante="VarianteBoton.Primario" Cargando="@item.Confirmando" OnClick="() => ConfirmarAsync(item)">@Textos["ConfirmarYCrear"]</Boton>
-                                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlternarExpandido(item)">@Textos["CerrarSinConfirmar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => AlternarExpandidoAsync(item)">@Textos["CerrarSinConfirmar"]</Boton>
                                             <Boton Variante="VarianteBoton.Fantasma" Deshabilitado="@item.Confirmando" OnClick="() => _paraDescartar = item">@Textos["Descartar"]</Boton>
                                             <span class="ayuda-fecha-subida">@Textos["ConfirmarAviso"]</span>
                                         </div>

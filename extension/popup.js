@@ -13,6 +13,9 @@ const listaProveedores = document.getElementById("lista-proveedores");
 const campoCodigoManual = document.getElementById("codigo-manual");
 const botonConectarManual = document.getElementById("boton-conectar-manual");
 const errorManual = document.getElementById("error-manual");
+const grupoTenant = document.getElementById("grupo-tenant");
+const selectorTenant = document.getElementById("selector-tenant");
+const avisoTenant = document.getElementById("aviso-tenant");
 
 function enviarMensaje(mensaje) {
   return chrome.runtime.sendMessage(mensaje);
@@ -35,9 +38,35 @@ async function inicializar() {
       hour: "2-digit",
       minute: "2-digit",
     });
+    await cargarTenantsAsync();
     await cargarPendientesAsync();
   }
 }
+
+// La lista la decide TALVEG. Con una sola opción y sin aviso no hay nada que elegir.
+async function cargarTenantsAsync() {
+  const resultado = await enviarMensaje({ accion: "obtenerTenants" });
+  mostrarError(avisoTenant, resultado.ok ? "" : resultado.error);
+  if (!resultado.ok) return;
+
+  selectorTenant.replaceChildren();
+  if (resultado.avisoRetirada) {
+    mostrarError(avisoTenant, "Esa Empresa gestionada ya no está autorizada para tu usuario. Elige otra para seguir.");
+    const marcador = new Option("Elige una Empresa gestionada", "", true, true);
+    marcador.disabled = true;
+    selectorTenant.add(marcador);
+  }
+  for (const tenant of resultado.tenants)
+    selectorTenant.add(new Option(tenant.nombre, tenant.tenantId, false, tenant.tenantId === resultado.seleccionado));
+  grupoTenant.hidden = resultado.tenants.length < 2 && !resultado.avisoRetirada;
+}
+
+selectorTenant.addEventListener("change", async () => {
+  const resultado = await enviarMensaje({ accion: "elegirTenant", tenantId: selectorTenant.value });
+  mostrarError(avisoTenant, resultado.ok ? "" : resultado.error);
+  await cargarTenantsAsync();
+  await cargarPendientesAsync();
+});
 
 // Conexión a mano: la salida para cuando el enlace automático no está
 // disponible en ese entorno o en ese navegador. El campo se vacía en cuanto
@@ -82,7 +111,8 @@ async function cargarPendientesAsync() {
     const resultado = await enviarMensaje({ accion: "listarPendientes" });
 
     if (!resultado.ok) {
-      mostrarError(errorLista, resultado.error);
+      if (resultado.seleccionRetirada) await cargarTenantsAsync();
+      else mostrarError(errorLista, resultado.error);
       return;
     }
 

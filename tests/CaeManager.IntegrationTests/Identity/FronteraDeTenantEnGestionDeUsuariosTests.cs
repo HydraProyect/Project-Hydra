@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
@@ -23,6 +24,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting.Internal;
@@ -157,6 +159,37 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
 
         (await directorio.ObtenerVisiblesAsync()).Select(u => u.Id).Should().Contain(_usuarioAjenoDelegado);
         (await directorio.ObtenerRolesDeOperadoresDelegadosAsync()).Should().ContainKey(_usuarioAjenoDelegado);
+    }
+
+    [Fact]
+    public async Task El_selector_por_rol_proyecta_la_cuenta_delegada_y_excluye_la_ajena_sin_delegacion()
+    {
+        Guid ajenoSinDelegacion;
+        using (var ambitoSiembra = _servicios.CreateScope())
+        {
+            var cuentas = ambitoSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            ajenoSinDelegacion = await CrearAsync(cuentas, "gestor-sin-delegacion@x.test", _tenantAjeno, Roles.GestorCae);
+
+            // Nombre distinto del correo, para que un cruce de columnas no pase desapercibido.
+            var delegada = await cuentas.FindByIdAsync(_usuarioAjenoDelegado.ToString());
+            delegada!.NombreCompleto = "Gestor Ajeno";
+            delegada.Avatar = "zorro-verde";
+            (await cuentas.UpdateAsync(delegada)).Succeeded.Should().BeTrue();
+        }
+
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
+
+        var gestores = await directorio.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
+
+        gestores.Should().ContainSingle(u => u.Id == _usuarioAjenoDelegado).Which.Should().Be(
+            new CuentaVisibleEnRol(_usuarioAjenoDelegado, "Gestor Ajeno", "gestor-ajeno@x.test", "zorro-verde"));
+        gestores.Select(u => u.Id).Should().NotContain(ajenoSinDelegacion);
+        (await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador)).Select(u => u.Id)
+            .Should().ContainSingle().Which.Should().Be(_actorAdministrador);
+        ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>()
+            .ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty();
     }
 
     [Fact]
@@ -328,7 +361,9 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(sp.GetRequiredService<CaeManagerDbContext>(), administrador),
-                sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>())
+                sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>(),
+                new CaeManager.Infrastructure.Persistence.AdministradoresDelTenant(
+                    sp.GetRequiredService<CaeManagerDbContext>(), sp.GetRequiredService<DirectorioUsuariosTenant>()))
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -373,6 +408,124 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         (await comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
             .FindByIdAsync(activada.ToString())).Should().NotBeNull("la cuenta activada no se borra");
     }
+
+    /// <summary>
+    /// SEG-1 (auditoría 2026-10-29): Identity no rota el sello de seguridad al cambiar
+    /// roles, y la cookie y el circuito Blazor abiertos conservaban el rol anterior hasta
+    /// el tope de 12 h. <c>ProveedorAutenticacionRevalidada</c> y la cookie dan por
+    /// caducada una sesión cuyo sello ya no es el de la base
+    /// (<c>SignInManager.ValidateSecurityStampAsync</c> compara exactamente esto), así
+    /// que la propiedad observable es que el sello persistido cambie con el rol y en la
+    /// misma escritura: se relee en un ámbito nuevo, desde PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_rol_rota_el_sello_de_seguridad_persistido()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        string selloAnterior;
+        using (var alta = _servicios.CreateScope())
+        {
+            var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            cuentaId = await CrearAsync(usuarios, "cambia-de-rol@x.test", _tenantPropio, Roles.GestorCae);
+            var activada = await usuarios.FindByIdAsync(cuentaId.ToString());
+            (await usuarios.AddPasswordAsync(activada!, "Contrasena-De-Prueba-1")).Succeeded.Should().BeTrue(
+                "premisa: una cuenta activada, la única que puede tener sesión abierta");
+            selloAnterior = (await usuarios.FindByIdAsync(cuentaId.ToString()))!.SecurityStamp!;
+        }
+
+        using (var ambito = _servicios.CreateScope())
+        {
+            var cambio = await CrearCuentas(ambito.ServiceProvider).CambiarRolAsync(cuentaId, Roles.Consulta);
+            cambio.Desenlace.Should().Be(DesenlaceCambioRol.Cambiado);
+        }
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        cuenta!.SecurityStamp.Should().NotBe(selloAnterior,
+            "con el sello anterior la sesión abierta seguiría valiendo con el rol GestorCae");
+    }
+
+    /// <summary>
+    /// La cuenta que entró por SSO y espera rol (pestaña «Pendientes» de /roles) sí puede
+    /// tener una sesión abierta sin rol: asignárselo también rota el sello.
+    /// </summary>
+    [Fact]
+    public async Task Asignar_rol_a_una_cuenta_SSO_sin_rol_rota_el_sello_de_seguridad_persistido()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        string selloAnterior;
+        using (var alta = _servicios.CreateScope())
+        {
+            var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var usuario = new ApplicationUser
+            {
+                UserName = "sso-sin-rol@x.test",
+                Email = "sso-sin-rol@x.test",
+                NombreCompleto = "SSO sin rol",
+                TenantId = _tenantPropio,
+            };
+            (await usuarios.CreateAsync(usuario)).Succeeded.Should().BeTrue();
+            (await usuarios.AddLoginAsync(usuario, new UserLoginInfo("Microsoft", "sso-sin-rol", "Microsoft"))).Succeeded
+                .Should().BeTrue("premisa: acceso externo, así que puede tener sesión sin contraseña");
+            cuentaId = usuario.Id;
+            selloAnterior = (await usuarios.FindByIdAsync(cuentaId.ToString()))!.SecurityStamp!;
+        }
+
+        using (var ambito = _servicios.CreateScope())
+            (await CrearCuentas(ambito.ServiceProvider).AsignarRolAsync(cuentaId, Roles.Consulta)).EsExitoso.Should().BeTrue();
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        cuenta!.SecurityStamp.Should().NotBe(selloAnterior);
+    }
+
+    /// <summary>
+    /// Revisión Codex del incremento: el enlace de activación lleva el sello con el que se
+    /// emitió. Una cuenta pendiente no puede tener sesión, así que cambiarle el rol no rota
+    /// el sello y el enlace ya enviado sigue valiendo.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_rol_de_una_cuenta_pendiente_no_invalida_su_enlace_de_activacion()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        using (var alta = _servicios.CreateScope())
+            cuentaId = await CrearAsync(alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                "pendiente-cambia-de-rol@x.test", _tenantPropio, Roles.GestorCae);
+
+        string token;
+        using (var emision = _servicios.CreateScope())
+        {
+            var generado = await CrearCuentas(emision.ServiceProvider).GenerarTokenActivacionAsync(cuentaId);
+            generado.EsExitoso.Should().BeTrue();
+            // El puerto lo devuelve en Base64Url para el enlace; Identity verifica el token en claro.
+            token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(generado.Valor));
+        }
+
+        using (var ambito = _servicios.CreateScope())
+            (await CrearCuentas(ambito.ServiceProvider).CambiarRolAsync(cuentaId, Roles.Consulta))
+                .Desenlace.Should().Be(DesenlaceCambioRol.Cambiado);
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        (await releidos.VerifyUserTokenAsync(cuenta!, releidos.Options.Tokens.PasswordResetTokenProvider,
+            UserManager<ApplicationUser>.ResetPasswordTokenPurpose, token)).Should().BeTrue(
+            "el enlace ya enviado tiene que seguir activando la cuenta");
+    }
+
+    private static GestionCuentasUsuarioIdentity CrearCuentas(IServiceProvider sp) => new(
+        sp.GetRequiredService<UserManager<ApplicationUser>>(),
+        sp.GetRequiredService<PuertaAccesoDatos>(),
+        sp.GetRequiredService<DirectorioUsuariosTenant>(),
+        sp.GetRequiredService<CaeManagerDbContext>());
 
     private static PaginaUsuarios CrearPagina(
         IServiceProvider servicios, Guid actorId, bool esAdministrador, EmailServiceEspia? emailService = null)
@@ -528,10 +681,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             object respuesta = request switch
             {
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
-                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, cancellationToken),
+                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                    cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
-                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio,
+                    new OtroAdministradorSiempre()).Handle(c, cancellationToken),
+                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
@@ -587,5 +742,16 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     {
         public Task BloquearExclusivoAsync(Guid usuarioId, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task BloquearCompartidoAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La regla del último Administrador, sin candado: este mediador no abre transacción. Aquí
+    /// siempre hay otro Administrador; la regla se prueba en <c>UltimoAdministradorBajoRuntimeTests</c>.
+    /// </summary>
+    private sealed class OtroAdministradorSiempre : CaeManager.Application.Usuarios.IAdministradoresDelTenant
+    {
+        public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> EsElUltimoAdministradorAsync(Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 }

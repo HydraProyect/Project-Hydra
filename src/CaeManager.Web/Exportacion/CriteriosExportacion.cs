@@ -1,3 +1,5 @@
+using CaeManager.Application.Documentos;
+
 namespace CaeManager.Web.Exportacion;
 
 /// <summary>
@@ -20,15 +22,18 @@ public static class CriteriosExportacion
         valor is { Length: > 0 and <= 40 } && valor.All(char.IsAsciiLetter) ? valor : null;
 
     /// <summary>
-    /// Una selección de estados (la franja de estado deja marcar varios): nombres separados por coma.
-    /// Cada uno pasa por <see cref="SoloNombre"/>; si alguno no es un nombre, nada llega al rastro.
+    /// El filtro de estado documental tal como lo aplica la consulta del listado
+    /// (<see cref="EstadoDocumentalFiltro.Separar"/>): solo los valores que la consulta reconoce
+    /// (un estado por su nombre o <see cref="EstadoDocumentalFiltro.SinDocumentos"/>), separados por coma. Lo que
+    /// la consulta ignora no filtró nada y no llega al rastro, aunque tenga forma de nombre.
     /// </summary>
-    public static string? SoloNombres(string? valor)
+    public static string? EstadosDocumentalesAplicados(string? filtro)
     {
-        if (valor is not { Length: > 0 and <= 200 })
-            return null;
+        var aplicados = EstadoDocumentalFiltro.Separar(filtro)
+            .Where(v => v == EstadoDocumentalFiltro.SinDocumentos
+                || EstadoDocumentalFiltro.EsNombreDeEstado(v, out _))
+            .ToList();
 
-        var nombres = valor.Split(',');
-        return nombres.All(n => SoloNombre(n) is not null) ? valor : null;
+        return aplicados.Count > 0 ? string.Join(EstadoDocumentalFiltro.Separador, aplicados) : null;
     }
 }

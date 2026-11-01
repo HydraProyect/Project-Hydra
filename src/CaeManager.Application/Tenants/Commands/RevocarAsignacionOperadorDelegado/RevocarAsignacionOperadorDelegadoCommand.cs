@@ -31,7 +31,8 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
     IDelegacionTenantRepository delegacionRepositorio,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITenantActual tenantActual)
     : IRequestHandler<RevocarAsignacionOperadorDelegadoCommand, Result>
 {
     public async Task<Result> Handle(RevocarAsignacionOperadorDelegadoCommand request, CancellationToken cancellationToken)
@@ -48,14 +49,36 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
             !await DesactivarDelegacionTenantCommandHandler.DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService))
             return Result.Fallo(Error.Crear("AsignacionOperadorDelegado.NoEncontrada", "No encontramos esa asignación."));
 
+        // El Tenant de origen abre la lectura de la fila, pero borrarla exige que el
+        // Tenant activo sea un extremo de la delegación. Desde el Workspace operativo
+        // derivado de un tercero el DELETE no alcanzaría ninguna fila y EF lo convertiría
+        // en un DbUpdateConcurrencyException: se rechaza aquí, antes de tocar nada. Esta
+        // guarda solo restringe; la autoridad ya se decidió arriba por el Tenant de origen.
+        var tenantPropietarioId = delegacion.TenantClienteId;
+        var tenantActivo = tenantActual.TenantId;
+        if (tenantActivo != tenantPropietarioId && tenantActivo != delegacion.TenantConsultoraId)
+            return Result.Fallo(Error.Crear(
+                "AsignacionOperadorDelegado.NoAutorizado",
+                "Para retirar a esta persona, vuelve a tu organización."));
+
+        // La de un Operador CAE externo cierra además su cartera, que es dato del Tenant
+        // propietario: desde la casa del Operador CAE externo posicion_en_la_asignacion deja
+        // leerla pero no escribirla, y el guardado fallaría entero. Se rechaza antes de
+        // tocar nada, tenga o no cartera vigente, para que la regla no dependa del dato.
+        var deOperadorExterno = delegacion.Proposito == PropositoDelegacion.OperadorExterno;
+        if (deOperadorExterno && tenantActivo != tenantPropietarioId)
+            return Result.Fallo(Error.Crear(
+                "AsignacionOperadorDelegado.RequiereTenantPropietario",
+                "Pide a la organización cuyos datos gestiona que retire a esta persona."));
+
         repositorio.Eliminar(asignacion);
 
         // La fila antigua se borra; la cartera se CIERRA. La diferencia es
         // deliberada: el modelo nuevo conserva el rastro de quién operó qué y
         // hasta cuándo, y borrarla perdería exactamente eso.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
+        if (deOperadorExterno)
             await asignacionesWriter.CerrarCarteraOperadorAsync(
-                delegacion.TenantClienteId, delegacion.TenantConsultoraId,
+                tenantPropietarioId, delegacion.TenantConsultoraId,
                 asignacion.UsuarioId, MotivoCierreAsignacion.Revocada, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

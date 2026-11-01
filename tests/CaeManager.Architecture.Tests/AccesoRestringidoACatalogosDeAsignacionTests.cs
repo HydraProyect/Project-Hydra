@@ -242,6 +242,8 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // actual (Z2-6); la barrera de escritura sigue siendo la de RLS.
         "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
         "src/CaeManager.Application/Plataforma/Commands/CerrarSesionPrivilegiada/CerrarSesionPrivilegiadaCommand.cs",
+        // Revocacion puntual por Id: el handler exige beneficiario o concedente, igual que RLS.
+        "src/CaeManager.Application/Plataforma/Commands/RevocarConcesionPrivilegio/RevocarConcesionPrivilegioCommand.cs",
         "src/CaeManager.Infrastructure/Plataforma/PlataformaWriter.cs",
 
         // Retirada de tenant de demo (incidente del 2026-08-28): limpia

@@ -127,7 +127,7 @@ public static class InfrastructureServiceCollectionExtensions
         services
             .AddIdentityCore<ApplicationUser>(opciones =>
             {
-                opciones.Password.RequiredLength = 10;
+                opciones.Password.RequiredLength = 12;
                 opciones.Password.RequireNonAlphanumeric = false;
                 opciones.User.RequireUniqueEmail = true;
                 opciones.SignIn.RequireConfirmedAccount = false;
@@ -159,8 +159,20 @@ public static class InfrastructureServiceCollectionExtensions
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders()
+            // Detrás de AddDefaultTokenProviders, con su mismo nombre: sustituye al proveedor del
+            // autenticador de serie por uno en el que un código TOTP aceptado no vuelve a valer
+            // (ASVS V2.8.4). Lo usan el login, el alta del autenticador y la reautenticación.
+            .AddTokenProvider<ProveedorTotpDeUnSoloUso>(TokenOptions.DefaultAuthenticatorProvider)
             // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
             .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
+
+        services.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
+
+        services.AddSingleton(sp =>
+        {
+            using var scope = sp.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            return new VerificacionContrasenaFicticia(scope.ServiceProvider.GetRequiredService<IPasswordHasher<ApplicationUser>>());
+        });
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -193,6 +205,8 @@ public static class InfrastructureServiceCollectionExtensions
             sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
         services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
         services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
+        services.AddScoped<CaeManager.Infrastructure.Retencion.PurgaRegistrosCaducados>();
+        services.AddHostedService<CaeManager.Infrastructure.Retencion.PurgaRegistrosCaducadosHostedService>();
 
         // Incidentes de seguridad sospechados (plano de Plataforma): señales de alta certeza,
         // registro por la función app_registrar_incidente_seguridad y alerta saliente al
@@ -229,6 +243,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         // Ni la marca del TOTP de la sesión, que exige la apertura de una Sesión Privilegiada.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
+        // Ni el identificador de sesión: sin él, la cookie renovada se rechaza en la revalidación siguiente.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        // Ni la marca de inicio de sesión, que el alta del TOTP lee como autenticación reciente.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
+        services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        services.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
+        services.AddScoped<ILecturaCuentaPropia, LecturaCuentaPropia>();
+        services.AddScoped<IPreferenciasCuentaPropia, PreferenciasCuentaPropia>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -316,6 +338,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            // S-C-3: nunca seguir redirecciones con el Bearer de la línea.
+            .ConfigurePrimaryHttpMessageHandler(WhatsAppCloudApiClient.CrearManejadorSinRedirecciones)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
 
         services.AvisarSiConfiguracionAMedias(WhatsAppCloudApiOptions.SeccionConfiguracion, opcionesWhatsApp,
@@ -459,6 +483,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Integraciones.ISolicitudConexionMicrosoft365Repository, SolicitudConexionMicrosoft365Repository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ILineaWhatsAppRepository, LineaWhatsAppRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IProveedorPlataformaCaeRepository, ProveedorPlataformaCaeRepository>();
+        services.AddScoped<CaeManager.Domain.Integraciones.IConexionPlataformaCaeRepository, ConexionPlataformaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Plataforma.IOrdenMenuLateralRepository, OrdenMenuLateralRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
@@ -470,11 +495,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
-        services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -531,6 +556,8 @@ public static class InfrastructureServiceCollectionExtensions
         // depende de la sesión: es del alcance del usuario, no del proceso.
         services.AddScoped<CaeManager.Application.Plataforma.ISesionPrivilegiadaActual,
             CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
+        services.AddScoped<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada,
+            CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual>();
         // PD-A3: abre el ámbito de elevación y, con él, mueve el rol Postgres
         // de la conexión de este ámbito de DI entre cae_app_soporte y
         // cae_app_aprovisionamiento. Scoped: depende de la conexión de ESTE
@@ -580,11 +607,14 @@ public static class InfrastructureServiceCollectionExtensions
         // administración necesitan sus listados, y los Commands solo la
         // comprobación de IDirectorioUsuariosService.
         services.AddScoped<DirectorioUsuariosTenant>();
+        services.AddScoped<CaeManager.Infrastructure.Autorizacion.ILecturaPersonasDelegadas, CaeManager.Infrastructure.Autorizacion.LecturaPersonasDelegadas>();
         services.AddScoped<IDirectorioUsuariosService>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Clientes.IDirectorioDestinosCartera>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
+        services.AddScoped<CaeManager.Application.Plataforma.IConcesionAdministradorPorPlataforma,
+            CaeManager.Infrastructure.Plataforma.ConcesionAdministradorPorPlataforma>();
         services.AddScoped<CaeManager.Application.Plataforma.IRevocacionOperadorCaeExternoPorSoporte,
             CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
@@ -592,6 +622,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Seguridad.Incidentes.Aviso.IIncidentesSeguridadPlataforma,
             CaeManager.Infrastructure.Plataforma.IncidentesSeguridadPlataforma>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
+        services.AddScoped<CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta.ILectorNombreCuenta, LectorNombreCuentaIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.
         services.AddScoped<CaeManager.Application.Usuarios.IGestionCuentasUsuario, GestionCuentasUsuarioIdentity>();
@@ -627,6 +658,21 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Tenants.Encargo.AutoridadSobreElEncargo>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
+
+        // Seguimiento de S-C-3 (ASVS 4.0.3 V12.1.1): un único presupuesto por proceso de
+        // los bytes de documento cargados en memoria, compartido por el almacenamiento y
+        // por la Subida múltiple. Singleton porque cuenta el proceso entero; un valor
+        // fuera de rango impide arrancar (ver OpcionesPresupuestoMemoriaDocumentos).
+        services.AddOptions<OpcionesPresupuestoMemoriaDocumentos>()
+            .Bind(configuration.GetSection(OpcionesPresupuestoMemoriaDocumentos.SeccionConfiguracion))
+            .Validate(o => o.SonValidas(),
+                $"{OpcionesPresupuestoMemoriaDocumentos.SeccionConfiguracion}: MaximoBytes tiene que ser al menos " +
+                $"{OpcionesPresupuestoMemoriaDocumentos.MinimoBytes} y EsperaMaxima, mayor que cero y de cinco minutos como mucho.")
+            .ValidateOnStart();
+        services.AddSingleton(sp => new PresupuestoMemoriaDocumentos(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpcionesPresupuestoMemoriaDocumentos>>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddSingleton<IPresupuestoMemoriaDocumentos>(sp => sp.GetRequiredService<PresupuestoMemoriaDocumentos>());
 
         // Único backend de almacenamiento de Documentos: disco local.
         //
@@ -673,6 +719,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
+        services.AddHostedService<LimpiezaTemporalesConversionWordHostedService>();
 
         // Política de retención RGPD: los plazos son decisión legal y viven en
         // configuración, no en el código (ver RetencionDatosOptions).
@@ -804,11 +851,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionRelevanciaCaeService, AnthropicDeteccionRelevanciaCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
-        // Decisiones cerradas del asistente de órdenes (MVP1, texto). Inerte por
-        // configuración: TypeSafe:Activo es false por defecto y hace falta además
-        // la clave — ver TypeSafeOptions por qué tener la clave no basta.
-        services.Configure<TypeSafeOptions>(configuration.GetSection(TypeSafeOptions.SeccionConfiguracion));
-        services.AddHttpClient<CaeManager.Application.AsistenteIa.Decisiones.IDecisionesCerradasAsistenteService, TypeSafeDecisionesCerradasService>(
+        // Las decisiones cerradas usan la misma configuración de Anthropic.
+        services.AddHttpClient<CaeManager.Application.AsistenteIa.Decisiones.IDecisionesCerradasAsistenteService, AnthropicDecisionesCerradasService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
@@ -816,50 +860,14 @@ public static class InfrastructureServiceCollectionExtensions
         // (Application) la satisface delegando en IDocumentAIRouterService,
         // registrada en ApplicationServiceCollectionExtensions.
         //
-        // IDocumentAIProvider: registro por interfaz general (no un typed
-        // client dedicado) — así IEnumerable<IDocumentAIProvider> recoge
-        // todos los proveedores para la Factory (ver
-        // Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
-        // registros importa: DocumentAIProviderFactory.ObtenerPorCapacidad
-        // conserva el orden de registro, y DocumentAIRouterService usa el
-        // primero de la lista como proveedor OCR sin reintento (a
-        // diferencia de la extracción estructurada, que sí reintenta con
-        // el segundo si el primero da poca confianza — ver Fase 41). Por
-        // eso Mistral (proveedor OCR especializado, registrado primero) se
-        // usa antes que Anthropic para OCR, mientras que para extracción
-        // estructurada Anthropic sigue siendo el primario (Fase 38-40,
-        // antes de tener claves reales) y Gemini el candidato de
-        // reintento — cambiar cuál es "primario" para estructuración es
-        // una decisión de benchmark, no algo que se cambie por tener una
-        // clave nueva (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
-        //
-        // ProveedorFalsoDocumentAI (Horizonte 1.6, ciclo documental E2E):
-        // SIEMPRE antes que los reales, gateado por
-        // "DocumentosIa:ProveedorFalsoActivo" — apagado en cualquier sitio
-        // que no sea WebAppFixture (ver ese archivo), así que este bloque es
-        // inerte en producción. Ir primero es lo que lo convierte en el
-        // proveedor que de verdad usa DocumentAIRouterService, tanto para
-        // OCR como para extracción estructurada — ver el comentario de esa
-        // clase.
+        // El doble documental solo se registra cuando lo activa la fixture E2E.
         if (configuration.GetValue<bool>("DocumentosIa:ProveedorFalsoActivo"))
             services.AddSingleton<IDocumentAIProvider, ProveedorFalsoDocumentAI>();
-
-        services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
-        services.AddHttpClient<MistralOcrDocumentAIProvider>(
-                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
-        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
         services.AddHttpClient<AnthropicDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
-
-        services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
-        services.AddHttpClient<GeminiDocumentAIProvider>(
-                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
-        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         // Horizonte 1.7 ("Billing mínimo viable") — StripePaymentProvider es
         // el único IPaymentProvider real (ver su comentario sobre por qué no
@@ -906,7 +914,16 @@ public static class InfrastructureServiceCollectionExtensions
         // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
         // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
         services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
+        services.AddOptions<OpcionesLimitesImportacion>()
+            .Bind(configuration.GetSection(OpcionesLimitesImportacion.Seccion))
+            .Validate(o => o.EsValida(),
+                "La sección LimitesImportacion no es válida: los topes tienen que ser positivos, el tope por Tenant no puede superar el global y EsperaSegundos debe estar entre 0 y 300.")
+            .ValidateOnStart();
+        services.AddSingleton<LimitadorAnalisisImportacion>();
         services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
+        // Sin ValidateOnStart a propósito: un entorno que no usa la plantilla CAE completa tiene que poder arrancar.
+        // La ausencia se hace visible en /salud y en la pantalla de Importación.
+        services.AddSingleton<IPlantillaCaeCompletaConfigurada, PlantillaCaeCompletaConfigurada>();
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
@@ -993,9 +1010,30 @@ public static class InfrastructureServiceCollectionExtensions
     /// <summary>
     /// Clave de configuración que permite arrancar el tráfico con la identidad
     /// administrativa. Es una opción <b>insegura</b> y se llama como se llama
-    /// para que nadie la ponga sin leer qué apaga.
+    /// para que nadie la ponga sin leer qué apaga. En Production no vale nunca:
+    /// ver <see cref="RechazarIdentidadAdministrativaEnProduccion"/>.
     /// </summary>
     internal const string ClaveDegradacionInsegura = "Rls:PermitirIdentidadAdministrativaInsegura";
+
+    /// <summary>
+    /// Guarda dura del hallazgo S-B-6 (auditoría 2026-10-28; ASVS V14.1): con
+    /// <c>ASPNETCORE_ENVIRONMENT=Production</c> —el del contenedor de staging y de
+    /// producción, fijado en el Dockerfile— el arranque se niega si
+    /// <see cref="ClaveDegradacionInsegura"/> vale <c>true</c>, haya o no conexión
+    /// de runtime. Antes solo lo impedía la lista blanca de secretos de
+    /// <c>deploy/ci-deploy.sh</c>, que no cubre un <c>.env</c> editado a mano.
+    /// La guarda se apoya en el nombre del entorno: un <c>.env</c> que además cambie
+    /// <c>ASPNETCORE_ENVIRONMENT</c> a Development la esquiva, igual que ya esquivaba la
+    /// exigencia de conexión de runtime de <see cref="ResolverCadenaDeTrafico"/>. Fijar el
+    /// entorno del contenedor corresponde al despliegue, no a esta comprobación.
+    /// </summary>
+    public static void RechazarIdentidadAdministrativaEnProduccion(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        if (entorno.IsProduction() && configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
+            throw new InvalidOperationException(
+                $"{ClaveDegradacionInsegura}=true está prohibido en Production: el tráfico podría correr con una " +
+                "identidad de PostgreSQL exenta de RLS. Quita la clave y configura ConnectionStrings:CaeManagerDbRuntime.");
+    }
 
     /// <summary>
     /// Con qué identidad conecta el tráfico. Función pura de (configuración,
@@ -1008,7 +1046,8 @@ public static class InfrastructureServiceCollectionExtensions
     /// y solo define <c>ConnectionStrings__CaeManagerDb</c>—, y fuera de
     /// desarrollo hace falta decirlo a propósito con
     /// <see cref="ClaveDegradacionInsegura"/>; sin esa declaración, el arranque
-    /// se niega.
+    /// se niega. En Production la declaración tampoco vale: se niega siempre
+    /// (<see cref="RechazarIdentidadAdministrativaEnProduccion"/>).
     /// </para>
     ///
     /// <para>
@@ -1022,6 +1061,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     public static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
     {
+        RechazarIdentidadAdministrativaEnProduccion(configuration, entorno);
         var cadenaRuntime = configuration.GetConnectionString("CaeManagerDbRuntime");
         if (!string.IsNullOrWhiteSpace(cadenaRuntime))
             return cadenaRuntime;

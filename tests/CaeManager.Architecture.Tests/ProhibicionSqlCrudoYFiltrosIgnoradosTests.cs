@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -68,6 +68,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Comando manual con identidad de bootstrap: detecta referencias de todos los Tenants propietarios;
         // las escrituras conservan el ámbito explícito de cada Tenant propietario y los interceptores.
         [("src/CaeManager.Infrastructure/FileStorage/ReparacionAdjuntosTemporales.cs", "var filas = await db.Set<T>().IgnoreQueryFilters()")] = 1,
+        // Exportación completa: la papelera sale mientras siga en el servidor; repone el TenantId en la misma línea.
+        [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
@@ -123,12 +125,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Visita eliminada sigue fuera: su filtro global no se quita.
         [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
-        // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
-        // en ese punto todavía no hay tenant resuelto en el contexto — es
-        // precisamente lo que esta consulta calcula — así que no hay filtro
-        // de tenant que pueda aplicarse todavía.
-        [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
+        // Resolución del Tenant de un webhook entrante (Graph/WhatsApp, S-C-5): en ese punto no hay Tenant en el
+        // contexto, que es justo lo que se calcula, y bajo FORCE RLS IgnoreQueryFilters() no veía ninguna fila.
+        // Las funciones SECURITY DEFINER devuelven solo el Tenant propietario (la de Graph, NULL si la conexión
+        // está en dos Tenants, en vez de elegir uno); la suscripción y la línea se leen después bajo RLS.
+        [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_webhook_graph({conexionIntegracionId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_webhook_whatsapp({phoneNumberId}) AS \"Value\"")""")] = 1,
 
         // Autenticación de API Key: el tenant lo determina la propia clave que
         // se está validando, así que no puede depender del filtro global de
@@ -155,6 +159,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
             """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
 
+        // M-36: el Actor de Plataforma TALVEG que pide --exportar-tenant. Plano de plataforma que RLS oculta, como debe,
+        // bajo el ámbito del Tenant exportado; la función SECURITY DEFINER comprueba cuenta y concesión. Correo y Tenant,
+        // parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs",
+            """var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);""")] = 1,
+
         // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
         // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
         // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
@@ -178,6 +188,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+        // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
+        // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            "(await db.Database.SqlQuery<EstadoCuentaEmisora>(")] = 1,
 
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
@@ -187,6 +201,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/ConcesionAdministradorPorPlataforma.cs", ".SqlQuery<string>(")] = 1,          // Decisión del 2026-10-30: el código de app_conceder_administrador_por_plataforma.
         [("src/CaeManager.Infrastructure/Plataforma/RevocacionOperadorCaeExternoPorSoporte.cs", ".SqlQuery<string>(")] = 1,          // Enmienda de ADR-004 § 12.2 (2026-10-26): Soporte TALVEG revoca la Delegación del Operador CAE externo con la conexión de cae_app_soporte (solo SELECT); la escritura es la función SECURITY DEFINER app_revocar_operador_cae_externo_por_soporte, que repite sesión, capacidad, Tenant objetivo y motivo, y devuelve un código. Mismo patrón que el segundo factor.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
@@ -360,6 +375,27 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // dentro de la función, runtime solo tiene EXECUTE). No existe
         // equivalente EF para invocar una función que devuelve un escalar.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
+        // Conservación de 12 meses de SesionesUsuario, en la misma pasada y con el
+        // mismo criterio: app_purgar_sesiones_usuario, sin parámetros.
+        [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_sesiones_usuario() AS \\\"Value\\\"\")")] = 1,
+        // Conservación de 5 años de los registros de auditoría: app_purgar_registros_auditoria
+        // (SECURITY DEFINER, corte fijo dentro). El único parámetro, un booleano interpolado
+        // que EF envía como parámetro, elige entre contar y borrar.
+        [("src/CaeManager.Infrastructure/Retencion/PurgaRegistrosCaducados.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_registros_auditoria({simular}) AS \\\"Value\\\"\")")] = 1,
+        // Revocación de sesión en servidor: cada revalidación (cookie y circuito)
+        // pregunta a app_sesion_vigente (SECURITY DEFINER, solo un booleano) antes
+        // de que haya Tenant en el contexto. Parámetros interpolados de
+        // FormattableString: EF los envía como parámetros, no como texto.
+        [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
+        // Revalidación del circuito en una Sesión Privilegiada: app_cuenta_firmada_vigente
+        // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
+        // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.
+        [("src/CaeManager.Infrastructure/Identity/VigenciaSesionCuenta.cs", ".SqlQuery<bool>($\"SELECT public.app_cuenta_firmada_vigente({sello}) AS \\\"Value\\\"\")")] = 1,
+        // Login externo de un lote de cuentas bajo Sesión Privilegiada: cae_app_soporte no lee
+        // AspNetUserLogins (sin RLS) y pregunta a app_cuenta_tiene_login_externo (SECURITY DEFINER,
+        // solo un booleano, acotada al Tenant firmado). Antes, la identidad efectiva decide la vía.
+        [("src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs", "await identidad.Database.SqlQueryRaw<string>(\"SELECT current_user::text AS \\\"Value\\\"\")")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs", "return (await identidad.Database.SqlQuery<Guid>(")] = 1,
 
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.
@@ -441,6 +477,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
+        // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,
+        // que el runtime no puede ejecutar). Mismo régimen que el de cartera: no lee ni
+        // escribe filas, va parametrizado y exige transacción abierta.
+        [("src/CaeManager.Infrastructure/Persistence/AdministradoresDelTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // ASVS V2.8.4: el último paso TOTP aceptado de la cuenta se guarda con una comparación e
+        // intercambio atómica (INSERT … ON CONFLICT DO UPDATE … WHERE valor = el leído), para que dos
+        // envíos simultáneos del mismo código o dos réplicas no lo acepten los dos. EF Core no tiene
+        // equivalente sin pasar por UserManager, que guardaría la cuenta entera y dejaría una fila
+        // permanente en RegistrosAuditoria por cada inicio de sesión. AspNetUserTokens no tiene RLS ni
+        // filtro global; la sentencia va parametrizada y solo toca la fila de esa cuenta.
+        [("src/CaeManager.Infrastructure/Identity/RegistroUltimoPasoTotp.cs", "await Contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
 
         // Estado materializado (PR 3 y 3b): el escritor compara con lo guardado por lotes con unnest (borra lo que sobra,
         // actualiza solo las columnas calculadas de lo que cambió e inserta lo nuevo), una sentencia por tabla más la de la

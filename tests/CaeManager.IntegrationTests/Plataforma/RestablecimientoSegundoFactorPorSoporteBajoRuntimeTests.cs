@@ -88,9 +88,23 @@ public class RestablecimientoSegundoFactorPorSoporteBajoRuntimeTests : IAsyncLif
         {
             var puerto = Puerto(contexto);
             (await puerto.EsAdministradorUnicoActivoAsync(_administradorDeA, _tenantA)).Should().BeTrue();
-            // Como hace Identity al leer el estado: los tokens quedan rastreados.
-            (await contexto.UserTokens.Where(t => t.UserId == _administradorDeA).ToListAsync())
-                .Should().HaveCount(2, "control positivo: hay tokens rastreados que desenganchar");
+            // La sesión no puede leer los tokens (migración SoporteSinLecturaDeCredenciales): ni la
+            // clave TOTP ni los hashes de los códigos de recuperación del Administrador.
+            var leerTokens = async () => await contexto.UserTokens.Where(t => t.UserId == _administradorDeA).ToListAsync();
+            (await leerTokens.Should().ThrowAsync<PostgresException>())
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                    "cae_app_soporte no tiene ningún privilegio sobre AspNetUserTokens");
+            // Un circuito que los hubiera rastreado antes de seleccionar la sesión (bajo
+            // cae_app_runtime) los conserva; se simula para que el desenganche tenga algo que soltar.
+            contexto.Attach(new IdentityUserToken<Guid>
+            {
+                UserId = _administradorDeA,
+                LoginProvider = "[AspNetUserStore]",
+                Name = "AuthenticatorKey",
+                Value = "rastreado",
+            });
+            contexto.ChangeTracker.Entries<IdentityUserToken<Guid>>()
+                .Should().ContainSingle("control positivo: hay un token rastreado que desenganchar");
             var resultado = await puerto.RestablecerPorSesionPrivilegiadaAsync(sesion, _administradorDeA);
             resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
             contexto.ChangeTracker.Entries<IdentityUserToken<Guid>>()
@@ -121,6 +135,29 @@ public class RestablecimientoSegundoFactorPorSoporteBajoRuntimeTests : IAsyncLif
         (await EscalarComoPropietarioAsync<long>(
             @"SELECT COUNT(*) FROM ""AspNetUserTokens"" WHERE ""UserId"" = @u;", _administradorDeB)).Should().Be(2,
             "la cuenta de otro Tenant sigue intacta");
+    }
+
+    [Fact]
+    public async Task Dentro_de_la_sesion_el_estado_de_la_2FA_se_lee_sin_tocar_los_tokens()
+    {
+        // AutorizacionRestablecerSegundoFactorPorSoporte y el handler leen este estado bajo
+        // cae_app_soporte: si volviera a contar los códigos de recuperación (AspNetUserTokens),
+        // el restablecimiento por Soporte TALVEG fallaría con 42501 antes de llegar a la función.
+        var sesion = await AbrirSesionConCapacidadAsync();
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var almacen = new AlmacenUsuarios(contexto, new TenantActualAmbiental { TenantId = _tenantA });
+        var userManager = new UserManager<ApplicationUser>(
+            almacen, Microsoft.Extensions.Options.Options.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
+            [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<UserManager<ApplicationUser>>.Instance);
+        var puerto = new SegundoFactorDeCuentasIdentity(userManager, almacen, contexto, new PuertaAccesoDatos());
+
+        var estado = await puerto.ObtenerEstadoAsync(_administradorDeA);
+
+        estado.Should().NotBeNull();
+        estado!.TenantId.Should().Be(_tenantA);
+        estado.Activo.Should().BeTrue();
     }
 
     [Fact]
@@ -597,7 +634,9 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
 
     private async Task<Guid> AbrirSesionDeSoporteLecturaAsync()
     {
-        await using var contexto = CrearContexto(_tenantPlataforma);
+        // Sembrada como propietario: bajo runtime la auto-concesión exige AdminPlataforma vigente
+        // (privilegio_autoconcesion), y aquí solo hace falta la sesión de SoporteLectura.
+        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);

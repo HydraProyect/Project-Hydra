@@ -203,7 +203,9 @@ public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
             new TenantActualDeLaPeticion(_origen),
             _protector,
             new AlertaOperativaNula(),
-            NullLogger<DiskFileStorageService>.Instance);
+            NullLogger<DiskFileStorageService>.Instance,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     private async Task FijarLogoAsync(Tenant tenant, byte[] png, string version)
     {

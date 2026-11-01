@@ -16,6 +16,7 @@ public class ConcederPrivilegioCommandValidatorTests
     [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
     [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
     [InlineData(CapacidadPrivilegio.RevocacionOperadorCaeExterno)]
+    [InlineData(CapacidadPrivilegio.ConcesionAdministrador)]
     public void Acepta_las_capacidades_concedibles_a_un_tercero(CapacidadPrivilegio capacidad)
     {
         var validador = new ConcederPrivilegioCommandValidator();
@@ -70,19 +71,39 @@ public class ConcederPrivilegioCommandValidatorTests
         validador.Validate(Comando(dias: 91)).IsValid.Should().BeFalse();
     }
 
-    /// <summary>
-    /// Mismo motivo que <c>VentanaDePrivilegioCuatroHorasTests</c> para las
-    /// ventanas de sesión: los dos comandos de concesión viven en el mismo
-    /// dominio de decisión —cuánto puede vivir una concesión de plataforma—
-    /// aunque su constante esté deliberadamente duplicada, no compartida, para
-    /// no acoplar los dos comandos entre sí.
-    /// </summary>
     [Fact]
-    public void Los_dos_techos_de_vigencia_son_el_mismo_valor_aunque_esten_duplicados()
+    public void La_autoconcesion_acepta_el_tope_y_rechaza_un_dia_mas()
     {
-        ConcederPrivilegioCommandValidator.MaximoDiasDeVigencia.Should().Be(
-            AutoConcederPrivilegioCommandValidator.MaximoDiasDeVigencia,
-            "auto-concesión y concesión a un tercero son la misma decisión de producto vista desde dos " +
-            "comandos; si divergen aquí, alguien cambió uno sin mirar el otro");
+        var validador = new AutoConcederPrivilegioCommandValidator();
+
+        validador.Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, 90)).IsValid.Should().BeTrue();
+        validador.Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, 91)).IsValid.Should().BeFalse();
+    }
+}
+
+public class AutoConcederPrivilegioCommandValidatorTests
+{
+    [Theory]
+    [InlineData(0)]
+    [InlineData(91)]
+    public void AdminPlataforma_no_exige_dias_de_vigencia(int dias)
+    {
+        var resultado = new AutoConcederPrivilegioCommandValidator()
+            .Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.AdminPlataforma, dias));
+
+        resultado.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(90, true)]
+    [InlineData(91, false)]
+    public void SoporteLectura_exige_vigencia_dentro_de_los_limites(int dias, bool valido)
+    {
+        var resultado = new AutoConcederPrivilegioCommandValidator()
+            .Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, dias));
+
+        resultado.IsValid.Should().Be(valido);
     }
 }

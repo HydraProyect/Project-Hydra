@@ -726,7 +726,7 @@ public static class DelegacionDemoSeeder
 
     /// <summary>
     /// Delegación comercial en estado revocado — Desactivar() nada más
-    /// crearla. Cualquiera de las dos partes podría reactivarla desde
+    /// crearla. El Administrador del Tenant propietario puede reactivarla desde
     /// /delegaciones, que es exactamente lo que esta variante permite probar.
     /// </summary>
     private static async Task CrearDelegacionRevocadaAsync(

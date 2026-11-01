@@ -69,35 +69,42 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «j» hasta que la fila del test es la enfocada. Se insiste porque QuickGrid vuelve a pedir la
-    /// página por su cuenta cuando el total cambia (aquí, tras el alta), y cada carga limpia la fila
-    /// enfocada: una «j» que llegue antes de esa segunda carga pierde el foco sin que nada en el DOM
-    /// lo anuncie, y la siguiente vuelve a empezar por la primera fila.
+    /// «j» hasta que la fila del test es la enfocada y tiene el foco real del DOM. Antes se espera a que
+    /// la tabla termine de cargar (sin <c>aria-busy</c>) con la fila ya pintada; cada «j» se da por buena
+    /// cuando el foco ha pasado a otra fila, y si una carga tardía la pierde se vuelve a pulsar.
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, ILocator fila)
     {
-        // «Enfocada» es la clase y además el foco real del DOM: la clase puede quedarse sin foco tras un
-        // repintado, y entonces Enter lo recibiría el control de origen (#1756).
-        const string EstaEnfocada = "f => f.classList.contains('fila-enfocada') && document.activeElement === f";
+        // La tabla pinta «aria-busy» desde un bool: con la carga terminada el atributo no existe (no vale
+        // EsperarListaListaAsync, que exige aria-busy="false").
+        await Expect(page.Locator("table.visitas-lista:not([aria-busy])")).ToHaveCountAsync(1);
+        await Expect(fila).ToHaveCountAsync(1);
         for (var intento = 0; intento < 80; intento++)
         {
-            if (await fila.EvaluateAsync<bool>(EstaEnfocada))
+            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
             {
-                await page.WaitForTimeoutAsync(600);
-                if (await fila.EvaluateAsync<bool>(EstaEnfocada)) return;
-                continue;
+                await fila.FocusAsync();
+                await Ayudas.EsperarFocoRealEnFilaAsync(fila);
+                return;
             }
 
-            // Con la clase pero sin foco, «j» pasaría a la fila siguiente (solo avanza): se devuelve el
-            // foco a la fila, como hace enfocarFilaActiva de atajos-lista.js.
-            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
-                await fila.FocusAsync();
-            else
-                await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(250);
+            var anterior = await page.EvaluateAsync<int>("() => [...document.querySelectorAll('tbody tr')].findIndex(f => f.classList.contains('fila-enfocada'))");
+            await page.Keyboard.PressAsync("j");
+            try
+            {
+                await page.WaitForFunctionAsync(
+                    "anterior => { const filas = [...document.querySelectorAll('tbody tr')]; const indice = filas.findIndex(f => f.classList.contains('fila-enfocada')); return indice >= 0 && indice !== anterior && document.activeElement === filas[indice]; }",
+                    anterior,
+                    new PageWaitForFunctionOptions { Timeout = 5_000 });
+            }
+            catch (TimeoutException)
+            {
+                // La «j» se perdió (una recarga limpió la fila enfocada): se recalcula desde el DOM y se repite.
+            }
         }
 
         await Expect(fila).ToHaveClassAsync(new Regex("fila-enfocada"));
+        await Expect(fila).ToBeFocusedAsync(new LocatorAssertionsToBeFocusedOptions { Timeout = 15_000 });
         await Ayudas.EsperarFocoRealEnFilaAsync(fila);
     }
 
@@ -172,7 +179,10 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         await fila.Locator("a.boton-360-pagina").ClickAsync();
 
-        await page.WaitForURLAsync(PaginaVisita);
+        // Con la aserción de URL, no con WaitForURLAsync: la navegación mejorada de Blazor no es un documento
+        // nuevo y la espera de «load» de WaitForURLAsync caducaba a los 30 s aunque la página ya hubiera cambiado
+        // (mismo arreglo que ClientesFilaSinMenuE2ETests, #1525).
+        await Expect(page).ToHaveURLAsync(PaginaVisita, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator("[data-pieza=cabecera-identidad]")).ToBeVisibleAsync();
         await Expect(PanelVisita(page)).ToHaveCountAsync(0);
     }

@@ -31,7 +31,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         acreditacionRepositorio.Agregar(acreditacion);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -82,7 +82,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         acreditacionRepositorio.Agregar(acreditacion);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
         return (handler, unitOfWork);
     }
 
@@ -92,7 +92,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, new DocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, new DocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -118,7 +118,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -150,7 +150,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         proveedoresContext.ListaProveedores.Add(proveedor);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 

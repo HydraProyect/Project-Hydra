@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -92,10 +93,35 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // poder borrar el archivo que el adjunto de la conversación sigue
         // necesitando, ni al revés.
         string archivoUrlDocumento;
-        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        Stream flujoAdjunto;
+        try { flujoAdjunto = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken); }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException
+            or InvalidDataException or System.Security.Cryptography.CryptographicException)
         {
-            archivoUrlDocumento = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+            // Sin blob (o ilegible): error controlado, igual que VerificadorArchivoAlmacenado; no una excepción al usuario.
+            return ArchivoNoValido();
         }
+        // El adjunto se cierra antes de guardar la copia: retiene su reserva del presupuesto de
+        // memoria hasta cerrarse, y GuardarAsync reserva por su cuenta.
+        using var memoria = new MemoryStream();
+        await using (var flujo = flujoAdjunto)
+        {
+            var buffer = new byte[81920];
+            int leidos;
+            while ((leidos = await flujo.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                if (memoria.Length + leidos > LimitesArchivoSubido.TamanoMaximoBytes)
+                    return ArchivoNoValido();
+                await memoria.WriteAsync(buffer.AsMemory(0, leidos), cancellationToken);
+            }
+        }
+
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(memoria.ToArray(), adjunto.NombreArchivo))
+            return ArchivoNoValido();
+
+        memoria.Position = 0;
+        var extension = Path.GetExtension(adjunto.NombreArchivo).ToLowerInvariant();
+        archivoUrlDocumento = await almacenamiento.GuardarAsync(memoria, "documento" + extension, cancellationToken);
 
         // "Unicidad por tipo y entidad" (§ 12.7): a diferencia del alta manual
         // (donde "editar" ya significa ir a la fila correcta y renovarla),
@@ -110,36 +136,47 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         Guid documentoId;
-        if (documentoExistenteId is { } idExistente)
+        try
         {
-            var renovado = await mediator.Send(new RenovarDocumentoCommand(
-                idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                NoCaduca: request.NoCaduca),
-                cancellationToken);
-            if (renovado.EsFallido)
+            if (documentoExistenteId is { } idExistente)
             {
-                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
-                return Result.Fallo<Guid>(renovado.Error);
-            }
+                var renovado = await mediator.Send(new RenovarDocumentoCommand(
+                    idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
+                    NoCaduca: request.NoCaduca),
+                    cancellationToken);
+                if (renovado.EsFallido)
+                {
+                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+                    return Result.Fallo<Guid>(renovado.Error);
+                }
 
-            // Renovar con archivo crea un Documento nuevo (D8): el Id que queda en uso es el que devuelve, no el del
-            // operativo que se renovó, que pasa al historial.
-            documentoId = renovado.Valor;
+                // Renovar con archivo crea un Documento nuevo (D8): el Id que queda en uso es el que devuelve, no el del
+                // operativo que se renovó, que pasa al historial.
+                documentoId = renovado.Valor;
+            }
+            else
+            {
+                var creado = await mediator.Send(new CrearDocumentoCommand(
+                    request.TrabajadorId, null, request.EmpresaId, null, null,
+                    request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
+                    request.NoCaduca),
+                    cancellationToken);
+                if (creado.EsFallido)
+                {
+                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+                    return Result.Fallo<Guid>(creado.Error);
+                }
+
+                documentoId = creado.Valor;
+            }
         }
-        else
+        catch (PresupuestoMemoriaAgotadoException)
         {
-            var creado = await mediator.Send(new CrearDocumentoCommand(
-                request.TrabajadorId, null, request.EmpresaId, null, null,
-                request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                request.NoCaduca),
-                cancellationToken);
-            if (creado.EsFallido)
-            {
-                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
-                return Result.Fallo<Guid>(creado.Error);
-            }
-
-            documentoId = creado.Valor;
+            // Crear/RenovarDocumento verifican el archivo antes de guardar nada, y esa lectura reserva del
+            // presupuesto de memoria: sin hueco, la copia no la referencia nadie. Se borra y se propaga la
+            // saturación, que es transitoria; quien llama avisa de ella.
+            await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+            throw;
         }
 
         // Publicado DESPUÉS del commit de Crear/RenovarDocumentoCommand
@@ -156,6 +193,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
 
         return Result.Exito(documentoId);
     }
+
+    private static Result<Guid> ArchivoNoValido() => Result.Fallo<Guid>(Error.Crear(
+        "Adjunto.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
     // La copia se hace antes de delegar, así que si Crear/RenovarDocumento
     // rechaza (validación, alcance de cartera, concurrencia) nadie la

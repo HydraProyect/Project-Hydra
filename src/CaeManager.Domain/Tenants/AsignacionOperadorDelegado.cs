@@ -9,8 +9,10 @@ namespace CaeManager.Domain.Tenants;
 /// mismo usuario puede tener roles distintos en delegaciones distintas (p.
 /// ej. GestorCae en un cliente, Consulta en otro).
 ///
-/// Extiende <see cref="Entity"/>, no <see cref="EntidadConTenant"/>: mismo
-/// catálogo global que <see cref="DelegacionTenant"/>.
+/// Extiende <see cref="Entity"/>, no <see cref="EntidadConTenant"/>: igual que
+/// <see cref="DelegacionTenant"/>, la fila enlaza dos Tenants y no lleva
+/// <c>TenantId</c>. Sus políticas RLS heredan de la delegación a la que apunta
+/// los dos extremos que pueden verla: un tercer Tenant no la lee ni la escribe.
 ///
 /// <see cref="UsuarioId"/> es un Guid suelto sin navegación EF hacia
 /// <c>ApplicationUser</c> — Identity vive en Infrastructure, no accesible

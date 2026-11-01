@@ -26,6 +26,45 @@
         <div class="acceso-alerta" role="alert">@(_mensajeCierre ?? MensajeBloqueo)</div>
         <a class="acceso-entrar" href="/cuenta/iniciar-sesion">Volver a iniciar sesión</a>
     }
+    else if (_altaTotp && EntradaAlta is not null && _usuarioPendiente is not null)
+    {
+        @* Primera vinculación de Microsoft de una cuenta sin TOTP (decisión de 2026-10-28,
+           ASVS 4.0.3 V2.1 y V3.7.1): antes de pedir el código, se da de alta el TOTP. La
+           autenticación reciente es la reautenticación en Microsoft (prompt=login) que pidió
+           el callback, acotada por la vida de la cookie de dos pasos. *@
+        <CabeceraAcceso Titulo="Verificación en dos pasos" Explicacion="@Textos["AltaVinculoExplicacion", Marca.Nombre]" />
+
+        @if (_claveCompartida is null)
+        {
+            <div class="acceso-alerta" role="alert">@Textos["AltaVinculoErrorCarga"]</div>
+        }
+        else
+        {
+            <img src="@_qrCodeDataUri" alt="@Textos["AltaVinculoQrAlternativo"]" width="220" height="220" />
+            <p class="acceso-nota">@Textos["AltaVinculoClaveManual"]</p>
+            <p class="acceso-nota"><code>@_claveCompartida</code></p>
+
+            <EditForm Model="EntradaAlta" method="post" OnValidSubmit="ActivarAltaTotpAsync" FormName="alta-2fa-vinculo-microsoft" novalidate>
+                <DataAnnotationsValidator />
+
+                @if (mensajeError is not null)
+                {
+                    <div class="acceso-alerta" role="alert">@mensajeError</div>
+                }
+
+                <div class="acceso-campo acceso-codigo">
+                    <label for="codigo-alta">@Textos["AltaVinculoCodigoEtiqueta"]</label>
+                    <InputText id="codigo-alta" @bind-Value="EntradaAlta.Codigo" autocomplete="one-time-code" inputmode="numeric" />
+                    <ValidationMessage For="() => EntradaAlta.Codigo" />
+                </div>
+
+                <p class="acceso-nota">@Textos["AltaVinculoCodigoSiguiente"]</p>
+                <button type="submit" class="acceso-entrar">@Textos["AltaVinculoActivar"]</button>
+            </EditForm>
+        }
+
+        <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">@Textos["RecuperacionVolverInicio"]</a></p>
+    }
     else if (ModoRecuperacion && EntradaRecuperacion is not null && _usuarioPendiente is not null)
     {
         @* Mockup «Verificar 2FA TALVEG», modo recuperación (P0-8, FS-01). *@
@@ -97,6 +136,16 @@
     [SupplyParameterFromForm(FormName = "verificar-2fa-recuperacion")]
     private DatosRecuperacion? EntradaRecuperacion { get; set; }
 
+    // Alta del TOTP previa a la primera vinculación de Microsoft (ver ActivarAltaTotpAsync).
+    [SupplyParameterFromForm(FormName = "alta-2fa-vinculo-microsoft")]
+    private DatosEntrada? EntradaAlta { get; set; }
+
+    // La cookie de dos pasos es la de una primera vinculación cuya cuenta aún no tiene el TOTP
+    // activado: la página enseña el alta y ninguno de los dos caminos de verificación.
+    private bool _altaTotp;
+    private string? _claveCompartida;
+    private string? _qrCodeDataUri;
+
     // "recuperacion" muestra el campo del código de recuperación. Va en la URL y
     // no en estado del componente porque la página es SSR estática: cada petición
     // construye una instancia nueva, y el POST del formulario conserva la query.
@@ -117,6 +166,7 @@
     {
         Entrada ??= new DatosEntrada();
         EntradaRecuperacion ??= new DatosRecuperacion();
+        EntradaAlta ??= new DatosEntrada();
 
         // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
         // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
@@ -127,12 +177,82 @@
         // Login.razor), no hay nada que verificar — de vuelta al login.
         _usuarioPendiente = await SignInManager.GetTwoFactorAuthenticationUserAsync();
         if (_usuarioPendiente is null)
+        {
             Navigation.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+        }
+        else if (!await SignInManager.UserManager.GetTwoFactorEnabledAsync(_usuarioPendiente))
+        {
+            // TwoFactorAuthenticatorSignInAsync no mira si la cuenta tiene el TOTP activado:
+            // solo verifica el código con la clave guardada. Sin TOTP activado no se verifica
+            // nada (ASVS 4.0.3 V2.1): la primera vinculación de Microsoft lo da de alta aquí
+            // antes (_altaTotp, que los dos caminos de verificación rechazan), y cualquier
+            // otro caso vuelve al inicio. Va en la inicialización, que también corre en el POST.
+            if (await EsAltaTotpPendienteAsync())
+            {
+                _altaTotp = true;
+                await PrepararAltaTotpAsync(_usuarioPendiente);
+            }
+            else
+            {
+                _usuarioPendiente = null;
+                Navigation.NavigateTo("/cuenta/iniciar-sesion", forceLoad: true);
+            }
+        }
+    }
+
+    // Clave nueva al pintar el alta (GET), nunca al recibir el código (POST): una clave que la
+    // cuenta tuviera de un alta abandonada pudo verla otra persona.
+    private async Task PrepararAltaTotpAsync(ApplicationUser usuario)
+    {
+        var userManager = SignInManager.UserManager;
+        if (HttpContext is not null && HttpMethods.IsGet(HttpContext.Request.Method)
+            && !(await userManager.ResetAuthenticatorKeyAsync(usuario)).Succeeded)
+            return;
+
+        var claveSinFormato = await userManager.GetAuthenticatorKeyAsync(usuario);
+        if (string.IsNullOrEmpty(claveSinFormato))
+            return;
+
+        _claveCompartida = ClaveAutenticadorTotp.FormatearClave(claveSinFormato);
+        _qrCodeDataUri = ClaveAutenticadorTotp.GenerarQrCodeDataUri(
+            ClaveAutenticadorTotp.GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato));
+    }
+
+    /// <summary>
+    /// Activa el TOTP de la primera vinculación de Microsoft con un código de la clave recién
+    /// enseñada, y vuelve a esta misma página: con el TOTP ya activo pide un código como
+    /// cualquier inicio, y al superarlo guarda el vínculo y emite la sesión.
+    /// </summary>
+    private async Task ActivarAltaTotpAsync()
+    {
+        if (!_altaTotp || EntradaAlta is null || _usuarioPendiente is null || _claveCompartida is null) return;
+
+        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
+
+        var userManager = SignInManager.UserManager;
+        var codigoLimpio = EntradaAlta.Codigo.Replace(" ", string.Empty).Replace("-", string.Empty);
+        if (!await userManager.VerifyTwoFactorTokenAsync(
+                _usuarioPendiente, userManager.Options.Tokens.AuthenticatorTokenProvider, codigoLimpio))
+        {
+            mensajeError = Textos["AltaVinculoCodigoNoValido"];
+            return;
+        }
+
+        var activacion = await userManager.SetTwoFactorEnabledAsync(_usuarioPendiente, true);
+        if (!activacion.Succeeded)
+        {
+            mensajeError = string.Join(" ", activacion.Errors.Select(e => e.Description));
+            return;
+        }
+
+        LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+            .LogInformation("2FA activado antes de la primera vinculación de Microsoft: {UsuarioId}", _usuarioPendiente.Id);
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     }
 
     private async Task VerificarAsync()
     {
-        if (Entrada is null || _usuarioPendiente is null) return;
+        if (Entrada is null || _usuarioPendiente is null || _altaTotp) return;
 
         // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
         // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
@@ -140,6 +260,7 @@
 
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
         var vinculoPendiente = await LeerVinculoPendienteAsync();
+        var altaTotpPendiente = await EsAltaTotpPendienteAsync();
 
         // Cerrojo no bloqueante por usuario pendiente de 2FA — necesario
         // porque esta página es SSR estática (sin @rendermode): cada POST
@@ -158,7 +279,7 @@
         var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
             $"verificar-2fa:{_usuarioPendiente.Id}",
             async _ => resultadoObtenido = await SignInManager.TwoFactorAuthenticatorSignInAsync(
-                Entrada.Codigo, isPersistent: true, rememberClient: false),
+                Entrada.Codigo, isPersistent: false, rememberClient: false),
             CancellationToken.None);
 
         if (!ejecutado)
@@ -202,6 +323,15 @@
                 return;
             }
 
+            // Recién dado de alta el TOTP en la primera vinculación: la cuenta aún no tiene
+            // códigos de recuperación (P0-8), y generarlos exige la sesión que se acaba de
+            // emitir, así que se termina en la página de la 2FA, que los ofrece.
+            if (altaTotpPendiente)
+            {
+                Navigation.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(ReturnUrl), forceLoad: true);
+                return;
+            }
+
             Navigation.NavigateTo(RedireccionLocal.DestinoTrasLogin(ReturnUrl), forceLoad: true);
             return;
         }
@@ -241,7 +371,7 @@
     /// </summary>
     private async Task VerificarRecuperacionAsync()
     {
-        if (EntradaRecuperacion is null || _usuarioPendiente is null) return;
+        if (EntradaRecuperacion is null || _usuarioPendiente is null || _altaTotp) return;
 
         // Antes de que exista Tenant: la cuenta se busca por su clave bajo la RLS
         // de AspNetUsers (ver AmbitoIdentificacionSinTenant, P1-M1).
@@ -365,6 +495,12 @@
             ? null
             : InicioSesionMicrosoft.VinculoPendiente(
                 (await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Principal);
+
+    /// <summary>Si la cookie de dos pasos es la de una primera vinculación que acaba de dar de alta el TOTP.</summary>
+    private async Task<bool> EsAltaTotpPendienteAsync() =>
+        HttpContext is not null
+        && InicioSesionMicrosoft.AltaTotpPendiente(
+            (await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Principal);
 
     /// <summary>
     /// Tras superar el TOTP de un inicio con Microsoft, guarda el vínculo pendiente.

@@ -19,7 +19,8 @@ public class LoteGeneracionDocumentoConfiguration : IEntityTypeConfiguration<Lot
 
         builder.HasOne<PlantillaDocumentoVersion>()
             .WithMany()
-            .HasForeignKey(l => l.PlantillaDocumentoVersionId)
+            .HasForeignKey(l => new { l.TenantId, l.PlantillaDocumentoVersionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.

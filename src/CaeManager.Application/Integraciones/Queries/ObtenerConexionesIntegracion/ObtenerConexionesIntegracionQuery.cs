@@ -23,9 +23,18 @@ public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError);
 
+/// <remarks>
+/// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
+/// devuelve el proveedor al fallar, y <c>cae_app_soporte</c> no tiene <c>SELECT</c> sobre esa columna
+/// (migración <c>SoporteSinColumnasSecretasRestantes</c>; OWASP ASVS 4.0.3 V4.1.3). Con una sola consulta,
+/// Soporte TALVEG no vería el listado. La señal es la coordenada en bruto
+/// (<c>IClienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada</c>) y no <c>ISesionPrivilegiadaActual</c>:
+/// es con la que <c>TenantRlsConnectionInterceptor</c> adopta el rol, también con la sesión ya caducada.
+/// </remarks>
 public class ObtenerConexionesIntegracionQueryHandler(
     IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService,
+    IClienteActivoSeleccionado clienteActivoSeleccionado)
     : IRequestHandler<ObtenerConexionesIntegracionQuery, IReadOnlyList<ConexionIntegracionListaDto>>
 {
     public async Task<IReadOnlyList<ConexionIntegracionListaDto>> Handle(
@@ -50,8 +59,28 @@ public class ObtenerConexionesIntegracionQueryHandler(
             orderby conexion.FechaConectadaUtc descending
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
-                conexion.FechaConectadaUtc, conexion.GestorPropietarioId, conexion.UltimoError);
+                conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null);
 
-        return await query.ToListAsync(cancellationToken);
+        var conexiones = await query.ToListAsync(cancellationToken);
+        if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
+            return conexiones;
+
+        var ids = conexiones.Select(c => c.Id).ToList();
+        var errores = await UltimosErroresAsync(integracionesContext, ids, cancellationToken);
+        return conexiones
+            .Select(c => errores.TryGetValue(c.Id, out var error) ? c with { UltimoError = error } : c)
+            .ToList();
     }
+
+    /// <summary>
+    /// El último error de cada conexión que lo tenga. Fuera de Sesión Privilegiada: bajo
+    /// <c>cae_app_soporte</c> esta lectura da 42501.
+    /// </summary>
+    internal static Task<Dictionary<Guid, string>> UltimosErroresAsync(
+        IIntegracionesQueryContext integracionesContext, IReadOnlyCollection<Guid> conexionIds,
+        CancellationToken cancellationToken) =>
+        integracionesContext.ConexionesIntegracion
+            .Where(c => conexionIds.Contains(c.Id) && c.UltimoError != null)
+            .Select(c => new { c.Id, UltimoError = c.UltimoError! })
+            .ToDictionaryAsync(c => c.Id, c => c.UltimoError, cancellationToken);
 }

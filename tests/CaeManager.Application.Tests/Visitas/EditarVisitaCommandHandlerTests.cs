@@ -9,7 +9,7 @@ namespace CaeManager.Application.Tests.Visitas;
 
 /// <summary>
 /// Alcance de gestión al EDITAR una Visita. Solo cubre la barrera, que se decide antes de tocar
-/// los Trabajadores: por eso el repositorio de la unión, el contexto de Trabajadores y el
+/// los Trabajadores: por eso el repositorio de la unión, los contextos de Trabajadores, Centros y Empresas y el
 /// evaluador van a null — si el handler pasara la barrera, el test reventaría en vez de dar un
 /// falso verde. El camino feliz, con Trabajadores reales, se prueba en Integration
 /// (<c>EditarCancelarVisitaAlcanceCarteraBajoRlsTests</c>).
@@ -21,7 +21,7 @@ public class EditarVisitaCommandHandlerTests
     private static Visita CrearVisita() => new(Guid.NewGuid(), FechaOriginal, FechaOriginal.AddDays(1), null);
 
     private static EditarVisitaCommandHandler CrearHandler(VisitaRepositorioFalso repositorio, UnitOfWorkFalso unitOfWork, AlcanceDatosServiceFalso alcance) =>
-        new(repositorio, null!, null!, null!, unitOfWork, NullLogger<EditarVisitaCommandHandler>.Instance, alcance);
+        new(repositorio, null!, null!, null!, null!, null!, unitOfWork, NullLogger<EditarVisitaCommandHandler>.Instance, alcance);
 
     private static EditarVisitaCommand Comando(Guid visitaId, Guid version = default) =>
         new(visitaId, FechaOriginal.AddDays(7), FechaOriginal.AddDays(8), [Guid.NewGuid()], "editada", version);

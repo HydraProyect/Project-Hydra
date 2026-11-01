@@ -21,7 +21,10 @@ public class VerificacionDocumentoOficialConfiguration : IEntityTypeConfiguratio
         builder.Property(v => v.PeriodoDetectado).HasMaxLength(VerificacionDocumentoOficial.LongitudMaximaPeriodo);
         builder.Property(v => v.Motivos).IsRequired().HasMaxLength(VerificacionDocumentoOficial.LongitudMaximaMotivos);
 
-        builder.HasOne<Documento>().WithMany().HasForeignKey(v => v.DocumentoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Documento>().WithMany()
+            .HasForeignKey(v => new { v.TenantId, v.DocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
         // 0..1 por Documento: única con TenantId primero, como el resto de
         // índices únicos compuestos del multi-tenant (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md).

@@ -1,4 +1,6 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Common;
+using Npgsql;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
@@ -28,7 +30,9 @@ namespace CaeManager.Web.Features.Comunicaciones.Pages;
 public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private IActorAuditoria ActorAuditoria { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
@@ -56,6 +60,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     private string _redactarAsunto = string.Empty;
     private string _redactarCuerpo = string.Empty;
     private readonly List<AdjuntoParaEnviarDto> _redactarAdjuntos = [];
+    private readonly AdjuntosCorreo _cargaAdjuntos = new();
     private string? _redactarError;
     private bool _enviandoRedaccion;
 
@@ -95,6 +100,14 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
         try
         {
+            var actor = await ActorAuditoria.ObtenerAsync();
+            if (!EsCargaCarpetasVigente(generacion, token)) return;
+            if (actor.Via == TipoViaAcceso.SesionPrivilegiada)
+            {
+                _errorCarpetas = "No pudimos leer las carpetas de este buzón.";
+                return;
+            }
+
             var resultado = await Mediator.Send(new ObtenerEstructuraBuzonQuery(conexionId), token);
             if (!EsCargaCarpetasVigente(generacion, token)) return;
             if (resultado.EsFallido)
@@ -108,7 +121,10 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
         catch (Exception ex)
         {
             if (!EsCargaCarpetasVigente(generacion, token)) return;
-            Logger.LogError(ex, "Error al cargar la estructura de carpetas de la conexión {ConexionId}.", _conexionSeleccionadaId);
+            if (EsPermisoInsuficiente(ex))
+                Logger.LogWarning(ex, "Permisos insuficientes al cargar la estructura de carpetas de la conexión {ConexionId}.", conexionId);
+            else
+                Logger.LogError(ex, "Error al cargar la estructura de carpetas de la conexión {ConexionId}.", conexionId);
             _errorCarpetas = "No pudimos leer las carpetas de este buzón.";
         }
         finally
@@ -119,6 +135,13 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
                 StateHasChanged();
             }
         }
+    }
+
+    private static bool EsPermisoInsuficiente(Exception excepcion)
+    {
+        for (Exception? actual = excepcion; actual is not null; actual = actual.InnerException)
+            if (actual is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege }) return true;
+        return false;
     }
 
     private Task SeleccionarCarpetaAsync(string carpetaId)
@@ -197,18 +220,14 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
     private async Task ManejarArchivosRedactarAsync(InputFileChangeEventArgs e)
     {
-        const int maximoArchivos = 5;
-
-        foreach (var archivo in e.GetMultipleFiles(maximoArchivos))
-        {
-            await using var flujo = archivo.OpenReadStream(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes);
-            using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria);
-            _redactarAdjuntos.Add(new AdjuntoParaEnviarDto(archivo.Name, archivo.ContentType, memoria.ToArray()));
-        }
+        _redactarError = AdjuntosCorreo.Mensaje(await _cargaAdjuntos.AgregarAsync(e, _redactarAdjuntos), ErroresTextos);
     }
 
-    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto) => _redactarAdjuntos.Remove(adjunto);
+    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto)
+    {
+        _redactarAdjuntos.Remove(adjunto);
+        _redactarError = null;
+    }
 
     private async Task EnviarMensajeNuevoAsync()
     {

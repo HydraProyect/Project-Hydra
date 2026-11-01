@@ -53,7 +53,8 @@ public class DeepLinksTests(WebAppFixture fixture)
         // desde ahí "⋯ → Editar" abre el Context Workspace — el mismo camino
         // que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
         await page.Locator(".marco-lista-trabajadores a.boton-360-pagina").First.ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}$"));
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        await Assertions.Expect(page).ToHaveURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         // La guarda es el resultado en el DOM: un único
         // ".menu-acciones-disparador" (el de la cabecera de Trabajador 360,
         // ver TrabajadorDetalle.razor) en vez de los de la cabecera y los

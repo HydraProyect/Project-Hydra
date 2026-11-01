@@ -1,5 +1,7 @@
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
@@ -16,71 +18,101 @@ public static class CentrosEndpoints
 {
     public static IEndpointRouteBuilder MapCentrosEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/centros/exportar.xlsx", async (
-            IMediator mediator, CancellationToken cancellationToken,
-            string? q = null, string? estado = null, string? cliente = null, string? empresa = null,
-            [Microsoft.AspNetCore.Mvc.FromQuery(Name = "centro")] string? centroFiltro = null,
-            string? orden = null, bool desc = false) =>
-        {
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Centros");
-
-            hoja.Cell(1, 1).Value = "Nombre";
-            hoja.Cell(1, 2).Value = "Código de centro";
-            hoja.Cell(1, 3).Value = "Cliente";
-            hoja.Cell(1, 4).Value = "Empresa";
-            hoja.Cell(1, 5).Value = "Estado";
-            hoja.Cell(1, 6).Value = "% cumplimiento";
-            hoja.Row(1).Style.Font.Bold = true;
-            hoja.Column(6).Style.NumberFormat.Format = "0%";
-
-            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
-            // no materializa toda la tabla de centros del tenant de golpe.
-            var fila = 2;
-            await foreach (var centro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerCentrosQuery(
-                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        ClienteId: Guid.TryParse(cliente, out var idClienteEmpresarial) ? idClienteEmpresarial : null,
-                        // La selección de la franja de estado: varios nombres separados por coma.
-                        Estado: null,
-                        Estados: SeleccionEstados.Separar<EstadoCentro>(estado) is { Count: > 0 } estados ? estados : null,
-                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
-                        Descendente: desc,
-                        Pagina: pagina,
-                        TamanoPagina: tamanoPagina,
-                        CentroId: Guid.TryParse(centroFiltro, out var centroId) ? centroId : null,
-                        EmpresaId: Guid.TryParse(empresa, out var empresaId) ? empresaId : null,
-                        // El Excel solo lleva estado y % de cumplimiento: el detalle de las causas no se guarda y
-                        // calcularlo por lote era lo que más pesaba de la exportación.
-                        ConIncidencias: false),
-                    cancellationToken)))
-            {
-                hoja.Cell(fila, 1).Value = centro.Nombre;
-                hoja.Cell(fila, 2).Value = centro.CodigoCentro;
-                hoja.Cell(fila, 3).Value = centro.ClienteRazonSocial;
-                hoja.Cell(fila, 4).Value = centro.EmpresaRazonSocial;
-                hoja.Cell(fila, 5).Value = EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje);
-                if (centro.CumplimientoPorcentaje is not null)
-                    hoja.Cell(fila, 6).Value = centro.CumplimientoPorcentaje.Value / 100.0;
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            // Se escribe directo en el stream que consume la respuesta HTTP
-            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
-            // y duplicarlo otra vez con ToArray().
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "centros.xlsx");
-        });
+        endpoints.MapGet("/centros/exportar.xlsx", ExportarAsync);
 
         return endpoints;
+    }
+
+    public static async Task<IResult> ExportarAsync(
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, CancellationToken cancellationToken,
+        string? q = null, string? estado = null, string? cliente = null, string? empresa = null,
+        [Microsoft.AspNetCore.Mvc.FromQuery(Name = "centro")] string? centroFiltro = null,
+        string? orden = null, bool desc = false)
+    {
+        // Estado 4a, igual que /trabajadores/exportar.xlsx: Centros.razor no muestra los Centros del
+        // Tenant de origen a quien tiene que elegir una empresa de su cartera
+        // (ContextoEmpresaActiva.ResolverAsync); el endpoint tampoco los consulta ni genera el archivo.
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
+            return Results.Redirect("/centros");
+
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Centros");
+
+        hoja.Cell(1, 1).Value = "Nombre";
+        hoja.Cell(1, 2).Value = "Código de centro";
+        hoja.Cell(1, 3).Value = "Cliente";
+        hoja.Cell(1, 4).Value = "Empresa";
+        hoja.Cell(1, 5).Value = "Estado";
+        hoja.Cell(1, 6).Value = "% cumplimiento";
+        hoja.Row(1).Style.Font.Bold = true;
+        hoja.Column(6).Style.NumberFormat.Format = "0%";
+
+        // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+        // no materializa toda la tabla de centros del tenant de golpe.
+        var fila = 2;
+        await foreach (var centro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerCentrosQuery(
+                    Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                    ClienteId: Guid.TryParse(cliente, out var idClienteEmpresarial) ? idClienteEmpresarial : null,
+                    // La selección de la franja de estado: varios nombres separados por coma.
+                    Estado: null,
+                    Estados: SeleccionEstados.Separar<EstadoCentro>(estado) is { Count: > 0 } estados ? estados : null,
+                    OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                    Descendente: desc,
+                    Pagina: pagina,
+                    TamanoPagina: tamanoPagina,
+                    CentroId: Guid.TryParse(centroFiltro, out var centroId) ? centroId : null,
+                    EmpresaId: Guid.TryParse(empresa, out var empresaId) ? empresaId : null,
+                    // El Excel solo lleva estado y % de cumplimiento: el detalle de las causas no se guarda y
+                    // calcularlo por lote era lo que más pesaba de la exportación.
+                    ConIncidencias: false),
+                cancellationToken)))
+        {
+            hoja.Cell(fila, 1).Value = centro.Nombre;
+            hoja.Cell(fila, 2).Value = centro.CodigoCentro;
+            hoja.Cell(fila, 3).Value = centro.ClienteRazonSocial;
+            hoja.Cell(fila, 4).Value = centro.EmpresaRazonSocial;
+            hoja.Cell(fila, 5).Value = EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje);
+            if (centro.CumplimientoPorcentaje is not null)
+                hoja.Cell(fila, 6).Value = centro.CumplimientoPorcentaje.Value / 100.0;
+            fila++;
+        }
+
+        hoja.Columns().AdjustToContents();
+
+        // Se escribe directo en el stream que consume la respuesta HTTP
+        // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+        // y duplicarlo otra vez con ToArray().
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Centros.Centro), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "centros"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("estado", SeleccionEstados.Separar<EstadoCentro>(estado) is { Count: > 0 } estadosAplicados ? string.Join(",", estadosAplicados) : null),
+                    ("cliente", Guid.TryParse(cliente, out var clienteAplicado) ? clienteAplicado.ToString() : null),
+                    ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
+                    ("centro", Guid.TryParse(centroFiltro, out var centroAplicado) ? centroAplicado.ToString() : null),
+                    ("orden", CriteriosExportacion.SoloNombre(orden)),
+                    ("desc", desc ? "true" : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "centros.xlsx");
     }
 }

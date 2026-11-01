@@ -175,6 +175,10 @@ public class PlataformaGen2Tests : BunitContext
         cut.FindAll("[role=dialog]").Should().ContainSingle();
         cut.Find("[role=dialog]").TextContent.Should().Contain("vigencia indefinida");
 
+        var primario = cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar");
+        primario.HasAttribute("disabled").Should().BeTrue();
+        primario.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+
         await cut.Find(".administracion-global-confirmacion input").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar").ClickAsync(new MouseEventArgs());
 
@@ -183,6 +187,22 @@ public class PlataformaGen2Tests : BunitContext
         comando.DiasDeVigencia.Should().Be(1);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         cut.Find(".administracion-global-estado-consumido").TextContent.Should().Contain("No hay nada que inicializar aquí");
+    }
+
+    [Fact]
+    public async Task Cerrar_la_confirmacion_con_cambios_pide_descartar()
+    {
+        var (cut, _) = Renderizar(peticion => peticion switch
+        {
+            PuedeInicializarPlataformaQuery => true,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
+            _ => throw new NotSupportedException()
+        });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Inicializar administración global").ClickAsync(new MouseEventArgs());
+        await cut.Find(".administracion-global-confirmacion input").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("Descartar cambios");
+        cut.Find(".administracion-global-confirmacion input").HasAttribute("checked").Should().BeTrue();
     }
 
     [Fact]
@@ -203,6 +223,8 @@ public class PlataformaGen2Tests : BunitContext
         mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle();
         cut.FindAll("[role=dialog]").Should().ContainSingle("el desenlace fallido no se trata como éxito");
         cut.Find(".administracion-global-error-comando").TextContent.Should().Contain("Activa la autenticación en dos pasos.");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Activa la autenticación en dos pasos.", "el error se ve dentro del Modal, no detrás de la superposición");
+        cut.FindAll(".boton-espera-check").Should().BeEmpty("un comando fallido no enseña el «Hecho» de éxito");
     }
 
     [Fact]
@@ -227,7 +249,7 @@ public class PlataformaGen2Tests : BunitContext
         await cut.InvokeAsync(() => pendiente.SetResult(Result.Exito(Guid.NewGuid())));
         await primero.WaitAsync(TimeSpan.FromSeconds(10));
         await segundo.WaitAsync(TimeSpan.FromSeconds(10));
-        mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle("la segunda entrada encuentra la guarda del panel");
+        mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle("la segunda entrada no llega al comando: la corta la guarda del kit y, tras ella, la del panel");
     }
 
     [Fact]

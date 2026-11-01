@@ -44,17 +44,28 @@ public class DiskFileStorageServiceTests : IDisposable
     private readonly AlertaOperativaFalsa _alertas = new();
     private readonly LoggerEspia _logger = new();
 
-    private DiskFileStorageService CrearServicio(Guid? tenantId) =>
+    private DiskFileStorageService CrearServicio(Guid? tenantId, bool rechazarLegadoEnClaro = false) =>
         new(
-            Options.Create(new DiskFileStorageServiceOptions { Ruta = _rutaTemporal }),
+            Options.Create(new DiskFileStorageServiceOptions { Ruta = _rutaTemporal, RechazarLegadoEnClaro = rechazarLegadoEnClaro }),
             new EntornoDePruebaFalso(),
             new TenantActualAmbiental { TenantId = tenantId },
             _dataProtectionProvider,
             _alertas,
-            _logger);
+            _logger,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     private string RutaDe(Guid tenantId, string identificador) =>
         Path.Combine(_rutaTemporal, tenantId.ToString("N"), Path.GetFileName(identificador));
+
+    [Fact]
+    public void La_huella_es_determinista_y_corresponde_al_nombre_en_disco()
+    {
+        const string nombre = "Ana Garcia - reconocimiento medico.pdf";
+        DiskFileStorageService.HuellaArchivo($"{_tenantA:N}/{nombre}").Should().Be("c1b147d77066");
+        DiskFileStorageService.HuellaArchivo($"{_tenantB:N}/{nombre}").Should().Be("c1b147d77066");
+        DiskFileStorageService.HuellaArchivo($"{_tenantA:N}/otro.pdf").Should().NotBe("c1b147d77066");
+    }
 
     /// <summary>
     /// Escribe un archivo con el formato ANTERIOR al versionado: payload de
@@ -190,11 +201,29 @@ public class DiskFileStorageServiceTests : IDisposable
     {
         public bool Copiado { get; private set; }
 
+        // El servicio lee el contenido con ReadAsync (lectura exacta y sonda de fin), no con
+        // CopyToAsync: la cancelación se dispara al llegar al final, ya leído entero.
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            AlLlegarAlFinal(await base.ReadAsync(buffer, cancellationToken));
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            AlLlegarAlFinal(await base.ReadAsync(buffer, offset, count, cancellationToken));
+
         public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
         {
             await base.CopyToAsync(destination, bufferSize, cancellationToken);
-            Copiado = true;
-            cts.Cancel();
+            AlLlegarAlFinal(0);
+        }
+
+        private int AlLlegarAlFinal(int leidos)
+        {
+            if (leidos == 0 && !Copiado)
+            {
+                Copiado = true;
+                cts.Cancel();
+            }
+
+            return leidos;
         }
     }
 
@@ -364,6 +393,44 @@ public class DiskFileStorageServiceTests : IDisposable
         _alertas.Alertas.Should().ContainSingle()
             .Which.Nivel.Should().Be(NivelAlertaOperativa.Critica,
                 "manipulacion o perdida de claves es un incidente, no un error de usuario");
+        _alertas.Alertas[0].Mensaje.Should().Contain(_tenantA.ToString("N"))
+            .And.NotContain(Path.GetFileName(identificador));
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
+    }
+
+    [Fact]
+    public async Task La_alerta_v2_es_estable_por_Tenant_propietario_incluso_en_lectura_Inbound()
+    {
+        var servicioA = CrearServicio(_tenantA);
+        var servicioB = CrearServicio(_tenantB);
+        var identificadores = new List<string>();
+        foreach (var nombre in new[] { "uno.pdf", "dos.pdf" })
+        {
+            using var contenido = new MemoryStream("contenido"u8.ToArray());
+            var identificador = await servicioA.GuardarAsync(contenido, nombre);
+            identificadores.Add(identificador);
+            var ruta = RutaDe(_tenantA, identificador);
+            var bytes = await File.ReadAllBytesAsync(ruta);
+            bytes[^1] ^= 0xFF;
+            await File.WriteAllBytesAsync(ruta, bytes);
+            var accion = async () => await servicioB.AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
+            await accion.Should().ThrowAsync<InvalidDataException>();
+        }
+
+        _alertas.Alertas.Should().HaveCount(2);
+        _alertas.Alertas.Select(a => a.Mensaje).Distinct().Should().ContainSingle()
+            .Which.Should().Contain(_tenantA.ToString("N")).And.NotContain(_tenantB.ToString("N"));
+        for (var i = 0; i < identificadores.Count; i++)
+        {
+            var nombre = Path.GetFileName(identificadores[i]);
+            _alertas.Alertas[i].Mensaje.Should().NotContain(nombre);
+            _logger.Avisos[i].Should().Contain(_tenantA.ToString("N"))
+                .And.NotContain(_tenantB.ToString("N"))
+                .And.Contain(DiskFileStorageService.HuellaArchivo(identificadores[i]))
+                .And.NotContain(nombre);
+        }
     }
 
     [Fact]
@@ -406,6 +473,9 @@ public class DiskFileStorageServiceTests : IDisposable
 
         _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("protector v1"),
             "es el único instrumento que puede responder si queda formato anterior en producción");
+        _logger.Avisos[0].Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
     }
 
     [Fact]
@@ -420,7 +490,10 @@ public class DiskFileStorageServiceTests : IDisposable
         var servicio = CrearServicio(_tenantA);
         await using var flujo = await servicio.AbrirAsync($"{carpetaTenant}/{nombreArchivo}");
 
-        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("sin cifrar"));
+        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("sin cifrar"))
+            .Which.Should().Contain(carpetaTenant)
+            .And.Contain(DiskFileStorageService.HuellaArchivo($"{carpetaTenant}/{nombreArchivo}"))
+            .And.NotContain(nombreArchivo);
     }
 
     [Fact]
@@ -436,6 +509,135 @@ public class DiskFileStorageServiceTests : IDisposable
         await using var flujo = await servicio.AbrirAsync(identificador);
 
         _logger.Avisos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Escribe un archivo sin marca v2 ni payload v1: lo mismo que un legado anterior al cifrado en reposo, y lo
+    /// mismo que dejaría quien escribiera directamente en el volumen de almacenamiento.
+    /// </summary>
+    private async Task<string> EscribirArchivoEnClaroAsync(Guid tenantId, string contenido, string? nombreArchivo = null)
+    {
+        var carpeta = tenantId.ToString("N");
+        Directory.CreateDirectory(Path.Combine(_rutaTemporal, carpeta));
+        nombreArchivo ??= $"{Guid.NewGuid():N}.pdf";
+        await File.WriteAllTextAsync(Path.Combine(_rutaTemporal, carpeta, nombreArchivo), contenido);
+
+        return $"{carpeta}/{nombreArchivo}";
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Ana Garcia - reconocimiento medico.pdf")]
+    public async Task Servir_un_archivo_sin_cifrar_ni_marca_emite_una_alerta_critica_sin_datos_personales(string? nombreArchivo)
+    {
+        // S-D-1: antes, esta rama solo dejaba un LogWarning, mientras que el v2
+        // que no supera la verificación emite alerta crítica. Un fichero en
+        // claro no se distingue de uno escrito por quien tenga acceso al
+        // volumen, así que tiene que llegar a la guardia por el mismo canal.
+        // La alerta no lleva el nombre de archivo: ni el que generó el almacén
+        // (su extensión viene del original) ni, menos aún, uno puesto a mano.
+        var identificador = await EscribirArchivoEnClaroAsync(_tenantA, "contenido", nombreArchivo);
+        var nombreEnDisco = Path.GetFileName(identificador);
+
+        var servicio = CrearServicio(_tenantA);
+        await using var flujo = await servicio.AbrirAsync(identificador);
+
+        var alerta = _alertas.Alertas.Should().ContainSingle().Subject;
+        alerta.Nivel.Should().Be(NivelAlertaOperativa.Critica);
+        alerta.Mensaje.Should().Contain(_tenantA.ToString("N"), "la guardia necesita saber de qué Tenant propietario es")
+            .And.NotContain(nombreEnDisco)
+            .And.NotContain(Path.GetFileNameWithoutExtension(nombreEnDisco));
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(nombreEnDisco);
+    }
+
+    [Fact]
+    public async Task La_alerta_es_la_misma_para_todos_los_archivos_en_claro_de_un_Tenant()
+    {
+        // Una población legada no puede abrir una incidencia por archivo en la
+        // guardia: el mensaje estable agrupa por Tenant propietario.
+        var primero = await EscribirArchivoEnClaroAsync(_tenantA, "uno");
+        var segundo = await EscribirArchivoEnClaroAsync(_tenantA, "dos");
+
+        var servicio = CrearServicio(_tenantA);
+        await using (await servicio.AbrirAsync(primero)) { }
+        await using (await servicio.AbrirAsync(segundo)) { }
+
+        _alertas.Alertas.Should().HaveCount(2);
+        _alertas.Alertas.Select(a => a.Mensaje).Distinct().Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Con_el_rechazo_activo_un_archivo_sin_cifrar_ni_marca_no_se_sirve_y_alerta()
+    {
+        var identificador = await EscribirArchivoEnClaroAsync(_tenantA, "contenido no autenticado");
+
+        var servicio = CrearServicio(_tenantA, rechazarLegadoEnClaro: true);
+        var accion = async () => await servicio.AbrirAsync(identificador);
+
+        await accion.Should().ThrowAsync<InvalidDataException>("falla cerrado, igual que un v2 que no supera la verificación");
+        var alerta = _alertas.Alertas.Should().ContainSingle().Subject;
+        alerta.Nivel.Should().Be(NivelAlertaOperativa.Critica);
+        alerta.Mensaje.Should().Contain(_tenantA.ToString("N")).And.Contain("rechazó");
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_original_Inbound_sin_cifrar_ni_marca_alerta_con_el_Tenant_propietario_y_no_con_el_lector(bool rechazarLegadoEnClaro)
+    {
+        // La lectura que cruza Tenants pasa por el mismo descifrado, con la
+        // clave y la carpeta del Tenant propietario.
+        var identificador = await EscribirArchivoEnClaroAsync(_tenantA, "contenido no autenticado");
+
+        var servicioB = CrearServicio(_tenantB, rechazarLegadoEnClaro);
+        var accion = async () => await servicioB.AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
+
+        if (rechazarLegadoEnClaro)
+        {
+            await accion.Should().ThrowAsync<InvalidDataException>();
+        }
+        else
+        {
+            await using var flujo = await accion();
+            using var lector = new StreamReader(flujo);
+            (await lector.ReadToEndAsync()).Should().Be("contenido no autenticado", "por defecto se sigue sirviendo");
+        }
+
+        _alertas.Alertas.Should().ContainSingle()
+            .Which.Mensaje.Should().Contain(_tenantA.ToString("N")).And.NotContain(_tenantB.ToString("N"));
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.NotContain(_tenantB.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Los_formatos_v1_y_v2_se_siguen_leyendo_sin_alertas_con_y_sin_rechazo(bool rechazarLegadoEnClaro)
+    {
+        // El rechazo solo afecta a la rama en claro: un v1 sin marca se
+        // descifra autenticado y un v2 lleva su marca, así que ninguno de los
+        // dos es ambiguo ni debe alertar.
+        var identificadorV1 = await EscribirArchivoDeFormatoAnteriorAsync(_tenantA, "informe medico anterior");
+        var servicio = CrearServicio(_tenantA, rechazarLegadoEnClaro);
+        using var contenido = new MemoryStream("un dato de salud confidencial"u8.ToArray());
+        var identificadorV2 = await servicio.GuardarAsync(contenido, "documento.pdf");
+
+        await using (var flujoV1 = await servicio.AbrirAsync(identificadorV1))
+        using (var lectorV1 = new StreamReader(flujoV1))
+            (await lectorV1.ReadToEndAsync()).Should().Be("informe medico anterior");
+
+        await using (var flujoV2 = await servicio.AbrirAsync(identificadorV2))
+        using (var lectorV2 = new StreamReader(flujoV2))
+            (await lectorV2.ReadToEndAsync()).Should().Be("un dato de salud confidencial");
+
+        _alertas.Alertas.Should().BeEmpty();
     }
 
     private sealed class LoggerEspia : ILogger<DiskFileStorageService>

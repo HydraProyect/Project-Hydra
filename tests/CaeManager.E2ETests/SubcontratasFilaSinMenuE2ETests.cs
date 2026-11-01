@@ -77,7 +77,8 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(PaginaSubcontrata360);
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(PaginaSubcontrata360, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
 
         // De vuelta en la lista, el lápiz de la cabecera del panel entra en edición. Va el
@@ -115,7 +116,7 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var page = await AbrirSubcontratasAsync(contexto);
 
         await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator(".lista-filas-acordeon .fila-enfocada")).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(page.Locator(".lista-filas-acordeon .fila-enfocada"));
         await page.Keyboard.PressAsync("e");
 
         await page.WaitForURLAsync(EntrarEnEdicion);

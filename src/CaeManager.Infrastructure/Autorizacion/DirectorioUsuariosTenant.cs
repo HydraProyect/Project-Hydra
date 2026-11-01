@@ -131,9 +131,11 @@ public class DirectorioUsuariosTenant(
             // (Codex, #996, pasada 1). Misma razón que ObtenerAsync.
             var usuario = await userManager.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == usuarioId && u.TenantId == tenantId, cancellationToken);
+                .Where(u => u.Id == usuarioId && u.TenantId == tenantId)
+                .Select(u => new { u.Id, u.LockoutEnd })
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (usuario is null || usuario.EstaDesactivada(DateTimeOffset.UtcNow))
+            if (usuario is null || ApplicationUser.BloqueoDesactivaLaCuenta(usuario.LockoutEnd, DateTimeOffset.UtcNow))
                 return false;
 
             // El rol también sin rastreo: IsInRoleAsync acaba en UserRoles.FindAsync, que devuelve
@@ -158,12 +160,12 @@ public class DirectorioUsuariosTenant(
                 join ur in identidad.UserRoles.AsNoTracking() on u.Id equals ur.UserId
                 join r in identidad.Roles.AsNoTracking() on ur.RoleId equals r.Id
                 where u.TenantId == tenantId && r.Name == rol
-                select u)
+                select new { u.Id, u.LockoutEnd })
                 .ToListAsync(cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
-                .Where(u => !u.EstaDesactivada(ahora))
+                .Where(u => !ApplicationUser.BloqueoDesactivaLaCuenta(u.LockoutEnd, ahora))
                 .Select(u => u.Id)
                 .Distinct()
                 .OrderBy(id => id)
@@ -195,10 +197,7 @@ public class DirectorioUsuariosTenant(
             // lista general: quien solo entra por SSO no está pendiente. (Consulta inline: la puerta
             // no es reentrante.)
             var ids = cuentas.Select(u => u.Id).ToList();
-            var conLoginExterno = ids.Count == 0
-                ? new HashSet<Guid>()
-                : (await identidad.UserLogins.Where(l => ids.Contains(l.UserId)).Select(l => l.UserId).Distinct()
-                    .ToListAsync(cancellationToken)).ToHashSet();
+            var conLoginExterno = await LeerIdsConLoginExternoAsync(ids, cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
@@ -243,12 +242,12 @@ public class DirectorioUsuariosTenant(
                       && u.Id != excluirUsuarioId
                       && r.Name == Roles.GestorCae
                 orderby u.NombreCompleto, u.Email
-                select u)
+                select new { u.Id, u.NombreCompleto, u.Email, u.PhoneNumber, u.LockoutEnd })
                 .ToListAsync(cancellationToken);
 
             var ahora = DateTimeOffset.UtcNow;
             return cuentas
-                .Where(u => !u.EstaDesactivada(ahora))
+                .Where(u => !ApplicationUser.BloqueoDesactivaLaCuenta(u.LockoutEnd, ahora))
                 .Take(MaximoCompanerosGestorCae)
                 .Select(u => new CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.CompaneroGestorCaeDto(
                     u.Id,
@@ -299,7 +298,8 @@ public class DirectorioUsuariosTenant(
 
     /// <summary>
     /// Qué usuarios de este lote inician sesión por SSO (tienen al menos un
-    /// login externo), en una sola consulta contra <c>AspNetUserLogins</c>.
+    /// login externo), en una sola consulta. Soporte TALVEG usa una función booleana
+    /// limitada al Tenant del contexto firmado; el runtime consulta <c>AspNetUserLogins</c>.
     ///
     /// Revisión de Codex (2026-09-18): antes de esto, distinguir una cuenta
     /// SSO de una invitación pendiente en <c>/usuarios</c> llamaba
@@ -313,14 +313,38 @@ public class DirectorioUsuariosTenant(
         {
             if (usuarioIds.Count == 0) return new HashSet<Guid>();
 
-            var conLogin = await identidad.UserLogins
-                .Where(l => usuarioIds.Contains(l.UserId))
-                .Select(l => l.UserId)
-                .Distinct()
-                .ToListAsync(cancellationToken);
-
-            return conLogin.ToHashSet();
+            return await LeerIdsConLoginExternoAsync(usuarioIds, cancellationToken);
         }, cancellationToken);
+
+    /// <summary>
+    /// La lectura en sí, sin la puerta, para quien ya está dentro de ella. Decide por la identidad efectiva de
+    /// PostgreSQL y no por la selección de Sesión Privilegiada, que es de lo que deriva: lo que se le niega a
+    /// <c>cae_app_soporte</c> es la tabla, y un ámbito elevado con selección vigente no es <c>cae_app_soporte</c>.
+    ///
+    /// <para>
+    /// Con esa identidad, <c>app_cuenta_tiene_login_externo</c> solo responde sobre las cuentas propias del Tenant
+    /// del contexto firmado. Una cuenta de otro Tenant que la RLS deja ver, como la de un Operador CAE externo
+    /// delegado, sale sin login externo aunque lo tenga.
+    /// </para>
+    /// </summary>
+    internal async Task<HashSet<Guid>> LeerIdsConLoginExternoAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (usuarioIds.Count == 0) return [];
+
+        if (identidad.Database.IsNpgsql() &&
+            await identidad.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"")
+                .SingleAsync(cancellationToken) == "cae_app_soporte")
+        {
+            var ids = usuarioIds.ToArray();
+            return (await identidad.Database.SqlQuery<Guid>(
+                $"SELECT id AS \"Value\" FROM unnest({ids}) AS id WHERE public.app_cuenta_tiene_login_externo(id)")
+                .ToListAsync(cancellationToken)).ToHashSet();
+        }
+
+        return (await identidad.UserLogins.Where(l => usuarioIds.Contains(l.UserId))
+            .Select(l => l.UserId).Distinct().ToListAsync(cancellationToken)).ToHashSet();
+    }
 
     /// <summary>
     /// El rol de Identity de cada cuenta del lote, en una sola consulta contra
@@ -435,25 +459,28 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
-    /// Equivalente a <c>GetUsersInRoleAsync</c> pero acotado al tenant activo
-    /// — es el que alimenta los selectores de gestor/ejecutivo.
+    /// Las cuentas del rol visibles en el tenant activo, proyectadas: alimenta los
+    /// selectores de gestor/ejecutivo y solo trae lo que estos pintan. El orden se
+    /// resuelve en memoria, no en la base, para que el desplegable no dependa de
+    /// la intercalación de PostgreSQL.
     /// </summary>
-    public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(
+    public virtual Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(
         string rol, CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CuentaVisibleEnRol>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
             var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
 
-            // GetUsersInRoleAsync no se puede componer con LINQ (devuelve una
-            // lista ya materializada), así que el filtro se aplica después.
-            var enRol = await userManager.GetUsersInRoleAsync(rol);
+            var enRol = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles on u.Id equals ur.UserId
+                join r in identidad.Roles on ur.RoleId equals r.Id
+                where r.Name == rol && (u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
+                select new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar))
+                .ToListAsync(cancellationToken);
 
-            return enRol
-                .Where(u => u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id))
-                .OrderBy(u => u.NombreCompleto)
-                .ToList();
+            return enRol.OrderBy(u => u.NombreCompleto).ToList();
         }, cancellationToken);
 
     /// <summary>
@@ -583,15 +610,17 @@ public class DirectorioUsuariosTenant(
     /// los roles de cada uno, uno a uno.
     /// </para>
     /// </summary>
-    public Task<IReadOnlyList<ApplicationUser>> ObtenerCuentasPropiasSinRolAsync(
+    public Task<IReadOnlyList<CuentaPropiaSinRol>> ObtenerCuentasPropiasSinRolAsync(
         CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<CuentaPropiaSinRol>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return [];
 
             return await identidad.Users
+                .AsNoTracking()
                 .Where(u => u.TenantId == tenantId && !identidad.UserRoles.Any(ur => ur.UserId == u.Id))
                 .OrderBy(u => u.FechaCreacion)
+                .Select(u => new CuentaPropiaSinRol(u.Id, u.Email, u.NombreCompleto, u.FechaCreacion))
                 .ToListAsync(cancellationToken);
         }, cancellationToken);
 
@@ -826,11 +855,13 @@ public class DirectorioUsuariosTenant(
 
             var cuenta = await identidad.Users
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == usuarioId, cancellationToken);
+                .Where(u => u.Id == usuarioId)
+                .Select(u => new { u.TenantId, u.LockoutEnd, u.CoordinadorUsuarioId })
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (cuenta is null) return null;
 
-            var activa = !cuenta.EstaDesactivada(DateTimeOffset.UtcNow);
+            var activa = !ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.LockoutEnd, DateTimeOffset.UtcNow);
 
             if (cuenta.TenantId == tenantId)
             {

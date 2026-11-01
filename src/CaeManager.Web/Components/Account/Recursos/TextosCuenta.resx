@@ -12,6 +12,9 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="DosFactoresObligatorioPorTenant" xml:space="preserve">
+    <value>Tu organización exige la autenticación en dos pasos a todas las cuentas. Actívala para continuar: hasta entonces no podrás acceder al resto de {0}.</value>
+  </data>
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>Tu rol de Administrador exige la autenticación en dos pasos. Actívala para continuar: hasta entonces no podrás acceder al resto de {0}.</value>
   </data>
@@ -102,7 +105,7 @@
     <comment>P1-I2: salida de la página de 2FA cuando se llegó con un returnUrl local desde una ficha.</comment>
   </data>
   <data name="CambiarContrasenaVoluntarioExplicacion" xml:space="preserve">
-    <value>Escribe tu contraseña actual y la que quieres usar a partir de ahora.</value>
+    <value>Escribe tu contraseña actual y la que quieres usar a partir de ahora. La nueva debe tener al menos {0} caracteres.</value>
   </data>
   <data name="CambiarContrasenaVolverSinCambiarla" xml:space="preserve">
     <value>Volver sin cambiarla</value>
@@ -161,6 +164,15 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Proteger mi cuenta</value>
   </data>
+  <data name="SesionPrivilegiadaCambiarContrasena" xml:space="preserve">
+    <value>No se puede cambiar la contraseña durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaDosFactores" xml:space="preserve">
+    <value>No se puede modificar la autenticación en dos pasos durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaRestablecerContrasena" xml:space="preserve">
+    <value>No se puede restablecer la contraseña durante una Sesión Privilegiada. Cierra la Sesión Privilegiada para continuar.</value>
+  </data>
   <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
     <value>Tu cuenta de Microsoft no está dada de alta en {0}. Pide a tu Administrador que te dé de alta.</value>
   </data>
@@ -170,4 +182,26 @@
   <data name="LoginErrorSsoSinSegundoFactor" xml:space="preserve">
     <value>Tu inicio de sesión con Microsoft no incluyó la verificación en dos pasos, y tu cuenta de {0} no la tiene configurada. Pide a tu Administrador que active la verificación en dos pasos en Microsoft.</value>
   </data>
+  <data name="CodigosVerificarAutenticador" xml:space="preserve"><value>Código actual de tu aplicación autenticadora</value></data>
+  <data name="CodigosVerificacionFallida" xml:space="preserve"><value>No se pudo verificar el código o la cuenta está bloqueada.</value></data>
+  <data name="CodigosVerificacionEnCurso" xml:space="preserve"><value>Ya se está verificando un código para esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="CambiarContrasenaVerificacionFallida" xml:space="preserve"><value>No se pudo verificar la contraseña actual o la cuenta está bloqueada.</value></data>
+  <data name="ReautenticacionTitulo" xml:space="preserve"><value>Confirma que eres tú</value></data>
+  <data name="ReautenticacionContrasenaAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a introducir tu contraseña.</value></data>
+  <data name="ReautenticacionContrasena" xml:space="preserve"><value>Contraseña actual</value></data>
+  <data name="ReautenticacionContinuar" xml:space="preserve"><value>Continuar</value></data>
+  <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a iniciar sesión con Microsoft.</value></data>
+  <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Volver a iniciar sesión con Microsoft</value></data>
+  <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ya se está verificando esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
+  <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Para vincular tu cuenta de Microsoft, configura antes la verificación en dos pasos de {0}.</value></data>
+  <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Código QR para configurar la aplicación autenticadora</value></data>
+  <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escanea el código con Google Authenticator, Microsoft Authenticator o 1Password. ¿No puedes escanearlo? Introduce esta clave:</value></data>
+  <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Código de 6 dígitos de la aplicación</value></data>
+  <data name="AltaVinculoActivar" xml:space="preserve"><value>Activar y continuar</value></data>
+  <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Después te pediremos otro código: espera a que la aplicación muestre uno nuevo, porque cada código sirve una sola vez.</value></data>
+  <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.</value></data>
+  <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No se pudo preparar la verificación en dos pasos. Vuelve a iniciar sesión.</value></data>
+  <data name="LoginMicrosoftSeparador" xml:space="preserve"><value>o</value></data>
+  <data name="LoginMicrosoftIniciarSesion" xml:space="preserve"><value>Iniciar sesión con Microsoft</value></data>
 </root>

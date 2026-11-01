@@ -110,7 +110,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 3: Asignar el Trabajador al Centro (queda Faltante) ---
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-        var filaTrabajador = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var filaTrabajador = page.Locator(".marco-lista-trabajadores .tarjeta-fila-acordeon", new PageLocatorOptions { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {nombreTrabajador} {apellidosTrabajador}", Exact = true }) });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // La fila ya estaba en la lista sin filtrar, así que verla no dice que el filtro haya llegado; y la
         // recarga del filtro limpia la selección. La barrera es la lista filtrada: queda solo esa fila.
@@ -203,7 +203,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await enlaceFicha.ClickAsync();
         var rutaFicha = new System.Text.RegularExpressions.Regex(
             @"/trabajadores/(?<id>[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(\?.*)?$");
-        await page.WaitForURLAsync(rutaFicha, new PageWaitForURLOptions { Timeout = 15_000 });
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        await Assertions.Expect(page).ToHaveURLAsync(rutaFicha, new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
         Assert.True(Guid.TryParse(rutaFicha.Match(page.Url).Groups["id"].Value, out _),
             $"La acción debería llevar a /trabajadores/{{guid}}, pero la URL es {page.Url}.");
 
@@ -272,7 +273,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // desde el 2026-10-10. Se localiza por su clase propia y no por
         // .badge-peligro, que en la cabecera de la fila es la pastilla de
         // estado y dentro del acordeón, el badge de cada Trabajador.
-        var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro });
+        var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { Has = botonExpandir });
         var motivoPendientes = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-pendientes");
         await Expect(motivoPendientes).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
@@ -301,7 +302,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // obligatorios del catálogo compartido también aparecen como "Pendiente"
         // para este Trabajador nuevo, así que no basta con buscar ese texto
         // suelto en toda la tabla.
-        var filaDocumento = tablaDocumentos.Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
+        var filaDocumento = tablaDocumentos.GetByRole(AriaRole.Row).Filter(new LocatorFilterOptions { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = nombreTipoDocumento, Exact = true }) });
         return (motivoPendientes, filaDocumento);
     }
 

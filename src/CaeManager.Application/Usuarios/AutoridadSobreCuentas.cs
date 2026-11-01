@@ -37,6 +37,16 @@ namespace CaeManager.Application.Usuarios;
 /// 2026-10-15; deuda: ya no lo señala nadie). Sin señal fallan cerradas: la vía
 /// heredada (acceso de soporte) y la Sesión Privilegiada no la dan.
 /// </para>
+///
+/// <para>
+/// Encima de esas dos reglas de Tenant va una de rol (decisión del 2026-10-30): el rol
+/// Administrador solo lo concede un Administrador
+/// (<see cref="VerificarConcesionDeAdministradorAsync"/>), y por la misma razón solo un
+/// Administrador emite o corrige el enlace de activación de una cuenta Administrador
+/// pendiente (<see cref="VerificarActivacionDeCuentaAdministradorAsync"/>). Dirección CAE
+/// gestiona el resto de cuentas. Y nadie deja al Tenant sin Administrador
+/// (<see cref="VerificarQueNoEsElUltimoAdministradorAsync"/>).
+/// </para>
 /// </summary>
 public static class AutoridadSobreCuentas
 {
@@ -74,8 +84,103 @@ public static class AutoridadSobreCuentas
     public static readonly Error CuentaInexistente = Error.Crear(
         "Usuarios.CuentaInexistente", "Esta cuenta ya no existe. Recargamos la lista.");
 
+    public static readonly Error SoloUnAdministradorConcedeAdministrador = Error.Crear(
+        "Usuarios.SoloUnAdministradorConcedeAdministrador",
+        "Solo un Administrador de la organización puede conceder el rol Administrador.");
+
     public static async Task<bool> PuedeGestionarCuentasAsync(ICurrentUserService currentUserService) =>
         await currentUserService.ObtenerRolEfectivoAsync() is { } rol && RolesQueGestionanCuentas.Contains(rol);
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-30 (cierra el hallazgo alto de la revisión de
+    /// madurez del 2026-10-08): el rol Administrador del Tenant solo lo concede un
+    /// Administrador —por su rol efectivo— o un Actor de Plataforma TALVEG por su propio
+    /// camino (el alta de un Tenant, que siembra al primer Administrador; no /usuarios).
+    /// Dirección CAE, Coordinador CAE y Gestor CAE nunca lo conceden, ni a otra cuenta ni
+    /// a sí mismos: conceder Propiedad no es una capacidad del plano Operación.
+    ///
+    /// <para>
+    /// «Un Administrador» incluye, por decisión del propietario del mismo día (segunda
+    /// entrada), al Administrador del Operador CAE externo que opera el Tenant beneficiario
+    /// por una Asignación de Operación vigente: su rol efectivo allí es su perfil de origen
+    /// (decisión del 2026-10-20) y concede Administrador en ese Tenant. La Dirección CAE,
+    /// el Coordinador CAE y el Gestor CAE de ese Operador CAE externo, no. Lo fijan
+    /// <c>GestionCuentasCommandsTests</c> («Operador_CAE_externo_…»).
+    /// </para>
+    ///
+    /// <para>
+    /// Es una regla de rol, no de Tenant: se compone con
+    /// <see cref="RolesReservadosAlTenantDeOrigen"/>, que decide en qué Context Workspace
+    /// puede concederse. Solo se evalúa cuando el guardado concede el rol: conservar el
+    /// Administrador que la cuenta ya tenía no es concederlo.
+    /// </para>
+    /// </summary>
+    public static async Task<Result> VerificarConcesionDeAdministradorAsync(
+        string? rolConcedido, ICurrentUserService currentUserService) =>
+        rolConcedido == Administrador && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
+            ? Result.Fallo(SoloUnAdministradorConcedeAdministrador)
+            : Result.Exito();
+
+    public static readonly Error UltimoAdministrador = Error.Crear(
+        "Usuarios.UltimoAdministrador",
+        "Es el único Administrador de la organización, y la organización no puede quedarse sin ninguno. " +
+        "Antes tiene que haber otro Administrador.");
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-30: un Tenant no se queda sin Administrador. Se
+    /// rechaza degradar, desactivar o eliminar la cuenta si es Administrador y el Tenant no
+    /// tiene otro (<see cref="IAdministradoresDelTenant.EsElUltimoAdministradorAsync"/>; una
+    /// cuenta pendiente de activación cuenta, en los dos lados: el último Administrador
+    /// aún sin activar tampoco se elimina). Vale para cualquiera, también para el propio
+    /// Administrador sobre su cuenta. La otra mitad de la decisión es la vía de Plataforma
+    /// para reponer un Administrador.
+    ///
+    /// <para>
+    /// Se llama dentro de la transacción que escribe, en todo cambio que pueda retirar a la
+    /// cuenta, sea cual sea el rol que el Command le leyó al empezar: pudo ascender a
+    /// Administrador después. Toma antes el candado de los Administradores del Tenant, para que
+    /// dos retiradas simultáneas no puedan verse la una a la otra como «el otro Administrador»,
+    /// y la lectura con el candado es la que decide. Sin Tenant activo no hay a quién preguntar
+    /// y falla cerrada.
+    /// </para>
+    /// </summary>
+    public static async Task<Result> VerificarQueNoEsElUltimoAdministradorAsync(
+        Guid usuarioId, Guid? tenantActivo, IAdministradoresDelTenant administradores,
+        CancellationToken cancellationToken)
+    {
+        if (tenantActivo is not { } tenantId)
+            return Result.Fallo(UltimoAdministrador);
+
+        await administradores.BloquearAsync(tenantId, cancellationToken);
+        return await administradores.EsElUltimoAdministradorAsync(tenantId, usuarioId, cancellationToken)
+            ? Result.Fallo(UltimoAdministrador)
+            : Result.Exito();
+    }
+
+    public static readonly Error SoloUnAdministradorActivaAdministrador = Error.Crear(
+        "Usuarios.SoloUnAdministradorActivaAdministrador",
+        "Solo un Administrador de la organización puede enviar o corregir el enlace de activación de una cuenta Administrador.");
+
+    /// <summary>
+    /// Corolario de <see cref="VerificarConcesionDeAdministradorAsync"/> para una cuenta
+    /// Administrador pendiente de activación: emitir su enlace de activación —que vuelve a
+    /// quien lo pide— o corregirle el correo equivale a quedarse con la cuenta, es decir, a
+    /// conceder Administrador a quien la active. Solo lo hace un Administrador (revisión
+    /// puente del incremento del 2026-10-30).
+    ///
+    /// <para>
+    /// Una cuenta pendiente <b>sin rol</b> cuenta igual: es lo que deja el alta de un
+    /// Administrador cuando la asignación del rol falla después de crear la cuenta, y un
+    /// Administrador la completará asignándole el rol. Si Dirección CAE pudiera reenviarle
+    /// o corregirle el enlace antes, se quedaría con la cuenta que luego recibe Administrador.
+    /// </para>
+    /// </summary>
+    public static async Task<Result> VerificarActivacionDeCuentaAdministradorAsync(
+        IReadOnlyCollection<string> rolesDestino, ICurrentUserService currentUserService) =>
+        (rolesDestino.Count == 0 || rolesDestino.Contains(Administrador))
+        && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
+            ? Result.Fallo(SoloUnAdministradorActivaAdministrador)
+            : Result.Exito();
 
     /// <summary>
     /// DEC-36 (REC-099): solo otro Administrador concede o revoca el permiso de

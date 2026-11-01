@@ -117,7 +117,7 @@ public class AsistenteIaAgenteTests : BunitContext
         try
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
-            Configurar(anthropic: true, typeSafeActivo: false);
+            Configurar(anthropic: true, agenteReal: false);
             GuionDeEmpresa();
             Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba(TipoViaAcceso.SesionPrivilegiada));
 
@@ -141,11 +141,14 @@ public class AsistenteIaAgenteTests : BunitContext
         }
     }
 
-    private void Configurar(bool anthropic, bool typeSafeActivo, bool typeSafeClave = true)
+    private void Configurar(bool anthropic, bool agenteReal, bool agenteActivo = true)
     {
-        Services.AddSingleton<IOptions<AnthropicOptions>>(Options.Create(new AnthropicOptions { ApiKey = anthropic ? "sk-ant-de-prueba" : null }));
-        Services.AddSingleton<IOptions<TypeSafeOptions>>(Options.Create(
-            new TypeSafeOptions { Activo = typeSafeActivo, ApiKey = typeSafeClave ? "ts-de-prueba" : null }));
+        Services.AddSingleton<IOptions<AnthropicOptions>>(Options.Create(new AnthropicOptions
+        {
+            ApiKey = anthropic && agenteReal ? "sk-ant-de-prueba" : null,
+            AgenteActivo = agenteReal && agenteActivo,
+        }));
+        if (anthropic && !agenteReal) Services.AddSingleton(new CaeManager.Infrastructure.DependencyInjection.MarcaAsistenteDePruebas());
         Services.AddScoped<DisponibilidadAsistente>();
     }
 
@@ -199,12 +202,12 @@ public class AsistenteIaAgenteTests : BunitContext
         panel.Find("button.asistente-boton-enviar").Click();
     }
 
-    // ---- Disponibilidad: TypeSafe apagado --------------------------------------------------
+    // ---- Disponibilidad: el doble de consultas --------------------------------------------------
 
     [Fact]
-    public void Con_TypeSafe_apagado_el_panel_avisa_y_solo_ofrece_las_consultas()
+    public void Con_el_doble_de_consultas_el_panel_avisa_y_solo_ofrece_las_consultas()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
 
         var panel = Abrir();
 
@@ -215,9 +218,9 @@ public class AsistenteIaAgenteTests : BunitContext
     }
 
     [Fact]
-    public void Con_TypeSafe_apagado_una_pregunta_nunca_toca_el_agente()
+    public void Con_el_doble_de_consultas_una_pregunta_nunca_toca_el_agente()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta normativa.");
 
         var panel = Abrir();
@@ -225,20 +228,31 @@ public class AsistenteIaAgenteTests : BunitContext
 
         panel.Find(".asistente-mensaje-markdown").TextContent.Should().Contain("Respuesta normativa.");
         _mediador.Recibidos.Where(r => r is not ObtenerClientesAutorizadosQuery).Should().ContainSingle().Which.Should().BeOfType<PreguntarAlAsistenteQuery>(
-            "con TypeSafe apagado no se crea ninguna Tarea ni se pide ningún plan");
+            "con el doble de consultas no se crea ninguna Tarea ni se pide ningún plan");
     }
 
     [Theory]
     [InlineData(false, true, false)]
     [InlineData(true, false, false)]
     [InlineData(true, true, true)]
-    public void El_agente_necesita_las_dos_llaves_de_TypeSafe(bool activo, bool clave, bool disponible)
+    public void El_agente_necesita_la_clave_de_Anthropic_y_el_interruptor(bool clave, bool activo, bool disponible)
     {
-        Configurar(anthropic: false, typeSafeActivo: activo, typeSafeClave: clave);
+        Configurar(anthropic: clave, agenteReal: true, agenteActivo: activo);
 
-        var boton = Render<BotonAsistenteIa>();
+        Services.GetRequiredService<DisponibilidadAsistente>().AgenteDisponible
+            .Should().Be(disponible, "la clave sola no enciende el agente: hace falta Anthropic:AgenteActivo");
+    }
 
-        (boton.Markup.Length > 0).Should().Be(disponible, "solo Activo y ApiKey a la vez encienden el agente");
+    [Fact]
+    public void Con_la_clave_y_sin_el_interruptor_Vega_abre_en_Consulta_y_no_ofrece_el_agente()
+    {
+        Configurar(anthropic: true, agenteReal: true, agenteActivo: false);
+        GuionDeEmpresa();
+
+        var panel = Abrir();
+
+        panel.FindAll(".asistente-modos").Should().BeEmpty("sin el agente no hay modos que elegir");
+        panel.FindAll("p.asistente-nota").Should().ContainSingle("se avisa de que el agente no está disponible");
     }
 
     // ---- Plan: mostrar, confirmar, descartar -------------------------------------------------
@@ -246,7 +260,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Una_orden_se_guarda_antes_de_pedir_el_plan_y_el_plan_se_muestra()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
 
         var panel = Abrir();
@@ -268,7 +282,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Confirmar_manda_la_version_que_la_persona_ve_y_no_promete_ejecucion()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -284,7 +298,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Enter_con_la_caja_vacia_confirma_el_plan_pendiente()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -297,7 +311,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Los_botones_del_plan_detienen_el_teclado_para_que_Enter_sobre_un_chip_no_confirme()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -314,7 +328,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Un_plan_que_mezcla_dos_Tenants_se_ve_bloqueado_y_ni_el_clic_ni_el_Enter_lo_confirman()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanMezcla());
         var panel = Abrir();
         Enviar(panel, "alta de centro");
@@ -333,7 +347,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Un_plan_que_no_se_pudo_guardar_no_se_puede_confirmar()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(GuardarPlanTareaAsistenteCommand)] = _ => Result.Fallo(Error.Crear("X.Guardar", "No se pudo guardar el plan."));
         var panel = Abrir();
@@ -348,7 +362,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Cambiar_el_chip_de_Tenant_vuelve_a_pedir_el_plan_con_ese_Tenant_y_lo_guarda_en_la_misma_Tarea()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -365,7 +379,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Descartar_el_plan_descarta_la_Tarea()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -381,7 +395,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Sin_autorizacion_para_guardar_la_Tarea_el_texto_no_sale_hacia_el_proveedor()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(CrearTareaAsistenteCommand)] = _ => Result.Fallo<Guid>(Error.Crear("Autorizacion.Denegada", "No tienes permiso."));
         var panel = Abrir();
@@ -394,7 +408,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Sin_instruccion_de_IA_vigente_se_dice_y_no_queda_ningun_borrador()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] = _ => Result.Fallo<PlanPropuestoDto>(
             Error.Crear("AsistenteIa.SinInstruccion", "Esta organización todavía no tiene una instrucción de tratamiento con IA vigente."));
@@ -409,7 +423,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Una_orden_no_entendida_avisa_y_descarta_la_Tarea()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(ProponerPlanDeTareaAsistenteCommand)] =
             _ => Result.Exito(new PlanPropuestoDto(SituacionPlan.NoEntendido, null, 5, [], null, false, null));
@@ -427,7 +441,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void El_historial_lista_los_borradores_abiertos_y_permite_descartarlos()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var borrador = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta de un centro", DateTime.UtcNow);
         _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borrador]);
@@ -447,7 +461,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Todos_los_controles_del_panel_con_agente_tienen_nombre_accesible()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama");
@@ -463,7 +477,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void El_panel_es_complementario_y_no_modal()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeEmpresa();
 
         var panel = Abrir();
@@ -479,7 +493,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Ctrl_I_abre_y_pliega_Vega_y_al_plegar_el_foco_vuelve_al_boton()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeEmpresa();
         var panel = Render<AsistenteIa>();
         panel.FindAll("aside.vega-panel").Should().BeEmpty("Vega empieza plegado");
@@ -496,7 +510,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Ctrl_I_queda_registrado_como_atajo_global()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
 
         Render<AsistenteIa>();
 
@@ -506,7 +520,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Esc_dentro_del_panel_pliega_Vega()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeEmpresa();
         var panel = Abrir();
 
@@ -520,7 +534,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void En_la_pantalla_completa_Esc_y_Ctrl_I_no_pliegan_nada()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeEmpresa();
 
         // Vega abierto antes de entrar: en la pantalla completa el panel se ve siempre, así que lo
@@ -544,7 +558,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Cada_respuesta_lleva_la_etiqueta_de_su_modo_con_su_explicacion()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("La formación del art. 19.");
         var panel = Abrir();
@@ -565,7 +579,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void La_pastilla_Trabajando_en_muestra_la_Empresa_gestionada_actual()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeEmpresa();
 
         var panel = Abrir();
@@ -583,7 +597,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [InlineData(true)]
     public void Una_pregunta_rechazada_en_Consulta_no_se_queda_en_el_historial_que_se_reenvia(bool porValidacion)
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         GuionDeEmpresa();
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => porValidacion
             ? throw new FluentValidation.ValidationException(
@@ -616,7 +630,7 @@ public class AsistenteIaAgenteTests : BunitContext
         try
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(idioma);
-            Configurar(anthropic: true, typeSafeActivo: false);
+            Configurar(anthropic: true, agenteReal: false);
             GuionDeEmpresa();
             _tenantEfectivo.TenantId = enOrigen ? TenantB : TenantA;
 
@@ -648,7 +662,7 @@ public class AsistenteIaAgenteTests : BunitContext
         try
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(idioma);
-            Configurar(anthropic: true, typeSafeActivo: false);
+            Configurar(anthropic: true, agenteReal: false);
             GuionDeEmpresa();
             _tenantEfectivo.TenantId = volverAlOrigen ? TenantA : TenantB;
             var panel = Abrir();
@@ -674,7 +688,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Nueva_conversacion_vacia_el_hilo_y_la_conversacion_sobrevive_a_volver_a_montar_el_panel()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         GuionDeEmpresa();
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta normativa.");
         var panel = Abrir();
@@ -695,7 +709,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Si_el_Tenant_efectivo_cambia_en_el_circuito_no_se_reenvia_nada_del_anterior_al_proveedor()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         GuionDeEmpresa();
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta con datos del primer Tenant.");
         var panel = Abrir();
@@ -726,7 +740,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Si_el_Tenant_efectivo_cambia_el_plan_anterior_deja_de_pintarse_y_Enter_no_lo_confirma()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama la documentación a Montajes Ebro");
@@ -748,7 +762,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Si_el_Tenant_efectivo_cambia_los_borradores_del_anterior_dejan_de_verse()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
         _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
@@ -768,7 +782,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Con_el_mismo_Tenant_efectivo_los_borradores_siguen_a_la_vista()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
         _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
@@ -788,7 +802,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Si_otra_instancia_se_entera_antes_del_cambio_de_Tenant_el_panel_tampoco_ensena_los_borradores()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
         _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
@@ -808,7 +822,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Los_borradores_que_vuelven_con_otro_Tenant_efectivo_no_se_pintan()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
         _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ =>
@@ -830,7 +844,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void La_respuesta_que_vuelve_con_otro_Tenant_efectivo_no_entra_en_el_hilo_nuevo()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         GuionDeEmpresa();
         _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ =>
         {
@@ -851,7 +865,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Sin_ningun_proveedor_configurado_ni_Ctrl_I_ni_el_estado_abren_Vega()
     {
-        Configurar(anthropic: false, typeSafeActivo: false);
+        Configurar(anthropic: false, agenteReal: false);
         var panel = Render<AsistenteIa>();
 
         panel.InvokeAsync(() => panel.Instance.AlternarDesdeJs());
@@ -865,7 +879,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Al_reabrir_Vega_el_borrador_que_quedo_se_ve_en_la_caja()
     {
-        Configurar(anthropic: true, typeSafeActivo: false);
+        Configurar(anthropic: true, agenteReal: false);
         GuionDeEmpresa();
         var panel = Abrir();
         panel.Find("textarea.asistente-textarea").Input("borrador a medias");
@@ -886,7 +900,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Esc_con_el_foco_en_Confirmar_tambien_pliega_Vega_y_no_confirma()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama la documentación a Montajes Ebro");
@@ -900,7 +914,7 @@ public class AsistenteIaAgenteTests : BunitContext
     [Fact]
     public void Un_plan_viejo_no_roba_el_foco_al_volver_a_montar_el_panel()
     {
-        Configurar(anthropic: true, typeSafeActivo: true);
+        Configurar(anthropic: true, agenteReal: true);
         GuionDeAgente(PlanConfirmable());
         var panel = Abrir();
         Enviar(panel, "reclama la documentación a Montajes Ebro");

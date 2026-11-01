@@ -13,7 +13,11 @@
    los enlaces por su cuenta, y si abrirlo bastara, cualquier escáner cerraría
    las sesiones de la persona. Lo que actúa es el POST del botón (con
    antiforgery), y el token lo comprueba VigilanciaInicioSesionService. La
-   página no promete un correo que no salió: el texto sigue al desenlace. *@
+   página no promete un correo que no salió: el texto sigue al desenlace.
+   Sin guarda de Sesión Privilegiada a propósito: la autoridad es el token del
+   buzón y la página no añade una barrera propia por la cookie de selección. Lo
+   que esa selección cambie por debajo (rol de la conexión, Tenant de la búsqueda)
+   lo resuelve VigilanciaInicioSesionService. *@
 
 <PageTitle>@Textos["NoHeSidoYoTituloPagina"] — @Marca.Nombre</PageTitle>
 

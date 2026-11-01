@@ -186,6 +186,10 @@
                                     @* Sin deshabilitar visualmente durante el envío: mismo criterio que
                                        Desactivar/Reactivar — ItemMenuAccion no admite eso, la guarda
                                        contra doble clic vive dentro de ReenviarCredencialesAsync. *@
+                                    @* El enlace de un Administrador pendiente (o de una cuenta sin rol)
+                                       solo lo emite un Administrador: ver PuedeOfrecerEnlaceDeActivacion. *@
+                                    @if (PuedeOfrecerEnlaceDeActivacion(usuario))
+                                    {
                                     <ItemMenuAccion OnClick="() => ReenviarCredencialesAsync(usuario)">
                                         Reenviar correo de activación
                                     </ItemMenuAccion>
@@ -195,6 +199,7 @@
                                     <ItemMenuAccion OnClick="() => AbrirCorregirCorreo(usuario)">
                                         @TextosUsuarios["CorregirCorreoAccion"]
                                     </ItemMenuAccion>
+                                    }
                                     <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminacion(usuario)">
                                         Eliminar
                                     </ItemMenuAccion>
@@ -270,10 +275,13 @@
                 <div class="aviso-pendiente-activacion" role="group" aria-label="@TextosUsuarios["PendienteAvisoTitulo"]">
                     <p class="aviso-pendiente-titulo">@TextosUsuarios["PendienteAvisoTitulo"]</p>
                     <p class="texto-ayuda-campo">@TextosUsuarios["PendienteAvisoTexto"]</p>
+                    @if (PuedeOfrecerEnlaceDeActivacion(ficha))
+                    {
                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                            Cargando="_generandoEnlaceNuevo" Deshabilitado="_guardando" OnClick="GenerarEnlaceNuevoAsync">
                         @TextosUsuarios["GenerarEnlaceNuevo"]
                     </Boton>
+                    }
                 </div>
             }
         }
@@ -295,8 +303,9 @@
            claro dentro del correo de bienvenida. *@
         <CampoSelect Etiqueta="Rol" Valor="@_rol" ValorChanged="CambiarRolAsync">
             @* Sin Administrador ni Dirección CAE en el Context Workspace de otro
-               Tenant (ver RolesOfrecidos). Comodidad: la autoridad está en
-               Application, al guardar. *@
+               Tenant, y sin Administrador para quien no lo es (ver
+               RolesOfrecidos). Comodidad: la autoridad está en Application, al
+               guardar. *@
             @foreach (var rol in RolesOfrecidos)
             {
                 <option value="@rol">@Roles.NombreVisible(rol)</option>
@@ -317,11 +326,11 @@
                el rol que la política exige junto al permiso, y EditarUsuarioAsync
                la ejecuta SIEMPRE que el rol deja de ser Administrador — la
                decida quien la decida, también un DireccionCae que cambie el
-               Rol de esta misma cuenta desde este formulario. Simétricamente,
-               si un DireccionCae PROMOCIONA a alguien a Administrador,
-               EditarUsuarioAsync fuerza el permiso a false en vez de heredar
-               lo que hubiera en base: promocionar el rol tampoco es
-               "conceder". Por eso las tres frases de este comentario y las
+               Rol de esta misma cuenta desde este formulario. Un DireccionCae
+               ya no promociona a nadie a Administrador (decisión del
+               2026-10-30, en EditarUsuarioCommand); si la promoción llegara a
+               pasar, el permiso nacería en false en vez de heredar lo que
+               hubiera en base. Por eso las frases de este comentario y las
                dos del texto de ayuda siguen siendo veraces aunque este bloque
                solo se muestre a un Administrador: describen lo que pasa
                dentro y fuera de él. *@

@@ -42,7 +42,10 @@ public enum CapacidadPrivilegio
     /// <summary>
     /// Gestión de tenants, facturación, configuración global, diagnóstico.
     /// <b>No implica leer el contenido documental de ningún tenant</b>: para
-    /// eso hace falta <see cref="SoporteLectura"/>, concedida aparte.
+    /// eso hace falta <see cref="SoporteLectura"/>, concedida aparte. Única
+    /// excepción, decisión del propietario del 2026-10-31: la devolución de datos
+    /// con <c>--exportar-tenant</c> la pide un Actor con esta capacidad, desde el
+    /// servidor, y sale cifrada hacia el Tenant propietario.
     /// </summary>
     AdminPlataforma = 3,
 
@@ -98,5 +101,19 @@ public enum CapacidadPrivilegio
     /// </list>
     /// No convierte a Soporte TALVEG en Gestor CAE, Operador CAE ni Administrador del Tenant.
     /// </summary>
-    RevocacionOperadorCaeExterno = 6
+    RevocacionOperadorCaeExterno = 6,
+
+    /// <summary>
+    /// Un Actor de Plataforma TALVEG concede Administrador en un Tenant ya existente (decisión
+    /// del 2026-10-30): la salida de un Tenant sin Administrador que pueda actuar. Tercera
+    /// capacidad de acción acotada de ADR-011 § 8.7, punto 3, con el mismo régimen que
+    /// <see cref="RevocacionOperadorCaeExterno"/>: concesión por Tenant, nunca global, solo por
+    /// <c>ConcederPrivilegioCommand</c>; ejercida desde una <see cref="SesionPrivilegiada"/> que
+    /// sigue leyendo con el rol de solo lectura; un único comando,
+    /// <c>ConcederAdministradorPorPlataformaCommand</c>, con motivo obligatorio, y la escritura
+    /// la hace una función de la base que lo vuelve a comprobar todo
+    /// (<c>app_conceder_administrador_por_plataforma</c>). No convierte al actor en Administrador
+    /// del Tenant ni en Gestor CAE.
+    /// </summary>
+    ConcesionAdministrador = 7
 }

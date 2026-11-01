@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios.Commands.ElegirAvatarPropio;
 using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
@@ -25,6 +26,29 @@ namespace CaeManager.IntegrationTests.Usuarios;
 public class AvatarDeCuentasBajoRuntimeTests
 {
     private static readonly Guid TenantA = TenantSeedData.IdPorDefecto;
+
+    [Fact]
+    public async Task La_lectura_del_nombre_respeta_la_visibilidad_y_no_rastrea_cuentas()
+    {
+        var propiaId = Guid.NewGuid();
+        var ajenaId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(propiaId);
+        await CrearUsuarioAsync(arnes, propiaId, "nombre-propio@caemanager.local", TenantA, "Nombre Propio");
+        await CrearUsuarioAsync(arnes, ajenaId, "nombre-ajeno@caemanager.local", Guid.NewGuid());
+
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var handler = new ObtenerNombreCuentaQueryHandler(new LectorNombreCuentaIdentity(contexto));
+
+        var propia = await handler.Handle(new ObtenerNombreCuentaQuery(propiaId), default);
+        var ajena = await handler.Handle(new ObtenerNombreCuentaQuery(ajenaId), default);
+        var inexistente = await handler.Handle(new ObtenerNombreCuentaQuery(Guid.NewGuid()), default);
+
+        propia.Should().Be(new NombreCuentaDto("Nombre Propio", "nombre-propio@caemanager.local"));
+        ajena.Should().BeNull();
+        inexistente.Should().BeNull();
+        contexto.ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty();
+    }
 
     [Fact]
     public async Task La_propia_cuenta_elige_su_avatar_lo_lee_y_vuelve_a_sus_iniciales()
@@ -74,7 +98,7 @@ public class AvatarDeCuentasBajoRuntimeTests
     [Fact]
     public async Task Una_cuenta_cargada_antes_de_elegir_avatar_no_lo_pisa_al_guardarse_entera()
     {
-        // SelectorTema conserva la cuenta en memoria y la escribe entera con
+        // el circuito conserva la cuenta en memoria y la escribe entera con
         // UserManager.UpdateAsync: sin renovar el sello, esa escritura devolvería el avatar anterior.
         var usuarioId = Guid.NewGuid();
         await using var arnes = await CrearArnesAsync(usuarioId);
@@ -148,7 +172,7 @@ public class AvatarDeCuentasBajoRuntimeTests
             .Handle(new ObtenerAvatarPropioQuery(), default);
     }
 
-    private static async Task CrearUsuarioAsync(ArnesDeArranqueRuntime arnes, Guid id, string email, Guid tenantId)
+    private static async Task CrearUsuarioAsync(ArnesDeArranqueRuntime arnes, Guid id, string email, Guid tenantId, string? nombreCompleto = null)
     {
         using var ambito = arnes.Servicios.CreateScope();
         var um = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -157,7 +181,7 @@ public class AvatarDeCuentasBajoRuntimeTests
             Id = id,
             UserName = email,
             Email = email,
-            NombreCompleto = email,
+            NombreCompleto = nombreCompleto ?? email,
             EmailConfirmed = true,
             TenantId = tenantId,
         };

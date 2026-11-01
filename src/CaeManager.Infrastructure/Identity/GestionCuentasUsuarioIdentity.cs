@@ -105,6 +105,8 @@ public class GestionCuentasUsuarioIdentity(
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
+            // SEG-1: AddToRoleAsync no rota el sello; lo persiste la propia escritura del rol.
+            await RotarSelloSiPuedeTenerSesionAsync(usuario);
             var resultado = await userManager.AddToRoleAsync(usuario, rol);
             return resultado.Succeeded ? Result.Exito() : Result.Fallo(ErrorDeIdentity("Usuarios.FalloAlAsignarRol", resultado));
         }, cancellationToken);
@@ -136,6 +138,13 @@ public class GestionCuentasUsuarioIdentity(
             // completarse: el usuario conserva su rol anterior, que es un estado
             // válido, en vez de arriesgar dos roles a la vez (la invariante es
             // exactamente uno).
+            //
+            // SEG-1 (auditoría 2026-10-29): Identity no rota el sello al cambiar roles, y la
+            // sesión abierta conservaba el rol anterior hasta reconectar (tope de 12 h). El
+            // sello nuevo lo persiste la escritura de RemoveFromRolesAsync, junto a la baja
+            // de los roles anteriores. Si esa escritura falla, la cuenta conserva su rol y el
+            // sello puede quedar rotado o no: rotarlo de más solo obliga a volver a entrar.
+            await RotarSelloSiPuedeTenerSesionAsync(usuario);
             var quitar = await userManager.RemoveFromRolesAsync(usuario, rolesActuales);
             if (!quitar.Succeeded)
                 return new ResultadoCambioRol(DesenlaceCambioRol.FalloAlQuitarConservaElAnterior, DescribirErrores(quitar));
@@ -238,9 +247,30 @@ public class GestionCuentasUsuarioIdentity(
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
 
+    /// <summary>
+    /// SEG-1: rota el sello de una cuenta cuyo rol cambia, para que su sesión abierta se
+    /// revalide. Una cuenta pendiente de activación (sin contraseña ni acceso externo) no
+    /// puede tener sesión, y su enlace de activación lleva el sello con el que se emitió:
+    /// rotarlo dejaría sin valor el enlace ya enviado sin cortar nada (Codex, revisión
+    /// previa a PR del incremento).
+    /// </summary>
+    private async Task RotarSelloSiPuedeTenerSesionAsync(ApplicationUser usuario)
+    {
+        if (!await EsPendienteAsync(usuario))
+            usuario.RotarSelloDeSeguridad();
+    }
+
     /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
     private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
-        string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
+        string.IsNullOrEmpty(usuario.PasswordHash) && !await TieneLoginExternoAsync(usuario);
+
+    /// <summary>
+    /// Va al directorio y no a <c>UserManager.GetLoginsAsync</c> porque <c>cae_app_soporte</c> no lee
+    /// <c>AspNetUserLogins</c>. Virtual para los tests de página, cuyo contexto se construye sin proveedor a
+    /// propósito.
+    /// </summary>
+    protected virtual async Task<bool> TieneLoginExternoAsync(ApplicationUser usuario) =>
+        (await directorio.LeerIdsConLoginExternoAsync([usuario.Id], CancellationToken.None)).Contains(usuario.Id);
 
     private async Task<ApplicationUser?> CargarEnFrescoAsync(Guid usuarioId)
     {

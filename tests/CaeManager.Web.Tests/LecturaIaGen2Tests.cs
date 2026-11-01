@@ -232,7 +232,7 @@ public class LecturaIaGen2Tests : BunitContext
 
         // cut.Dispose() solo suelta el envoltorio de bUnit: no llama al Dispose del
         // componente. DisposeComponentsAsync lo retira del renderer como al navegar.
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         ((int)campoVersion.GetValue(instancia)!).Should().BeGreaterThan(versionAntes,
             "si el Dispose del componente no se llamó, este test no observa la guarda que dice observar");
 

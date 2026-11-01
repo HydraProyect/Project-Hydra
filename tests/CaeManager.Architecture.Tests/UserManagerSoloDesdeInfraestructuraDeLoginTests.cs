@@ -57,35 +57,21 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs",
         "src/CaeManager.Web/Program.cs",
         "src/CaeManager.Web/Services/CurrentUserService.cs",
-        "src/CaeManager.Web/Services/ProveedorAutenticacionRevalidada.cs",
         "src/CaeManager.Web/Services/RecuperacionContrasena.cs",
     ];
 
     /// <summary>
     /// Lo que queda por migrar, con su motivo. Ninguno administra cuentas ajenas:
-    /// son lecturas (nombre o permiso de una cuenta, la propia sesión) o
-    /// preferencias de la propia cuenta. Solo puede menguar.
+    /// son lecturas (nombre o permiso de una cuenta, la propia sesión). Solo puede
+    /// menguar.
     /// </summary>
     private static readonly string[] DeudaCongelada =
     [
-        // Preferencias de la propia cuenta (escriben sobre quien está en sesión).
-        "src/CaeManager.Web/Components/Account/IdiomaEndpoints.cs",
-        "src/CaeManager.Web/Components/Layout/SelectorTema.razor",
-        "src/CaeManager.Web/Services/ActividadUsuarioService.cs",
-        // Lecturas de la propia sesión: rol, 2FA, permiso sensible.
-        "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs",
-        "src/CaeManager.Web/Features/Auditoria/AuditoriaEndpoints.cs",
-        "src/CaeManager.Web/Features/Auditoria/Pages/AccesosDocumentosSensibles.razor.cs",
-        "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
-        "src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs",
+        // Lecturas de la propia sesión: permiso sensible.
         "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
-        // Lecturas del nombre de otra cuenta para pintarlo.
-        "src/CaeManager.Web/Components/Workspace/PestanaHistorial.razor",
-        "src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor.cs",
-        "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs",
-        "src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor.cs",
-        "src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs",
+        // Un rol para pintarlo: su nombre.
+        "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
     ];
 
     /// <summary>
@@ -108,7 +94,7 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         // Control positivo: si el escaneo no ve los dos consumidores que seguro
         // existen, ha dejado de observar y la igualdad de abajo no diría nada.
         conGestor.Should().Contain(
-            ["src/CaeManager.Web/Program.cs", "src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"],
+            ["src/CaeManager.Web/Program.cs", "src/CaeManager.Web/Services/CurrentUserService.cs"],
             "el escaneo tiene que ver a los consumidores que seguro existen");
 
         conGestor.Should().BeEquivalentTo(InfraestructuraDeLogin.Concat(DeudaCongelada),

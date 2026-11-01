@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
@@ -154,10 +155,18 @@ public class GenerarDocumentoIndividualCommandHandler(
             .Where(e => e.Tipo != TipoElementoPlantilla.Firma)
             .ToDictionary(e => e, e => ResolverValor(e, request.ValoresManuales, empresa, trabajador, centro, cliente, contactosPorRol, ahoraUtc));
 
-        using var flujoOriginal = await almacenamientoArchivos.AbrirAsync(version.ArchivoOriginalUrl, cancellationToken);
-        using var memoria = new MemoryStream();
-        await flujoOriginal.CopyToAsync(memoria, cancellationToken);
-        var contenidoOriginal = memoria.ToArray();
+        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
+        // cerrarse, y el GuardarAsync de abajo reserva por su cuenta.
+        byte[] contenidoOriginal;
+        await using (var flujoOriginal = await almacenamientoArchivos.AbrirAsync(version.ArchivoOriginalUrl, cancellationToken))
+        {
+            using var memoria = new MemoryStream();
+            await flujoOriginal.CopyToAsync(memoria, cancellationToken);
+            contenidoOriginal = memoria.ToArray();
+        }
+
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(contenidoOriginal, "plantilla.pdf"))
+            return Fallo("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajePlantillaNoValida);
 
         var elementosRelleno = valoresPorElemento
             .Select(par => new ElementoRellenoPlantilla(
@@ -167,6 +176,9 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         var resultadoRelleno = rellenador.Rellenar(contenidoOriginal, plantilla.FormatoOrigen, elementosRelleno);
         var contenidoRelleno = resultadoRelleno.Pdf;
+
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(contenidoRelleno, "documento-generado.pdf"))
+            return Fallo("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido);
 
         using var flujoRelleno = new MemoryStream(contenidoRelleno);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);

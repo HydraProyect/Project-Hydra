@@ -738,4 +738,7 @@
   <data name="BorradorPrioridadNoDisponibleMotivo" xml:space="preserve"><value>L&apos;esborrany no està disponible</value></data>
   <data name="BorradorPrioridadCargandoMotivo" xml:space="preserve"><value>Carregant l&apos;esborrany…</value></data>
   <data name="EnviandoPrioridadTexto" xml:space="preserve"><value>Enviant…</value></data>
+  <data name="ToastCanalesNoCargados" xml:space="preserve">
+    <value>No hem pogut carregar els canals de gestió d'aquest centre. El que veus pot estar incomplet; recarrega la pàgina.</value>
+  </data>
 </root>

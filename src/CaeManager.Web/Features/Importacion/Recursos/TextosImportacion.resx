@@ -564,4 +564,10 @@
   <data name="BotonVerDocumentosImportados" xml:space="preserve">
     <value>Ver los documentos importados</value>
   </data>
+  <data name="AvisoPlantillaCaeSinConfigurar" xml:space="preserve"><value>Esta plantilla no está configurada en este entorno: faltan las hojas de Trabajadores y la Empresa de cada una. Avisa a Soporte TALVEG antes de importar.</value></data>
+  <data name="ErrorPlantillaCaeSinConfigurar" xml:space="preserve"><value>No se puede importar con la plantilla CAE completa: este entorno no tiene configuradas las hojas de Trabajadores. Avisa a Soporte TALVEG.</value></data>
+  <data name="ErrorAnalisisOcupado" xml:space="preserve"><value>Hay demasiados análisis de importación en curso. Inténtalo de nuevo en unos momentos.</value></data>
+  <data name="ErrorAnalisisSinTenant" xml:space="preserve"><value>No se ha podido determinar con qué organización trabajas en esta sesión. Vuelve a iniciar sesión e inténtalo de nuevo.</value></data>
+  <data name="ErrorLimiteFilas" xml:space="preserve"><value>El archivo supera el máximo de filas permitido por hoja.</value></data>
+  <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El archivo supera el máximo de celdas permitido.</value></data>
 </root>

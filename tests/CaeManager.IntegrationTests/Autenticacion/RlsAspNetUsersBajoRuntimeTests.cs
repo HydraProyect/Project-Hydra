@@ -4,6 +4,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
@@ -389,11 +390,97 @@ public class RlsAspNetUsersBajoRuntimeTests
         (await LeerComoPropietarioAsync(e, e.OperadorDelegadoY.Id)).SecurityStamp.Should().Be(sello);
     }
 
+    // ── Lectura por lote de /delegaciones ───────────────────────────────
+
+    [Fact]
+    public async Task La_lectura_por_lote_alcanza_al_Operador_CAE_externo_y_no_a_una_cuenta_sin_relacion()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.OperadorDelegadoY.Id, Roles.GestorCae);
+        await AsignarRolesAsync(e, e.GestorCarteraP.Id, Roles.GestorCae, Roles.CoordinadorCae);
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.DireccionCae);
+        var ids = e.Todas.Select(u => u.Id).Append(Guid.NewGuid()).ToArray();
+
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var lectura = ambito.ServiceProvider.GetRequiredService<ILecturaPersonasDelegadas>();
+
+        using (AmbitoTenantExplicito.Establecer(e.TenantX))
+        {
+            var personas = await lectura.ObtenerAsync(ids, default);
+
+            personas.Select(p => p.Id).Should().BeEquivalentTo(new[]
+            {
+                e.PropiaX.Id, e.OperadorDelegadoY.Id, e.GestorCarteraP.Id,
+                e.ActorAuditoriaY.Id, e.ActorAccesoSensibleY.Id, e.SoporteP.Id,
+            });
+            personas.Select(p => p.Email).Should().NotContain(new[] { e.AjenaY.Email, e.GestorCarteraSinOperadorY.Email },
+                "ningún correo de una cuenta que la política no deja ver desde el Tenant beneficiario");
+            personas.Single(p => p.Id == e.OperadorDelegadoY.Id).Rol.Should().Be(Roles.GestorCae);
+            personas.Single(p => p.Id == e.GestorCarteraP.Id).Rol.Should().Be(
+                Roles.CoordinadorCae, "con dos roles, el primero en orden ordinal: el criterio de la página");
+            personas.Single(p => p.Id == e.PropiaX.Id).Rol.Should().BeNull();
+            contexto.ChangeTracker.Entries<ApplicationUser>().Should().BeEmpty("el contexto del circuito no se queda con ninguna cuenta");
+        }
+    }
+
+    [Fact]
+    public async Task La_lectura_por_lote_ve_lo_mismo_que_FindByIdAsync_desde_cada_Tenant()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.OperadorDelegadoY.Id, Roles.GestorCae);
+        await AsignarRolesAsync(e, e.GestorCarteraP.Id, Roles.GestorCae, Roles.CoordinadorCae);
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.DireccionCae);
+        var ids = e.Todas.Select(u => u.Id).Append(Guid.NewGuid()).ToArray();
+
+        // Tenant beneficiario, Operador CAE externo y un Tenant sin ninguna de estas cuentas.
+        foreach (var tenant in new[] { e.TenantX, e.TenantY, Guid.NewGuid() })
+        {
+            using (AmbitoTenantExplicito.Establecer(tenant))
+            {
+                using var ambitoLote = e.Arnes.Servicios.CreateScope();
+                var personas = await ambitoLote.ServiceProvider.GetRequiredService<ILecturaPersonasDelegadas>().ObtenerAsync(ids, default);
+
+                foreach (var id in ids)
+                {
+                    // Un ámbito por cuenta: FindByIdAsync devuelve lo rastreado sin pasar por la base.
+                    using var ambitoIdentity = e.Arnes.Servicios.CreateScope();
+                    var usuarios = ambitoIdentity.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                    var cuenta = await usuarios.FindByIdAsync(id.ToString());
+                    var persona = personas.SingleOrDefault(p => p.Id == id);
+
+                    if (cuenta is null)
+                    {
+                        persona.Should().BeNull($"desde {tenant} Identity no encuentra {id}");
+                        continue;
+                    }
+
+                    persona.Should().NotBeNull($"desde {tenant} Identity sí encuentra {id}");
+                    persona!.NombreCompleto.Should().Be(cuenta.NombreCompleto);
+                    persona.Email.Should().Be(cuenta.Email);
+                    persona.Rol.Should().Be((await usuarios.GetRolesAsync(cuenta)).Order(StringComparer.Ordinal).FirstOrDefault());
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Sin_contexto_la_lectura_por_lote_no_devuelve_nada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var lectura = ambito.ServiceProvider.GetRequiredService<ILecturaPersonasDelegadas>();
+
+        (await lectura.ObtenerAsync(e.Todas.Select(u => u.Id).ToArray(), default)).Should().BeEmpty();
+    }
+
     // ── Escenario ───────────────────────────────────────────────────────
 
     private static async Task<Escenario> CrearEscenarioAsync()
     {
-        var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+        var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            serviciosAdicionales: s => s.AddScoped<ILecturaPersonasDelegadas, LecturaPersonasDelegadas>());
         using var ambito = arnes.Servicios.CreateScope();
         await using var contexto = ambito.ServiceProvider.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
 
@@ -482,6 +569,21 @@ public class RlsAspNetUsersBajoRuntimeTests
     }
 
     // ── Instrumentos ────────────────────────────────────────────────────
+
+    private static async Task AsignarRolesAsync(Escenario e, Guid cuenta, params string[] roles)
+    {
+        await using var conexion = new NpgsqlConnection(e.Arnes.CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var orden = new NpgsqlCommand(
+            """
+            INSERT INTO "AspNetUserRoles" ("UserId", "RoleId")
+            SELECT @cuenta, "Id" FROM "AspNetRoles" WHERE "Name" = ANY(@roles)
+            """, conexion);
+        orden.Parameters.AddWithValue("cuenta", cuenta);
+        orden.Parameters.AddWithValue("roles", roles);
+
+        (await orden.ExecuteNonQueryAsync()).Should().Be(roles.Length, "barrera: los roles existen y la fila entró");
+    }
 
     private static async Task<HashSet<Guid>> VisiblesAsync(Escenario e, Guid? tenant, Guid? origen, Guid? usuario)
     {

@@ -226,6 +226,12 @@ public class UsosDeEsPlataformaCongeladosTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-10-31: <c>RevocarClaveApiCommand</c> deja de usar el flag y exige
+    /// concesión AdminPlataforma (-1 fichero, -1 aparición de autoridad). De 34/60 a
+    /// <b>33 ficheros, 59 apariciones</b>.
+    /// </para>
+    ///
+    /// <para>
     /// Cada entrada se leyó una a una; el conteo <b>no</b> se ajustó a lo que salió del
     /// escaneo — eso es precisamente cómo mueren estos ratchets. Así se explicó, por
     /// ejemplo, que <c>Tenant.cs</c> aportara 7 y no 4: las líneas del mutador contienen
@@ -242,13 +248,9 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
         // ── AUTORIDAD ─────────────────────────────────────────────────────────────
-        // Los cinco comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
+        // Comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
         // contra ITenantActual: quien ya opera un tenant ajeno podría usar el workspace
         // activo para abrirse acceso a otros.
-        ["src/CaeManager.Application/ApiKeys/Commands/RevocarClaveApi/RevocarClaveApiCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":47 — lo retira el bloque C"),
-        ["src/CaeManager.Application/ApiKeys/Queries/ObtenerClavesApi/ObtenerClavesApiQuery.cs"] =
-            new(1, CategoriaUso.Autoridad, ":36 — lo retira el bloque C"),
         ["src/CaeManager.Application/Tenants/AutorizacionAccesoSoporte.cs"] =
             new(2, CategoriaUso.Autoridad,
                 ":8 comentario y :28 predicado real (t.EsPlataforma) — único punto de verdad extraído el " +
@@ -270,6 +272,10 @@ public class UsosDeEsPlataformaCongeladosTests
                 ":50 proyección y :53 exención — DOS apariciones en el mismo fichero, que es " +
                 "exactamente por lo que esta lista lleva conteo y no solo ruta. D-4 (d) retira la exención " +
                 "sin compensación: el tenant #1 nace en SinSuscripcion, que ya pasa el gate"),
+        ["src/CaeManager.Application/Configuracion/AutoridadSeguridadAcceso.cs"] =
+            new(1, CategoriaUso.Guarda,
+                ":35 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +
+                "evita rebajar el plazo o la exigencia de los Actores de Plataforma TALVEG"),
         ["src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs"] =
             new(1, CategoriaUso.ReglaComercial,
                 ":69 rechaza suscribir al tenant de plataforma. D-4: SE CONSERVA — es el invariante que " +
@@ -328,10 +334,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Guarda,
                 "un :EsPlataforma real en PuedeReactivarAsync, proyectado sobre el Tenant propietario " +
                 "(TenantClienteId) de la delegación. Nació en la ronda 2 de Codex sobre el delta del " +
-                "incremento 1b (commit 2830297e); desde las decisiones del 2026-10-26 la autoridad es " +
-                "EquipoDelOperadorCaeExterno, que mira el Tenant de origen del Operador CAE externo y no " +
-                "excluye por sí sola el Tenant de plataforma como Tenant propietario, así que una " +
-                "DelegacionTenant heredada sobre TALVEG podría reactivarse sin este corte. El comentario que " +
+                "incremento 1b (commit 2830297e); desde la decisión SEG-7 del 2026-10-31 la autoridad es " +
+                "AdministradorQueReactiva, que no excluye por sí sola el Tenant de plataforma como Tenant " +
+                "propietario, así que el Administrador inicial de TALVEG podría reactivar una " +
+                "DelegacionTenant heredada sobre TALVEG sin este corte. El comentario que " +
                 "lo explica ya no nombra el campo, por eso el recuento es 1. Se corta DESPUÉS de la autoridad " +
                 "(mismo orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
@@ -342,7 +348,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "PermisosAccesosDelegadosQuery: un :EsPlataforma real proyectado sobre el Tenant propietario " +
                 "de cada acceso delegado, en el Tenant activo y bajo RLS como la lectura individual, para que " +
                 "la pantalla de Delegaciones no ofrezca reactivar una DelegacionTenant heredada sobre TALVEG. " +
-                "Solo resta permisos (PermiteReactivar exige además la autoridad de EquipoDelOperadorCaeExterno); " +
+                "Solo resta permisos (PermiteReactivar exige además la autoridad de AdministradorQueReactiva); " +
                 "no concede nada. TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)"),
         ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
             new(1, CategoriaUso.Guarda,
@@ -368,7 +374,7 @@ public class UsosDeEsPlataformaCongeladosTests
         ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
             new(2, CategoriaUso.Guarda,
                 "lee el flag del Tenant pedido y rechaza exportar el Tenant de plataforma TALVEG como si fuera un " +
-                "Tenant propietario. Solo impide; la autorización es el Administrador activo del propio Tenant"),
+                "Tenant propietario. Solo impide; la autorización es la concesión AdminPlataforma vigente sobre ese Tenant"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +
@@ -440,6 +446,16 @@ public class UsosDeEsPlataformaCongeladosTests
         // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
         // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
         // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261030220000_PlataformaConcedeAdministrador.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "doc-comment, comentario y predicados de app_conceder_administrador_por_plataforma (decisión del " +
+                "2026-10-30; ADR-011 § 8.7.3): el actor debe pertenecer a un Tenant de plataforma y el Tenant objetivo no " +
+                "serlo. Solo restringe, no concede."),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101010000_ActorPlataformaExportaTenant.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "doc-comment y predicado de app_actor_plataforma_que_exporta (M-36, decisión de Chris del 2026-10-31): " +
+                "la cuenta que pide --exportar-tenant debe ser de un Tenant de plataforma, además de la concesión " +
+                "AdminPlataforma que alcanza el Tenant. Solo restringe, no concede."),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
@@ -672,6 +688,12 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly string[] SuperficiePublicaDeTenant =
     [
         "ActualizarEstadoComercial",
+        // Cortes de las claves de API por estado del Tenant: no tocan el flag.
+        "AdmiteClaveEmitidaEn",
+        "ClavesApiValidasDesdeUtc",
+        // Add-on de subida automática: solo toca su propia columna.
+        "AddOnSubidaAutomaticaActivo",
+        "CambiarAddOnSubidaAutomatica",
         "CambiarPerfilVocabulario",
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",

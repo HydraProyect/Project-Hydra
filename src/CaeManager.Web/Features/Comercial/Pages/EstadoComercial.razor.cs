@@ -43,7 +43,6 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// </summary>
 public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IAsyncDisposable
 {
-    private Modal? _modalVincular;
     private const string PrefijoSuscripcionStripe = "sub_";
 
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -244,7 +243,7 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
     /// <summary>
     /// P1-E2b: el formulario abre siempre vacío, así que hay algo que perder en cuanto
     /// se ha pegado un Id de suscripción de Stripe, también mientras se confirma. Lo leen
-    /// AvisoCambiosSinGuardar y el Modal; cerrado (también tras vincular) nunca.
+    /// ModalFormulario (con el formulario abierto) y el AvisoCambiosSinGuardar de la página (durante la confirmación); cerrado (también tras vincular) nunca.
     /// </summary>
     private bool HayCambiosSinGuardar =>
         _tenantAVincular is not null && !string.IsNullOrWhiteSpace(_stripeSubscriptionId);

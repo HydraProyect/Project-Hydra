@@ -20,8 +20,9 @@ namespace CaeManager.Application.Common;
 /// servicio y el veredicto completo en el RETURN PACKAGE de HO-099-01.
 /// Posterior a HO-099-01: el zip de documentación de una Visita que el Gestor CAE
 /// descarga para un Centro gestionado por correo (P1-X1,
-/// <c>ObtenerPaqueteDocumentalVisitaQuery</c>) registra una apertura por cada
-/// Documento que contiene.
+/// <c>ObtenerPaqueteDocumentalVisitaQuery</c>) y el adjunto automático al crear la Visita
+/// registran una apertura por cada Documento que contiene, en
+/// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>.
 /// </para>
 ///
 /// <para>

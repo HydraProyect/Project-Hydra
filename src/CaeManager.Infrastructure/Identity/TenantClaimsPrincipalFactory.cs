@@ -1,5 +1,9 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
+using CaeManager.Domain.Configuracion;
+using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Infrastructure.Identity;
@@ -16,11 +20,19 @@ namespace CaeManager.Infrastructure.Identity;
 /// cuenta llega ya leída: antes de conocer el Tenant, bajo la RLS de
 /// <c>AspNetUsers</c>, la resuelve <c>AlmacenUsuarios</c> dentro de
 /// <c>AmbitoIdentificacionSinTenant</c> (P1-M1).
+///
+/// <para>
+/// La seguridad de acceso del Tenant (<see cref="TipoClaimMinutosInactividad"/> y la exigencia de
+/// segundo factor) sí se consulta: se lee de <see cref="ParametroSistema"/> del Tenant propietario
+/// de la cuenta, nunca del Tenant visitado ni del de una Sesión Privilegiada. Un fallo de esa
+/// lectura se propaga: sin ella no se decide nada. Un Tenant sin fila rige por los valores por defecto.
+/// </para>
 /// </summary>
 public class TenantClaimsPrincipalFactory(
     UserManager<ApplicationUser> userManager,
     RoleManager<IdentityRole<Guid>> roleManager,
-    IOptions<IdentityOptions> optionsAccessor)
+    IOptions<IdentityOptions> optionsAccessor,
+    CaeManagerDbContext dbContext)
     : UserClaimsPrincipalFactory<ApplicationUser, IdentityRole<Guid>>(userManager, roleManager, optionsAccessor)
 {
     public const string TipoClaimTenantId = "tenant_id";
@@ -30,8 +42,8 @@ public class TenantClaimsPrincipalFactory(
 
     /// <summary>
     /// La cuenta tiene una obligación pendiente que la deja a medio activar:
-    /// una contraseña temporal sin cambiar, o el rol Administrador sin la
-    /// autenticación en dos pasos que ese rol exige (P1-13).
+    /// una contraseña temporal sin cambiar, o sin la autenticación en dos pasos
+    /// que le exige su rol Administrador (P1-13) o el ajuste de su Tenant.
     ///
     /// <para>
     /// <b>Por qué viaja en el ticket y no se consulta.</b> Lo comprueba un
@@ -66,6 +78,14 @@ public class TenantClaimsPrincipalFactory(
     public const string ActivacionPendienteDosFactores = "2fa";
 
     /// <summary>
+    /// Plazo de inactividad del Tenant propietario de la cuenta, en minutos. Lo lee
+    /// <c>CaducidadSesion</c>: un valor ausente, ilegible o fuera de rango vale el plazo por
+    /// defecto. Es el Tenant de la cuenta porque la sesión es de la cuenta, aunque esté operando
+    /// otro Tenant por la vía de Operación.
+    /// </summary>
+    public const string TipoClaimMinutosInactividad = "talveg:minutos-inactividad";
+
+    /// <summary>
     /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
     /// secas — ver <see cref="Policies.ConsultarAccesoDocumentosSensibles"/>.
     /// Solo se añade cuando está concedido (mismo motivo que
@@ -77,13 +97,27 @@ public class TenantClaimsPrincipalFactory(
 
     public override async Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
     {
+        // Fuera de sesión (inicio de sesión, revalidación) no hay Tenant actual: el ámbito es el de la
+        // cuenta que Identity acaba de cargar. La clase base lee sus roles dentro de él, para no depender
+        // de que AspNetUserRoles deje ver filas sin Tenant. También vale para el ajuste de su Tenant, abajo.
+        using var enTenantDeLaCuenta = AmbitoTenantExplicito.Establecer(user.TenantId);
         var principal = await base.CreateAsync(user);
 
         // La marca del TOTP de la sesión (precondición de abrir una Sesión Privilegiada) nunca sale
         // de la fábrica: un claim guardado en AspNetUserClaims la daría en cada sesión sin código. Solo
         // la ponen SignInManagerCuentaDesactivada al acertar el TOTP y su gancho de revalidación.
+        // Lo mismo con el identificador de sesión: un talveg:sid guardado en AspNetUserClaims haría que
+        // todas las sesiones de la cuenta compartieran uno, y cerrar una las cerraría todas (o ninguna,
+        // si el guardado no tiene fila). Solo lo pone SignInManagerCuentaDesactivada al emitir la cookie.
+        // Y la marca de inicio de sesión: guardada, haría «reciente» cada sesión y el alta del TOTP no
+        // volvería a pedir la contraseña.
         foreach (var identidadGenerada in principal.Identities)
-            foreach (var marca in identidadGenerada.FindAll(SignInManagerCuentaDesactivada.ClaimTotpSesion).ToList())
+            foreach (var marca in identidadGenerada.Claims
+                         .Where(c => c.Type is SignInManagerCuentaDesactivada.ClaimTotpSesion
+                             or SignInManagerCuentaDesactivada.ClaimSid
+                             or SignInManagerCuentaDesactivada.ClaimAutenticacionSesion
+                             or TipoClaimMinutosInactividad)
+                         .ToList())
                 identidadGenerada.RemoveClaim(marca);
 
         if (principal.Identity is not ClaimsIdentity identidad)
@@ -105,8 +139,11 @@ public class TenantClaimsPrincipalFactory(
         // cuenta, y quien es Administrador en su tenant debe tenerla aunque
         // ahora mismo esté operando otro como Consulta.
         var esAdministrador = principal.IsInRole(Roles.Administrador);
+        var ajuste = await LeerSeguridadAccesoAsync(user.TenantId);
 
-        if (user.DebeCambiarContrasena || (esAdministrador && !user.TwoFactorEnabled))
+        identidad.AddClaim(new Claim(TipoClaimMinutosInactividad, ajuste.Minutos.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+
+        if (user.DebeCambiarContrasena || ((esAdministrador || ajuste.ExigeTodos) && !user.TwoFactorEnabled))
         {
             identidad.AddClaim(new Claim(TipoClaimRequiereActivacion, "true"));
             identidad.AddClaim(new Claim(
@@ -115,5 +152,19 @@ public class TenantClaimsPrincipalFactory(
         }
 
         return principal;
+    }
+
+    // Dentro del ámbito de la cuenta que abre CreateAsync. Sin fila valen los valores por defecto.
+    private async Task<(int Minutos, bool ExigeTodos)> LeerSeguridadAccesoAsync(Guid tenantId)
+    {
+        var ajuste = await dbContext.ParametrosSistema
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
+            .Select(p => new { p.MinutosInactividadSesion, p.ExigeSegundoFactorTodosLosPerfiles })
+            .SingleOrDefaultAsync();
+
+        return ajuste is null
+            ? (ParametroSistema.MinutosInactividadSesionPorDefecto, false)
+            : (ajuste.MinutosInactividadSesion, ajuste.ExigeSegundoFactorTodosLosPerfiles);
     }
 }

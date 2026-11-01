@@ -17,8 +17,11 @@ namespace CaeManager.Web.Services;
 ///
 /// <para>
 /// Cada <see cref="RevalidationInterval"/> abre un ámbito propio y pregunta a
-/// <see cref="SignInManagerCuentaDesactivada"/> —la misma pregunta que hace la cookie— si
-/// el principal sigue valiendo. Si no, el estado pasa a anónimo: el
+/// <see cref="IVigenciaSesionCuenta"/> —la misma pregunta que hace la cookie, sin cargar la
+/// cuenta en una Sesión Privilegiada— si el principal sigue valiendo (sello, cuenta activa e
+/// identificador de sesión no revocado: cerrar sesión en otra pestaña o en todos los
+/// dispositivos corta también el circuito en el ciclo siguiente). Se pregunta siempre por el
+/// principal del circuito, que es el Actor real. Si no, el estado pasa a anónimo: el
 /// <c>TenantActual</c> queda sin tenant, el filtro global de EF deniega
 /// y <c>CurrentUserService</c> no devuelve usuario, así que las Commands
 /// fallan cerradas — el mismo camino que ya sigue cualquier petición sin
@@ -43,7 +46,8 @@ public sealed class ProveedorAutenticacionRevalidada(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
     IOptions<SecurityStampValidatorOptions> opciones,
-    TimeProvider? reloj = null)
+    TimeProvider? reloj = null,
+    ActividadSesiones? actividad = null)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory), ISesionDeCircuitoInvalidable
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<ProveedorAutenticacionRevalidada>();
@@ -64,7 +68,28 @@ public sealed class ProveedorAutenticacionRevalidada(
         // Tope de 12 h desde el inicio de sesión (ver CaducidadSesion): un circuito
         // abierto no hace peticiones, así que la cookie no lo cortaría. Sin hora de
         // inicio legible, también falla cerrado. No consulta la base.
-        if (!CaducidadSesion.EsVigente(authenticationState.User, (reloj ?? TimeProvider.System).GetUtcNow()))
+        var ahora = (reloj ?? TimeProvider.System).GetUtcNow();
+        if (!CaducidadSesion.EsVigente(authenticationState.User, ahora))
+        {
+            _sesionInvalidada = true;
+            return false;
+        }
+
+        // Sin identificador de sesión (cookie anterior a la revocación en servidor) no hay
+        // nada que revocar: falla cerrado sin consultar la base. Con él, la consulta de abajo
+        // comprueba además que la sesión no esté revocada.
+        if (SignInManagerCuentaDesactivada.LeerSid(authenticationState.User) is not { } sid)
+        {
+            _sesionInvalidada = true;
+            return false;
+        }
+
+        // Inactividad (ver CaducidadSesion): la conexión viva del circuito no cuenta,
+        // solo las señales de interacción. Tampoco consulta la base.
+        // Se lee una sola vez, junto a la hora del ciclo: una señal que llegara durante las
+        // consultas quedaría en el futuro de esa hora y expulsaría a quien acaba de interactuar.
+        var ultimaRegistrada = actividad?.Leer(sid);
+        if (!CaducidadSesion.SigueActiva(authenticationState.User, ultimaRegistrada, ahora))
         {
             _sesionInvalidada = true;
             return false;
@@ -75,8 +100,13 @@ public sealed class ProveedorAutenticacionRevalidada(
             try
             {
                 await using var ambito = scopeFactory.CreateAsyncScope();
-                var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
-                var vigente = await signInManager.ValidateSecurityStampAsync(authenticationState.User) is not null;
+                var vigencia = ambito.ServiceProvider.GetRequiredService<IVigenciaSesionCuenta>();
+                // El principal del circuito no cambia: lo que el Administrador del Tenant haya
+                // ajustado desde que se conectó llega en el principal vigente.
+                var principalVigente = await vigencia.PrincipalVigenteAsync(authenticationState.User, cancellationToken);
+                var vigente = principalVigente is not null
+                    && CaducidadSesion.CircuitoAdmitido(
+                        authenticationState.User, principalVigente, ultimaRegistrada, ahora);
                 if (!vigente) _sesionInvalidada = true;
                 return vigente;
             }

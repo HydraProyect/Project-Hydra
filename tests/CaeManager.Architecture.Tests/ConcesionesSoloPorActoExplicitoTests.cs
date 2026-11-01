@@ -119,11 +119,13 @@ public class ConcesionesSoloPorActoExplicitoTests
             "beneficiario SÍ es un parámetro. Exige AdminPlataforma vigente del concedente SOBRE EL " +
             "TENANT OBJETIVO (IAutorizacionAdminPlataforma.PuedeSobreTenantAsync), 2FA, " +
             "beneficiario != concedente, y el tenant objetivo ajeno al del concedente. Solo puede emitir " +
-            "CapacidadPrivilegio.Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno " +
+            "CapacidadPrivilegio.Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno y ConcesionAdministrador " +
             "(ADR-011 § 8.7, punto 3), todas acotadas a un tenant — la matriz de auto-concesión no se toca y sigue rechazando las dos " +
             "para cualquiera. Autorizado por las migraciones RlsConcesionPorAdminDePlataforma y " +
-            "RestablecimientoSegundoFactorPorSoporte y SoporteRevocaOperadorCaeExterno, que amplían el WITH CHECK de RLS para admitir " +
-            "exactamente esta forma.",
+            "RestablecimientoSegundoFactorPorSoporte, SoporteRevocaOperadorCaeExterno y PlataformaConcedeAdministrador, que amplían el WITH CHECK de RLS para admitir " +
+            "exactamente esta forma; PartePoliticaConcesionesPorOperacion la deja en su propia política de INSERT " +
+            "(privilegio_concesion_a_tercero) y la acota además a vigente, de origen ordinario, con fin y a nombre de otra persona; " +
+            "TopeVigenciaConcesionEnPoliticasDeAlta añade el tope de vigencia y la ventana del inicio.",
     };
 
     [Fact]

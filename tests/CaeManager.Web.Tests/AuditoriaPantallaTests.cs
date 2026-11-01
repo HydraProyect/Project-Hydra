@@ -2,12 +2,14 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Domain.Common;
+using CaeManager.Web.Features.Auditoria;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
@@ -49,6 +51,7 @@ public class AuditoriaPantallaTests : BunitContext
         public List<ObtenerAuditoriaQuery> Consultas { get; } = [];
         public List<object> Comandos { get; } = [];
         public List<RegistroAuditoriaListaDto> Filas { get; } = [];
+        public Dictionary<string, ApplicationUser> Usuarios { get; } = [];
 
         /// <summary>Total que declara la respuesta; sin valor, el número de filas que casan.</summary>
         public int? TotalDeclarado { get; set; }
@@ -66,6 +69,10 @@ public class AuditoriaPantallaTests : BunitContext
                 case ObtenerAuditoriaQuery consulta:
                     Consultas.Add(consulta);
                     return Convertir<TResponse>((Responder ?? ResponderAplicandoFiltro)(consulta));
+                case ObtenerNombreCuentaQuery nombre:
+                    return Task.FromResult((TResponse)(object?)(Usuarios.GetValueOrDefault(nombre.UsuarioId.ToString()) is { } usuario
+                    ? new NombreCuentaDto(usuario.NombreCompleto, usuario.Email)
+                    : null)!);
                 case ICommand comando:
                     Comandos.Add(comando);
                     return Task.FromResult((TResponse)(object)Result.Exito());
@@ -103,26 +110,6 @@ public class AuditoriaPantallaTests : BunitContext
     }
 
     /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
-    private sealed class AlmacenUsuarios(Dictionary<string, ApplicationUser> usuarios) : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca usuarios por Id.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(usuarios.GetValueOrDefault(userId));
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
-    }
-
-    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
     private sealed class AlmacenRoles(Dictionary<string, IdentityRole<Guid>> roles) : IRoleStore<IdentityRole<Guid>>
     {
         private static Exception NoPrevisto() => new NotSupportedException("La página solo busca roles por Id.");
@@ -143,7 +130,7 @@ public class AuditoriaPantallaTests : BunitContext
     }
 
     private readonly MediatorAuditoria _mediador = new();
-    private readonly Dictionary<string, ApplicationUser> _usuarios = [];
+    private Dictionary<string, ApplicationUser> _usuarios => _mediador.Usuarios;
     private readonly Dictionary<string, IdentityRole<Guid>> _roles = [];
 
     private IRenderedComponent<Features.Auditoria.Pages.Auditoria> Renderizar(string? entidad = null, bool integrada = false)
@@ -152,8 +139,6 @@ public class AuditoriaPantallaTests : BunitContext
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddScoped(_ => new RoleManager<IdentityRole<Guid>>(
             new AlmacenRoles(_roles), null!, null!, null!, null!));
 
@@ -201,7 +186,55 @@ public class AuditoriaPantallaTests : BunitContext
         var cut = Renderizar(entidad: "Documento");
 
         cut.Find(".cabecera-pagina .acciones-cabecera a.enlace-exportar").GetAttribute("href")
-            .Should().Be("/auditoria/exportar.xlsx?entidad=Documento");
+            .Should().Be($"/auditoria/exportar.xlsx?entidad=Documento&desde={DesdeTextoPorDefecto}");
+    }
+
+    private static string DesdeTextoPorDefecto =>
+        RangoFechasAuditoria.DesdePorDefecto().ToString(RangoFechasAuditoria.FormatoFecha);
+
+    private static DateTime? DesdeUtcPorDefecto => RangoFechasAuditoria.DesdeUtc(RangoFechasAuditoria.DesdePorDefecto());
+
+    /// <summary>M-21: la tabla está particionada por fecha; la pantalla no puede consultarla sin cota inferior por defecto.</summary>
+    [Fact]
+    public void La_carga_inicial_acota_a_los_ultimos_90_dias_y_lo_muestra_en_un_campo_editable()
+    {
+        var cut = Renderizar();
+
+        _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);
+        _mediador.Consultas[^1].HastaUtc.Should().BeNull("«Hasta» vacío es «hasta ahora»: lo de hoy nunca queda fuera");
+        var campos = cut.FindAll("input[type=date]");
+        campos.Should().HaveCount(2);
+        campos[0].GetAttribute("value").Should().Be(DesdeTextoPorDefecto);
+        campos[1].GetAttribute("value").Should().BeNullOrEmpty();
+        DesdeTextoPorDefecto.Should().Be(DiaDeNegocio.Hoy().AddDays(-90).ToString("yyyy-MM-dd"));
+    }
+
+    [Fact]
+    public void Cambiar_las_fechas_recarga_desde_la_pagina_1_y_el_enlace_de_exportar_las_lleva()
+    {
+        var cut = Renderizar();
+
+        cut.FindAll("input[type=date]")[0].Input("2026-01-15");
+        cut.WaitForAssertion(() => _mediador.Consultas[^1].DesdeUtc.Should().Be(RangoFechasAuditoria.DesdeUtc(new DateOnly(2026, 1, 15))));
+        cut.FindAll("input[type=date]")[1].Input("2026-02-20");
+        cut.WaitForAssertion(() => _mediador.Consultas[^1].HastaUtc.Should().Be(RangoFechasAuditoria.HastaUtcExclusivo(new DateOnly(2026, 2, 20))));
+
+        _mediador.Consultas[^1].Pagina.Should().Be(1);
+        cut.Find("a.enlace-exportar").GetAttribute("href")
+            .Should().Be("/auditoria/exportar.xlsx?desde=2026-01-15&hasta=2026-02-20");
+    }
+
+    [Fact]
+    public void Vaciar_desde_consulta_todo_el_historial_y_lo_avisa()
+    {
+        var cut = Renderizar();
+        cut.Markup.Should().NotContain("todo el historial");
+
+        cut.FindAll("input[type=date]")[0].Input("");
+
+        cut.WaitForAssertion(() => _mediador.Consultas[^1].DesdeUtc.Should().BeNull());
+        cut.Markup.Should().Contain("Sin fecha de inicio: se consulta todo el historial");
+        cut.Find("a.enlace-exportar").GetAttribute("href").Should().Be("/auditoria/exportar.xlsx");
     }
 
     [Fact]
@@ -216,7 +249,7 @@ public class AuditoriaPantallaTests : BunitContext
 
         await cut.Find("select").ChangeAsync(new ChangeEventArgs { Value = "Trabajador" });
 
-        _mediador.Consultas[^1].Should().Be(new ObtenerAuditoriaQuery("Trabajador", UsuarioId: null, Pagina: 1, TamanoPagina: 30));
+        _mediador.Consultas[^1].Should().Be(new ObtenerAuditoriaQuery("Trabajador", UsuarioId: null, Pagina: 1, TamanoPagina: 30, DesdeUtc: DesdeUtcPorDefecto));
         Navegacion.Uri.Should().Contain("entidad=Trabajador");
         cut.FindAll("table.tabla-datos tbody tr").Should().ContainSingle()
             .Which.TextContent.Should().Contain("Trabajador");
@@ -231,7 +264,7 @@ public class AuditoriaPantallaTests : BunitContext
 
         await Boton(cut, "Siguiente").ClickAsync(new MouseEventArgs());
 
-        _mediador.Consultas[^1].Should().Be(new ObtenerAuditoriaQuery("Documento", UsuarioId: null, Pagina: 2, TamanoPagina: 30));
+        _mediador.Consultas[^1].Should().Be(new ObtenerAuditoriaQuery("Documento", UsuarioId: null, Pagina: 2, TamanoPagina: 30, DesdeUtc: DesdeUtcPorDefecto));
     }
 
     /// <summary>
@@ -365,7 +398,7 @@ public class AuditoriaPantallaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("table.tabla-datos tbody tr").Should().HaveCount(2,
             "la tabla tiene que enseñar lo mismo que dicen la URL, el desplegable y el enlace de exportar"));
         _mediador.Consultas[^1].EntidadTipo.Should().BeNull();
-        cut.Find("a.enlace-exportar").GetAttribute("href").Should().Be("/auditoria/exportar.xlsx");
+        cut.Find("a.enlace-exportar").GetAttribute("href").Should().Be($"/auditoria/exportar.xlsx?desde={DesdeTextoPorDefecto}");
     }
 
     /// <summary>

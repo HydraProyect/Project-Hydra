@@ -9,11 +9,12 @@ public class ConcesionPrivilegioConfiguration : IEntityTypeConfiguration<Concesi
     public void Configure(EntityTypeBuilder<ConcesionPrivilegio> builder)
     {
         // El invariante de alcance global de ConcesionPrivilegio (ADR-011 § 8.8
-        // y § 8.9), repetido en la base. No es redundancia: el WITH CHECK de RLS
-        // admite cualquier fila que nombre a app.usuario_id como beneficiario,
-        // así que sin esta restricción una escritura que no pase por el dominio
-        // podría acuñar una concesión global de escritura. Y la llave universal
-        // de lectura nunca es perpetua: caduca y se renueva.
+        // y § 8.9), repetido en la base. No es redundancia: las políticas de
+        // INSERT (PartePoliticaConcesionesPorOperacion) solo cubren a los roles
+        // sujetos a RLS, y esta restricción alcanza también a quien no pasa por
+        // ella, así que una escritura que no pase por el dominio no puede acuñar
+        // una concesión global de escritura. Y la llave universal de lectura
+        // nunca es perpetua: caduca y se renueva.
         builder.ToTable("ConcesionesPrivilegio", t =>
         {
             t.HasCheckConstraint(

@@ -60,8 +60,14 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
         /// <summary>El almacenamiento no responde hasta que el test lo suelta: así se puede cerrar el formulario a mitad de la subida.</summary>
         public TaskCompletionSource<string> GuardadoPendiente { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
-            GuardadoPendiente.Task;
+        /// <summary>Se completa cuando el manejador de la subida ya ha llegado al almacén: el test espera a esto y no a un render.</summary>
+        public TaskCompletionSource GuardadoIniciado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+        {
+            GuardadoIniciado.TrySetResult();
+            return GuardadoPendiente.Task;
+        }
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Este test no abre nada.");
@@ -85,6 +91,8 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddSingleton<CaeManager.Application.Common.IPresupuestoMemoriaDocumentos>(new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
     }
 
     private IRenderedComponent<DrawerGestionDocumento> Renderizar()
@@ -246,7 +254,19 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
         // UploadFiles espera a que termine el manejador, y el manejador espera al almacén que
         // este test retiene: se lanza aparte para poder actuar a mitad de la subida.
         var subida = Task.Run(() => entrada.UploadFiles(InputFileContent.CreateFromBinary(CrearPdf(), "prl.pdf", contentType: "application/pdf")));
-        cut.WaitForAssertion(() => cut.FindComponent<ZonaSoltarArchivo>().Instance.Cargando.Should().BeTrue("la subida tiene que estar en curso para que esto mida algo"));
+        // Primero se espera a la señal del almacén, no a un render: el manejador tarda lo que
+        // tarde el hilo del test bajo carga, y un tope de render no mide eso. Si la subida
+        // termina sin llegar al almacén, se propaga su fallo en vez de esperar a ciegas.
+        var iniciado = _almacen.GuardadoIniciado.Task;
+        if (await Task.WhenAny(iniciado, subida).WaitAsync(TimeSpan.FromSeconds(10)) == subida)
+            await subida;
+        iniciado.IsCompleted.Should().BeTrue("la subida debe llegar al almacén");
+
+        // Con la señal ya dada, lo que falta es el render que refleja _subiendoArchivo. El tope
+        // explícito es de estas esperas y no de la suite: 10 s es el mismo margen que la espera
+        // de la subida más abajo, y solo se agota si el estado no llega nunca.
+        var espera = TimeSpan.FromSeconds(10);
+        cut.WaitForAssertion(() => cut.FindComponent<ZonaSoltarArchivo>().Instance.Cargando.Should().BeTrue("la subida tiene que estar en curso para que esto mida algo"), espera);
 
         // Con el kit, el primario deshabilitado dice por qué (D-02, D-06): antes era un botón mudo.
         cut.WaitForAssertion(() =>
@@ -254,7 +274,7 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
             var guardar = cut.Find(".drawer-pie .boton-primario");
             guardar.HasAttribute("disabled").Should().BeTrue("no se guarda con el archivo todavía en vuelo");
             guardar.GetAttribute("title").Should().Be("Espera a que termine la subida del archivo.");
-        });
+        }, espera);
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
 
@@ -265,8 +285,10 @@ public class DrawerGestionDocumentoAvisoCambiosSinGuardarTests : BunitContext
         _almacen.GuardadoPendiente.SetResult("blob-tardio");
         await subida.WaitAsync(TimeSpan.FromSeconds(10));
 
+        // El manejador espera al borrado antes de volver, así que aquí ya debería estar hecho; se
+        // conserva la espera para no depender de ese orden si el manejador cambia.
         cut.WaitForAssertion(() => _almacen.Borrados.Should().Equal(["blob-tardio"],
-            "el formulario ya se cerró: nadie va a adoptar el archivo que el almacén devolvió después"));
+            "el formulario ya se cerró: nadie va a adoptar el archivo que el almacén devolvió después"), espera);
     }
 
     /// <summary>

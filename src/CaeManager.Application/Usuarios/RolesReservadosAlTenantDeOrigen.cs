@@ -38,7 +38,10 @@ namespace CaeManager.Application.Usuarios;
 /// 2026-10-20: el perfil de origen rige en todos los Tenants beneficiarios delegados
 /// con todos sus poderes, también los de Propiedad, sin encargo; deroga la regla del
 /// 2026-09-23 («la Operación nunca concede roles de Propiedad»). Quien opera así el
-/// Tenant con un rol que gestiona cuentas puede conceder estos roles en él. El encargo
+/// Tenant con un rol que gestiona cuentas pasa esta regla de Tenant; la de rol sigue
+/// aparte: Administrador solo lo concede un Administrador
+/// (<see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/>, decisión
+/// del 2026-10-30), así que Dirección CAE concede aquí Dirección CAE, no Administrador. El encargo
 /// pleno (decisión del 2026-10-15) se conserva como segunda vía, aunque ya no eleva a
 /// nadie (deuda). Soporte TALVEG no entra por ninguna de las dos: su Sesión
 /// Privilegiada no tiene rol de negocio.

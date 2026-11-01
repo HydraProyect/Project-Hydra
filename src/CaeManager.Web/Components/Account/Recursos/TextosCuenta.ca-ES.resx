@@ -12,6 +12,9 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="DosFactoresObligatorioPorTenant" xml:space="preserve">
+    <value>La teva organització exigeix l’autenticació en dos passos a tots els comptes. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
+  </data>
   <data name="DosFactoresObligatorioPorRol" xml:space="preserve">
     <value>El teu rol d’Administrador exigeix l’autenticació en dos passos. Activa-la per continuar: fins aleshores no podràs accedir a la resta de {0}.</value>
   </data>
@@ -100,7 +103,7 @@
     <value>Tornar a la fitxa</value>
   </data>
   <data name="CambiarContrasenaVoluntarioExplicacion" xml:space="preserve">
-    <value>Escriu la contrasenya actual i la que vols fer servir a partir d'ara.</value>
+    <value>Escriu la contrasenya actual i la que vols fer servir a partir d'ara. La nova ha de tenir almenys {0} caràcters.</value>
   </data>
   <data name="CambiarContrasenaVolverSinCambiarla" xml:space="preserve">
     <value>Torna sense canviar-la</value>
@@ -156,6 +159,15 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Protegir el meu compte</value>
   </data>
+  <data name="SesionPrivilegiadaCambiarContrasena" xml:space="preserve">
+    <value>No es pot canviar la contrasenya durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaDosFactores" xml:space="preserve">
+    <value>No es pot modificar l'autenticació en dos passos durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
+  <data name="SesionPrivilegiadaRestablecerContrasena" xml:space="preserve">
+    <value>No es pot restablir la contrasenya durant una Sessió Privilegiada. Tanca la Sessió Privilegiada per continuar.</value>
+  </data>
   <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
     <value>El teu compte de Microsoft no està donat d&apos;alta a {0}. Demana al teu Administrador que et doni d&apos;alta.</value>
   </data>
@@ -165,4 +177,26 @@
   <data name="LoginErrorSsoSinSegundoFactor" xml:space="preserve">
     <value>El teu inici de sessió amb Microsoft no ha inclòs la verificació en dos passos, i el teu compte de {0} no la té configurada. Demana al teu Administrador que activi la verificació en dos passos a Microsoft.</value>
   </data>
+  <data name="CodigosVerificarAutenticador" xml:space="preserve"><value>Codi actual de la teva aplicació autenticadora</value></data>
+  <data name="CodigosVerificacionFallida" xml:space="preserve"><value>No s’ha pogut verificar el codi o el compte està bloquejat.</value></data>
+  <data name="CodigosVerificacionEnCurso" xml:space="preserve"><value>Ja s’està verificant un codi per a aquest compte. Espera un moment i torna-ho a provar.</value></data>
+  <data name="CambiarContrasenaVerificacionFallida" xml:space="preserve"><value>No s’ha pogut verificar la contrasenya actual o el compte està bloquejat.</value></data>
+  <data name="ReautenticacionTitulo" xml:space="preserve"><value>Confirma que ets tu</value></data>
+  <data name="ReautenticacionContrasenaAyuda" xml:space="preserve"><value>Per seguretat, abans de configurar un segon factor has de tornar a introduir la teva contrasenya.</value></data>
+  <data name="ReautenticacionContrasena" xml:space="preserve"><value>Contrasenya actual</value></data>
+  <data name="ReautenticacionContinuar" xml:space="preserve"><value>Continua</value></data>
+  <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Per seguretat, abans de configurar un segon factor has de tornar a iniciar la sessió amb Microsoft.</value></data>
+  <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Torna a iniciar la sessió amb Microsoft</value></data>
+  <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ja s’està verificant aquest compte. Espera un moment i torna-ho a provar.</value></data>
+  <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha passat massa temps des que vas confirmar la teva identitat. Torna a confirmar-la per activar l’autenticació en dos passos.</value></data>
+  <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Per vincular el teu compte de Microsoft, configura abans la verificació en dos passos de {0}.</value></data>
+  <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Codi QR per configurar l’aplicació autenticadora</value></data>
+  <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escaneja el codi amb Google Authenticator, Microsoft Authenticator o 1Password. No el pots escanejar? Introdueix aquesta clau:</value></data>
+  <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Codi de 6 dígits de l’aplicació</value></data>
+  <data name="AltaVinculoActivar" xml:space="preserve"><value>Activa i continua</value></data>
+  <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Després et demanarem un altre codi: espera que l’aplicació en mostri un de nou, perquè cada codi serveix una sola vegada.</value></data>
+  <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El codi no és vàlid. Comprova l’hora del dispositiu i torna-ho a provar.</value></data>
+  <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No s’ha pogut preparar la verificació en dos passos. Torna a iniciar la sessió.</value></data>
+  <data name="LoginMicrosoftSeparador" xml:space="preserve"><value>o</value></data>
+  <data name="LoginMicrosoftIniciarSesion" xml:space="preserve"><value>Inicia la sessió amb Microsoft</value></data>
 </root>

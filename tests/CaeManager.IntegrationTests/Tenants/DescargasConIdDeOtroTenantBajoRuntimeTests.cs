@@ -9,6 +9,8 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
+using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
@@ -17,6 +19,7 @@ using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.Centros;
 using CaeManager.Web.Features.Comunicaciones;
 using CaeManager.Web.Features.Documentos;
+using CaeManager.Web.Features.Extension;
 using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Visitas;
 using FluentAssertions;
@@ -72,6 +75,7 @@ public class DescargasConIdDeOtroTenantBajoRuntimeTests(DescargasEntreTenantsFix
         "/comunicaciones/adjuntos/{id:guid}/archivo",
         "/requisitos-documentales/{id:guid}/archivo",
         "/empresas/{id:guid}/sello/archivo",
+        "/extension/acreditaciones/{id:guid}/archivo",
     ];
 
     [Theory]
@@ -107,6 +111,20 @@ public class DescargasConIdDeOtroTenantBajoRuntimeTests(DescargasEntreTenantsFix
     }
 
     [Fact]
+    public async Task Preparar_la_entrega_de_una_Acreditacion_de_otro_Tenant_no_emite_ticket()
+    {
+        var acreditacionDeB = entorno.RecursoDeB("/extension/acreditaciones/{id:guid}/archivo").Id;
+
+        var propia = await entorno.PrepararEntregaAsync(entorno.AdministradorB, entorno.TenantB, acreditacionDeB);
+        var ajena = await entorno.PrepararEntregaAsync(entorno.AdministradorA, entorno.TenantA, acreditacionDeB);
+        var inexistente = await entorno.PrepararEntregaAsync(entorno.AdministradorA, entorno.TenantA, Guid.NewGuid());
+
+        propia.Should().Be(StatusCodes.Status200OK, "control positivo: el Tenant propietario recibe el ticket");
+        ajena.Should().Be(StatusCodes.Status404NotFound, "desde el Tenant A la Acreditación de B no existe");
+        ajena.Should().Be(inexistente, "un Id ajeno no se distingue de uno que no existe");
+    }
+
+    [Fact]
     public async Task La_sesion_de_la_prueba_es_cae_app_runtime_con_RLS_efectiva()
     {
         var (rol, saltaRls, ve) = await entorno.SesionDelTenantAAsync();
@@ -127,6 +145,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
     private ServiceProvider _servicios = null!;
     private readonly string _directorio = Path.Combine(Path.GetTempPath(), "descargas-tenants-" + Guid.NewGuid().ToString("N"));
     private readonly Dictionary<string, Recurso> _recursosDeB = [];
+    private const string PortalDeLaPrueba = "app.portal-prueba.test";
+    private Guid _documentoAcreditado;
 
     public Guid TenantA { get; } = Guid.NewGuid();
     public Guid TenantB { get; } = Guid.NewGuid();
@@ -252,6 +272,15 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         var requisito = new TipoDocumentoCentro(tipo.Id, centro.Id, archivoUrl: plantilla.Clave, nombreArchivoOriginal: "formulario.pdf");
         contexto.TiposDocumentoCentros.Add(requisito);
 
+        // La Acreditación pendiente que recoge la extensión: la póliza, por un canal de Plataforma del mismo Centro.
+        var proveedor = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma de prueba");
+        contexto.ProveedoresPlataformaCae.Add(proveedor);
+        contexto.DominiosProveedorPlataformaCae.Add(new DominioProveedorPlataformaCae(proveedor.Id, "portal-prueba.test"));
+        var canalPlataforma = CanalGestionDocumental.DePlataforma(centro.Id, "Portal principal", proveedor.Id, null, null, null);
+        contexto.CanalesGestionDocumental.Add(canalPlataforma);
+        var acreditacion = new AcreditacionDocumentoPlataforma(poliza.Id, canalPlataforma.Id);
+        contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+
         var sello = await GuardarAsync("sello.png");
         contexto.SellosEmpresa.Add(new SelloEmpresa(propia.Id, sello.Clave, DateTime.UtcNow));
         await contexto.SaveChangesAsync();
@@ -277,6 +306,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         _recursosDeB["/comunicaciones/adjuntos/{id:guid}/archivo"] = new(adjuntoMensaje.Id, adjunto.Bytes);
         _recursosDeB["/requisitos-documentales/{id:guid}/archivo"] = new(requisito.Id, plantilla.Bytes);
         _recursosDeB["/empresas/{id:guid}/sello/archivo"] = new(propia.Id, sello.Bytes);
+        _recursosDeB["/extension/acreditaciones/{id:guid}/archivo"] = new(acreditacion.Id, segundaVersion.Bytes);
+        _documentoAcreditado = poliza.Id;
     }
 
     /// <summary>
@@ -298,6 +329,19 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
         IRegistroAccesoDocumentoSensibleService Registro() => sp.GetRequiredService<IRegistroAccesoDocumentoSensibleService>();
         ILoggerFactory Registros() => sp.GetRequiredService<ILoggerFactory>();
 
+        // Un ticket auténtico, firmado para quien pide y para ese Id: el peor caso. Lo que tiene que pararlo es la
+        // lectura bajo el Tenant de la petición, no la firma.
+        Task<IResult> ServirEntregaAsync()
+        {
+            var proteccion = sp.GetRequiredService<IDataProtectionProvider>();
+            contexto.Request.Headers[EntregaArchivoExtensionEndpoints.CabeceraTicket] =
+                TicketEntregaExtension.Proteger(proteccion, usuario, tenant, null, id, _documentoAcreditado, PortalDeLaPrueba);
+            return EntregaArchivoExtensionEndpoints.ServirAsync(
+                id, contexto, Mediador(), sp.GetRequiredService<ICurrentUserService>(),
+                sp.GetRequiredService<ITenantActual>(), sp.GetRequiredService<IClienteActivoSeleccionado>(),
+                proteccion, Almacen(), Registro(), Registros(), ct);
+        }
+
         IResult? resultado = ruta switch
         {
             "/documentos/{id:guid}/archivo" =>
@@ -310,6 +354,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
                 await VisitasEndpoints.ServirPaqueteAsync(id, contexto, Mediador(), Registros(), ct),
             "/empresas/{id:guid}/sello/archivo" =>
                 await FirmasGuardadasEndpoints.ServirSelloAsync(id, contexto, Mediador(), Almacen(), Registros(), ct),
+            "/extension/acreditaciones/{id:guid}/archivo" =>
+                await ServirEntregaAsync(),
             "/comunicaciones/adjuntos/{id:guid}/archivo" or "/requisitos-documentales/{id:guid}/archivo" => null,
             _ => throw new ArgumentOutOfRangeException(nameof(ruta), ruta, "Ruta sin invocación en la prueba."),
         };
@@ -338,6 +384,25 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
             contexto.Response.Headers
                 .Where(c => !string.Equals(c.Key, "Content-Length", StringComparison.OrdinalIgnoreCase))
                 .ToDictionary(c => c.Key, c => c.Value.ToString(), StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>El estado de <c>POST /extension/acreditaciones/{id}/entrega</c> desde el portal de la prueba.</summary>
+    public async Task<int> PrepararEntregaAsync(Guid usuario, Guid tenant, Guid id)
+    {
+        await using var ambito = AmbitoComo(usuario, tenant);
+        var sp = ambito.ServiceProvider;
+        var contexto = new DefaultHttpContext { RequestServices = sp };
+        contexto.Request.Method = HttpMethods.Post;
+        contexto.Request.ContentType = "application/json";
+        contexto.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes($"{{\"dominioPortal\":\"{PortalDeLaPrueba}\"}}"));
+        contexto.Response.Body = new MemoryStream();
+
+        var resultado = await EntregaArchivoExtensionEndpoints.PrepararAsync(
+            id, contexto.Request, sp.GetRequiredService<IMediator>(), sp.GetRequiredService<ICurrentUserService>(),
+            sp.GetRequiredService<ITenantActual>(), sp.GetRequiredService<IClienteActivoSeleccionado>(),
+            sp.GetRequiredService<IDataProtectionProvider>(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+        return contexto.Response.StatusCode;
     }
 
     /// <summary>

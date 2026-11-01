@@ -368,15 +368,15 @@ public class PaqueteDocumentalVisitaCorreoTests
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var paquete = new PaqueteDocumentalVisitaService(
-            contexto, contexto, contexto, contexto, contexto, contexto, new ConversacionRepository(contexto), _almacenamiento,
-            NullLogger<PaqueteDocumentalVisitaService>.Instance);
         var registro = new RegistroAccesoDocumentoSensibleService(
             contexto, contexto, _usuario,
             new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
+        var paquete = new PaqueteDocumentalVisitaService(
+            contexto, contexto, contexto, contexto, contexto, contexto, new ConversacionRepository(contexto), _almacenamiento,
+            Alcance(contexto), registroAlternativo ?? registro, NullLogger<PaqueteDocumentalVisitaService>.Instance);
 
         var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
-            contexto, contexto, Alcance(contexto), paquete, registroAlternativo ?? registro, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
+            contexto, contexto, Alcance(contexto), paquete, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
         return await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(visitaId), CancellationToken.None);
     }
 

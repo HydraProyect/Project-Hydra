@@ -19,7 +19,8 @@ public class SugerenciaGestionCorreoConfiguration : IEntityTypeConfiguration<Sug
         // SugerenciaGestionCorreo) — mismo patrón que Conversacion.Mensajes/Participantes.
         builder.HasMany(s => s.Detalles)
             .WithOne()
-            .HasForeignKey(d => d.SugerenciaGestionCorreoId)
+            .HasForeignKey(d => new { d.TenantId, d.SugerenciaGestionCorreoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(s => s.Detalles).UsePropertyAccessMode(PropertyAccessMode.Field);
 

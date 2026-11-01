@@ -80,7 +80,8 @@ public class ProponerPlanAsistenteQueryHandler(
     IMediator mediator,
     IDecisionesCerradasAsistenteService decisiones,
     IInstruccionTratamientoIaService instruccionTratamientoIa,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    LimitadorConsultaIa limitador)
     : IRequestHandler<ProponerPlanAsistenteQuery, Result<PlanPropuestoDto>>
 {
     private const string PendienteSinConstructor = "Este dato todavía no lo resuelve el asistente: complétalo en el plan.";
@@ -92,7 +93,7 @@ public class ProponerPlanAsistenteQueryHandler(
 
     public async Task<Result<PlanPropuestoDto>> Handle(ProponerPlanAsistenteQuery request, CancellationToken cancellationToken)
     {
-        if (tenantActual.TenantId is not { } tenantPantalla
+        if (tenantActual.TenantId is not { } tenantPantalla || tenantPantalla == Guid.Empty
             || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantPantalla, cancellationToken))
             return Result.Fallo<PlanPropuestoDto>(Error.Crear(
                 "AsistenteIa.SinInstruccion",
@@ -101,6 +102,12 @@ public class ProponerPlanAsistenteQueryHandler(
         var cartera = await mediator.Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
         if (cartera.ErrorSiFalta() is { } sinInstruccion)
             return Result.Fallo<PlanPropuestoDto>(sinInstruccion);
+
+        // OWASP API4 / ASVS V11.1.4: antes de que el texto salga al proveedor, una sola
+        // reserva por propuesta en la cuota del Tenant efectivo de la sesión (el de la
+        // pantalla, también en la operación delegada), aunque luego haya dos llamadas.
+        if (limitador.IntentarReservarPropuesta(tenantPantalla) is { } errorCuota)
+            return Result.Fallo<PlanPropuestoDto>(errorCuota);
 
         var clasificacion = await decisiones.ClasificarOrdenAsync(request.Texto, cancellationToken);
         if (clasificacion.EsFallido)

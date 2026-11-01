@@ -17,11 +17,11 @@ namespace CaeManager.E2ETests;
 /// </para>
 ///
 /// <para>
-/// Revocar ya no es suyo: revocan y reactivan el Gestor CAE, el Coordinador CAE, la Dirección
-/// CAE y el Administrador del propio Operador CAE externo con alcance sobre el Tenant
-/// propietario (decisiones de producto del 2026-10-26), así que al Administrador del Tenant
-/// propietario no se le pinta «Revocar acceso». Que el Administrador del Operador CAE externo
-/// sí revoque y reactive se recorre en <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el
+/// Revocar ya no es suyo: revocan el Gestor CAE, el Coordinador CAE, la Dirección CAE y el
+/// Administrador del propio Operador CAE externo con alcance sobre el Tenant propietario
+/// (decisiones de producto del 2026-10-26), así que al Administrador del Tenant propietario no
+/// se le pinta «Revocar acceso». Que el Administrador del Operador CAE externo revoque y no
+/// reactive se recorre en <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el
 /// Operador CAE externo recién creado no tiene ninguna cuenta con sesión.
 /// </para>
 /// </summary>
@@ -63,7 +63,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await modalActivacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Hecho", Exact = true }).ClickAsync();
         await modalActivacion.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        var tarjetaOperador = plataforma.Locator(".operadores-cae-tarjeta", new PageLocatorOptions { HasText = nombreOperador });
+        var tarjetaOperador = plataforma.Locator(".operadores-cae-tarjeta", new PageLocatorOptions { Has = plataforma.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = nombreOperador, Exact = true }) });
         await tarjetaOperador.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Copiar enlace de autorización" }).ClickAsync();
         // El toast de BotonCopiar es la barrera: la escritura en el portapapeles es un
         // JSInterop asíncrono y leerlo justo tras el clic puede adelantarse (DeepLinksTests).
@@ -84,7 +84,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await Expect(modalAutorizar).ToContainTextAsync("TALVEG te sugiere este Operador CAE externo");
 
         // Sugerir no es autorizar: hasta el clic, el Tenant B no tiene ningún vínculo.
-        var tarjetaVinculo = paginaB.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreOperador });
+        var tarjetaVinculo = paginaB.Locator(".delegaciones-tarjeta", new PageLocatorOptions { Has = paginaB.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = $"{nombreOperador} nos gestiona", Exact = true }) });
         Assert.Equal(0, await tarjetaVinculo.CountAsync());
 
         await modalAutorizar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Autorizar", Exact = true }).ClickAsync();

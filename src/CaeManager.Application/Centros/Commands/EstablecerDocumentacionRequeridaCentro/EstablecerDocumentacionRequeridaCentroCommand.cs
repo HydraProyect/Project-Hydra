@@ -1,5 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
+using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -49,7 +51,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IVerificadorArchivoAlmacenado verificadorArchivo)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -57,8 +60,9 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md —, y
         // Asignación de Cartera: fuera del alcance de gestión el Centro «no existe» (mismo criterio
         // que EditarCentroCommand).
-        if (!await centrosContext.Centros.AnyAsync(c => c.Id == request.CentroId, cancellationToken)
-            || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
+        var centro = await centrosContext.Centros.Where(c => c.Id == request.CentroId)
+            .Select(c => new { c.TenantId }).FirstOrDefaultAsync(cancellationToken);
+        if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
         var tipo = await tiposDocumentoContext.TiposDocumento
@@ -75,6 +79,28 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
 
         var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
 
+        // OWASP ASVS 4.0.3 V12.1/V12.2: la clave de archivo y el nombre original llegan del cliente; se validan en
+        // servidor (el formulario Blazor ya lo hace, otros llamadores no). El endpoint de descarga deriva del nombre
+        // original el nombre y el tipo del archivo, así que la clave y el nombre tienen que terminar en la misma
+        // extensión. Una clave nueva solo admite PDF o Word, con la firma y la estructura del contenido almacenado. El
+        // contenido de una clave que la fila ya tenía no se vuelve a exigir: editar la tolerancia o excluir el tipo no
+        // debe quedar bloqueado por un archivo anterior a esta validación.
+        //
+        // OWASP ASVS 4.0.3 V4.2.1 y API Top 10 API1: una clave nueva tiene que ser de la carpeta del Tenant propietario
+        // del Centro, que sale del Centro y no del contexto de quien opera (una clave subida bajo un Tenant beneficiario
+        // es de ese Tenant, igual que sus Centros). Se comprueba antes de abrir nada y con el mismo error que un archivo
+        // no válido: la respuesta no dice si la clave existe. Si el Centro admite o no ese TipoDocumento es otra regla,
+        // sin decidir, que esta validación no toca.
+        if (request.ArchivoUrl is { } archivoUrl)
+        {
+            var cambiaClave = archivoUrl != fila?.ArchivoUrl;
+            var cambiaNombre = request.NombreArchivoOriginal != fila?.NombreArchivoOriginal;
+            if (((cambiaClave || cambiaNombre) && !ExtensionCoincide(archivoUrl, request.NombreArchivoOriginal))
+                || (cambiaClave && (centro.TenantId == Guid.Empty
+                    || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId)
+                    || !await ArchivoRequisitoEsValidoAsync(archivoUrl, cancellationToken))))
+                return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));
+        }
         if (fila is null)
         {
             fila = new TipoDocumentoCentro(
@@ -101,4 +127,12 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
 
         return Result.Exito();
     }
+
+    private static bool ExtensionCoincide(string archivoUrl, string? nombreOriginal) =>
+        nombreOriginal is not null
+        && string.Equals(Path.GetExtension(nombreOriginal), Path.GetExtension(archivoUrl), StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> ArchivoRequisitoEsValidoAsync(string archivoUrl, CancellationToken cancellationToken) =>
+        Path.GetExtension(archivoUrl).ToLowerInvariant() is ".pdf" or ".docx"
+        && await verificadorArchivo.EsDocumentoValidoAsync(archivoUrl, cancellationToken);
 }

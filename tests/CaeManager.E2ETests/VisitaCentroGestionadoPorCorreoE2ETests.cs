@@ -42,10 +42,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
 
         // --- Tipo de documento requerido ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
-        await page.GetByText("+ Nuevo tipo").ClickAsync();
+        await page.Locator(".cabecera-pagina").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo tipo", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
         await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar y aplicar" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
@@ -54,23 +54,23 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_702));
-        await page.GetByText("Guardar y continuar").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_701));
-        await page.GetByText("Guardar y continuar a Centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
         await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreCentro);
-        await page.GetByText("Guardar centro").ClickAsync();
-        await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar centro", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Terminar aquí", Exact = true })).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // --- Trabajador asignado al Centro ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
         async Task CrearTrabajadorAsync(string nombre, string apellidos, int semillaDni)
         {
-            await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+            await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).ClickAsync();
             var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
             var empresaPrecargada = drawer.Locator(".campo-info-valor").GetByText(razonSocialEmpresa, new LocatorGetByTextOptions { Exact = true });
             await Expect(comboEmpresa.Or(empresaPrecargada)).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
@@ -80,7 +80,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(Ayudas.GenerarDniValido(semillaDni));
             await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombre);
             await drawer.GetByLabel("Apellidos").FillAsync(apellidos);
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
 
@@ -98,13 +98,13 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro").ClickAsync();
+        await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Asignar a un centro", Exact = true }).ClickAsync();
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
         // El aviso confirma que terminó el debounce del selector y la consulta de faltantes.
         await Expect(page.Locator(".alerta-preflight-asignacion"))
             .ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
-        await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
+        await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Asignar") }).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Documento vigente con archivo, subido desde /centros ---
@@ -148,9 +148,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
         await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
         await enlaceFicha.ClickAsync();
-        await page.WaitForURLAsync(
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba (#1843).
+        await Assertions.Expect(page).ToHaveURLAsync(
             new System.Text.RegularExpressions.Regex(@"/trabajadores/[0-9a-fA-F-]{36}(\?.*)?$"),
-            new PageWaitForURLOptions { Timeout = 15_000 });
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
 
         // En la ficha, pestaña Centros: el Centro llega plegado; se despliega y se pulsa el «Gestionar» del
         // documento que falta, que abre «Nuevo documento» con el Trabajador y el tipo ya elegidos.

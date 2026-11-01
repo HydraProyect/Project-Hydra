@@ -10,7 +10,13 @@ public class PdfToPngRasterizadorPaginasPdfService(
 {
     private static readonly RenderOptions OpcionesRender = new(Dpi: 150);
 
-    public Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default)
+    public Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default) =>
+        Rasterizar(contenidoPdf, indicePagina, OpcionesRender, cancellationToken);
+
+    public Result<byte[]> RasterizarMiniatura(byte[] contenidoPdf, int indicePagina, int anchoPixeles, CancellationToken cancellationToken = default) =>
+        Rasterizar(contenidoPdf, indicePagina, new RenderOptions(Dpi: 150, Width: anchoPixeles, WithAspectRatio: true), cancellationToken);
+
+    private Result<byte[]> Rasterizar(byte[] contenidoPdf, int indicePagina, RenderOptions opciones, CancellationToken cancellationToken)
     {
         // Antes de abrir nada: si ya se pidió parar, la página siguiente no
         // empieza. La conversión en sí es nativa y síncrona, así que este es el
@@ -24,7 +30,7 @@ public class PdfToPngRasterizadorPaginasPdfService(
         try
         {
             using var ms = new MemoryStream();
-            global::PDFtoImage.Conversion.SavePng(ms, contenidoPdf, new Index(indicePagina), password: null, OpcionesRender);
+            global::PDFtoImage.Conversion.SavePng(ms, contenidoPdf, new Index(indicePagina), password: null, opciones);
             return Result.Exito(ms.ToArray());
         }
         catch (Exception ex)

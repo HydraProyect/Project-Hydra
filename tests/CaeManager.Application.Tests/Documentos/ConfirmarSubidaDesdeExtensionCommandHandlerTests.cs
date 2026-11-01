@@ -69,7 +69,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
                 acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(),
                 centrosContext, proveedoresContext, new CurrentUserServiceFalso(UsuarioId), unitOfWork),
             Deshacer = new DeshacerSubidaDesdeExtensionCommandHandler(
-                acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork),
+                acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(), centrosContext, unitOfWork),
         };
     }
 
@@ -309,7 +309,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
         acreditaciones.Agregar(visible.Acreditacion);
         var unitOfWork = new UnitOfWorkFalso();
         var deshacer = new DeshacerSubidaDesdeExtensionCommandHandler(
-            acreditaciones, documentos, fueraDeCartera, new ProyectosQueryContextFalso(), unitOfWork);
+            acreditaciones, documentos, fueraDeCartera, new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), unitOfWork);
 
         var resultado = await deshacer.Handle(
             new DeshacerSubidaDesdeExtensionCommand(visible.Acreditacion.Id, confirmado.CambioId, confirmado.Version),

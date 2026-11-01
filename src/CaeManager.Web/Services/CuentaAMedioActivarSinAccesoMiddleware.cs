@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.StaticAssets;
 namespace CaeManager.Web.Services;
 
 /// <summary>
-/// Una cuenta a medio activar —contraseña temporal sin cambiar, o Administrador
-/// sin 2FA— no alcanza nada fuera de las pantallas que existen para activarla.
+/// Una cuenta a medio activar —contraseña temporal sin cambiar, o sin la 2FA que
+/// exigen su rol Administrador o su Tenant— no alcanza nada fuera de las pantallas que existen para activarla.
 ///
 /// <para>
 /// <b>El agujero que cierra.</b> Las dos obligaciones se imponían únicamente en

@@ -65,6 +65,31 @@ public class DrawerFormularioTests : BunitContext
     }
 
     [Fact]
+    public void Aviso_fijo_y_error_se_ven_fuera_del_cuerpo_y_sin_aviso_no_se_altera_el_marcado()
+    {
+        var sinAviso = Renderizar();
+        var marcado = sinAviso.Markup;
+        sinAviso.Render(p => p.Add(x => x.AvisoFijo, (RenderFragment?)null));
+        sinAviso.Markup.Should().Be(marcado);
+        sinAviso.FindAll(".drawer-aviso").Should().BeEmpty();
+
+        var cut = Renderizar(p => p.Add(x => x.AvisoFijo, (RenderFragment)(b => b.AddContent(0, "Aviso fijo"))));
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Aviso fijo");
+        cut.Find(".drawer-cuerpo").TextContent.Should().NotContain("Aviso fijo");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeTrue();
+        cut.Render(p => p.Add(x => x.MensajeError, "Error de guardado"));
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Error de guardado").And.Contain("Aviso fijo");
+        var hijos = cut.Find(".drawer-aviso").Children;
+        hijos[0].ClassList.Should().Contain("alerta-formulario", "el error de guardado va primero y se pinta como antes");
+        cut.Find(".drawer-aviso").LastChild!.TextContent.Should().Contain("Aviso fijo");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse("el error de guardado sigue bloqueando el cierre por fuera");
+
+        _mensaje = "Error de guardado";
+        var soloError = Renderizar();
+        soloError.Find(".drawer-aviso").Children.Should().ContainSingle().Which.ClassList.Should().Contain("alerta-formulario");
+    }
+
+    [Fact]
     public void Sin_MostrarGuardar_el_pie_solo_tiene_Cancelar_y_por_defecto_se_muestra_Guardar()
     {
         Renderizar(p => p.Add(x => x.MostrarGuardar, false))

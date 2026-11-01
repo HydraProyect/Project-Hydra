@@ -137,9 +137,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// El actor que edita, no el rol que se le asigna al usuario editado —
     /// esta página también la abre DireccionCae (mismo nivel de "ve todo el
     /// negocio"), pero DEC-36 (REC-099) dice específicamente "concedido
-    /// explícitamente por otro Administrador". Sin esta distinción, un
-    /// DireccionCae podría convertirse en Administrador con el permiso ya
-    /// concedido en el mismo guardado.
+    /// explícitamente por otro Administrador". Decide además si el selector
+    /// ofrece Administrador (<see cref="RolesOfrecidos"/>): desde el 2026-10-30
+    /// solo un Administrador lo concede.
     /// </summary>
     private bool _usuarioActualEsAdministrador;
 
@@ -367,8 +367,16 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private IReadOnlyList<string> _rolesNoAsignables = [];
 
+    /// <summary>
+    /// Además de <see cref="_rolesNoAsignables"/>, el selector no ofrece Administrador a
+    /// quien no es Administrador (decisión del 2026-10-30: Dirección CAE no lo concede, ni
+    /// a otra cuenta ni a sí misma). Salvo como rol que la cuenta ya tenía: conservarlo no
+    /// es concederlo. Comodidad, no autoridad:
+    /// <see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/> decide.
+    /// </summary>
     private IEnumerable<string> RolesOfrecidos =>
-        Roles.Todos.Where(rol => !_rolesNoAsignables.Contains(rol) || rol == _rolCargado);
+        Roles.Todos.Where(rol => rol == _rolCargado
+            || (!_rolesNoAsignables.Contains(rol) && (rol != Roles.Administrador || _usuarioActualEsAdministrador)));
 
     /// <summary>
     /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a
@@ -576,7 +584,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerVisiblesAsync(cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
-    protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
+    protected virtual Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken) =>
         DirectorioUsuarios.ObtenerVisiblesEnRolAsync(rol, cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
@@ -2071,6 +2079,17 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private bool PuedeOfrecerRestablecerSegundoFactor(UsuarioListaDto usuario) =>
         _usuarioActualEsAdministrador && usuario.DosFactoresActivo && !usuario.EsOperadorDelegado
         && usuario.Id != _usuarioActualId;
+
+    /// <summary>
+    /// Solo presentación, espejo de
+    /// <see cref="AutoridadSobreCuentas.VerificarActivacionDeCuentaAdministradorAsync"/>: el
+    /// enlace de activación de una cuenta pendiente Administrador —o sin rol, que se lista
+    /// con «—»— solo lo reenvía o corrige un Administrador. A Dirección CAE no se le ofrece
+    /// un botón que el servidor iba a rechazar al pulsarlo.
+    /// </summary>
+    private bool PuedeOfrecerEnlaceDeActivacion(UsuarioListaDto usuario) =>
+        _usuarioActualEsAdministrador
+        || (usuario.Rol != Roles.Administrador && AutoridadSobreCuentas.RolesExistentes.Contains(usuario.Rol));
 
     private void PedirRestablecerSegundoFactor(UsuarioListaDto usuario)
     {

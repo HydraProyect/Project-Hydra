@@ -34,7 +34,9 @@ public static class ComunicacionesEndpoints
         // HO-099-01 § 6-7): un AdjuntoMensaje es contenido de correo, sin
         // TipoDocumentoId — no hay de dónde sacar la categoría del punto
         // único de REC-132 sin inventar una fuente distinta, que es
-        // justo lo que esa decisión prohíbe.
+        // justo lo que esa decisión prohíbe. La lectura queda igualmente en
+        // la auditoría general: la registra ObtenerAdjuntoParaDescargaQuery,
+        // antes de devolver la referencia.
         Stream flujo;
         try
         {

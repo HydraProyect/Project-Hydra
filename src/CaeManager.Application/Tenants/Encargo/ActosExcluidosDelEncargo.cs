@@ -1,10 +1,13 @@
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
+using CaeManager.Application.Configuracion.Commands.ActualizarSeguridadAcceso;
 using CaeManager.Application.DocumentosIa.Queries;
 using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
+using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarDeteccionTrabajadoresGlobal;
@@ -106,6 +109,8 @@ public static class ActosExcluidosDelEncargo
         typeof(ReactivarConexionCommand),
         typeof(CrearLineaWhatsAppCommand),
         typeof(ActualizarLineaWhatsAppCommand),
+        typeof(GuardarConexionPlataformaCaeCommand),
+        typeof(RetirarConexionPlataformaCaeCommand),
         typeof(ObtenerLineasWhatsAppQuery),
         // Configuración global de IA del Tenant propietario y su presupuesto.
         typeof(ActualizarLecturaIaGlobalCommand),
@@ -113,6 +118,8 @@ public static class ActosExcluidosDelEncargo
         typeof(ActualizarDeteccionTrabajadoresGlobalCommand),
         typeof(ActualizarPerfilDocumentoOficialGlobalCommand),
         typeof(ActualizarPresupuestoIaCommand),
+        // Seguridad de acceso del Tenant: solo su Administrador, leído en la base. Leerla sigue permitido.
+        typeof(ActualizarSeguridadAccesoCommand),
     };
 
     /// <summary>

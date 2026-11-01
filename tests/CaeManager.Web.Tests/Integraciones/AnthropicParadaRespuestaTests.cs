@@ -37,6 +37,16 @@ public sealed class AnthropicParadaRespuestaTests
     }
 
     [Fact]
+    public async Task Extraccion_estructurada_truncada_no_acepta_un_json_aparentemente_completo()
+    {
+        var manejador = new ManejadorFijo(Respuesta("max_tokens", """{"tipoDetectado":"Certificado","campos":{},"confianzaGeneral":99}"""));
+        var proveedor = new AnthropicDocumentAIProvider(new HttpClient(manejador), Opciones, NullLogger<AnthropicDocumentAIProvider>.Instance);
+        var resultado = await proveedor.ExtraerEstructuradoAsync("Texto", "Certificado");
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("DocumentAIProvider.RespuestaIncompleta");
+    }
+
+    [Fact]
     public async Task Ocr_terminado_devuelve_la_transcripcion()
     {
         var manejador = new ManejadorFijo(Respuesta("end_turn", "Texto completo del documento"));

@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -21,17 +23,15 @@ public class MarcarAcreditacionRechazadaCommandValidator : AbstractValidator<Mar
 
 public class MarcarAcreditacionRechazadaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionRechazadaCommand, Result>
 {
     public async Task<Result> Handle(MarcarAcreditacionRechazadaCommand request, CancellationToken cancellationToken)
     {
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            centrosContext, recargar: false, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
-
-        var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
-        if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
         acreditacion.Rechazar(request.Causa, request.MotivoLiteral, DateTime.UtcNow);

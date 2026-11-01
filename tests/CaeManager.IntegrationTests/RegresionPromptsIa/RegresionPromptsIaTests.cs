@@ -12,7 +12,7 @@ namespace CaeManager.IntegrationTests.RegresionPromptsIa;
 /// Suite de regresión de prompts (MACRO_PLAN § 6.6, "cada cambio de
 /// prompt/modelo corre contra el corpus en CI como cualquier otro test"):
 /// llama a la ruta real de extracción estructurada de cada
-/// <see cref="IDocumentAIProvider"/> configurado (Anthropic/Gemini/Mistral,
+/// <see cref="IDocumentAIProvider"/> configurado (Anthropic,
 /// nunca un doble) contra <see cref="CorpusRegresionIa"/> y compara el
 /// resultado contra lo esperado. Sin esto, 6.1 (validación automática con
 /// umbral de confianza) no tendría red de seguridad: un prompt que empeora
@@ -24,7 +24,7 @@ namespace CaeManager.IntegrationTests.RegresionPromptsIa;
 /// <see cref="TheorySiHayClaveIaAttribute"/>) — no bloquea CI por falta de
 /// credenciales, pero exige exactamente cero cambios de código para
 /// activarse en cuanto la clave exista: basta con exportar
-/// <c>Anthropic__ApiKey</c> / <c>Gemini__ApiKey</c> / <c>MistralOcr__ApiKey</c>
+/// <c>Anthropic__ApiKey</c>
 /// (mismas variables que usaría la app en producción, ver AnthropicOptions
 /// et al.) en el entorno donde corran los tests.
 /// </summary>
@@ -34,16 +34,6 @@ public class RegresionPromptsIaTests
     [MemberData(nameof(CorpusRegresionIa.ComoTheoryData), MemberType = typeof(CorpusRegresionIa))]
     public async Task Anthropic_extrae_los_campos_esperados_del_corpus(DocumentoCorpusIa documento) =>
         await EjecutarYVerificarAsync(CrearProveedor<AnthropicDocumentAIProvider>(), documento);
-
-    [TheorySiHayClaveIa(GeminiOptions.SeccionConfiguracion)]
-    [MemberData(nameof(CorpusRegresionIa.ComoTheoryData), MemberType = typeof(CorpusRegresionIa))]
-    public async Task Gemini_extrae_los_campos_esperados_del_corpus(DocumentoCorpusIa documento) =>
-        await EjecutarYVerificarAsync(CrearProveedor<GeminiDocumentAIProvider>(), documento);
-
-    [TheorySiHayClaveIa(MistralOcrOptions.SeccionConfiguracion)]
-    [MemberData(nameof(CorpusRegresionIa.ComoTheoryData), MemberType = typeof(CorpusRegresionIa))]
-    public async Task MistralChat_extrae_los_campos_esperados_del_corpus(DocumentoCorpusIa documento) =>
-        await EjecutarYVerificarAsync(CrearProveedor<MistralOcrDocumentAIProvider>(), documento);
 
     /// <summary>
     /// Contenedor de DI mínimo, no la app entera: lee las mismas secciones
@@ -62,8 +52,6 @@ public class RegresionPromptsIaTests
         servicios.AddSingleton<IConfiguration>(configuracion);
         servicios.AddLogging(builder => builder.AddProvider(NullLoggerProvider.Instance));
         servicios.Configure<AnthropicOptions>(configuracion.GetSection(AnthropicOptions.SeccionConfiguracion));
-        servicios.Configure<GeminiOptions>(configuracion.GetSection(GeminiOptions.SeccionConfiguracion));
-        servicios.Configure<MistralOcrOptions>(configuracion.GetSection(MistralOcrOptions.SeccionConfiguracion));
         servicios.AddHttpClient<TProvider>();
 
         return servicios.BuildServiceProvider().GetRequiredService<TProvider>();

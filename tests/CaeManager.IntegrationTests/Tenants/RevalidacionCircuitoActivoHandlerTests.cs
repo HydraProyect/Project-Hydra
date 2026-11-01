@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using AuthenticationState = Microsoft.AspNetCore.Components.Authorization.AuthenticationState;
@@ -187,13 +187,6 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
     private RevalidacionCircuitoActivoHandler CrearHandler(
         IClienteActivoSeleccionado seleccion, CaeManagerDbContext contexto, int intervaloSegundos)
     {
-        var configuracion = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Circuit:RevalidacionIntervaloSegundos"] = intervaloSegundos.ToString()
-            })
-            .Build();
-
         return new RevalidacionCircuitoActivoHandler(
             seleccion,
             new CurrentUserServiceParaHandlerFalso(_usuario),
@@ -203,7 +196,7 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
             contexto,
             SinSesionPrivilegiada,
             new PuertaAccesoDatos(),
-            configuracion,
+            Options.Create(new IntervalosRevalidacionOptions { CircuitoSegundos = intervaloSegundos }),
             NullLogger<RevalidacionCircuitoActivoHandler>.Instance);
     }
 

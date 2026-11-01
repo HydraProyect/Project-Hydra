@@ -417,14 +417,17 @@ public class MacrosGen2Tests : BunitContext
         await Guardar(cut);
 
         mediador.Enviados.OfType<EditarMacroCommand>().Should().ContainSingle().Which.Version.Should().Be(original.Version);
-        cut.Find(".macros-conflicto .macros-conflicto-titulo").TextContent.Trim()
+        cut.Find(".drawer-aviso .macros-conflicto .macros-conflicto-titulo").TextContent.Trim()
             .Should().Be("Otra persona editó esta macro mientras la tenías abierta");
+        cut.FindAll(".drawer-cuerpo .macros-conflicto").Should().BeEmpty("el aviso va fuera del cuerpo desplazable");
+        cut.Find(".drawer-aviso .macros-conflicto").GetAttribute("role").Should().Be("status");
+        cut.Find(".drawer-aviso .macros-conflicto").GetAttribute("aria-live").Should().Be("assertive");
         Boton(cut, ".drawer-pie button", "Guardar").HasAttribute("disabled").Should().BeTrue(
             "guardar otra vez con la versión vieja volvería a chocar");
         cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse(
             "con el aviso de conflicto a la vista un clic fuera no puede cerrar el formulario sin que se lea");
 
-        await Pulsar(cut, ".macros-conflicto button", "Cargar la versión actual");
+        await Pulsar(cut, ".drawer-aviso .macros-conflicto button", "Cargar la versión actual");
 
         cut.FindAll(".macros-conflicto").Should().BeEmpty();
         cut.Find(".drawer-cuerpo input.campo-input").GetAttribute("value").Should().Be("Acuse de recibo (revisado)");
@@ -435,6 +438,34 @@ public class MacrosGen2Tests : BunitContext
         ultimo.Version.Should().Be(deOtraPersona.Version, "se guarda sobre la versión que se acaba de cargar, no sobre la vieja");
         mediador.Enviados.OfType<EditarMacroCommand>().Should().HaveCount(2);
         cut.FindAll(".drawer-panel").Should().BeEmpty("el segundo guardado entra y el formulario se cierra");
+    }
+
+    [Fact]
+    public async Task Sin_conflicto_la_ranura_del_aviso_esta_vacia_y_con_conflicto_y_error_se_ven_los_dos_con_el_error_primero()
+    {
+        var escenario = new Escenario();
+        var original = Macro("Acuse de recibo");
+        escenario.Macros.Add(original);
+        var (cut, _) = Renderizar(escenario);
+
+        await EditarFila(cut, "Acuse de recibo");
+
+        cut.Find(".drawer-aviso").InnerHtml.Should().BeEmpty("sin conflicto ni error el aviso fijo no deja nada, ni un espacio, que rompa :empty");
+
+        escenario.Macros[0] = original with { Version = Guid.NewGuid() };
+        await RellenarFormulario(cut, "Mi título", "Mi cuerpo");
+        await Guardar(cut);
+        cut.Find(".drawer-aviso").Children.Should().ContainSingle().Which.ClassList.Should().Contain("macros-conflicto");
+
+        // La macro desaparece mientras tanto: cargar la versión actual falla con su propio mensaje y el conflicto sigue a la vista.
+        escenario.Macros.Clear();
+        await Pulsar(cut, ".drawer-aviso .macros-conflicto button", "Cargar la versión actual");
+
+        var hijos = cut.Find(".drawer-aviso").Children;
+        hijos.Should().HaveCount(2);
+        hijos[0].ClassList.Should().Contain("alerta-formulario");
+        hijos[0].TextContent.Should().Contain("ya no está donde la abriste");
+        hijos[1].ClassList.Should().Contain("macros-conflicto");
     }
 
     // ---------------------------------------------------------------- eliminar

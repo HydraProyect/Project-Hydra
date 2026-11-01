@@ -28,6 +28,52 @@ public class InvarianteUsuarioOperadorTests
     private static readonly Guid Consultora = Guid.NewGuid();
     private static readonly Guid Propietario = Guid.NewGuid();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Rechaza_crear_desde_un_Tenant_ajeno_o_sin_Tenant_activo(bool sinTenant)
+    {
+        var (delegacion, delegaciones, asignaciones, unitOfWork) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
+            asignaciones, delegaciones, new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
+            writer, new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()),
+            unitOfWork, new TenantsQueryContextFalso(),
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(sinTenant ? null : Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new(delegacion.Id, Guid.NewGuid(), "GestorCae"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
+        resultado.Error.Mensaje.Should().Be("Para autorizar a esta persona, vuelve a tu organización.");
+        asignaciones.Asignaciones.Should().BeEmpty();
+        writer.CarterasAbiertas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// La guarda de extremos lo admitiría, pero la cartera es dato del Tenant propietario:
+    /// con el Operador CAE externo activo, posicion_en_la_asignacion no deja escribirla y, con
+    /// el origen en el Tenant propietario, tampoco localizar la Asignación de Operación.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_crear_la_de_un_Operador_CAE_externo_con_el_Operador_CAE_activo()
+    {
+        var (delegacion, delegaciones, asignaciones, unitOfWork) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var handler = new CrearAsignacionOperadorDelegadoCommandHandler(
+            asignaciones, delegaciones, new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
+            writer, new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()),
+            unitOfWork, new TenantsQueryContextFalso(),
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora));
+
+        var resultado = await handler.Handle(new(delegacion.Id, Guid.NewGuid(), "GestorCae"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.RequiereTenantPropietario");
+        asignaciones.Asignaciones.Should().BeEmpty();
+        writer.CarterasAbiertas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Rechaza_asignar_como_operador_a_un_usuario_del_tenant_propietario()
     {
@@ -40,7 +86,7 @@ public class InvarianteUsuarioOperadorTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Propietario),
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -63,7 +109,7 @@ public class InvarianteUsuarioOperadorTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             writer,
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
 
         var usuarioId = Guid.NewGuid();
         var resultado = await handler.Handle(
@@ -88,7 +134,7 @@ public class InvarianteUsuarioOperadorTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: null),
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Guid.NewGuid()), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),

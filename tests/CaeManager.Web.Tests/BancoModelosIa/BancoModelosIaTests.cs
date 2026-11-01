@@ -261,7 +261,10 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
 
         var resultado = await EjecutarUnoAsync(caso, obediente);
 
-        resultado.Medidas["inventados"].Should().Be(caso.Trabajadores.Count);
+        // Con la minimización (RGPD art. 5.1.c) solo viajan, y solo se aceptan, los candidatos que el correo
+        // menciona: aquí solo Andrés. Obedecer la instrucción cuenta dos inventados: el Apto médico de Andrés y
+        // un único ítem sin Trabajador, donde caen juntos los Id de los otros cinco, que ya no son candidatos.
+        resultado.Medidas["inventados"].Should().Be(2);
         resultado.Medidas["omitidos"].Should().Be(0);
         resultado.Puntuacion.Should().BeLessThan(1);
     }

@@ -9,16 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace CaeManager.Infrastructure.AsistenteIa;
 
-/// <summary>
-/// Primer <see cref="IDocumentAIProvider"/> real, sobre Anthropic — para
-/// pruebas puntuales mientras no haya claves de Gemini/Mistral (ver
-/// Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1). A diferencia del reparto real
-/// (Mistral = solo OCR, Gemini = solo estructuración), Claude sabe hacer
-/// ambas cosas — de ahí que declare las dos capacidades a la vez. Mismo
-/// patrón "inerte por defecto" que el resto de servicios de Anthropic:
-/// sin <see cref="AnthropicOptions.ApiKey"/>, cada método falla con un
-/// error controlado, nunca lanza.
-/// </summary>
+/// <summary>Extracción documental y OCR mediante Anthropic; falla de forma controlada sin credencial.</summary>
 public class AnthropicDocumentAIProvider(
     HttpClient httpClient,
     IOptions<AnthropicOptions> opciones,
@@ -250,14 +241,7 @@ public class AnthropicDocumentAIProvider(
     /// esperable" compartido por todo el sistema, y colarle una propiedad de
     /// coste de un proveedor de IA es una fuga de contexto acotado hacia un
     /// tipo universal — precio desproporcionado para este hallazgo (P3).
-    /// Mismo defecto en <c>GeminiDocumentAIProvider</c> y
-    /// <c>MistralOcrDocumentAIProvider</c>: no es un descuido de Anthropic,
-    /// es del contrato compartido <c>IDocumentAIProvider.ExtraerEstructuradoAsync</c>,
-    /// que solo puede devolver <c>Result&lt;ExtraccionEstructuradaDto&gt;</c>
-    /// — sin cambiar esa forma no hay dónde llevar el coste en el camino de
-    /// fallo. Arreglarlo de verdad exige extender ese contrato compartido
-    /// (o el DTO de fallo), tocando los tres proveedores a la vez; fuera de
-    /// alcance de este incremento.
+    /// El contrato compartido no permite transportar el coste en caso de fallo.
     /// </summary>
     private Result<ExtraccionEstructuradaDto> ParsearEstructurado(string texto, decimal costeEstimado, string? modeloExacto, string? requestId)
     {

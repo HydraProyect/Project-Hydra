@@ -50,4 +50,14 @@ public partial class EstadoComercialGen2Tests
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la suscripción ya está vinculada");
     }
+
+    [Fact]
+    public async Task Vincular_sin_identificador_esta_deshabilitado_con_motivo()
+    {
+        var (cut, _, _) = Montar(new Escenario());
+        await BotonDeFila(cut, TenantBeitia).ClickAsync(new MouseEventArgs());
+        var boton = BotonDe(Dialogo(cut, TituloFormulario)!, "Vincular");
+        boton.HasAttribute("disabled").Should().BeTrue();
+        boton.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+    }
 }

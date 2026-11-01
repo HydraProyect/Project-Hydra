@@ -1,4 +1,7 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -6,16 +9,18 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita;
 
 /// <summary>
-/// Trabajadores que se pueden añadir a una Visita desde el panel: los mismos que ofrece el
-/// selector de «Editar visita» (<see cref="AlcanceSelectorTrabajadores.BaseGeneralDelTenant"/>,
-/// pedido a la misma consulta para que las dos listas no puedan divergir) menos los que ya
-/// entran. Vacía si la Visita no existe, está cancelada o su Centro queda fuera del alcance de
-/// GESTIÓN de quien pregunta: quien no puede añadir tampoco ve a quién podría añadir.
+/// Trabajadores que se pueden añadir a una Visita desde el panel: los del selector de «Editar
+/// visita» (<see cref="AlcanceSelectorTrabajadores.Cartera"/>, pedido a la misma consulta para que
+/// las dos listas no puedan divergir) que además son de la Empresa de la Visita
+/// (<see cref="TrabajadoresAdmisiblesEnVisita"/>, S-B-1), menos los que ya entran. Vacía si la
+/// Visita no existe, está cancelada o su Centro queda fuera del alcance de GESTIÓN de quien
+/// pregunta: quien no puede añadir tampoco ve a quién podría añadir.
 /// </summary>
 public record ObtenerCandidatosTrabajadorVisitaQuery(Guid VisitaId) : IRequest<IReadOnlyList<TrabajadorSelectorDto>>;
 
 public class ObtenerCandidatosTrabajadorVisitaQueryHandler(
-    IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ISender sender)
+    IVisitasQueryContext visitasContext, ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext,
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, ISender sender)
     : IRequestHandler<ObtenerCandidatosTrabajadorVisitaQuery, IReadOnlyList<TrabajadorSelectorDto>>
 {
     public async Task<IReadOnlyList<TrabajadorSelectorDto>> Handle(
@@ -30,14 +35,26 @@ public class ObtenerCandidatosTrabajadorVisitaQueryHandler(
             || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return [];
 
+        var empresaId = await centrosContext.Centros
+            .Where(c => c.Id == visita.CentroId)
+            .Select(c => (Guid?)c.EmpresaId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (empresaId is not { } empresa)
+            return [];
+
         var yaEntran = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == request.VisitaId)
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
 
         var ofrecidos = await sender.Send(
-            new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant), cancellationToken);
+            new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), cancellationToken);
 
-        return ofrecidos.Where(t => !yaEntran.Contains(t.Id)).ToList();
+        var admisibles = (await TrabajadoresAdmisiblesEnVisita.FiltrarAsync(
+                ofrecidos.Select(t => t.Id).Except(yaEntran).ToList(), empresa,
+                trabajadoresContext, empresasContext, alcanceDatos, cancellationToken))
+            .ToHashSet();
+
+        return ofrecidos.Where(t => admisibles.Contains(t.Id)).ToList();
     }
 }

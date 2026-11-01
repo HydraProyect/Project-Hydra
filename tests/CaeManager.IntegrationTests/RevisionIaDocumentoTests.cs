@@ -123,6 +123,34 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
         resultado[0].NumeroPaginas.Should().Be(4, "la revisión usa su auditoría explícita, no la extracción más reciente del documento");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Revision_de_documento_de_cliente_exige_vision_total(bool visionTotal)
+    {
+        var empresa = Empresa.CrearComoCliente("Montajes Ficticios S.L.", "B12345674", false, null, null);
+        _dbContext.Empresas.Add(empresa);
+        var tipo = new TipoDocumento("Certificado de prueba", null, aplicaVencimientoAutomatico: false, 1,
+            AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
+        _dbContext.TiposDocumento.Add(tipo);
+        var documento = Documento.DeCliente(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        var revision = RevisionIaDocumento.Crear(documento.Id, 0, null, null, null, true, "Confirmación humana");
+        _dbContext.RevisionesIaDocumento.Add(revision);
+        await _dbContext.SaveChangesAsync();
+        var alcance = new AlcanceDatosServiceFalso(trabajadorIds: visionTotal ? null : [_trabajadorVisible.Id]);
+        var handler = new ResolverRevisionIaDocumentoCommandHandler(
+            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new AuditoriaExtraccionIaRepository(_dbContext), _dbContext,
+            alcance, new CurrentUserServiceFalso(usuarioId: _usuarioIdDePrueba), _dbContext);
+
+        var resultado = await handler.Handle(new ResolverRevisionIaDocumentoCommand(revision.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(visionTotal);
+        revision.Resuelta.Should().Be(visionTotal);
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().Be(visionTotal);
+    }
+
     [Fact]
     public async Task Resolver_marca_la_revision_como_hecha_cuando_el_trabajador_es_visible()
     {

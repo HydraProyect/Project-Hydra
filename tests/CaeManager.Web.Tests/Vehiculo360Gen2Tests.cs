@@ -125,7 +125,7 @@ public partial class Vehiculo360Gen2Tests : BunitContext
         var cut = RenderizarPanel(id);
 
         m.Tokens.Should().ContainSingle(x => x.CanBeCanceled && !x.IsCancellationRequested);
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         m.Tokens.Should().OnlyContain(x => x.IsCancellationRequested, "DisposeComponentsAsync retira el panel y cancela su ciclo");
     }
 

@@ -172,6 +172,20 @@ public class ClienteActivoSeleccionado(
         && LeerUsuarioActual(contexto.User) is null;
 
     /// <summary>
+    /// Fija la selección de una petición de la extensión, sin cookie y solo para esa petición. Únicamente la llama
+    /// <see cref="ContextoExtensionMiddleware"/>, después de comprobar la autorización viva sobre
+    /// <paramref name="tenantId"/> por <paramref name="asignacionOperacionId"/>: la extensión no abre vía heredada ni
+    /// Sesión Privilegiada. No está en <see cref="IClienteActivoSeleccionado"/> a propósito.
+    /// </summary>
+    public void FijarDesdeExtension(Guid tenantId, Guid asignacionOperacionId)
+    {
+        _tenantIdSeleccionado = tenantId;
+        _asignacionOperacionIdSeleccionada = asignacionOperacionId;
+        _sesionPrivilegiadaIdSeleccionada = null;
+        _leidoDeCookie = true;
+    }
+
+    /// <summary>
     /// Descarta la selección para el resto de esta petición. Lo llama
     /// <see cref="RevalidacionClienteActivoMiddleware"/> cuando comprueba que
     /// la delegación ya no está viva: borrar la cookie de la respuesta no

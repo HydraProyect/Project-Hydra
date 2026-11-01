@@ -1,5 +1,7 @@
 using CaeManager.Domain.Common;
 using System.IO.Compression;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Documentos;
@@ -8,6 +10,9 @@ using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.PaqueteDocumental;
+using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
+using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
@@ -44,6 +49,8 @@ public class PaqueteDocumentalVisitaServiceTests
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly FileStorageServiceFalso _almacenamiento = new();
     private readonly LoggerCaptura _logger = new();
+    private readonly RegistroAccesoQueAnota _registro = new();
+    private AlcanceDatosServiceFalso _alcance = new();
 
     private readonly Empresa _empresa = new("Contratista Demo SL", "B12345674");
     private readonly Centro _centro;
@@ -380,6 +387,23 @@ public class PaqueteDocumentalVisitaServiceTests
         aviso.Mensaje.Should().Contain(ilegible.Id.ToString()).And.NotContain(ilegible.ArchivoUrl!);
     }
 
+    /// <summary>
+    /// S-C-3 (OWASP API4:2023): sin hueco en el presupuesto de memoria no se prueba la copia siguiente ni se
+    /// salta el documento, porque eso daría por completo un paquete al que le faltan; el paquete entero falla.
+    /// </summary>
+    [Fact]
+    public async Task Sin_hueco_en_el_presupuesto_de_memoria_el_paquete_falla_entero_en_vez_de_saltarse_documentos()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "elegida");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "reserva");
+        _almacenamiento.ExcepcionAlAbrir = new PresupuestoMemoriaAgotadoException();
+
+        var construir = ConstruirAsync;
+
+        await construir.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        _logger.Entradas.Should().NotContain(e => e.Mensaje.Contains("No se pudo abrir"));
+    }
+
     [Fact]
     public async Task El_aviso_de_sin_confirmar_refleja_lo_que_viajo_si_la_elegida_no_se_pudo_abrir()
     {
@@ -642,9 +666,108 @@ public class PaqueteDocumentalVisitaServiceTests
         return trabajador;
     }
 
+    // ---- S-B-1 y S-B-3: alcance del paquete y registro del acceso a lo sensible
+
+    /// <summary>Anota cada registro pedido; con <c>Falla</c>, se comporta como el servicio real cuando no queda constancia (falla en cerrado).</summary>
+    private sealed class RegistroAccesoQueAnota : IRegistroAccesoDocumentoSensibleService
+    {
+        public List<(Guid DocumentoId, TipoAccesoDocumentoSensible Tipo)> Registrados { get; } = [];
+        public bool Falla { get; set; }
+
+        public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default)
+        {
+            if (Falla) throw new InvalidOperationException("sin constancia");
+            Registrados.Add((documentoId, tipoAcceso));
+            return Task.CompletedTask;
+        }
+
+        public Task RegistrarSiSensibleAsync(Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task El_paquete_automatico_registra_como_apertura_cada_documento_que_viaja()
+    {
+        var epi = DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi");
+        var formacion = DocumentoDeTrabajador(_luis, _formacion, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "formacion");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "ausente", archivoInexistente: true);
+        DocumentoDeTrabajador(_luis, _reconocimiento, Hoy.AddDays(-100), VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), "vencido");
+
+        await GenerarAsync();
+
+        _registro.Registrados.Should().BeEquivalentTo(new[]
+        {
+            (epi.Id, TipoAccesoDocumentoSensible.Apertura),
+            (formacion.Id, TipoAccesoDocumentoSensible.Apertura),
+        });
+        LeerZip().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Si_el_acceso_no_queda_registrado_el_paquete_automatico_no_sale()
+    {
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi");
+        _registro.Falla = true;
+        var archivosIniciales = _almacenamiento.ArchivosGuardados;
+
+        var generar = () => new PaqueteDocumentalVisitaService(
+                _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger)
+            .GenerarYEnviarAsync(_visita.Id, _conversacion.Id);
+
+        await generar.Should().ThrowAsync<InvalidOperationException>();
+        _conversacion.Mensajes.Should().BeEmpty("sin constancia del acceso, el adjunto no se añade");
+        _almacenamiento.ArchivosGuardados.Should().Be(archivosIniciales);
+    }
+
+    [Fact]
+    public async Task La_descarga_manual_registra_solo_los_documentos_incorporados()
+    {
+        var incluido = DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "incluido");
+        DocumentoDeTrabajador(_luis, _epi, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "ausente", archivoInexistente: true);
+        _centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(_centro.Id, "Acceso", "acceso@example.com", null));
+        var servicio = new PaqueteDocumentalVisitaService(
+            _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger);
+        var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
+            _visitas, _centros, _alcance, servicio, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), new SesionPrivilegiadaAusente());
+
+        var resultado = await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(_visita.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        LeerZip(resultado.Valor.Contenido).Values.Should().BeEquivalentTo(["incluido"]);
+        _registro.Registrados.Should().Equal((incluido.Id, TipoAccesoDocumentoSensible.Apertura));
+    }
+
+    [Fact]
+    public async Task El_paquete_no_incluye_a_un_Trabajador_de_la_Visita_fuera_del_alcance_de_quien_lo_genera()
+    {
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-ana");
+        DocumentoDeTrabajador(_luis, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-luis");
+        _alcance = new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [_ana.Id]);
+
+        var paquete = await ConstruirAsync();
+
+        paquete.Should().NotBeNull();
+        LeerZip(paquete!.Contenido).Values.Should().BeEquivalentTo(["epi-ana"]);
+    }
+
+    [Fact]
+    public async Task El_paquete_no_incluye_a_un_Trabajador_de_la_Visita_de_otra_Empresa()
+    {
+        var ajeno = Trabajador.DeEmpresa(Guid.NewGuid(), "Rosa", "Ajena", "00000001R");
+        _trabajadores.ListaTrabajadores.Add(ajeno);
+        _visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(_visita.Id, ajeno.Id));
+        DocumentoDeTrabajador(ajeno, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "aptitud-ajena");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-ana");
+
+        var paquete = await ConstruirAsync();
+
+        LeerZip(paquete!.Contenido).Values.Should().BeEquivalentTo(["epi-ana"],
+            "la aptitud médica de un Trabajador de otra Empresa nunca viaja al Centro");
+    }
+
     private Task<PaqueteDocumentalZip?> ConstruirAsync() =>
         new PaqueteDocumentalVisitaService(
-                _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _logger)
+                _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger)
             .ConstruirAsync(_visita.Id);
 
     private static Dictionary<string, string> LeerZip(byte[] contenido)
@@ -674,7 +797,7 @@ public class PaqueteDocumentalVisitaServiceTests
     private async Task GenerarAsync()
     {
         var servicio = new PaqueteDocumentalVisitaService(
-            _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _logger);
+            _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger);
 
         await servicio.GenerarYEnviarAsync(_visita.Id, _conversacion.Id);
     }

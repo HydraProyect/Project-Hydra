@@ -744,4 +744,7 @@
   <data name="BorradorPrioridadNoDisponibleMotivo" xml:space="preserve"><value>El borrador no está disponible</value></data>
   <data name="BorradorPrioridadCargandoMotivo" xml:space="preserve"><value>Cargando el borrador…</value></data>
   <data name="EnviandoPrioridadTexto" xml:space="preserve"><value>Enviando…</value></data>
+  <data name="ToastCanalesNoCargados" xml:space="preserve">
+    <value>No pudimos cargar los canales de gestión de este centro. Lo que ves puede estar incompleto; recarga la página.</value>
+  </data>
 </root>

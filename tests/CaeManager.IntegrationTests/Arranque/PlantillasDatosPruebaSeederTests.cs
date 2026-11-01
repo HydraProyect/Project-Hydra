@@ -51,7 +51,7 @@ public class PlantillasDatosPruebaSeederTests
                 EmailConfirmed = true,
                 TenantId = tenantId,
             };
-            (await userManager.CreateAsync(gestor, "Prueba#2026")).Succeeded.Should().BeTrue();
+            (await userManager.CreateAsync(gestor, "Prueba#2026Segura")).Succeeded.Should().BeTrue();
             await userManager.AddToRoleAsync(gestor, Roles.GestorCae);
 
             var empresa = new Empresa("Empresa base para plantillas");

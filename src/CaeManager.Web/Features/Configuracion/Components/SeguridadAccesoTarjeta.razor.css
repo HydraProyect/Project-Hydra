@@ -1,0 +1,190 @@
+.seguridad-acceso {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 640px;
+    padding: 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.seguridad-cabecera {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.seguridad-titulo {
+    margin: 0;
+    font: 600 22px/30px var(--font-family);
+}
+
+.seguridad-entradilla,
+.seguridad-unidad {
+    font: 400 14px/20px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+.seguridad-campo {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 440px;
+}
+
+.seguridad-etiqueta {
+    font: 600 13px/16px var(--font-family);
+}
+
+.seguridad-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.seguridad-minutos {
+    width: 120px;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 400 14px/20px var(--font-family);
+}
+
+.seguridad-minutos[readonly] {
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+}
+
+.seguridad-minutos-error {
+    border: 2px solid var(--color-danger-500);
+}
+
+.seguridad-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: var(--color-danger-700);
+    font: 600 12px/16px var(--font-family);
+}
+
+.seguridad-error svg,
+.seguridad-aviso svg {
+    flex: none;
+}
+
+.seguridad-aviso svg {
+    margin-top: 2px;
+}
+
+.seguridad-ayuda {
+    font: 500 12px/16px var(--font-family);
+    color: var(--color-text-muted);
+}
+
+.seguridad-campo-interruptor {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.seguridad-interruptor-fila {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.seguridad-sangria {
+    padding-left: 52px;
+}
+
+.seguridad-interruptor {
+    position: relative;
+    flex: none;
+    width: 48px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.seguridad-interruptor:focus-visible {
+    outline-offset: -2px;
+    border-radius: 10px;
+}
+
+.seguridad-interruptor[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .75;
+}
+
+.seguridad-interruptor-pista {
+    position: absolute;
+    top: 10px;
+    left: 2px;
+    width: 44px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    background: var(--color-border-control);
+}
+
+.seguridad-interruptor-pomo {
+    position: absolute;
+    top: 13px;
+    left: 5px;
+    width: 18px;
+    height: 18px;
+    border-radius: var(--radius-full);
+    background: #FFFFFF;
+    transition: left .15s ease;
+}
+
+.seguridad-interruptor-activo .seguridad-interruptor-pista {
+    background: var(--color-primary-500);
+}
+
+.seguridad-interruptor-activo .seguridad-interruptor-pomo {
+    left: 25px;
+}
+
+.seguridad-aviso {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-left: 52px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    background: var(--color-info-50);
+    color: var(--color-info-500);
+    font: 400 14px/20px var(--font-family);
+}
+
+.seguridad-acciones {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+}
+
+/* La maqueta da 44 de alto al guardar, por encima de los 40 del botón medio. */
+.seguridad-acciones ::deep .boton {
+    min-height: 44px;
+    padding: 0 24px;
+}
+
+@media (max-width: 767px) {
+    .seguridad-acceso {
+        padding: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .seguridad-interruptor-pomo {
+        transition: none;
+    }
+}

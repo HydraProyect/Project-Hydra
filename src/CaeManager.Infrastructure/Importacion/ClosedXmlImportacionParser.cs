@@ -53,7 +53,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// (rescate de pantallas 2026-09-25, ítem 9). Antes iba a Omitidos y el
 /// reporte contaba como omitido a un trabajador que sí se importaba.
 /// </summary>
-public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesPlantillaCaeCompleta> opciones) : IExcelImportacionParser
+public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesPlantillaCaeCompleta> opciones, IOptions<OpcionesLimitesImportacion>? limites = null) : IExcelImportacionParser
 {
     private const string HojaCentros = "Centros_Plataformas";
     private const string HojaAsignaciones = "Asignaciones";
@@ -83,6 +83,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
+        // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
+        InspectorXlsxSeguro.Verificar(archivo, limites?.Value);
         using var libro = new XLWorkbook(archivo);
 
         // F3b — Empresas, no la tabla legacy Clientes. Cliente empresarial
@@ -168,12 +170,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     /// Las hojas de Trabajadores válidas de la configuración (con nombre de hoja y razón social), sin repetir hoja.
     /// Una entrada a medias no se lee: sin Empresa declarada no hay a quién asignar los Trabajadores.
     /// </summary>
-    private List<HojaTrabajadoresCae> HojasTrabajadoresConfiguradas() =>
-        opciones.Value.HojasTrabajadores
-            .Where(h => !string.IsNullOrWhiteSpace(h.Hoja) && !string.IsNullOrWhiteSpace(h.RazonSocialEmpresa))
-            .Select(h => new HojaTrabajadoresCae { Hoja = h.Hoja.Trim(), RazonSocialEmpresa = h.RazonSocialEmpresa.Trim() })
-            .DistinctBy(h => h.Hoja, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+    private List<HojaTrabajadoresCae> HojasTrabajadoresConfiguradas() => opciones.Value.HojasConfiguradas();
 
     private static List<ClienteCentroImportadoDto> AnalizarCentros(
         XLWorkbook libro,

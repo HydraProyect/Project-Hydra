@@ -305,9 +305,9 @@ public static class CicloDocumentalDatosPruebaSeeder
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
             new string('a', 64), "Certificado de aptitud médica", "anthropic", 2140, null, 0.012m, 2, 95, null));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
-            new string('b', 64), "ITA", "mistral-ocr", 5320, 0.004m, 0.021m, 6, 88, null));
+            new string('b', 64), "ITA", "anthropic", 5320, 0.004m, 0.021m, 6, 88, null));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
-            new string('c', 64), "Entrega de EPI", "gemini", 3810, null, 0.009m, 1, 62,
+            new string('c', 64), "Entrega de EPI", "anthropic", 3810, null, 0.009m, 1, 62,
             "Confianza por debajo del umbral; se generó revisión IA."));
         dbContext.AuditoriasExtraccionIa.Add(AuditoriaExtraccionIa.Crear(
             new string('d', 64), "Certificado de aptitud médica", "cache", 12, null, 0m, 2, 95, null));

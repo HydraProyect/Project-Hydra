@@ -129,12 +129,25 @@ public class RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests : IAsyncL
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         foreach (var sensibilidad in sensibilidades)
         {
-            foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>())
+            foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>().Where(t => t != TipoAccesoDocumentoSensible.EntregaExtension))
             {
                 (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), sensibilidad.ToString(), tipoAcceso.ToString()))
                     .Should().Be("registrado", $"{sensibilidad} × {tipoAcceso} es un acceso sensible que se registra");
             }
         }
+    }
+
+    /// <summary>La extensión no funciona bajo una Sesión Privilegiada: Soporte TALVEG nunca registra una entrega a ella.</summary>
+    [Fact]
+    public async Task La_funcion_rechaza_la_entrega_a_la_extension()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+
+        (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), nameof(Domain.Documentos.SensibilidadDocumental.DatosPersonales),
+                nameof(TipoAccesoDocumentoSensible.EntregaExtension)))
+            .Should().Be("valor_no_valido");
     }
 
     // ── Cada precondición de la función, incumplida: no hay fila y no se sirve ─
@@ -455,7 +468,10 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);
-        await using (var contexto = CrearContexto(_tenantPlataforma))
+
+        // Sembrada como propietario: bajo runtime la auto-concesión exige AdminPlataforma vigente
+        // (privilegio_autoconcesion), y aquí solo hace falta la sesión de SoporteLectura.
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
         {
             contexto.ConcesionesPrivilegio.Add(concesion);
             await contexto.SaveChangesAsync();

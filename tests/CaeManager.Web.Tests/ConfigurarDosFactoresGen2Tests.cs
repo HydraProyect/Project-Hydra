@@ -38,6 +38,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     public ConfigurarDosFactoresGen2Tests()
     {
         _almacen.Usuario = _usuario;
+        Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         _almacen.Clave = ClavePrueba;
 
         var usuarios = CrearUsuarios(_almacen);
@@ -47,6 +48,9 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
+        Services.AddSingleton<CaeManager.Infrastructure.Coordinacion.IEleccionLiderService>(new CerrojoVerificacionFalso());
+        Services.AddSingleton<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
         // Sin AddAuthorization(): registra su propio AuthenticationStateProvider, sin autenticar,
         // y como gana el ultimo registro pisaba a AutenticacionFalsa. La pagina no encontraba la
         // claim NameIdentifier, retornaba en la primera guarda y no pintaba nada. El [Authorize]
@@ -241,10 +245,17 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         new AuthenticationSchemeProvider(Opciones.Create(new AuthenticationOptions())),
         new DefaultUserConfirmation<ApplicationUser>());
 
+    // Recién iniciada la sesión: la marca de inicio reciente abre el alta sin volver a pedir la
+    // contraseña. La reautenticación la cubre ConfigurarAutenticadorDosFactoresEscrituraTests.
     private sealed class AutenticacionFalsa(Guid usuarioId) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(
-            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba"))));
+            new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString()),
+                new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion,
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            ], "prueba"))));
     }
 
     private sealed class AlmacenAutenticador : IUserStore<ApplicationUser>, IUserAuthenticatorKeyStore<ApplicationUser>,

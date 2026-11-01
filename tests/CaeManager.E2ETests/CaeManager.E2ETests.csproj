@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <!-- axe-core como ratchet de accesibilidad (M-42). Paquete MIT; axe-core (MPL-2.0) solo se ejecuta en el navegador de pruebas, no se distribuye. -->
+    <PackageReference Include="Deque.AxeCore.Playwright" Version="4.13.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageReference Include="Npgsql" Version="10.*" />
@@ -19,6 +21,10 @@
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Accesibilidad/axe-linea-base-outbound.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -9,6 +9,10 @@ namespace CaeManager.Domain.Configuracion;
 /// </summary>
 public class ParametroSistema : EntidadConTenant
 {
+    public const int MinutosInactividadSesionPorDefecto = 30;
+    public const int MinimoMinutosInactividadSesion = 5;
+    public const int MaximoMinutosInactividadSesion = 480;
+
     public int UmbralAmbarDias { get; private set; }
     public int UmbralRojoDias { get; private set; }
 
@@ -52,6 +56,20 @@ public class ParametroSistema : EntidadConTenant
     /// documental no bloquean nada por sí mismos.
     /// </summary>
     public decimal? PresupuestoMensualIaUsd { get; private set; }
+
+    /// <summary>
+    /// Minutos sin interacción tras los que se cierra la sesión de las cuentas de este Tenant
+    /// (decisión del 2026-10-28; ASVS 4.0.3 V3.3.2). Lo lleva cada sesión en su ticket y lo
+    /// aplica <c>CaducidadSesion</c>. No mueve el tope de 12 horas desde el inicio de sesión.
+    /// </summary>
+    public int MinutosInactividadSesion { get; private set; } = MinutosInactividadSesionPorDefecto;
+
+    /// <summary>
+    /// Exige la verificación en dos pasos a todas las cuentas del Tenant, no solo al
+    /// Administrador, que la tiene siempre obligatoria (decisión del 2026-10-28; ASVS 4.0.3
+    /// V2.8). Nace apagado: conserva lo que había y no bloquea a nadie al desplegar.
+    /// </summary>
+    public bool ExigeSegundoFactorTodosLosPerfiles { get; private set; }
 
     private ParametroSistema()
     {
@@ -115,5 +133,19 @@ public class ParametroSistema : EntidadConTenant
             throw new ArgumentException("El presupuesto mensual de IA no puede ser negativo.", nameof(presupuestoMensualIaUsd));
 
         PresupuestoMensualIaUsd = presupuestoMensualIaUsd;
+    }
+
+    public static bool MinutosInactividadSesionValidos(int minutos) =>
+        minutos is >= MinimoMinutosInactividadSesion and <= MaximoMinutosInactividadSesion;
+
+    public void ActualizarSeguridadAcceso(int minutosInactividadSesion, bool exigeSegundoFactorTodosLosPerfiles)
+    {
+        if (!MinutosInactividadSesionValidos(minutosInactividadSesion))
+            throw new ArgumentException(
+                $"Los minutos de inactividad deben estar entre {MinimoMinutosInactividadSesion} y {MaximoMinutosInactividadSesion}.",
+                nameof(minutosInactividadSesion));
+
+        MinutosInactividadSesion = minutosInactividadSesion;
+        ExigeSegundoFactorTodosLosPerfiles = exigeSegundoFactorTodosLosPerfiles;
     }
 }

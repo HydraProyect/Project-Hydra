@@ -28,7 +28,7 @@ namespace CaeManager.Architecture.Tests;
 /// un campo dentro de <c>&lt;ModalFormulario&gt;</c> es del kit aunque el kit esté dentro de un <c>Drawer</c>). NO vigila: el
 /// <c>&lt;DialogoConfirmacion&gt;</c> con un «Motivo (opcional)» (es el cuerpo de una confirmación, no un formulario; ver
 /// <c>DrawerYModalConCamposPreguntanAlDescartarTests</c>), un Modal de varios pasos o de solo lectura (sin campos), ni los campos
-/// de un componente hijo que el Modal monta (<c>FormularioRapidoCliente</c> es un <c>Modal</c> propio y sí se mide en su fichero).
+/// de un componente hijo que el Modal monta (un hijo con su propio <c>Modal</c> con campos sí se mide en su fichero).
 /// NO ve que el kit se use <i>bien</i> (un <c>HayCambios</c> que cubra todos los campos): eso lo prueba el bUnit de cada pantalla. Un
 /// <c>&lt;input&gt;</c> escrito en un fichero ya congelado no sube el recuento (cuenta Modales, no campos).
 /// </para>
@@ -56,12 +56,27 @@ public class FormulariosEnModalUsanElKitTests
     {
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
-        // Control positivo: si el recorrido no viera Modales con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(10, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
+        // Sin Modales con campos fuera del kit, la lista queda vacía y un recuento mínimo ya no puede servir de control positivo:
+        // el control es "el detector ve un Modal con campos" (test aparte, con fuentes sintéticas), y aquí que no se queda ciego sobre la web.
+        MarcadoRazor.LeerRazorDeLaWeb().Should().Contain(f => f.Ruta == Kit);
+        medido.Should().BeEmpty("los 28 Modales con campos de origen (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3, 9 tras formularios rápidos, 6 tras baja en lote, plantilla e incorporación, 3 tras Bandeja, aceptación de términos y Plataforma, 0 tras EstadoComercial, Operadores CAE externos y Asignar a centro) ya usan el kit");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }
 
+    [Fact]
+    public void El_detector_ve_un_Modal_con_campos_y_no_un_ModalFormulario()
+    {
+        var medido = MedirFueraDelKit(
+        [
+            ("a.razor", "<Modal Titulo=\"x\"><CampoTexto Etiqueta=\"n\" /></Modal>"),
+            ("b.razor", "<ModalFormulario Titulo=\"x\"><CampoTexto Etiqueta=\"n\" /></ModalFormulario>"),
+            ("c.razor", "<Modal Titulo=\"x\"><input type=\"hidden\" /></Modal>"),
+        ]);
+
+        medido.Should().BeEquivalentTo(new Dictionary<Ubicacion, int> { [new Ubicacion("a.razor", "Modal")] = 1 },
+            "un Modal con campos cuenta; el del kit y el que solo lleva un input oculto, no");
+    }
     [Fact]
     public void El_kit_existe_y_lo_usa_al_menos_una_pantalla_migrada()
     {

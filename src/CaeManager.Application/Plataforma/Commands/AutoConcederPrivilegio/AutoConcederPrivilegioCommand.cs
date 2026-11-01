@@ -44,15 +44,21 @@ namespace CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
 /// ADR-011 § 8.5.7 acepta la auto-concesión mientras el equipo de plataforma
 /// sea unipersonal, con la autoría registrada desde el primer día; la
 /// segregación de funciones —que una segunda persona apruebe— llega cuando haya
-/// equipo. Y el <c>WITH CHECK</c> de RLS (F2b-5) no se toca: sigue admitiendo
-/// solo filas que nombren a <c>app.usuario_id</c>, que es exactamente lo que
-/// esta operación produce.
+/// equipo. La base impone la misma matriz por su cuenta: desde
+/// <c>PartePoliticaConcesionesPorOperacion</c>, la política
+/// <c>privilegio_autoconcesion</c> solo admite una fila propia y global que sea
+/// <c>SoporteLectura</c> ordinaria con fin (si ya tienes <c>AdminPlataforma</c>
+/// vigente) o la <c>AdminPlataforma</c> fundacional (si eres la raíz y el
+/// bootstrap no está consumido). Con fin, además, dentro del tope de vigencia y
+/// con el inicio junto al momento del alta
+/// (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>).
 /// </para>
 /// </summary>
 /// <param name="Capacidad">Qué podrá hacer la sesión que se abra bajo esta concesión.</param>
 /// <param name="DiasDeVigencia">
 /// Cuánto vive la concesión. Distinto de la ventana de cada sesión. Para
-/// SoporteLectura es además el plazo de renovación de la llave universal.
+/// SoporteLectura es además el plazo de renovación de la llave universal;
+/// para AdminPlataforma se ignora porque la concesión raíz no tiene fecha de fin.
 /// </param>
 public record AutoConcederPrivilegioCommand(
     CapacidadPrivilegio Capacidad,
@@ -60,20 +66,13 @@ public record AutoConcederPrivilegioCommand(
 
 public class AutoConcederPrivilegioCommandValidator : AbstractValidator<AutoConcederPrivilegioCommand>
 {
-    /// <summary>
-    /// Días máximos de vigencia de la concesión. Más generoso que la ventana de
-    /// una sesión (DEC-43: 4 horas) porque son cosas distintas: la concesión
-    /// dice durante cuánto tiempo <i>podrías</i> abrir sesiones; la ventana,
-    /// cuánto dura cada una. Noventa días no cambia con DEC-43: la decisión
-    /// recorta la activación puntual, no la vigencia de la capacidad concedida.
-    /// </summary>
-    public const int MaximoDiasDeVigencia = 90;
-
     public AutoConcederPrivilegioCommandValidator()
     {
+        // La concesión raíz de AdminPlataforma nace sin fecha de fin y no usa este dato.
         RuleFor(c => c.DiasDeVigencia)
-            .InclusiveBetween(1, MaximoDiasDeVigencia)
-            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.");
+            .InclusiveBetween(1, ConcesionPrivilegio.MaximoDiasDeVigencia)
+            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {ConcesionPrivilegio.MaximoDiasDeVigencia} días.")
+            .When(c => c.Capacidad != CapacidadPrivilegio.AdminPlataforma);
 
         // Restricción de producto, no invariante de seguridad, y conviene
         // distinguirlo: la seguridad de que una sesión no escriba no depende de
@@ -199,6 +198,13 @@ public class AutoConcederPrivilegioCommandHandler(
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.RaizDeBootstrap(usuarioId, ahora, vigenciaHasta: null);
 
+        // Un solo SaveChanges con un acoplamiento que conviene saber: la política
+        // privilegio_autoconcesion exige el bootstrap SIN consumir al insertar la
+        // concesión, y funciona porque EF Core ejecuta los comandos independientes
+        // ordenados por nombre de tabla (la de concesiones antes que la del
+        // estado del bootstrap). Si se añade una relación entre las dos
+        // tablas o cambia ese orden, el arranque falla cerrado con 42501;
+        // ConcesionesPrivilegioPorOperacionBajoRuntimeTests lo vigila.
         estado.Consumir(ahora);
         writer.AnadirConcesion(concesion);
         await unitOfWork.SaveChangesAsync(cancellationToken);

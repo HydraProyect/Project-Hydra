@@ -4,6 +4,7 @@ using CaeManager.Web.Features.Trabajadores.Recursos;
 using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Web.Recursos;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Logging;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.DocumentacionBase;
@@ -102,6 +103,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
 
@@ -637,9 +640,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         {
             return;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Sin aviso, la lista vacía se leería como «no hay gestiones pendientes».
             _gestionesPendientes = [];
+            Logger.LogWarning("No se pudieron cargar las gestiones pendientes del Trabajador {TrabajadorId}: {TipoExcepcion}.", trabajadorId, ex.GetType().Name);
+            ToastService.Mostrar(Textos["ToastGestionesPendientesNoCargadas"].Value, TonoToast.Error);
         }
         finally
         {

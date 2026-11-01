@@ -131,7 +131,7 @@ public class AvantaPrevencionRenombraValoraTests : IAsyncLifetime
 
     private CaeManagerDbContext NuevoContexto()
     {
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());

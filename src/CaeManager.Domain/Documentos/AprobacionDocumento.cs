@@ -3,13 +3,8 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Documentos;
 
 /// <summary>
-/// Registro de cada decisión de verificación IA de un Documento de
-/// Trabajador ya resuelta — automática (confianza suficiente, sin
-/// discrepancias) o manual (un Gestor CAE resolvió la RevisionIaDocumento
-/// pendiente). Existe para poder auditar quién aprobó cada gestión y
-/// medir cuánto resuelve la plataforma sola vs cuánto requiere
-/// intervención humana (mitigación de errores) — no participa en ningún
-/// flujo de negocio, es puramente de lectura/estadística.
+/// Registro de una decisión humana sobre la revisión de un Documento.
+/// Las aprobaciones automáticas se conservan como registros históricos.
 /// </summary>
 public class AprobacionDocumento : EntidadConTenant
 {

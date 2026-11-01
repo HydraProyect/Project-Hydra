@@ -26,9 +26,11 @@ namespace CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente
 /// </para>
 ///
 /// <para>
-/// <b>Quién puede</b>: quien puede crear esa cuenta y reenviarle la activación
+/// <b>Quién puede</b>: quien puede reenviarle la activación
 /// (<see cref="AutoridadSobreCuentas.PuedeGestionarCuentasAsync"/>, sobre una cuenta
-/// propia del Tenant activo). No amplía autoridad.
+/// propia del Tenant activo); si la cuenta es Administrador o aún no tiene rol, solo un
+/// Administrador (<see cref="AutoridadSobreCuentas.VerificarActivacionDeCuentaAdministradorAsync"/>).
+/// No amplía autoridad.
 /// </para>
 /// </summary>
 public record CorregirCorreoCuentaPendienteCommand(Guid UsuarioId, string CorreoNuevo) : ICommand<string>;
@@ -71,6 +73,13 @@ public class CorregirCorreoCuentaPendienteCommandHandler(
             await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<string>(destinoIntocable.Error);
+
+        // Y dentro de su Tenant de origen, solo un Administrador (decisión del 2026-10-30):
+        // Dirección CAE no concede Administrador, tampoco quedándose con una cuenta pendiente.
+        var activacionAdministrador = await AutoridadSobreCuentas.VerificarActivacionDeCuentaAdministradorAsync(
+            cuenta.Roles, currentUserService);
+        if (activacionAdministrador.EsFallido)
+            return Result.Fallo<string>(activacionAdministrador.Error);
 
         if (!cuenta.PendienteActivacion)
             return Result.Fallo<string>(GenerarActivacionUsuarioCommandHandler.YaActivada);

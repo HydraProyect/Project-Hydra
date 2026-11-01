@@ -12,8 +12,10 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 ///
 /// <para>
 /// <b>Quién</b>: solo un Administrador, por su rol efectivo (la página exige el
-/// mismo rol). Administrador y Dirección CAE solo se conceden desde el Tenant de
-/// origen de quien asigna (<see cref="RolesReservadosAlTenantDeOrigen"/>).
+/// mismo rol), así que cumple ya la regla del 2026-10-30 de que solo un Administrador
+/// concede Administrador (<see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/>).
+/// Administrador y Dirección CAE solo se conceden desde el Tenant de origen de quien
+/// asigna (<see cref="RolesReservadosAlTenantDeOrigen"/>).
 /// </para>
 ///
 /// <para>

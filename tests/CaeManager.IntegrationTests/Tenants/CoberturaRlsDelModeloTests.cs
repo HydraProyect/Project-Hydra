@@ -1,4 +1,6 @@
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
@@ -94,6 +96,25 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// </summary>
     private const string PoliticaAislamiento = "aislamiento_tenant";
 
+    [Fact]
+    public async Task Las_reclamaciones_de_buzon_aislan_por_Tenant_propietario()
+    {
+        var estado = await LeerEstadoRlsAsync(["ReclamacionesBuzonIntegracion"]);
+        var tabla = estado["ReclamacionesBuzonIntegracion"];
+        tabla.Habilitado.Should().BeTrue();
+        tabla.Forzado.Should().BeTrue();
+        tabla.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo([PoliticaAislamiento]);
+        var politica = tabla.Politicas.Single(p => p.Nombre == PoliticaAislamiento);
+        politica.Permisiva.Should().BeTrue();
+        politica.Comando.Should().Be('*');
+        foreach (var expresion in new[] { politica.Using, politica.WithCheck })
+        {
+            expresion.Should().NotBeNull();
+            expresion!.Should().Contain("TenantPropietarioId").And.Contain("app_ctx_tenant_id()").And.NotContain("current_setting(");
+            InspeccionTextoPoliticaRls.TieneDisyuncion(expresion).Should().BeFalse();
+        }
+    }
+
     /// <summary>
     /// Entidades con <c>TenantId</c> cuya tabla NO debe llevar RLS.
     ///
@@ -139,6 +160,16 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_la_propuesta", 'w',
             "lo único que el Tenant propietario actualiza es la propuesta pendiente a Sustituida, y solo su Administrador",
             ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"], ["'Propuesto'"], ["'Sustituido'"]),
+        ("UsosConexionPlataformaCae", "solo_se_cierra_una_vez", 'w',
+            "un uso de conector solo pasa de EnCurso a cerrado, una vez: el registro no se reescribe",
+            [], ["'EnCurso'"], ["'EnCurso'", "\"FinalizadoEnUtc\""]),
+        ("UsosConexionPlataformaCae", "solo_nace_abierto_o_denegado", 'a',
+            "la aplicación no inserta un uso ya cerrado con éxito o fallo, que fingiría una llamada",
+            ["'EnCurso'", "'Denegado'"], [], []),
+        ("SesionesUsuario", "solo_la_propia_cuenta_revoca", 'w',
+            "solo la cuenta que firma el contexto revoca sus sesiones de cookie, aunque otra cuenta del mismo Tenant " +
+            "pudiera escribir en él (el alta llega desde el inicio de sesión, sin usuario en el contexto)",
+            ["\"UsuarioId\"", "app_ctx_usuario_id()"], [], []),
     ];
 
     /// <summary>
@@ -195,6 +226,42 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// <c>AsignacionesOperadorDelegado</c> no lleva Tenant propio y hereda sus extremos de
+    /// <c>DelegacionesTenant</c>: RLS sin FORCE (ver <see cref="TablasConRlsSinForce"/>) y las mismas
+    /// dos políticas permisivas, con la misma separación. La de los extremos, para todas las órdenes,
+    /// solo mira el Tenant activo; la del Tenant de origen es solo SELECT.
+    /// </summary>
+    [Fact]
+    public async Task Las_asignaciones_de_operador_delegado_tienen_RLS_y_solo_las_politicas_de_los_extremos_de_su_delegacion()
+    {
+        var estado = await LeerEstadoRlsAsync(["AsignacionesOperadorDelegado"]);
+        var tabla = estado["AsignacionesOperadorDelegado"];
+        tabla.Habilitado.Should().BeTrue();
+        tabla.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(
+            ["extremos_de_la_delegacion", "organizacion_de_origen_lee_sus_asignaciones"]);
+
+        var extremos = tabla.Politicas.Single(p => p.Nombre == "extremos_de_la_delegacion");
+        extremos.Permisiva.Should().BeTrue();
+        extremos.Comando.Should().Be('*');
+        foreach (var expresion in new[] { extremos.Using, extremos.WithCheck })
+        {
+            expresion.Should().NotBeNull();
+            expresion!.Should().Contain("DelegacionesTenant").And.Contain("TenantConsultoraId")
+                .And.Contain("TenantClienteId").And.Contain("app_ctx_tenant_id()")
+                .And.NotContain("app_ctx_tenant_origen_id()").And.NotContain("current_setting(");
+        }
+
+        var origen = tabla.Politicas.Single(p => p.Nombre == "organizacion_de_origen_lee_sus_asignaciones");
+        origen.Permisiva.Should().BeTrue();
+        origen.Comando.Should().Be('r', "el Tenant de origen solo abre la lectura");
+        origen.WithCheck.Should().BeNull();
+        origen.Using.Should().NotBeNull();
+        origen.Using!.Should().Contain("DelegacionesTenant").And.Contain("TenantConsultoraId")
+            .And.Contain("TenantClienteId").And.Contain("app_ctx_tenant_origen_id()")
+            .And.NotContain("current_setting(");
+    }
+
+    /// <summary>
     /// Categoría 2: RLS implementado con semántica distinta. No llevan
     /// <c>TenantId</c> —la fila enlaza dos tenants— así que el barrido por el
     /// modelo no las alcanza y hay que nombrarlas.
@@ -221,7 +288,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// da respuestas contrarias en los dos casos: allí hay lectores sistémicos
     /// legítimos que eximir (el backfill y la retirada de un Tenant de demo; el job
     /// de expiración no, que corre como cae_app_runtime); aquí hay un solo lector,
-    /// siempre bajo sesión de usuario, y ningún escritor.
+    /// siempre bajo sesión de usuario, y los únicos escritores son esa misma
+    /// sesión con la forma exacta que admite cada política de escritura.
     ///
     /// Esta categoría era, hasta F2b-5, la lista de "RLS pendiente por
     /// dependencia arquitectónica". Dejó de serlo cuando quedó claro que la
@@ -243,7 +311,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// propietaria de alguna tabla con RLS. Los caminos que conectan COMO rol propietario a
     /// propósito son la identidad administrativa del arranque (<c>FabricaContextoDeBootstrap</c>,
     /// cadena <c>CaeManagerDb</c>), las migraciones y las funciones <c>SECURITY DEFINER</c>, que
-    /// corren con la identidad de quien las creó, la de las migraciones. Las siete de abajo tienen
+    /// corren con la identidad de quien las creó, la de las migraciones. Las ocho de abajo tienen
     /// un camino así que necesita ver filas de varios Tenants a la vez; con FORCE, un rol
     /// propietario sometido a RLS las vería vacías sin ningún error — RLS no falla, solo no muestra.
     /// </para>
@@ -253,9 +321,9 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// superusuario <c>postgres</c> en todos los entornos (<c>deploy/local/docker-compose.staging.yml</c>,
     /// <c>docker-compose.produccion.yml</c> y CI), y PostgreSQL no somete a RLS al superusuario ni con
     /// FORCE. La invariante real de estos caminos es «el rol propietario evita RLS», y no la
-    /// necesitan solo estas siete: <c>EstadoBootstrapPlataforma</c> lleva FORCE y el arranque lo lee
+    /// necesitan solo estas ocho: <c>EstadoBootstrapPlataforma</c> lleva FORCE y el arranque lo lee
     /// sin <c>app.usuario_id</c>, y la guarda de <c>ParticionadoMensualEventos</c> aborta si el rol no
-    /// evita RLS. Lo que la lista afirma es más estrecho: en estas siete, añadir FORCE no aporta
+    /// evita RLS. Lo que la lista afirma es más estrecho: en estas ocho, añadir FORCE no aporta
     /// nada hoy y es una rotura más el día en que la propiedad pasara a un rol sometido a RLS.
     /// Cualquier otra tabla con RLS lleva FORCE, y una tabla nueva sin él pone en rojo
     /// <see cref="Toda_tabla_con_RLS_lleva_FORCE_salvo_las_excepciones_con_su_camino"/> hasta que se le
@@ -275,6 +343,10 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "el backfill de asignaciones del arranque (identidad de bootstrap) recorre las delegaciones comerciales de " +
             "todos los Tenants sin app.tenant_id para trasladarlas a AsignacionesOperacion; y la retirada de un Tenant " +
             "de demo (RetiradaTenantDemoService) las borra con el rol propietario"),
+        ["AsignacionesOperadorDelegado"] = ("src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs",
+            "el backfill de asignaciones del arranque (identidad de bootstrap) lee los operadores de las delegaciones " +
+            "de todos los Tenants sin app.tenant_id, y la retirada de un Tenant de demo (RetiradaTenantDemoService) " +
+            "los borra con el rol propietario: mismo tratamiento que DelegacionesTenant, de la que cuelga cada fila"),
         ["SolicitudesIncorporacionCartera"] = ("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs",
             "la retirada de un Tenant de demo corre con el rol propietario de las tablas y con app.tenant_id en el " +
             "Tenant retirado, pero sin app.tenant_origen_id; borra las solicitudes en las que el Tenant retirado es " +
@@ -353,7 +425,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                             // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests,
                             // ContactosSeguridadTenantBajoRuntimeTests); esto solo cierra la
                             // reescritura más barata.
-                            || TieneDisyuncion(x.Politica.Using) || TieneDisyuncion(x.Politica.WithCheck)))
+                            || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.Using) || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.WithCheck)))
             .Select(x => $"{x.Revisada.Tabla}.{x.Revisada.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -371,7 +443,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                         || !x.Politica.Using.Contains("app_es_admin_plataforma_global(", StringComparison.Ordinal)
                         || !x.Politica.Using.Contains("app_ctx_usuario_id()", StringComparison.Ordinal)
                         || x.Politica.Using.Contains("current_setting(", StringComparison.Ordinal)
-                        || TieneDisyuncion(x.Politica.Using))
+                        || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.Using))
             .Select(x => $"{x.Key}.{x.Item2} → {(x.Politica is null ? "(no existe)" : $"USING {x.Politica.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"} / comando {x.Politica.Comando}")}")
             .ToList();
 
@@ -391,7 +463,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         var conExpresionSospechosa = conRls
             .Select(t => (Tabla: t, Politica: estado[t].Politicas.FirstOrDefault(p => p.Nombre == PoliticaAislamiento)))
             .Where(x => x.Politica is not null)
-            .Where(x => !MencionaElAislamiento(x.Politica!.Using) || !MencionaElAislamiento(x.Politica.WithCheck))
+            .Where(x => !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica!.Using) || !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica.WithCheck))
             .Select(x => $"{x.Tabla} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -722,9 +794,16 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                 "bajo sesión de usuario, y ningún escritor. Sin FORCE la política no ataría al rol propietario de " +
                 "la tabla, el de las migraciones y la identidad de bootstrap");
 
-            string[] esperadas = tabla == "SesionesPrivilegiadas"
-                ? [PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo]
-                : [PoliticaPrivilegio];
+            string[] esperadas = tabla switch
+            {
+                "SesionesPrivilegiadas" =>
+                [
+                    PoliticaPrivilegio, PoliticaAdministradorTenantObjetivo,
+                    .. PoliticasDeEscrituraDeTablasHijas.Where(p => p.Tabla == tabla).Select(p => p.Nombre),
+                ],
+                "ConcesionesPrivilegio" => [PoliticaPrivilegio, .. PoliticasDeEscrituraDeConcesiones.Select(p => p.Nombre)],
+                _ => [PoliticaPrivilegio, .. PoliticasDeEscrituraDeTablasHijas.Where(p => p.Tabla == tabla).Select(p => p.Nombre)],
+            };
             e.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(esperadas,
                 $"{tabla} tiene que llevar exactamente esas políticas y ninguna otra");
 
@@ -752,9 +831,154 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                     "autenticada — no existe ni debe existir app.usuario_plataforma_id, que incrustaría una " +
                     "afirmación de privilegio en la sesión");
 
-            politica.WithCheck.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()",
-                    "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
+            // Desde PartePoliticaConcesionesPorOperacion (ConcesionesPrivilegio) y
+            // PartePoliticasHijasDeConcesionPorOperacion (las dos tablas hijas) la de lectura es solo eso:
+            // cada escritura tiene su política, afirmada en Las_concesiones_de_privilegio_tienen_una_politica_por_escritura
+            // y Las_tablas_hijas_de_la_concesion_tienen_una_politica_por_escritura.
+            politica.Comando.Should().Be('r', $"privilegio_del_usuario de {tabla} solo lee");
+            politica.WithCheck.Should().BeNull();
+        }
+    }
+
+    /// <summary>
+    /// Las escrituras de <c>TenantsAlcanzadosPorConcesion</c> y <c>SesionesPrivilegiadas</c>, una
+    /// política por operación (<c>PartePoliticasHijasDeConcesionPorOperacion</c>, OWASP ASVS 4.0.3
+    /// V4.1.3 y V4.2.1). Mismo formato que <see cref="PoliticasDeEscrituraDeConcesiones"/>.
+    /// </summary>
+    private static readonly (string Tabla, string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeTablasHijas =
+    [
+        ("TenantsAlcanzadosPorConcesion", "alcance_por_quien_concede", 'a',
+            ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente"], []),
+        ("SesionesPrivilegiadas", "sesion_privilegiada_apertura", 'a',
+            ["app_ctx_usuario_id()", "UsuarioPlataformaId", "TenantsAlcanzadosPorConcesion", "TenantObjetivoId", "Vigente",
+             "VigenciaHasta", "UsuarioSimuladoId", "04:00:00", "00:05:00"], []),
+        ("SesionesPrivilegiadas", "sesion_privilegiada_cierre", 'w',
+            ["app_ctx_usuario_id()", "\"CerradaEnUtc\" IS NOT NULL", "00:05:00"], ["\"CerradaEnUtc\" IS NULL"]),
+    ];
+
+    /// <summary>
+    /// <b>Ninguna política de DELETE ni FOR ALL en las tablas hijas, y es una aserción</b>: la fila de
+    /// alcance la escribe solo quien concede y una Sesión Privilegiada es el rastro de quién entró en
+    /// qué Tenant. Una permisiva FOR ALL se combinaría con OR con las de escritura y devolvería al
+    /// titular la ampliación de su propia concesión a cualquier Tenant. Y la apertura de sesión
+    /// nombra cada capacidad que <see cref="CapacidadesQuePuedenAbrirSesion"/> admite, para que la lista
+    /// de C# y la de la base no diverjan en silencio.
+    /// </summary>
+    [Fact]
+    public async Task Las_tablas_hijas_de_la_concesion_tienen_una_politica_por_escritura()
+    {
+        var estado = await LeerEstadoRlsAsync(["TenantsAlcanzadosPorConcesion", "SesionesPrivilegiadas"]);
+
+        using var _ = new AssertionScope();
+
+        foreach (var tabla in new[] { "TenantsAlcanzadosPorConcesion", "SesionesPrivilegiadas" })
+        {
+            estado.Should().ContainKey(tabla);
+            if (!estado.TryGetValue(tabla, out var e)) continue;
+
+            e.Politicas.Should().NotContain(p => p.Comando == 'd' || p.Comando == '*',
+                $"{tabla} sin DELETE ni FOR ALL: una FOR ALL reabriría la escritura del titular");
+            if (tabla == "TenantsAlcanzadosPorConcesion")
+                e.Politicas.Should().NotContain(p => p.Comando == 'w',
+                    "ninguna fila de alcance cambia de Tenant después de concederse");
+        }
+
+        foreach (var (tabla, nombre, comando, menciona, soloUsing) in PoliticasDeEscrituraDeTablasHijas)
+        {
+            if (!estado.TryGetValue(tabla, out var e)) continue;
+            var politica = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            politica.Should().NotBeNull($"{nombre} tiene que existir en {tabla}");
+            if (politica is null) continue;
+
+            politica.Comando.Should().Be(comando, $"{nombre} cubre una sola operación");
+            politica.Permisiva.Should().BeTrue();
+
+            foreach (var fragmento in menciona)
+                politica.WithCheck.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el WITH CHECK de {nombre} acota la fila de llegada");
+
+            foreach (var fragmento in soloUsing)
+                politica.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el USING de {nombre} acota la fila de partida");
+        }
+
+        var apertura = estado.TryGetValue("SesionesPrivilegiadas", out var sesiones)
+            ? sesiones.Politicas.FirstOrDefault(p => p.Nombre == "sesion_privilegiada_apertura")
+            : null;
+        foreach (var capacidad in Enum.GetValues<CapacidadPrivilegio>())
+        {
+            var nombrada = apertura?.WithCheck?.Contains($"'{capacidad}'", StringComparison.Ordinal) ?? false;
+            nombrada.Should().Be(CapacidadesQuePuedenAbrirSesion.Admite(capacidad),
+                $"la apertura de sesión en la base admite {capacidad} si y solo si CapacidadesQuePuedenAbrirSesion lo admite");
+        }
+    }
+
+    /// <summary>
+    /// <see cref="ConcesionPrivilegio.MaximoDiasDeVigencia"/> en horas y la ventana del inicio: 2160
+    /// horas exactas, no <c>'90 days'</c>, que en un <c>timestamptz</c> es aritmética de calendario y
+    /// depende de la zona horaria de la sesión (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>). Se
+    /// calcula de la constante: subir el tope del dominio sin migrar las políticas se pone rojo aquí.
+    /// Va antes de la lista que lo usa porque los campos estáticos se inicializan en orden de texto.
+    /// </summary>
+    private static readonly string[] TopeDeVigenciaEnElAlta =
+    [
+        $"'{ConcesionPrivilegio.MaximoDiasDeVigencia * 24}:00:00'::interval",
+        "VigenciaDesde",
+        "'00:05:00'::interval",
+    ];
+
+    /// <summary>
+    /// Las escrituras de <c>ConcesionesPrivilegio</c>, una política por operación
+    /// (<c>PartePoliticaConcesionesPorOperacion</c>, OWASP ASVS 4.0.3 V4.1.1 y V4.1.3). <c>Menciona</c>
+    /// son fragmentos que su <c>WITH CHECK</c> tiene que contener; <c>SoloUsing</c>, los de su
+    /// <c>USING</c> (la fila de partida de un <c>UPDATE</c>).
+    /// </summary>
+    private static readonly (string Nombre, char Comando, string[] Menciona, string[] SoloUsing)[] PoliticasDeEscrituraDeConcesiones =
+    [
+        ("privilegio_autoconcesion", 'a',
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "EstadoBootstrapPlataforma", "BootstrapPlataforma", "SoporteLectura",
+                .. TopeDeVigenciaEnElAlta], []),
+        ("privilegio_cierre_de_vigente", 'w', ["app_ctx_usuario_id()", "Revocada", "Expirada"], ["Vigente"]),
+        ("privilegio_concesion_a_tercero", 'a',
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "VigenciaHasta",
+                .. TopeDeVigenciaEnElAlta], []),
+    ];
+
+    /// <summary>
+    /// <b>Ninguna política de DELETE ni FOR ALL, y es una aserción</b>: una concesión es el rastro de
+    /// quién tuvo autoridad, se cierra y no se borra; y una política permisiva FOR ALL se combinaría con
+    /// OR con las de escritura y devolvería la rama de fila propia sin límites que la auditoría del
+    /// 2026-10-29 encontró.
+    /// </summary>
+    [Fact]
+    public async Task Las_concesiones_de_privilegio_tienen_una_politica_por_escritura()
+    {
+        var estado = await LeerEstadoRlsAsync(["ConcesionesPrivilegio"]);
+
+        estado.Should().ContainKey("ConcesionesPrivilegio");
+        var e = estado["ConcesionesPrivilegio"];
+
+        using var _ = new AssertionScope();
+
+        e.Politicas.Should().NotContain(p => p.Comando == 'd' || p.Comando == '*',
+            "sin DELETE ni FOR ALL: retirar autoridad es cerrarla, y FOR ALL reabriría la fila propia sin límites");
+
+        foreach (var (nombre, comando, menciona, soloUsing) in PoliticasDeEscrituraDeConcesiones)
+        {
+            var politica = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
+            politica.Should().NotBeNull($"{nombre} tiene que existir");
+            if (politica is null) continue;
+
+            politica.Comando.Should().Be(comando, $"{nombre} cubre una sola operación");
+            politica.Permisiva.Should().BeTrue();
+
+            foreach (var fragmento in menciona)
+                politica.WithCheck.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el WITH CHECK de {nombre} acota la fila de llegada");
+
+            foreach (var fragmento in soloUsing)
+                politica.Using.Should().NotBeNull()
+                    .And.Subject.As<string>().Should().Contain(fragmento, $"el USING de {nombre} acota la fila de partida");
         }
     }
 
@@ -966,15 +1190,6 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
         return actual.FullName;
     }
-
-    private static bool TieneDisyuncion(string? expresion) =>
-        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"\bOR\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-    private static bool MencionaElAislamiento(string? expresion) =>
-        expresion is not null
-        && expresion.Contains("TenantId", StringComparison.Ordinal)
-        && expresion.Contains("app_ctx_tenant_id()", StringComparison.Ordinal)
-        && !expresion.Contains("current_setting(", StringComparison.Ordinal);
 
     private sealed record PoliticaRls(
         string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');

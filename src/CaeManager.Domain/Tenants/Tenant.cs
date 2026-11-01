@@ -74,6 +74,13 @@ public class Tenant : Entity
     public DateTime? EstadoComercialActualizadoEnUtc { get; private set; }
 
     /// <summary>
+    /// El Add-on de subida automática está activo para este Tenant beneficiario: sin él, ninguna
+    /// conexión con una plataforma CAE de terceros llama a la plataforma. Lo cambia un Actor de
+    /// Plataforma TALVEG, y dice para quién está activo el producto, no quién lo paga.
+    /// </summary>
+    public bool AddOnSubidaAutomaticaActivo { get; private set; }
+
+    /// <summary>
     /// Marca de finalización de <c>DatosPruebaSeeder</c> para ESTE tenant —
     /// null hasta que una siembra completa termina sin cortarse. Incidente de
     /// producción del 2026-08-28: el guard anterior ("¿existe algún Cliente
@@ -153,9 +160,46 @@ public class Tenant : Entity
     /// </summary>
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
 
-    public void Suspender() => Estado = EstadoTenant.Suspendido;
+    public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;
 
-    public void Reactivar() => Estado = EstadoTenant.Activo;
+    /// <summary>
+    /// Sella <see cref="ClavesApiValidasDesdeUtc"/> al suspender, no solo al reactivar: una clave
+    /// anterior queda fuera aunque la reactivación no pase por <see cref="Reactivar"/>.
+    /// </summary>
+    public void Suspender()
+    {
+        ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+        Estado = EstadoTenant.Suspendido;
+    }
+
+    /// <summary>
+    /// Reactivar la suspensión operativa no devuelve las claves de API anteriores: quedan fuera
+    /// por <see cref="ClavesApiValidasDesdeUtc"/>, igual que con la cuenta emisora (decisión del
+    /// 2026-10-28 concretada el 2026-10-31). Una clave emitida durante la suspensión tampoco vale.
+    /// </summary>
+    public void Reactivar()
+    {
+        if (Estado is EstadoTenant.Suspendido)
+            ClavesApiValidasDesdeUtc = DateTime.UtcNow;
+
+        Estado = EstadoTenant.Activo;
+    }
+
+    /// <summary>Instante de la última suspensión o reactivación: una clave de API de este Tenant solo vale si se emitió después.</summary>
+    public DateTime? ClavesApiValidasDesdeUtc { get; private set; }
+
+    /// <summary>
+    /// ¿Este Tenant propietario admite una clave de API emitida en <paramref name="emitidaEnUtc"/>?
+    /// No mientras esté suspendido, operativa o comercialmente, ni si se reactivó de la suspensión
+    /// operativa después de emitirla. La suspensión comercial es reversible: al levantarse, la
+    /// clave vuelve a valer. <see cref="EstadoComercialTenant.SoloLectura"/> no corta: la API
+    /// pública solo lee. Recibe los datos y no el Tenant porque se evalúa sobre una proyección.
+    /// </summary>
+    public static bool AdmiteClaveEmitidaEn(
+        EstadoTenant estado, EstadoComercialTenant estadoComercial, DateTime? clavesApiValidasDesdeUtc, DateTime emitidaEnUtc) =>
+        estado is EstadoTenant.Activo
+        && estadoComercial is not EstadoComercialTenant.Suspendida
+        && (clavesApiValidasDesdeUtc is null || clavesApiValidasDesdeUtc < emitidaEnUtc);
 
     public void RenombrarA(string nombre) => EstablecerNombre(nombre);
 

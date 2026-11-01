@@ -18,7 +18,7 @@ internal sealed class TenantActualDePaletaFalso : ITenantActual
 }
 
 /// <summary>
-/// La paleta no ofrece «Exportar a Excel» en /trabajadores mientras la pantalla esté en el
+/// La paleta no ofrece «Exportar a Excel» en /trabajadores ni en /documentos mientras la pantalla esté en el
 /// estado 4a: aplica la misma condición que la página (vía <c>ContextoEmpresaActiva</c>) y que el endpoint
 /// (<see cref="ClientesAutorizados.PideElegirEmpresa"/>).
 /// </summary>
@@ -52,18 +52,22 @@ public class BuscadorGlobalExportarTrabajadoresEstado4aTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private async Task<IRenderedComponent<BuscadorGlobal>> AbrirEnTrabajadoresAsync(
-        IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid tenantActual)
+    private Task<IRenderedComponent<BuscadorGlobal>> AbrirEnTrabajadoresAsync(
+        IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid tenantActual) =>
+        AbrirEnAsync("/trabajadores", "Nuevo trabajador", autorizados, tenantActual);
+
+    private async Task<IRenderedComponent<BuscadorGlobal>> AbrirEnAsync(
+        string pantalla, string accionDeCrear, IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid tenantActual)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddScoped<IMediator>(_ => new MediatorFalso(autorizados));
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<ITenantActual>(_ => new Tenant(tenantActual));
-        Services.GetRequiredService<NavigationManager>().NavigateTo("/trabajadores");
+        Services.GetRequiredService<NavigationManager>().NavigateTo(pantalla);
 
         var cut = Render<BuscadorGlobal>();
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nuevo trabajador"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(accionDeCrear));
         return cut;
     }
 
@@ -87,5 +91,55 @@ public class BuscadorGlobalExportarTrabajadoresEstado4aTests : BunitContext
         var cut = await AbrirEnTrabajadoresAsync([Propio(), Cartera()], Externo);
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("/trabajadores/exportar.xlsx"));
+    }
+
+    /// <summary>
+    /// /documentos/exportar.xlsx redirige en el estado 4a igual que la de Trabajadores: la paleta
+    /// tampoco la ofrece hasta comprobar que hay una empresa de la cartera elegida.
+    /// </summary>
+    [Fact]
+    public async Task En_el_estado_4a_la_paleta_no_ofrece_exportar_documentos()
+    {
+        var cut = await AbrirEnAsync("/documentos", "Nuevo documento", [Propio(), Cartera()], Origen);
+
+        cut.Markup.Should().NotContain("/documentos/exportar.xlsx");
+    }
+
+    [Fact]
+    public async Task Con_una_empresa_de_la_cartera_elegida_la_paleta_ofrece_exportar_documentos()
+    {
+        var cut = await AbrirEnAsync("/documentos", "Nuevo documento", [Propio(), Cartera()], Externo);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("/documentos/exportar.xlsx"));
+    }
+
+    /// <summary>
+    /// Las exportaciones de Empresas, Subcontratas, Clientes y Centros también redirigen en el estado 4a:
+    /// la paleta no ofrece lo que el endpoint negaría.
+    /// </summary>
+    public static TheoryData<string, string> PantallasConEstado4a => new()
+    {
+        { "/empresas", "Nueva empresa" },
+        { "/subcontratas", "Nueva subcontrata" },
+        { "/clientes", "Nuevo Cliente" },
+        { "/centros", "Nuevo centro" },
+    };
+
+    [Theory]
+    [MemberData(nameof(PantallasConEstado4a))]
+    public async Task En_el_estado_4a_la_paleta_no_ofrece_exportar_el_listado(string pantalla, string accionDeCrear)
+    {
+        var cut = await AbrirEnAsync(pantalla, accionDeCrear, [Propio(), Cartera()], Origen);
+
+        cut.Markup.Should().NotContain($"{pantalla}/exportar.xlsx");
+    }
+
+    [Theory]
+    [MemberData(nameof(PantallasConEstado4a))]
+    public async Task Con_una_empresa_de_la_cartera_elegida_la_paleta_ofrece_exportar_el_listado(string pantalla, string accionDeCrear)
+    {
+        var cut = await AbrirEnAsync(pantalla, accionDeCrear, [Propio(), Cartera()], Externo);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain($"{pantalla}/exportar.xlsx"));
     }
 }

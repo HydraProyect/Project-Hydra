@@ -18,13 +18,23 @@ namespace CaeManager.Application.Auditoria.Queries;
 /// usuario aquí — Application no conoce Identity/ApplicationUser (vive en
 /// Infrastructure); Web resuelve UsuarioId → email/nombre después, con
 /// UserManager, igual que ya hace con el resto de pantallas de Identity.
+///
+/// <para>
+/// <c>DesdeUtc</c> (inclusivo) y <c>HastaUtc</c> (exclusivo) acotan por <c>FechaUtc</c>, la
+/// clave de partición de la tabla (M-21). Nulos no acotan: la consulta no impone un rango por
+/// defecto, porque la pestaña Historial de una entidad y la exportación sin parámetros necesitan
+/// ver todo el historial. Quien pinta un listado sobre toda la tabla elige su rango (la pantalla
+/// de Auditoría pone los últimos 90 días y lo muestra).
+/// </para>
 /// </summary>
 public record ObtenerAuditoriaQuery(
     string? EntidadTipo,
     Guid? UsuarioId,
     int Pagina = 1,
     int TamanoPagina = 30,
-    Guid? EntidadId = null) : IRequest<ResultadoPaginado<RegistroAuditoriaListaDto>>;
+    Guid? EntidadId = null,
+    DateTime? DesdeUtc = null,
+    DateTime? HastaUtc = null) : IRequest<ResultadoPaginado<RegistroAuditoriaListaDto>>;
 
 /// <summary>
 /// Proyección para el listado paginado — sin <c>DatosAntes</c>/<c>DatosDespues</c>
@@ -113,6 +123,12 @@ public class ObtenerAuditoriaQueryHandler(
 
         if (request.EntidadId is not null)
             consulta = consulta.Where(r => r.EntidadId == request.EntidadId);
+
+        if (request.DesdeUtc is not null)
+            consulta = consulta.Where(r => r.FechaUtc >= request.DesdeUtc);
+
+        if (request.HastaUtc is not null)
+            consulta = consulta.Where(r => r.FechaUtc < request.HastaUtc);
 
         var total = await consulta.CountAsync(cancellationToken);
 

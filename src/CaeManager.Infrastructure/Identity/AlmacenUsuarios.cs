@@ -49,8 +49,10 @@ namespace CaeManager.Infrastructure.Identity;
 /// (Id, nombre, correo) resuelven primero el Tenant de la cuenta con una función
 /// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
-/// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Las
-/// escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
+/// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Los roles
+/// de la cuenta (<c>GetRolesAsync</c>; no <c>IsInRoleAsync</c> ni <c>GetUsersInRoleAsync</c>)
+/// se leen en ese mismo ámbito, para no depender de que <c>AspNetUserRoles</c> deje ver
+/// filas sin Tenant. Las escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
 /// de la contraseña, el vínculo de la identidad de Microsoft) corren en el Tenant de la cuenta que se
 /// escribe. Fuera de ese ámbito, o con Tenant, el almacén se comporta como el de
 /// Identity y la política decide.
@@ -114,6 +116,9 @@ public class AlmacenUsuarios(
             () => base.FindByEmailAsync(normalizedEmail, cancellationToken));
     }
 
+    public override Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
+        EnTenantDeLaCuentaAsync(user, () => base.GetRolesAsync(user, cancellationToken));
+
     public override Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken = default) =>
         EnTenantDeLaCuentaAsync(user, () => base.CreateAsync(user, cancellationToken));
 
@@ -125,17 +130,17 @@ public class AlmacenUsuarios(
 
     /// <summary>
     /// Una cuenta que un camino sin Tenant ya tiene delante (la cargó por su clave
-    /// dentro del mismo ámbito, o le está vinculando el SSO su identidad) se escribe en su
-    /// propio Tenant. Con Tenant en el contexto, o fuera del ámbito, decide la
-    /// política con el contexto que haya.
+    /// dentro del mismo ámbito, o le está vinculando el SSO su identidad) se escribe, y sus
+    /// roles se leen, en su propio Tenant. Con Tenant en el contexto, o fuera del ámbito,
+    /// decide la política con el contexto que haya.
     /// </summary>
-    private async Task<IdentityResult> EnTenantDeLaCuentaAsync(ApplicationUser user, Func<Task<IdentityResult>> escribir)
+    private async Task<T> EnTenantDeLaCuentaAsync<T>(ApplicationUser user, Func<Task<T>> operar)
     {
         ArgumentNullException.ThrowIfNull(user);
-        if (!ResuelveSinTenant || user.TenantId == Guid.Empty) return await escribir();
+        if (!ResuelveSinTenant || user.TenantId == Guid.Empty) return await operar();
 
         using (AmbitoTenantExplicito.Establecer(user.TenantId))
-            return await escribir();
+            return await operar();
     }
 
     private static async Task<ApplicationUser?> EnTenantAsync(Guid? tenantId, Func<Task<ApplicationUser?>> leer)
@@ -166,14 +171,26 @@ public class AlmacenUsuarios(
     private Task<Guid?> ResolverTenantPorIdAsync(Guid id, CancellationToken cancellationToken) =>
         TenantDeCuentaAsync(Context, id, cancellationToken);
 
-    // Las tres funciones SECURITY DEFINER de RlsAspNetUsers. Estáticas e internas: las
-    // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (origen de la cuenta que
-    // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas tres
+    // Las funciones SECURITY DEFINER sobre AspNetUsers. Estáticas e internas: las
+    // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (estado de la cuenta que
+    // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas
     // líneas como los únicos sitios que las invocan.
 
     internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")
             .SingleAsync(cancellationToken);
+
+    /// <summary>
+    /// Los dos datos de la cuenta que deciden si respalda una clave de API
+    /// (<see cref="ApplicationUser.AdmiteClaveEmitidaEn"/>), o <c>null</c> si la cuenta no existe.
+    /// Función SECURITY DEFINER porque la cuenta es de otro Tenant que el de la clave
+    /// (migración CuentaEmisoraCortaClaveApi).
+    /// </summary>
+    internal static async Task<EstadoCuentaEmisora?> EstadoCuentaEmisoraAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
+        (await db.Database.SqlQuery<EstadoCuentaEmisora>(
+                $"SELECT fin_bloqueo AS \"FinBloqueo\", claves_validas_desde AS \"ClavesApiValidasDesdeUtc\" FROM app_estado_cuenta_emisora({cuentaId})")
+            .ToListAsync(cancellationToken))
+        .SingleOrDefault();
 
     internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorNombreNormalizadoAsync(
         CaeManagerDbContext db, string nombreNormalizado, CancellationToken cancellationToken) =>
@@ -279,4 +296,11 @@ public sealed record CuentaResuelta
 {
     public Guid CuentaId { get; init; }
     public Guid TenantId { get; init; }
+}
+
+/// <summary>La fila de <c>app_estado_cuenta_emisora</c>: solo lo que decide si la cuenta respalda una clave de API.</summary>
+public sealed record EstadoCuentaEmisora
+{
+    public DateTimeOffset? FinBloqueo { get; init; }
+    public DateTime? ClavesApiValidasDesdeUtc { get; init; }
 }

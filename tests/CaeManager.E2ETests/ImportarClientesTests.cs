@@ -61,14 +61,14 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar");
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=clientes$"));
 
-            await page.GetByText("Continuar con Plantilla de Clientes").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar con Plantilla de Clientes", Exact = true }).ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2 "Revisar plan": el análisis ya sabe que no puede crear
             // ni el Cliente (falta CIF) ni el Centro (falta Empresa) — la fila
             // aparece omitida aquí, no como una alta prometida. ---
             await Ayudas.EsperarPlanDeImportacionAsync(page);
-            await page.GetByText("Ver plan de importación").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Ver plan de importación", Exact = true }).ClickAsync();
 
             // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
             // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
@@ -82,9 +82,9 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             await Expect(filaOmitidaEnPlan).ToContainTextAsync("CIF");
 
-            await page.GetByText("Continuar a confirmar").ClickAsync();
-            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
-            await page.GetByText("Importar ahora").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar a confirmar", Exact = true }).ClickAsync();
+            await page.GetByLabel("He revisado el plan y quiero escribir estos datos", new() { Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Importar ahora", Exact = true }).ClickAsync();
             // «Importar ahora» abre el DialogoConfirmacion con el efecto real
             // (con esta plantilla, ninguna alta se hará); escribe su botón.
             await page.GetByRole(AriaRole.Dialog)
@@ -104,7 +104,8 @@ public class ImportarClientesTests(WebAppFixture fixture)
             // --- Verificación real: nunca se creó ningún Cliente con este nombre ---
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
             await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(nombreClienteCentro);
-            await page.WaitForTimeoutAsync(500); // debounce de CampoTexto
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Ningún Cliente con estos filtros", Exact = true })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreClienteCentro })).ToHaveCountAsync(0);
         }
         finally

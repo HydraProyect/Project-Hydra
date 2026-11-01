@@ -79,7 +79,6 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             .AddInterceptors(_interceptorUpdates, _interceptorSql));
 
         servicios.AddScoped<PuertaAccesoDatos>();
-        servicios.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
@@ -205,7 +204,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         {
             var userManagerCodigo = ambitoCodigo.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var usuarioParaCodigo = await userManagerCodigo.FindByIdAsync(usuario.Id.ToString());
-            var resultadoDirecto = await userManagerCodigo.ResetPasswordAsync(usuarioParaCodigo!, token, "OtraMas123!");
+            var resultadoDirecto = await userManagerCodigo.ResetPasswordAsync(usuarioParaCodigo!, token, "OtraMas123!Segura");
             resultadoDirecto.Succeeded.Should().BeFalse();
             resultadoDirecto.Errors.Should().Contain(e => e.Code == "InvalidToken",
                 "el mismo token, reutilizado tras un reset exitoso que rotó el SecurityStamp, tiene que fallar " +
@@ -244,7 +243,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
     public async Task Cambiar_dos_veces_seguidas_con_la_misma_contrasena_actual_la_segunda_falla_por_PasswordMismatch()
     {
         const string ContrasenaActual = "Passw0rd!2024";
-        const string ContrasenaNuevaPrimerIntento = "Nueva12345!";
+        const string ContrasenaNuevaPrimerIntento = "Nueva12345!Segura";
         const string ContrasenaNuevaSegundoIntento = "OtraNueva99!";
 
         using var ambitoSiembra = _servicios.CreateScope();
@@ -322,7 +321,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         {
             var userManagerCodigo = ambitoCodigo.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var usuarioParaCodigo = await userManagerCodigo.FindByIdAsync(usuario.Id.ToString());
-            var resultadoDirecto = await userManagerCodigo.ChangePasswordAsync(usuarioParaCodigo!, ContrasenaActual, "OtraMas123!");
+            var resultadoDirecto = await userManagerCodigo.ChangePasswordAsync(usuarioParaCodigo!, ContrasenaActual, "OtraMas123!Segura");
             resultadoDirecto.Succeeded.Should().BeFalse();
             resultadoDirecto.Errors.Should().Contain(e => e.Code == "PasswordMismatch",
                 "la contraseña \"actual\" ya dejó de serlo tras el primer cambio exitoso — este es el código " +
@@ -413,6 +412,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
+        EscribirPropiedad(pagina, "Seleccion", new SinSesionPrivilegiadaSeleccionada());
         EscribirPropiedad(pagina, "UserId", userId.ToString());
         EscribirPropiedad(pagina, "Code", codigo);
         return pagina;
@@ -430,6 +430,12 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
+        EscribirPropiedad(pagina, "Seleccion", new SinSesionPrivilegiadaSeleccionada());
+        // Los textos reales del .resx: el mensaje uniforme de contraseña actual incorrecta sale de ahí (S-A-9).
+        EscribirPropiedad(pagina, "Textos",
+            new Microsoft.Extensions.Localization.StringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta>(
+                new Microsoft.Extensions.Localization.ResourceManagerStringLocalizerFactory(
+                    Opciones.Create(new Microsoft.Extensions.Localization.LocalizationOptions()), NullLoggerFactory.Instance)));
         return pagina;
     }
 
@@ -481,6 +487,16 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         var mi = instancia.GetType().GetMethod(nombre, BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new InvalidOperationException($"No se encontró el método '{nombre}' en {instancia.GetType().Name}.");
         await (Task)mi.Invoke(instancia, null)!;
+    }
+
+    // Las páginas construidas por reflexión no pasan por DI: la guarda de Sesión Privilegiada (ASVS V4.1.5) lee
+    // Seleccion en cuanto se invoca el método, así que el arnés debe proporcionarla. Este doble representa el caso
+    // normal, «sin Sesión Privilegiada seleccionada»; en producto [Inject] no admite null (DI falla si no está registrada).
+    private sealed class SinSesionPrivilegiadaSeleccionada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     private sealed class SinTenantActual : ITenantActual

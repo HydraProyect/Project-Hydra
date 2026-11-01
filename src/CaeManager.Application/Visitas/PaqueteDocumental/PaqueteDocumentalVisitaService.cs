@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ public class PaqueteDocumentalVisitaService(
     ITrabajadoresQueryContext trabajadoresContext,
     IConversacionRepository conversacionRepositorio,
     IFileStorageService almacenamiento,
+    IAlcanceDatosService alcanceDatos,
+    IRegistroAccesoDocumentoSensibleService registroAcceso,
     ILogger<PaqueteDocumentalVisitaService> logger) : IPaqueteDocumentalVisitaService
 {
     // Remitente distinto del de ResponderConversacionCommand
@@ -47,11 +50,11 @@ public class PaqueteDocumentalVisitaService(
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
-        var paquete = await ConstruirAsync(visitaId, cancellationToken);
-        if (paquete is null) return;
-
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
         if (conversacion is null) return;
+
+        var paquete = await ConstruirAsync(visitaId, cancellationToken);
+        if (paquete is null) return;
 
         using var flujoZip = new MemoryStream(paquete.Contenido);
         var archivoUrlZip = await almacenamiento.GuardarAsync(flujoZip, paquete.NombreArchivo, cancellationToken);
@@ -91,10 +94,22 @@ public class PaqueteDocumentalVisitaService(
             return null;
         }
 
-        var trabajadorIds = await visitasContext.VisitasTrabajadores
+        var trabajadorIdsDeLaVisita = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visitaId)
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
+
+        // Defensa en profundidad (S-B-1): los comandos de la Visita ya solo admiten Trabajadores de la
+        // Empresa gestionada activa y visibles para quien opera, pero una Visita anterior a esa regla
+        // —o creada por otro usuario con más alcance— puede llevar a alguien que quien genera el
+        // paquete no ve. Su documentación no entra: el mismo criterio con el que se abre cada
+        // Documento suelto (ObtenerDocumentoPorIdQuery, TrabajadorVisibleAsync).
+        var trabajadorIds = await TrabajadoresAdmisiblesEnVisita.FiltrarAsync(
+            trabajadorIdsDeLaVisita, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken);
+        if (trabajadorIds.Count < trabajadorIdsDeLaVisita.Count)
+            logger.LogWarning(
+                "Visita {VisitaId}: {Cantidad} trabajador(es) quedan fuera del paquete documental por no ser de la empresa de la visita o no estar en el alcance de quien lo genera.",
+                visitaId, trabajadorIdsDeLaVisita.Count - trabajadorIds.Count);
 
         var candidatos = await documentosContext.Documentos.Operativos()
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
@@ -166,6 +181,11 @@ public class PaqueteDocumentalVisitaService(
         }
 
         var nombreZip = $"documentacion-visita-{centro.Nombre.Replace(' ', '-')}-{visita.FechaInicio:yyyyMMdd}.zip";
+        // DEC-36: solo los documentos incorporados cuentan como aperturas. El registro es
+        // obligatorio antes de poner el paquete a disposición de cualquiera de las dos vías.
+        foreach (var documento in incluidos)
+            await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+
         return new PaqueteDocumentalZip(nombreZip, zipBytes, incluidos, centro.Nombre, visita.FechaInicio, visita.FechaFin);
     }
 
@@ -201,13 +221,16 @@ public class PaqueteDocumentalVisitaService(
     /// archivo no puede viajar y no compite por el puesto. Cada grupo conserva todas sus
     /// copias vigentes en orden de preferencia: si el archivo de la primera no se puede
     /// abrir en el almacenamiento, <see cref="ConstruirZipAsync"/> prueba la siguiente —
-    /// sigue siendo un documento por titular y tipo, y nunca uno vencido.
+    /// sigue siendo un documento por titular y tipo, y nunca uno vencido. Sin hueco en el
+    /// presupuesto de memoria de documentos (<see cref="PresupuestoMemoriaAgotadoException"/>)
+    /// o con la operación cancelada no se prueba otra copia: el paquete entero falla, porque
+    /// saltarse documentos daría por completo un paquete al que le faltan.
     /// </para>
     ///
     /// <para>
     /// Este es el único punto que elige copia para el paquete de la Visita: lo usan el
     /// adjunto automático al buzón (<see cref="GenerarYEnviarAsync"/>) y la descarga manual
-    /// del ZIP (<see cref="ConstruirAsync"/>).
+    /// del ZIP (<see cref="ConstruirAsync"/>), y los dos registran el acceso a lo sensible.
     /// </para>
     /// </summary>
     private static SeleccionPaquete SeleccionarDocumentos(IReadOnlyList<DocumentoCandidatoDto> candidatos, DateOnly hoy)
@@ -244,7 +267,7 @@ public class PaqueteDocumentalVisitaService(
     /// nada que adjuntar un zip vacío. De cada grupo entra UNA copia: la primera cuyo archivo se
     /// pueda abrir; si ninguna se abre, el grupo queda fuera (con un aviso por cada intento).
     /// Devuelve también qué documentos entraron de verdad: su cuenta es la cifra que anuncia el
-    /// correo, y cada uno es un acceso a su contenido que la descarga manual debe registrar (DEC-36).
+    /// correo, y cada uno es un acceso a su contenido que <see cref="ConstruirAsync"/> registra (DEC-36).
     /// </summary>
     private async Task<(byte[] Bytes, IReadOnlyList<DocumentoEnPaquete> Documentos)?> ConstruirZipAsync(
         IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> grupos,
@@ -270,7 +293,7 @@ public class PaqueteDocumentalVisitaService(
                     {
                         contenido = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not PresupuestoMemoriaAgotadoException and not OperationCanceledException)
                     {
                         // Solo el tipo de la excepcion: su mensaje arrastra la clave del fichero.
                         logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental de la visita ({TipoExcepcion}).", documento.Id, ex.GetType().Name);

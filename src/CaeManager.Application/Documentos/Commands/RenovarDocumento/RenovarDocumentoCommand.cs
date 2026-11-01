@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
@@ -57,7 +58,8 @@ public class RenovarDocumentoCommandHandler(
     ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IPublisher publisher, IUnitOfWork unitOfWork)
+    IPublisher publisher, IUnitOfWork unitOfWork,
+    IVerificadorArchivoAlmacenado verificadorArchivo)
     : IRequestHandler<RenovarDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
@@ -97,6 +99,11 @@ public class RenovarDocumentoCommandHandler(
         // Un archivo «nuevo» es uno distinto del que ya tiene el documento: el formulario de edición reenvía el existente
         // cuando solo se corrigen fechas, y sustituir por un registro que comparte el blob rompería «un blob, un propietario».
         var hayArchivoNuevo = !string.IsNullOrWhiteSpace(request.ArchivoUrl) && request.ArchivoUrl != documento.ArchivoUrl;
+
+        // OWASP ASVS 4.0.3 V12.1/V12.2: un archivo nuevo entra como Documento, así que se valida por la firma de su
+        // contenido real (no basta el nombre) antes de sustituir al vigente. Si no hay archivo nuevo no hay nada que validar.
+        if (hayArchivoNuevo && !await verificadorArchivo.EsDocumentoValidoAsync(request.ArchivoUrl!, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Documento.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
         return !hayArchivoNuevo
             ? await CorregirEnElMismoRegistroAsync(documento, request, vigencia, cancellationToken)

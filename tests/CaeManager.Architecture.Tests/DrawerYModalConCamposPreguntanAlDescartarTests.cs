@@ -73,10 +73,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, string> ContenedoresSinGuardian = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor#Modal1"] =
-            "Confirmación del acto fundacional: su única «entrada» es una casilla de «Entiendo…» que habilita el botón. " +
-            "No hay dato que se pierda al cerrar; cerrar y volver a abrir es gratis.",
-
+        // La confirmación del acto fundacional de Plataforma salió de esta lista al migrar al kit ModalFormulario (2026-10-28): el kit exige un HayCambios real y pregunta si la casilla está marcada.
         // Los tres diálogos de confirmación de Visitas con «Motivo (opcional)» salieron de esta lista (2026-10-03, regla de Chris:
         // toda pérdida de edición pregunta): DialogoConfirmacion pasa ahora un HayCambios a su Modal y su botón de salida cierra como la X.
     };
@@ -114,8 +111,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         // Cada migración a los kits (DrawerFormulario, ModalFormulario) saca un contenedor artesanal de esta medida: los kits ya no se cuentan
         // aquí (su guardián lo obliga el compilador). Medido tras el lote 3b-3: 27 con campos y 28 con HayCambios; el umbral se ajusta a lo
         // medido en cada lote que migra, para que un detector que dejara de ver una parte de los contenedores no pase por holgura.
-        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(17, "quedan 20 contenedores con campos tras migrar tres Drawers de CentroWorkspacePanel (23 tras Bandeja y Subcontrata; había 56 al escribirlo; 39 tras el lote 3b-1, 31 tras el 3b-2, 27 tras el 3b-3); si baja de golpe sin migrar nada, dejó de mirar");
-        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(19, "quedan 22 con HayCambios tras migrar tres Drawers de CentroWorkspacePanel (25 tras Bandeja y Subcontrata; había ≥ 50 al escribirlo; 40 tras el lote 3b-1, 32 tras el 3b-2, 28 tras el 3b-3); si baja de golpe sin migrar nada, dejó de ver el atributo");
+        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(6, "quedan 7 contenedores con campos (medido) tras migrar EstadoComercial, OperadoresCaeExternosPanel y el Modal de Trabajadores al kit, además de Asignar trabajador y Corregir a mano (10 sin los tres primeros; 12 tras migrar Bandeja, la aceptación de términos y Plataforma; 15 tras migrar los Modales de baja en lote, nueva versión de plantilla y solicitud de incorporación; 18 tras migrar los formularios rápidos de Cliente empresarial y Empresa; 20 tras migrar tres Drawers de CentroWorkspacePanel, 23 tras Bandeja y Subcontrata; había 56 al escribirlo; 39 tras el lote 3b-1, 31 tras el 3b-2, 27 tras el 3b-3); si baja de golpe sin migrar nada, dejó de mirar");
+        medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(10, "quedan 11 con HayCambios (medido) tras migrar EstadoComercial, OperadoresCaeExternosPanel y el Modal de Trabajadores al kit, además de Asignar trabajador y Corregir a mano (14 sin los tres primeros; 16 tras migrar Bandeja, la aceptación de términos y Plataforma; 17 tras migrar los Modales de baja en lote, nueva versión de plantilla y solicitud de incorporación; 20 tras migrar los formularios rápidos de Cliente empresarial y Empresa; 22 tras migrar tres Drawers de CentroWorkspacePanel, 25 tras Bandeja y Subcontrata; había ≥ 50 al escribirlo; 40 tras el lote 3b-1, 32 tras el 3b-2, 28 tras el 3b-3); si baja de golpe sin migrar nada, dejó de ver el atributo");
 
         var problemas = Evaluar(medidos, ContenedoresSinGuardian, SalidasDelPieSinGuardian);
 
@@ -147,7 +144,8 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     {
         var raiz = MarcadoRazor.RaizDelRepositorio();
 
-        ContenedoresSinGuardian.Should().OnlyContain(kv => kv.Value.Length >= 40, "cada excepción lleva su razón escrita");
+        // Sin OnlyContain: la lista está vacía desde que la confirmación del acto fundacional migró al kit (FluentAssertions lo da por fallo con una colección vacía).
+        ContenedoresSinGuardian.Where(kv => kv.Value.Length < 40).Should().BeEmpty("cada excepción lleva su razón escrita");
         // Sin OnlyContain: la lista puede estar vacía (FluentAssertions lo da por fallo con una colección vacía).
         SalidasDelPieSinGuardian.Where(kv => kv.Value.Length < 40).Should().BeEmpty("cada salida declarada lleva su razón escrita");
         ContenedoresSinGuardian.Keys.Concat(SalidasDelPieSinGuardian.Keys)

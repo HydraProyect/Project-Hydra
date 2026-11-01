@@ -152,6 +152,19 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Un_admin_concede_ConcesionAdministrador_a_un_tercero_por_el_mismo_camino()
+    {
+        // Decisión del 2026-10-30. Fija el ALTER POLICY de 20261030220000_PlataformaConcedeAdministrador:
+        // sin él, este INSERT da 42501.
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var concesionId = await InsertarConcesionAsync(
+            conexion, _beneficiario, "ConcesionAdministrador", esAlcanceGlobal: false, concedidaPor: _admin);
+
+        (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
+    }
+
     [Theory]
     [InlineData("AdminPlataforma")]
     [InlineData("BreakGlass")]
@@ -168,7 +181,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
                 "un admin no puede acuñar más AdminPlataforma ni BreakGlass por esta vía, " +
-                "solo Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno");
+                "solo Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno y ConcesionAdministrador");
     }
 
     [Fact]
@@ -294,12 +307,16 @@ VALUES (@usuario, 'AdminPlataforma', 'Vigente', now() - interval '1 minute', NUL
         // él. Cualificar aquí dirige el INSERT a la tabla real a propósito,
         // que es lo que el test necesita ejercitar (que la FUNCIÓN interna,
         // no este INSERT, ignore la tabla falsa).
+        //
+        // Con fin de vigencia y origen ordinario, como ConcesionPrivilegio.SobreTenants desde
+        // ConcederPrivilegioCommand: desde PartePoliticaConcesionesPorOperacion la política de alta
+        // a otra persona no admite otra forma.
         comando.CommandText = @"
 INSERT INTO public.""ConcesionesPrivilegio""
-    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"",
-     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"")
-VALUES (@id, @beneficiario, @capacidad, @global, now(), 'Vigente', @concedidaPor,
-        'Aprovisionamiento inicial (test)', now(), gen_random_uuid());";
+    (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
+     ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
+VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days', 'Vigente', @concedidaPor,
+        'Aprovisionamiento inicial (test)', now(), gen_random_uuid(), 'Ordinaria');";
         comando.Parameters.AddWithValue("id", id);
         comando.Parameters.AddWithValue("beneficiario", beneficiario);
         comando.Parameters.AddWithValue("capacidad", capacidad);

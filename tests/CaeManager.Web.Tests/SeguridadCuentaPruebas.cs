@@ -16,6 +16,7 @@ internal static class SeguridadCuentaPruebas
 
     public static void AddSeguridadCuentaDePrueba(this IServiceCollection servicios)
     {
+        servicios.TryAddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         // TryAdd: una prueba puede registrar antes una variante (p. ej. sin URL pública).
         servicios.TryAddSingleton<Microsoft.AspNetCore.Identity.ILookupNormalizer, Microsoft.AspNetCore.Identity.UpperInvariantLookupNormalizer>();
         servicios.TryAddSingleton(Enlaces());

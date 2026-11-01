@@ -3,6 +3,7 @@ using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCe
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.Reportes;
@@ -51,7 +52,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
-            new PublisherFalso(), new AlcanceDatosServiceFalso());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -88,7 +89,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
-            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso());
+            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new RenovarDocumentoCommand(documento.Id, Hoy, null, conArchivoNuevo ? "blob://renovado.pdf" : null, null, NoCaduca: true),
@@ -117,7 +118,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         tipo.Archivar(null);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
 
         var exigir = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),

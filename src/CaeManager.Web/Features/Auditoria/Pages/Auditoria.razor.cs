@@ -7,12 +7,15 @@ using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Auditoria.Recursos;
+using Microsoft.Extensions.Localization;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Identity;
@@ -32,11 +35,13 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         [.. new[] { "Cliente", "Empresa", "Centro", "Trabajador", "TipoDocumento", "Documento", "Asignacion", "ParametroSistema",
             // Credenciales de plataformas externas: aparecen sobre todo por sus
             // lecturas (RegistroAuditoria.AccionAccesoDatoSensible).
-            "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata", "AccesoPlataformaCaeEmpresa" },
+            "CanalGestionDocumental", "CredencialAccesoEmpresa", "CredencialAccesoSubcontrata", "AccesoPlataformaCaeEmpresa",
+            // Adjuntos de correo: aparecen sobre todo por sus descargas.
+            "AdjuntoMensaje" },
             .. EntidadTipoAuditoria.TodosLosDeIdentidad];
 
+    [Inject] private IStringLocalizer<TextosAuditoria> Textos { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private RoleManager<IdentityRole<Guid>> RoleManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -51,6 +56,15 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     private bool _cargando = true;
     private bool _error;
     private string? _filtroEntidadTipo;
+
+    /// <summary>
+    /// Rango de fechas (<c>yyyy-MM-dd</c>, día de negocio) que se consulta y se enseña. «Desde» arranca en
+    /// los últimos <see cref="RangoFechasAuditoria.DiasPorDefecto"/> días: la tabla está particionada por
+    /// fecha y sin cota inferior el recuento y la paginación recorren todo el historial (M-21).
+    /// «Hasta» vacío es «hasta ahora». Vaciar «Desde» consulta todo el historial, a petición expresa.
+    /// </summary>
+    private string _desde = RangoFechasAuditoria.DesdePorDefecto().ToString(RangoFechasAuditoria.FormatoFecha);
+    private string _hasta = string.Empty;
     private int _pagina = 1;
     private const int TamanoPagina = 30;
     private readonly HashSet<Guid> _restaurando = [];
@@ -129,6 +143,8 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         var version = ++_versionCarga;
         var filtro = _filtroEntidadTipo;
         var pagina = _pagina;
+        var desdeUtc = RangoFechasAuditoria.DesdeUtc(RangoFechasAuditoria.Interpretar(_desde));
+        var hastaUtc = RangoFechasAuditoria.HastaUtcExclusivo(RangoFechasAuditoria.Interpretar(_hasta));
 
         _cargando = true;
         _error = false;
@@ -136,7 +152,7 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerAuditoriaQuery(filtro, UsuarioId: null, pagina, TamanoPagina));
+            var resultado = await Mediator.Send(new ObtenerAuditoriaQuery(filtro, UsuarioId: null, pagina, TamanoPagina, DesdeUtc: desdeUtc, HastaUtc: hastaUtc));
             if (version != _versionCarga)
                 return;
 
@@ -169,14 +185,14 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
                 .Distinct()
                 .ToList();
 
-            // Por la puerta: UserManager/RoleManager no pasan por MediatR y
-            // esta carga corre en paralelo con los componentes del layout
-            // sobre el mismo DbContext scoped (ver PuertaAccesoDatos).
+            // Por la puerta: RoleManager no pasa por MediatR y esta carga corre
+            // en paralelo con los componentes del layout sobre el mismo
+            // DbContext scoped (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id));
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? UsuarioNoEncontrado;
                 }
 
@@ -215,12 +231,27 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         return CargarAsync();
     }
 
+    private Task CambiarDesdeAsync(string valor)
+    {
+        _desde = valor;
+        _pagina = 1;
+        return CargarAsync();
+    }
+
+    private Task CambiarHastaAsync(string valor)
+    {
+        _hasta = valor;
+        _pagina = 1;
+        return CargarAsync();
+    }
+
     /// <summary>
-    /// Único filtro de la página. Separa "no hay registros" de "ninguno con
+    /// Filtros de la página (tipo de entidad y rango de fechas). Separa "no hay registros" de "ninguno con
     /// este filtro": son situaciones opuestas y la primera, dicha a quien
     /// acaba de filtrar, hace creer que la auditoría no registra nada.
     /// </summary>
-    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_filtroEntidadTipo);
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_filtroEntidadTipo) || !string.IsNullOrEmpty(_desde) || !string.IsNullOrEmpty(_hasta);
 
     /// <summary>
     /// La condición va en una propiedad y no en la plantilla a propósito: el
@@ -240,7 +271,13 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
     /// </summary>
     private ResultadoPaginado<RegistroAuditoriaListaDto> Resultado => _resultado!;
 
-    private Task LimpiarFiltrosAsync() => FiltrarPorEntidadAsync(null);
+    /// <summary>Quita todo: tipo de entidad y rango. Es la única vía, junto a vaciar «Desde», a todo el historial.</summary>
+    private Task LimpiarFiltrosAsync()
+    {
+        _desde = string.Empty;
+        _hasta = string.Empty;
+        return FiltrarPorEntidadAsync(null);
+    }
 
     private Task IrAPaginaAsync(int pagina)
     {
@@ -248,8 +285,24 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
         return CargarAsync();
     }
 
-    private string EnlaceExportar =>
-        _filtroEntidadTipo is null ? "/auditoria/exportar.xlsx" : $"/auditoria/exportar.xlsx?entidad={Uri.EscapeDataString(_filtroEntidadTipo)}";
+    /// <summary>
+    /// Lleva el tipo de entidad y el rango vigentes: el Excel contiene lo que la pantalla enseña. Sin rango
+    /// (campos vacíos) no añade fechas y el endpoint exporta todo el historial.
+    /// </summary>
+    private string EnlaceExportar
+    {
+        get
+        {
+            var parametros = new List<string>();
+            if (_filtroEntidadTipo is not null)
+                parametros.Add($"entidad={Uri.EscapeDataString(_filtroEntidadTipo)}");
+            if (RangoFechasAuditoria.Interpretar(_desde) is { } desde)
+                parametros.Add($"desde={desde.ToString(RangoFechasAuditoria.FormatoFecha)}");
+            if (RangoFechasAuditoria.Interpretar(_hasta) is { } hasta)
+                parametros.Add($"hasta={hasta.ToString(RangoFechasAuditoria.FormatoFecha)}");
+            return parametros.Count == 0 ? "/auditoria/exportar.xlsx" : "/auditoria/exportar.xlsx?" + string.Join("&", parametros);
+        }
+    }
 
     /// <summary>
     /// El filtro vigente llegó por la URL y no es de las entidades principales

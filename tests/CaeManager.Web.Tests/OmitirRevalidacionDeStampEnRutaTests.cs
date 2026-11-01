@@ -1,9 +1,15 @@
+using System.Net;
 using System.Security.Claims;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -116,5 +122,49 @@ public class OmitirRevalidacionDeStampEnRutaTests
         await opciones.Events.OnValidatePrincipal(ContextoPara("/ErrorExtra"));
 
         llamadasAlOriginal.Should().Be(2, "el salto es una coincidencia exacta de ruta, no un prefijo — ninguna otra ruta que empiece igual debe quedar exenta");
+    }
+
+    [Theory]
+    [InlineData("/Error", false)]
+    [InlineData("/documentos", true)]
+    public async Task Con_el_handler_real_la_ruta_omitida_no_emite_la_cookie_renovada(string ruta, bool renueva)
+    {
+        // Revisión Codex (revocación de sesión): ShouldRenew = false en OnValidatePrincipal no
+        // cancelaba la renovación deslizante que el handler pide antes de ese evento, y /Error
+        // devolvía una cookie con IssuedUtc nuevo. Se mide la cabecera Set-Cookie del handler real
+        // con una cookie que ya pasó la mitad de su vida. Control positivo: en otra ruta sí renueva.
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddDataProtection();
+        builder.Services.AddAuthentication("Identity.Application").AddCookie("Identity.Application", o =>
+        {
+            o.SlidingExpiration = true;
+            o.ExpireTimeSpan = TimeSpan.FromHours(8);
+            OmitirRevalidacionDeStampEnRuta.Configurar(o, "/Error");
+        });
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.MapGet("/entrar", async (HttpContext contexto) =>
+        {
+            var ahora = DateTimeOffset.UtcNow;
+            await contexto.SignInAsync("Identity.Application",
+                new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "cuenta")], "Identity.Application")),
+                new AuthenticationProperties { IssuedUtc = ahora.AddHours(-5), ExpiresUtc = ahora.AddHours(3) });
+        });
+        app.MapGet("/Error", () => "error");
+        app.MapGet("/documentos", () => "documentos");
+        await app.StartAsync();
+
+        var cookies = new CookieContainer();
+        using var cliente = new HttpClient(new HttpClientHandler { CookieContainer = cookies, UseCookies = true })
+        {
+            BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()),
+        };
+        (await cliente.GetAsync("/entrar")).EnsureSuccessStatusCode();
+
+        using var respuesta = await cliente.GetAsync(ruta);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK);
+        respuesta.Headers.Contains("Set-Cookie").Should().Be(renueva);
     }
 }

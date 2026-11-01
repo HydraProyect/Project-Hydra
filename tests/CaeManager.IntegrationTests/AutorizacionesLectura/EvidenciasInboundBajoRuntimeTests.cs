@@ -544,7 +544,9 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
     private DiskFileStorageService Almacen(Guid tenantId) =>
         new(Options.Create(new DiskFileStorageServiceOptions { Ruta = _rutaArchivos }), null!,
             new TenantActualAmbiental { TenantId = tenantId }, _proteccion, new AlertaOperativaInerte(),
-            NullLogger<DiskFileStorageService>.Instance);
+            NullLogger<DiskFileStorageService>.Instance,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     private async Task<List<AccesoLecturaInbound>> AccesosEnElTenantPropietarioAsync()
     {

@@ -64,8 +64,8 @@ public record ConcederPrivilegioCommand(
 {
     /// <summary>
     /// Lista cerrada. Una capacidad nueva no entra aquí por existir en el enum:
-    /// hace falta ampliar también el <c>WITH CHECK</c> de la política de
-    /// las concesiones de privilegio, que impone la misma lista en la base.
+    /// hace falta ampliar también el <c>WITH CHECK</c> de la política
+    /// <c>privilegio_concesion_a_tercero</c>, que impone la misma lista en la base.
     /// </summary>
     public static readonly IReadOnlySet<CapacidadPrivilegio> CapacidadesConcedibles =
         new HashSet<CapacidadPrivilegio>
@@ -73,33 +73,23 @@ public record ConcederPrivilegioCommand(
             CapacidadPrivilegio.Aprovisionamiento,
             CapacidadPrivilegio.RestablecimientoSegundoFactor,
             CapacidadPrivilegio.RevocacionOperadorCaeExterno,
+            CapacidadPrivilegio.ConcesionAdministrador,
         };
 }
 
 public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPrivilegioCommand>
 {
-    /// <summary>
-    /// Mismo techo que la auto-concesión (<c>AutoConcederPrivilegioCommandValidator.MaximoDiasDeVigencia</c>):
-    /// son la misma decisión de producto —cuánto puede vivir una concesión de
-    /// plataforma— vista desde dos comandos. Duplicado a propósito (ambos son
-    /// <c>const</c> de su propio validador, no hay un tercer sitio del que
-    /// colgar la constante sin acoplar los dos comandos entre sí); un test de
-    /// coherencia (<c>VentanaDePrivilegioCuatroHorasTests</c>) vigila que no
-    /// diverjan.
-    /// </summary>
-    public const int MaximoDiasDeVigencia = 90;
-
     public ConcederPrivilegioCommandValidator()
     {
         RuleFor(c => c.UsuarioPlataformaBeneficiarioId).NotEmpty();
         RuleFor(c => c.TenantObjetivoId).NotEmpty();
         RuleFor(c => c.Capacidad)
             .Must(ConcederPrivilegioCommand.CapacidadesConcedibles.Contains)
-            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos y la revocación del acceso de un Operador CAE externo.");
+            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos, la revocación del acceso de un Operador CAE externo y la concesión de Administrador.");
 
         RuleFor(c => c.DiasDeVigencia)
-            .InclusiveBetween(1, MaximoDiasDeVigencia)
-            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.");
+            .InclusiveBetween(1, ConcesionPrivilegio.MaximoDiasDeVigencia)
+            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {ConcesionPrivilegio.MaximoDiasDeVigencia} días.");
 
         RuleFor(c => c.Motivo)
             .NotEmpty()
@@ -165,7 +155,7 @@ public class ConcederPrivilegioCommandHandler(
         // Tenant ni se ve (null). Se ata a CapacidadesQuePuedenAbrirSesion y no a
         // una capacidad concreta para que una capacidad concedible nueva que
         // abra sesión herede el control sin que nadie tenga que acordarse; hoy
-        // cubre Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno. Para el
+        // cubre Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno y ConcesionAdministrador. Para el
         // restablecimiento, la función de base lo vuelve a exigir al ejercerla.
         if (CapacidadesQuePuedenAbrirSesion.Admite(request.Capacidad))
         {

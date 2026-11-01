@@ -40,6 +40,9 @@ public partial class ConectarExtension : CaeManager.Web.Components.PaginaInterac
 {
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
+    [Inject] private IRegistroSesionesUsuario Sesiones { get; set; } = default!;
+    [Inject] private IClienteActivoSeleccionado Seleccion { get; set; } = default!;
+    [Inject] private ILoggerFactory FabricaRegistro { get; set; } = default!;
     [Inject] private IDataProtectionProvider DataProtectionProvider { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
@@ -160,7 +163,7 @@ public partial class ConectarExtension : CaeManager.Web.Components.PaginaInterac
             // instance" que la puerta existe para evitar. Antes era deuda
             // registrada en IdentityEnComponentesPorLaPuertaDeAccesoADatosTests.
             var resultado = await PuertaAccesoDatos.EjecutarAsync(() =>
-                EmisorTokenExtension.EmitirAsync(usuarioId, UserManager, DataProtectionProvider));
+                EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User), UserManager, DataProtectionProvider, Sesiones, Seleccion, FabricaRegistro));
             if (resultado.EsFallido)
             {
                 _error = resultado.Error.Mensaje;

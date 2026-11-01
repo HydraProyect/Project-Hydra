@@ -154,8 +154,13 @@ public static class EstadoDocumentalFiltro
     /// </summary>
     public const int ClaveVencidoSinBloqueo = 2;
 
-    /// <summary>Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.</summary>
-    private static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)
+    /// <summary>
+    /// Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.
+    /// Público (no <c>internal</c>) porque Application no expone sus internos a Web y
+    /// <c>CriteriosExportacion</c> reutiliza este predicado para que el rastro de la exportación
+    /// registre exactamente los estados que aplica la consulta, sin una copia propia.
+    /// </summary>
+    public static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)
     {
         estado = default;
         return !int.TryParse(valor, out _) && Enum.TryParse(valor, out estado) && Enum.IsDefined(estado);

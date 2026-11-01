@@ -16,8 +16,7 @@ namespace CaeManager.IntegrationTests.RegresionPromptsIa;
 /// el entorno real de esa ejecución.
 ///
 /// <paramref name="seccionConfiguracion"/> debe coincidir exactamente con
-/// <c>AnthropicOptions.SeccionConfiguracion</c>/<c>GeminiOptions.SeccionConfiguracion</c>/
-/// <c>MistralOcrOptions.SeccionConfiguracion</c> — la variable de entorno
+/// <c>AnthropicOptions.SeccionConfiguracion</c> — la variable de entorno
 /// comprobada es <c>{seccionConfiguracion}__ApiKey</c>, la convención
 /// estándar de .NET para que <c>IConfiguration</c> resuelva
 /// <c>{seccionConfiguracion}:ApiKey</c> desde el entorno (mismo mecanismo

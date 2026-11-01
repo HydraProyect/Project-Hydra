@@ -308,13 +308,18 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             // ("formulario reutilizable a partir del cual se generan
             // documentos"), que un Administrador configura — no un Documento
             // relleno de una persona concreta.
-            await using var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl, _ciclo.Token);
-            using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria, _ciclo.Token);
+            // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria
+            // hasta cerrarse, y no tiene por qué retenerla mientras se inicia el editor.
+            byte[] contenido;
+            await using (var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl, _ciclo.Token))
+            {
+                using var memoria = new MemoryStream();
+                await flujo.CopyToAsync(memoria, _ciclo.Token);
+                contenido = memoria.ToArray();
+            }
+
             if (!EsVigente(carga))
                 return;
-
-            var contenido = memoria.ToArray();
 
             await IniciarEditorAsync(
                 carga, versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.AmbitoAplicacion, detalle.FormatoOrigen,
@@ -539,6 +544,11 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             else
                 Toasts.Mostrar("Documento generado.", TonoToast.Exito);
         }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria: no se generó nada y el formulario conserva lo escrito.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+        }
         finally
         {
             _generando = false;
@@ -622,6 +632,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             Toasts.Mostrar(
                 $"Lote terminado: {TotalCompletadosLote} generado(s), {TotalConAvisosLote} con avisos, {TotalFallidosLote} con error.",
                 TotalFallidosLote == 0 && TotalConAvisosLote == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Red de seguridad: cada elemento ya registra la saturación como fallo propio
+            // (ProcesarItemLoteGeneracionCommandHandler); aquí solo llega si ocurre fuera de ellos.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
         }
         finally
         {

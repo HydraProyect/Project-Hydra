@@ -25,11 +25,14 @@ public class AsignacionOperadorDelegadoConfiguration : IEntityTypeConfiguration<
             .HasFilter($"\"{nameof(AsignacionOperadorDelegado.RevocadaEnUtc)}\" IS NULL");
         builder.HasIndex(a => a.UsuarioId);
 
-        // Sin HasQueryFilter: catálogo global de autorización, mismo
-        // tratamiento que DelegacionTenant (y ModeloTenantTests prohíbe un
-        // filtro en lo que no es EntidadConTenant). Las revocadas se ocultan
-        // en otro sitio: CaeManagerDbContext.AsignacionesOperadorDelegado solo
-        // expone las no revocadas, y la tabla completa solo se alcanza con
+        // Sin HasQueryFilter: mismo tratamiento que DelegacionTenant (y
+        // ModeloTenantTests prohíbe un filtro en lo que no es EntidadConTenant).
+        // Quién ve la fila lo decide RLS, por los extremos de su delegación
+        // (ProtegeAsignacionesOperadorDelegadoConRls): la política busca esa fila
+        // en DelegacionesTenant, así que sin clave foránea entre las dos tablas la
+        // delegación tiene que estar guardada antes que su asignación. Las
+        // revocadas se ocultan en otro sitio: CaeManagerDbContext.AsignacionesOperadorDelegado
+        // solo expone las no revocadas, y la tabla completa solo se alcanza con
         // AsignacionesOperadorDelegadoConRevocadas.
     }
 }

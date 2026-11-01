@@ -67,7 +67,7 @@ public static class VehiculosEndpoints
             nameof(Vehiculo), filas,
             CriteriosExportacion.Desde(
                 ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
-                ("estado", CriteriosExportacion.SoloNombres(estado)),
+                ("estado", CriteriosExportacion.EstadosDocumentalesAplicados(estado)),
                 ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
                 ("subcontrata", Guid.TryParse(subcontrata, out var subcontrataAplicada) ? subcontrataAplicada.ToString() : null),
                 ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),

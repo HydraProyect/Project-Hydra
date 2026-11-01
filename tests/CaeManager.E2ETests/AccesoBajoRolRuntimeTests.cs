@@ -98,7 +98,7 @@ public class AccesoBajoRolRuntimeTests(WebAppFixtureBajoRuntime fixture)
         Assert.DoesNotContain("/cuenta/iniciar-sesion", pagina.Url);
         // El nombre de la cuenta vive ahora en el panel del menú de usuario (avatar).
         await Ayudas.AbrirMenuDeUsuarioAsync(pagina);
-        await Assertions.Expect(pagina.GetByText(Ayudas.EmailAdministrador).First).ToBeVisibleAsync();
+        await Assertions.Expect(pagina.Locator("#menu-cuenta-panel").GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = Ayudas.EmailAdministrador })).ToBeVisibleAsync();
     }
 
     [Fact]

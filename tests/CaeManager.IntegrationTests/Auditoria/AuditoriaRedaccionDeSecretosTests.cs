@@ -1,11 +1,15 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -219,6 +223,131 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 
         registro.DatosDespues.Should().NotContain(TokenAccesoSecreto);
         registro.DatosDespues.Should().Contain("\"TokenAcceso\":\"***\"");
+    }
+
+    [Fact]
+    public async Task El_codigo_seguro_de_un_documento_generado_no_aparece_en_claro_en_la_auditoria()
+    {
+        const string codigoSeguroSecreto = "CODIGO-SEGURO-no-debe-aparecer-en-claro";
+
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var empresa = new Empresa("Empresa de prueba S.L.", "B10380194");
+            var plantilla = new PlantillaDocumento(
+                OrigenPlantilla.Externa, "Plantilla de prueba", AmbitoAplicacion.Empresa, FormatoOrigenPlantilla.PdfVisual, tipo.Id);
+            var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "plantilla-de-prueba.pdf", new string('a', 64));
+            contexto.AddRange(tipo, empresa, plantilla, version);
+            await contexto.SaveChangesAsync();
+
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+            var generado = new DocumentoGenerado(
+                version.Id, documento.Id, "{}", Guid.NewGuid(), DateTime.UtcNow, empresaId: empresa.Id);
+            contexto.AddRange(documento, generado);
+            // Ninguna generación rellena el código todavía: se escribe como lo hará la primera
+            // plantilla de origen TalvegPropio.
+            contexto.Entry(generado).Property(d => d.CodigoSeguroVerificacion).CurrentValue = codigoSeguroSecreto;
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(DocumentoGenerado));
+
+        registro.DatosDespues.Should().NotContain(codigoSeguroSecreto);
+        registro.DatosDespues.Should().Contain("\"CodigoSeguroVerificacion\":\"***\"");
+        registro.DatosDespues.Should().Contain("\"DatosUtilizadosJson\":\"***\"");
+    }
+
+    [Fact]
+    public async Task Al_crearse_el_codigo_de_verificacion_y_el_payload_no_se_copian_en_la_auditoria()
+    {
+        const string codigo = "CODIGO-SECRETO-VERIFICACION";
+        const string payload = "PAYLOAD-SECRETO-WEBHOOK";
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var empresa = new Empresa("Empresa de prueba S.L.", "B10380194");
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+            var conexion = new ConexionIntegracion("+34600000000", "Linea de pruebas", proveedor: ProveedorIntegracion.WhatsApp);
+            contexto.AddRange(tipo, empresa, documento, conexion);
+            contexto.Add(new VerificacionDocumentoOficial(documento.Id, PerfilDocumentoOficial.CorrienteTgss,
+                NivelConfianzaDocumental.FirmaValidaSinRevocacion, codigo, null, null, null, null,
+                ResultadoCotejoDocumentoOficial.Coincide, DecisionValidacionOficial.AutoValidado, ""));
+            contexto.Add(new EventoWebhook(conexion.Id, payload));
+            await contexto.SaveChangesAsync();
+        }
+
+        var verificacion = await ObtenerRegistroAsync(nameof(VerificacionDocumentoOficial));
+        var evento = await ObtenerRegistroAsync(nameof(EventoWebhook));
+        verificacion.DatosDespues.Should().NotContain(codigo).And.Contain("\"CodigoVerificacion\":\"***\"");
+        evento.DatosDespues.Should().NotContain(payload).And.Contain("\"PayloadCrudo\":\"***\"");
+    }
+
+    [Fact]
+    public async Task Los_json_sensibles_no_aparecen_en_claro_en_la_auditoria()
+    {
+        const string contextoSecreto = "{\"secreto\":\"CONTEXTO-no-debe-aparecer-en-claro\"}";
+        const string extraccionSecreta = "{\"secreto\":\"EXTRACCION-no-debe-aparecer-en-claro\"}";
+
+        await using (var contexto = CrearContexto())
+        {
+            var tipo = new TipoDocumento("Ficha de prueba", 12, true, 1, AmbitoAplicacion.Empresa);
+            var plantilla = new PlantillaDocumento(
+                OrigenPlantilla.Externa, "Plantilla de prueba", AmbitoAplicacion.Empresa, FormatoOrigenPlantilla.PdfVisual, tipo.Id);
+            var version = new PlantillaDocumentoVersion(plantilla.Id, 1, "plantilla-de-prueba.pdf", new string('a', 64));
+            contexto.AddRange(tipo, plantilla, version);
+            await contexto.SaveChangesAsync();
+
+            contexto.Add(new LoteGeneracionDocumento(version.Id, 1, Guid.NewGuid(), DateTime.UtcNow, contextoSecreto));
+            contexto.Add(ExtraccionIaCache.Crear(new string('b', 64), "Ficha", extraccionSecreta));
+            await contexto.SaveChangesAsync();
+        }
+
+        var lote = await ObtenerRegistroAsync(nameof(LoteGeneracionDocumento));
+        var extraccion = await ObtenerRegistroAsync(nameof(ExtraccionIaCache));
+
+        lote.DatosDespues.Should().NotContain("CONTEXTO-no-debe-aparecer-en-claro");
+        lote.DatosDespues.Should().Contain("\"ContextoJson\":\"***\"");
+        extraccion.DatosDespues.Should().NotContain("EXTRACCION-no-debe-aparecer-en-claro");
+        extraccion.DatosDespues.Should().Contain("\"ExtraccionJson\":\"***\"");
+    }
+
+    [Fact]
+    public async Task La_solicitud_de_conexion_a_Microsoft_365_no_deja_sus_datos_en_claro_en_la_auditoria()
+    {
+        var usuarioSolicitante = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Add(new SolicitudConexionMicrosoft365(usuarioSolicitante, clienteId: null, gestorPropietarioId: null, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(SolicitudConexionMicrosoft365));
+
+        registro.DatosDespues.Should().NotContain(usuarioSolicitante.ToString());
+        registro.DatosDespues.Should().Contain("\"UsuarioSolicitanteId\":\"***\"");
+        registro.DatosDespues.Should().Contain("\"FechaExpiracionUtc\":\"***\"");
+    }
+
+    [Fact]
+    public async Task Una_sesion_de_usuario_no_deja_su_identificador_en_la_auditoria()
+    {
+        var sid = Guid.NewGuid();
+
+        await using (var contexto = CrearContexto())
+        {
+            // La Empresa del mismo guardado es el control del instrumento: ese guardado sí audita.
+            contexto.Add(new Empresa("Empresa de prueba S.L.", "B10380194"));
+            contexto.SesionesUsuario.Add(new CaeManager.Domain.Seguridad.SesionUsuario(Guid.NewGuid(), sid, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await ObtenerRegistroAsync(nameof(Empresa));
+        await using var lectura = CrearContexto();
+        var registros = await lectura.RegistrosAuditoria.ToListAsync();
+
+        registros.Should().NotContain(r => r.EntidadTipo == nameof(CaeManager.Domain.Seguridad.SesionUsuario));
+        registros.Should().NotContain(r => r.DatosDespues != null && r.DatosDespues.Contains(sid.ToString()));
     }
 
     [Fact]

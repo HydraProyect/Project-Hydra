@@ -23,24 +23,11 @@ namespace CaeManager.Domain.Auditoria;
 /// </para>
 ///
 /// <para>
-/// <b>Sin plazo de retención propio todavía, y no por olvido.</b> DEC-36
-/// obliga a que exista —«la conservación del log debe definirse aparte y
-/// someterse también a minimización/retención»— pero no fija ninguno, y el
-/// de <c>RetencionDatosOptions.AniosRetencionDocumentos</c> (cinco años, por
-/// la prescripción de responsabilidades en el orden social) justifica el
-/// plazo del Documento, no el de un rastro de accountability sobre quién lo
-/// abrió. Leído el mecanismo que REC-084 dejó en <c>main</c>
-/// (<c>DeteccionPurgaService</c>/<c>EjecucionPurgaService</c>), añadir aquí
-/// una tercera categoría de <c>TipoDatoPurgable</c> no bastaría: ese barrido
-/// escribe por <c>IUnitOfWork</c> sobre el contexto de tráfico, a cuya
-/// identidad esta tabla revoca UPDATE y DELETE, así que la purga fallaría con
-/// <c>42501</c> antes de tocar nada. Es una inferencia sobre código leído, no
-/// una ejecución observada: no existe test que lo demuestre, porque no existe
-/// el barrido que lo intentaría.
-/// Conciliar retención y append-only exige decidir tanto el plazo como la
-/// identidad que puede ejecutarla — las dos son decisiones del propietario,
-/// elevadas por HO-099-02 y no tomadas aquí. Mientras tanto rige DEC-35:
-/// sin política aprobada no se destruye nada.
+/// <b>Conservación: 5 años</b> desde <see cref="OcurridoEnUtc"/> (decisión de 2026-10-31 para
+/// los registros de auditoría). Esta tabla sigue sin UPDATE ni DELETE para
+/// <c>cae_app_runtime</c>: solo borra <c>app_purgar_registros_auditoria(boolean)</c>, con el
+/// corte fijo dentro de la función y su propietario como identidad explícita. La enciende
+/// <c>RetencionDatos:PurgaRegistrosActiva</c>, apagada por defecto.
 /// </para>
 ///
 /// <para>
@@ -64,7 +51,9 @@ namespace CaeManager.Domain.Auditoria;
 /// <c>TipoDocumentoId</c> real (o, en el caso de las plantillas, el contenido
 /// está deliberadamente vacío), así que la categoría de DEC-36 no tiene de
 /// dónde salir sin inventar una fuente distinta al punto único de REC-132 —
-/// justo lo que esa decisión prohíbe. La evidencia de
+/// justo lo que esa decisión prohíbe. La descarga de un adjunto de correo sí
+/// queda en <see cref="RegistroAuditoria"/> como acceso a dato sensible, sin
+/// categoría, vía <c>ObtenerAdjuntoParaDescargaQuery</c>. La evidencia de
 /// <c>VerificacionExternaSubcontrata</c> SÍ se registra (tiene su propio
 /// <c>TipoDocumentoId</c>, y el archivo adjunto no es una plantilla en
 /// blanco) pese a no ser una instancia de <see cref="Documentos.Documento"/>

@@ -19,9 +19,38 @@ public static class IdentityEndpointsExtensions
             IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
         {
             var usuarioId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                .LogInformation("Cierre de sesión: {UsuarioId}", usuarioId);
+            var logger = loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+            logger.LogInformation("Cierre de sesión: {UsuarioId}", usuarioId);
 
+            // Revoca en el servidor solo esta sesión (una copia de la cookie deja de valer) y
+            // cierra la Sesión Privilegiada que la petición tenga seleccionada. Ver CierreSesionEnServidor.
+            await CierreSesionEnServidor.CerrarEstaSesionAsync(httpContext, logger);
+
+            return await SalirAsync(signInManager, httpContext);
+        });
+
+        // Cerrar sesión en todos los dispositivos: rota el sello de seguridad y revoca todas las
+        // sesiones de la cuenta, esta incluida. Formulario POST con antiforgery, como el de arriba.
+        endpoints.MapPost("/cuenta/cerrar-sesion-en-todos-los-dispositivos", async (
+            IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+            logger.LogInformation("Cierre de sesión en todos los dispositivos: {UsuarioId}",
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            await CierreSesionEnServidor.CerrarTodasLasSesionesAsync(httpContext, logger);
+
+            return await SalirAsync(signInManager, httpContext);
+        }).RequireAuthorization();
+
+        // Señal de interacción de actividad-sesion.js. Lo hace todo la validación de la cookie
+        // (CaducidadSesion); sin sesión, responde el desafío y no se mueve nada. Sin formulario ni
+        // antiforgery: la señal no cambia datos y solo cuenta con Sec-Fetch-Site: same-origin. Fuera de
+        // /cuenta para no consumir el limitador por IP de esa ruta.
+        endpoints.MapPost(CaducidadSesion.RutaSenalInteraccion, () => Results.NoContent()).RequireAuthorization();
+
+        static async Task<IResult> SalirAsync(SignInManager<ApplicationUser> signInManager, HttpContext httpContext)
+        {
             await signInManager.SignOutAsync();
 
             // La cookie de Delegated Workspace no la borra SignOutAsync: es
@@ -38,7 +67,7 @@ public static class IdentityEndpointsExtensions
             CulturaUsuarioCookie.Eliminar(httpContext);
 
             return Results.LocalRedirect("/cuenta/iniciar-sesion");
-        });
+        }
 
         // Punto de entrada del botón "Iniciar sesión con Microsoft" (Login.razor)
         // — solo se muestra si AzureAdOptions.EstaConfigurado. El propio
@@ -47,7 +76,7 @@ public static class IdentityEndpointsExtensions
         // llegue aquí ningún código nuestro; RedirectUri es a dónde se manda
         // al navegador después de que ese middleware ya haya firmado la
         // cookie externa temporal.
-        endpoints.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl) => InicioSesionMicrosoft.Desafiar(returnUrl))
+        endpoints.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl, bool? reautenticar) => InicioSesionMicrosoft.Desafiar(returnUrl, reautenticar == true))
             .AllowAnonymous();
 
         // A dónde vuelve el navegador ya con la cookie externa temporal
@@ -178,13 +207,14 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
-            // Segundo factor (D-2), antes de vincular: una identidad que no lo supera
-            // no deja vínculo. Si Microsoft no acreditó la MFA, el TOTP de TALVEG por
-            // el mismo paso que el inicio con contraseña (LoginCon2fa). Sin TOTP
-            // configurado no se emite sesión: el alta del TOTP exige una sesión ya
-            // emitida (MainLayout la fuerza solo a Administradores, y después). Un
-            // vínculo nuevo a una cuenta con TOTP pasa siempre por el TOTP, también
-            // con MFA de Microsoft, y se guarda solo al superarlo (ver DecidirSegundoFactor).
+            // Segundo factor, antes de vincular: una identidad que no lo supera no deja
+            // vínculo. La primera vinculación exige siempre el TOTP de TALVEG, también
+            // con MFA de Microsoft (decisión de 2026-10-28, ASVS 4.0.3 V2.1); si la cuenta
+            // aún no lo tiene, lo da de alta antes, tras reautenticarse en Microsoft
+            // (V3.7.1), y solo si Microsoft acreditó la MFA. Con la identidad ya vinculada
+            // rige D-2: si Microsoft no acreditó la MFA, el TOTP de TALVEG por el mismo paso
+            // que el inicio con contraseña (LoginCon2fa). En ambos casos, sin TOTP ni MFA no
+            // se emite sesión. Ver DecidirSegundoFactor.
             var vinculoNuevo = decision == DecisionCuentaMicrosoft.VincularCuentaExistente;
             var segundoFactor = InicioSesionMicrosoft.DecidirSegundoFactor(
                 InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(infoExterna.Principal, opcionesAzureAd.Value.ContextoAutenticacionMfa),
@@ -200,18 +230,34 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-mfa");
             }
 
-            if (segundoFactor == SegundoFactorMicrosoft.PedirTotp)
+            if (segundoFactor is SegundoFactorMicrosoft.PedirTotp or SegundoFactorMicrosoft.DarDeAltaTotp)
             {
+                // Primera vinculación de una cuenta sin TOTP: el alta de un factor pide
+                // autenticación reciente (ASVS 4.0.3 V3.7.1). Si esta vuelta no viene de un
+                // desafío con prompt=login, se repite con él y la persona vuelve a introducir
+                // sus credenciales en Microsoft. La marca viaja protegida en el state y este
+                // callback no la acepta de la URL, pero solo prueba que TALVEG lo pidió:
+                // prompt=login va en una URL que controla el navegador y aquí no se comprueba
+                // auth_time. Quien quite el parámetro sigue necesitando la MFA de Microsoft.
+                var altaTotp = segundoFactor == SegundoFactorMicrosoft.DarDeAltaTotp;
+                if (altaTotp && !InicioSesionMicrosoft.VieneDeReautenticacion(infoExterna.AuthenticationProperties))
+                {
+                    await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+                    return InicioSesionMicrosoft.Desafiar(returnUrl, reautenticar: true);
+                }
+
                 // Sin vincular todavía: un vínculo nuevo viaja en la cookie de dos
                 // pasos, con el Id de la cuenta, y LoginCon2fa lo guarda solo al
-                // superar el TOTP. La sesión la emite Identity al verificar el código,
-                // con el proveedor externo, y SignInManagerCuentaDesactivada le pone la
-                // marca de inicio con SSO.
+                // superar el TOTP; con altaTotp, LoginCon2fa activa antes el TOTP. La
+                // sesión la emite Identity al verificar el código, con el proveedor
+                // externo, y SignInManagerCuentaDesactivada le pone la marca de inicio con SSO.
                 await httpContext.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
-                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null));
+                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null, altaTotp));
                 await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                    .LogInformation("Login SSO correcto sin MFA de Microsoft, pendiente del TOTP de TALVEG: {UsuarioId}", usuario.Id);
+                    .LogInformation(altaTotp
+                        ? "Primera vinculación de Microsoft sin TOTP de TALVEG, pendiente de su alta: {UsuarioId}"
+                        : "Login SSO correcto, pendiente del TOTP de TALVEG: {UsuarioId}", usuario.Id);
                 await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.SegundoFactorRequerido);
 
                 var verificacion = "/cuenta/verificar-2fa";
@@ -220,22 +266,15 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect(verificacion);
             }
 
-            // El vínculo se guarda antes de entrar y su resultado se mira: antes se
-            // ignoraba, y una identidad que no quedaba vinculada entraba igual.
-            if (decision == DecisionCuentaMicrosoft.VincularCuentaExistente)
+            // Sesión directa solo con la identidad ya vinculada: la primera vinculación
+            // pasa siempre por el TOTP (arriba) y se guarda en LoginCon2fa.
+            if (vinculoNuevo)
             {
-                var resultadoVinculo = await userManager.AddLoginAsync(usuario, infoExterna);
-                if (!resultadoVinculo.Succeeded)
-                {
-                    logger.LogError(
-                        "No se pudo vincular la identidad de Microsoft a la cuenta {UsuarioId}: {Errores}",
-                        usuario.Id, string.Join(" ", resultadoVinculo.Errors.Select(e => e.Description)));
-                    await signInManager.SignOutAsync();
-                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-                }
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
-            await signInManager.SignInWithClaimsAsync(usuario, isPersistent: true,
+            await signInManager.SignInWithClaimsAsync(usuario, isPersistent: false,
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
             // La cookie externa temporal ya está consumida: se borra, como hace

@@ -14,6 +14,7 @@ using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
@@ -760,6 +761,24 @@ public class InicioGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain(", Ramón"));
     }
 
+    [Fact]
+    public void El_saludo_sin_nombre_en_la_sesion_usa_la_proyeccion_de_la_cuenta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = new MediadorDeInicio { NombreCuenta = new NombreCuentaDto("Ramón Ibáñez", "ramon@example.test") };
+        var cut = Renderizar(mediador, autenticacion: new AutenticacionConId(id), rol: Roles.Cliente);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(", Ramón"));
+        mediador.IdNombreConsultado.Should().Be(id);
+    }
+
+    private sealed class AutenticacionConId(Guid id) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, id.ToString()), new Claim(ClaimTypes.Role, Roles.Cliente)], "prueba"))));
+    }
+
     private sealed class AutenticacionConNombre(string nombre) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
@@ -1220,7 +1239,7 @@ public class InicioGen2Tests : BunitContext
             "con CancellationToken.None, retirar la pantalla no cancelaría nada");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue();
 
@@ -1248,8 +1267,6 @@ public class InicioGen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped(_ => actividad ?? new ActividadSinAusencia());
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenSinUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
         // Los estados vacíos de cartera salen de IStringLocalizer<TextosInicio>.
         Services.AddLocalization();
         // Por defecto, el Context Workspace activo es el Tenant de origen del
@@ -1387,6 +1404,8 @@ public class InicioGen2Tests : BunitContext
     /// </summary>
     private sealed class MediadorDeInicio(params ItemBandejaDto[] items) : IMediator
     {
+        public NombreCuentaDto? NombreCuenta { get; init; }
+        public Guid? IdNombreConsultado { get; private set; }
         /// <summary>
         /// Tres mil novecientos ochenta y tres al día (3.812 vigentes + 71 próximos + 100 urgentes) de cuatro mil trescientos
         /// ochenta y tres documentos: 91 %. El mockup enseñaba 3.812 de 4.383 (87 %) porque contaba solo los vigentes; desde la
@@ -1442,6 +1461,9 @@ public class InicioGen2Tests : BunitContext
 
             switch (request)
             {
+                case ObtenerNombreCuentaQuery consulta:
+                    IdNombreConsultado = consulta.UsuarioId;
+                    return Task.FromResult((TResponse)(object?)NombreCuenta!);
                 case ObtenerPerfilVocabularioActualQuery:
                     return Task.FromResult((TResponse)(object)Perfil);
                 case ObtenerKpisDashboardQuery:
@@ -1504,27 +1526,6 @@ public class InicioGen2Tests : BunitContext
     private sealed class TenantActivoFijo(Guid tenantId) : ITenantActual
     {
         public Guid? TenantId => tenantId;
-    }
-
-    /// <summary>
-    /// El saludo resuelve el nombre de pila por <c>UserManager</c> tras el
-    /// primer render. Aquí no hay usuario que devolver: el saludo se queda en
-    /// «Buenos días» a secas, que es exactamente lo que hace la pantalla cuando
-    /// el usuario no tiene NombreCompleto.
-    /// </summary>
-    private sealed class AlmacenSinUsuarios : IUserStore<ApplicationUser>
-    {
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public void Dispose() { }
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(null);
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(null);
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(user.Id.ToString());
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult<string?>(user.UserName);
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     /// <summary>

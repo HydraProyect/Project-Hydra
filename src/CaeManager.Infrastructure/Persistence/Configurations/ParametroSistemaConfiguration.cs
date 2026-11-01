@@ -19,6 +19,9 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
         // mismo tenant (auditoría Módulo 8).
         builder.HasIndex(p => p.TenantId).IsUnique();
 
+        builder.Property(p => p.MinutosInactividadSesion)
+            .HasDefaultValue(ParametroSistema.MinutosInactividadSesionPorDefecto);
+
         builder.HasData(new
         {
             Id = ParametroSistemaSeedData.IdUnico,
@@ -32,6 +35,8 @@ public class ParametroSistemaConfiguration : IEntityTypeConfiguration<ParametroS
             MedicionTiempoActiva = ParametroSistemaSeedData.MedicionTiempoActiva,
             SegundosInactividadPausa = ParametroSistemaSeedData.SegundosInactividadPausa,
             ExcluirFueraDeJornadaEnMetricas = ParametroSistemaSeedData.ExcluirFueraDeJornadaEnMetricas,
+            MinutosInactividadSesion = ParametroSistema.MinutosInactividadSesionPorDefecto,
+            ExigeSegundoFactorTodosLosPerfiles = false,
             // Un tenant nuevo siembra su propia fila al aprovisionarse (ver
             // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7) — esta es la del tenant #1.
             TenantId = TenantSeedData.IdPorDefecto

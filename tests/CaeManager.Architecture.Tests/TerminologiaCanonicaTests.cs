@@ -480,12 +480,40 @@ public class TerminologiaCanonicaTests
         // entidad ya existente. RevocarOperadorCaeExternoPorSoporteCommand nombra su parámetro DelegacionTenantId (+3:
         // declaración, validador y handler) porque es el Id de esa entidad, y RevocacionOperadorCaeExternoPorSoporte desengancha
         // DelegacionTenant del ChangeTracker tras la escritura por SQL (+1). Los tipos nuevos usan el nombre canónico.
-        ["Delegacion"] = 351,
+        // 351 → 355 (2026-10-31, SEG-7): +4, referencias a tipos ya existentes. Reactivar y su lote reciben
+        // IAutorizacionDelegacionTenant, y AdministradorQueReactiva la declara y llama a PuedeGestionarDelegacionesAsync.
+        // Lo nuevo usa el nombre canónico; el renombrado es un incremento propio.
+        ["Delegacion"] = 355,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
         // incremento propio (§ 5 del contrato de terminología).
-        ["ClienteActivo"] = 72,
+        // 75 (antes 72): CierreSesionEnServidor lee la Sesión Privilegiada seleccionada y descarta la
+        // selección en su ámbito (IClienteActivoSeleccionado ×2, ClienteActivoSeleccionado ×1) para
+        // revocar la sesión al cerrarla; son consumidores de la interfaz existente, no un tipo nuevo.
+        // 77 (antes 75): ObtenerConexionesIntegracionQueryHandler y ObtenerLineasWhatsAppQueryHandler leen
+        // la Sesión Privilegiada seleccionada (IClienteActivoSeleccionado ×1 cada uno) para no pedir
+        // ConexionesIntegracion.UltimoError bajo cae_app_soporte; es la misma señal con la que
+        // TenantRlsConnectionInterceptor adopta ese rol, y son consumidores de la interfaz existente.
+        // 78 (antes 77): OperacionesConectorPlataformaCae lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) porque, ya revocada, no revalida y la conexión sigue siendo de
+        // cae_app_soporte, sin INSERT sobre el uso; es la misma señal y un consumidor de la interfaz existente.
+        // 78 -> 84 (2026-10-31): la extensión resuelve el Tenant solicitado con la selección existente. Son consumidores
+        // de la interfaz y del tipo concreto (ContextoExtensionMiddleware ×3 y los dos endpoints de entrega), más la
+        // firma de TicketEsDeEstaPeticion; ningún nombre nuevo lleva el término.
+        // 85 (antes 84): ObtenerValidacionOficialDocumentoQueryHandler lee la misma señal
+        // (IClienteActivoSeleccionado ×1) para no pedir VerificacionesDocumentoOficial.CodigoVerificacion
+        // bajo cae_app_soporte; es otro consumidor de la interfaz existente.
+        // 86 (antes 85, 2026-10-31): VigenciaSesionCuenta lee la Sesión Privilegiada seleccionada
+        // (IClienteActivoSeleccionado ×1) para no leer el sello de la cuenta bajo cae_app_soporte; es la misma
+        // señal con la que TenantRlsConnectionInterceptor adopta ese rol, y un consumidor de la interfaz existente.
+        // 89 (antes 86, 2026-10-31): EmisorTokenExtension deniega con esa misma señal y la recibe de sus dos
+        // entradas, ExtensionTokenEndpoints y ConectarExtension (IClienteActivoSeleccionado ×1 cada uno): son
+        // consumidores de la interfaz existente; ningún nombre nuevo lleva el término.
+        // 92 (antes 89, 2026-10-31): CambiarContrasena, ConfigurarAutenticadorDosFactores y RestablecerContrasena deniegan
+        // con esa misma señal (IClienteActivoSeleccionado ×1 cada una): consumidores de la interfaz existente; ningún
+        // nombre nuevo lleva el término.
+        ["ClienteActivo"] = 92,
     };
 
     [Theory]

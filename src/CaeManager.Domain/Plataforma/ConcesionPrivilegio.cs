@@ -31,6 +31,33 @@ public class ConcesionPrivilegio : Entity, IVersionable
     public const int LongitudMaximaMotivo = 500;
 
     /// <summary>
+    /// Días máximos entre <see cref="VigenciaDesde"/> y <see cref="VigenciaHasta"/>.
+    /// Más generoso que la ventana de una sesión (DEC-43: 4 horas) porque son
+    /// cosas distintas: la concesión dice durante cuánto tiempo <i>podrías</i>
+    /// abrir sesiones; la ventana, cuánto dura cada una. Es una sola decisión de
+    /// producto y los validadores de los comandos de concesión leen este mismo
+    /// valor.
+    ///
+    /// <para>
+    /// Lo aplica el constructor al crear, nunca al leer: EF Core materializa por
+    /// el constructor privado sin parámetros, así que una fila ya guardada con
+    /// una vigencia mayor se sigue leyendo y no deja sin acceso a nadie. Una
+    /// concesión sin fin no entra en este cálculo: en producción solo nace así
+    /// la fundacional (<see cref="RaizDeBootstrap"/>), y bajo RLS las políticas
+    /// de INSERT exigen fin en el resto de caminos.
+    /// </para>
+    ///
+    /// <para>
+    /// La base impone el mismo tope al crear: las políticas de INSERT
+    /// <c>privilegio_autoconcesion</c> y <c>privilegio_concesion_a_tercero</c>
+    /// escriben estos 90 días como 2160 horas
+    /// (<c>TopeVigenciaConcesionEnPoliticasDeAlta</c>). Si cambia este valor,
+    /// cambian allí con una migración.
+    /// </para>
+    /// </summary>
+    public const int MaximoDiasDeVigencia = 90;
+
+    /// <summary>
     /// El usuario de la plataforma que recibe la capacidad. Guid suelto hacia
     /// <c>ApplicationUser</c> — Domain no referencia Identity, mismo patrón que
     /// <c>AsignacionCartera.UsuarioId</c>. Que pertenezca al tenant marcado
@@ -44,7 +71,7 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// Alcance global sobre todos los tenants. <b>Solo se admite para las
     /// capacidades de <see cref="AdmiteAlcanceGlobal"/></b>:
     /// <see cref="CapacidadPrivilegio.AdminPlataforma"/>, que no implica leer
-    /// contenido, y <see cref="CapacidadPrivilegio.SoporteLectura"/>, que sí lo
+    /// contenido salvo la devolución de datos por CLI, y <see cref="CapacidadPrivilegio.SoporteLectura"/>, que sí lo
     /// lee pero nunca sin una <see cref="SesionPrivilegiada"/> por Tenant
     /// objetivo, con motivo, ventana y 2FA (ADR-011 § 8.9). Para el resto de
     /// capacidades el alcance es siempre una lista explícita de tenants.
@@ -98,6 +125,8 @@ public class ConcesionPrivilegio : Entity, IVersionable
             throw new ArgumentException("La concesión debe tener un usuario de plataforma.", nameof(usuarioPlataformaId));
         if (vigenciaHasta is not null && vigenciaHasta <= vigenciaDesde)
             throw new ArgumentException("La vigencia debe terminar después de empezar.", nameof(vigenciaHasta));
+        if (vigenciaHasta is not null && vigenciaHasta.Value - vigenciaDesde > TimeSpan.FromDays(MaximoDiasDeVigencia))
+            throw new ArgumentException($"La vigencia no puede superar {MaximoDiasDeVigencia} días.", nameof(vigenciaHasta));
         if (motivoConcesion is { Length: > LongitudMaximaMotivo })
             throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivo} caracteres.", nameof(motivoConcesion));
         // Invariante explícito, no propiedad emergente de qué fábricas existen:
@@ -205,7 +234,8 @@ public class ConcesionPrivilegio : Entity, IVersionable
     /// <summary>
     /// Concesión de <see cref="CapacidadPrivilegio.AdminPlataforma"/> sobre
     /// todos los tenants. Administrar la plataforma no implica leer el contenido
-    /// de ningún Tenant (ADR-011 § 8.2).
+    /// de ningún Tenant (ADR-011 § 8.2), salvo la devolución de datos con
+    /// <c>--exportar-tenant</c> (ver <see cref="CapacidadPrivilegio.AdminPlataforma"/>).
     /// </summary>
     public static ConcesionPrivilegio Global(
         Guid usuarioPlataformaId,

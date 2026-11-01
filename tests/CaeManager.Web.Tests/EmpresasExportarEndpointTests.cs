@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Features.Empresas;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -31,9 +32,18 @@ public class EmpresasExportarEndpointTests
 
     private static async Task<(HttpContext Contexto, MediatorDeEmpresas Mediador)> ExportarAsync(string consulta)
     {
+        var (contexto, mediador, _) = await ExportarConRegistroAsync(consulta);
+        return (contexto, mediador);
+    }
+
+    private static async Task<(HttpContext Contexto, MediatorDeEmpresas Mediador, RegistroDeExportaciones Registro)> ExportarConRegistroAsync(string consulta)
+    {
         var mediador = new MediatorDeEmpresas();
+        var registro = new RegistroDeExportaciones();
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton<IMediator>(mediador);
+        builder.Services.AddSingleton<ITenantActual>(new TenantActualFalso());
+        builder.Services.AddSingleton<IRegistroExportacionService>(registro);
         await using var app = builder.Build();
         app.MapEmpresasEndpoints();
         var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>()
@@ -44,7 +54,7 @@ public class EmpresasExportarEndpointTests
         contexto.Request.QueryString = new QueryString(consulta);
         contexto.Response.Body = new MemoryStream();
         await endpoint.RequestDelegate!(contexto);
-        return (contexto, mediador);
+        return (contexto, mediador, registro);
     }
 
     private static List<string> RazonesSociales(HttpContext contexto)
@@ -86,12 +96,61 @@ public class EmpresasExportarEndpointTests
         mediador.Consultas.Should().BeEmpty("no se exporta «todo» por haber ignorado un filtro mal formado");
     }
 
+    [Fact]
+    public async Task La_exportacion_registra_las_filas_entregadas_y_el_criterio_aplicado()
+    {
+        var (contexto, _, registro) = await ExportarConRegistroAsync($"?cliente={Cyberdyne}&q=01234567Z&estado=Vencido,%20SinDocumentos,Garcia,7");
+
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        var entrada = registro.Registros.Should().ContainSingle().Subject;
+        entrada.Tipo.Should().Be("Empresa");
+        entrada.Filas.Should().Be(2, "las dos Empresas del Cliente que lleva el libro");
+        entrada.Criterios.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["listado"] = "empresas",
+            ["busqueda"] = "true",
+            ["estado"] = "Vencido,SinDocumentos",
+            ["cliente"] = Cyberdyne.ToString()
+        }, "solo consta lo que la consulta reconoció: ni el texto de la búsqueda ni los estados que no existen");
+    }
+
+    [Fact]
+    public async Task Un_Cliente_que_no_es_un_Id_no_registra_exportacion()
+    {
+        var (_, _, registro) = await ExportarConRegistroAsync("?cliente=no-es-un-id");
+
+        registro.Registros.Should().BeEmpty();
+    }
+
+    private sealed class RegistroDeExportaciones : IRegistroExportacionService
+    {
+        public List<(string Tipo, int Filas, IReadOnlyDictionary<string, string> Criterios)> Registros { get; } = [];
+
+        public Task RegistrarAsync(string entidadTipo, int filas, IReadOnlyDictionary<string, string> criterios,
+            CancellationToken cancellationToken = default)
+        {
+            Registros.Add((entidadTipo, filas, criterios));
+            return Task.CompletedTask;
+        }
+    }
+
+    private static readonly Guid Origen = Guid.NewGuid();
+
+    private sealed class TenantActualFalso : ITenantActual
+    {
+        public Guid? TenantId => Origen;
+    }
+
     private sealed class MediatorDeEmpresas : IMediator
     {
         public List<ObtenerEmpresasQuery> Consultas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            // Sin cartera: la guarda del estado 4a deja pasar (la cubre ExportacionesDeListadosEstado4aTests).
+            if (request is ObtenerClientesAutorizadosQuery)
+                return Task.FromResult((TResponse)(object)new List<ClienteAutorizadoDto> { new(Origen, "Operador CAE", EsOrigen: true) });
+
             if (request is not ObtenerEmpresasQuery consulta)
                 throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
 

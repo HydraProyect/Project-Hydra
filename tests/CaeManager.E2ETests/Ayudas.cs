@@ -37,7 +37,7 @@ public static class Ayudas
     /// </summary>
     public const string ClaveTotpAdministrador = "JBSWY3DPEHPK3PXP";
 
-    public const string ContrasenaUsuariosPrueba = "Prueba#2026";
+    public const string ContrasenaUsuariosPrueba = "Prueba#2026Segura";
 
     /// <summary>
     /// El «hoy» del producto: día de negocio en Europe/Madrid (DiaDeNegocio.Hoy() en
@@ -513,7 +513,8 @@ public static class Ayudas
                 // agotar IntentosPulsarAccionDeMenu — el reintento de más
                 // arriba nunca llegaba a ejecutarse.
                 var panel = await AbrirMenuAccionesAsync(disparador);
-                var item = panel.GetByText(textoAccion, new LocatorGetByTextOptions { Exact = true });
+                var item = panel.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true })
+                    .Or(panel.GetByRole(AriaRole.Menuitemradio, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true }));
                 await item.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
 
                 // Menu?.Cerrar() en ItemMenuAccion.EjecutarAsync solo corre
@@ -907,7 +908,7 @@ public static class Ayudas
         // pasan de largo por esta rama y siguen directas al dashboard.
         if (page.Url.Contains("/cuenta/verificar-2fa"))
         {
-            await page.FillAsync("#codigo", GenerarCodigoTotp(ClaveTotpAdministrador));
+            await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(baseUrl, email));
             await page.ClickAsync("button[type=\"submit\"]");
         }
 
@@ -915,9 +916,49 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Último paso TOTP (30 s) que cada cuenta usó en este proceso de test, por servidor: cada
+    /// WebAppFixture tiene su propia base de datos, y con ella su propio registro de pasos aceptados.
+    /// </summary>
+    private static readonly Dictionary<string, long> UltimoPasoTotpPorCuenta = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Código TOTP del segundo paso de <paramref name="email"/> en <paramref name="baseUrl"/> que el
+    /// servidor todavía no aceptó: un código aceptado no vuelve a valer (ASVS V2.8.4,
+    /// ProveedorTotpDeUnSoloUso), y varios recorridos entran con la misma cuenta dentro del mismo paso de
+    /// 30 s. Toma el primer paso posterior al último usado con esa cuenta, como mucho uno por delante del
+    /// actual (el servidor tolera dos), y si no cabe espera a que el reloj avance.
+    /// </summary>
+    public static async Task<string> SiguienteCodigoTotpAsync(
+        string baseUrl, string email, string claveBase32 = ClaveTotpAdministrador)
+    {
+        var cuenta = $"{baseUrl}|{email}";
+        while (true)
+        {
+            TimeSpan espera;
+            lock (UltimoPasoTotpPorCuenta)
+            {
+                var ahora = DateTimeOffset.UtcNow;
+                var pasoActual = ahora.ToUnixTimeSeconds() / 30;
+                var paso = UltimoPasoTotpPorCuenta.TryGetValue(cuenta, out var ultimo)
+                    ? Math.Max(pasoActual, ultimo + 1)
+                    : pasoActual;
+                if (paso <= pasoActual + 1)
+                {
+                    UltimoPasoTotpPorCuenta[cuenta] = paso;
+                    return GenerarCodigoTotp(claveBase32, DateTimeOffset.FromUnixTimeSeconds(paso * 30));
+                }
+
+                espera = DateTimeOffset.FromUnixTimeSeconds((paso - 1) * 30) - ahora + TimeSpan.FromMilliseconds(200);
+            }
+
+            await Task.Delay(espera);
+        }
+    }
+
+    /// <summary>
     /// TOTP de 6 dígitos (RFC 6238, HMAC-SHA1, paso de 30s) — el mismo
     /// algoritmo que <c>UserManager.VerifyTwoFactorTokenAsync</c> valida del
-    /// lado servidor vía <c>AuthenticatorTokenProvider</c>. Sin paquete
+    /// lado servidor vía <c>ProveedorTotpDeUnSoloUso</c>. Sin paquete
     /// nuevo: es la única forma de que este proyecto de test calcule el
     /// código del Administrador inicial (ver ClaveTotpAdministrador) sin
     /// acceso a base de datos ni a Infrastructure.

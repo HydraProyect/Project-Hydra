@@ -45,6 +45,7 @@ public class ExportacionCompletaTenantTests
     [InlineData(typeof(CanalGestionDocumental), "Contrasena")]
     [InlineData(typeof(CredencialIntegracion), "RefreshToken")]
     [InlineData(typeof(CredencialIntegracion), "AccessToken")]
+    [InlineData(typeof(CredencialConexionPlataformaCae), "SecretoApi")]
     [InlineData(typeof(SuscripcionWebhook), "ClientState")]
     [InlineData(typeof(LineaWhatsApp), "TokenAcceso")]
     [InlineData(typeof(EventoWebhook), "PayloadCrudo")]
@@ -86,7 +87,7 @@ public class ExportacionCompletaTenantTests
             "Id", "TenantId", "UserName", "Email", "EmailConfirmed", "PhoneNumber", "PhoneNumberConfirmed",
             "TwoFactorEnabled", "LockoutEnd", "LockoutEnabled", "AccessFailedCount", "NombreCompleto", "Tema", "Idioma",
             "Avatar", "CoordinadorUsuarioId", "ClienteId", "DebeCambiarContrasena", "FechaCreacion", "UltimaActividadUtc",
-            "PermisoConsultarAccesoDocumentosSensibles");
+            "PermisoConsultarAccesoDocumentosSensibles", "ClavesApiValidasDesdeUtc", "FechaBajaUtc");
     }
 
     [Theory]
@@ -97,6 +98,31 @@ public class ExportacionCompletaTenantTests
     [InlineData("almacen/abc.extensionlarga", "")]
     public void La_extension_del_fichero_exportado_sale_solo_de_una_clave_segura(string clave, string esperada) =>
         ExportacionCompletaTenant.ExtensionSegura(clave).Should().Be(esperada);
+
+    [Fact]
+    public void La_lectura_incluye_la_papelera_y_sigue_acotada_al_Tenant_pedido()
+    {
+        using var contexto = CrearContextoSinConexion();
+
+        var sql = ExportacionCompletaTenant.ConsultaDeTenant<Empresa>(contexto, Guid.NewGuid()).ToQueryString();
+        var inicioCondicion = sql.LastIndexOf("WHERE", StringComparison.Ordinal);
+
+        inicioCondicion.Should().BePositive("saltar el filtro global quita también su comparación del Tenant");
+        sql[inicioCondicion..].Should().Contain("\"TenantId\"");
+        sql[inicioCondicion..].Should().NotContain("EstaEliminado", "las filas de la papelera salen mientras sigan en el servidor");
+    }
+
+    [Fact]
+    public void El_resultado_no_lleva_la_contrasena_y_la_consola_la_muestra_una_sola_vez()
+    {
+        typeof(ExportacionCompletaTenant.Resultado).GetProperties().Select(p => p.Name)
+            .Should().BeEquivalentTo("TenantId", "NombreTenant", "Recuentos", "DocumentosSinFichero");
+
+        using var salida = new StringWriter();
+        ExportacionCompletaTenant.InformarContrasena("contrasena-unica", salida);
+
+        salida.ToString().Split("contrasena-unica").Should().HaveCount(2);
+    }
 
     private static CaeManagerDbContext CrearContextoSinConexion()
     {

@@ -40,8 +40,12 @@ public class IdentificadoresDeEntidadUuidV7Tests
     private static readonly Dictionary<string, int> SecretosYTokens = new()
     {
         // SecurityStamp de Identity: invalida sesiones abiertas y enlaces de activación emitidos; es un secreto.
-        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 2,
+        // El tercero es RotarSelloDeSeguridad (SEG-1: cambiar el rol revalida la sesión).
+        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 3,
         ["src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs"] = 1,
+        // Identificador de sesión de la cookie (talveg:sid): lo que hace revocable una sesión; no
+        // debe poder adivinarse ni ordenarse por fecha.
+        ["src/CaeManager.Infrastructure/Identity/SignInManagerCuentaDesactivada.cs"] = 1,
         // jti del aserto de cliente de Microsoft 365: nonce anti-repetición.
         ["src/CaeManager.Infrastructure/Integraciones/AsertoClienteMicrosoft365.cs"] = 1,
         // Identificador de la clave HMAC del contexto RLS firmado.
@@ -50,6 +54,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/FileStorage/DiskFileStorageService.cs"] = 2,
         // Directorio temporal de conversión: nombre no predecible en /tmp.
         ["src/CaeManager.Infrastructure/Conversion/LibreOfficeConversorWordPdfService.cs"] = 1,
+        // Temporales de la Subida múltiple (S-C-3): nombres de fichero y de directorio no adivinables.
+        ["src/CaeManager.Web/Documentos/AlmacenTemporalSubidaMasiva.cs"] = 2,
+        ["src/CaeManager.Web/Documentos/CuotaSubidaMasiva.cs"] = 1,
     };
 
     /// <summary>
@@ -61,6 +68,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
     {
         // ConcurrencyStamp de Identity, renovado al guardar el avatar: token de concurrencia.
         ["src/CaeManager.Infrastructure/Identity/AvatarDeCuentasIdentity.cs"] = 1,
+        // ConcurrencyStamp de Identity, renovado al guardar tema, idioma o actividad: token de concurrencia.
+        ["src/CaeManager.Infrastructure/Identity/PreferenciasCuentaPropia.cs"] = 1,
         // Version de AlertaCriticaConversacion: token de concurrencia de la resolución.
         ["src/CaeManager.Domain/Comunicaciones/AlertaCriticaConversacion.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
@@ -126,6 +135,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
     private static readonly Dictionary<string, int> GenRandomUuidEnMigraciones = new()
     {
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] = 5,
+        // SecurityStamp y ConcurrencyStamp de app_conceder_administrador_por_plataforma: son secretos,
+        // no Id, y un sello no puede ser predecible (ver SecretosYTokens). Los Id de esa función, uuidv7().
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261030220000_PlataformaConcedeAdministrador.cs"] = 2,
     };
 
     private static readonly Regex PatronNewGuid = new(@"\bGuid\s*\.\s*NewGuid\b", RegexOptions.Compiled);

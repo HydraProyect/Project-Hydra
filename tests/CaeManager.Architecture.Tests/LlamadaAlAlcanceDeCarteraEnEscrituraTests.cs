@@ -445,6 +445,16 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync, no por la cartera de un Tenant",
             Guardas: [new(typeof(IAutorizacionAdminPlataforma), nameof(IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync))]),
 
+        ["Integraciones.CambiarConectorApiProveedorPlataformaCommandHandler"] = new(
+            "kill switch de la API en el catálogo de proveedores compartido: plano de Plataforma, autorizado por " +
+            "IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync, no por la cartera de un Tenant",
+            Guardas: [new(typeof(IAutorizacionAdminPlataforma), nameof(IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync))]),
+        ["Integraciones.GuardarConexionPlataformaCaeCommandHandler"] = new(
+            "credencial de API del Tenant propietario con una plataforma CAE de terceros; solo rol Administrador, sin restricción de cartera",
+            Guardas: SoloAdministrador),
+        ["Integraciones.RetirarConexionPlataformaCaeCommandHandler"] = new(
+            "mismo motivo que GuardarConexionPlataformaCaeCommandHandler",
+            Guardas: SoloAdministrador),
         // ── Gobiernan la propia Asignación de Cartera desde el Tenant de origen del Operador CAE ─
         ["Operaciones.SolicitarIncorporacionCarteraCommandHandler"] = new(
             "escribe la solicitud de incorporación a cartera: la autoridad es el rol del usuario en su Operador CAE " +
@@ -483,7 +493,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 37;
+    private const int MaximoDeExentos = 40;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;

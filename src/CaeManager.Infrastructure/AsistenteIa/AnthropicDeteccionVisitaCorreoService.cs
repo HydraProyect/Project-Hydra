@@ -19,7 +19,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// El cuerpo lo escribe un tercero. Antes de salir pasa por
 /// <see cref="PromptCorreoEntrante"/>, igual que el de la detección de gestión: HTML a
 /// texto plano, neutralizado, sin marcas de delimitación propias, con DNI, NIE,
-/// pasaporte, CIF y correos enmascarados, y encerrado entre marcas con reglas de
+/// pasaporte, CIF, correos y teléfonos enmascarados, y encerrado entre marcas con reglas de
 /// aislamiento en el system prompt. Es mitigación, no garantía: lo que acota el daño
 /// está en <see cref="ParsearDeteccion"/> —un <c>centroId</c> que no esté en la lista
 /// enviada se descarta— y en que el resultado es una sugerencia que decide el Gestor CAE.

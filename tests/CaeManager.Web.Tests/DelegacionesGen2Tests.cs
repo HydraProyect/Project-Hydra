@@ -23,6 +23,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Delegaciones.Pages;
@@ -143,35 +144,22 @@ public partial class DelegacionesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Cuentas que el almacén conoce, con su rol de Identity (el del Tenant de origen); el
+    /// Cuentas que la lectura por lote conoce, con su rol de Identity (el del Tenant de origen); el
     /// resto no se encuentra («Persona no encontrada»).
     /// </summary>
     private readonly Dictionary<Guid, (ApplicationUser Usuario, string Rol)> _cuentasConocidas = [];
 
-    private sealed class AlmacenUsuarios(IReadOnlyDictionary<Guid, (ApplicationUser Usuario, string Rol)> conocidas)
-        : IUserStore<ApplicationUser>, IUserRoleStore<ApplicationUser>
+    /// <summary>Cada lote que la página pidió: sin N+1, una sola lectura con todas las personas.</summary>
+    private readonly List<IReadOnlyCollection<Guid>> _lotesPedidos = [];
+
+    private sealed class LecturaFalsa(IReadOnlyDictionary<Guid, (ApplicationUser Usuario, string Rol)> cuentas, List<IReadOnlyCollection<Guid>> lotes) : ILecturaPersonasDelegadas
     {
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(Guid.TryParse(userId, out var id) && conocidas.TryGetValue(id, out var cuenta) ? cuenta.Usuario : null);
-
-        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken) =>
-            Task.FromResult<IList<string>>(conocidas.TryGetValue(user.Id, out var cuenta) ? [cuenta.Rol] : []);
-
-        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<bool> IsInRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
-        private static Exception NoPrevisto() => new NotSupportedException();
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
+        public Task<IReadOnlyList<PersonaDelegadaVisible>> ObtenerAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+        {
+            lotes.Add(ids);
+            return Task.FromResult<IReadOnlyList<PersonaDelegadaVisible>>(ids.Where(cuentas.ContainsKey)
+                .Select(id => new PersonaDelegadaVisible(id, cuentas[id].Usuario.NombreCompleto, cuentas[id].Usuario.Email, cuentas[id].Rol)).ToList());
+        }
     }
 
     private sealed class Seleccion(Guid? tenantIdSeleccionado) : IClienteActivoSeleccionado
@@ -230,8 +218,8 @@ public partial class DelegacionesGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
+        Services.AddScoped<ILecturaPersonasDelegadas>(_ => new LecturaFalsa(_cuentasConocidas, _lotesPedidos));
         Services.AddScoped<IClienteActivoSeleccionado>(_ => new Seleccion(_tenantSeleccionado));
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(_cuentasConocidas), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddLocalization();
         // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.
         JSInterop.SetupModule("./js/clipboard.js");
@@ -294,7 +282,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         consultas.Should().HaveCount(2, "control positivo: se observaron ambas consultas de carga");
         consultas.Select(x => x.Token.CanBeCanceled).Should().OnlyContain(x => x, "ambas consultas reciben el token del ciclo");
         var token = consultas[0].Token;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue();
     }
 
@@ -353,7 +341,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             await campoNombre.BlurAsync(new FocusEventArgs());
             creacion = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
             mediador.Enviadas.Where(x => x.Peticion is CrearClienteDeleganteCommand).Should().ContainSingle("control positivo: el comando de creación quedó pendiente");
-            await DisposeComponentsAsync();
+            await CierreDePagina.CerrarPaginaAsync(cut, this);
             mediador.EsperaCreacion.SetResult();
             await creacion.WaitAsync(TimeSpan.FromSeconds(10));
             toasts.Mensajes.Should().BeEmpty("un componente desechado no puede publicar el éxito de la creación");
@@ -433,9 +421,8 @@ public partial class DelegacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
-    /// exige ser del equipo del Operador CAE externo con alcance sobre el Tenant propietario
-    /// (decisiones del 2026-10-26) — NO basta
-    /// con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
+    /// exige ser Administrador del Tenant propietario, desde su casa (decisión SEG-7 del
+    /// 2026-10-31) — NO basta con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
     /// que la aserción exija lo contrario y el test caiga.
     /// </summary>
     [Fact]

@@ -5,8 +5,8 @@ namespace CaeManager.Domain.Documentos;
 /// <summary>
 /// Aviso pendiente generado por la verificación IA de un Documento (ver
 /// VerificacionIaDocumentoService, TipoDocumento.VerificacionIaActiva): la
-/// IA leyó el archivo real y encontró confianza baja, o una discrepancia
-/// entre lo detectado y lo que introdujo el usuario. Nunca corrige nada
+/// IA leyó el archivo real y dejó una propuesta para confirmación humana,
+/// con los motivos de revisión detectados. Nunca corrige nada
 /// por sí sola — solo deja constancia de qué revisar; un Gestor CAE decide
 /// si hace falta actuar y marca la revisión como hecha.
 /// </summary>

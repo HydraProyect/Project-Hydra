@@ -369,6 +369,9 @@
   <data name="ErrorContenido" xml:space="preserve">
     <value>El contingut real no coincideix amb l'extensió — s'ha omès.</value>
   </data>
+  <data name="ErrorConversionOcupada" xml:space="preserve">
+    <value>La conversió de Word està ocupada amb altres fitxers. Torna-ho a provar d'aquí a un minut o puja el fitxer ja convertit a PDF.</value>
+  </data>
   <data name="ErrorConvertir" xml:space="preserve">
     <value>No hem pogut convertir aquest fitxer a PDF.</value>
   </data>
@@ -377,6 +380,9 @@
   </data>
   <data name="ErrorZipIlegible" xml:space="preserve">
     <value>No hem pogut obrir aquest fitxer .zip.</value>
+  </data>
+  <data name="ErrorSinEspacio" xml:space="preserve">
+    <value>No hi cap en aquesta pujada: confirma o descarta els fitxers pendents i torna'l a deixar anar.</value>
   </data>
   <data name="ErrorSubida" xml:space="preserve">
     <value>No hem pogut pujar aquest fitxer.</value>

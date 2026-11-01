@@ -11,6 +11,10 @@
         dando el motivo (MotivoGuardarDeshabilitado, que sale como title): un botón mudo no se puede escribir (D-02, D-06);
       - el aviso del formulario: AvisoFormulario fuera del cuerpo desplazable, siempre a la vista (D-20), y tras un
         «Guardar» que deja errores por campo el foco va al primero (D-20);
+      - un aviso fijo que no es un error de guardado (AvisoFijo, aditivo): un conflicto de versión, p. ej. Va en la misma
+        ranura que el aviso, fuera del cuerpo desplazable; con MensajeError se muestran los dos, el error primero. Por sí
+        solo NO bloquea el cierre por fuera ni marca el botón de guardar como fallido (GuardadoFallido): si debe, la pantalla
+        lo declara con HayErroresDeCampo. Sin AvisoFijo el marcado es el de siempre;
       - no cerrar con un clic fuera ni con Escape mientras se guarda o hay un error visible;
       - el cuerpo que aún no está listo (v2, T7): Cargando pinta el esqueleto y SinContenido el estado vacío o de error EN LUGAR
         de los campos, y «Guardar» queda deshabilitado con su motivo mientras tanto: un primario habilitado sobre un cuerpo
@@ -33,7 +37,7 @@
 <Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Subtitulo="@Subtitulo" BajoTitulo="BajoTitulo" Ancho="Ancho" HayCambios="HayCambios"
         Pasos="@(EnPasos ? PasosRender : null)"
         CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
-        Aviso="@(string.IsNullOrWhiteSpace(MensajeError) ? null : AvisoRender)">
+        Aviso="@(string.IsNullOrWhiteSpace(MensajeError) && AvisoFijo is null ? null : AvisoRender)">
     <ChildContent>
         <div class="formulario-drawer-contenido" @ref="_contenido">
             @if (Cargando)
@@ -123,6 +127,9 @@
 
     /// <summary>Error del formulario entero (servidor, regla de negocio, empleador sin elegir): se ve fuera del cuerpo desplazable.</summary>
     [Parameter] public string? MensajeError { get; set; }
+
+    /// <summary>Aviso adicional fijo; si hay error se muestran ambos, primero el error. No bloquea el cierre por fuera.</summary>
+    [Parameter] public RenderFragment? AvisoFijo { get; set; }
 
     /// <summary>Hay errores por campo (los pintan los propios campos): bloquea el cierre por fuera y recibe el foco tras guardar.</summary>
     [Parameter] public bool HayErroresDeCampo { get; set; }
@@ -338,10 +345,14 @@
 
     private RenderFragment AvisoRender => builder =>
     {
-        builder.OpenComponent<AvisoFormulario>(0);
-        builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), MensajeError);
-        builder.AddAttribute(2, nameof(AvisoFormulario.EnPanel), true);
-        builder.CloseComponent();
+        if (!string.IsNullOrWhiteSpace(MensajeError))
+        {
+            builder.OpenComponent<AvisoFormulario>(0);
+            builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), MensajeError);
+            builder.AddAttribute(2, nameof(AvisoFormulario.EnPanel), true);
+            builder.CloseComponent();
+        }
+        builder.AddContent(3, AvisoFijo);
     };
 
     private Task CancelarAsync() => _drawer is { } drawer ? drawer.SolicitarCierreAsync() : VisibleChanged.InvokeAsync(false);

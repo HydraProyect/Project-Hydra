@@ -36,15 +36,11 @@ public class LineaWhatsAppConfiguration : IEntityTypeConfiguration<LineaWhatsApp
             .OnDelete(DeleteBehavior.Cascade);
 
         // Colección de solo lectura respaldada por campo privado — mismo
-        // patrón que Conversacion.Mensajes. FK de una sola columna, NO
-        // compuesta con TenantId a diferencia de la de arriba hacia
-        // ConexionIntegracion: esta SÍ es una navegación de colección real
-        // (HasMany), y componerla choca con TenantSelladoInterceptor exactamente
-        // igual que Conversacion→Mensajes — ver ese comentario (auditoría
-        // Módulo 8, intentado y revertido 2026-08-30).
+        // patrón que Conversacion.Mensajes, también con FK compuesta.
         builder.HasMany(l => l.MiembrosPool)
             .WithOne()
-            .HasForeignKey(m => m.LineaWhatsAppId)
+            .HasForeignKey(m => new { m.TenantId, m.LineaWhatsAppId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(l => l.MiembrosPool).UsePropertyAccessMode(PropertyAccessMode.Field);
 

@@ -63,6 +63,12 @@
   <data name="EntradaMiFirmaResumen" xml:space="preserve">
     <value>Firma y sello personales</value>
   </data>
+  <data name="EntradaApiOrganizacionNombre" xml:space="preserve">
+    <value>Claves de mi organización</value>
+  </data>
+  <data name="EntradaApiOrganizacionResumen" xml:space="preserve">
+    <value>Ver y revocar</value>
+  </data>
   <data name="EntradaApiNombre" xml:space="preserve">
     <value>Claves API</value>
   </data>
@@ -653,5 +659,44 @@
   </data>
   <data name="OrganizacionSoloLecturaSoporte" xml:space="preserve">
     <value>Esta sesión de soporte no tiene la capacidad de aprovisionamiento sobre esta organización: solo puedes ver el logo.</value>
+  </data>
+  <data name="SeguridadTitulo" xml:space="preserve">
+    <value>Seguridad de acceso</value>
+  </data>
+  <data name="SeguridadEntradilla" xml:space="preserve">
+    <value>Estos ajustes se aplican a todas las cuentas de esta organización.</value>
+  </data>
+  <data name="SeguridadMinutosEtiqueta" xml:space="preserve">
+    <value>Cerrar la sesión tras … minutos sin actividad</value>
+  </data>
+  <data name="SeguridadMinutosUnidad" xml:space="preserve">
+    <value>minutos</value>
+  </data>
+  <data name="SeguridadMinutosRango" xml:space="preserve">
+    <value>Entre 5 y 480 minutos.</value>
+  </data>
+  <data name="SeguridadMinutosAyuda" xml:space="preserve">
+    <value>Cuenta como actividad hacer clic, escribir o enviar un formulario; leer sin tocar nada no cuenta. La sesión termina siempre a las 12 horas.</value>
+  </data>
+  <data name="SeguridadDosPasosEtiqueta" xml:space="preserve">
+    <value>Exigir verificación en dos pasos a todos los perfiles</value>
+  </data>
+  <data name="SeguridadDosPasosFija" xml:space="preserve">
+    <value>El Administrador de la organización la tiene siempre obligatoria.</value>
+  </data>
+  <data name="SeguridadDosPasosAviso" xml:space="preserve">
+    <value>Las cuentas que aún no la tengan deberán configurarla en su próxima pantalla.</value>
+  </data>
+  <data name="SeguridadGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="SeguridadGuardando" xml:space="preserve">
+    <value>Guardando…</value>
+  </data>
+  <data name="ToastSeguridadActualizada" xml:space="preserve">
+    <value>Seguridad de acceso actualizada.</value>
+  </data>
+  <data name="SeguridadNoCargada" xml:space="preserve">
+    <value>No pudimos cargar el ajuste de seguridad de acceso. Recarga la página para verlo.</value>
   </data>
 </root>

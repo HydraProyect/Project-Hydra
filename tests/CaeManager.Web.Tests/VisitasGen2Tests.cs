@@ -562,7 +562,7 @@ public partial class VisitasGen2Tests : BunitContext
 
         await Interruptor(cut, "Planta Zaragoza").ChangeAsync(new ChangeEventArgs { Value = true });
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new MarcarNotificadoClienteCommand(zaragoza.Id, true));
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new MarcarNotificadoClienteCommand(zaragoza.Id, true, zaragoza.Version));
         cut.WaitForAssertion(() => Interruptor(cut, "Planta Zaragoza").HasAttribute("checked").Should().BeTrue(
             "la fila se pinta con lo que devuelve la recarga, no con el clic"));
         Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeFalse();
@@ -810,7 +810,7 @@ public partial class VisitasGen2Tests : BunitContext
         await Interruptor(cut, "Centro Norte").ChangeAsync(new ChangeEventArgs { Value = false });
 
         mediator.Comandos.Should().ContainSingle().Which.Should()
-            .Be(new MarcarNotificadoClienteCommand(norte.Id, false));
+            .Be(new MarcarNotificadoClienteCommand(norte.Id, false, norte.Version));
     }
 
     [Fact]
@@ -869,7 +869,7 @@ public partial class VisitasGen2Tests : BunitContext
         await cut.FindAll(".drawer-pie button").First(b => b.TextContent.Contains("Marcar como notificada"))
             .ClickAsync(new MouseEventArgs());
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new MarcarNotificadoClienteCommand(norte.Id, true));
+        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new MarcarNotificadoClienteCommand(norte.Id, true, norte.Version));
         cut.WaitForAssertion(() => Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeTrue(
             "tras el comando la lista se recarga y la fila ve el cambio"));
         cut.Find(".drawer-pie").TextContent.Should().Contain("Quitar la marca de notificada");

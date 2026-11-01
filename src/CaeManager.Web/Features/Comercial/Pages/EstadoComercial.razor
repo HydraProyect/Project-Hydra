@@ -11,6 +11,7 @@
    La página no es el enforcement: ese vive en el comando. Que alguien vea
    la ruta y el comando la rechace no es una vulnerabilidad. *@
 @using CaeManager.Domain.Tenants
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosModal
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -114,9 +115,10 @@
     }
 </div>
 
-<Modal @ref="_modalVincular" HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
-       Titulo="Vincular suscripción de Stripe" CerrarAlHacerClicFuera="!_vinculando">
-    <ChildContent>
+<ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
+                 Titulo="Vincular suscripción de Stripe" Guardando="_vinculando" MensajeError="@_errorVincular"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_stripeSubscriptionId) ? TextosModal["ModalSuscripcionObligatoria"].Value : null)"
+                 TextoCancelar="Cancelar" TextoGuardar="Vincular" OnGuardar="PedirConfirmacionVincular">
         @if (_tenantAVincular is not null)
         {
             <div class="estado-comercial-formulario">
@@ -133,18 +135,9 @@
                     <p class="estado-comercial-pista">Empieza por sub_ y se puede copiar del panel de Stripe.</p>
                 </div>
 
-                @if (_errorVincular is not null)
-                {
-                    <div class="alerta-formulario" role="alert">@_errorVincular</div>
-                }
             </div>
         }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_vinculando" OnClick="() => _modalVincular?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_vinculando" OnClick="PedirConfirmacionVincular">Vincular</Boton>
-    </Pie>
-</Modal>
+</ModalFormulario>
 
 <DialogoConfirmacion Visible="ConfirmacionVincularVisible" VisibleChanged="CerrarConfirmacionVincular"
                      Titulo="¿Vincular esta suscripción?"
@@ -160,7 +153,7 @@
                      EnProgreso="_actualizandoTenantId is not null"
                      OnConfirmar="ActualizarDesdeStripeAsync" />
 
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarVincularDescartando" />
+<AvisoCambiosSinGuardar HayCambios="() => ConfirmacionVincularVisible && HayCambiosSinGuardar" AlDescartar="CerrarVincularDescartando" />
 </LimiteDeErrores>
 
 @code {

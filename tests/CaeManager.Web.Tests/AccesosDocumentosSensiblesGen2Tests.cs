@@ -3,6 +3,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
@@ -14,7 +15,6 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -52,12 +52,18 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         public List<ObtenerAccesosDocumentosSensiblesQuery> Consultas { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
         public bool Fallar { get; set; }
+        public Dictionary<string, ApplicationUser> Usuarios { get; } = [];
 
         /// <summary>Si devuelve una tarea para la consulta, esa es la respuesta: permite retenerla y resolverla fuera de orden.</summary>
         public Func<ObtenerAccesosDocumentosSensiblesQuery, Task<ResultadoPaginado<AccesoDocumentoSensibleDto>>?>? Retener { get; set; }
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerNombreCuentaQuery nombre)
+                return (TResponse)(object?)(Usuarios.GetValueOrDefault(nombre.UsuarioId.ToString()) is { } usuario
+                    ? new NombreCuentaDto(usuario.NombreCompleto, usuario.Email)
+                    : null)!;
+
             if (request is not ObtenerAccesosDocumentosSensiblesQuery consulta)
                 throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
 
@@ -102,36 +108,14 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
-    private sealed class AlmacenUsuarios(Dictionary<string, ApplicationUser> usuarios) : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca usuarios por Id.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(usuarios.GetValueOrDefault(userId));
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
-    }
-
     private readonly MediatorAccesos _mediador = new();
-    private readonly Dictionary<string, ApplicationUser> _usuarios = [];
+    private Dictionary<string, ApplicationUser> _usuarios => _mediador.Usuarios;
 
     private void Registrar()
     {
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuarios(_usuarios), null!, null!, null!, null!, null!, null!, null!, null!));
     }
 
     private IRenderedComponent<AccesosDocumentosSensibles> Renderizar(bool integrada = false)
@@ -337,12 +321,13 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         _mediador.Almacen.AddRange(
         [
             Acceso(tipo: TipoAccesoDocumentoSensible.Apertura, ocurrido: Base, documentoId: documento),
-            Acceso(tipo: TipoAccesoDocumentoSensible.VersionAnterior, ocurrido: Base.AddMinutes(-1))
+            Acceso(tipo: TipoAccesoDocumentoSensible.VersionAnterior, ocurrido: Base.AddMinutes(-1)),
+            Acceso(tipo: TipoAccesoDocumentoSensible.EntregaExtension, ocurrido: Base.AddMinutes(-2))
         ]);
         var cut = Renderizar();
 
         var filas = Filas(cut);
-        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior"]);
+        filas.Select(f => Celda(f, 4)).Should().Equal(["Apertura", "Versión anterior", "Entrega a la extensión"]);
         Celda(filas[0], 2).Should().Be(documento.ToString());
         cut.FindAll(".accesos-sensibles-tabla tbody a, .accesos-sensibles-tabla tbody button")
             .Should().BeEmpty("es una pantalla de solo lectura");
@@ -464,13 +449,13 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         var respuesta = new TaskCompletionSource<ResultadoPaginado<AccesoDocumentoSensibleDto>>();
         _mediador.Retener = _ => respuesta.Task;
         Registrar();
-        Render<AccesosDocumentosSensibles>();
+        var cut = Render<AccesosDocumentosSensibles>();
 
         var token = _mediador.Tokens.Single();
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult(_mediador.Paginar(new ObtenerAccesosDocumentosSensiblesQuery()));

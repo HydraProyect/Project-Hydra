@@ -7,5 +7,27 @@
   <data name="Caducidad" xml:space="preserve"><value>Válida hasta</value></data>
   <data name="Motivo" xml:space="preserve"><value>Motivo de la emisión</value></data>
   <data name="Caducada" xml:space="preserve"><value>Caducada</value></data>
-  <data name="LimiteCaducidad" xml:space="preserve"><value>Elige hasta qué día vale la clave, desde hoy y como máximo dentro de 364 días. Vale todo ese día en hora peninsular, salvo que la revoques antes.</value></data>
+  <data name="LimiteCaducidad" xml:space="preserve"><value>Elige hasta qué día vale la clave, desde hoy y como máximo dentro de 364 días. Deja de valer antes si se cierra el acceso de soporte en que la generas, si se suspende la organización o si la revocas.</value></data>
+  <data name="OrganizacionTitulo" xml:space="preserve"><value>Claves de API de la organización</value></data>
+  <data name="OrganizacionDescripcion" xml:space="preserve"><value>Claves de la API pública emitidas para esta organización. Puedes revocar cualquiera. Una clave deja de valer si se cierra la ventana de soporte en que se emitió, si se desactiva la cuenta que la emitió o si se suspende la organización.</value></data>
+  <data name="OrganizacionSinAutoridadTitulo" xml:space="preserve"><value>Sin acceso a estas claves</value></data>
+  <data name="OrganizacionSinAutoridadDescripcion" xml:space="preserve"><value>Solo el Administrador de esta organización puede ver y revocar sus claves.</value></data>
+  <data name="OrganizacionVacioTitulo" xml:space="preserve"><value>Sin claves emitidas</value></data>
+  <data name="OrganizacionVacioDescripcion" xml:space="preserve"><value>Esta organización no tiene ninguna clave de la API pública.</value></data>
+  <data name="Nombre" xml:space="preserve"><value>Nombre</value></data>
+  <data name="Prefijo" xml:space="preserve"><value>Prefijo</value></data>
+  <data name="Creada" xml:space="preserve"><value>Creada</value></data>
+  <data name="UltimoUso" xml:space="preserve"><value>Último uso</value></data>
+  <data name="Estado" xml:space="preserve"><value>Estado</value></data>
+  <data name="Acciones" xml:space="preserve"><value>Acciones</value></data>
+  <data name="Nunca" xml:space="preserve"><value>Nunca</value></data>
+  <data name="Revocar" xml:space="preserve"><value>Revocar</value></data>
+  <data name="RevocarTitulo" xml:space="preserve"><value>Revocar la clave</value></data>
+  <data name="RevocarConfirmacion" xml:space="preserve"><value>Se revocará la clave «{0}». No se puede deshacer.</value></data>
+  <data name="Revocada" xml:space="preserve"><value>Revocada</value></data>
+  <data name="Activa" xml:space="preserve"><value>Activa</value></data>
+  <data name="Cortada" xml:space="preserve"><value>Sin efecto</value></data>
+  <data name="RevocadaAviso" xml:space="preserve"><value>Clave revocada.</value></data>
+  <data name="ErrorCarga" xml:space="preserve"><value>No pudimos cargar las claves de esta organización.</value></data>
+  <data name="ErrorRevocar" xml:space="preserve"><value>No pudimos revocar la clave. Vuelve a cargar la lista para ver en qué estado quedó.</value></data>
 </root>

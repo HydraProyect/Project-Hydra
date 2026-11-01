@@ -10,6 +10,7 @@ using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Importacion;
@@ -22,7 +23,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using PaginaImportacion = CaeManager.Web.Features.Importacion.Pages.Importacion;
 
@@ -125,6 +125,12 @@ public partial class ImportarClientesGen2Tests : BunitContext
         /// <summary>Si devuelve una tarea, la petición espera a que el test la complete y después se responde como siempre.</summary>
         public Func<object, Task?> Retener { get; set; } = _ => null;
 
+        /// <summary>
+        /// Lo retenido ignora el token, como un handler que no observa la cancelación a tiempo: la respuesta llega tarde
+        /// aunque el análisis se haya descartado, y es la guarda de versión la que impide pintarla.
+        /// </summary>
+        public bool RetenerIgnoraCancelacion { get; set; }
+
         public PlanImportacionDto Plan<TConsulta>(
             string contenido, IEnumerable<ClienteCentroImportadoDto> clientesCentros,
             IEnumerable<ItemImportacionDto>? omitidos = null, IEnumerable<EmpresaImportadaDto>? empresas = null)
@@ -174,7 +180,10 @@ public partial class ImportarClientesGen2Tests : BunitContext
                 return await ConCancelacion(respuesta, token);
 
             if (Retener(peticion) is { } puerta)
-                await ConCancelacion(Esperar(puerta), token);
+            {
+                if (RetenerIgnoraCancelacion) await puerta;
+                else await ConCancelacion(Esperar(puerta), token);
+            }
 
             return ResponderAhora(peticion);
 
@@ -270,33 +279,20 @@ public partial class ImportarClientesGen2Tests : BunitContext
     /// eliminado)». Nada más se consulta. Registra cada búsqueda y puede
     /// retenerla hasta que el test la suelte.
     /// </summary>
-    private sealed class AlmacenUsuariosVacio : IUserStore<ApplicationUser>
+    private sealed class BuscadorDeUsuariosVacio
     {
-        private static Exception NoDeberia() => new NotSupportedException("La página solo busca usuarios por id.");
-
         public List<string> Buscados { get; } = [];
 
         /// <summary>Si devuelve una tarea, la búsqueda espera a que el test la complete.</summary>
         public Func<string, Task?> Retener { get; set; } = _ => null;
 
-        public async Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken)
+        public async Task<object?> BuscarAsync(string userId)
         {
             Buscados.Add(userId);
             if (Retener(userId) is { } puerta)
                 await puerta;
             return null;
         }
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoDeberia();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoDeberia();
-        public void Dispose() { }
     }
 
     /// <summary>
@@ -323,26 +319,40 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private readonly AlmacenUsuariosVacio _usuarios = new();
+    private readonly BuscadorDeUsuariosVacio _usuarios = new();
+
+    private sealed class PlantillaCaeConfiguradaFalsa(bool configurada) : IPlantillaCaeCompletaConfigurada
+    {
+        public bool EstaConfigurada => configurada;
+    }
+
+    /// <summary>Por defecto la plantilla CAE completa está configurada; un test puede apagarla en <c>antesDeRenderizar</c>.</summary>
+    private bool _plantillaCaeConfigurada = true;
 
     /// <param name="antesDeRenderizar">Corre con los servicios ya registrados y la página aún sin inicializar.</param>
     private (IRenderedComponent<PaginaImportacion> Cut, MediadorControlado Mediador) Renderizar(
         Escenario escenario, string url = "importacion?plantilla=clientes", Action? antesDeRenderizar = null)
     {
-        var mediador = new MediadorControlado(escenario.Responder);
+        var mediador = new MediadorControlado((peticion, token) => peticion is ObtenerNombreCuentaQuery nombre
+            ? _usuarios.BuscarAsync(nombre.UsuarioId.ToString())
+            : escenario.Responder(peticion, token));
+        Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
+        Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(TenantImportacion));
         Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddSingleton<IPlantillaCaeCompletaConfigurada>(_ => new PlantillaCaeConfiguradaFalsa(_plantillaCaeConfigurada));
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddLogging();
         Services.AddLocalization();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            _usuarios, null!, null!, null!, null!, null!, null!, null!, null!));
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         antesDeRenderizar?.Invoke();
 
         var cut = Render<PaginaImportacion>();
         return (cut, mediador);
     }
+
+    private static readonly Guid TenantImportacion = Guid.NewGuid();
 
     private static readonly string[] OrdenPlantillas = ["cae", "clientes", "combinada", "documentos"];
 
@@ -774,7 +784,9 @@ public partial class ImportarClientesGen2Tests : BunitContext
     [Fact]
     public async Task Un_analisis_anterior_que_termina_tarde_no_pinta_su_plan()
     {
-        var escenario = new Escenario();
+        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
@@ -782,11 +794,14 @@ public partial class ImportarClientesGen2Tests : BunitContext
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery q
             ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "A" ? puertaA.Task : puertaB.Task
             : null;
-        var (cut, _) = Renderizar(escenario);
+        var (cut, mediador) = Renderizar(escenario);
         await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "a.xlsx", "A");
         var subidaB = Subir(cut, "b.xlsx", "B");
+        cut.WaitForAssertion(() => mediador.Recibidas
+            .Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery && r.Token.IsCancellationRequested,
+                "el análisis descartado recibe la cancelación aunque la ignore"));
         puertaB.SetResult();
         await subidaB;
         cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
@@ -801,9 +816,37 @@ public partial class ImportarClientesGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Reemplazar_el_archivo_cancela_el_analisis_anterior_y_le_devuelve_su_hueco()
+    {
+        // Configuración por defecto (un análisis por Tenant): si el descartado retuviera su hueco, b.xlsx esperaría
+        // hasta agotar la espera y acabaría en «demasiados análisis».
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
+        var puertaA = Puerta();
+        escenario.Retener = p => p is AnalizarPlantillaClientesQuery q && Encoding.UTF8.GetString(q.ContenidoArchivo) == "A"
+            ? puertaA.Task
+            : null;
+        var (cut, mediador) = Renderizar(escenario);
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
+
+        var subidaA = Subir(cut, "a.xlsx", "A");
+        cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
+        await Subir(cut, "b.xlsx", "B");
+        await subidaA;
+
+        cut.WaitForAssertion(() => Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse());
+        cut.FindAll(".alerta-formulario").Should().BeEmpty();
+        mediador.Recibidas.First(r => r.Peticion is AnalizarPlantillaClientesQuery).Token.IsCancellationRequested
+            .Should().BeTrue("el análisis de a.xlsx se cancela al reemplazar el archivo");
+        puertaA.Task.IsCompleted.Should().BeFalse("el hueco se devolvió por la cancelación, no porque a.xlsx terminara");
+    }
+
+    [Fact]
     public async Task Un_analisis_anterior_que_falla_tarde_no_pinta_su_error_ni_para_el_progreso_del_vigente()
     {
-        var escenario = new Escenario();
+        // Dos análisis a la vez del mismo Tenant: el descartado ignora la cancelación y conserva su hueco hasta terminar.
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
+        var escenario = new Escenario { RetenerIgnoraCancelacion = true };
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();
         var puertaB = Puerta();
@@ -899,7 +942,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         // La instancia se toma ANTES: tras desechar ya no hay componente que pedir.
         var instancia = cut.Instance;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Campo<bool>(instancia, "_desechada").Should().BeTrue("el Dispose de la página se ejecutó");
         token.IsCancellationRequested.Should().BeTrue("el análisis en vuelo se cancela al retirar la página");
@@ -923,7 +966,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Campo<bool>(instancia, "_cargandoHistorial").Should().BeTrue("la página espera la puerta para buscar al usuario");
         _usuarios.Buscados.Should().BeEmpty();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mediador.Recibidas.Single(r => r.Peticion is ObtenerHistorialImportacionesQuery).Token.IsCancellationRequested
             .Should().BeTrue("la consulta del historial llevaba el token del ciclo de la página");
@@ -946,8 +989,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         _usuarios.Buscados.Should().ContainSingle("la primera búsqueda está retenida");
 
-        await DisposeComponentsAsync();
-        // UserManager.FindByIdAsync no admite token: la búsqueda en curso termina.
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
+        // El doble no atiende al token: la búsqueda en curso termina y lo que se corta es la siguiente.
         primeraBusqueda.SetResult();
         await PasarPorLaPuertaDeDatos();
 
@@ -982,7 +1025,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         var enviadasAntes = mediador.Recibidas.Count;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         // Mismo patrón que las respuestas tardías: se marshalla al Dispatcher
         // del renderer en vez de invocar directamente, para que una excepción
@@ -1015,7 +1058,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         var enviadasAntes = mediador.Recibidas.Count;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => InvocarAsync(instancia, "CargarHistorialAsync"));
         await llegaTarde.Should().NotThrowAsync(

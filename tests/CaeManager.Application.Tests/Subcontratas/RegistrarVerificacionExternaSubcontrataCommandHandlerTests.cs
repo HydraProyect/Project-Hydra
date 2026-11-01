@@ -278,6 +278,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
 
     [Theory]
     [InlineData("evidencia.pdf", "MZejecutable", false)]
+    [InlineData("evidencia.pdf", "", false)]
     [InlineData("evidencia.pdf", "%PDF-1.7\n%%EOF", true)]
     [InlineData("evidencia.exe", "%PDF-1.7\n%%EOF", false)]
     [InlineData("evidencia.docx", "PK\u0003\u0004resto", false)]

@@ -37,19 +37,15 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // --- Crear Cliente ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // .First: el tenant del Administrador (Consultora, ver ADR-004 § 5.1)
-        // no tiene datos operativos propios, así que la lista arranca vacía
-        // y "+ Nuevo Cliente empresarial" aparece tanto en la cabecera como en el
-        // EstadoVacio — cualquiera de los dos abre el mismo drawer.
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_901));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Crear Empresa asociada al Cliente ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_902));
 
@@ -59,7 +55,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         await drawer.GetByPlaceholder("Buscar…").FillAsync(razonSocialCliente);
         await drawer.GetByLabel(razonSocialCliente).CheckAsync();
 
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
 
         // Desde Centro 360 § 0.10 el Drawer de "Editar" se retiró de las
         // listas (la edición pasó al Context Workspace) — el de aquí es
@@ -69,7 +65,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Crear Trabajador de esa Empresa ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).ClickAsync();
 
         // El radio "Empresa" ya viene marcado por defecto (ver Trabajadores.razor.cs, _tipoEmpleador = "empresa").
         // GetByLabel("Empresa") es ambiguo dentro del drawer: además del
@@ -103,7 +99,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
 
         // --- Subir Documento del Trabajador con vencimiento a 10 días (Urgente: umbral rojo = 15 días) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByText("+ Nuevo documento").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
         // Ámbito por defecto ya es Trabajador (ver Documentos.razor.cs, _ambitoAplicacion).
         // El selector de Trabajador es un CampoBuscarSelect (input + datalist,
@@ -112,6 +108,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
         await page.WaitForTimeoutAsync(500);
 
         // "Formación PRL de convenio" no tiene vencimiento automático (ver
@@ -133,7 +130,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
             await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
         finally
@@ -150,7 +147,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // grid recibe la búsqueda ya filtrada.
         await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
 
-        var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var fila = page.GetByRole(AriaRole.Row, new() { Name = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que

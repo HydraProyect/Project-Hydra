@@ -7,6 +7,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Reportes.Commands.RegistrarHistorialInforme;
 using CaeManager.Application.Reportes.Queries;
 using CaeManager.Application.Reportes.Queries.ObtenerHistorialInformes;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
@@ -15,7 +16,6 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using ReportesPagina = CaeManager.Web.Features.Reportes.Pages.Reportes;
 
@@ -93,26 +93,6 @@ public class ReportesGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
-    private sealed class AlmacenUsuarios(Dictionary<string, ApplicationUser> usuarios) : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca usuarios por Id.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(usuarios.GetValueOrDefault(userId));
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
-    }
-
     private sealed record FilaDe(Guid ClienteId, Guid CentroId, FilaReporteDocumentoDto Fila);
 
     /// <summary>
@@ -165,6 +145,7 @@ public class ReportesGen2Tests : BunitContext
                 GenerarInformeAsignacionesQuery q => AsignacionesSegun(q),
                 ObtenerHistorialInformesQuery q => HistorialConsulta is null ? Historial.ToList() : HistorialConsulta(q),
                 RegistrarHistorialInformeCommand c => Registrar(c),
+                ObtenerNombreCuentaQuery q => q.UsuarioId == UsuarioMarta ? new NombreCuentaDto("Marta Rodríguez", null) : null,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
             });
 
@@ -210,15 +191,9 @@ public class ReportesGen2Tests : BunitContext
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("es-ES");
 
         var mediador = new MediadorControlado(escenario.Responder);
-        var usuarios = new Dictionary<string, ApplicationUser>
-        {
-            [UsuarioMarta.ToString()] = new ApplicationUser { NombreCompleto = "Marta Rodríguez" }
-        };
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuarios(usuarios), null!, null!, null!, null!, null!, null!, null!, null!));
 
         // [SupplyParameterFromQuery]: se llega navegando, igual que en el producto.
         Navegacion.NavigateTo(ruta);

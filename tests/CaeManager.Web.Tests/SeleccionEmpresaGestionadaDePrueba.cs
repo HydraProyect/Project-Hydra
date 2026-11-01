@@ -15,3 +15,10 @@ public sealed class SeleccionEmpresaGestionadaDePrueba(Guid? tenantSeleccionado 
     public Guid? AsignacionOperacionIdSeleccionada => null;
     public Guid? SesionPrivilegiadaIdSeleccionada => null;
 }
+
+internal sealed class SeleccionPrivilegiadaDePrueba : IClienteActivoSeleccionado
+{
+    public Guid? TenantIdSeleccionado => null;
+    public Guid? AsignacionOperacionIdSeleccionada => null;
+    public Guid? SesionPrivilegiadaIdSeleccionada { get; set; } = Guid.NewGuid();
+}

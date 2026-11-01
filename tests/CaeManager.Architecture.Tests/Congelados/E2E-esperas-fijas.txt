@@ -4,27 +4,23 @@
 # Medida: 'fichero :: llamada = n' con n invocaciones en código (comentarios y cadenas no cuentan). Thread.Sleep también se mide: hoy no hay ninguno.
 # Reloj del servidor: espera a que venza el intervalo de revalidación del SecurityStamp de la colección AppCollectionBajoRuntime.
 tests/CaeManager.E2ETests/AccesoBajoRolRuntimeTests.cs :: Task.Delay = 1
-tests/CaeManager.E2ETests/AislamientoMultiTenantE2ETests.cs :: WaitForTimeoutAsync = 1
 # Cinco de las siete son la pausa de un bucle de sondeo con vencimiento (while … < vencimiento); las otras dos, sin clasificar.
-tests/CaeManager.E2ETests/Ayudas.cs :: Task.Delay = 7
-tests/CaeManager.E2ETests/ClientesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 3
+# La octava es reloj del servidor: SiguienteCodigoTotpAsync espera al siguiente paso TOTP de 30 s, porque un código aceptado no vuelve a valer (ASVS V2.8.4).
+tests/CaeManager.E2ETests/Ayudas.cs :: Task.Delay = 8
+# Reloj del servidor: ventana en que el circuito podía morir tras pintar la cola (4 s) e intervalo de la revalidación periódica del circuito (5 s); ninguna tiene señal observable.
 tests/CaeManager.E2ETests/CoordinadorCaeTenantBeneficiarioTests.cs :: WaitForTimeoutAsync = 2
 # Reloj del servidor: varios ciclos de 2 s de la revalidación rápida (AppCollectionRevalidacionRapida) tras desactivar al usuario.
 tests/CaeManager.E2ETests/DesactivarCortaLaSesionTests.cs :: Task.Delay = 1
-tests/CaeManager.E2ETests/DocumentosTablaDesplazableE2ETests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/EmpresasCabeceraAlineadaE2ETests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/EmpresasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 1
 # Pausa de un bucle de sondeo con límite de 15 s (relectura de un valor en base de datos).
 tests/CaeManager.E2ETests/EncargoAdministracionE2ETests.cs :: Task.Delay = 1
+# Pausa de un bucle de sondeo con vencimiento (20 mediciones de geometría hasta que dos seguidas coinciden).
 tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/FilaSeRefrescaTrasEditarEnPanelE2ETests.cs :: WaitForTimeoutAsync = 2
+# Reloj del servidor: debounce de 150 ms de CampoBuscarSelect antes de resolver el Id elegido; el DOM no lo expone hasta guardar.
 tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/FlujoCriticoTests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
-tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1
+# Reloj del servidor: intervalo de la revalidación periódica del circuito (6 s) sin señal observable de cada ciclo.
 tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
-tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 # Pausa del bucle que espera a que la aplicación recién arrancada acepte conexiones.
 tests/CaeManager.E2ETests/WebAppFixture.cs :: Task.Delay = 1

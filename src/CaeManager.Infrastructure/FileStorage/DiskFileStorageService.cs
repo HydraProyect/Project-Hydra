@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
@@ -30,8 +31,9 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// El fichero se lee entero en memoria para cifrar/descifrar — no hay API de
 /// streaming en <see cref="IDataProtector"/> y los documentos de este
 /// sistema están acotados a 10 MB (ver <c>LimitesArchivoSubido.TamanoMaximoBytes</c>
-/// en Application), así que el coste es aceptable y coherente con
-/// cómo el resto del código ya maneja archivos subidos.
+/// en Application). Las lecturas y escrituras descuentan del presupuesto de memoria
+/// del proceso (<see cref="IPresupuestoMemoriaDocumentos"/>); la lectura conserva
+/// su reserva hasta que se cierra el flujo devuelto.
 ///
 /// <b>Formato versionado (v2)</b>: todo archivo nuevo se escribe con la marca
 /// <c>CAEBLOBv2</c> delante del payload protegido. Existe para deshacer una
@@ -55,15 +57,20 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// criptografía: un archivo de otro tenant no se descifra ni aunque se
 /// consiguiera leer su ruta.
 ///
-/// <b>Compatibilidad con lo ya escrito</b>: un fichero SIN la marca conserva
-/// exactamente el comportamiento anterior —se intenta descifrar con el
-/// protector global y, si falla, se sirve tal cual como legado en claro—,
-/// así que este cambio no rompe ninguna descarga existente y no exige
-/// migración. La ambigüedad queda acotada a lo escrito antes de esta versión
-/// y se extingue sola: un archivo legado pasa a v2 la próxima vez que algo lo
-/// reescriba. Cada lectura por esa vía deja un aviso, de modo que "¿quedan
-/// blobs legados?" pasa a ser una pregunta medible en vez de una suposición
-/// — que es lo que hace falta antes de poder retirar la rama legada del todo.
+/// <b>Compatibilidad con lo ya escrito</b>: un fichero SIN la marca se intenta
+/// descifrar con el protector global v1 (autenticado). Si eso falla, por
+/// defecto se sigue sirviendo tal cual como legado en claro —así ninguna
+/// descarga existente se rompe ni hace falta migración—, pero ya no en
+/// silencio: emite una alerta operativa crítica, igual que un v2 que no supera
+/// la verificación, porque un fichero así no se distingue de uno manipulado en
+/// el volumen ni de un v1 cuya clave se perdió. Con
+/// <see cref="DiskFileStorageServiceOptions.RechazarLegadoEnClaro"/> a
+/// <c>true</c>, esa rama falla cerrado. La ambigüedad queda acotada a lo
+/// escrito antes de esta versión: un archivo legado pasa a v2 la próxima vez
+/// que algo lo reescriba. Cada lectura legada deja un aviso, de modo que
+/// "¿quedan blobs legados?" pasa a ser una pregunta medible en vez de una
+/// suposición — que es lo que hace falta antes de poder retirar la rama
+/// legada del todo.
 /// </summary>
 public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInbound
 {
@@ -81,6 +88,8 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
     private readonly IDataProtector _protectorLegado;
     private readonly IAlertaOperativa _alertaOperativa;
     private readonly ILogger<DiskFileStorageService> _logger;
+    private readonly bool _rechazarLegadoEnClaro;
+    private readonly IPresupuestoMemoriaDocumentos _presupuestoMemoria;
 
     public DiskFileStorageService(
         IOptions<DiskFileStorageServiceOptions> opciones,
@@ -88,14 +97,17 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         ITenantActual tenantActual,
         IDataProtectionProvider dataProtectionProvider,
         IAlertaOperativa alertaOperativa,
-        ILogger<DiskFileStorageService> logger)
+        ILogger<DiskFileStorageService> logger,
+        IPresupuestoMemoriaDocumentos presupuestoMemoria)
     {
+        _presupuestoMemoria = presupuestoMemoria;
         _dataProtectionProvider = dataProtectionProvider;
         _alertaOperativa = alertaOperativa;
         _logger = logger;
         _rutaBase = Path.IsPathRooted(opciones.Value.Ruta)
             ? opciones.Value.Ruta
             : Path.Combine(entorno.ContentRootPath, opciones.Value.Ruta);
+        _rechazarLegadoEnClaro = opciones.Value.RechazarLegadoEnClaro;
         _tenantActual = tenantActual;
         // Nombre sin cambiar: renombrarlo rompería el descifrado de los
         // archivos ya escritos con él (mismo criterio que los protectores de
@@ -121,16 +133,36 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         var identificador = $"{carpetaTenant}/{nombreArchivo}";
         var rutaCompleta = Path.Combine(_rutaBase, carpetaTenant, nombreArchivo);
 
-        using var memoria = new MemoryStream();
-        await contenido.CopyToAsync(memoria, cancellationToken);
-        var cifrado = ProtectorDeTenant(tenantId).Protect(memoria.ToArray());
+        // Seguimiento de S-C-3 (ASVS 4.0.3 V12.1.1): el claro y el cifrado viven a
+        // la vez en memoria —Data Protection no cifra en flujo y el formato v2 es
+        // marca + un único payload protegido—, así que ambos se reservan del
+        // presupuesto del proceso antes de existir y se devuelven al terminar, con
+        // éxito o sin él.
+        var reservas = new List<ReservaMemoriaDocumentos>(capacity: 4);
+        byte[]? claro = null;
+        byte[] cifrado;
+        try
+        {
+            claro = await LeerEnteroReservandoAsync(contenido, reservas, cancellationToken);
+            cifrado = ProtectorDeTenant(tenantId).Protect(claro);
+        }
+        catch
+        {
+            LiberarReservas(reservas);
+            throw;
+        }
+        finally
+        {
+            // Contenido de un documento de Trabajador: no se deja en el montículo
+            // más tiempo del necesario.
+            if (claro is not null)
+                CryptographicOperations.ZeroMemory(claro);
+        }
 
         // Marca delante: lo que hace que al leerlo se sepa que está cifrado
-        // sin tener que deducirlo de que el descifrado funcione.
-        var salida = new byte[MarcaFormatoV2.Length + cifrado.Length];
-        MarcaFormatoV2.CopyTo(salida, 0);
-        cifrado.CopyTo(salida, MarcaFormatoV2.Length);
-
+        // sin tener que deducirlo de que el descifrado funcione. Se escriben una
+        // detrás de otra en el temporal, sin componerlas antes en un tercer
+        // búfer: el fichero resultante es byte a byte el mismo.
         // Escritura atómica: se escribe primero a un temporal en la MISMA
         // carpeta (mismo volumen, condición para que el rename sea atómico
         // en vez de una copia) y solo se publica con File.Move al terminar.
@@ -148,7 +180,12 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         var rutaTemporal = $"{rutaCompleta}.tmp-{Guid.NewGuid():N}";
         try
         {
-            await File.WriteAllBytesAsync(rutaTemporal, salida, cancellationToken);
+            await using (var salida = new FileStream(rutaTemporal, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 81920, FileOptions.Asynchronous))
+            {
+                await salida.WriteAsync(MarcaFormatoV2, cancellationToken);
+                await salida.WriteAsync(cifrado, cancellationToken);
+            }
             File.Move(rutaTemporal, rutaCompleta);
         }
         catch
@@ -161,8 +198,104 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
             catch { /* best-effort: el temporal queda huérfano, no se enmascara el error original */ }
             throw;
         }
+        finally
+        {
+            LiberarReservas(reservas);
+        }
 
         return identificador;
+    }
+
+    /// <summary>
+    /// Lo que Data Protection añade al claro (cabecera, IV, relleno y MAC): unos
+    /// cientos de bytes; 4 KiB lo cubre con holgura.
+    /// </summary>
+    private const int MargenCifradoBytes = 4 * 1024;
+
+    /// <summary>
+    /// Veces el claro que un guardado tiene a la vez en memoria: el claro, el cifrado
+    /// y la copia intermedia que el cifrador gestionado de Data Protection (el de
+    /// Linux) puede hacer antes de componer su salida. Es una cota, no una medida.
+    /// </summary>
+    private const int FactorClaroYCifrado = 3;
+
+    /// <summary>Paso de reserva cuando el origen no dice cuánto trae.</summary>
+    private const int TrozoReservaBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Lee el origen entero a un único <c>byte[]</c> del tamaño exacto, después de
+    /// reservar lo que van a ocupar el claro y el cifrado que saldrá de él. Si el
+    /// origen sabe su longitud, las dos cosas se reservan juntas y de una vez —una
+    /// sola reserva, para que dos escrituras a medias no se bloqueen la una a la
+    /// otra esperando la segunda— y se lee sin copias intermedias. Si no, se lee
+    /// por trozos a un <see cref="MemoryStream"/> reservando cada crecimiento antes
+    /// de que ocurra; con mucha concurrencia eso puede acabar en rechazo al vencer
+    /// la espera, nunca en un bloqueo indefinido.
+    /// </summary>
+    private async Task<byte[]> LeerEnteroReservandoAsync(
+        Stream contenido, List<ReservaMemoriaDocumentos> reservas, CancellationToken cancellationToken)
+    {
+        if (contenido.CanSeek)
+        {
+            var restante = Math.Max(0, contenido.Length - contenido.Position);
+            if (restante > Array.MaxLength)
+                throw new InvalidOperationException("El archivo es demasiado grande para guardarse.");
+
+            reservas.Add(await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * restante + MargenCifradoBytes, cancellationToken));
+            var exacto = new byte[restante];
+            await contenido.ReadExactlyAsync(exacto, cancellationToken);
+
+            // Un flujo que se puede posicionar dice su longitud de verdad; si aun así
+            // trajera más, se sigue por el camino general en vez de truncar el documento.
+            var sonda = new byte[1];
+            if (await contenido.ReadAsync(sonda, cancellationToken) == 0)
+                return exacto;
+
+            using var resto = new MemoryStream();
+            resto.Write(exacto);
+            resto.Write(sonda);
+            CryptographicOperations.ZeroMemory(exacto);
+            return await LeerPorTrozosReservandoAsync(contenido, resto, reservas, cancellationToken);
+        }
+
+        using var memoria = new MemoryStream();
+        return await LeerPorTrozosReservandoAsync(contenido, memoria, reservas, cancellationToken);
+    }
+
+    private async Task<byte[]> LeerPorTrozosReservandoAsync(
+        Stream contenido, MemoryStream memoria, List<ReservaMemoriaDocumentos> reservas, CancellationToken cancellationToken)
+    {
+        long reservadoBufer = reservas.Sum(r => r.Bytes);
+        var trozo = new byte[81920];
+        int leidos;
+        while ((leidos = await contenido.ReadAsync(trozo, cancellationToken)) > 0)
+        {
+            // El MemoryStream crece al doble: lo que se reserva sigue ese crecimiento.
+            while (memoria.Length + leidos > reservadoBufer)
+            {
+                var ampliacion = Math.Max(TrozoReservaBytes, reservadoBufer);
+                reservas.Add(await _presupuestoMemoria.ReservarAsync(ampliacion, cancellationToken));
+                reservadoBufer += ampliacion;
+            }
+
+            memoria.Write(trozo, 0, leidos);
+        }
+
+        CryptographicOperations.ZeroMemory(trozo);
+        // La copia del tamaño exacto convive un momento con el búfer del MemoryStream,
+        // y después con el cifrado: las dos, en una sola reserva.
+        reservas.Add(await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * memoria.Length + MargenCifradoBytes, cancellationToken));
+        var exacto = memoria.ToArray();
+        if (memoria.TryGetBuffer(out var bufer))
+            CryptographicOperations.ZeroMemory(bufer.AsSpan());
+        return exacto;
+    }
+
+    private static void LiberarReservas(List<ReservaMemoriaDocumentos> reservas)
+    {
+        foreach (var reserva in reservas)
+            reserva.Dispose();
+        reservas.Clear();
     }
 
     public async Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)
@@ -178,11 +311,9 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         // él no hay ruta que resolver, así que este es el único punto donde la
         // ausencia significa "no existe" y no un descifrado a ciegas.
         if (rutaCompleta is null || _tenantActual.TenantId is not { } tenantId || !File.Exists(rutaCompleta))
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+            throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
-
-        return new MemoryStream(Descifrar(bytesDisco, identificador, tenantId), writable: false);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantId, cancellationToken);
     }
 
     /// <summary>
@@ -202,11 +333,64 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
 
         var rutaCompleta = ResolverRutaSegura(identificador, tenantPropietarioId);
         if (rutaCompleta is null || !File.Exists(rutaCompleta))
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+            throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
-        var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
+        return await AbrirReservandoAsync(rutaCompleta, identificador, tenantPropietarioId, cancellationToken);
+    }
 
-        return new MemoryStream(Descifrar(bytesDisco, identificador, tenantPropietarioId), writable: false);
+    /// <summary>
+    /// Reserva el pico de la lectura (disco, copias del descifrado y claro: el mismo factor que el
+    /// guardado) antes de abrir el fichero, para no retener su handle mientras espera hueco, y lo
+    /// lee con la longitud medida antes de reservar: si el fichero cambiara entre medias, el
+    /// descifrado falla cerrado. Tras descifrar, la reserva baja a lo que de verdad retiene el
+    /// flujo mientras se sirve —el claro—, para que una descarga lenta no bloquee el pico entero.
+    /// </summary>
+    private async Task<Stream> AbrirReservandoAsync(string ruta, string identificador, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var longitud = new FileInfo(ruta).Length;
+        if (longitud > Array.MaxLength)
+            throw new InvalidOperationException("El archivo es demasiado grande para abrirse.");
+
+        var reserva = await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * longitud + MargenCifradoBytes, cancellationToken);
+        try
+        {
+            var bytes = new byte[longitud];
+            await using (var archivo = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.Asynchronous))
+                await archivo.ReadExactlyAsync(bytes, cancellationToken);
+
+            var claro = Descifrar(bytes, identificador, tenantId);
+            reserva.ReducirA(claro.LongLength + MargenCifradoBytes);
+            return new FlujoConReserva(claro, reserva);
+        }
+        catch
+        {
+            reserva.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// El claro descifrado, de solo lectura, con la reserva que lo cubre: la devuelve al cerrarse,
+    /// una sola vez aunque se cierre por <see cref="Stream.Dispose()"/> y por
+    /// <see cref="Stream.DisposeAsync"/> (<see cref="ReservaMemoriaDocumentos.Dispose"/> es idempotente).
+    /// El finalizador es solo la red: un llamador que olvidara cerrar el flujo dejaría el presupuesto
+    /// del proceso mermado para siempre; cerrado, <see cref="Stream.Close"/> lo suprime.
+    /// </summary>
+    private sealed class FlujoConReserva(byte[] contenido, ReservaMemoriaDocumentos reserva) : MemoryStream(contenido, writable: false)
+    {
+        ~FlujoConReserva() => reserva.Dispose();
+
+        protected override void Dispose(bool disposing)
+        {
+            try { base.Dispose(disposing); }
+            finally { reserva.Dispose(); }
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            try { await base.DisposeAsync(); }
+            finally { reserva.Dispose(); }
+        }
     }
 
     public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
@@ -265,18 +449,19 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
                 // fuera legítimo, que es exactamente lo que el cifrado existe
                 // para impedir.
                 _alertaOperativa.Emitir(
-                    $"Un archivo cifrado no supera la verificación de integridad ({identificador}). " +
-                    "Puede ser manipulación, corrupción o pérdida del material de claves de Data Protection.",
+                    $"Un archivo cifrado del Tenant propietario {tenantId:N} no supera la verificación de integridad. " +
+                    "Puede ser manipulación, corrupción o pérdida del material de claves de Data Protection; la huella está en el aviso del registro.",
                     NivelAlertaOperativa.Critica);
+                _logger.LogWarning(
+                    "Un archivo cifrado del Tenant propietario {TenantPropietarioId} no supera la verificación de integridad. Huella del archivo: {HuellaArchivo}.",
+                    tenantId.ToString("N"), HuellaArchivo(identificador));
 
                 throw new InvalidDataException(
                     "El archivo no supera la verificación de integridad y no se puede servir.", ex);
             }
         }
 
-        // Sin marca: escrito antes del formato v2. Comportamiento anterior
-        // intacto, incluida la ambigüedad — es la única forma de no romper lo
-        // que ya está en disco. Ver el comentario de clase.
+        // Sin marca: escrito antes del formato v2. Ver el comentario de clase.
         //
         // AMBAS salidas de aquí dejan constancia, y son dos poblaciones
         // distintas de archivo, no una:
@@ -286,33 +471,74 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         //     formato v2;
         //   · en claro, anterior al cifrado en reposo.
         //
-        // El aviso original solo cubría la segunda, que es la que NO existe en
-        // producción: el primer despliegue real fue el 2026-08-24, o sea
-        // posterior al cifrado v1. La población que sí puede haber allí se
-        // servía en silencio, de modo que un registro sin avisos se leía como
-        // "ya no queda nada legado" justo cuando quedaba todo. Retirar la rama
-        // con esa lectura dejaría ilegible cada documento subido antes del
-        // despliegue del formato v2. De ahí que se registren las dos.
+        // Por la cronología, la segunda no debería existir en producción (el
+        // primer despliegue real se fecha el 2026-08-24, posterior al cifrado
+        // v1), pero eso no está comprobado sobre el volumen. La primera sí
+        // puede haberla, y se servía en silencio, de modo que un registro sin
+        // avisos se leía como "ya no queda nada legado" justo cuando quedaba
+        // todo. Retirar la rama con esa lectura dejaría ilegible cada
+        // documento subido antes del despliegue del formato v2. De ahí que se
+        // registren las dos.
         try
         {
             var descifrado = _protectorLegado.Unprotect(bytesDisco);
 
             _logger.LogWarning(
-                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato ({Identificador}). " +
+                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}. " +
                 "Mientras existan, la rama legada no se puede retirar: hacerlo dejaría este archivo ilegible.",
-                identificador);
+                tenantId.ToString("N"), HuellaArchivo(identificador));
 
             return descifrado;
         }
-        catch (CryptographicException)
+        catch (CryptographicException ex)
         {
+            // Ni marca v2 ni payload v1 autenticado. Puede ser un legado en
+            // claro, pero también un fichero escrito por quien tenga acceso al
+            // volumen (ese contenido se entregaría como legítimo del Tenant
+            // propietario) o un v1 cuya clave ya no está en el llavero (se
+            // entregaría ciphertext como si fuera el documento). Las tres son
+            // para mirarlas ya, no mañana: alerta crítica, como la rama v2.
+            //
+            // La alerta solo nombra al Tenant propietario: ni contenido ni
+            // nombre de archivo, que en disco conserva la extensión que trajo
+            // el original y esa puede ser personal. El mensaje es el mismo
+            // para todos los archivos de un Tenant, así que una población
+            // legada agrupa en una incidencia por Tenant en vez de abrir una
+            // por archivo. El aviso del registro, a continuación, es el que
+            // lleva la huella para localizarlo en el volumen.
+            var mensajeAlerta =
+                $"{(_rechazarLegadoEnClaro ? "Se rechazó" : "Se sirvió en claro")} un archivo sin cifrar ni marca de formato " +
+                $"del Tenant propietario {tenantId:N}. Puede ser un legado en claro, manipulación del volumen de " +
+                "almacenamiento o pérdida de la clave del protector v1; la huella está en el aviso del registro.";
+            _alertaOperativa.Emitir(mensajeAlerta, NivelAlertaOperativa.Critica);
+
+            if (_rechazarLegadoEnClaro)
+            {
+                _logger.LogWarning(
+                    "Se rechazó un archivo sin cifrar ni marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}: " +
+                    "AlmacenamientoArchivos:RechazarLegadoEnClaro está activo.",
+                    tenantId.ToString("N"), HuellaArchivo(identificador));
+
+                throw new InvalidDataException(
+                    "El archivo no supera la verificación de integridad y no se puede servir.", ex);
+            }
+
             _logger.LogWarning(
-                "Se sirvió un archivo legado sin cifrar ni marca de formato ({Identificador}). " +
+                "Se sirvió un archivo legado sin cifrar ni marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}. " +
                 "Mientras existan, la rama legada no se puede retirar y un contenido manipulado no se distingue de uno antiguo.",
-                identificador);
+                tenantId.ToString("N"), HuellaArchivo(identificador));
 
             return bytesDisco;
         }
+    }
+
+    // SHA-256 de UTF-8("CaeManager.Archivos.Huella.v1:" + nombre en disco),
+    // primeros 12 hexadecimales en minúsculas. El Tenant delimita la búsqueda.
+    internal static string HuellaArchivo(string identificador)
+    {
+        var nombreEnDisco = Path.GetFileName(identificador.Split('/', 2)[1]);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("CaeManager.Archivos.Huella.v1:" + nombreEnDisco));
+        return Convert.ToHexStringLower(hash.AsSpan(0, 6));
     }
 
     private static bool EmpiezaConMarcaV2(byte[] contenido) =>

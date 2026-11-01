@@ -16,7 +16,10 @@ public class FirmaEnCampoDocumentoConfiguration : IEntityTypeConfiguration<Firma
         builder.Property(f => f.Ubicacion).HasMaxLength(FirmaEnCampoDocumento.LongitudMaximaUbicacion);
         builder.Property(f => f.HashSha256Pdf).IsRequired().HasMaxLength(FirmaEnCampoDocumento.LongitudHashSha256);
 
-        builder.HasOne<Documento>().WithMany().HasForeignKey(f => f.DocumentoId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Documento>().WithMany()
+            .HasForeignKey(f => new { f.TenantId, f.DocumentoId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
         // El acceso es siempre "las firmas en campo de este documento".
         builder.HasIndex(f => new { f.TenantId, f.DocumentoId });

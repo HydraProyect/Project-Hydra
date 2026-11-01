@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Visitas.Eventos;
@@ -48,7 +49,7 @@ public class CrearVisitaCommandValidator : AbstractValidator<CrearVisitaCommand>
 
 public class CrearVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICentrosQueryContext centrosContext, ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
     ISugerenciaVisitaCorreoRepository sugerenciaRepositorio, IComunicacionesQueryContext comunicacionesContext,
     IPaqueteDocumentalVisitaService paqueteDocumental, IEvaluadorExpedienteVisitaService evaluadorExpediente,
     ICurrentUserService currentUserService, IPublisher publisher, IUnitOfWork unitOfWork,
@@ -63,7 +64,7 @@ public class CrearVisitaCommandHandler(
         // de la Visita (decisión de producto, 2026-10-16), que luego puede cambiarse en Visita 360.
         var centro = await centrosContext.Centros
             .Where(c => c.Id == request.CentroId)
-            .Select(c => new { c.Contacto })
+            .Select(c => new { c.Contacto, c.EmpresaId })
             .FirstOrDefaultAsync(cancellationToken);
         if (centro is null)
             return CentroNoEncontrado();
@@ -76,23 +77,17 @@ public class CrearVisitaCommandHandler(
         // Visita que luego ni siquiera veía. Variante «ParaGestion»: crear es
         // operar, no leer. Se responde igual que "no existe" para no revelar qué
         // hay fuera del alcance.
-        //
-        // Los Trabajadores NO se acotan a la cartera: el formulario los ofrece de
-        // la base general del Tenant (AlcanceSelectorTrabajadores.BaseGeneralDelTenant)
-        // porque un Trabajador de una Subcontrata puede acudir a Centros de
-        // distintos Gestores CAE; acotarlos es una decisión de producto aún no
-        // tomada. RLS y el filtro de Tenant siguen aplicando a su existencia.
         if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return CentroNoEncontrado();
 
+        // Los Trabajadores se acotan a la Empresa gestionada activa y al alcance de datos de quien
+        // crea (decisión del propietario, 2026-10-28, S-B-1): su documentación viaja al Centro en el
+        // paquete documental. Ver TrabajadoresAdmisiblesEnVisita.
         var trabajadorIds = request.TrabajadorIds.Distinct().ToList();
-        // Se cargan enteros: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
-        var trabajadores = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, cancellationToken);
-
-        if (trabajadores.Count != trabajadorIds.Count)
-            return Result.Fallo<Guid>(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
+        var trabajadores = await TrabajadoresAdmisiblesEnVisita.CargarAsync(
+            trabajadorIds, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken);
+        if (trabajadores is null)
+            return Result.Fallo<Guid>(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
 
         // Asignación de Cartera de la sugerencia: solo cuenta si quien mira alcanza la Conversación
         // del mensaje que la originó, el mismo criterio con el que ObtenerConversacionPorIdQuery la

@@ -82,6 +82,7 @@ public partial class Centro360Gen2Tests : BunitContext
         public Dictionary<Guid, CentroListaDto> Resumenes { get; } = [];
         public Dictionary<Guid, List<VisitaResumenDto>> Visitas { get; } = [];
         public Dictionary<Guid, List<CanalGestionResumenDto>> Canales { get; } = [];
+        public bool FallarCanales { get; set; }
         /// <summary>Credencial por (Centro, Canal): responde solo al par exacto, como la consulta real.</summary>
         public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
         public Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> Asignaciones { get; } = [];
@@ -137,6 +138,7 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerProximaVisitaPorCentroQuery q => q.CentroIds.ToDictionary(
                 c => c,
                 c => (IReadOnlyList<VisitaResumenDto>)(Visitas.GetValueOrDefault(c) ?? [])),
+            ObtenerCanalesGestionDeCentroQuery when FallarCanales => throw new InvalidOperationException("Fallo simulado de los canales."),
             ObtenerCanalesGestionDeCentroQuery q => Canales.GetValueOrDefault(q.CentroId) ?? [],
             ObtenerCredencialCanalGestionQuery q => Credenciales.GetValueOrDefault((q.CentroId, q.CanalId)),
             ObtenerLoteReclamacionQuery q => q.CentroId is { } id && PorReclamar.TryGetValue(id, out var docs)
@@ -301,6 +303,22 @@ public partial class Centro360Gen2Tests : BunitContext
     /// anillo de cumplimiento (un 0 % o un 100 % afirmaría algo que no se
     /// mide) y con la explicación en lugar de los canales de gestión.
     /// </summary>
+    /// <summary>
+    /// M-06: un fallo al leer los canales de gestión dejaba la tarjeta vacía, igual que un Centro sin
+    /// canales. El usuario recibe un aviso de error.
+    /// </summary>
+    [Fact]
+    public void Si_los_canales_de_gestion_fallan_avisa_al_usuario()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso { FallarCanales = true });
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+
+        Renderizar(id);
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Tono == TonoToast.Error);
+    }
+
     [Fact]
     public void Las_pestanas_disponibles_respetan_el_orden_de_la_maqueta_y_cuentan_Trabajadores_distintos()
     {
@@ -1368,7 +1386,7 @@ public partial class Centro360Gen2Tests : BunitContext
             "el recorrido tiene que haber pasado por todas las consultas que lanza la pantalla, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested,
             "retirada la página no queda ninguna consulta suya viva");
@@ -1401,7 +1419,7 @@ public partial class Centro360Gen2Tests : BunitContext
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token de la página, no CancellationToken.None");
         token.Register(() => visitas.TrySetCanceled(token));
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         ((int)campoGeneracion.GetValue(instancia)!).Should().BeGreaterThan(generacionAntes,
             "DisposeComponentsAsync tiene que haber llamado al Dispose de la página");
@@ -1474,9 +1492,10 @@ public partial class Centro360Gen2Tests : BunitContext
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
 
-        // Sin await: el comando está retenido.
-        var primero = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-        var segundo = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        // Sin await: el comando está retenido. Se busca por su clase y no por su texto: mientras guarda, el botón del kit
+        // (BotonConEspera) cambia su rótulo.
+        var primero = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
+        var segundo = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle();
 
@@ -1646,7 +1665,7 @@ public partial class Centro360Gen2Tests : BunitContext
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
         // Sin await: el comando de A queda retenido.
-        var enA = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var enA = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         cut.Render(p => p
             .Add(x => x.CentroId, b)
@@ -1658,13 +1677,13 @@ public partial class Centro360Gen2Tests : BunitContext
 
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
-        var enB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var enB = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         // Ahora termina la de A, con la de B todavía en vuelo.
         await cut.InvokeAsync(bajaDeA.SetResult);
         await enA;
 
-        var otroEnB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var otroEnB = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>()
             .Count(c => c.Ids.Contains(deB.AsignacionId)).Should().Be(1,

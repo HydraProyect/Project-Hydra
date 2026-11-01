@@ -46,6 +46,21 @@ public class SesionPrivilegiadaSinRolDeNegocioMiddlewareTests
     }
 
     [Fact]
+    public async Task Una_peticion_de_la_extension_ya_resuelta_no_lee_la_cookie()
+    {
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: null, sesionPrivilegiadaId: Guid.NewGuid());
+        var contexto = ContextoCon(token, Roles.GestorCae);
+        ContextoExtension.Marcar(contexto);
+
+        await EjecutarAsync(contexto, protector);
+
+        contexto.User.IsInRole(Roles.GestorCae).Should().BeTrue(
+            "con token, la identidad es la del token y la cookie no decide nada, ni para bien ni para mal");
+    }
+
+    [Fact]
     public async Task Sin_cookie_de_seleccion_el_rol_se_conserva_intacto()
     {
         // El caso del 100 % de los usuarios de hoy: cero cambio de

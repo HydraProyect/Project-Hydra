@@ -27,6 +27,9 @@ public class DetectorEstadoMaterializadoTests
     /// </summary>
     private static readonly HashSet<string> NoEntran = new(StringComparer.Ordinal)
     {
+        // Registro de llamadas a plataformas CAE de terceros: el cálculo no lo lee.
+        "CaeManager.Domain.Integraciones.UsoConexionPlataformaCae",
+
         // Ninguna la leen los servicios del cálculo (RecalculoEstadoMaterializadoService, CalculoEstadoCentroService,
         // EvaluacionDeAccesoPorCentroService, CalculoEstadoDocumentalService): auditoría, autorizaciones de lectura,
         // comunicaciones, contactos, contratos de acceso, firma, revisión y caché de IA, credenciales y accesos a
@@ -179,6 +182,7 @@ public class DetectorEstadoMaterializadoTests
             "PilotoOutboundSeeder.cs",       // siembra (en el arranque y en el modo CLI, dentro del ámbito «sin recálculo», que encola sus Tenants al cerrar)
             "RetiradaTenantDemoService.cs",  // tarifas, filtros y órdenes de cajas de otro Tenant; el Tenant se retira entero
             "AvatarDeCuentasIdentity.cs",    // avatar de la cuenta de Identity
+            "RegistroSesionesUsuario.cs",    // revocación de sesiones de cookie (SesionesUsuario): idempotente con «RevocadaEnUtc IS NULL»; no es entrada del cálculo
         };
 
         var fuera = FicherosDeSrc()

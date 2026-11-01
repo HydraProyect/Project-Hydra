@@ -107,6 +107,47 @@ public partial class ImportarClientesGen2Tests
     private static IReadOnlyList<string> Badges(IRenderedComponent<PaginaImportacion> cut) =>
         cut.FindAll(".badges-resumen-plan .badge").Select(Texto).ToList();
 
+    // ---------------------------------------------------------------- M-43: plantilla CAE completa sin configurar
+
+    [Fact]
+    public async Task Sin_configurar_la_plantilla_CAE_completa_avisa_y_no_analiza_el_archivo()
+    {
+        _plantillaCaeConfigurada = false;
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarImportacionExcelQuery>("cae", [Fila("Obra Norte")]);
+        var (cut, mediador) = Renderizar(escenario, url: "importacion");
+
+        await Pulsar(cut, "Continuar con Importación CAE completa");
+
+        cut.Find("[data-testid=aviso-plantilla-cae-sin-configurar]").TextContent.Should().Contain("hojas de Trabajadores");
+        await Subir(cut, "cae.xlsx", "cae");
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("no tiene configuradas las hojas de Trabajadores");
+        mediador.Enviados.OfType<AnalizarImportacionExcelQuery>().Should().BeEmpty("sin configuración no se lee ni un archivo");
+    }
+
+    [Fact]
+    public async Task Con_la_plantilla_CAE_completa_configurada_no_hay_aviso_y_se_analiza()
+    {
+        var escenario = new Escenario();
+        escenario.Plan<AnalizarImportacionExcelQuery>("cae", [Fila("Obra Norte")]);
+        var (cut, mediador) = Renderizar(escenario, url: "importacion");
+
+        await Pulsar(cut, "Continuar con Importación CAE completa");
+        await Subir(cut, "cae.xlsx", "cae");
+
+        cut.FindAll("[data-testid=aviso-plantilla-cae-sin-configurar]").Should().BeEmpty();
+        mediador.Enviados.OfType<AnalizarImportacionExcelQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Sin_configurar_la_CAE_completa_las_otras_plantillas_no_se_bloquean()
+    {
+        _plantillaCaeConfigurada = false;
+        var (cut, _) = Renderizar(new Escenario(), url: "importacion?plantilla=clientes");
+
+        cut.FindAll("[data-testid=aviso-plantilla-cae-sin-configurar]").Should().BeEmpty();
+    }
+
     // ---------------------------------------------------------------- Importar datos: paso 1
 
     [Theory]

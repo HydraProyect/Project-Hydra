@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
+using FluentValidation;
 using MediatR;
 
 namespace CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
@@ -10,8 +11,23 @@ namespace CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 /// formulario — se marca directamente desde el listado, sin abrir el
 /// drawer de edición, para no interrumpir el flujo de repasar varias
 /// visitas seguidas.
+/// <para>
+/// Lleva la versión de la Visita que se vio en pantalla (mismo contrato que
+/// <c>MarcarDocumentacionGestionadaCommand</c>): si otra persona la modificó entretanto
+/// —la cambió de fechas, la canceló y la reactivó, quitó la marca que este Gestor CAE
+/// creía poner—, no se pisa lo que no se vio. <see cref="Guid.Empty"/> significa «sin
+/// comprobación», como en el resto de agregados que migran.
+/// </para>
 /// </summary>
-public record MarcarNotificadoClienteCommand(Guid Id, bool Notificado) : ICommand;
+public record MarcarNotificadoClienteCommand(Guid Id, bool Notificado, Guid Version = default) : ICommand;
+
+public class MarcarNotificadoClienteCommandValidator : AbstractValidator<MarcarNotificadoClienteCommand>
+{
+    public MarcarNotificadoClienteCommandValidator()
+    {
+        RuleFor(c => c.Id).NotEmpty();
+    }
+}
 
 public class MarcarNotificadoClienteCommandHandler(IVisitaRepository repositorio, IUnitOfWork unitOfWork, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<MarcarNotificadoClienteCommand, Result>
@@ -28,6 +44,9 @@ public class MarcarNotificadoClienteCommandHandler(IVisitaRepository repositorio
         // FS-11: una Visita cancelada no se modifica; primero se reactiva.
         if (visita.EstaCancelada)
             return Result.Fallo(Error.Crear("Visita.Cancelada", "Esta visita está cancelada. Reactívala antes de modificarla."));
+
+        if (ConcurrenciaOptimista.Verificar(visita, request.Version, "esta visita") is { } conflicto)
+            return Result.Fallo(conflicto);
 
         visita.MarcarNotificadoCliente(request.Notificado);
         await unitOfWork.SaveChangesAsync(cancellationToken);

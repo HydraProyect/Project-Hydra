@@ -18,8 +18,14 @@ public class AlertaCriticaConversacionConfiguration : IEntityTypeConfiguration<A
             .HasDatabaseName("IX_AlertasCriticasConversacion_TenantId_ConversacionId_Pendiente");
         // Relaciones declaradas para que EF inserte la Conversación y el Mensaje antes que la alerta en la
         // misma ingesta; la FK compuesta con TenantId sigue en la migración.
-        builder.HasOne<Conversacion>().WithMany().HasForeignKey(a => a.ConversacionId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<Mensaje>().WithMany().HasForeignKey(a => a.MensajeId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Conversacion>().WithMany()
+            .HasForeignKey(a => new { a.TenantId, a.ConversacionId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Mensaje>().WithMany()
+            .HasForeignKey(a => new { a.TenantId, a.MensajeId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
         // El filtro global de Tenant y el token IVersionable se aplican centralmente.
     }
 }

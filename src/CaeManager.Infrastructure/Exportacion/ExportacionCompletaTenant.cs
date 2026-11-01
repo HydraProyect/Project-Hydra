@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Exportacion;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,14 +16,14 @@ namespace CaeManager.Infrastructure.Exportacion;
 
 /// <summary>
 /// Exportación completa de los datos de UN Tenant propietario (devolución de datos al terminar el
-/// contrato, Términos y condiciones): un zip con un JSON por tipo de entidad del Tenant, sus
+/// contrato, Términos y condiciones): un zip cifrado con un JSON por tipo de entidad del Tenant, sus
 /// Usuarios sin secretos de Identity, los binarios de sus Documentos descifrados con el mismo
 /// almacén que usa la descarga y el manifiesto de <see cref="ArchivoExportacion"/>.
 ///
 /// <para>
 /// <b>Aislamiento.</b> Lee con el contexto inyectado —rol restringido, con RLS— y bajo
-/// <see cref="AmbitoTenantExplicito"/> fijado al Tenant pedido, así que el filtro global de EF y
-/// las políticas RLS acotan las dos al mismo Tenant. Antes de leer nada exige, contra PostgreSQL,
+/// <see cref="AmbitoTenantExplicito"/> fijado al Tenant pedido, así que la condición explícita de
+/// <see cref="ConsultaDeTenant{T}"/> y las políticas RLS acotan las dos al mismo Tenant. Antes de leer nada exige, contra PostgreSQL,
 /// que esa identidad no pueda saltarse RLS (<see cref="VerificacionIdentidadDeRuntime"/>): nunca
 /// corre con <c>FabricaContextoDeBootstrap</c>. Y cada fila leída se comprueba otra vez contra el
 /// Tenant pedido: una sola fila de otro Tenant aborta la exportación entera.
@@ -30,19 +31,38 @@ namespace CaeManager.Infrastructure.Exportacion;
 ///
 /// <para>
 /// <b>Autorización.</b> Solo se alcanza desde el modo de CLI <see cref="Argumento"/> (acceso
-/// operativo al servidor), y exige además nombrar a la cuenta que la pide, que tiene que ser un
-/// Administrador activo del propio Tenant propietario; quien ejecuta la CLI no está autenticado en
-/// la aplicación, así que ese solicitante consta como declarado y el actor como Desconocido. La
-/// exportación queda en la auditoría del Tenant antes de leer nada (si esa fila no se guarda, no
-/// se exporta nada) y otra vez al terminar, con los recuentos.
+/// operativo al servidor), y exige además nombrar a un Actor de Plataforma TALVEG: una cuenta activa
+/// de un Tenant de plataforma con una concesión AdminPlataforma vigente que alcance el Tenant
+/// propietario (ASVS 4.0.3 V4.1.3). Lo comprueba la función <c>app_actor_plataforma_que_exporta</c>,
+/// un contrato explícito sobre el plano de plataforma, sin ensanchar RLS. Quien ejecuta la CLI no se
+/// autentica en la aplicación, así que el Actor real consta como declarado en los datos de la fila.
+/// No hay Usuario simulado. Va en los datos y no en las columnas de autor, porque esas columnas
+/// afirman una identidad autenticada y abren la cuenta a la lectura bajo RLS del Tenant propietario
+/// (<c>cuentas_lectura</c>). La exportación queda en la auditoría del Tenant antes de leer nada (si
+/// esa fila no se guarda, no se exporta nada) y otra vez al terminar, con los recuentos.
+/// </para>
+///
+/// <para>
+/// <b>Contraseña.</b> Aleatoria por exportación, la genera la CLI y se muestra una sola vez en la
+/// consola. Nunca entra en la auditoría, ni en el manifiesto, ni en <see cref="Resultado"/>, ni en
+/// un registro (ASVS 4.0.3 V7.1.1), y nunca se acepta como argumento, que dejaría rastro en el
+/// historial. Se pasa al Tenant propietario por un canal distinto del enlace de descarga.
 /// </para>
 ///
 /// <para>
 /// <b>Qué no sale.</b> Ninguna columna cifrada en reposo (credenciales de portales, tokens de
 /// integraciones, clientState, payloads crudos de webhooks: todas las de conversor texto→texto),
 /// ni el hash de las claves de API, ni hashes de contraseña, sellos de seguridad o secretos TOTP
-/// de Identity (de los Usuarios solo se proyectan campos de perfil). Tampoco las filas con
-/// borrado lógico, que el filtro global oculta, ni los catálogos globales sin Tenant.
+/// de Identity (de los Usuarios solo se proyectan campos de perfil). Tampoco los catálogos
+/// globales sin Tenant; <c>ReclamacionesBuzonIntegracion</c> no lo es, aunque no herede de
+/// <see cref="EntidadConTenant"/>, y sale en su propio fichero.
+/// </para>
+///
+/// <para>
+/// <b>Papelera.</b> Las filas con borrado lógico salen mientras sigan en el servidor, cada una con
+/// su <c>EstaEliminado</c>, y sus binarios también. Por eso la lectura salta el filtro global de EF
+/// y repone el TenantId a mano (<see cref="ConsultaDeTenant{T}"/>): RLS y la comprobación fila a
+/// fila no cambian, y las columnas secretas siguen fuera también en esas filas.
 /// </para>
 /// </summary>
 public static class ExportacionCompletaTenant
@@ -51,11 +71,17 @@ public static class ExportacionCompletaTenant
     public const string ArgumentoSolicitante = "--solicitante";
     public const string ArgumentoDestino = "--destino";
 
+    /// <summary>Recuento del manifiesto: filas exportadas que están en la papelera.</summary>
+    public const string RecuentoEnPapelera = "FilasEnPapelera";
+
     /// <summary>Propiedades que nunca se exportan aunque no lleven conversor de cifrado.</summary>
     private static readonly HashSet<string> NombresSecretos = new(StringComparer.Ordinal)
     {
         "Contrasena", "HashClave", "RefreshToken", "AccessToken", "ClientState", "TokenAcceso", "PayloadCrudo",
         "PasswordHash", "SecurityStamp",
+        // SesionesUsuario sí se exporta (emisión y revocación de cada sesión de las cuentas del
+        // Tenant), pero no su identificador: es lo que hace valer una cookie.
+        "Sid",
     };
 
     /// <summary>
@@ -72,7 +98,6 @@ public static class ExportacionCompletaTenant
     {
         ["TareaAsistente, TurnoTareaAsistente, PasoTareaAsistente"] =
             "RLS las acota a la persona que las creó; la exportación corre sin sesión de usuario y no las ve.",
-        ["Filas con borrado lógico"] = "El filtro global de EF las oculta; solo se exportan los datos vigentes.",
         ["Asignaciones de Operación y de Cartera, encargos, solicitudes y propuestas de cartera"] =
             "No son filas del Tenant propietario sino relaciones con un Operador CAE externo (sin TenantId).",
         ["Aceptaciones de términos, preferencias de panel y tablas de Identity de claims, logins y tokens"] =
@@ -91,7 +116,7 @@ public static class ExportacionCompletaTenant
         typeof(ExportacionCompletaTenant).GetMethod(nameof(LeerConjunto), BindingFlags.NonPublic | BindingFlags.Static)!;
 
     public const string Uso =
-        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Administrador del Tenant> --destino <ruta.zip>.";
+        "Uso: --exportar-tenant <TenantId guid> --solicitante <correo de un Actor de Plataforma TALVEG con AdminPlataforma> --destino <ruta.zip>.";
 
     public sealed record Resultado(Guid TenantId, string NombreTenant, IReadOnlyDictionary<string, long> Recuentos, int DocumentosSinFichero);
 
@@ -103,6 +128,16 @@ public static class ExportacionCompletaTenant
             salida.WriteLine($"  {entidad}: {filas}");
         if (resultado.DocumentosSinFichero > 0)
             salida.WriteLine($"  Documentos sin fichero en el almacén: {resultado.DocumentosSinFichero} (en el manifiesto).");
+    }
+
+    /// <summary>
+    /// La única salida de la contraseña: va a la consola de quien ejecuta, nunca al registro. Solo se
+    /// llama con el zip ya completo.
+    /// </summary>
+    public static void InformarContrasena(string contrasena, TextWriter salida)
+    {
+        salida.WriteLine($"Contraseña del zip, se muestra solo esta vez: {contrasena}");
+        salida.WriteLine("Pásala al Tenant propietario por un canal distinto del enlace de descarga.");
     }
 
     /// <summary>Solo el tipo y el mensaje: la traza y los datos de la excepción no se imprimen.</summary>
@@ -132,7 +167,7 @@ public static class ExportacionCompletaTenant
 
     public static async Task<Resultado> ExportarAsync(
         CaeManagerDbContext contexto, IFileStorageService almacen, Guid tenantId, string correoSolicitante,
-        Stream destino, CancellationToken cancellationToken = default)
+        string contrasena, Stream destino, CancellationToken cancellationToken = default)
     {
         if (tenantId == Guid.Empty)
             throw new InvalidOperationException("El TenantId del Tenant propietario es obligatorio.");
@@ -151,21 +186,23 @@ public static class ExportacionCompletaTenant
         if (tenant.EsPlataforma)
             throw new InvalidOperationException("El Tenant de plataforma TALVEG no es un Tenant propietario exportable.");
 
-        var solicitanteId = await ExigirAdministradorActivoAsync(contexto, tenantId, correoSolicitante, cancellationToken);
+        var actorId = await ExigirActorDePlataformaAsync(contexto, tenantId, correoSolicitante, cancellationToken);
 
-        // Quien ejecuta la CLI no está autenticado en la aplicación: el actor queda Desconocido y el
-        // solicitante, como declarado. Esta fila se guarda antes de leer nada; la de cierre, al terminar.
+        // Quien ejecuta la CLI no se autentica en la aplicación: el Actor real consta como declarado.
+        // Esta fila se guarda antes de leer nada; la de cierre, al terminar.
         await AuditarAsync(contexto, tenantId, new
         {
             fase = "Iniciada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            solicitanteDeclaradoUsuarioId = solicitanteId,
+            actorRealDeclaradoUsuarioId = actorId,
+            usuarioSimuladoId = (Guid?)null,
         }, cancellationToken);
 
         var recuentos = new SortedDictionary<string, long>(StringComparer.Ordinal);
+        var enPapelera = 0L;
         int sinFichero;
-        using (var archivo = new ArchivoExportacion(destino, tenantId))
+        using (var archivo = new ArchivoExportacion(destino, tenantId, contrasena))
         {
             // Una sola foto de la base para todas las tablas: sin ella, una fila creada o borrada a mitad
             // dejaría claves foráneas que apuntan fuera del zip.
@@ -181,11 +218,13 @@ public static class ExportacionCompletaTenant
                     {
                         await using var escritor = new Utf8JsonWriter(salida);
                         escritor.WriteStartArray();
-                        await foreach (var fila in Leer(contexto, tipo.ClrType).WithCancellation(cancellationToken))
+                        await foreach (var fila in Leer(contexto, tipo.ClrType, tenantId).WithCancellation(cancellationToken))
                         {
                             GuardaTenantExportacion.Exigir(tenantId, ((EntidadConTenant)fila).TenantId, tipo.ClrType.Name);
                             EscribirEntidad(escritor, contexto.Model.FindEntityType(fila.GetType()) ?? tipo, fila);
                             filas++;
+                            if (fila is EntidadBase { EstaEliminado: true })
+                                enPapelera++;
                             if (escritor.BytesPending > 64 * 1024)
                                 await escritor.FlushAsync(cancellationToken);
                         }
@@ -195,11 +234,36 @@ public static class ExportacionCompletaTenant
                     recuentos[tipo.ClrType.Name] = filas;
                 }
 
+                archivo.RegistrarRecuento(RecuentoEnPapelera, enPapelera);
+                recuentos[RecuentoEnPapelera] = enPapelera;
+
+                // Lleva TenantPropietarioId y no hereda de EntidadConTenant: TiposExportables no la alcanza. Se lee
+                // igual, bajo la RLS del Tenant pedido y con la guarda fila a fila.
+                var reclamaciones = 0L;
+                await archivo.EscribirAsync("datos/ReclamacionBuzonIntegracion.json", async salida =>
+                {
+                    await using var escritor = new Utf8JsonWriter(salida);
+                    escritor.WriteStartArray();
+                    var tipo = contexto.Model.FindEntityType(typeof(CaeManager.Domain.Integraciones.ReclamacionBuzonIntegracion))!;
+                    await foreach (var reclamacion in contexto.ReclamacionesBuzonIntegracion.AsNoTracking()
+                        .Where(r => r.TenantPropietarioId == tenantId).AsAsyncEnumerable().WithCancellation(cancellationToken))
+                    {
+                        GuardaTenantExportacion.Exigir(tenantId, reclamacion.TenantPropietarioId, tipo.ClrType.Name);
+                        EscribirEntidad(escritor, tipo, reclamacion);
+                        reclamaciones++;
+                        if (escritor.BytesPending > 64 * 1024)
+                            await escritor.FlushAsync(cancellationToken);
+                    }
+                    escritor.WriteEndArray();
+                }, cancellationToken);
+                archivo.RegistrarRecuento("ReclamacionBuzonIntegracion", reclamaciones);
+                recuentos["ReclamacionBuzonIntegracion"] = reclamaciones;
+
                 var usuarios = await EscribirUsuariosAsync(contexto, archivo, tenantId, cancellationToken);
                 archivo.RegistrarRecuento("Usuario", usuarios);
                 recuentos["Usuario"] = usuarios;
 
-                sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, cancellationToken);
+                sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, tenantId, cancellationToken);
                 // Foto de solo lectura: se deshace siempre; las dos filas de auditoría van fuera de ella.
                 await foto.RollbackAsync(cancellationToken);
             }
@@ -214,7 +278,8 @@ public static class ExportacionCompletaTenant
             fase = "Completada",
             alcance = "ExportacionCompleta",
             via = Argumento,
-            solicitanteDeclaradoUsuarioId = solicitanteId,
+            actorRealDeclaradoUsuarioId = actorId,
+            usuarioSimuladoId = (Guid?)null,
             recuentos,
             documentosSinFichero = sinFichero,
         }, cancellationToken);
@@ -222,39 +287,36 @@ public static class ExportacionCompletaTenant
         return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
     }
 
+    /// <summary>
+    /// Sin autor en las columnas: el Actor es declarado, no autenticado. El tipo de actor queda
+    /// Desconocido, y la vía también, porque Normal diría que actuó el propio Tenant.
+    /// </summary>
     private static async Task AuditarAsync(CaeManagerDbContext contexto, Guid tenantId, object datos, CancellationToken cancellationToken)
     {
         contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
             "Tenant", tenantId, RegistroAuditoria.AccionExportacion, null, JsonSerializer.Serialize(datos),
-            usuarioId: null, TipoActorAuditoria.Desconocido));
+            usuarioId: null, TipoActorAuditoria.Desconocido, viaAcceso: TipoViaAccesoAuditoria.Desconocida));
         await contexto.SaveChangesAsync(cancellationToken);
         contexto.ChangeTracker.Clear();
     }
 
     /// <summary>
-    /// La cuenta que pide la exportación: del propio Tenant propietario (no de un Operador CAE ni de
-    /// TALVEG), con rol Administrador y no desactivada. Se lee ya bajo el ámbito del Tenant.
+    /// El Actor de Plataforma TALVEG que pide la exportación. La función de la base devuelve la cuenta
+    /// solo si es de un Tenant de plataforma, no está desactivada y tiene una concesión AdminPlataforma
+    /// vigente que alcanza este Tenant.
     /// </summary>
-    private static async Task<Guid> ExigirAdministradorActivoAsync(
+    private static async Task<Guid> ExigirActorDePlataformaAsync(
         CaeManagerDbContext contexto, Guid tenantId, string correo, CancellationToken cancellationToken)
     {
         var normalizado = correo.Trim().ToUpperInvariant();
-        var cuenta = await contexto.Users.AsNoTracking()
-            .Where(u => u.TenantId == tenantId && u.NormalizedEmail == normalizado)
-            .SingleOrDefaultAsync(cancellationToken);
+        var cuentas = await contexto.Database.SqlQuery<Guid>($"SELECT cuenta_id AS \"Value\" FROM app_actor_plataforma_que_exporta({normalizado}, {tenantId})").ToListAsync(cancellationToken);
 
-        var esAdministrador = cuenta is not null && await (
-            from ur in contexto.UserRoles.AsNoTracking()
-            join r in contexto.Roles.AsNoTracking() on ur.RoleId equals r.Id
-            where ur.UserId == cuenta.Id && r.Name == Roles.Administrador
-            select ur.UserId).AnyAsync(cancellationToken);
-
-        if (cuenta is null || !esAdministrador || cuenta.EstaDesactivada(DateTimeOffset.UtcNow))
+        if (cuentas is not [var cuentaId])
             throw new InvalidOperationException(
-                "La exportación solo la puede pedir un Administrador activo del propio Tenant propietario; " +
-                "esa cuenta no existe en el Tenant, no es Administrador o está desactivada.");
+                "La exportación solo la puede pedir un Actor de Plataforma TALVEG activo con concesión AdminPlataforma " +
+                "vigente sobre ese Tenant; esa cuenta no existe en la plataforma, no tiene la concesión o está desactivada.");
 
-        return cuenta.Id;
+        return cuentaId;
     }
 
     private static async Task<long> EscribirUsuariosAsync(
@@ -297,15 +359,15 @@ public static class ExportacionCompletaTenant
     }
 
     /// <summary>
-    /// El binario de cada Documento vivo con fichero, descifrado por el almacén con la clave del
+    /// El binario de cada Documento con fichero, también de los que están en la papelera, descifrado por el almacén con la clave del
     /// Tenant del ámbito. Primero se leen los pares (Id, clave) y después se abren los ficheros,
     /// para no abrir el almacén con un lector de la base aún abierto. Un fichero que ya no está
     /// queda en el manifiesto; cualquier otro fallo aborta la exportación.
     /// </summary>
     private static async Task<int> EscribirDocumentosAsync(
-        CaeManagerDbContext contexto, IFileStorageService almacen, ArchivoExportacion archivo, CancellationToken cancellationToken)
+        CaeManagerDbContext contexto, IFileStorageService almacen, ArchivoExportacion archivo, Guid tenantId, CancellationToken cancellationToken)
     {
-        var documentos = await contexto.Documentos.AsNoTracking()
+        var documentos = await ConsultaDeTenant<Documento>(contexto, tenantId)
             .Where(d => d.ArchivoUrl != null)
             .OrderBy(d => d.Id)
             .Select(d => new { d.Id, d.ArchivoUrl })
@@ -394,9 +456,16 @@ public static class ExportacionCompletaTenant
         escritor.WriteEndObject();
     }
 
-    private static IAsyncEnumerable<object> Leer(CaeManagerDbContext contexto, Type tipo) =>
-        (IAsyncEnumerable<object>)LeerConjuntoGenerico.MakeGenericMethod(tipo).Invoke(null, [contexto])!;
+    private static IAsyncEnumerable<object> Leer(CaeManagerDbContext contexto, Type tipo, Guid tenantId) =>
+        (IAsyncEnumerable<object>)LeerConjuntoGenerico.MakeGenericMethod(tipo).Invoke(null, [contexto, tenantId])!;
 
-    private static IAsyncEnumerable<object> LeerConjunto<T>(CaeManagerDbContext contexto) where T : class =>
-        contexto.Set<T>().AsNoTracking().AsAsyncEnumerable();
+    private static IAsyncEnumerable<object> LeerConjunto<T>(CaeManagerDbContext contexto, Guid tenantId) where T : EntidadConTenant =>
+        ConsultaDeTenant<T>(contexto, tenantId).AsAsyncEnumerable();
+
+    /// <summary>
+    /// Todas las filas del Tenant, las de la papelera incluidas. Saltar el filtro global quita también
+    /// su comparación del TenantId, y por eso se repone aquí.
+    /// </summary>
+    public static IQueryable<T> ConsultaDeTenant<T>(CaeManagerDbContext contexto, Guid tenantId) where T : EntidadConTenant =>
+        contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);
 }

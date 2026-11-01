@@ -1,7 +1,5 @@
 using CaeManager.Application.Common;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Encodings.Web;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Infrastructure.Identity;
@@ -31,22 +29,18 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 ///
 /// <para>
 /// Una clave solo autentica si, todo a la vez: no está revocada, no ha llegado a su
-/// <see cref="ClaveApi.CaducaEnUtc"/> y en su Tenant propietario existe una delegación de
-/// propósito Soporte desde la organización de origen de la cuenta que la emitió
-/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Al autenticar no se exige que esa
-/// delegación esté activa ni vigente: lo exige la emisión
-/// (<see cref="CriterioSoporteClaveApi.PuedeEmitir"/> en <c>GenerarClaveApiCommand</c>), y la
-/// ventana de <c>AbrirAccesoSoporteCommand</c> dura horas, así que exigirla aquí dejaría la
-/// clave en 401 fuera de ella. Hoy una delegación retirada y una con la ventana cerrada no se
-/// distinguen (las dos están inactivas y las dos dejan autenticar); distinguirlas para que
-/// retirar el soporte invalide sus claves queda como incremento aparte.
+/// <see cref="ClaveApi.CaducaEnUtc"/> y sigue respaldada
+/// (<see cref="IClaveApiRepository.ClaveSigueRespaldadaAsync"/>, OWASP ASVS 4.0.3 V4.1.3 y V4.1.5):
+/// su Tenant propietario no está suspendido, la cuenta emisora no se ha eliminado ni desactivado y
+/// sigue abierta la ventana de Soporte TALVEG en que se emitió
+/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>).
 /// </para>
 ///
 /// <para>
-/// Cuenta emisora: si se elimina, la clave deja de autenticar, porque
-/// <c>app_tenant_de_cuenta</c> devuelve null y no hay origen con el que buscar la delegación.
-/// Si solo se desactiva o se bloquea, la clave sigue autenticando hasta su caducidad o su
-/// revocación: aquí no se comprueba el estado de la cuenta.
+/// Lo que corta para siempre: cerrarse la ventana, a mano o por expiración, desactivar la cuenta
+/// emisora y la suspensión operativa del Tenant. Reabrir la ventana o reactivar no devuelve la clave,
+/// igual que no resucita las sesiones anteriores. La suspensión comercial sí es reversible. El bloqueo
+/// temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
 /// </para>
 ///
 /// <para>
@@ -63,22 +57,21 @@ public class ApiKeyAuthenticationHandler(
     IUnitOfWork unitOfWork)
     : AuthenticationHandler<ApiKeyAuthenticationSchemeOptions>(options, logger, encoder)
 {
-    private const string EsquemaCabecera = "ApiKey";
-
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue("Authorization", out var valorCabecera))
             return AuthenticateResult.NoResult();
 
-        var cabecera = valorCabecera.ToString();
-        if (!cabecera.StartsWith($"{EsquemaCabecera} ", StringComparison.OrdinalIgnoreCase))
+        // La lectura de la cabecera es la misma que usa el limitador de la API para repartir el
+        // cupo (CabeceraClaveApi): una sola interpretación del valor.
+        var claveEnClaro = CabeceraClaveApi.ExtraerClave(valorCabecera.ToString());
+        if (claveEnClaro is null)
             return AuthenticateResult.NoResult();
 
-        var claveEnClaro = cabecera[(EsquemaCabecera.Length + 1)..].Trim();
         if (claveEnClaro.Length == 0)
             return AuthenticateResult.Fail("Falta la clave.");
 
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(claveEnClaro))).ToLowerInvariant();
+        var hash = CabeceraClaveApi.HashDeClave(claveEnClaro);
 
         // Dos pasos, y el orden es el contrato. Primero se averigua DE QUIÉN es
         // la clave —lo único que no se puede leer sin tenant, por una función
@@ -102,7 +95,8 @@ public class ApiKeyAuthenticationHandler(
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
         var ahora = DateTime.UtcNow;
         if (clave is null || !clave.EstaVigente(ahora)
-            || !await claveRepositorio.ExisteSoporteDelOrigenEmisorAsync(tenantId.Value, clave.CreadaPorUsuarioId, Context.RequestAborted))
+            || !await claveRepositorio.ClaveSigueRespaldadaAsync(
+                tenantId.Value, clave.CreadaPorUsuarioId, clave.CreadoEnUtc, clave.VentanaSoporteId, clave.VentanaSoporteAbiertaEnUtc, Context.RequestAborted))
             return AuthenticateResult.Fail("Clave inválida o revocada.");
 
         await RegistrarUsoAsync(clave);

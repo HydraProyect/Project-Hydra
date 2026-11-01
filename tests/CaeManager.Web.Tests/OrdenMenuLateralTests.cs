@@ -5,6 +5,7 @@ using CaeManager.Application.Plataforma.OrdenMenu;
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -13,7 +14,6 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Configuracion.Pages;
 using FluentAssertions;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -40,14 +40,6 @@ public class OrdenMenuLateralTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => _mediador);
-        Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuarios(new()
-            {
-                [ActorPlataformaId.ToString()] = new ApplicationUser { Id = ActorPlataformaId, Email = "raiz@talveg.es" },
-                [OtroActorId.ToString()] = new ApplicationUser { Id = OtroActorId, Email = "soporte@talveg.es" },
-            }),
-            null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddSingleton(Options.Create(new ComunicacionesOptions { Activo = true }));
         Services.AddSingleton<ILogger<OrdenMenuLateral>>(NullLogger<OrdenMenuLateral>.Instance);
     }
@@ -72,6 +64,9 @@ public class OrdenMenuLateralTests : BunitContext
                 ObtenerPerfilVocabularioActualQuery => Perfil,
                 UsaRotulosPrimeraPersonaQuery => RotulosPrimeraPersona,
                 ObtenerOrdenMenuLateralQuery => LeerOrden()!,
+                ObtenerNombreCuentaQuery consulta => consulta.UsuarioId == ActorPlataformaId
+                    ? new NombreCuentaDto("", "raiz@talveg.es")
+                    : consulta.UsuarioId == OtroActorId ? new NombreCuentaDto("", "soporte@talveg.es") : null!,
                 GuardarOrdenMenuLateralCommand comando => Guardar(comando),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
@@ -113,26 +108,6 @@ public class OrdenMenuLateralTests : BunitContext
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
             where TNotification : INotification => Task.CompletedTask;
-    }
-
-    /// <summary>Solo responde a <c>FindByIdAsync</c>, que es lo único que la página pide.</summary>
-    private sealed class AlmacenUsuarios(Dictionary<string, ApplicationUser> usuarios) : IUserStore<ApplicationUser>
-    {
-        private static Exception NoPrevisto() => new NotSupportedException("La página solo busca usuarios por Id.");
-
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult(usuarios.GetValueOrDefault(userId));
-
-        public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => throw NoPrevisto();
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
-        public void Dispose() { }
     }
 
     // ---------------------------------------------------------------- arnés

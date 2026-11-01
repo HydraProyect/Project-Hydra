@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -23,21 +25,15 @@ public record ConfirmarVigenciaAcreditacionCommand(Guid AcreditacionId, Vigencia
 
 public class ConfirmarVigenciaAcreditacionCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<ConfirmarVigenciaAcreditacionCommand, Result<ResultadoAnotacionAcreditacionDto>>
 {
     public async Task<Result<ResultadoAnotacionAcreditacionDto>> Handle(ConfirmarVigenciaAcreditacionCommand request, CancellationToken cancellationToken)
     {
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            centrosContext, recargar: true, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
-
-        // Misma comprobación de alcance que el resto de comandos de
-        // acreditación: la vigencia en una plataforma es un dato del Documento,
-        // y quien no puede ver el Documento tampoco puede decidir hasta cuándo
-        // vale.
-        var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
-        if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo<ResultadoAnotacionAcreditacionDto>(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
         var estadoPrevio = acreditacion.Estado;

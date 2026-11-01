@@ -84,7 +84,8 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await IrALaListaAsync(page);
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/centros/[0-9a-f-]{36}$"));
+        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        await Expect(page).ToHaveURLAsync(new Regex(@"/centros/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
     }
 
@@ -97,7 +98,7 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         await page.Keyboard.PressAsync("j");
         var enfocada = page.Locator(".lista-filas-acordeon .fila-enfocada");
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         var nombre = (await enfocada.Locator(".enlace-nombre-fila").InnerTextAsync()).Trim();
         await Expect(panel).ToHaveCountAsync(0);
 

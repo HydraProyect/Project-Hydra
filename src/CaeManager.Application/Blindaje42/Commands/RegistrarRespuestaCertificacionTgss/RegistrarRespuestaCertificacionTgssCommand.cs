@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Domain.Blindaje42;
 using CaeManager.Domain.Common;
 using FluentValidation;
@@ -55,6 +56,10 @@ public class RegistrarRespuestaCertificacionTgssCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("CertificacionTgss.SinUsuario", "No pudimos identificar al usuario."));
 
+        if (request.EvidenciaContenido is not null &&
+            !ValidadorFirmaArchivo.EsDocumentoValido(request.EvidenciaContenido, request.EvidenciaNombreArchivo))
+            return Result.Fallo(Error.Crear("CertificacionTgss.EvidenciaNoValida", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
+
         try
         {
             solicitud.RegistrarRespuesta(request.Resultado, request.FechaRespuesta, usuarioId.Value);
@@ -67,8 +72,9 @@ public class RegistrarRespuestaCertificacionTgssCommandHandler(
         if (request.EvidenciaContenido is not null)
         {
             using var contenido = new MemoryStream(request.EvidenciaContenido);
-            var ruta = await fileStorage.GuardarAsync(contenido, request.EvidenciaNombreArchivo!, cancellationToken);
-            solicitud.AdjuntarEvidencia(ruta, request.EvidenciaNombreArchivo!);
+            var nombre = "evidencia" + Path.GetExtension(request.EvidenciaNombreArchivo!).ToLowerInvariant();
+            var ruta = await fileStorage.GuardarAsync(contenido, nombre, cancellationToken);
+            solicitud.AdjuntarEvidencia(ruta, nombre);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -18,12 +18,13 @@
            value="@_valorMostrado"
            placeholder="@Placeholder"
            disabled="@Deshabilitado"
+           aria-invalid="@(TieneError ? "true" : null)"
            @oninput="ManejarCambioAsync"
            @onblur="ManejarBlurAsync"
            @attributes="AtributosSinClase" />
     @if (TieneError)
     {
-        <span class="campo-mensaje-error" role="alert">@MensajeError</span>
+        <span id="@IdMensajeError" class="campo-mensaje-error" role="alert">@MensajeError</span>
     }
 </div>
 
@@ -79,10 +80,36 @@
         }
     }
 
-    private Dictionary<string, object>? AtributosSinClase =>
-        AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
-            ? AtributosAdicionales
-            : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+    private string IdMensajeError => $"{_id}-error";
+
+    /// <summary>
+    /// Atributos del llamador sin "class" (ya fusionada en ClaseCompleta) y con
+    /// aria-describedby ampliado con el id del mensaje de error — se fusiona a mano
+    /// porque @attributes va después de los atributos explícitos y pisaría el nuestro.
+    /// </summary>
+    private Dictionary<string, object>? AtributosSinClase
+    {
+        get
+        {
+            if (!TieneError)
+            {
+                return AtributosAdicionales is null || !AtributosAdicionales.ContainsKey("class")
+                    ? AtributosAdicionales
+                    : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            }
+
+            var atributos = AtributosAdicionales is null
+                ? new Dictionary<string, object>()
+                : AtributosAdicionales.Where(kvp => kvp.Key != "class").ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            atributos["aria-describedby"] =
+                atributos.TryGetValue("aria-describedby", out var previo)
+                && previo is string previoTexto
+                && !string.IsNullOrWhiteSpace(previoTexto)
+                    ? $"{previoTexto} {IdMensajeError}"
+                    : IdMensajeError;
+            return atributos;
+        }
+    }
 
     /// <summary>
     /// El valor mostrado en el input solo se resincroniza con el

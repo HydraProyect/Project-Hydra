@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -39,19 +41,17 @@ public class RestaurarAnotacionAcreditacionCommandValidator : AbstractValidator<
 
 public class RestaurarAnotacionAcreditacionCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<RestaurarAnotacionAcreditacionCommand, Result>
 {
     public async Task<Result> Handle(RestaurarAnotacionAcreditacionCommand request, CancellationToken cancellationToken)
     {
         var noEncontrada = Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación.");
 
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            centrosContext, recargar: true, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo(noEncontrada);
-
-        var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
-        if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(noEncontrada);
 
         if (acreditacion.Estado == request.EstadoPrevio && acreditacion.Vigencia == request.VigenciaPrevia)

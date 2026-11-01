@@ -51,6 +51,10 @@
     <value>Desplega {0}</value>
     <comment>Nombre accesible del botón que despliega el detalle de una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="TipoAccesoEntregaExtension" xml:space="preserve">
+    <value>Lliurament a l'extensió</value>
+    <comment>Tipo de acceso en el registro de accesos a documentos sensibles: el archivo se entregó a la extensión de navegador.</comment>
+  </data>
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Obrir el panell de {0}</value>
   </data>
@@ -701,5 +705,20 @@
   </data>
   <data name="SelectorTenantTodas" xml:space="preserve">
     <value>Totes les empreses</value>
+  </data>
+  <data name="ModalSeleccionarPdf" xml:space="preserve">
+    <value>Tria el PDF de la nova versió.</value>
+  </data>
+  <data name="CompletaCamposObligatorios" xml:space="preserve">
+    <value>Completa els camps obligatoris.</value>
+  </data>
+  <data name="FormularioRapidoCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="FormularioRapidoCrear" xml:space="preserve">
+    <value>Crear</value>
+  </data>
+  <data name="ModalSuscripcionObligatoria" xml:space="preserve">
+    <value>Completa l’identificador de subscripció.</value>
   </data>
 </root>

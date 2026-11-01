@@ -5,8 +5,11 @@ using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
+using CaeManager.Domain.Documentos;
+using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Plantillas;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
@@ -37,7 +40,7 @@ namespace CaeManager.Infrastructure.Auditing;
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
 ///    CredencialAccesoSubcontrata, AccesoPlataformaCaeEmpresa,
-///    CredencialIntegracion, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+///    CredencialIntegracion, CredencialConexionPlataformaCae, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
 ///    Project-Hydra-Negocio/tecnico/DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
 ///    nueva que se cifre en reposo — el cifrado en la BD no protege el
 ///    historial de auditoría, que lee el valor plano directamente del
@@ -143,8 +146,36 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
         [typeof(AccesoPlataformaCaeEmpresa)] = [nameof(AccesoPlataformaCaeEmpresa.Usuario), nameof(AccesoPlataformaCaeEmpresa.Contrasena)],
         [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken), nameof(CredencialIntegracion.AccessToken)],
+        [typeof(CredencialConexionPlataformaCae)] = [nameof(CredencialConexionPlataformaCae.SecretoApi)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
+
+        // Columnas que cae_app_soporte no puede leer en su tabla (migraciones
+        // SoporteSinLecturaDeCredenciales, SoporteSinColumnasSecretasRestantes,
+        // SoporteSinCodigoSeguroDocumentosGenerados, SoporteSinJsonSensibles y
+        // SoporteSinCodigoVerificacionNiPayloadWebhook; OWASP ASVS 4.0.3 V4.1.3 y
+        // V2.10.4): sin esto, Soporte TALVEG las leería en RegistrosAuditoria, que sí
+        // tiene concedido. HashClave es el SHA-256 de la clave de API; UltimoError, el
+        // texto del proveedor al fallar; CodigoVerificacion, el código impreso en un
+        // documento oficial; PayloadCrudo, el contenido del webhook, cifrado en su tabla
+        // pero en claro al serializarlo aquí; CodigoSeguroVerificacion, el código impreso
+        // en un documento generado; los JSON, los datos personales usados al generar o
+        // leídos por la IA; y la solicitud de Microsoft 365 es una tabla entera retirada,
+        // de la que aquí solo queda su Id y su Tenant.
+        [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],
+        [typeof(ConexionIntegracion)] = [nameof(ConexionIntegracion.UltimoError)],
+        [typeof(VerificacionDocumentoOficial)] = [nameof(VerificacionDocumentoOficial.CodigoVerificacion)],
+        [typeof(EventoWebhook)] = [nameof(EventoWebhook.PayloadCrudo)],
+        [typeof(DocumentoGenerado)] = [nameof(DocumentoGenerado.CodigoSeguroVerificacion), nameof(DocumentoGenerado.DatosUtilizadosJson)],
+        [typeof(LoteGeneracionDocumento)] = [nameof(LoteGeneracionDocumento.ContextoJson)],
+        [typeof(ExtraccionIaCache)] = [nameof(ExtraccionIaCache.ExtraccionJson)],
+        [typeof(SolicitudConexionMicrosoft365)] =
+        [
+            nameof(SolicitudConexionMicrosoft365.UsuarioSolicitanteId),
+            nameof(SolicitudConexionMicrosoft365.ClienteId),
+            nameof(SolicitudConexionMicrosoft365.GestorPropietarioId),
+            nameof(SolicitudConexionMicrosoft365.FechaExpiracionUtc),
+        ],
 
         // DEC-9 (propietario, 2026-09-02): a diferencia de las entradas de
         // arriba, estas tres propiedades no son secretos cifrados en reposo —
@@ -200,7 +231,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // lo que el usuario dejó puesto en un listado, y un filtro guardado
         // incluye la búsqueda libre: quien busca a un Trabajador por su DNI y
         // guarda el filtro dejaría ese DNI en datos antes/después, legible
-        // desde /auditoria y sin purga cuando el Trabajador se borra. El
+        // desde /auditoria aunque el Trabajador se borre. El
         // rastro conserva quién guardó, cambió o borró qué filtro, de qué
         // pantalla y con qué nombre, y cuándo; los valores siguen en la fila
         // FiltrosGuardados mientras exista. La vista recordada no escribe la
@@ -407,14 +438,26 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
 
             // Inicios de sesión: el propio RegistroInicioSesion ya es el registro
             // de auditoría, con retención de 12 meses y su purga. Duplicarlo como
-            // «Creado» en RegistroAuditoria (sin purga, P1-M2) guardaría para
-            // siempre IP, ciudad, coordenadas y huella de dispositivo de cada
+            // «Creado» en RegistroAuditoria (5 años) guardaría durante años
+            // IP, ciudad, coordenadas y huella de dispositivo de cada
             // intento, y rompería la minimización del RGPD.
             if (entrada.Entity is CaeManager.Domain.Seguridad.RegistroInicioSesion) continue;
 
+            // Sesiones de cookie: cada fila lleva el identificador de sesión que viaja en la cookie,
+            // y copiarlo a RegistroAuditoria (5 años) lo dejaría fuera de la conservación de
+            // 12 meses de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
+            // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión. Por eso Sid no está en
+            // PropiedadesSensiblesPorTipo: cae_app_soporte no puede leerlo (SoporteSinSidSesionUsuario,
+            // OWASP ASVS 4.0.3 V4.1.3), y esta exclusión es lo que evita que lo lea en RegistrosAuditoria.
+            if (entrada.Entity is CaeManager.Domain.Seguridad.SesionUsuario) continue;
+
+            // Cada llamada a una plataforma CAE de terceros: el propio UsoConexionPlataformaCae ya es el
+            // registro, y duplicarlo en RegistroAuditoria metería dos filas por llamada.
+            if (entrada.Entity is UsoConexionPlataformaCae) continue;
+
             // Estado materializado: dato derivado que el recálculo rehace en la misma transacción que la acción. La acción
             // ya se audita; auditar además cada fila recalculada metería miles de «Creado» o «Modificado» por una sola
-            // acción (una Empresa con 800 Centros) en una tabla sin purga.
+            // acción (una Empresa con 800 Centros) en una tabla que se conserva 5 años.
             if (entrada.Entity.GetType().Namespace == typeof(CaeManager.Domain.EstadoMaterializado.EstadoRequisito).Namespace) continue;
 
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;

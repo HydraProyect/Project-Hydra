@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="TrabajadorNoAdmisible" xml:space="preserve"><value>No puedes añadir este trabajador a la visita. Solo puedes incluir trabajadores de la empresa gestionada activa o de sus subcontratas a los que tengas acceso.</value></data>
+  <data name="TrabajadoresNoAdmisibles" xml:space="preserve"><value>Alguno de los trabajadores seleccionados no puede entrar en la visita. Solo puedes incluir trabajadores de la empresa gestionada activa o de sus subcontratas a los que tengas acceso.</value></data>
+</root>

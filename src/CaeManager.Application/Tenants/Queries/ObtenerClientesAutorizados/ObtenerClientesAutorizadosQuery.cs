@@ -111,10 +111,12 @@ public static class ClientesAutorizados
     /// UNA sola fuente de la condición del estado 4a para quien tenga que decidir si
     /// una pantalla, un endpoint o una acción de la paleta sirve los datos del Tenant
     /// activo: cierto cuando el selector es visible y <see cref="SinEmpresaSeleccionada"/>.
-    /// La usan el endpoint de exportación de Trabajadores y la paleta de comandos; las
-    /// páginas de lista la resuelven con <c>ContextoEmpresaActiva.ResolverAsync</c>, que
-    /// compone las mismas dos condiciones (<see cref="SelectorVisible"/> y
-    /// <see cref="SinEmpresaSeleccionada"/>) sobre el mismo <see cref="Activo"/>.
+    /// La usan los endpoints de exportación de los listados que la aplican (Trabajadores,
+    /// Vehículos, Proyectos, Documentos, Empresas, Subcontratas, Clientes y Centros) y la
+    /// paleta de comandos; las páginas de lista la resuelven con
+    /// <c>ContextoEmpresaActiva.ResolverAsync</c>, que compone las mismas dos condiciones
+    /// (<see cref="SelectorVisible"/> y <see cref="SinEmpresaSeleccionada"/>) sobre el
+    /// mismo <see cref="Activo"/>.
     /// </summary>
     public static bool PideElegirEmpresa(IReadOnlyList<ClienteAutorizadoDto> autorizados, Guid? tenantActualId)
     {

@@ -68,4 +68,13 @@ public class RetencionDatosOptions
     /// categoría incluye datos de salud.
     /// </summary>
     public int? AniosRetencionTrabajadores { get; set; } = 5;
+
+    /// <summary>
+    /// Enciende el borrado real de los registros de auditoría con más de 5 años
+    /// (<c>PurgaRegistrosCaducados</c>). Con false —el valor por defecto— la pasada diaria
+    /// solo cuenta lo que borraría. Es independiente de <see cref="Activa"/>: aquel gobierna
+    /// las propuestas que autoriza una persona; este, una purga sin paso humano. El plazo no
+    /// está aquí sino dentro de la función de base de datos: el runtime no puede adelantarlo.
+    /// </summary>
+    public bool PurgaRegistrosActiva { get; set; }
 }

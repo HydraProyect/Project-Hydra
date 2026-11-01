@@ -39,7 +39,8 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
     IDocumentAIRouterService router, IOptions<ExtraccionDocumentoAdjuntoOptions> opciones,
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
-    IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual)
+    IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual,
+    ICurrentUserService currentUserService)
     : IRequestHandler<DetectarActualizacionDocumentoDesdeAdjuntoQuery, Result<DeteccionActualizacionDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido =
@@ -59,7 +60,9 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             select new { a.Id, a.NombreArchivo, a.ArchivoUrl, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
+        // Lee el contenido y devuelve lo que detecta en él: misma puerta que la
+        // descarga (SEG-9, ASVS 4.0.3 V4.1.3 y V4.2.1).
+        if (adjunto is null || !await AccesoATriage.AdjuntoAlcanzableAsync(alcanceDatos, currentUserService, adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Nivel 0 (DEC-33, REC-035), por delante del kill-switch de
@@ -73,11 +76,17 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         if (!opciones.Value.Activa)
             return Result.Exito(SinDeteccion(adjunto.Id));
 
-        await using var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken);
-        using var memoria = new MemoryStream();
-        await flujo.CopyToAsync(memoria, cancellationToken);
+        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
+        // cerrarse, y no tiene por qué retenerla durante la llamada al proveedor de extracción.
+        byte[] contenido;
+        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        {
+            using var memoria = new MemoryStream();
+            await flujo.CopyToAsync(memoria, cancellationToken);
+            contenido = memoria.ToArray();
+        }
 
-        var resultado = await router.ProcesarAsync(memoria.ToArray(), adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
+        var resultado = await router.ProcesarAsync(contenido, adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(resultado.Error);
 

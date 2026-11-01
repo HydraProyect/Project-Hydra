@@ -2,5 +2,3 @@
 # Solo baja: migrar una pantalla al kit baja o borra su línea; un Drawer con campos nuevo no se añade aquí, usa el kit.
 # Medida: 'ruta :: Drawer = n' con n Drawers que contienen campos (FormulariosEnDrawerUsanElKitTests).
 src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor :: Drawer = 1
-src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor :: Drawer = 1
-src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor :: Drawer = 1

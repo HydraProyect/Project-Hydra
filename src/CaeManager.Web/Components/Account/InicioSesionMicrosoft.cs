@@ -104,31 +104,52 @@ public static class InicioSesionMicrosoft
     }
 
     /// <summary>
-    /// Qué hace el callback con el segundo factor: sesión directa si Microsoft acreditó
-    /// la MFA; si no, el TOTP de TALVEG por el mismo paso que el inicio con contraseña;
-    /// y sin TOTP configurado, rechazo (no se emite sesión).
+    /// Qué hace el callback con el segundo factor.
     /// <para>
-    /// Excepción: una identidad que se vincula por primera vez (<paramref name="vinculoNuevo"/>)
-    /// a una cuenta con TOTP configurado pasa siempre por el TOTP, aunque Microsoft
-    /// acreditara la MFA, y se vincula solo al superarlo (<see cref="CompletarVinculoPendienteAsync"/>).
-    /// La MFA de Microsoft prueba quién controla la identidad del directorio, no que
-    /// sea la persona de la cuenta: el vínculo se decide por el correo, que en Entra
-    /// edita quien administra el directorio. Sin esta excepción, otra identidad del
-    /// mismo directorio con ese correo se quedaría con una cuenta que exige TOTP sin
-    /// haberlo superado nunca.
+    /// Primera vinculación (<paramref name="vinculoNuevo"/>, decisión de 2026-10-28): exige
+    /// siempre el TOTP de TALVEG, aunque Microsoft acreditara la MFA (ASVS 4.0.3 V2.1). Con
+    /// TOTP configurado, se pide; sin él, la cuenta lo da de alta antes de vincular, tras
+    /// volver a introducir sus credenciales en Microsoft (V3.7.1), y solo si Microsoft acreditó
+    /// la MFA: sin TOTP ni MFA se rechaza, porque una contraseña de Entra sola registraría un
+    /// factor nuevo en la cuenta. Cuando hay vínculo, se guarda solo al superar el TOTP
+    /// (<see cref="CompletarVinculoPendienteAsync"/>). La MFA de Microsoft prueba quién controla
+    /// la identidad del directorio, no que sea la persona de la cuenta: el vínculo se decide por
+    /// el correo, que en Entra edita quien administra el directorio.
+    /// </para>
+    /// <para>
+    /// Inicios posteriores, con la identidad ya vinculada (D-2): sesión directa si Microsoft
+    /// acreditó la MFA; si no, el TOTP de TALVEG por el mismo paso que el inicio con
+    /// contraseña; y sin TOTP configurado, rechazo (no se emite sesión).
     /// </para>
     /// </summary>
     public static SegundoFactorMicrosoft DecidirSegundoFactor(bool mfaAcreditadaPorMicrosoft, bool totpConfigurado, bool vinculoNuevo) =>
-        totpConfigurado && vinculoNuevo ? SegundoFactorMicrosoft.PedirTotp
-        : mfaAcreditadaPorMicrosoft ? SegundoFactorMicrosoft.SesionDirecta
+        vinculoNuevo && mfaAcreditadaPorMicrosoft && !totpConfigurado ? SegundoFactorMicrosoft.DarDeAltaTotp
+        : mfaAcreditadaPorMicrosoft && !vinculoNuevo ? SegundoFactorMicrosoft.SesionDirecta
         : totpConfigurado ? SegundoFactorMicrosoft.PedirTotp
         : SegundoFactorMicrosoft.RechazarSinSegundoFactor;
+
+    /// <summary>
+    /// Marca que <see cref="Desafiar"/> deja en las propiedades del desafío con
+    /// <c>prompt=login</c>. Viaja protegida en el <c>state</c> de OpenID Connect y vuelve en
+    /// la cookie externa: no la puede poner quien llama al callback.
+    /// </summary>
+    public const string ItemReautenticacion = "talveg:microsoft_reautenticacion";
+
+    /// <summary>
+    /// Si la vuelta de Microsoft viene de un desafío con <c>prompt=login</c>: la persona
+    /// acaba de introducir sus credenciales (ASVS 4.0.3 V3.7.1).
+    /// </summary>
+    public static bool VieneDeReautenticacion(AuthenticationProperties? propiedadesExternas) =>
+        propiedadesExternas?.Items.TryGetValue(ItemReautenticacion, out var valor) == true && valor == "1";
 
     /// <summary>Clave de la identidad de Microsoft que se vinculará a la cuenta al superar el TOTP.</summary>
     public const string TipoClaimVinculoPendiente = "talveg:microsoft_vinculo_pendiente";
 
     /// <summary>Nombre visible del proveedor de ese vínculo pendiente.</summary>
     public const string TipoClaimVinculoPendienteNombre = "talveg:microsoft_vinculo_pendiente_nombre";
+
+    /// <summary>La cuenta tiene que dar de alta el TOTP antes de vincular (<see cref="SegundoFactorMicrosoft.DarDeAltaTotp"/>).</summary>
+    public const string TipoClaimAltaTotpPendiente = "talveg:microsoft_alta_totp_pendiente";
 
     /// <summary>
     /// El principal de la cookie de dos pasos de Identity
@@ -142,9 +163,17 @@ public static class InicioSesionMicrosoft
     /// junto al Id de la cuenta: no puede acabar vinculada a otra cuenta que la decidida
     /// aquí. El inicio con contraseña escribe su propia cookie de dos pasos, sin ella.
     /// </para>
+    /// <para>
+    /// Con <paramref name="altaTotp"/>, la cuenta aún no tiene TOTP: la cookie lleva además
+    /// la marca con la que <c>LoginCon2fa</c> enseña el alta antes de pedir el código, y solo
+    /// con un vínculo pendiente.
+    /// </para>
     /// </summary>
-    public static ClaimsPrincipal PrincipalSegundoFactorPendiente(Guid usuarioId, UserLoginInfo? vinculoPendiente)
+    public static ClaimsPrincipal PrincipalSegundoFactorPendiente(Guid usuarioId, UserLoginInfo? vinculoPendiente, bool altaTotp = false)
     {
+        if (altaTotp && vinculoPendiente is null)
+            throw new ArgumentException("El alta del TOTP previa solo existe para una primera vinculación.", nameof(altaTotp));
+
         var identidad = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
         identidad.AddClaim(new Claim(ClaimTypes.Name, usuarioId.ToString()));
         identidad.AddClaim(new Claim(ClaimTypes.AuthenticationMethod, AzureAdOptions.Esquema));
@@ -154,9 +183,19 @@ public static class InicioSesionMicrosoft
                 throw new ArgumentException("Solo se vinculan identidades de Microsoft.", nameof(vinculoPendiente));
             identidad.AddClaim(new Claim(TipoClaimVinculoPendiente, vinculoPendiente.ProviderKey));
             identidad.AddClaim(new Claim(TipoClaimVinculoPendienteNombre, vinculoPendiente.ProviderDisplayName ?? AzureAdOptions.Esquema));
+            if (altaTotp)
+                identidad.AddClaim(new Claim(TipoClaimAltaTotpPendiente, "1"));
         }
         return new ClaimsPrincipal(identidad);
     }
+
+    /// <summary>
+    /// Si la cookie de dos pasos es la de una primera vinculación cuya cuenta tiene que dar
+    /// de alta el TOTP: la escribió el callback de Microsoft, con vínculo pendiente y marca.
+    /// </summary>
+    public static bool AltaTotpPendiente(ClaimsPrincipal? principalSegundoFactor) =>
+        VinculoPendiente(principalSegundoFactor) is not null
+        && principalSegundoFactor!.FindFirstValue(TipoClaimAltaTotpPendiente) == "1";
 
     /// <summary>
     /// El vínculo pendiente de la cookie de dos pasos que escribió el callback, o
@@ -237,14 +276,29 @@ public static class InicioSesionMicrosoft
         }
     }
 
-    /// <summary>Desafío del botón «continuar con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.</summary>
-    public static IResult Desafiar(string? returnUrl)
+    /// <summary>
+    /// Desafío del botón «Iniciar sesión con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.
+    /// Con <paramref name="reautenticar"/> (alta del TOTP, ASVS 4.0.3 V3.7.1) pide a Microsoft
+    /// <c>prompt=login</c>: la persona vuelve a introducir sus credenciales en vez de reutilizar en
+    /// silencio la sesión que ya tenga abierta en Microsoft, y el desafío lleva la marca
+    /// <see cref="ItemReautenticacion"/> que mira la primera vinculación sin TOTP.
+    /// </summary>
+    public static IResult Desafiar(string? returnUrl, bool reautenticar = false) =>
+        Results.Challenge(PropiedadesDesafio(returnUrl, reautenticar), [IdentityEndpointsExtensions.EsquemaMicrosoft]);
+
+    /// <summary>Las propiedades del desafío de <see cref="Desafiar"/>.</summary>
+    public static AuthenticationProperties PropiedadesDesafio(string? returnUrl, bool reautenticar)
     {
         var destino = "/cuenta/microsoft-callback";
         if (!string.IsNullOrWhiteSpace(returnUrl))
             destino += $"?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
-        return Results.Challenge(new AuthenticationProperties { RedirectUri = destino }, [IdentityEndpointsExtensions.EsquemaMicrosoft]);
+        if (!reautenticar)
+            return new AuthenticationProperties { RedirectUri = destino };
+
+        var propiedades = new OpenIdConnectChallengeProperties { RedirectUri = destino, Prompt = OpenIdConnectPrompt.Login };
+        propiedades.Items[ItemReautenticacion] = "1";
+        return propiedades;
     }
 
     /// <summary>
@@ -379,8 +433,11 @@ public enum SegundoFactorMicrosoft
     /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con <c>mfa</c>).</summary>
     SesionDirecta,
 
-    /// <summary>Sin MFA de Microsoft: se pide el TOTP de TALVEG antes de emitir la sesión.</summary>
+    /// <summary>Se pide el TOTP de TALVEG antes de emitir la sesión: sin MFA de Microsoft, o en la primera vinculación.</summary>
     PedirTotp,
+
+    /// <summary>Primera vinculación de una cuenta sin TOTP: lo da de alta, tras reautenticarse en Microsoft, antes de vincular.</summary>
+    DarDeAltaTotp,
 
     /// <summary>Sin MFA de Microsoft ni TOTP configurado: no se emite sesión.</summary>
     RechazarSinSegundoFactor,

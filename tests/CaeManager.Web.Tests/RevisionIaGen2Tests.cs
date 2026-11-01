@@ -186,6 +186,47 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Cancelar_correccion_sin_cambios_cierra_y_con_fecha_cambiada_pregunta()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [revision] });
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    [Fact]
+    public async Task Corregir_a_mano_con_fecha_vacia_muestra_el_error_del_campo_no_envia_y_el_fondo_no_cierra_hasta_corregirla()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var mediador = new MediadorFalso { Revisiones = [revision] };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = string.Empty });
+        await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("Indica una fecha de emisión válida.");
+        mediador.Enviadas.OfType<CorregirRevisionIaDocumentoCommand>().Should().BeEmpty("sin fecha válida no se envía nada");
+        await cut.Find(".drawer-superposicion").MouseDownAsync(new MouseEventArgs());
+        await cut.Find(".drawer-superposicion").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible, "con el error del campo visible el clic fuera no cierra");
+
+        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        cut.Markup.Should().NotContain("Indica una fecha de emisión válida.", "teclear una fecha nueva retira el error");
+    }
+
+    [Fact]
     public async Task Corregir_a_mano_fallido_mantiene_el_drawer_abierto_muestra_error_y_no_recarga()
     {
         var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
@@ -203,6 +244,7 @@ public class RevisionIaGen2Tests : BunitContext
         await Boton(cut, "Guardar y cerrar el aviso").ClickAsync(new MouseEventArgs());
 
         cut.FindComponents<Drawer>().Should().ContainSingle(d => d.Instance.Visible, "un fallo conserva el contexto de corrección");
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("No se pudo corregir.", "el fallo se ve también en el aviso del formulario, sin marca de «Hecho» en el botón");
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("No se pudo corregir."));
         mediador.Enviadas.OfType<ObtenerRevisionesIaPendientesQuery>().Should().ContainSingle("control positivo: el fallo no recarga la cola");
     }
@@ -495,7 +537,7 @@ public class RevisionIaGen2Tests : BunitContext
 
         var operacion = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", revision.Id);
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace de aceptar");
@@ -513,7 +555,7 @@ public class RevisionIaGen2Tests : BunitContext
 
         var operacion = InvocarPrivadoAsync(cut, "ResolverSeleccionadaAsync");
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace de descartar");
@@ -533,7 +575,7 @@ public class RevisionIaGen2Tests : BunitContext
         var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
         var operacion = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace del bloque");
@@ -566,7 +608,7 @@ public class RevisionIaGen2Tests : BunitContext
         var token = mediador.Tokens.Should().ContainSingle("control positivo: se inició la consulta de carga").Subject.Token;
 
         token.CanBeCanceled.Should().BeTrue();
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue("retirar el componente cancela la consulta que permanece en vuelo");
         espera.SetResult();
     }

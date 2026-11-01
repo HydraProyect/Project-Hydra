@@ -162,10 +162,12 @@ public partial class UsuariosGen2Tests : BunitContext
         protected override Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.EmpresasGestionadas());
 
-        protected override Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken)
+        protected override Task<IReadOnlyList<CuentaVisibleEnRol>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken)
         {
             Fuente.RolesConsultados.Add(rol);
-            return Task.FromResult(Fuente.EnRol(rol));
+            return Task.FromResult<IReadOnlyList<CuentaVisibleEnRol>>(Fuente.EnRol(rol)
+                .Select(u => new CuentaVisibleEnRol(u.Id, u.NombreCompleto, u.Email, u.Avatar))
+                .ToList());
         }
 
         protected override Task<IReadOnlySet<Guid>> ObtenerIdsConLoginExternoAsync(
@@ -201,6 +203,7 @@ public partial class UsuariosGen2Tests : BunitContext
     {
         // El contexto del arnés no tiene proveedor: no hay nada rastreado que soltar.
         protected override void DesengancharCuenta(Guid usuarioId) { }
+        protected override Task<bool> TieneLoginExternoAsync(ApplicationUser usuario) => Task.FromResult(false);
         public override Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(fuente.EsPropia(usuarioId));
 
@@ -325,6 +328,17 @@ public partial class UsuariosGen2Tests : BunitContext
     {
         public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default) =>
             operacion(cancellationToken);
+    }
+
+    /// <summary>
+    /// La regla del último Administrador se prueba en Application y contra PostgreSQL; aquí
+    /// siempre hay otro.
+    /// </summary>
+    private sealed class OtroAdministradorSiempre : CaeManager.Application.Usuarios.IAdministradoresDelTenant
+    {
+        public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> EsElUltimoAdministradorAsync(Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     /// <summary>El candado de cartera se prueba contra PostgreSQL; aquí no protege nada.</summary>
@@ -733,14 +747,16 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera).Handle(q, ct),
             ObtenerCarteraDeGestorCaeQuery q => await new ObtenerCarteraDeGestorCaeQueryHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
-            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
+            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte(), new OtroAdministradorSiempre()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera,
+                new OtroAdministradorSiempre()).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
-            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre()).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
@@ -1119,8 +1135,8 @@ public partial class UsuariosGen2Tests : BunitContext
     [Fact]
     public async Task Si_el_correo_falla_tras_retirarse_de_la_pantalla_el_fallo_se_avisa_igual()
     {
-        _ = await AltaConCorreoQueNoContestaAsync();
-        await DisposeComponentsAsync();
+        var cut = await AltaConCorreoQueNoContestaAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
 
@@ -2007,16 +2023,14 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Segunda mitad del mismo hueco (Codex, revisión 2026-09-12): no basta
-    /// con retirar el permiso al perder el rol Administrador si al volver a
-    /// ganarlo por otra vía —una promoción hecha por un DireccionCae, aquí
-    /// desde una cuenta con un flag histórico en `true` (p.ej. dejado así por
-    /// el hueco de arriba antes de su propio arreglo)— el flag se conserva tal
-    /// cual. Un DireccionCae no puede conceder este permiso; promocionar a
-    /// Administrador no puede ser una vía indirecta para heredarlo.
+    /// Decisión del 2026-10-30: solo un Administrador concede Administrador.
+    /// Hasta entonces un DireccionCae promocionaba aquí a Administrador (y el
+    /// permiso sensible histórico nacía en false). Ahora el selector no se lo
+    /// ofrece, y si se fuerza el valor como lo haría un cliente manipulado,
+    /// Application lo rechaza sin tocar ni el rol ni el permiso.
     /// </summary>
     [Fact]
-    public async Task DireccionCae_promociona_a_Administrador_y_no_hereda_un_permiso_historico()
+    public async Task DireccionCae_no_promociona_a_Administrador_aunque_se_salte_el_selector()
     {
         var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
         ander.PermisoConsultarAccesoDocumentosSensibles = true;
@@ -2026,13 +2040,54 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        OpcionesDeRol(cut).Should().NotContain(RolesIdentidad.Administrador);
+
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
         await GuardarAsync(cut);
 
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("Solo un Administrador de la organización puede conceder");
+        _identidad.Asignaciones.Should().BeEmpty();
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Consulta);
+        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeTrue("no se escribió nada");
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-30, en el selector: Dirección CAE no ve Administrador
+    /// al dar de alta, pero sí el resto de roles, también Dirección CAE.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_no_ve_Administrador_en_el_selector_del_alta()
+    {
+        Sembrar((Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+
+        OpcionesDeRol(cut).Should().BeEquivalentTo(RolesIdentidad.Todos.Where(r => r != RolesIdentidad.Administrador));
+    }
+
+    /// <summary>
+    /// Editando a un Administrador existente, Dirección CAE sigue viendo su rol en
+    /// la lista: conservarlo no es concederlo, y sin él un guardado del nombre lo
+    /// degradaría. El guardado del nombre pasa.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_editando_a_un_Administrador_ve_su_rol_y_guarda_el_nombre()
+    {
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.Administrador));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        OpcionesDeRol(cut).Should().Contain(RolesIdentidad.Administrador);
+
+        await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
+        await GuardarAsync(cut);
+
         cut.FindAll(".alerta-formulario").Should().BeEmpty();
-        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeFalse(
-            "solo otro Administrador concede el permiso; promocionar el rol no es una concesión");
-        _identidad.Asignaciones.Should().ContainSingle().Which.Rol.Should().Be(RolesIdentidad.Administrador);
+        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Administrador);
     }
 
     /// <summary>
@@ -2322,6 +2377,28 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
             (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true), RolesIdentidad.GestorCae));
+
+    /// <summary>
+    /// Espejo de presentación de <c>VerificarActivacionDeCuentaAdministradorAsync</c>: el servidor
+    /// lo rechazaría al pulsar. Con la cuenta pendiente de otro rol la misma Dirección CAE sí los ve.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_no_ve_reenviar_ni_corregir_en_un_Administrador_sin_activar()
+    {
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez", pendienteActivacion: true), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true), RolesIdentidad.GestorCae));
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+
+        await AbrirMenuAsync(cut, "marta.r@talveg.es");
+        Fila(cut, "marta.r@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().NotContain(["Reenviar correo de activación", "Corregir correo"]);
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().Contain(["Reenviar correo de activación", "Corregir correo"]);
+    }
 
     [Fact]
     public async Task Corregir_correo_solo_se_ofrece_para_una_cuenta_pendiente_de_activacion()

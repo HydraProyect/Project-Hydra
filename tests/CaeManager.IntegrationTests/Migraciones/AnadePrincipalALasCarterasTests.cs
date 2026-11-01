@@ -254,7 +254,7 @@ public class AnadePrincipalALasCarterasTests : IAsyncLifetime
         }
 
         await using var propio = NuevoContexto(tenant.Id);
-        propio.Users.Add(new ApplicationUser
+        await SiembraDeCuentasEnEsquemaAnterior.InsertarAsync(propio, new ApplicationUser
         {
             Id = usuario,
             TenantId = tenant.Id,
@@ -339,7 +339,7 @@ public class AnadePrincipalALasCarterasTests : IAsyncLifetime
     private CaeManagerDbContext NuevoContexto(Guid? tenantId)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
@@ -349,7 +349,7 @@ public class AnadePrincipalALasCarterasTests : IAsyncLifetime
     /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>
     private CaeManagerDbContext ContextoParaMigrar()
     {
-        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+        var opciones = ModeloSinColumnasDeConectores.Opciones()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = null });

@@ -29,9 +29,10 @@ namespace CaeManager.Application.Tests.Tenants;
 /// por el otro lado — Hydra nunca inicia una delegación.
 ///
 /// <para>
-/// Revocar y reactivar la Asignación de Operación de un Operador CAE externo no siguen esta
-/// regla: desde las decisiones de producto del 2026-10-26 las decide el equipo del propio Operador CAE
-/// externo con alcance sobre el Tenant propietario (<see cref="CaeManager.Application.Tenants.EquipoDelOperadorCaeExterno"/>), y sus
+/// Revocar la Asignación de Operación de un Operador CAE externo no sigue esta regla: desde las
+/// decisiones de producto del 2026-10-26 lo decide el equipo del propio Operador CAE externo con
+/// alcance sobre el Tenant propietario (<see cref="CaeManager.Application.Tenants.EquipoDelOperadorCaeExterno"/>).
+/// Reactivarla es solo del Administrador del Tenant propietario (decisión SEG-7 del 2026-10-31). Sus
 /// tests están en <see cref="RevocacionDelegacionTests"/>.
 /// </para>
 /// </summary>
@@ -52,7 +53,7 @@ public class AutorizacionDeDelegacionTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             writer,
             new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -72,7 +73,9 @@ public class AutorizacionDeDelegacionTests
     {
         // El contrato de § 12.2 en una línea: quien concede el acceso a unos
         // datos es su dueño. Preguntar por la Consultora dejaría que la parte
-        // que RECIBE el acceso se lo concediera a sí misma.
+        // que RECIBE el acceso se lo concediera a sí misma. El Tenant activo es un
+        // tercero a propósito: ITenantActual solo restringe después, y preguntar
+        // por él en vez de por el dueño de los datos haría fallar este test.
         var (delegacion, delegaciones, asignaciones, unitOfWork) = Preparar();
         var autorizacion = new AutorizacionDelegacionFalsa(autoriza: true);
 
@@ -81,7 +84,7 @@ public class AutorizacionDeDelegacionTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
             autorizacion, new CurrentUserServiceFalso(Usuario), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Guid.NewGuid()));
 
         await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -112,7 +115,7 @@ public class AutorizacionDeDelegacionTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -132,7 +135,7 @@ public class AutorizacionDeDelegacionTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -169,7 +172,7 @@ public class AutorizacionDeDelegacionTests
             new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(Usuario), unitOfWork,
-            tenants);
+            tenants, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"),
@@ -256,7 +259,7 @@ public class AutorizacionDeDelegacionTests
 
     /// <summary>
     /// La autoridad sobre la Delegación se conserva en su servicio específico.
-    /// CrearDelegacionTenant y ReactivarDelegacionTenant reciben ITenantActual solo para
+    /// Los tres handlers reciben ITenantActual solo para
     /// rechazar un contexto de escritura ajeno, después de autorizar contra el Tenant
     /// propietario de la petición.
     /// Los tests de comportamiento comprueban ambos predicados por separado.
@@ -291,26 +294,14 @@ public class AutorizacionDeDelegacionTests
                 "la plataforma: ADR-004 § 12.2 pone 'aprueba, modifica y revoca' del lado del Cliente " +
                 "Delegante");
 
-            // Crear usa el contexto solo para restringir, después de resolver la autoridad del
-            // Administrador del Tenant propietario. Reactivar también lo usa solo para restringir,
-            // pero su autoridad es del equipo del Operador CAE externo (EquipoDelOperadorCaeExterno,
-            // decisiones del 2026-10-26): ya no depende de IAutorizacionDelegacionTenant.
-            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler))
-                dependencias.Should().Contain("IAutorizacionDelegacionTenant");
-            else if (handler == typeof(ReactivarDelegacionTenantCommandHandler))
-                dependencias.Should().NotContain("IAutorizacionDelegacionTenant",
-                    "reactivar no es del Administrador del Tenant propietario");
-            else
-                dependencias.Should().NotContain("ITenantActual",
-                    $"{handler.Name} debe autorizar contra el tenant que el comando nombra, no contra el workspace " +
-                    "activo: dentro de un workspace delegado ITenantActual es el del propietario y daría la " +
-                    "respuesta correcta por casualidad");
+            dependencias.Should().Contain("IAutorizacionDelegacionTenant");
+            dependencias.Should().Contain("ITenantActual");
         }
     }
 
-    // ── ReactivarDelegacionTenant: desde 2026-10-26 la decide el equipo del Operador CAE externo
-    // (EquipoDelOperadorCaeExterno), no el Administrador del Tenant propietario. Sus tests viven en
-    // RevocacionDelegacionTests, junto a los de revocar, porque la regla es la misma.
+    // ── ReactivarDelegacionTenant: desde SEG-7 (2026-10-31) la decide solo el Administrador del Tenant
+    // propietario (AdministradorQueReactiva), nunca el Operador CAE externo. Sus tests viven en
+    // RevocacionDelegacionTests, junto a los de revocar.
 
     /// <summary>
     /// Segundo acto excluido del Encargo de administración (decisión D-8, 2026-10-08): autorizar o
@@ -347,26 +338,27 @@ public class AutorizacionDeDelegacionTests
         var asignacion = await new CrearAsignacionOperadorDelegadoCommandHandler(
                 asignaciones, delegaciones,
                 new DirectorioUsuariosServiceFalso(esVisible: true, tenantDelUsuario: Consultora),
-                writer, soloMiembroDelOperadorCae, quienAdministraPorEncargo, unitOfWork, new TenantsQueryContextFalso())
+                writer, soloMiembroDelOperadorCae, quienAdministraPorEncargo, unitOfWork, new TenantsQueryContextFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new CrearAsignacionOperadorDelegadoCommand(delegacion.Id, Guid.NewGuid(), "GestorCae"), CancellationToken.None);
 
         asignacion.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
         asignaciones.Asignaciones.Should().BeEmpty();
         writer.CarterasAbiertas.Should().BeEmpty();
 
-        // Reactivar se decide por el rol de la cuenta en su Tenant de origen, leído en Identity, nunca por
-        // el rol elevado en el Tenant propietario: en su casa es Gestor CAE sin cartera sobre ese Tenant.
+        // Reactivar se decide por la pertenencia al Tenant propietario, nunca por el rol elevado en él:
+        // quien administra por encargo es del Operador CAE externo, y este nunca reactiva. El doble
+        // autoriza a propósito para que lo que niegue sea el Tenant de origen.
         var rolesEnOrigen = new DirectorioRolesEnOrigen();
-        rolesEnOrigen.Asignar(Usuario, Consultora, "GestorCae");
         delegacion.Desactivar();
         var reactivacion = await new ReactivarDelegacionTenantCommandHandler(
                 delegaciones, quienAdministraPorEncargo,
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
                 new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-                new DirectorioDestinosCarteraFalso(null), rolesEnOrigen, new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
+                new DirectorioDestinosCarteraFalso(null), rolesEnOrigen, new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante),
+                new AutorizacionDelegacionFalsa(autoriza: true))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        reactivacion.EsFallido.Should().BeTrue("el rol elevado por un encargo no da alcance de organización en el Operador CAE externo");
+        reactivacion.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada", "el rol elevado por un encargo no convierte en Tenant propietario");
         delegacion.Activa.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }

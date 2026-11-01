@@ -173,7 +173,11 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .AddUserValidator<CaeManager.Infrastructure.Identity.ValidadorUnicidadGlobalCuenta>()
             // El enlace de activación es un token del proveedor "Default": sin él,
             // GeneratePasswordResetTokenAsync lanza NotSupportedException.
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // Y el mismo autenticador: un código TOTP aceptado no vuelve a valer (V2.8.4).
+            .AddTokenProvider<ProveedorTotpDeUnSoloUso>(TokenOptions.DefaultAuthenticatorProvider);
+        servicios.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(servicios, TimeProvider.System);
 
         // Lo que un test necesita ADEMÁS del cableado de arriba (p. ej. los proveedores
         // de token de Identity, que el arranque no usa y un alta de cuenta sí). Se añade

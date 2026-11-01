@@ -2,6 +2,7 @@ using CaeManager.Application.Documentos.Commands.ConfirmarVigenciaAcreditacion;
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 using CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
@@ -39,13 +40,13 @@ public class RestaurarAnotacionAcreditacionCommandHandlerTests
         }
 
         public MarcarAcreditacionAceptadaCommandHandler Aceptar() =>
-            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), UnitOfWork);
+            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), UnitOfWork);
 
         public ConfirmarVigenciaAcreditacionCommandHandler SoloVigencia() =>
-            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), UnitOfWork);
+            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), UnitOfWork);
 
         public RestaurarAnotacionAcreditacionCommandHandler Restaurar() =>
-            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), UnitOfWork);
+            new(_acreditaciones, _documentos, _alcance, new ProyectosQueryContextFalso(), new CentrosQueryContextFalso(), UnitOfWork);
     }
 
     [Fact]

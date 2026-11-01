@@ -16,6 +16,7 @@ public class ActualizarLecturaIaGlobalCommandHandlerTests
     {
         var repositorio = new TipoDocumentoRepositorioFalso();
         var tipo = CrearTipo();
+        tipo.EstablecerLecturaIaActiva(true);
         repositorio.Agregar(tipo);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new ActualizarLecturaIaGlobalCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
@@ -35,6 +36,7 @@ public class ActualizarLecturaIaGlobalCommandHandlerTests
     {
         var repositorio = new TipoDocumentoRepositorioFalso();
         var tipo = CrearTipo();
+        tipo.EstablecerLecturaIaActiva(true);
         repositorio.Agregar(tipo);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new ActualizarLecturaIaGlobalCommandHandler(repositorio, unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid(), rol));

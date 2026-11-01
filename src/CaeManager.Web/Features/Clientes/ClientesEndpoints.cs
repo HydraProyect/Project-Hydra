@@ -1,6 +1,8 @@
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
+using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
@@ -19,61 +21,7 @@ public static class ClientesEndpoints
 {
     public static IEndpointRouteBuilder MapClientesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/clientes/exportar.xlsx", async (
-            IMediator mediator, CancellationToken cancellationToken,
-            string? q = null, bool critico = false, string? ejecutivo = null, string? estado = null,
-            string? orden = null, bool desc = false) =>
-        {
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Clientes");
-
-            hoja.Cell(1, 1).Value = "Razón social";
-            hoja.Cell(1, 2).Value = "CIF";
-            hoja.Cell(1, 3).Value = "Crítico";
-            hoja.Cell(1, 4).Value = "Creado";
-            hoja.Row(1).Style.Font.Bold = true;
-
-            // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
-            // no materializa toda la tabla de clientes del tenant de golpe.
-            var fila = 2;
-            await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerClientesQuery(
-                        // Posicionales, en el orden del record: búsqueda, solo críticos y
-                        // Gestor CAE de referencia. El estado es la selección de la franja
-                        // (varios nombres separados por coma) y va en EstadosDocumentales.
-                        string.IsNullOrWhiteSpace(q) ? null : q,
-                        critico ? true : null,
-                        Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
-                        EstadoDocumental: null,
-                        Pagina: pagina,
-                        EstadosDocumentales: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
-                        TamanoPagina: tamanoPagina,
-                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
-                        Descendente: desc),
-                    cancellationToken)))
-            {
-                hoja.Cell(fila, 1).Value = cliente.RazonSocial;
-                hoja.Cell(fila, 2).Value = cliente.Cif;
-                hoja.Cell(fila, 3).Value = cliente.EsCritico ? "Sí" : "No";
-                hoja.Cell(fila, 4).Value = cliente.CreadoEnUtc;
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            // Se escribe directo en el stream que consume la respuesta HTTP
-            // (Results.File lo cierra) en vez de bufferear en un MemoryStream
-            // y duplicarlo otra vez con ToArray().
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "clientes.xlsx");
-        })
+        endpoints.MapGet("/clientes/exportar.xlsx", ExportarAsync)
         // DEC-1 (plan de sesiones nocturnas 2026-09-02): mismos roles que
         // /clientes (RolesComunicaciones.Gestion, no RolesDeCartera de
         // CatalogoMenuLateral — esa gatea "Visión de cartera", un dashboard distinto).
@@ -110,5 +58,88 @@ public static class ClientesEndpoints
         .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
+    }
+
+    public static async Task<IResult> ExportarAsync(
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, CancellationToken cancellationToken,
+        string? q = null, bool critico = false, string? ejecutivo = null, string? estado = null,
+        string? orden = null, bool desc = false)
+    {
+        // Estado 4a, igual que /trabajadores/exportar.xlsx: Clientes.razor no muestra los Clientes del
+        // Tenant de origen a quien tiene que elegir una empresa de su cartera
+        // (ContextoEmpresaActiva.ResolverAsync); el endpoint tampoco los consulta ni genera el archivo.
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
+            return Results.Redirect("/clientes");
+
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Clientes");
+
+        hoja.Cell(1, 1).Value = "Razón social";
+        hoja.Cell(1, 2).Value = "CIF";
+        hoja.Cell(1, 3).Value = "Crítico";
+        hoja.Cell(1, 4).Value = "Creado";
+        hoja.Row(1).Style.Font.Bold = true;
+
+        // Pagina en lotes en vez de TamanoPagina: int.MaxValue (P2.7):
+        // no materializa toda la tabla de clientes del tenant de golpe.
+        var fila = 2;
+        await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerClientesQuery(
+                    // Posicionales, en el orden del record: búsqueda, solo críticos y
+                    // Gestor CAE de referencia. El estado es la selección de la franja
+                    // (varios nombres separados por coma) y va en EstadosDocumentales.
+                    string.IsNullOrWhiteSpace(q) ? null : q,
+                    critico ? true : null,
+                    Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
+                    EstadoDocumental: null,
+                    Pagina: pagina,
+                    EstadosDocumentales: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
+                    TamanoPagina: tamanoPagina,
+                    OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                    Descendente: desc),
+                cancellationToken)))
+        {
+            hoja.Cell(fila, 1).Value = cliente.RazonSocial;
+            hoja.Cell(fila, 2).Value = cliente.Cif;
+            hoja.Cell(fila, 3).Value = cliente.EsCritico ? "Sí" : "No";
+            hoja.Cell(fila, 4).Value = cliente.CreadoEnUtc;
+            fila++;
+        }
+
+        hoja.Columns().AdjustToContents();
+
+        // Se escribe directo en el stream que consume la respuesta HTTP
+        // (Results.File lo cierra) en vez de bufferear en un MemoryStream
+        // y duplicarlo otra vez con ToArray().
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Empresas.Empresa), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "clientes"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("critico", critico ? "true" : null),
+                    ("ejecutivo", Guid.TryParse(ejecutivo, out var ejecutivoAplicado) ? ejecutivoAplicado.ToString() : null),
+                    ("estado", SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estadosAplicados ? string.Join(",", estadosAplicados) : null),
+                    ("orden", CriteriosExportacion.SoloNombre(orden)),
+                    ("desc", desc ? "true" : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "clientes.xlsx");
     }
 }

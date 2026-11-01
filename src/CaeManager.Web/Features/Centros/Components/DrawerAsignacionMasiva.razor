@@ -18,14 +18,11 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Asignar trabajador"
-        CerrarAlHacerClicFuera="@(_mensajeError is null && !_guardando)">
+<DrawerFormulario Visible="_visible" VisibleChanged="v => _visible = v" Titulo="Asignar trabajador"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeError"
+                  OnGuardar="GuardarAsync" TextoCancelar="Cancelar"
+                  TextoGuardar="@(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")">
     <ChildContent>
-        @if (_mensajeError is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeError</div>
-        }
-
         <CampoTexto Etiqueta="Fecha de alta" Type="date" Valor="@_fechaAlta" ValorChanged="v => _fechaAlta = v" />
 
         <Pestanas Definiciones="_pestanas" PestanaActiva="@_vista" PestanaActivaChanged="v => _vista = v" EtiquetaGrupo="Vista de alta">
@@ -114,16 +111,4 @@
             </div>
         }
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardando" OnClick="() => _drawer?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_guardando" OnClick="GuardarAsync">
-            @(_documentosFaltantes.Count > 0 ? "Asignar igualmente" : "Guardar")
-        </Boton>
-    </Pie>
-</Drawer>
-
-@* P1-E2b: fuera del Drawer y de sus pestañas Lista/Matriz, que son dos vistas del mismo
-   formulario: pasar de una a otra no pierde nada y no debe preguntar. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _visible = false" />
+</DrawerFormulario>

@@ -83,8 +83,7 @@ public class FacturacionResumenAlcanceEndpointTests
         dobleMediador.Resumen = existe ? new ResumenFacturacionDto("Cliente empresarial visible", [], []) : null;
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddSingleton<IRegistroExportacionService>(
-            _ => throw new NotSupportedException("La cuota del Operador CAE no se ejecuta en esta prueba."));
+        builder.Services.AddSingleton<IRegistroExportacionService>(new RegistroInerte());
         builder.Services.AddLocalization();
         builder.Services.AddSingleton(alcance);
         builder.Services.AddSingleton(mediador);
@@ -127,5 +126,12 @@ public class FacturacionResumenAlcanceEndpointTests
             Consultas.Add(consulta);
             return Task.FromResult(Resumen);
         }
+    }
+
+    private sealed class RegistroInerte : IRegistroExportacionService
+    {
+        public Task RegistrarAsync(
+            string entidadTipo, int filas, IReadOnlyDictionary<string, string> criterios, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
     }
 }

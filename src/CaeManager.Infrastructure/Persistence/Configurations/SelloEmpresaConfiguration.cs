@@ -14,7 +14,10 @@ public class SelloEmpresaConfiguration : IEntityTypeConfiguration<SelloEmpresa>
 
         builder.Property(s => s.ImagenUrl).IsRequired().HasMaxLength(SelloEmpresa.LongitudMaximaImagenUrl);
 
-        builder.HasOne<Empresa>().WithMany().HasForeignKey(s => s.EmpresaId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<Empresa>().WithMany()
+            .HasForeignKey(s => new { s.TenantId, s.EmpresaId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Una empresa, un sello guardado — se reemplaza al re-guardar.
         builder.HasIndex(s => new { s.TenantId, s.EmpresaId }).IsUnique();

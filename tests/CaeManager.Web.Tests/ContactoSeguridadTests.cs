@@ -130,6 +130,19 @@ public class ContactoSeguridadTests : BunitContext
     }
 
     [Fact]
+    public void La_propuesta_propia_muestra_el_aviso_y_solo_la_ajena_ofrece_acciones()
+    {
+        _mediador.Propuestos = [Propuesto() with { EsPropia = true }, Propuesto()];
+        var cut = Render<ContactosSeguridadPlataforma>();
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().HaveCount(2));
+        var filas = cut.FindAll("tbody tr");
+        filas[0].TextContent.Should().Contain("La propusiste tú: la valida otro Actor de Plataforma TALVEG");
+        filas[0].QuerySelectorAll("button").Should().BeEmpty();
+        filas[1].QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo("Validar", "Rechazar");
+    }
+
+    [Fact]
     public void Validar_envia_el_comando_de_esa_propuesta_y_recarga()
     {
         var propuesto = Propuesto();

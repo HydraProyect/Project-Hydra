@@ -5,40 +5,12 @@ namespace CaeManager.Application.DocumentosIa.Common;
 
 public class DocumentAIProviderFactory(IEnumerable<IDocumentAIProvider> proveedores) : IDocumentAIProviderFactory
 {
-    /// <summary>
-    /// Orden de preferencia por capacidad, declarado aquí y no heredado del
-    /// orden de registro en el contenedor.
-    ///
-    /// Antes, <see cref="ObtenerPorCapacidad"/> devolvía
-    /// <c>Dictionary.Values</c> y el router tomaba <c>[0]</c> y <c>[1]</c>. Eso
-    /// apoyaba dos cosas que no eran ciertas. La primera, que un
-    /// <see cref="Dictionary{TKey,TValue}"/> enumera en orden de inserción:
-    /// .NET no lo garantiza, es un detalle de implementación que cambia al
-    /// reorganizarse los cubos internos. La segunda, que el orden de
-    /// inserción era el deseado: como Mistral se registra antes que Anthropic
-    /// y declara también <see cref="CapacidadesProveedorIa.ExtraccionEstructurada"/>,
-    /// el proveedor primario real de estructuración era Mistral, mientras el
-    /// comentario del registro afirmaba que era Anthropic. Quién recibe los
-    /// datos personales de un documento —y en qué país— dependía del orden de
-    /// unas líneas de DI.
-    ///
-    /// Para OCR va primero Mistral, que es el especializado y factura por
-    /// página. Para estructuración va primero Anthropic, con Gemini de
-    /// alternativa, que es lo que el registro ya decía querer. Cambiar cuál es
-    /// el primario sigue siendo una decisión de benchmark: ahora se toma
-    /// editando esta tabla, que es el único sitio que lo decide.
-    ///
-    /// Un proveedor que no aparezca en la tabla se ordena después de los
-    /// listados, por código, para que su posición tampoco dependa del
-    /// contenedor. <c>ProveedorFalsoDocumentAI</c> (E2E) es la excepción
-    /// deliberada: va delante de todo cuando está registrado, que es solo bajo
-    /// la bandera de la fixture.
-    /// </summary>
+    /// <summary>El doble E2E tiene prioridad cuando está registrado; Anthropic atiende las rutas reales.</summary>
     private static readonly IReadOnlyDictionary<CapacidadesProveedorIa, string[]> OrdenPreferente =
         new Dictionary<CapacidadesProveedorIa, string[]>
         {
-            [CapacidadesProveedorIa.OcrImagenAEscaneado] = ["falso-e2e", "mistral-ocr", "anthropic"],
-            [CapacidadesProveedorIa.ExtraccionEstructurada] = ["falso-e2e", "anthropic", "gemini", "mistral-ocr"],
+            [CapacidadesProveedorIa.OcrImagenAEscaneado] = ["falso-e2e", "anthropic"],
+            [CapacidadesProveedorIa.ExtraccionEstructurada] = ["falso-e2e", "anthropic"],
         };
 
     private readonly IReadOnlyDictionary<string, IDocumentAIProvider> _porCodigo =

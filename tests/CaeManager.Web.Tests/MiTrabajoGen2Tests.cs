@@ -67,6 +67,49 @@ public partial class MiTrabajoGen2Tests : BunitContext
         autorizacion.Roles!.Split(',').Should().NotContain(CaeManager.Infrastructure.Identity.Roles.Consulta);
     }
 
+    /// <summary>
+    /// ACC-1 / M-40: la fila se abre con teclado porque su control es un &lt;button&gt; real (Enter y
+    /// Espacio los activa el navegador; bUnit no emula teclado, eso lo fija el E2E del Gestor CAE con
+    /// cartera). Lo que sí fija este test: el control existe, es enfocable por defecto, lleva el nombre
+    /// accesible «título · Tenant» y abre el detalle.
+    /// </summary>
+    [Fact]
+    public void La_fila_se_abre_con_un_boton_real_con_nombre_accesible()
+    {
+        var cut = Renderizar(CarteraConFaltante);
+        var fila = FilaDe(cut, "Falta Formación PRL");
+
+        fila.GetAttribute("role").Should().BeNull("la fila ya no es un role=button que contiene controles");
+        fila.GetAttribute("tabindex").Should().BeNull("el foco lo recibe el botón de la fila, no el contenedor");
+        var abrir = fila.QuerySelectorAll("button[data-fila-abrir]").Should().ContainSingle().Subject;
+        abrir.GetAttribute("type").Should().Be("button");
+        abrir.GetAttribute("aria-label").Should().Contain("Falta Formación PRL").And.Contain(" · ");
+
+        cut.FindAll(".mi-trabajo-detalle").Should().BeEmpty();
+        abrir.Click();
+        cut.Find(".mi-trabajo-detalle").TextContent.Should().Contain("Falta Formación PRL");
+    }
+
+    /// <summary>Ningún control interactivo (botón, enlace, formulario, campo) cuelga dentro de otro: ni de un role=button ni de un botón.</summary>
+    [Fact]
+    public void Ninguna_fila_anida_controles_interactivos_dentro_de_otro_control()
+    {
+        var cut = Renderizar(CarteraConFaltante);
+        const string interactivos = "button, a[href], input, select, textarea, form, [role=button], [tabindex]";
+
+        var filas = cut.FindAll(".mi-trabajo-fila");
+        filas.Should().NotBeEmpty();
+        foreach (var fila in filas)
+        {
+            foreach (var contenedor in fila.QuerySelectorAll("button, a[href], [role=button]").Concat(fila.Matches("[role=button]") ? [fila] : []))
+                contenedor.QuerySelectorAll(interactivos).Should().BeEmpty($"«{contenedor.TextContent.Trim()}» no puede contener otros controles");
+
+            // El control de abrir y las acciones de la fila son hermanos: el botón de abrir no contiene ningún formulario.
+            fila.QuerySelectorAll("button[data-fila-abrir] form").Should().BeEmpty();
+            fila.QuerySelectorAll("form[data-accion-cross-tenant] button[type=submit]").Should().NotBeEmpty();
+        }
+    }
+
     public MiTrabajoGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private static readonly Guid TenantOrigen = Guid.Parse("0a0a0a0a-0000-0000-0000-000000000001");

@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
 using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -19,7 +21,16 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
     // (hay estado a nivel de proceso/sistema que esa opción no siempre aísla).
     // Serializar es la opción simple y suficiente para el volumen esperado (uso
     // interno, no SaaS) — no justifica un listener persistente tipo unoconv.
-    private static readonly SemaphoreSlim Semaforo = new(1, 1);
+    //
+    // La espera por el semáforo también tiene tope (EsperaMaximaSegundos): el
+    // TimeoutSegundos solo cubre el proceso, así que sin él una conversión atascada
+    // en cola dejaba esperando sin límite a todas las demás cargas de Word.
+    // internal para que los tests puedan ocuparlo sin lanzar LibreOffice.
+    internal static readonly SemaphoreSlim Semaforo = new(1, 1);
+
+    // Los comparte el barrido de arranque (LimpiezaTemporalesConversionWordHostedService).
+    internal const string PrefijoDirectorio = "caemanager-word2pdf-";
+    internal const string NombreMarcaActivo = ".activo";
 
     private readonly LibreOfficeConversorWordPdfServiceOptions _opciones;
     private readonly ILogger<LibreOfficeConversorWordPdfService> _logger;
@@ -34,11 +45,16 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
 
     public async Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default)
     {
-        var directorioTrabajo = Path.Combine(Path.GetTempPath(), $"caemanager-word2pdf-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directorioTrabajo);
+        var directorioTrabajo = Path.Combine(_opciones.RutaTemporales, $"{PrefijoDirectorio}{Guid.NewGuid():N}");
+        CrearDirectorioPrivado(directorioTrabajo);
 
         try
         {
+            // Marca de conversión viva: abierta en exclusiva hasta que termina la
+            // conversión, para que el barrido de arranque de otra instancia no
+            // borre un directorio que sigue en uso.
+            using var bloqueo = new FileStream(Path.Combine(directorioTrabajo, NombreMarcaActivo), FileMode.CreateNew,
+                FileAccess.ReadWrite, FileShare.None);
             var rutaDocx = Path.Combine(directorioTrabajo, "documento.docx");
             await File.WriteAllBytesAsync(rutaDocx, contenidoDocx, cancellationToken);
 
@@ -61,8 +77,18 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
                     UseShellExecute = false,
                 },
             };
+            proceso.StartInfo.Environment["TMPDIR"] = directorioTrabajo;
+            proceso.StartInfo.Environment["TMP"] = directorioTrabajo;
+            proceso.StartInfo.Environment["TEMP"] = directorioTrabajo;
 
-            await Semaforo.WaitAsync(cancellationToken);
+            if (!await Semaforo.WaitAsync(TimeSpan.FromSeconds(Math.Max(0, _opciones.EsperaMaximaSegundos)), cancellationToken))
+            {
+                _logger.LogWarning(
+                    "Conversión de Word a PDF rechazada: el servicio siguió ocupado durante {Segundos} s.",
+                    _opciones.EsperaMaximaSegundos);
+                throw new ConversionWordPdfOcupadaException();
+            }
+
             try
             {
                 try
@@ -129,6 +155,25 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
         finally
         {
             BorrarDirectorioDeTrabajo(directorioTrabajo);
+        }
+    }
+
+    private static void CrearDirectorioPrivado(string ruta)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
+        if (OperatingSystem.IsWindows())
+        {
+            using var identidad = WindowsIdentity.GetCurrent();
+            var usuario = identidad.User ?? throw new InvalidOperationException("No se pudo identificar al usuario del proceso.");
+            var seguridad = new DirectorySecurity();
+            seguridad.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            seguridad.AddAccessRule(new FileSystemAccessRule(usuario, FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+            new DirectoryInfo(ruta).Create(seguridad);
+        }
+        else
+        {
+            Directory.CreateDirectory(ruta, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         }
     }
 

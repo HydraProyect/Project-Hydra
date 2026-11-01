@@ -30,7 +30,8 @@ public sealed record RespuestaCerrada(string PreguntaId, string Eleccion, double
 /// <para>
 /// Vive en Application porque sus reglas no son de transporte: son las que
 /// hacen que la respuesta sea utilizable y que el texto de la orden no pueda
-/// gobernar la decisión. Medidas contra un modelo real antes de escribir esto:
+/// gobernar la decisión. Se midieron contra el proveedor anterior de decisiones
+/// cerradas; con el proveedor actual están sin medir:
 /// </para>
 /// <list type="number">
 /// <item><b>Escotilla en toda pregunta.</b> Sin una opción de abstención, el
@@ -66,8 +67,9 @@ public sealed class PlanDecisionCerrada
     public const int LongitudMaximaTexto = 8000;
 
     /// <summary>
-    /// Opciones por pregunta sin contar la abstención. El proveedor medido
-    /// rechaza más de 255 en total; los candidatos se filtran antes de preguntar.
+    /// Opciones por pregunta sin contar la abstención. El proveedor anterior
+    /// rechazaba más de 255 en total, y el tope se conserva para acotar el
+    /// tamaño de cada petición; los candidatos se filtran antes de preguntar.
     /// </summary>
     public const int MaximoCandidatos = 254;
 
@@ -86,7 +88,7 @@ public sealed class PlanDecisionCerrada
     private PlanDecisionCerrada(string campoTexto, string texto, IReadOnlyList<PreguntaCerrada> preguntas)
     {
         // Todo texto entra al estado por aquí, y entra enmascarado: los DNI, NIE,
-        // pasaportes, CIF y correos no salen hacia el proveedor. El Centro, el
+        // pasaportes, CIF, correos y teléfonos no salen hacia el proveedor. El Centro, el
         // Cliente empresarial y los nombres de persona sí, porque son lo que hay
         // que casar con los candidatos.
         var enmascarado = EnmascaradorIdentificadores.Enmascarar(texto);
@@ -297,8 +299,11 @@ public sealed class PlanDecisionCerrada
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene candidatos con el mismo nombre.");
 
         // Un candidato descrito por su documento sacaría ese documento en claro, y
-        // además no casaría con el texto, que viaja enmascarado.
-        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores.Count > 0))
+        // además no casaría con el texto, que viaja enmascarado. Un teléfono en el
+        // nombre de un candidato (un Centro rotulado con su número) no invalida la
+        // decisión: es lo que ya ocurría antes de enmascarar teléfonos en el texto.
+        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores
+                .Any(i => i.Tipo != TipoIdentificadorEnmascarado.Telefono)))
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene un candidato descrito por un documento o un correo.");
 
         return null;

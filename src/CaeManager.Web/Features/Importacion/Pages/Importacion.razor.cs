@@ -5,13 +5,13 @@ using CaeManager.Application.Importacion.Commands.EjecutarImportacionCombinada;
 using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
-using CaeManager.Infrastructure.Identity;
+using CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta;
+using CaeManager.Infrastructure.Importacion;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Web.Features.Importacion.Pages;
 
@@ -139,6 +139,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private static readonly IReadOnlyList<FiltroPlan> FiltrosPlan = [FiltroPlan.Todas, FiltroPlan.Crear, FiltroPlan.Omitir];
 
+    /// <summary>Extensión del archivo subido para el log (S-D-7): acotada, sin el nombre.</summary>
+    private static string ExtensionParaLog(string nombreArchivo)
+    {
+        // Lista cerrada: una extensión arbitraria podría ser parte del nombre
+        // («Juan Perez.Garcia Lopez»).
+        var extension = Path.GetExtension(nombreArchivo).ToLowerInvariant();
+        return extension is ".xlsx" or ".xlsm" or ".xls" or ".csv" ? extension : "otra";
+    }
+
     private static string ClaveFiltroPlan(FiltroPlan filtro) => filtro switch
     {
         FiltroPlan.Crear => "FiltroPlanCrear",
@@ -190,11 +199,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         new("Contacto", "Nombre Apellidos — email@ejemplo.com", false)
     ];
 
+    [Inject] private LimitadorAnalisisImportacion Limitador { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
-    [Inject] private ToastService ToastService { get; set; } = default!;
-    [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Importacion> Logger { get; set; } = default!;
+    [Inject] private IPlantillaCaeCompletaConfigurada PlantillaCaeCompleta { get; set; } = default!;
+
+    /// <summary>M-43: la plantilla CAE completa sin hojas de Trabajadores configuradas no puede importarse.</summary>
+    private bool PlantillaActualBloqueada => PlantillaActual.Id == "cae" && !PlantillaCaeCompleta.EstaConfigurada;
 
     [SupplyParameterFromQuery(Name = "plantilla")]
     private string? PlantillaInicial { get; set; }
@@ -231,6 +245,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     // historial). La importación NO lo recibe: una escritura ya enviada se deja
     // terminar y registrar en el historial en vez de cortarla a medias.
     private readonly CancellationTokenSource _ciclo = new();
+
+    // Token del análisis vigente, ligado a _ciclo; DescartarAnalisis lo cancela para que el descartado devuelva su hueco.
+    private CancellationTokenSource? _cicloAnalisis;
     private bool _desechada;
 
     protected override void OnInitialized()
@@ -395,17 +412,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var idsFaltantes = historial.Select(h => h.EjecutadaPorUsuarioId).Distinct()
                 .Where(id => !_usuariosPorId.ContainsKey(id)).ToList();
 
-            // Mismo patrón que Auditoria.razor.cs: UserManager no pasa por
-            // MediatR y compite por el mismo DbContext scoped que el resto
-            // del layout. La espera de la puerta sí se cancela con el token;
-            // UserManager.FindByIdAsync no admite uno (usa su propio
-            // CancellationToken, None), así que la búsqueda en curso termina
-            // y lo que se corta es la siguiente.
+            // Mismo patrón que Auditoria.razor.cs: la tanda entera toma la
+            // puerta una vez, compitiendo por el mismo DbContext scoped que el
+            // resto del layout, y tanto su espera como cada consulta se
+            // cancelan con el token de la página.
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
                 foreach (var id in idsFaltantes)
                 {
-                    var usuario = await UserManager.FindByIdAsync(id.ToString());
+                    var usuario = await Mediator.Send(new ObtenerNombreCuentaQuery(id), token);
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? Textos["UsuarioEliminado"].Value;
                     token.ThrowIfCancellationRequested();
                 }
@@ -418,8 +433,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             // Página retirada: nadie va a leer el historial.
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogWarning(ex, "Importación no pudo leer el historial de importaciones.");
             if (version == _versionHistorial)
                 _historial = [];
         }
@@ -510,6 +526,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// <summary>Invalida el análisis en vuelo (si lo hay) y todo lo que colgaba de un plan.</summary>
     private void DescartarAnalisis()
     {
+        // Cancelar, además de invalidar la versión: el análisis descartado devuelve su hueco del limitador (y el cupo
+        // de su Tenant) en vez de retenerlo hasta terminar un trabajo que ya nadie va a pintar.
+        _cicloAnalisis?.Cancel();
+        _cicloAnalisis = null;
         _versionAnalisis++;
         _analizando = false;
         _nombreArchivo = null;
@@ -541,6 +561,13 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
         var archivo = e.File;
         var plantilla = PlantillaActual;
+        if (PlantillaActualBloqueada)
+        {
+            // Defensa en el servidor: el aviso ya lo dice, pero el clic no se fía de lo que pintó la página.
+            DescartarAnalisis();
+            _mensajeError = Textos["ErrorPlantillaCaeSinConfigurar"];
+            return;
+        }
 
         // Un archivo nuevo es un plan nuevo: lo revisado y confirmado sobre el
         // anterior deja de valer, y los pasos 3 y 4 se vuelven a ganar.
@@ -558,29 +585,51 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _nombreArchivo = archivo.Name;
         StateHasChanged();
 
+        // Un token por análisis, ligado al de la página: lo cancela tanto retirar la página como descartar el análisis.
+        using var cicloAnalisis = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token);
+        _cicloAnalisis = cicloAnalisis;
+        var token = cicloAnalisis.Token;
         try
         {
-            await using var flujo = archivo.OpenReadStream(plantilla.TamanoMaximoBytes, _ciclo.Token);
+            await using var flujo = archivo.OpenReadStream(plantilla.TamanoMaximoBytes, token);
             using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria, _ciclo.Token);
+            await flujo.CopyToAsync(memoria, token);
             var contenido = memoria.ToArray();
             if (version != _versionAnalisis) return;
+
+            // El hueco se pide después de recibir el archivo: una subida lenta no debe ocupar uno de los
+            // pocos análisis concurrentes (el coste que se acota es el del análisis, no el de la subida).
+            // El tope por Tenant se cuenta contra el Tenant que resuelve el servidor desde la sesión, nunca contra un
+            // dato del navegador. Sin Tenant resuelto no se analiza: no hay cubo compartido para esas peticiones.
+            if (TenantActual.TenantId is not { } tenantPropietarioId || tenantPropietarioId == Guid.Empty)
+            {
+                _mensajeError = Textos["ErrorAnalisisSinTenant"];
+                return;
+            }
+
+            using var permiso = await Limitador.IntentarEntrarAsync(tenantPropietarioId, token);
+            if (version != _versionAnalisis) return;
+            if (permiso is null)
+            {
+                _mensajeError = Textos["ErrorAnalisisOcupado"];
+                return;
+            }
 
             PlanImportacionDto? planSimple = null;
             PlanImportacionCombinadaDto? planCombinada = null;
             switch (plantilla.Id)
             {
                 case "cae":
-                    planSimple = await Mediator.Send(new AnalizarImportacionExcelQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarImportacionExcelQuery(contenido), token);
                     break;
                 case IdPlantillaClientes:
-                    planSimple = await Mediator.Send(new AnalizarPlantillaClientesQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarPlantillaClientesQuery(contenido), token);
                     break;
                 case "documentos":
-                    planSimple = await Mediator.Send(new AnalizarPlantillaDocumentosQuery(contenido), _ciclo.Token);
+                    planSimple = await Mediator.Send(new AnalizarPlantillaDocumentosQuery(contenido), token);
                     break;
                 case "combinada":
-                    planCombinada = await Mediator.Send(new AnalizarPlantillaCombinadaQuery(contenido), _ciclo.Token);
+                    planCombinada = await Mediator.Send(new AnalizarPlantillaCombinadaQuery(contenido), token);
                     break;
             }
 
@@ -588,18 +637,34 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             _planSimple = planSimple;
             _planCombinada = planCombinada;
         }
-        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            // Página retirada con el análisis en vuelo: no hay a quién pintarlo.
+            // Página retirada o análisis descartado con el análisis en vuelo: no hay a quién pintarlo.
+        }
+        catch (LimiteHojaImportacionException ex)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado: límite de {Limite} por hoja.", ex.Filas ? "filas" : "celdas");
+            _mensajeError = Textos[ex.Filas ? "ErrorLimiteFilas" : "ErrorLimiteCeldas"];
+        }
+        catch (ArchivoRechazadoException)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado por el inspector XLSX.");
+            _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         catch (Exception ex)
         {
             if (version != _versionAnalisis) return;
-            Logger.LogError(ex, "Error al analizar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", archivo.Name, plantilla.Id);
+            // S-D-7: el nombre del archivo puede contener datos personales; al log van solo extensión y tamaño.
+            Logger.LogError(ex, "Error al analizar un archivo {ExtensionArchivo} de {TamanoBytes} bytes con la plantilla {PlantillaId}.",
+                ExtensionParaLog(archivo.Name), archivo.Size, plantilla.Id);
             _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         finally
         {
+            if (ReferenceEquals(_cicloAnalisis, cicloAnalisis))
+                _cicloAnalisis = null;
             if (version == _versionAnalisis)
                 _analizando = false;
         }
@@ -887,7 +952,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", nombreArchivo, plantilla.Id);
+            // S-D-7: sin el nombre del archivo en el log (puede contener datos personales).
+            Logger.LogError(ex, "Excepción no controlada al importar un archivo {ExtensionArchivo} con la plantilla {PlantillaId}.",
+                ExtensionParaLog(nombreArchivo), plantilla.Id);
             // Se persiste en HistorialImportacion.MensajeError: es dato, no se localiza.
             await RegistrarFalloAsync(plantilla, nombreArchivo, "Excepción no controlada durante la importación.");
             if (!_desechada)

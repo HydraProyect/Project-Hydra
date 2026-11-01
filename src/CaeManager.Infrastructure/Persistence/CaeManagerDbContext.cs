@@ -94,7 +94,6 @@ public class CaeManagerDbContext(
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
-        IDesenganchadorDeEntidadesRastreadas,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
 {
@@ -104,8 +103,6 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CierresMensualesTenantBeneficiario => Set<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario>();
     IQueryable<CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario> CaeManager.Application.Dashboard.ICierresCuadroDireccion.CierresMensuales => CierresMensualesTenantBeneficiario;
     void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
-    void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
-        Entry(entidad).State = EntityState.Detached;
 
     IInstantaneaCambiosDeComando IRestauracionCambiosDeComando.CapturarRestauracion() => ConcurrenciaContexto.CapturarRestauracion(this);
 
@@ -124,6 +121,8 @@ public class CaeManagerDbContext(
         dataProtectionProvider.CreateProtector("CaeManager.AccesoPlataformaCaeEmpresa.Credenciales.v1");
     private readonly IDataProtector _protectorCredencialesIntegracion =
         dataProtectionProvider.CreateProtector("CaeManager.CredencialIntegracion.Credenciales.v1");
+    private readonly IDataProtector _protectorCredencialesConexionPlataformaCae =
+        dataProtectionProvider.CreateProtector("CaeManager.CredencialConexionPlataformaCae.Credenciales.v1");
     // Protector propio, separado del de credenciales (auditoría módulo 6):
     // el payload crudo de un webhook es PHI/PII de conversación (cuerpos,
     // teléfonos, nombres), no un secreto de autenticación — un compromiso de
@@ -264,6 +263,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
     public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
     public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
+    // Revocación en servidor de la sesión de cookie (claim talveg:sid). Ver RegistroSesionesUsuario.
+    public DbSet<CaeManager.Domain.Seguridad.SesionUsuario> SesionesUsuario => Set<CaeManager.Domain.Seguridad.SesionUsuario>();
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
@@ -447,6 +448,9 @@ public class CaeManagerDbContext(
     public DbSet<ConexionIntegracion> ConexionesIntegracion => Set<ConexionIntegracion>();
     IQueryable<ConexionIntegracion> IIntegracionesQueryContext.ConexionesIntegracion => ConexionesIntegracion;
     public DbSet<CredencialIntegracion> CredencialesIntegracion => Set<CredencialIntegracion>();
+    public DbSet<ConexionPlataformaCae> ConexionesPlataformaCae => Set<ConexionPlataformaCae>();
+    public DbSet<CredencialConexionPlataformaCae> CredencialesConexionPlataformaCae => Set<CredencialConexionPlataformaCae>();
+    public DbSet<UsoConexionPlataformaCae> UsosConexionPlataformaCae => Set<UsoConexionPlataformaCae>();
     public DbSet<SuscripcionWebhook> SuscripcionesWebhook => Set<SuscripcionWebhook>();
     public DbSet<ReclamacionBuzonIntegracion> ReclamacionesBuzonIntegracion => Set<ReclamacionBuzonIntegracion>();
     public DbSet<EventoWebhook> EventosWebhook => Set<EventoWebhook>();
@@ -564,6 +568,13 @@ public class CaeManagerDbContext(
         // protector, mismo criterio que RefreshToken/ClientState.
         builder.Entity<LineaWhatsApp>().Property(l => l.TokenAcceso).HasConversion(conversorCredencialesIntegracion);
 
+        // Protector propio: la credencial de API de un acuerdo con una plataforma CAE de terceros.
+        var conversorCredencialesConexionPlataformaCae = new ValueConverter<string, string>(
+            valorPlano => _protectorCredencialesConexionPlataformaCae.Protect(valorPlano),
+            valorCifrado => _protectorCredencialesConexionPlataformaCae.Unprotect(valorCifrado));
+
+        builder.Entity<CredencialConexionPlataformaCae>().Property(c => c.SecretoApi).HasConversion(conversorCredencialesConexionPlataformaCae);
+
         // Payload crudo de webhook cifrado en reposo (auditoría módulo 6):
         // compatibilidad con lo ya escrito antes de este cambio, mismo
         // criterio que DiskFileStorageService.AbrirAsync — un valor que no
@@ -621,7 +632,9 @@ public class CaeManagerDbContext(
         // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
         // catálogos globales por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8 y ADR-011
         // § 8), no un olvido. Sin filtro de EF no quiere decir sin RLS: DelegacionTenant
-        // la lleva por sus dos extremos (migración ProtegeDelegacionesTenantConRls).
+        // la lleva por sus dos extremos (migración ProtegeDelegacionesTenantConRls), y
+        // AsignacionOperadorDelegado por los de su delegación
+        // (migración ProtegeAsignacionesOperadorDelegadoConRls).
         //
         // El filtro de cada entidad se construye con un método genérico real
         // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca

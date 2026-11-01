@@ -15,6 +15,18 @@ public sealed class OpcionesPlantillaCaeCompleta
 
     /// <summary>Una entrada por hoja de Trabajadores del libro, en el orden en que se leen.</summary>
     public List<HojaTrabajadoresCae> HojasTrabajadores { get; set; } = [];
+
+    /// <summary>
+    /// Las hojas de Trabajadores válidas (con nombre de hoja y razón social), sin repetir hoja. Una
+    /// entrada a medias no se lee: sin Empresa declarada no hay a quién asignar los Trabajadores. Es la
+    /// definición que usan el lector, <c>/salud</c> y la pantalla de Importación.
+    /// </summary>
+    public List<HojaTrabajadoresCae> HojasConfiguradas() =>
+        HojasTrabajadores
+            .Where(h => !string.IsNullOrWhiteSpace(h.Hoja) && !string.IsNullOrWhiteSpace(h.RazonSocialEmpresa))
+            .Select(h => new HojaTrabajadoresCae { Hoja = h.Hoja.Trim(), RazonSocialEmpresa = h.RazonSocialEmpresa.Trim() })
+            .DistinctBy(h => h.Hoja, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }
 
 /// <summary>Una hoja de Trabajadores del libro y la Empresa a la que pertenecen todos los de esa hoja.</summary>

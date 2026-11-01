@@ -30,9 +30,21 @@ public class ProcesarItemLoteGeneracionCommandHandler(
             ? new ContextoLoteGeneracionDto(null, [])
             : JsonSerializer.Deserialize<ContextoLoteGeneracionDto>(lote.ContextoJson) ?? new ContextoLoteGeneracionDto(null, []);
 
-        var resultado = await mediator.Send(new GenerarDocumentoIndividualCommand(
-            lote.PlantillaDocumentoVersionId, item.TrabajadorId, contexto.CentroId,
-            contexto.ValoresManuales.Count == 0 ? null : contexto.ValoresManuales), cancellationToken);
+        Result<GenerarDocumentoIndividualResultadoDto> resultado;
+        try
+        {
+            resultado = await mediator.Send(new GenerarDocumentoIndividualCommand(
+                lote.PlantillaDocumentoVersionId, item.TrabajadorId, contexto.CentroId,
+                contexto.ValoresManuales.Count == 0 ? null : contexto.ValoresManuales), cancellationToken);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Sin hueco en el presupuesto de memoria de documentos (S-C-3) la generación no llegó a
+            // guardar nada: el elemento queda fallido con un motivo legible en vez de pendiente para
+            // siempre, y el lote sigue con los demás.
+            resultado = Result.Fallo<GenerarDocumentoIndividualResultadoDto>(
+                Error.Crear("Plantilla.PresupuestoMemoriaAgotado", PresupuestoMemoriaAgotadoException.MensajeUsuario));
+        }
 
         // DEC-5 (propietario, 2026-09-02): un obligatorio vacío no falla el ítem
         // — el documento existe— pero tampoco lo deja como limpio. Sin este

@@ -71,7 +71,7 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
     /// <summary>
     /// Comentarios de Razor (<c>@* *@</c>) y de C# (<c>/* */</c>, <c>//</c>,
     /// <c>///</c>). Sin quitarlos, un componente que solo NOMBRA la puerta en un
-    /// comentario —MainLayout.razor.cs lo hace— contaría como que la usa
+    /// comentario contaría como que la usa
     /// (hallazgo de la revisión Codex, demostrado por mutación).
     /// </summary>
     private static readonly Regex Comentarios = new(
@@ -85,8 +85,8 @@ public class IdentityEnComponentesPorLaPuertaDeAccesoADatosTests
     {
         var conIdentity = ComponentesQueInyectanIdentity();
 
-        conIdentity.Should().Contain("src/CaeManager.Web/Components/Layout/MainLayout.razor",
-            "MainLayout inyecta UserManager y lo usa por la puerta: si el descubrimiento no lo ve, ha dejado " +
+        conIdentity.Should().Contain("src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor",
+            "ConectarExtension inyecta UserManager y lo usa por la puerta: si el descubrimiento no lo ve, ha dejado " +
             "de observar el fenómeno y la comparación de abajo pasaría en vacío");
 
         var sinPuerta = conIdentity

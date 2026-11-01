@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.DataProtection;
@@ -27,12 +28,14 @@ namespace CaeManager.Web.Features.Extension;
 /// </para>
 ///
 /// <para>
-/// <b>Una sesión privilegiada o un workspace delegado no se heredan.</b> El
+/// <b>Una Sesión Privilegiada no puede emitir tokens.</b> El
 /// token solo nombra al usuario; el tenant lo resuelve después
 /// <see cref="TenantClaimsPrincipalFactory"/> desde <c>user.TenantId</c>, que
-/// es el tenant PROPIO. El tenant visitado vive en la cookie de contexto, que
-/// la extensión no tiene. El token es por tanto siempre igual o más estrecho
-/// que la sesión que lo emitió, nunca más ancho.
+/// es el tenant PROPIO. La cookie de contexto no entra en una petición con
+/// token, y un Tenant beneficiario solo se alcanza solicitándolo en cada
+/// petición: <see cref="ContextoExtensionMiddleware"/> lo resuelve con la
+/// autorización vigente, nunca con lo que había al emitir el token. El token
+/// no da por sí mismo más alcance que el Tenant de origen del usuario.
 /// </para>
 /// </summary>
 public static class ExtensionTokenEndpoints
@@ -47,13 +50,16 @@ public static class ExtensionTokenEndpoints
             IFormCollection formulario,
             ClaimsPrincipal usuarioActual,
             UserManager<ApplicationUser> userManager,
-            IDataProtectionProvider dataProtectionProvider) =>
+            IDataProtectionProvider dataProtectionProvider,
+            IRegistroSesionesUsuario sesiones,
+            IClienteActivoSeleccionado seleccion,
+            ILoggerFactory fabricaRegistro) =>
         {
             var valorClaim = usuarioActual.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(valorClaim, out var usuarioId))
                 return Results.Unauthorized();
 
-            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, userManager, dataProtectionProvider);
+            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), userManager, dataProtectionProvider, sesiones, seleccion, fabricaRegistro);
             if (resultado.EsFallido)
                 return resultado.Error.Codigo == "Extension.UsuarioNoEncontrado"
                     ? Results.Unauthorized()
