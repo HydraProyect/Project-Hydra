@@ -23,9 +23,11 @@
 #       Con la imagen caemanager:<sha> ya cargada y el cerrojo de despliegue
 #       YA TOMADO por quien llama (ci-deploy.sh, volver-atras.sh):
 #         0. Exige EnvioCorreo__Modo con valor en el entorno efectivo de la
-#            ranura nueva, y en staging que ese valor sea Cerrado
-#            (exigir_guarda_de_correo). Si no, sale con 1 antes de tocar Caddy,
-#            el fichero de ranuras, el migrador o los contenedores.
+#            ranura nueva, y en staging que ese valor sea Cerrado y que la imagen
+#            declare la guarda; en producción, una imagen que no la declara solo
+#            arranca con Abierto (exigir_guarda_de_correo). Si no, sale con 1
+#            antes de tocar Caddy, el fichero de ranuras, el migrador o los
+#            contenedores.
 #         1. Saca de Caddy y para las salientes de un relevo anterior que sigan
 #            en el fichero (la libre si aún drenaba, o una cuyo drenaje murió).
 #         2. `docker compose up -d --wait --no-build` de los servicios sin
@@ -36,7 +38,9 @@
 #            primero y la activa detrás, y recarga Caddy. Si la recarga falla,
 #            restaura el fichero, para la nueva y sale con 1: sigue sirviendo
 #            la de antes.
-#         4. Lanza el drenaje de la anterior (systemd-run si existe).
+#         4. Lanza el drenaje de la anterior (systemd-run si existe), salvo que
+#            la anterior no declare la guarda y el modo no sea Abierto: esa se
+#            saca de Caddy y se para sin drenar.
 #       Sale con 0 solo si la nueva ranura quedó sirviendo.
 #   relevo-app.sh comprobar-guarda <staging|produccion> <sha>
 #       Solo el paso 0 de `desplegar`, sobre la misma ranura, sin tocar nada más.
@@ -83,7 +87,9 @@ DRENAJE_MAX_STAGING="${DRENAJE_MAX_STAGING:-300}"
 DRENAJE_INTERVALO="${DRENAJE_INTERVALO:-30}"
 RELEVO_ESPERA_SALUD="${RELEVO_ESPERA_SALUD:-180}"
 CLAVE_GUARDA_CORREO="EnvioCorreo__Modo"
+ETIQUETA_GUARDA_CORREO="es.talveg.guarda-correo"
 MODO_CORREO_STAGING="Cerrado"
+MODO_CORREO_SIN_GUARDA="Abierto"
 GUION_RELEVO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 es_entorno() { [ "${1:-}" = staging ] || [ "${1:-}" = produccion ]; }
@@ -346,26 +352,72 @@ clave_con_valor_en_servicio() {
 # También cubre volver-atras.sh, que la pide con `comprobar-guarda` antes de
 # restaurar nada y vuelve a pasar por ella al entrar en `desplegar`. Los mensajes
 # hablan solo del relevo: quien llama responde de lo que haya hecho antes.
-exigir_guarda_de_correo() {
-    local entorno="$1" sha="$2" servicio="$3" fichero=.env modo_exigido="" resultado=0
-    local intacto="El relevo no ha tocado Caddy, el fichero de ranuras, el migrador ni los contenedores: sigue sirviendo la ranura de antes."
+#
+# El modo solo protege en una imagen que lo interprete. Una anterior a la guarda
+# registra SMTP y Microsoft 365 sin envolver, así que se comporta como Abierto
+# aunque el `.env` diga otra cosa. Por eso se mira la etiqueta del Dockerfile
+# (ETIQUETA_GUARDA_CORREO), que lleva lo que declara esa imagen y no lo que el
+# guion supone: sin ella, o si no se puede leer, staging no arranca y producción
+# solo arranca si el modo efectivo es Abierto, que es lo que esa imagen haría.
+#
+# Lee imagen (caemanager:<sha>) o contenedor, que hereda las etiquetas de la suya.
+# Se compara con 1: una etiqueta ausente imprime «<no value>» y un fallo de inspect
+# no imprime nada, y ambos cuentan como «no declara».
+declara_guarda_de_correo() {
+    [ "$(docker inspect -f "{{index .Config.Labels \"$ETIQUETA_GUARDA_CORREO\"}}" "$1" 2>/dev/null || true)" = 1 ]
+}
+
+# Resuelve la configuración efectiva de <servicio> con la imagen <sha> y sale con
+# el código de clave_con_valor_en_servicio.
+medir_guarda_de_correo() {
+    local entorno="$1" sha="$2" servicio="$3" modo_exigido="$4"
     local -a args
-    [ "$entorno" = staging ] && fichero=.env.staging
-    [ "$entorno" = staging ] && modo_exigido="$MODO_CORREO_STAGING"
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
 
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" \
         && IMAGEN_TAG="$sha" docker compose "${args[@]}" --profile ranura config 2>/dev/null ) \
-        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" "$modo_exigido" || resultado=$?
+        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" "$modo_exigido"
+}
+
+exigir_guarda_de_correo() {
+    local entorno="$1" sha="$2" servicio="$3" fichero=.env modo_exigido="" resultado=0
+    local intacto="El relevo no ha tocado Caddy, el fichero de ranuras, el migrador ni los contenedores: sigue sirviendo la ranura de antes."
+    [ "$entorno" = staging ] && fichero=.env.staging
+    [ "$entorno" = staging ] && modo_exigido="$MODO_CORREO_STAGING"
+
+    if ! declara_guarda_de_correo "caemanager:$sha"; then
+        if [ "$entorno" = staging ]; then
+            echo "::error::Relevo de staging abortado: caemanager:$sha no declara $ETIQUETA_GUARDA_CORREO (es anterior a la guarda o no se pudo leer). Ignoraría $CLAVE_GUARDA_CORREO y enviaría correo real con lo que tenga configurado, así que staging no la arranca: elige una imagen que la declare. $intacto" >&2
+            return 1
+        fi
+        modo_exigido="$MODO_CORREO_SIN_GUARDA"
+    fi
+
+    medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$modo_exigido" || resultado=$?
 
     case "$resultado" in
         0) return 0 ;;
         2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). $intacto" >&2 ;;
-        3) echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es $MODO_CORREO_STAGING en el entorno efectivo de $servicio, y en staging no se admite otro modo, para que no salga correo real. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
+        3)
+            if [ "$entorno" = staging ]; then
+                echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es $MODO_CORREO_STAGING en el entorno efectivo de $servicio, y en staging no se admite otro modo, para que no salga correo real. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2
+            else
+                echo "::error::Relevo de $entorno abortado: caemanager:$sha no declara $ETIQUETA_GUARDA_CORREO y $CLAVE_GUARDA_CORREO no es $MODO_CORREO_SIN_GUARDA en el entorno efectivo de $servicio: esa imagen ignoraría el modo y enviaría correo igualmente. Elige una imagen que declare la guarda. $intacto" >&2
+            fi ;;
         *) echo "::error::Relevo de $entorno abortado: falta $CLAVE_GUARDA_CORREO, o no tiene valor, en el entorno efectivo de $servicio. Añádela a $fichero en el servidor y repite la operación. Sin ella no sale ningún correo: ni activación, ni recuperación de contraseña, ni avisos de seguridad. $intacto" >&2 ;;
     esac
     return 1
+}
+
+# La saliente no interpreta el modo y el modo no es Abierto: mientras drena
+# seguiría enviando con el `.env` con el que arrancó. La primera vez que un entorno
+# releva a una imagen con la guarda, la saliente siempre es de estas en staging. Si
+# el modo no se puede medir, cuenta como que no es Abierto.
+saliente_ignora_la_guarda() {
+    local entorno="$1" sha="$2" servicio="$3" saliente="$4"
+    declara_guarda_de_correo "$saliente" && return 1
+    ! medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$MODO_CORREO_SIN_GUARDA"
 }
 
 # La ranura que sirve de verdad: la primera del fichero que esté SANA (en marcha
@@ -481,6 +533,23 @@ desplegar() {
 
     if [ -n "$activa_" ]; then
         detener_drenaje_previo "$entorno"
+        # Su drenaje dejaría una ventana de envío real con la guarda ya
+        # conmutada: se corta a quien siga en ella. Si no se puede parar, el
+        # drenaje de abajo es quien reintenta (retirar_saliente).
+        if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_"; then
+            echo "$activa_ no declara la guarda de correo y el modo no es $MODO_CORREO_SIN_GUARDA: se retira sin drenar."
+            escribir_ranuras "$entorno" "$cont_nueva"
+            recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $activa_; la cookie vieja reintentará en la activa." >&2
+            if docker stop -t 30 "$activa_" > /dev/null 2>&1; then
+                case "$activa_" in
+                    *-azul|*-verde) ;;
+                    *) docker rm "$activa_" > /dev/null 2>&1 || true ;;
+                esac
+                echo "$activa_ retirada de $entorno."
+                return 0
+            fi
+            echo "::error::no se pudo parar $activa_, que ignora la guarda de correo: se lanza su drenaje para que reintente; comprueba que se detiene." >&2
+        fi
         id_activa="$(id_de "$activa_")"
         lanzar_drenaje "$entorno" "$activa_" "$id_activa" \
             || echo "::warning::no se pudo lanzar el drenaje de $activa_: sigue en marcha y con sus circuitos; páralo a mano cuando se vacíe (runbook)."

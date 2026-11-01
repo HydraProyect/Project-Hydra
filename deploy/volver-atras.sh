@@ -18,8 +18,10 @@
 #   2. La imagen existe y su etiqueta OCI de revisión es ese SHA.
 #   3. GUARDA DE CORREO: la misma comprobación que hará el relevo
 #      (relevo-app.sh comprobar-guarda), antes del paso 4 porque ese paso puede
-#      reescribir __EFMigrationsHistory. Rige aunque la imagen de destino sea
-#      anterior a la guarda y no la lea: el camino es uno solo.
+#      reescribir __EFMigrationsHistory. Una imagen de destino anterior a la
+#      guarda (sin la etiqueta es.talveg.guarda-correo) ignoraría el modo: en
+#      staging se detiene, y en producción solo sigue si el modo efectivo es
+#      Abierto. Este guion no decide esa regla, la decide el relevo.
 #   4. ESQUEMA: la lista de migraciones de EF de la imagen (etiqueta
 #      es.talveg.migraciones-ef, ver listar-migraciones-ef.sh) tiene que ser
 #      exactamente la de `__EFMigrationsHistory`. Si la base tiene migraciones
