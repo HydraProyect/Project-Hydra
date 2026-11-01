@@ -290,9 +290,12 @@ public static class InfrastructureServiceCollectionExtensions
         configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion).Bind(opcionesMicrosoft365);
         services.Configure<Microsoft365GraphOptions>(configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion));
 
-        services.AddHttpClient<CaeManager.Application.Integraciones.IMicrosoft365GraphClient, Microsoft365GraphClient>(
+        // El contrato se entrega siempre detrás de la guarda de envío (C-04, ver EnvioCorreoOptions).
+        services.AddHttpClient<Microsoft365GraphClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+        services.AddTransient<CaeManager.Application.Integraciones.IMicrosoft365GraphClient>(sp =>
+            ActivatorUtilities.CreateInstance<GuardaEnvioMicrosoft365GraphClient>(sp, sp.GetRequiredService<Microsoft365GraphClient>()));
 
         if (opcionesMicrosoft365.EstaConfigurado)
         {
@@ -884,7 +887,19 @@ public static class InfrastructureServiceCollectionExtensions
         // Buzón de dinahosting (info@talveg.es) por SMTP — no Microsoft Graph:
         // el MX de talveg.es resuelve a mail.talveg.es, no a Exchange Online.
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SeccionConfiguracion));
-        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<SmtpEmailService>();
+        services.AddScoped<IEmailService>(sp =>
+            ActivatorUtilities.CreateInstance<GuardaEnvioEmailService>(sp, sp.GetRequiredService<SmtpEmailService>()));
+
+        // Guarda de envío (C-04, decisión D-2): cerrada por defecto en todo entorno, porque staging
+        // arranca como Production. Vale para SMTP y para Microsoft 365. Un valor inválido impide arrancar.
+        services.AddOptions<EnvioCorreoOptions>()
+            .Bind(configuration.GetSection(EnvioCorreoOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(),
+                $"La sección {EnvioCorreoOptions.SeccionConfiguracion} no es válida: Modo tiene que ser Cerrado, SoloPermitidos o Abierto; " +
+                "SoloPermitidos exige DestinatariosPermitidos con direcciones exactas y Abierto no admite lista.")
+            .ValidateOnStart();
+        services.AddHostedService<AvisoGuardaEnvioCorreoHostedService>();
 
         // A quién vuelve la respuesta de una reclamación enviada por SMTP
         // (decisión D3): al Gestor CAE que la emite. Scoped porque resuelve la

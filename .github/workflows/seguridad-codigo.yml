@@ -223,7 +223,7 @@ jobs:
           ConnectionStrings__CaeManagerDbRuntime: Host=localhost;Database=cae_zap;Username=cae_app_runtime;Password=zap-ci-efimera
           # Obligatoria fuera de Development (ValidadorUrlBasePublica): sin ella la aplicación
           # no arranca. Dominio .invalid reservado: los enlaces no apuntan a ningún sitio real
-          # y, sin SMTP configurado, ningún correo sale de este job.
+          # y, con la guarda de envío cerrada y sin SMTP configurado, ningún correo sale de este job.
           Smtp__UrlBasePublica: https://escaneo-zap.invalid
         run: |
           cd src/CaeManager.Web/bin/Release/net10.0
@@ -357,8 +357,8 @@ jobs:
 
       # Como el baseline, entorno distinto de Development y tráfico por
       # cae_app_runtime, ahora con la siembra de demo para tener cuentas y datos.
-      # Sin Smtp__Host ni credenciales, SmtpEmailService no envía nada. Los topes
-      # de peticiones se suben porque el escáner, desde una sola IP, solo vería
+      # Sin EnvioCorreo__Modo la guarda de envío está cerrada, y tampoco hay Smtp__Host
+      # ni credenciales: no sale ningún correo. Los topes de peticiones se suben porque el escáner, desde una sola IP, solo vería
       # 429 (mismo ajuste que el fixture de E2E).
       - name: Arrancar la aplicación
         env:
@@ -498,11 +498,11 @@ jobs:
           fi
 
       # Control positivo: pide un restablecimiento para una cuenta que existe y
-      # exige que el servicio de correo diga que no hay SMTP. Si ese camino cambia,
+      # exige que la guarda de envío diga que lo ha bloqueado. Si ese camino cambia,
       # este paso falla en vez de dar por apagado un correo que no se ha probado.
       - name: Comprobar que el correo está apagado
         run: |
-          aviso='Se intentó enviar un correo sin Smtp'
+          aviso='Envío de correo bloqueado por la guarda'
           antes=$(grep -c "$aviso" "$RUNNER_TEMP/app.log" || true)
           tmp=$(mktemp -d)
           curl -fsS -c "$tmp/jar" -o "$tmp/form.html" "$ZAP_BASE/cuenta/olvide-contrasena"
@@ -519,12 +519,12 @@ jobs:
             # intentan enviar y dejan la misma línea.
             despues=$(grep -c "$aviso" "$RUNNER_TEMP/app.log" || true)
             if [ "$despues" -gt "$antes" ]; then
-              echo "El servicio de correo rechaza el envío: SMTP sin configurar."
+              echo "La guarda de envío bloquea el correo: salida cerrada."
               exit 0
             fi
             sleep 1
           done
-          echo "::error::El restablecimiento no llegó al aviso de SMTP sin configurar."
+          echo "::error::El restablecimiento no llegó al aviso de la guarda de envío."
           exit 1
 
       # ZAP solo ataca lo que conoce. Las rutas con identificador salen de la
