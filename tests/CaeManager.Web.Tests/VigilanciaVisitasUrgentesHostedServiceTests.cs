@@ -121,6 +121,30 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
         leidoDeOtro.Leida.Should().BeTrue();
     }
 
+    [Fact]
+    public void Con_gestiones_y_sin_destinatarios_se_retiran_los_avisos_sin_leer_y_no_se_crea_ninguno()
+    {
+        var sinLeer = Aviso(Guid.NewGuid());
+
+        var nuevas = VigilanciaVisitasUrgentesHostedService.SincronizarAvisos(2, [], [sinLeer]);
+
+        nuevas.Should().BeEmpty();
+        sinLeer.Leida.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Reabrir_recorta_el_mensaje_como_el_alta_y_rechaza_uno_vacio()
+    {
+        var aviso = Aviso(Guid.NewGuid());
+        aviso.MarcarComoLeida();
+
+        aviso.Reabrir(new string('x', NotificacionUsuario.LongitudMaximaMensaje + 1));
+
+        aviso.Mensaje.Should().HaveLength(NotificacionUsuario.LongitudMaximaMensaje);
+        aviso.Leida.Should().BeFalse();
+        aviso.Invoking(a => a.ActualizarMensaje(" ")).Should().Throw<ArgumentException>();
+    }
+
     private static NotificacionUsuario Aviso(Guid destinatario) => new(
         destinatario, "Gestiones urgentes de visita", "Hay 3 gestiones urgentes de visita pendientes (ventana mínima de validación).",
         eventoOrigenId: VigilanciaVisitasUrgentesHostedService.EventoAvisoGestionesUrgentes);

@@ -62,10 +62,7 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         (await EstadoAsync(otroTenant)).UltimosElementosEvaluados.Should().Be(
             otroInicial.UltimosElementosEvaluados, "la Visita es de otro Tenant");
 
-        var total = estado.UltimosElementosEvaluados!.Value;
-        var mensaje = total == 1
-            ? "Hay 1 gestión urgente de visita pendiente (ventana mínima de validación)."
-            : $"Hay {total} gestiones urgentes de visita pendientes (ventana mínima de validación).";
+        var mensaje = MensajeEsperado(estado.UltimosElementosEvaluados!.Value);
 
         var avisos = await AvisosAsync(tenant);
         avisos.Select(n => n.UsuarioDestinatarioId).Should().BeEquivalentTo(destinatarios, "uno solo por destinatario");
@@ -87,9 +84,11 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
 
         await AnadirVisitasAsync(tenant, 1, manana, manana);
         await CicloAsync();
+        var mensaje = MensajeEsperado((await EstadoAsync(tenant)).UltimosElementosEvaluados!.Value);
         var actualizados = await AvisosAsync(tenant);
         actualizados.Select(n => n.Id).Should().BeEquivalentTo(primeros.Select(n => n.Id));
-        actualizados.Should().OnlyContain(n => n.Mensaje != primeros[0].Mensaje, "el número ha subido");
+        actualizados.Should().OnlyContain(n => n.Mensaje == mensaje);
+        mensaje.Should().NotBe(primeros[0].Mensaje, "el número ha subido");
 
         var leido = primeros[0].Id;
         await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
@@ -177,6 +176,10 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         await segunda.Should().ThrowAsync<DbUpdateException>();
         (await AvisosAsync(tenant, gestion)).Should().ContainSingle();
     }
+
+    private static string MensajeEsperado(int gestiones) => gestiones == 1
+        ? "Hay 1 gestión urgente de visita pendiente (ventana mínima de validación)."
+        : $"Hay {gestiones} gestiones urgentes de visita pendientes (ventana mínima de validación).";
 
     private async Task CicloSinUrgenciasAsync(Guid tenant)
     {

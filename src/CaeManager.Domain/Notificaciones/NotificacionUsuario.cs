@@ -5,11 +5,14 @@ namespace CaeManager.Domain.Notificaciones;
 /// <summary>
 /// Aviso persistente para un usuario concreto, mostrado como pop-up hasta
 /// que lo descarta — a diferencia de un Toast (ToastService, efímero), este
-/// sobrevive a recargas de página y a cerrar/reabrir sesión. Dos usos hoy,
-/// ambos disparados al reasignar Cliente.EjecutivoUsuarioId (ver
-/// ReasignarEjecutivoClienteCommand): aviso de cambio de Gestor CAE de referencia, y aviso de
+/// sobrevive a recargas de página y a cerrar/reabrir sesión. Al reasignar
+/// Cliente.EjecutivoUsuarioId (ver ReasignarEjecutivoClienteCommand) nacen dos:
+/// aviso de cambio de Gestor CAE de referencia, y aviso de
 /// que un Cliente recién asignado tiene algún TipoDocumento con lectura IA
 /// desactivada (con UrlAccion apuntando a la pantalla de configuración).
+/// Otros productores los emiten con <see cref="EventoOrigenId"/>, único por
+/// Tenant y destinatario: el aviso agregado de gestiones urgentes de visita
+/// reutiliza su fila con <see cref="ActualizarMensaje"/> y <see cref="Reabrir"/>.
 /// </summary>
 public class NotificacionUsuario : EntidadConTenant
 {
