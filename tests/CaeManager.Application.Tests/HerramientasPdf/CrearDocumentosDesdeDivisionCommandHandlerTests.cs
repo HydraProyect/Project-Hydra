@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
@@ -24,7 +25,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     private readonly AlmacenEnMemoria _almacen = new();
     private readonly DivisorFalso _divisor = new();
 
-    private CrearDocumentosDesdeDivisionCommandHandler Handler(Guid? tenant = null, bool disponible = true)
+    private CrearDocumentosDesdeDivisionCommandHandler Handler(Guid? tenant = null, bool disponible = true, AlcanceDatosServiceFalso? alcance = null)
     {
         _mediator.Catalogo = Result.Exito(new CatalogoDivisionPdf(
             new EmpresaDivisionPdf(_empresaId, "Montajes Norte S.L.", "B12345678"),
@@ -35,6 +36,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
 
         return new CrearDocumentosDesdeDivisionCommandHandler(
             new Disponibilidad(disponible), new TenantFijo(tenant ?? _tenantId), _mediator, _divisor, _almacen,
+            alcance ?? new AlcanceDatosServiceFalso(),
             NullLogger<CrearDocumentosDesdeDivisionCommandHandler>.Instance);
     }
 
@@ -44,6 +46,16 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     private TramoACrear Tramo(int inicial, int final, ClaseTitular clase, Guid titular) =>
         new(inicial, final, clase, titular, _tipoId, Emision, null, false);
 
+    [Fact]
+    public async Task Una_Empresa_gestionada_fuera_de_la_cartera_no_crea_nada()
+    {
+        var resultado = await Handler(alcance: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []))
+            .Handle(Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable);
+        _mediator.Altas.Should().BeEmpty();
+        _almacen.Guardados.Should().BeEmpty();
+    }
     [Fact]
     public async Task Cada_tramo_pasa_por_el_alta_normal_con_su_propietario_y_su_archivo()
     {
@@ -84,6 +96,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     {
         var handler = new CrearDocumentosDesdeDivisionCommandHandler(
             new Disponibilidad(true), new TenantFijo(null), _mediator, _divisor, _almacen,
+            new AlcanceDatosServiceFalso(),
             NullLogger<CrearDocumentosDesdeDivisionCommandHandler>.Instance);
 
         var resultado = await handler.Handle(Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);

@@ -69,12 +69,16 @@
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_paginaAmpliada <= 1)" OnClick="() => MoverPaginaAmpliada(-1)">@Textos["Anterior"]</Boton>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_paginaAmpliada >= (_division?.NumeroPaginas ?? 0))" OnClick="() => MoverPaginaAmpliada(1)">@Textos["Siguiente"]</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="() => _paginaAmpliada = null">@Textos["Cerrar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _paginaAmpliada = null">@Textos["Cerrar"]</Boton>
         </Pie>
     </Modal>
 </LimiteDeErrores>
 
 @code {
+    /// <summary>La única acción principal de la pantalla: cada paso pinta la suya, y solo se ve un paso a la vez.</summary>
+    private static RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
+        @<Boton Variante="VarianteBoton.Primario" Deshabilitado="deshabilitado" Cargando="cargando" OnClick="accion" Href="@href">@texto</Boton>;
+
     private RenderFragment PintarSubir() => @<text>
         <CabeceraPagina Titulo="@Textos["SubirTitulo"]">
             <Descripcion>@Textos["SubirDescripcion"]</Descripcion>
@@ -216,7 +220,7 @@
         <div class="barra-acciones-dividir">
             <span>@Textos["ResumenDivision", division.Rangos.Count, division.Rangos.Min(r => r.Paginas), division.Rangos.Max(r => r.Paginas)]</span>
             <Boton Variante="VarianteBoton.Fantasma" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="IrAAsignar">@Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"]</Boton>
+            @BotonPrincipal(Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"], EventCallback.Factory.Create(this, IrAAsignar))
         </div>
     </text>;
 
@@ -327,13 +331,13 @@
                     {
                         <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Type="date" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
                         <label class="marca-tramo">
-                            <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="e => asignacion.SinCaducidad = e.Value is true" />
+                            <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="AlMarcarSinCaducidad(asignacion)" />
                             @Textos["SinCaducidad"]
                         </label>
                     }
 
                     <label class="marca-tramo marca-omitir">
-                        <input type="checkbox" checked="@asignacion.Omitido" @onchange="e => asignacion.Omitido = e.Value is true" />
+                        <input type="checkbox" checked="@asignacion.Omitido" @onchange="AlMarcarOmitido(asignacion)" />
                         @Textos["NoCrearDocumento"]
                     </label>
 
@@ -345,8 +349,8 @@
             </div>
 
             <div class="barra-acciones-dividir">
-                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@Textos[_indiceTramo == 0 ? "VolverADividir" : "Anterior"]</Boton>
-                <Boton Variante="VarianteBoton.Primario" OnClick="SiguienteTramo">@Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@Textos[ClaveVolverTramo]</Boton>
+                @BotonPrincipal(Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"], EventCallback.Factory.Create(this, SiguienteTramo))
             </div>
         </text>;
     }
@@ -404,9 +408,8 @@
 
             <div class="barra-acciones-dividir">
                 <Boton Variante="VarianteBoton.Fantasma" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
-                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(aCrear == 0)" Cargando="_creando" OnClick="CrearAsync">
-                    @(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear])
-                </Boton>
+                @BotonPrincipal(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear],
+                    EventCallback.Factory.Create(this, CrearAsync), deshabilitado: aCrear == 0, cargando: _creando)
             </div>
         </text>;
     }
@@ -469,7 +472,7 @@
             <div class="barra-acciones-dividir">
                 <Boton Variante="VarianteBoton.Fantasma" Href="herramientas-pdf">@Textos["Herramientas"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" OnClick="ReiniciarAsync">@Textos["DividirOtro"]</Boton>
-                <Boton Variante="VarianteBoton.Primario" Href="documentos">@Textos["IrADocumentos"]</Boton>
+                @BotonPrincipal(Textos["IrADocumentos"], default, href: "documentos")
             </div>
         </text>;
     }

@@ -48,7 +48,7 @@ public class ObtenerCatalogoDivisionPdfQueryHandler(
             .Select(r => r.ProveedoraId);
 
         var subcontratas = await empresasContext.Empresas
-            .Where(e => e.NivelServicio != null && subcontrataIds.Contains(e.Id))
+            .Where(e => subcontrataIds.Contains(e.Id))
             .Where(e => subcontratasVisibles == null || subcontratasVisibles.Contains(e.Id))
             .OrderBy(e => e.RazonSocial)
             .Select(e => new EmpresaDivisionPdf(e.Id, e.RazonSocial, e.Cif))

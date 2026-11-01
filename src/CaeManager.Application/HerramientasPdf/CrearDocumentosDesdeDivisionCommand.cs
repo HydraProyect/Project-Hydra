@@ -59,6 +59,7 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
     IMediator mediator,
     IDivisorPdf divisor,
     IFileStorageService almacen,
+    IAlcanceDatosService alcanceDatos,
     ILogger<CrearDocumentosDesdeDivisionCommandHandler> logger)
     : IRequestHandler<CrearDocumentosDesdeDivisionCommand, Result<IReadOnlyList<ResultadoTramoCreado>>>
 {
@@ -74,6 +75,9 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
 
         if (tenantActual.TenantId is not { } tenant || tenant != request.TenantEsperadoId)
             return Fallo(ErrorTenantCruzado, "La Empresa gestionada ha cambiado. Vuelve a empezar para no crear documentos en otra.");
+
+        if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaGestionadaId, cancellationToken))
+            return Fallo(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable, "La Empresa gestionada no está en tu cartera.");
 
         var catalogo = await mediator.Send(new ObtenerCatalogoDivisionPdfQuery(request.EmpresaGestionadaId), cancellationToken);
         if (!catalogo.EsExitoso)

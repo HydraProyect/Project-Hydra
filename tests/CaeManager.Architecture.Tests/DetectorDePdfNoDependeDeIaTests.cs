@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;

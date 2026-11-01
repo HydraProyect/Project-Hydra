@@ -55,7 +55,7 @@
     <value>El teu accés és de només lectura: no pots crear documents.</value>
   </data>
   <data name="SinEmpresaPropia" xml:space="preserve">
-    <value>Aquest Tenant encara no té cap Empresa gestionada a la qual assignar documents.</value>
+    <value>Encara no hi ha cap Empresa gestionada a la qual assignar documents.</value>
   </data>
   <data name="EmpresaGestionada" xml:space="preserve">
     <value>Empresa gestionada (selecció)</value>
