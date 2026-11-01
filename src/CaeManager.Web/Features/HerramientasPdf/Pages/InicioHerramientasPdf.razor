@@ -1,0 +1,41 @@
+@page "/herramientas-pdf"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.HerramientasPdf
+@using CaeManager.Web.Features.HerramientasPdf.Recursos
+@using Microsoft.Extensions.Localization
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+@inject IStringLocalizer<TextosHerramientasPdf> Textos
+@inject IDisponibilidadHerramientasPdf Disponibilidad
+
+<LimiteDeErrores Pagina="this">
+    <PageTitle>@Textos["Herramientas"] — @Marca.Nombre</PageTitle>
+    <div class="contenedor-pagina">
+        <CabeceraPagina Titulo="@Textos["Herramientas"]">
+            <Descripcion>@Textos["PortadaDescripcion"]</Descripcion>
+        </CabeceraPagina>
+
+        @if (_disponible == false)
+        {
+            <EstadoVacio Titulo="@Textos["NoDisponibleTitulo"]" Descripcion="@Textos["NoDisponibleDescripcion"]" NombreIcono="documentos" />
+        }
+        else if (_disponible == true)
+        {
+            <article class="tarjeta-herramienta">
+                <span class="icono-herramienta"><Icono Nombre="documentos" /></span>
+                <div>
+                    <h2>@Textos["PortadaDividirTitulo"]</h2>
+                    <p>@Textos["PortadaDividirDescripcion"]</p>
+                </div>
+                <Boton Variante="VarianteBoton.Primario" Href="herramientas-pdf/dividir">@Textos["PortadaDividirAccion"]</Boton>
+            </article>
+        }
+    </div>
+</LimiteDeErrores>
+
+@code {
+    private bool? _disponible;
+
+    protected override async Task OnInitializedAsync() =>
+        _disponible = await Disponibilidad.EstaDisponibleAsync();
+}

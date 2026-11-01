@@ -1,0 +1,59 @@
+.dividir-pdf { display: flex; flex-direction: column; gap: var(--space-4); max-width: 1320px; }
+.volver-herramientas { align-items: center; align-self: flex-start; display: inline-flex; font-weight: 600; gap: var(--space-1); }
+.texto-suave { color: var(--color-text-muted); font: var(--font-caption); margin: 0; }
+.empresa-activa { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
+
+.aviso-dividir { align-items: center; background: var(--color-warning-50); border: 1px solid var(--color-warning-500); border-radius: var(--radius-md); color: var(--color-warning-700); display: flex; font: var(--font-body-md); gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+.aviso-error { background: var(--color-danger-50); border-color: var(--color-danger-500); color: var(--color-danger-700); }
+.aviso-propuestas { align-items: center; background: var(--color-surface); border: 1px solid var(--color-system-text); border-radius: var(--radius-md); color: var(--color-system-text); display: flex; flex-wrap: wrap; font: var(--font-body-md); gap: var(--space-3); justify-content: space-between; padding: var(--space-3) var(--space-4); }
+
+.zona-bloqueada { align-items: center; background: var(--color-surface-subtle); border: 2px dashed var(--color-border-strong); border-radius: var(--radius-lg); color: var(--color-text-muted); display: flex; flex-direction: column; font: var(--font-body-md); gap: var(--space-3); padding: var(--space-10) var(--space-8); text-align: center; }
+
+.dividir-columnas { align-items: flex-start; display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.dividir-paginas { display: flex; flex: 1; flex-direction: column; gap: var(--space-3); min-width: 280px; }
+.dividir-herramientas { align-items: flex-end; display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: space-between; }
+.rejilla-paginas { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.pagina-pdf { align-items: center; display: flex; flex-direction: column; gap: var(--space-1); }
+.hoja-pdf { aspect-ratio: 210 / 297; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-sm); cursor: zoom-in; overflow: hidden; padding: 0; width: var(--ancho-pagina); }
+.hoja-pdf img { display: block; height: 100%; object-fit: contain; width: 100%; }
+.numero-pagina { color: var(--color-text-muted); font: var(--font-caption); }
+.tijera { align-items: center; background: transparent; border: 1px dashed transparent; border-radius: var(--radius-full); color: var(--color-text-muted); cursor: pointer; display: flex; height: 44px; justify-content: center; width: 28px; }
+.tijera:hover, .tijera:focus-visible { border-color: var(--color-border-strong); color: var(--color-primary-500); }
+.tijera-sugerida { background: var(--color-surface); border-color: var(--color-system-text); color: var(--color-system-text); }
+.tijera-usuario { background: var(--color-primary-500); border-color: var(--color-primary-500); color: var(--color-surface); }
+
+.detectado { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); flex: 0 1 320px; min-width: 240px; padding: var(--space-4); }
+.detectado h2 { font: var(--font-h4); margin: 0 0 var(--space-3); }
+.detectado ol { display: flex; flex-direction: column; gap: var(--space-3); list-style: none; margin: 0; padding: 0; }
+.detectado li { display: flex; flex-direction: column; font: var(--font-body-md); gap: 2px; }
+.motivo-deteccion { color: var(--color-system-text); font: var(--font-caption); }
+
+.barra-acciones-dividir { align-items: center; background: var(--color-surface); border-top: var(--border-default); bottom: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); justify-content: flex-end; padding: var(--space-3) 0; position: sticky; }
+.barra-acciones-dividir > span { flex: 1; font: var(--font-body-md); min-width: 200px; }
+
+.cabecera-tramo { align-items: baseline; display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.cabecera-tramo h1 { font: var(--font-h3); margin: 0; }
+.ficha-tramo { align-items: flex-start; display: flex; flex-wrap: wrap; gap: var(--space-5); }
+.vista-tramo { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-md); flex: 0 1 260px; min-height: 200px; min-width: 200px; overflow: hidden; }
+.vista-tramo img { display: block; width: 100%; }
+.campos-tramo { display: flex; flex: 1; flex-direction: column; gap: var(--space-3); max-width: 560px; min-width: 260px; }
+.campos-tramo h2 { font: var(--font-h4); margin: 0; }
+.sugerencia-tramo { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: space-between; }
+.es-de { border: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0; padding: 0; }
+.es-de legend { font: var(--font-label); margin-bottom: var(--space-1); padding: 0; }
+.es-de label, .marca-tramo { align-items: center; display: inline-flex; font: var(--font-body-md); gap: var(--space-2); min-height: 32px; }
+.marca-omitir { border-top: var(--border-default); padding-top: var(--space-3); }
+
+.titulo-revision { font: var(--font-h4); margin: 0; }
+.tabla-dividir { background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); overflow-x: auto; }
+.tabla-dividir table { border-collapse: collapse; font: var(--font-body-md); width: 100%; }
+.tabla-dividir th { background: var(--color-surface-hover); color: var(--color-text-muted); font: var(--font-label); padding: var(--space-3) var(--space-4); text-align: left; white-space: nowrap; }
+.tabla-dividir td { border-top: var(--border-default); padding: var(--space-3) var(--space-4); vertical-align: middle; }
+.fila-omitida td { color: var(--color-text-muted); }
+.accion-revision { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.falta-dato { color: var(--color-warning-700); font: var(--font-caption); }
+.pagina-ampliada { display: block; margin: 0 auto; max-width: 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+    .tijera { transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
+}

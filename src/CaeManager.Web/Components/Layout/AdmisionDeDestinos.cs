@@ -56,6 +56,7 @@ public static class AdmisionDeDestinos
         ["comunicaciones"] = new(EnlaceId: "comunicaciones"),
         ["gestiones"] = new(EnlaceId: "gestiones"),
         ["visitas"] = new(EnlaceId: "visitas"),
+        ["herramientas-pdf"] = new(EnlaceId: "herramientas-pdf"),
         ["alertas"] = new(EnlaceId: "alertas"),
         ["calendario"] = new(EnlaceId: "calendario"),
         ["reportes"] = new(EnlaceId: "reportes"),

@@ -20,6 +20,7 @@ public class DetectorDePdfNoDependeDeIaTests
     [
         "src/CaeManager.Application/HerramientasPdf",
         "src/CaeManager.Infrastructure/HerramientasPdf",
+        "src/CaeManager.Web/Features/HerramientasPdf",
     ];
 
     /// <summary>

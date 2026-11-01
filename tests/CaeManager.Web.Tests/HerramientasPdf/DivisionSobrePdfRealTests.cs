@@ -1,6 +1,7 @@
 using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.HerramientasPdf;
+using CaeManager.Application.Trabajadores.Extraccion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.DocumentosIa;
 using CaeManager.Infrastructure.HerramientasPdf;
@@ -8,7 +9,6 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.IO;
-using PdfSharp.Pdf.Security;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Fonts.Standard14Fonts;
 using UglyToad.PdfPig.Writer;
@@ -110,9 +110,12 @@ public sealed class DivisionSobrePdfRealTests
         tramo.EsExitoso.Should().BeTrue();
         var paginas = _extractor.ExtraerPalabras(tramo.Valor).Valor;
         paginas.Should().HaveCount(2);
-        string.Join(' ', paginas[0].Palabras.Select(p => p.Texto)).Should().Be("Segunda pagina del paquete");
-        string.Join(' ', paginas[1].Palabras.Select(p => p.Texto)).Should().Be("Tercera pagina del paquete");
+        Texto(paginas[0]).Should().Be("Segunda pagina del paquete");
+        Texto(paginas[1]).Should().Be("Tercera pagina del paquete");
     }
+
+    private static string Texto(PaginaPdf pagina) =>
+        string.Join(' ', pagina.Palabras.Select(p => p.Texto.Trim()).Where(t => t.Length > 0));
 
     [Fact]
     public void Del_mismo_PDF_abierto_salen_varios_tramos_y_todo_el_rango_es_valido()

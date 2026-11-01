@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Herramientas" xml:space="preserve">
+    <value>Eines PDF</value>
+  </data>
+  <data name="PortadaDescripcion" xml:space="preserve">
+    <value>El que fas amb PDF dins de la gestió CAE de l'Empresa gestionada, sense sortir de TALVEG.</value>
+  </data>
+  <data name="PortadaDividirTitulo" xml:space="preserve">
+    <value>Dividir un PDF amb diversos documents</value>
+  </data>
+  <data name="PortadaDividirDescripcion" xml:space="preserve">
+    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+  </data>
+  <data name="PortadaDividirAccion" xml:space="preserve">
+    <value>Divideix un PDF</value>
+  </data>
+  <data name="NoDisponibleTitulo" xml:space="preserve">
+    <value>Eines PDF no està disponible</value>
+  </data>
+  <data name="NoDisponibleDescripcion" xml:space="preserve">
+    <value>El teu pla no inclou Eines PDF.</value>
+  </data>
+  <data name="DividirPestana" xml:space="preserve">
+    <value>Divideix el PDF</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>S'està carregant…</value>
+  </data>
+  <data name="SubirTitulo" xml:space="preserve">
+    <value>Tria el PDF amb diversos documents</value>
+  </data>
+  <data name="SubirDescripcion" xml:space="preserve">
+    <value>TALVEG proposa on comença cada document i de qui és. Ho revises tot abans de crear res.</value>
+  </data>
+  <data name="SubirPie" xml:space="preserve">
+    <value>L'original no es conserva: desapareix en crear els documents o en sortir d'aquesta pantalla.</value>
+  </data>
+  <data name="SinEmpresaAviso" xml:space="preserve">
+    <value>Tria primer una Empresa gestionada al selector de la barra lateral. Els documents s'hi creen.</value>
+  </data>
+  <data name="SoloLectura" xml:space="preserve">
+    <value>El teu accés és de només lectura: no pots crear documents.</value>
+  </data>
+  <data name="SinEmpresaPropia" xml:space="preserve">
+    <value>Aquest Tenant encara no té cap Empresa gestionada a la qual assignar documents.</value>
+  </data>
+  <data name="EmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada (selecció)</value>
+  </data>
+  <data name="ElegirEmpresa" xml:space="preserve">
+    <value>Tria una Empresa gestionada</value>
+  </data>
+  <data name="EmpresaDelSelector" xml:space="preserve">
+    <value>Empresa gestionada: {0} · la del selector de la barra lateral (activa)</value>
+  </data>
+  <data name="EmpresaUnica" xml:space="preserve">
+    <value>Empresa gestionada activa: {0}</value>
+  </data>
+  <data name="ZonaTitulo" xml:space="preserve">
+    <value>Arrossega aquí el PDF o prem per triar-lo</value>
+  </data>
+  <data name="ZonaFormatos" xml:space="preserve">
+    <value>Escanejat o fusionat, fins a {0} MB.</value>
+  </data>
+  <data name="ZonaBloqueada" xml:space="preserve">
+    <value>Tria una Empresa gestionada per poder pujar el PDF</value>
+  </data>
+  <data name="ErrorDemasiadoGrande" xml:space="preserve">
+    <value>El PDF supera els {0} MB. Divideix-lo abans o puja'n una altra còpia.</value>
+  </data>
+  <data name="ErrorContrasena" xml:space="preserve">
+    <value>El PDF té contrasenya. Treu-la i torna'l a pujar.</value>
+  </data>
+  <data name="ErrorIlegible" xml:space="preserve">
+    <value>No hem pogut llegir aquest PDF. Puja'n una altra còpia.</value>
+  </data>
+  <data name="ErrorSinEspacio" xml:space="preserve">
+    <value>Ara mateix no hi ha espai per a aquest PDF. Torna-ho a provar d'aquí a uns minuts.</value>
+  </data>
+  <data name="ErrorTenantCambiado" xml:space="preserve">
+    <value>L'Empresa gestionada del selector ha canviat des que vas pujar el PDF. No s'ha creat res: torna'l a pujar.</value>
+  </data>
+  <data name="PasosEtiqueta" xml:space="preserve">
+    <value>Passos de la divisió</value>
+  </data>
+  <data name="PasoDividir" xml:space="preserve">
+    <value>1. Divideix</value>
+  </data>
+  <data name="PasoAsignarUno" xml:space="preserve">
+    <value>2. Assigna 1 document</value>
+  </data>
+  <data name="PasoAsignarVarios" xml:space="preserve">
+    <value>2. Assigna {0} documents</value>
+  </data>
+  <data name="PasoRevisar" xml:space="preserve">
+    <value>3. Revisa i crea</value>
+  </data>
+  <data name="AvisoFirmado" xml:space="preserve">
+    <value>Aquest PDF està signat. En dividir-lo, la signatura deixa de ser vàlida en cada document resultant.</value>
+  </data>
+  <data name="AvisoIlegible" xml:space="preserve">
+    <value>No hem pogut llegir el text d'aquest PDF. Marca a mà on comença cada document.</value>
+  </data>
+  <data name="AvisoUnDocumento" xml:space="preserve">
+    <value>TALVEG només veu un document. Pots marcar tu on comença cada un.</value>
+  </data>
+  <data name="PropuestasSinConfirmar" xml:space="preserve">
+    <value>TALVEG proposa {0} divisions sense confirmar. Les propostes són en cian: prem-ne una per treure-la.</value>
+  </data>
+  <data name="ConfirmarPropuestas" xml:space="preserve">
+    <value>Confirma les propostes</value>
+  </data>
+  <data name="PaginasEtiqueta" xml:space="preserve">
+    <value>Pàgines del PDF</value>
+  </data>
+  <data name="PistaTijeras" xml:space="preserve">
+    <value>Prem les tisores entre dues pàgines per marcar on comença cada document.</value>
+  </data>
+  <data name="TamanoPaginas" xml:space="preserve">
+    <value>Mida</value>
+  </data>
+  <data name="TamanoPequenas" xml:space="preserve">
+    <value>Petites</value>
+  </data>
+  <data name="TamanoMedianas" xml:space="preserve">
+    <value>Mitjanes</value>
+  </data>
+  <data name="TamanoGrandes" xml:space="preserve">
+    <value>Grans</value>
+  </data>
+  <data name="VerPagina" xml:space="preserve">
+    <value>Mostra la pàgina {0}</value>
+  </data>
+  <data name="DividirTras" xml:space="preserve">
+    <value>Divideix després de la pàgina {0}</value>
+  </data>
+  <data name="QuitarDivision" xml:space="preserve">
+    <value>Treu la divisió després de la pàgina {0}</value>
+  </data>
+  <data name="DetectadoTitulo" xml:space="preserve">
+    <value>Què ha detectat TALVEG</value>
+  </data>
+  <data name="SinIdentificar" xml:space="preserve">
+    <value>Sense identificar</value>
+  </data>
+  <data name="LoAsignarasEnSuPaso" xml:space="preserve">
+    <value>L'assignaràs al seu pas</value>
+  </data>
+  <data name="ResumenDivision" xml:space="preserve">
+    <value>{0} documents · de {1} a {2} pàgines</value>
+  </data>
+  <data name="CambiarPdf" xml:space="preserve">
+    <value>Canvia el PDF</value>
+  </data>
+  <data name="AsignarUno" xml:space="preserve">
+    <value>Assigna el document</value>
+  </data>
+  <data name="AsignarVarios" xml:space="preserve">
+    <value>Assigna els documents</value>
+  </data>
+  <data name="PaginaAmpliada" xml:space="preserve">
+    <value>Pàgina {0}</value>
+  </data>
+  <data name="PaginaSinVista" xml:space="preserve">
+    <value>Sense previsualització d'aquesta pàgina</value>
+  </data>
+  <data name="Anterior" xml:space="preserve">
+    <value>Enrere</value>
+  </data>
+  <data name="Siguiente" xml:space="preserve">
+    <value>Següent</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
+  <data name="DocumentoDeN" xml:space="preserve">
+    <value>Document {0} de {1}</value>
+  </data>
+  <data name="QueEsYDeQuien" xml:space="preserve">
+    <value>Què és i de qui?</value>
+  </data>
+  <data name="SugeridoPorTalveg" xml:space="preserve">
+    <value>Suggerit per TALVEG · {0}</value>
+  </data>
+  <data name="VolverASugerencia" xml:space="preserve">
+    <value>Torna al suggeriment de TALVEG</value>
+  </data>
+  <data name="EsDe" xml:space="preserve">
+    <value>És de</value>
+  </data>
+  <data name="ClaseEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada (titular)</value>
+  </data>
+  <data name="ClaseSubcontrata" xml:space="preserve">
+    <value>Subcontractista</value>
+  </data>
+  <data name="ClaseTrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="ClaseVehiculo" xml:space="preserve">
+    <value>Vehicle</value>
+  </data>
+  <data name="ElegirSubcontrata" xml:space="preserve">
+    <value>Tria una Subcontractista</value>
+  </data>
+  <data name="EmpresaALaQuePertenece" xml:space="preserve">
+    <value>Empresa a la qual pertany</value>
+  </data>
+  <data name="ElegirTrabajador" xml:space="preserve">
+    <value>Tria un Treballador</value>
+  </data>
+  <data name="ElegirVehiculo" xml:space="preserve">
+    <value>Tria un Vehicle</value>
+  </data>
+  <data name="TipoDocumento" xml:space="preserve">
+    <value>Tipus de Document</value>
+  </data>
+  <data name="ElegirTipo" xml:space="preserve">
+    <value>Tria un tipus</value>
+  </data>
+  <data name="FechaEmision" xml:space="preserve">
+    <value>Data d'emissió</value>
+  </data>
+  <data name="FechaCaducidad" xml:space="preserve">
+    <value>Data de caducitat</value>
+  </data>
+  <data name="SinCaducidad" xml:space="preserve">
+    <value>Sense caducitat</value>
+  </data>
+  <data name="CaducidadAutomatica" xml:space="preserve">
+    <value>Aquest tipus calcula la caducitat des de la data d'emissió.</value>
+  </data>
+  <data name="CaducidadAutomaticaCorta" xml:space="preserve">
+    <value>Des de l'emissió</value>
+  </data>
+  <data name="SinFecha" xml:space="preserve">
+    <value>Sense data</value>
+  </data>
+  <data name="NoCrearDocumento" xml:space="preserve">
+    <value>No creïs aquest document</value>
+  </data>
+  <data name="FaltaParaCrear" xml:space="preserve">
+    <value>Falta: {0}. Sense això no es crearà.</value>
+  </data>
+  <data name="FaltaTitular" xml:space="preserve">
+    <value>a qui pertany</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>el tipus</value>
+  </data>
+  <data name="FaltaFechaEmision" xml:space="preserve">
+    <value>la data d'emissió</value>
+  </data>
+  <data name="VolverADividir" xml:space="preserve">
+    <value>Torna a dividir</value>
+  </data>
+  <data name="SiguienteDocumento" xml:space="preserve">
+    <value>Document següent</value>
+  </data>
+  <data name="RevisarYCrear" xml:space="preserve">
+    <value>Revisa i crea</value>
+  </data>
+  <data name="RevisarTitulo" xml:space="preserve">
+    <value>Revisa el que es crearà</value>
+  </data>
+  <data name="ColumnaPaginas" xml:space="preserve">
+    <value>Pàgines</value>
+  </data>
+  <data name="ColumnaAsignadoA" xml:space="preserve">
+    <value>Assignat a</value>
+  </data>
+  <data name="ColumnaCaducidad" xml:space="preserve">
+    <value>Caducitat</value>
+  </data>
+  <data name="ColumnaAccion" xml:space="preserve">
+    <value>Acció</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="SinTipo" xml:space="preserve">
+    <value>Sense tipus</value>
+  </data>
+  <data name="SinTitular" xml:space="preserve">
+    <value>Sense assignar</value>
+  </data>
+  <data name="NoSeCrea" xml:space="preserve">
+    <value>No es crea</value>
+  </data>
+  <data name="Restaurar" xml:space="preserve">
+    <value>Restaura</value>
+  </data>
+  <data name="Corregir" xml:space="preserve">
+    <value>Corregeix</value>
+  </data>
+  <data name="NadaQueCrear" xml:space="preserve">
+    <value>No hi ha documents per crear</value>
+  </data>
+  <data name="CrearUno" xml:space="preserve">
+    <value>Crea 1 document</value>
+  </data>
+  <data name="CrearVarios" xml:space="preserve">
+    <value>Crea {0} documents</value>
+  </data>
+  <data name="ResultadoUno" xml:space="preserve">
+    <value>1 document creat</value>
+  </data>
+  <data name="ResultadoVarios" xml:space="preserve">
+    <value>{0} documents creats</value>
+  </data>
+  <data name="ResultadoDe" xml:space="preserve">
+    <value>De {0} per a l'Empresa gestionada {1}.</value>
+  </data>
+  <data name="ResultadoHora" xml:space="preserve">
+    <value>Creats per tu avui a les {0}.</value>
+  </data>
+  <data name="ColumnaAbrir" xml:space="preserve">
+    <value>Obre</value>
+  </data>
+  <data name="CreadoSugerido" xml:space="preserve">
+    <value>Creat · suggerit per TALVEG</value>
+  </data>
+  <data name="CreadoConfirmado" xml:space="preserve">
+    <value>Creat · confirmat per tu</value>
+  </data>
+  <data name="TramoDemasiadoGrande" xml:space="preserve">
+    <value>No creat: supera els {0} MB per document</value>
+  </data>
+  <data name="TramoRechazado" xml:space="preserve">
+    <value>No creat: {0}</value>
+  </data>
+  <data name="AbrirDocumento" xml:space="preserve">
+    <value>Obre el document</value>
+  </data>
+  <data name="IrADocumentos" xml:space="preserve">
+    <value>Ves a Documents</value>
+  </data>
+  <data name="DividirOtro" xml:space="preserve">
+    <value>Divideix un altre PDF</value>
+  </data>
+  <data name="Pagina" xml:space="preserve">
+    <value>Pàg. {0}</value>
+  </data>
+  <data name="Paginas" xml:space="preserve">
+    <value>Pàgs. {0}-{1}</value>
+  </data>
+  <data name="MotivoSinTexto" xml:space="preserve">
+    <value>Pàgina sense text</value>
+  </data>
+  <data name="MotivoSinCoincidencias" xml:space="preserve">
+    <value>Sense coincidències al catàleg</value>
+  </data>
+  <data name="MotivoTipoSinTitular" xml:space="preserve">
+    <value>Tipus reconegut; no s'ha llegit cap nom</value>
+  </data>
+  <data name="MotivoVariosTitulares" xml:space="preserve">
+    <value>Hi ha diversos titulars possibles a la pàg. {0}</value>
+  </data>
+  <data name="MotivoCifEmpresaGestionada" xml:space="preserve">
+    <value>CIF llegit a la pàg. {0}</value>
+  </data>
+  <data name="MotivoCifSubcontrata" xml:space="preserve">
+    <value>CIF de la Subcontractista a la pàg. {0}</value>
+  </data>
+  <data name="MotivoDni" xml:space="preserve">
+    <value>DNI llegit a la pàg. {0}</value>
+  </data>
+  <data name="MotivoNombre" xml:space="preserve">
+    <value>Nom llegit a la pàg. {0}</value>
+  </data>
+  <data name="MotivoMatricula" xml:space="preserve">
+    <value>Matrícula a la pàg. {0}</value>
+  </data>
+</root>

@@ -1,0 +1,476 @@
+@page "/herramientas-pdf/dividir"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.HerramientasPdf
+@using CaeManager.Web.Features.HerramientasPdf.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
+
+<LimiteDeErrores Pagina="this">
+    <PageTitle>@Textos["DividirPestana"] — @Marca.Nombre</PageTitle>
+    <div class="contenedor-pagina dividir-pdf">
+        <a class="volver-herramientas" href="herramientas-pdf"><Icono Nombre="volver" />@Textos["Herramientas"]</a>
+
+        @if (_inicializando)
+        {
+            <p class="texto-suave" role="status">@Textos["Cargando"]</p>
+        }
+        else if (!_disponible)
+        {
+            <EstadoVacio Titulo="@Textos["NoDisponibleTitulo"]" Descripcion="@Textos["NoDisponibleDescripcion"]" NombreIcono="documentos" />
+        }
+        else if (_paso == PasoAsistente.Subir)
+        {
+            @PintarSubir()
+        }
+        else if (_division is { } division)
+        {
+            if (_paso != PasoAsistente.Resultado)
+            {
+                <IndicadorPasos Pasos="Pasos(division)" PasoActual="@ClavePasoActual" PasosCompletados="PasosCompletados"
+                                PermitirVolver="true" OnPasoSeleccionado="IrAlPasoAsync" EtiquetaGrupo="@Textos["PasosEtiqueta"]" />
+            }
+
+            if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="aviso-dividir aviso-error" role="alert"><Icono Nombre="advertencia" /><span>@_error</span></div>
+            }
+
+            switch (_paso)
+            {
+                case PasoAsistente.Dividir:
+                    @PintarDividir(division)
+                    break;
+                case PasoAsistente.Asignar:
+                    @PintarAsignar(division)
+                    break;
+                case PasoAsistente.Revisar:
+                    @PintarRevisar(division)
+                    break;
+                case PasoAsistente.Resultado:
+                    @PintarResultado(division)
+                    break;
+            }
+        }
+    </div>
+
+    <Modal Visible="_paginaAmpliada is not null" VisibleChanged="v => { if (!v) _paginaAmpliada = null; }"
+           Titulo="@(Textos["PaginaAmpliada", _paginaAmpliada ?? 0].Value)" Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="true">
+        <ChildContent>
+            @if (_paginaAmpliada is { } ampliada && Miniatura(ampliada) is { } imagen)
+            {
+                <img class="pagina-ampliada" src="data:image/png;base64,@imagen" alt="@Textos["PaginaAmpliada", ampliada]" />
+            }
+            else
+            {
+                <p class="texto-suave">@Textos["PaginaSinVista"]</p>
+            }
+        </ChildContent>
+        <Pie>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_paginaAmpliada <= 1)" OnClick="() => MoverPaginaAmpliada(-1)">@Textos["Anterior"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_paginaAmpliada >= (_division?.NumeroPaginas ?? 0))" OnClick="() => MoverPaginaAmpliada(1)">@Textos["Siguiente"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="() => _paginaAmpliada = null">@Textos["Cerrar"]</Boton>
+        </Pie>
+    </Modal>
+</LimiteDeErrores>
+
+@code {
+    private RenderFragment PintarSubir() => @<text>
+        <CabeceraPagina Titulo="@Textos["SubirTitulo"]">
+            <Descripcion>@Textos["SubirDescripcion"]</Descripcion>
+        </CabeceraPagina>
+
+        @if (_sinEmpresa)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SinEmpresaAviso"]</span></div>
+        }
+        else if (_soloLectura)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SoloLectura"]</span></div>
+        }
+        else if (_empresas.Count == 0)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["SinEmpresaPropia"]</span></div>
+        }
+        else if (_empresas.Count > 1)
+        {
+            <CampoSelect Etiqueta="@Textos["EmpresaGestionada"]" Valor="@(_empresaId?.ToString() ?? string.Empty)" ValorChanged="ElegirEmpresa">
+                <option value="">@Textos["ElegirEmpresa"]</option>
+                @foreach (var empresa in _empresas)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
+        }
+        else
+        {
+            <p class="empresa-activa">@Textos[_selectorVisible ? "EmpresaDelSelector" : "EmpresaUnica", _empresas[0].RazonSocial]</p>
+        }
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="aviso-dividir aviso-error" role="alert"><Icono Nombre="advertencia" /><span>@_error</span></div>
+        }
+
+        @if (PuedeSubir)
+        {
+            <ZonaSoltarArchivo Titulo="@Textos["ZonaTitulo"]" FormatosTexto="@Textos["ZonaFormatos", LimitesDivisionPdf.TamanoMaximoOriginalMb]"
+                               Accept=".pdf,application/pdf" Cargando="_cargando" OnChange="CargarArchivoAsync" />
+        }
+        else
+        {
+            <div class="zona-bloqueada"><Icono Nombre="documentos" /><span>@Textos["ZonaBloqueada"]</span></div>
+        }
+
+        <p class="texto-suave">@Textos["SubirPie"]</p>
+    </text>;
+
+    private RenderFragment PintarDividir(EstadoDivisionPdf division) => @<text>
+        @if (_firmado)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["AvisoFirmado"]</span></div>
+        }
+
+        @if (!_textoLegible)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@Textos["AvisoIlegible"]</span></div>
+        }
+        else if (division.Rangos.Count == 1)
+        {
+            <div class="aviso-dividir" role="status"><Icono Nombre="info" /><span>@Textos["AvisoUnDocumento"]</span></div>
+        }
+
+        @if (division.PropuestasSinConfirmar > 0)
+        {
+            <div class="aviso-propuestas" role="status">
+                <span>@Textos["PropuestasSinConfirmar", division.PropuestasSinConfirmar]</span>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="ConfirmarPropuestas">@Textos["ConfirmarPropuestas"]</Boton>
+            </div>
+        }
+
+        <div class="dividir-columnas">
+            <section class="dividir-paginas" aria-label="@Textos["PaginasEtiqueta"]">
+                <div class="dividir-herramientas">
+                    <span class="texto-suave">@Textos["PistaTijeras"]</span>
+                    <CampoSelect Etiqueta="@Textos["TamanoPaginas"]" Valor="@_tamanoPaginas.ToString()" ValorChanged="ElegirTamano">
+                        <option value="84">@Textos["TamanoPequenas"]</option>
+                        <option value="112">@Textos["TamanoMedianas"]</option>
+                        <option value="168">@Textos["TamanoGrandes"]</option>
+                    </CampoSelect>
+                </div>
+                <div class="rejilla-paginas" style="--ancho-pagina: @(_tamanoPaginas)px">
+                    @for (var i = 1; i <= division.NumeroPaginas; i++)
+                    {
+                        var pagina = i;
+                        var corte = division.CorteTras(pagina);
+                        <div class="pagina-pdf">
+                            <button type="button" class="hoja-pdf" aria-label="@Textos["VerPagina", pagina]" @onclick="() => _paginaAmpliada = pagina">
+                                @if (Miniatura(pagina) is { } miniatura)
+                                {
+                                    <img src="data:image/png;base64,@miniatura" alt="" />
+                                }
+                            </button>
+                            <span class="numero-pagina">@pagina</span>
+                        </div>
+                        @if (pagina < division.NumeroPaginas)
+                        {
+                            <button type="button" class="tijera @(corte switch { OrigenCorte.Sugerido => "tijera-sugerida", OrigenCorte.Usuario => "tijera-usuario", _ => string.Empty })"
+                                    aria-pressed="@(corte is not null ? "true" : "false")"
+                                    aria-label="@Textos[corte is null ? "DividirTras" : "QuitarDivision", pagina]"
+                                    @onclick="() => AlternarCorte(pagina)">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg>
+                            </button>
+                        }
+                    }
+                </div>
+            </section>
+
+            <aside class="detectado" aria-label="@Textos["DetectadoTitulo"]">
+                <h2>@Textos["DetectadoTitulo"]</h2>
+                <ol>
+                    @foreach (var rango in division.Rangos)
+                    {
+                        var asignacion = division.Asignacion(rango);
+                        <li>
+                            <strong>@TextoPaginas(rango)</strong>
+                            @if (asignacion.Sugerencia is { TipoNombre: not null } or { TitularNombre: not null })
+                            {
+                                <span>@(asignacion.Sugerencia.TipoNombre ?? Textos["SinIdentificar"].Value)</span>
+                                @if (asignacion.Sugerencia.TitularNombre is { } titular)
+                                {
+                                    <span>@titular</span>
+                                }
+                                <span class="motivo-deteccion">@TextoMotivo(asignacion.Sugerencia)</span>
+                            }
+                            else
+                            {
+                                <span>@Textos["SinIdentificar"]</span>
+                                <span class="texto-suave">@Textos["LoAsignarasEnSuPaso"]</span>
+                            }
+                        </li>
+                    }
+                </ol>
+            </aside>
+        </div>
+
+        <div class="barra-acciones-dividir">
+            <span>@Textos["ResumenDivision", division.Rangos.Count, division.Rangos.Min(r => r.Paginas), division.Rangos.Max(r => r.Paginas)]</span>
+            <Boton Variante="VarianteBoton.Fantasma" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>
+            <Boton Variante="VarianteBoton.Primario" OnClick="IrAAsignar">@Textos[division.Rangos.Count == 1 ? "AsignarUno" : "AsignarVarios"]</Boton>
+        </div>
+    </text>;
+
+    private RenderFragment PintarAsignar(EstadoDivisionPdf division)
+    {
+        var rangos = division.Rangos;
+        var rango = rangos[Math.Clamp(_indiceTramo, 0, rangos.Count - 1)];
+        var asignacion = division.Asignacion(rango);
+        var pendientes = asignacion.Pendientes();
+
+        return @<text>
+            <header class="cabecera-tramo">
+                <h1>@Textos["DocumentoDeN", _indiceTramo + 1, rangos.Count]</h1>
+                <span class="texto-suave">@TextoPaginas(rango)</span>
+            </header>
+
+            <div class="ficha-tramo">
+                <div class="vista-tramo">
+                    @if (Miniatura(rango.Inicial) is { } miniatura)
+                    {
+                        <img src="data:image/png;base64,@miniatura" alt="@Textos["VerPagina", rango.Inicial]" />
+                    }
+                    else
+                    {
+                        <span class="texto-suave">@Textos["PaginaSinVista"]</span>
+                    }
+                </div>
+
+                <div class="campos-tramo">
+                    <h2>@Textos["QueEsYDeQuien"]</h2>
+
+                    @if (asignacion.Sugerencia is { } sugerencia && (sugerencia.TipoDocumentoId is not null || sugerencia.TitularId is not null))
+                    {
+                        <div class="sugerencia-tramo">
+                            <span class="motivo-deteccion">@Textos["SugeridoPorTalveg", TextoMotivo(sugerencia)]</span>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => division.VolverASugerencia(asignacion)">@Textos["VolverASugerencia"]</Boton>
+                        </div>
+                    }
+
+                    <fieldset class="es-de" disabled="@asignacion.Omitido">
+                        <legend>@Textos["EsDe"]</legend>
+                        @foreach (var clase in Enum.GetValues<ClaseTitular>())
+                        {
+                            <label>
+                                <input type="radio" name="es-de-@rango.Clave" checked="@(asignacion.Clase == clase)" @onchange="() => division.ElegirClase(asignacion, clase)" />
+                                @Textos[$"Clase{clase}"]
+                            </label>
+                        }
+                    </fieldset>
+
+                    @switch (asignacion.Clase)
+                    {
+                        case ClaseTitular.Subcontrata:
+                            <CampoSelect Etiqueta="@Textos["ClaseSubcontrata"]" Deshabilitado="asignacion.Omitido" Valor="@Texto(asignacion.TitularId)" ValorChanged="v => asignacion.TitularId = Identificador(v)">
+                                <option value="">@Textos["ElegirSubcontrata"]</option>
+                                @foreach (var subcontrata in division.Catalogo.Subcontratas)
+                                {
+                                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
+                                }
+                            </CampoSelect>
+                            break;
+                        case ClaseTitular.Trabajador:
+                        case ClaseTitular.Vehiculo:
+                            <CampoSelect Etiqueta="@Textos["EmpresaALaQuePertenece"]" Deshabilitado="asignacion.Omitido" Valor="@Texto(asignacion.EmpresaDelTitularId)" ValorChanged="v => division.ElegirEmpresaDelTitular(asignacion, Identificador(v))">
+                                @foreach (var empresa in division.EmpresasConTitulares)
+                                {
+                                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                                }
+                            </CampoSelect>
+                            if (asignacion.Clase == ClaseTitular.Trabajador)
+                            {
+                                <CampoSelect Etiqueta="@Textos["ClaseTrabajador"]" Deshabilitado="asignacion.Omitido" Valor="@Texto(asignacion.TitularId)" ValorChanged="v => asignacion.TitularId = Identificador(v)">
+                                    <option value="">@Textos["ElegirTrabajador"]</option>
+                                    @foreach (var trabajador in division.TrabajadoresDe(asignacion.EmpresaDelTitularId))
+                                    {
+                                        <option value="@trabajador.Id">@trabajador.NombreCompleto</option>
+                                    }
+                                </CampoSelect>
+                            }
+                            else
+                            {
+                                <CampoSelect Etiqueta="@Textos["ClaseVehiculo"]" Deshabilitado="asignacion.Omitido" Valor="@Texto(asignacion.TitularId)" ValorChanged="v => asignacion.TitularId = Identificador(v)">
+                                    <option value="">@Textos["ElegirVehiculo"]</option>
+                                    @foreach (var vehiculo in division.VehiculosDe(asignacion.EmpresaDelTitularId))
+                                    {
+                                        <option value="@vehiculo.Id">@vehiculo.NumeroPlaca · @vehiculo.Nombre</option>
+                                    }
+                                </CampoSelect>
+                            }
+                            break;
+                    }
+
+                    <CampoSelect Etiqueta="@Textos["TipoDocumento"]" Deshabilitado="asignacion.Omitido" Valor="@Texto(asignacion.TipoDocumentoId)" ValorChanged="v => asignacion.TipoDocumentoId = Identificador(v)">
+                        <option value="">@Textos["ElegirTipo"]</option>
+                        @foreach (var tipo in division.TiposPara(asignacion.Clase))
+                        {
+                            <option value="@tipo.Id">@tipo.Nombre</option>
+                        }
+                    </CampoSelect>
+
+                    <CampoTexto Etiqueta="@Textos["FechaEmision"]" Type="date" Deshabilitado="asignacion.Omitido" Valor="@TextoFecha(asignacion.FechaEmision)" ValorChanged="v => asignacion.FechaEmision = Fecha(v)" />
+
+                    @if (division.Tipo(asignacion.TipoDocumentoId) is { VencimientoAutomatico: true })
+                    {
+                        <p class="texto-suave">@Textos["CaducidadAutomatica"]</p>
+                    }
+                    else
+                    {
+                        <CampoTexto Etiqueta="@Textos["FechaCaducidad"]" Type="date" Deshabilitado="@(asignacion.Omitido || asignacion.SinCaducidad)" Valor="@TextoFecha(asignacion.FechaCaducidad)" ValorChanged="v => asignacion.FechaCaducidad = Fecha(v)" />
+                        <label class="marca-tramo">
+                            <input type="checkbox" checked="@asignacion.SinCaducidad" disabled="@asignacion.Omitido" @onchange="e => asignacion.SinCaducidad = e.Value is true" />
+                            @Textos["SinCaducidad"]
+                        </label>
+                    }
+
+                    <label class="marca-tramo marca-omitir">
+                        <input type="checkbox" checked="@asignacion.Omitido" @onchange="e => asignacion.Omitido = e.Value is true" />
+                        @Textos["NoCrearDocumento"]
+                    </label>
+
+                    @if (!asignacion.Omitido && pendientes.Count > 0)
+                    {
+                        <div class="aviso-dividir" role="status"><Icono Nombre="advertencia" /><span>@TextoPendientes(pendientes)</span></div>
+                    }
+                </div>
+            </div>
+
+            <div class="barra-acciones-dividir">
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@Textos[_indiceTramo == 0 ? "VolverADividir" : "Anterior"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" OnClick="SiguienteTramo">@Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"]</Boton>
+            </div>
+        </text>;
+    }
+
+    private RenderFragment PintarRevisar(EstadoDivisionPdf division)
+    {
+        var rangos = division.Rangos;
+        var aCrear = division.TramosACrear().Count;
+
+        return @<text>
+            <h2 class="titulo-revision">@Textos["RevisarTitulo"]</h2>
+            <div class="tabla-dividir">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["ColumnaPaginas"]</th>
+                            <th scope="col">@Textos["TipoDocumento"]</th>
+                            <th scope="col">@Textos["ColumnaAsignadoA"]</th>
+                            <th scope="col">@Textos["ColumnaCaducidad"]</th>
+                            <th scope="col">@Textos["ColumnaAccion"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < rangos.Count; i++)
+                        {
+                            var indice = i;
+                            var rango = rangos[i];
+                            var asignacion = division.Asignacion(rango);
+                            var pendientes = asignacion.Pendientes();
+                            <tr class="@(asignacion.Omitido ? "fila-omitida" : string.Empty)">
+                                <td>@TextoPaginas(rango)</td>
+                                <td>@(division.Tipo(asignacion.TipoDocumentoId)?.Nombre ?? Textos["SinTipo"].Value)</td>
+                                <td>@(division.NombreTitular(asignacion) ?? Textos["SinTitular"].Value)</td>
+                                <td>@TextoCaducidad(division, asignacion)</td>
+                                <td class="accion-revision">
+                                    @if (asignacion.Omitido)
+                                    {
+                                        <span class="texto-suave">@Textos["NoSeCrea"]</span>
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => asignacion.Omitido = false">@Textos["Restaurar"]</Boton>
+                                    }
+                                    else
+                                    {
+                                        @if (pendientes.Count > 0)
+                                        {
+                                            <span class="falta-dato">@TextoPendientes(pendientes)</span>
+                                        }
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => Corregir(indice)">@Textos["Corregir"]</Boton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="barra-acciones-dividir">
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="() => Corregir(rangos.Count - 1)">@Textos["Anterior"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(aCrear == 0)" Cargando="_creando" OnClick="CrearAsync">
+                    @(aCrear == 0 ? Textos["NadaQueCrear"] : Textos[aCrear == 1 ? "CrearUno" : "CrearVarios", aCrear])
+                </Boton>
+            </div>
+        </text>;
+    }
+
+    private RenderFragment PintarResultado(EstadoDivisionPdf division)
+    {
+        var creados = _resultados.Count(r => r.Resultado.Estado == EstadoTramoCreado.Creado);
+
+        return @<text>
+            <CabeceraPagina Titulo="@Textos[creados == 1 ? "ResultadoUno" : "ResultadoVarios", creados]">
+                <Descripcion>@Textos["ResultadoDe", _nombreOriginal, division.Catalogo.EmpresaGestionada.RazonSocial] @Textos["ResultadoHora", _horaCreacion]</Descripcion>
+            </CabeceraPagina>
+
+            <div class="tabla-dividir">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">@Textos["TipoDocumento"]</th>
+                            <th scope="col">@Textos["ColumnaAsignadoA"]</th>
+                            <th scope="col">@Textos["ColumnaPaginas"]</th>
+                            <th scope="col">@Textos["ColumnaCaducidad"]</th>
+                            <th scope="col">@Textos["ColumnaEstado"]</th>
+                            <th scope="col">@Textos["ColumnaAccion"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (asignacion, resultado) in _resultados)
+                        {
+                            <tr>
+                                <td>@(division.Tipo(asignacion.TipoDocumentoId)?.Nombre)</td>
+                                <td>@division.NombreTitular(asignacion)</td>
+                                <td>@TextoPaginas(new RangoPaginas(resultado.PaginaInicial, resultado.PaginaFinal))</td>
+                                <td>@TextoCaducidad(division, asignacion)</td>
+                                <td>
+                                    @switch (resultado.Estado)
+                                    {
+                                        case EstadoTramoCreado.Creado:
+                                            <span>@Textos[asignacion.CoincideConSugerencia ? "CreadoSugerido" : "CreadoConfirmado"]</span>
+                                            break;
+                                        case EstadoTramoCreado.DemasiadoGrande:
+                                            <span class="falta-dato">@Textos["TramoDemasiadoGrande", LimiteDocumentoMb]</span>
+                                            break;
+                                        default:
+                                            <span class="falta-dato">@Textos["TramoRechazado", resultado.Detalle ?? string.Empty]</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>
+                                    @if (resultado.DocumentoId is { } documentoId)
+                                    {
+                                        <a href="documentos/@documentoId">@Textos["AbrirDocumento"]</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="barra-acciones-dividir">
+                <Boton Variante="VarianteBoton.Fantasma" Href="herramientas-pdf">@Textos["Herramientas"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="ReiniciarAsync">@Textos["DividirOtro"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" Href="documentos">@Textos["IrADocumentos"]</Boton>
+            </div>
+        </text>;
+    }
+}
