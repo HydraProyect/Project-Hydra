@@ -21,7 +21,13 @@ public enum EstadoTramoCreado
     DemasiadoGrande = 1,
 
     /// <summary><see cref="CrearDocumentoCommand"/> lo rechazó; <see cref="ResultadoTramoCreado.Detalle"/> dice por qué.</summary>
-    Rechazado = 2
+    Rechazado = 2,
+
+    /// <summary>
+    /// El alta falló sin respuesta: el Documento pudo quedar guardado antes del fallo, así que se conserva su archivo
+    /// y se pide comprobarlo en vez de repetirlo.
+    /// </summary>
+    SinConfirmar = 3
 }
 
 public record ResultadoTramoCreado(
@@ -86,6 +92,10 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         if (request.Tramos.Any(t => !catalogo.Valor.Contiene(t.Clase, t.TitularId)))
             return Fallo(ErrorTitularAjeno, "Un documento se asigna a alguien que no pertenece a esta Empresa gestionada ni a sus Subcontratas.");
 
+        // Antes de crear nada: el alta lanza si no valida, y a mitad del lote dejaría creados los tramos anteriores.
+        if (MotivoDeTramoInvalido(request, catalogo.Valor) is { } motivo)
+            return Fallo(ErrorTramosInvalidos, motivo);
+
         var abierto = divisor.Abrir(request.ContenidoPdf);
         if (!abierto.EsExitoso)
             return Result.Fallo<IReadOnlyList<ResultadoTramoCreado>>(abierto.Error);
@@ -97,9 +107,39 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
 
         var resultados = new List<ResultadoTramoCreado>(request.Tramos.Count);
         foreach (var tramo in request.Tramos)
-            resultados.Add(await CrearTramoAsync(request, pdf, tramo, cancellationToken));
+            resultados.Add(await CrearTramoSinPerderElLoteAsync(request, pdf, tramo, cancellationToken));
 
         return Result.Exito<IReadOnlyList<ResultadoTramoCreado>>(resultados);
+    }
+
+    private static string? MotivoDeTramoInvalido(CrearDocumentosDesdeDivisionCommand request, CatalogoDivisionPdf catalogo)
+    {
+        if (request.Tramos.Any(t => catalogo.Tipos.All(tipo => tipo.Id != t.TipoDocumentoId)))
+            return "Un documento tiene un tipo que no está disponible.";
+
+        var validador = new CrearDocumentoCommandValidator();
+
+        return request.Tramos
+            .Select(t => validador.Validate(ComandoDeAlta(request, t, string.Empty)))
+            .FirstOrDefault(v => !v.IsValid)?.Errors[0].ErrorMessage;
+    }
+
+    /// <summary>
+    /// Cada alta confirma por separado: un fallo a mitad no puede borrar la lista de lo ya creado, o el usuario
+    /// repetiría el lote y duplicaría esos Documentos.
+    /// </summary>
+    private async Task<ResultadoTramoCreado> CrearTramoSinPerderElLoteAsync(
+        CrearDocumentosDesdeDivisionCommand request, IPdfParaDividir pdf, TramoACrear tramo, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CrearTramoAsync(request, pdf, tramo, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning("Dividir PDF no pudo preparar un tramo ({Excepcion}).", ex.GetType().Name);
+            return Resultado(tramo, EstadoTramoCreado.Rechazado, null, "No se ha podido preparar este documento.");
+        }
     }
 
     private static Result<IReadOnlyList<ResultadoTramoCreado>> Fallo(string codigo, string mensaje) =>
@@ -131,10 +171,16 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
         {
             creado = await mediator.Send(ComandoDeAlta(request, tramo, archivoUrl), cancellationToken);
         }
-        catch
+        catch (ValidationException ex)
         {
             await EliminarSinOcultarAsync(archivoUrl);
-            throw;
+            return Resultado(tramo, EstadoTramoCreado.Rechazado, null, ex.Errors.FirstOrDefault()?.ErrorMessage);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // El alta guarda antes de publicar su evento: el Documento pudo quedar creado y necesita su archivo.
+            logger.LogWarning("Dividir PDF no pudo confirmar un alta ({Excepcion}).", ex.GetType().Name);
+            return Resultado(tramo, EstadoTramoCreado.SinConfirmar, null, null);
         }
 
         if (creado.EsExitoso)
@@ -157,14 +203,12 @@ public class CrearDocumentosDesdeDivisionCommandHandler(
 
         return new CrearDocumentoCommand(
             trabajadorId, null, empresaId, vehiculoId, null, tramo.TipoDocumentoId, tramo.FechaEmision,
-            tramo.FechaVencimientoManual, archivoUrl, Comentario(request.NombreOriginal, tramo), tramo.NoCaduca);
+            tramo.FechaVencimientoManual, archivoUrl, Comentario(tramo), tramo.NoCaduca);
     }
 
-    private static string Comentario(string nombreOriginal, TramoACrear tramo)
-    {
-        var texto = $"Creado con Dividir: páginas {tramo.PaginaInicial}-{tramo.PaginaFinal} de {Path.GetFileName(nombreOriginal)}.";
-        return texto.Length <= Documento.LongitudMaximaComentarios ? texto : texto[..Documento.LongitudMaximaComentarios];
-    }
+    // Sin el nombre del PDF: lo pone el usuario, puede llevar datos personales y un Documento de Empresa se lee con más alcance.
+    private static string Comentario(TramoACrear tramo) =>
+        $"Creado con Dividir: páginas {tramo.PaginaInicial}-{tramo.PaginaFinal} del PDF original.";
 
     private static string NombreDelTramo(string nombreOriginal, TramoACrear tramo) =>
         $"{Path.GetFileNameWithoutExtension(nombreOriginal)}-pag-{tramo.PaginaInicial}-{tramo.PaginaFinal}.pdf";

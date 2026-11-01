@@ -5,6 +5,8 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
+using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -76,7 +78,7 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
             (null, null, _vehiculoId));
         altas.Should().OnlyContain(a => a.ClienteId == null && a.ProyectoId == null && a.TipoDocumentoId == _tipoId && a.FechaEmision == Emision);
         altas.Select(a => a.ArchivoUrl).Should().Equal(_almacen.Guardados.Keys);
-        altas[0].Comentarios.Should().Be("Creado con Dividir: páginas 1-2 de paquete.pdf.");
+        altas[0].Comentarios.Should().Be("Creado con Dividir: páginas 1-2 del PDF original.");
         _divisor.Extraidos.Should().Equal((1, 2), (3, 3), (4, 4), (5, 6));
     }
 
@@ -208,15 +210,72 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     }
 
     [Fact]
-    public async Task Una_excepcion_del_alta_retira_el_archivo_y_se_propaga()
+    public async Task Una_excepcion_del_alta_conserva_el_archivo_y_no_pierde_lo_ya_creado()
     {
-        _mediator.LanzarEnAlta = true;
+        _mediator.LanzarEnAlta = n => n == 2 ? new InvalidOperationException("fallo tras guardar") : null;
 
-        var accion = () => Handler().Handle(
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(2, 2, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(3, 3, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(
+            EstadoTramoCreado.Creado, EstadoTramoCreado.SinConfirmar, EstadoTramoCreado.Creado);
+        _almacen.Guardados.Should().HaveCount(3, "el Documento pudo guardarse antes del fallo y necesita su archivo");
+    }
+
+    [Fact]
+    public async Task Una_validacion_del_alta_retira_el_archivo_y_rechaza_solo_ese_tramo()
+    {
+        _mediator.LanzarEnAlta = n => n == 1
+            ? new ValidationException([new ValidationFailure("FechaEmision", "No válida")])
+            : null;
+
+        var resultado = await Handler().Handle(
             Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
 
-        await accion.Should().ThrowAsync<InvalidOperationException>();
+        resultado.Valor.Single().Estado.Should().Be(EstadoTramoCreado.Rechazado);
+        resultado.Valor.Single().Detalle.Should().Be("No válida");
         _almacen.Guardados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_al_guardar_un_tramo_no_pierde_lo_ya_creado()
+    {
+        _almacen.FallarEn = "paquete-pag-2-2.pdf";
+
+        var resultado = await Handler().Handle(Comando(
+            Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId),
+            Tramo(2, 2, ClaseTitular.EmpresaGestionada, _empresaId)), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoTramoCreado.Creado, EstadoTramoCreado.Rechazado);
+    }
+
+    [Fact]
+    public async Task Una_fecha_de_emision_futura_en_cualquier_tramo_no_crea_ninguno()
+    {
+        var futura = new TramoACrear(2, 2, ClaseTitular.EmpresaGestionada, _empresaId, _tipoId,
+            DiaDeNegocio.Hoy().AddDays(1), null, false);
+
+        var resultado = await Handler().Handle(
+            Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId), futura), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTramosInvalidos);
+        resultado.Error.Mensaje.Should().Be("La fecha de emisión no puede ser futura.");
+        _mediator.Altas.Should().BeEmpty();
+        _almacen.Guardados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_tipo_fuera_del_catalogo_no_crea_ninguno()
+    {
+        var ajeno = new TramoACrear(2, 2, ClaseTitular.EmpresaGestionada, _empresaId, Guid.NewGuid(), Emision, null, false);
+
+        var resultado = await Handler().Handle(
+            Comando(Tramo(1, 1, ClaseTitular.EmpresaGestionada, _empresaId), ajeno), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CrearDocumentosDesdeDivisionCommandHandler.ErrorTramosInvalidos);
+        _mediator.Altas.Should().BeEmpty();
     }
 
     [Fact]
@@ -276,9 +335,13 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
     private sealed class AlmacenEnMemoria : IFileStorageService
     {
         public Dictionary<string, long> Guardados { get; } = [];
+        public string? FallarEn { get; set; }
 
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
         {
+            if (nombreArchivoOriginal == FallarEn)
+                throw new IOException("disco lleno");
+
             Guardados[nombreArchivoOriginal] = contenido.Length;
             return Task.FromResult(nombreArchivoOriginal);
         }
@@ -298,7 +361,8 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
         public Result<CatalogoDivisionPdf>? Catalogo { get; set; }
         public List<CrearDocumentoCommand> Altas { get; } = [];
         public Func<int, Error?> RechazarAlta { get; set; } = _ => null;
-        public bool LanzarEnAlta { get; set; }
+        public Func<int, Exception?> LanzarEnAlta { get; set; } = _ => null;
+        private int _intentos;
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -314,8 +378,8 @@ public class CrearDocumentosDesdeDivisionCommandHandlerTests
 
         private Result<Guid> Alta(CrearDocumentoCommand alta)
         {
-            if (LanzarEnAlta)
-                throw new InvalidOperationException("fallo del alta");
+            if (LanzarEnAlta(++_intentos) is { } excepcion)
+                throw excepcion;
 
             return RechazarAlta(Altas.Count + 1) is { } error
                 ? Rechazar(alta, error)

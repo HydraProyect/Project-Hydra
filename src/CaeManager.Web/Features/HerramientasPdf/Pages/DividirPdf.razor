@@ -480,6 +480,9 @@
                                         case EstadoTramoCreado.DemasiadoGrande:
                                             <span class="falta-dato">@Textos["TramoDemasiadoGrande", LimiteDocumentoMb]</span>
                                             break;
+                                        case EstadoTramoCreado.SinConfirmar:
+                                            <span class="falta-dato">@Textos["TramoSinConfirmar"]</span>
+                                            break;
                                         default:
                                             <span class="falta-dato">@Textos["TramoRechazado", resultado.Detalle ?? string.Empty]</span>
                                             break;

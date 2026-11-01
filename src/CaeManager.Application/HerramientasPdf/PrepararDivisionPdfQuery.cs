@@ -43,7 +43,7 @@ public class PrepararDivisionPdfQueryHandler(
             return Result.Fallo<PreparacionDivisionPdf>(lectura.Error);
 
         var (numeroPaginas, firmado, palabras) = lectura.Valor;
-        var tramos = DetectorTramosPdf.Detectar(palabras ?? [], numeroPaginas, catalogo.Valor);
+        var tramos = await Task.Run(() => DetectorTramosPdf.Detectar(palabras ?? [], numeroPaginas, catalogo.Valor), cancellationToken);
 
         return Result.Exito(new PreparacionDivisionPdf(numeroPaginas, firmado, palabras is not null, tramos, catalogo.Valor));
     }

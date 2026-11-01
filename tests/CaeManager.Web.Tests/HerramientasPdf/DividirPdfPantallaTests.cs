@@ -200,6 +200,23 @@ public sealed class DividirPdfPantallaTests : BunitContext
     }
 
     [Fact]
+    public void Si_el_Tenant_del_selector_lateral_no_coincide_con_ninguna_Empresa_se_elige_en_la_pagina()
+    {
+        _mediador.Autorizados =
+        [
+            new ClienteAutorizadoDto(TenantOrigenId, "Operador", EsOrigen: true),
+            new ClienteAutorizadoDto(TenantAId, "Tenant A", EsOrigen: false, EsGestionadoPorOperacion: true),
+            new ClienteAutorizadoDto(TenantBId, "Tenant B", EsOrigen: false, EsGestionadoPorOperacion: true),
+        ];
+        _mediador.Empresas = [new EmpresaSelectorDto(EmpresaId, "Montajes Norte S.L."), new EmpresaSelectorDto(Guid.NewGuid(), "Otra Empresa S.L.")];
+
+        var cut = Renderizar(tenantId: TenantAId);
+
+        cut.WaitForAssertion(() => cut.FindAll("select").Should().ContainSingle());
+        cut.FindAll(".aviso-dividir").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Con_varias_Empresas_propias_y_sin_selector_lateral_se_elige_en_la_pagina_antes_de_subir()
     {
         var otra = new EmpresaSelectorDto(Guid.NewGuid(), "Otra Empresa S.L.");

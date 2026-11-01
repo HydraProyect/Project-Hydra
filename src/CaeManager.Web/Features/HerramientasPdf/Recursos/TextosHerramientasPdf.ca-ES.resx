@@ -342,6 +342,9 @@
   <data name="TramoDemasiadoGrande" xml:space="preserve">
     <value>No creat: supera els {0} MB per document</value>
   </data>
+  <data name="TramoSinConfirmar" xml:space="preserve">
+    <value>Sense confirmar: comprova-ho a Documents abans de repetir-ho</value>
+  </data>
   <data name="TramoRechazado" xml:space="preserve">
     <value>No creat: {0}</value>
   </data>

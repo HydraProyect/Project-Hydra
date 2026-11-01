@@ -20,7 +20,7 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 /// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes, un paso por documento, revisar y crear. La
 /// detección es local y solo sugiere; cada alta pasa por <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en
 /// el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
-/// solo si esa barra no ofrece selector y hay varias Empresas propias se elige aquí.
+/// solo si de ahí no se deduce una sola y hay varias Empresas propias se elige aquí.
 ///
 /// El original vive en el almacén temporal del circuito, no en memoria, y desaparece al crear o al salir: no se conserva.
 /// </summary>
@@ -130,20 +130,21 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
         _selectorVisible = contexto.Activa is not null;
         _tenantEsperadoId = TenantActual.TenantId;
 
-        // La Empresa gestionada sale del selector de la barra lateral o de la unica Empresa del Tenant. Solo si esa
-        // barra no ofrece selector y hay varias Empresas propias se elige aqui: no hay otro sitio donde hacerlo.
+        // La Empresa gestionada sale del selector de la barra lateral o de la unica Empresa del Tenant. Ese selector
+        // elige un Tenant, no una fila Empresa: el cruce es por nombre, y si no da una sola Empresa se elige aqui.
         if (!_sinEmpresa)
         {
             _empresas = await PuertaAccesoDatos.EjecutarAsync(
                 () => Mediator.Send(new ObtenerEmpresasParaSelectorQuery(), _ciclo.Token));
-            if (contexto.Activa is { } activa && _empresas.FirstOrDefault(e => string.Equals(e.RazonSocial, activa.Nombre, StringComparison.OrdinalIgnoreCase)) is { } coincidente)
-                _empresaId = coincidente.Id;
+            var coincidentes = contexto.Activa is { } activa
+                ? _empresas.Where(e => string.Equals(e.RazonSocial, activa.Nombre, StringComparison.OrdinalIgnoreCase)).ToList()
+                : [];
+            if (coincidentes.Count == 1)
+                _empresaId = coincidentes[0].Id;
             else if (_empresas.Count == 1)
                 _empresaId = _empresas[0].Id;
-            else if (_empresas.Count > 1 && contexto.Activa is null)
-                _elegirEmpresaAqui = true;
             else if (_empresas.Count > 1)
-                _sinEmpresa = true;
+                _elegirEmpresaAqui = true;
         }
 
         _inicializando = false;
@@ -198,7 +199,7 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
 
     private async Task CargarArchivoAsync(InputFileChangeEventArgs evento)
     {
-        if (_almacen is null || _empresaId is not { } empresaId || _tenantEsperadoId is null)
+        if (_cargando || _almacen is null || _empresaId is not { } empresaId || _tenantEsperadoId is null)
             return;
 
         var archivo = evento.File;
