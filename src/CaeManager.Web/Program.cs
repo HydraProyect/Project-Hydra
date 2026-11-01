@@ -298,6 +298,8 @@ builder.Services.AddScoped<CaeManager.Web.Services.IVentanaDeSoporteActual>(
 // tzdata, que el arranque falle aquí y no en la primera fecha que se juzgue.
 _ = CaeManager.Domain.Common.DiaDeNegocio.Zona;
 // Reloj de AvisoVentanaSoporte; inyectable para poder fijar la hora en los tests.
+// El arnés E2E (solo Development) lo registra antes con un desplazamiento: ver RelojDesplazadoPorFichero.
+CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, builder.Configuration, builder.Environment);
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
