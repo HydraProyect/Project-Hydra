@@ -586,6 +586,10 @@ comprobar "  Caddy deja de verla antes de pararla" si \
 saliente_staging; relevo STOP_FALLA=caemanager-staging-app-azul -- desplegar staging "$B"
 comprobar "si no se puede parar, sale con 0 (la nueva sirve) y queda un drenaje que reintenta" "0 1" "$codigo $(grep -c '^systemd-run' "$LOG")"
 comprobar "  y lo dice como error" si "$(contiene "::error::no se pudo parar caemanager-staging-app-azul" "$salida")"
+saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- desplegar staging "$B"
+comprobar "si la nueva no está sana, la saliente no se para y queda el drenaje, que espera a que lo esté" "0 true 1 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha caemanager-staging-app-azul) $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
 limpio; contenedor caemanager-staging-app "$A"; sin_guarda caemanager-staging-app
 fichero staging "to caemanager-staging-app:8080"; fichero produccion "to caemanager-app-azul:8080"
 relevo -- desplegar staging "$B"
@@ -611,6 +615,9 @@ comprobar "  en la etapa final, la que se despliega" si \
   "$(l_f="$(grep -n '^FROM ' "$AQUI/../Dockerfile" | tail -1 | cut -d: -f1)"; l_l="$(grep -n '^LABEL es.talveg.guarda-correo=' "$AQUI/../Dockerfile" | cut -d: -f1)"; [ -n "$l_f" ] && [ -n "$l_l" ] && [ "$l_l" -gt "$l_f" ] && echo si || echo "no ($l_f/$l_l)")"
 comprobar "  y no en deploy.yml, que la pondría a cualquier commit que construya" 0 "$(grep -c 'es.talveg.guarda-correo' "$AQUI/../.github/workflows/deploy.yml")"
 comprobar "el guion lee ese mismo nombre" 1 "$(grep -cx 'ETIQUETA_GUARDA_CORREO="es.talveg.guarda-correo"' "$GUION")"
+DI_CORREO="$AQUI/../src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs"
+comprobar "lo que la etiqueta declara: SMTP y Microsoft 365 se registran detrás de la guarda" "1 1" \
+  "$(grep -c 'ActivatorUtilities.CreateInstance<GuardaEnvioEmailService>' "$DI_CORREO") $(grep -c 'ActivatorUtilities.CreateInstance<GuardaEnvioMicrosoft365GraphClient>' "$DI_CORREO")"
 
 comprobar "ningún compose da valor a la clave: la decide cada .env" "0 0" \
   "$(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.produccion.yml") $(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.staging.yml")"
@@ -780,7 +787,14 @@ if [ -z "${RELEVO_GUION:-}" ]; then
               bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
   comp_sal() { [ "$(en_marcha caemanager-staging-app-azul)" = true ] && echo si || echo no; }
   mutar "la saliente sin la etiqueta drena igual" \
-    's#^        if saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$activa_"; then$#        if false; then#' esc_sal comp_sal
+    's#^        if saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$activa_" \&\& sana "\$cont_nueva"; then$#        if false; then#' esc_sal comp_sal
+
+  esc_sal_insana() { limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda caemanager-staging-app-azul; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                     mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+                     bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_sal_insana() { [ "$(en_marcha caemanager-staging-app-azul)" = false ] && echo si || echo no; }
+  mutar "se retira la saliente aunque la nueva no esté sana" \
+    's#"\$activa_" \&\& sana "\$cont_nueva"; then$#"$activa_"; then#' esc_sal_insana comp_sal_insana
 
   esc_sal_ok() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
                  bash "$1" desplegar staging "$B" > /dev/null 2>&1; }

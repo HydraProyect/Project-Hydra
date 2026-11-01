@@ -534,12 +534,13 @@ desplegar() {
     if [ -n "$activa_" ]; then
         detener_drenaje_previo "$entorno"
         # Su drenaje dejaría una ventana de envío real con la guarda ya
-        # conmutada: se corta a quien siga en ella. Si no se puede parar, el
-        # drenaje de abajo es quien reintenta (retirar_saliente).
-        if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_"; then
+        # conmutada: se corta a quien siga en ella. Como en retirar_saliente,
+        # nunca si la que se queda no está sana. Si no está sana o no se puede
+        # parar, el drenaje de abajo es quien reintenta.
+        if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_" && sana "$cont_nueva"; then
             echo "$activa_ no declara la guarda de correo y el modo no es $MODO_CORREO_SIN_GUARDA: se retira sin drenar."
-            escribir_ranuras "$entorno" "$cont_nueva"
-            recargar_caddy || echo "::warning::no se pudo recargar Caddy al retirar $activa_; la cookie vieja reintentará en la activa." >&2
+            { escribir_ranuras "$entorno" "$cont_nueva" && recargar_caddy; } \
+                || echo "::warning::no se pudo sacar $activa_ de Caddy; la cookie vieja reintentará en la activa." >&2
             if docker stop -t 30 "$activa_" > /dev/null 2>&1; then
                 case "$activa_" in
                     *-azul|*-verde) ;;
