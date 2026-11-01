@@ -20,6 +20,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
 {
     private const string MigracionDelCambio = "20261101040000_LecturaIaApagadaEnTiposDeSalud";
+    private const string MigracionProteccion = "20261103000000_ProtegeLecturaIaInicialSalud";
     private const string BaseAptitud = "10000000-0000-0000-0000-000000000001";
 
     private readonly string _cadena = BaseDatosPostgresDePruebas.CadenaConexionUnica();
@@ -36,6 +37,8 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         var indice = migraciones.IndexOf(MigracionDelCambio);
         indice.Should().BePositive("la migración del cambio existe en el ensamblado");
         await contexto.GetService<IMigrator>().MigrateAsync(migraciones[indice - 1]);
+
+        await contexto.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS proteger_lectura_ia_inicial_salud ON \"TiposDocumento\"; DROP FUNCTION IF EXISTS proteger_lectura_ia_inicial_salud();");
 
         contexto.Tenants.Add(_tenant);
         await contexto.SaveChangesAsync();
@@ -56,6 +59,50 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
 
         (await LeerAsync(_deSalud)).Should().Be((false, false));
         (await LeerAsync(_sinSalud)).Should().Be((true, true));
+    }
+
+    [Fact]
+    public async Task Protege_altas_y_cambios_a_salud_y_permite_activar_despues_incluso_tras_bajar()
+    {
+        await using var contexto = NuevoContexto();
+        var migrador = contexto.GetService<IMigrator>();
+        await migrador.MigrateAsync(MigracionDelCambio);
+        // Una versi?n anterior crea esta fila despu?s del primer apagado.
+        var duranteRelevo = Guid.NewGuid();
+        await SembrarCopiaAsync(duranteRelevo, "Durante relevo", "CategoriaEspecialSalud");
+        (await LeerAsync(duranteRelevo)).Should().Be((true, true));
+        await migrador.MigrateAsync(MigracionProteccion);
+        (await LeerAsync(duranteRelevo)).Should().Be((false, false));
+
+        var nuevaSalud = Guid.NewGuid();
+        var nuevaNoSalud = Guid.NewGuid();
+        await SembrarCopiaAsync(nuevaSalud, "Alta salud", "CategoriaEspecialSalud");
+        await SembrarCopiaAsync(nuevaNoSalud, "Alta no salud", "DatosPersonales");
+        (await LeerAsync(nuevaSalud)).Should().Be((false, false));
+        (await LeerAsync(nuevaNoSalud)).Should().Be((true, true));
+
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Sensibilidad\" = 'CategoriaEspecialSalud' WHERE \"Id\" = @id", nuevaNoSalud);
+        (await LeerAsync(nuevaNoSalud)).Should().Be((false, false));
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", nuevaSalud);
+        (await LeerAsync(nuevaSalud)).Should().Be((true, true));
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Nombre\" = 'Actualizado' WHERE \"Id\" = @id", nuevaSalud);
+        (await LeerAsync(nuevaSalud)).Should().Be((true, true));
+
+        var anterior = contexto.Database.GetMigrations().ToList();
+        await migrador.MigrateAsync(anterior[anterior.IndexOf(MigracionProteccion) - 1]);
+        var trasBajar = Guid.NewGuid();
+        await SembrarCopiaAsync(trasBajar, "Tras bajar", "CategoriaEspecialSalud");
+        (await LeerAsync(trasBajar)).Should().Be((false, false));
+        await migrador.MigrateAsync(MigracionProteccion);
+    }
+
+    private async Task EjecutarAsync(string sql, Guid id)
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        comando.Parameters.AddWithValue("id", id);
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1);
     }
 
     private async Task SembrarCopiaAsync(Guid id, string nombre, string sensibilidad)
