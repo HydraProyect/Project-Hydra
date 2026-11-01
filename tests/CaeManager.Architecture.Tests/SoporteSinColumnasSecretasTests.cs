@@ -84,6 +84,7 @@ public class SoporteSinColumnasSecretasTests
     private static readonly Dictionary<string, string[]> ColumnasSecretasPorTabla = new(StringComparer.OrdinalIgnoreCase)
     {
         ["ClavesApi"] = ["HashClave"],
+        ["ClavesIntegracionTenant"] = ["HashClave"],
         ["CanalesGestionDocumental"] = ["Contrasena"],
         ["CredencialesAccesoEmpresa"] = ["Contrasena"],
         ["CredencialesAccesoSubcontrata"] = ["Contrasena"],
