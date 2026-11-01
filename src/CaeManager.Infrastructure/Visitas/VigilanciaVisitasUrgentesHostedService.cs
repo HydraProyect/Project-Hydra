@@ -1,14 +1,17 @@
-using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Visitas;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
-using MediatR;
+using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,8 +25,15 @@ namespace CaeManager.Infrastructure.Visitas;
 /// urgentes de visita pendientes (Visitas dentro de la ventana mínima de
 /// validación, o sugerencias de visita sorpresa sin confirmar) — mismo
 /// patrón de elección de líder que <see cref="Alertas.EnvioAlertasVencimientoHostedService"/>,
-/// reutilizando el cálculo ya existente de <see cref="ObtenerBandejaGestorQuery"/>
-/// en vez de reimplementar el criterio de urgencia aquí.
+/// reutilizando el criterio de <see cref="GestionesUrgentesDeVisita"/>, el mismo de la cola de Mi
+/// trabajo, en vez de reimplementarlo aquí.
+///
+/// Alcance: el Tenant entero, ya acotado por <see cref="AmbitoTenantExplicito"/>. Visitas y
+/// sugerencias se calculan con <c>CalcularAsync</c> y <c>centroIdsVisibles: null</c>, sin pasar por
+/// la Query de la cola ni por <see cref="IAlcanceDatosService"/>: ese servicio depende del usuario
+/// de la sesión, inexistente en un job de fondo, y sin usuario el alcance es vacío, así que el aviso
+/// nunca saldría y el trabajo se registraría «exitoso, 0 evaluados». Es la misma visión total que
+/// tienen los destinatarios en Mi trabajo.
 ///
 /// Destinatarios: Administrador y DireccionCae, mismo criterio (y misma
 /// limitación documentada) que el resumen de alertas por correo — atribuir
@@ -73,7 +83,8 @@ public class VigilanciaVisitasUrgentesHostedService(
         }
     }
 
-    private async Task ProcesarTodosLosTenantsAsync(CancellationToken stoppingToken)
+    /// <summary>Un ciclo sobre todos los Tenants activos, sin la elección de líder ni la espera.</summary>
+    internal async Task ProcesarTodosLosTenantsAsync(CancellationToken stoppingToken)
     {
         List<Guid> tenantsActivos;
         using (var ambito = ambitoFactory.CreateScope())
@@ -84,10 +95,32 @@ public class VigilanciaVisitasUrgentesHostedService(
                 .ToListAsync(stoppingToken);
         }
 
-        foreach (var tenantId in tenantsActivos)
+        await ProcesarTenantsAsync(tenantsActivos, stoppingToken);
+    }
+
+    internal async Task ProcesarTenantsAsync(IEnumerable<Guid> tenantIds, CancellationToken stoppingToken)
+    {
+        foreach (var tenantId in tenantIds)
         {
             stoppingToken.ThrowIfCancellationRequested();
-            await ProcesarTenantAsync(tenantId, stoppingToken);
+
+            // Aislado igual que EnvioAlertasVencimientoHostedService: el fallo de un
+            // Tenant no deja sin ciclo a los siguientes. Aquí llega lo que falla fuera
+            // del registro de la ejecución: el interruptor o el propio registro del fallo.
+            try
+            {
+                await ProcesarTenantAsync(tenantId, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
+                    tenantId);
+            }
         }
     }
 
@@ -107,21 +140,70 @@ public class VigilanciaVisitasUrgentesHostedService(
                 CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: true, stoppingToken,
                 elementosEvaluados: gestionesUrgentes);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            await registroAutomatizaciones.RegistrarEjecucionAsync(
-                CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: false, stoppingToken, mensajeError: ex.Message);
+            // Una parada del proceso no es una ejecución fallida.
             throw;
         }
+        catch (Exception ex)
+        {
+            // No se relanza: el fallo queda registrado y este Tenant ya ha terminado su ciclo.
+            logger.LogError(ex, "Falló la vigilancia de gestiones urgentes de visita del tenant {TenantId}.", tenantId);
+            await RegistrarFalloAsync(ex.Message, stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// En un ámbito nuevo, no en el que ha fallado: su DbContext conserva las notificaciones que no
+    /// se pudieron guardar, y registrar con él reintentaría ese guardado y perdería el fallo real.
+    /// </summary>
+    private async Task RegistrarFalloAsync(string mensajeError, CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        await ambito.ServiceProvider.GetRequiredService<IRegistroAutomatizacionesService>().RegistrarEjecucionAsync(
+            CatalogoAutomatizaciones.VigilanciaVisitasUrgentes, exitosa: false, stoppingToken, mensajeError: mensajeError);
+    }
+
+    /// <summary>
+    /// Cuántas gestiones urgentes hay en el Tenant entero. Recorre todas las páginas: las Visitas en
+    /// curso son candidatas, van delante por fecha y no cuentan, así que una sola página podría
+    /// quedarse sin ninguna urgente de verdad.
+    /// </summary>
+    protected virtual async Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    {
+        var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
+
+        // Instanciados directos, sin pasar por MediatR: igual que en
+        // EnvioAlertasVencimientoHostedService, CalcularAsync es el punto de
+        // entrada explícito para esto, y el alcance solo lo usaría Handle.
+        var visitasHandler = new ObtenerVisitasQueryHandler(
+            dbContext, dbContext, dbContext, dbContext, dbContext, dbContext, alcanceDatos, dbContext);
+        var sugerenciasHandler = new ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(dbContext, dbContext, dbContext, alcanceDatos);
+
+        var visitas = new List<VisitaListaDto>();
+        var numeroPagina = 1;
+        ResultadoPaginado<VisitaListaDto> pagina;
+        do
+        {
+            pagina = await visitasHandler.CalcularAsync(
+                GestionesUrgentesDeVisita.ConsultaCandidatas(numeroPagina++), centroIdsVisibles: null, stoppingToken);
+            visitas.AddRange(pagina.Elementos);
+        }
+        while (pagina.Elementos.Count > 0 && visitas.Count < pagina.TotalElementos);
+
+        var sugerencias = await sugerenciasHandler.CalcularAsync(centroIdsVisibles: null, stoppingToken);
+        var parametros = await dbContext.ParametrosSistema.SingleAsync(stoppingToken);
+        var hoy = DiaDeNegocio.Hoy();
+
+        return visitas.Count(GestionesUrgentesDeVisita.EsUrgente)
+            + sugerencias.Count(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
     }
 
     /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
     private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
-        var mediator = ambito.ServiceProvider.GetRequiredService<IMediator>();
-        var items = await mediator.Send(new ObtenerBandejaGestorQuery(), stoppingToken);
-
-        var gestionesUrgentes = items.Count(i => i.Tipo is TipoItemBandeja.VisitaUrgente or TipoItemBandeja.SugerenciaVisitaUrgente);
+        var gestionesUrgentes = await ContarGestionesUrgentesAsync(ambito, stoppingToken);
         if (gestionesUrgentes == 0) return 0;
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();

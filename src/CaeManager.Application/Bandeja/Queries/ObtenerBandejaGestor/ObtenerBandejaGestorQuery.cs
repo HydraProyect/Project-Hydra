@@ -8,6 +8,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPendientes;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
@@ -163,8 +164,7 @@ public enum TipoItemBandeja
 /// al que llaman la cola agrupada que leen /bandeja e Inicio y Mi trabajo
 /// agregada (por Tenant propietario, para su severidad «Bloqueo»:
 /// <c>ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo</c>).
-/// <see cref="ObtenerBandejaGestorQuery"/> sola no lo rellena —también la
-/// consume la vigilancia de visitas urgentes, a la que no le hace falta—: allí
+/// <see cref="ObtenerBandejaGestorQuery"/> sola no lo rellena: allí
 /// false significa «no calculado», no «no bloquea». El orden de la cola
 /// (<c>ObtenerBandejaGestorQueryHandler.Ordenar</c>) lee este campo: quien lo
 /// rellena tiene que ordenar después de rellenarlo.
@@ -210,9 +210,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
         var revisiones = await mediator.Send(new ObtenerRevisionesIaPendientesQuery(), cancellationToken);
         var requisitos = await mediator.Send(new ObtenerDocumentacionBloqueantePendienteQuery(), cancellationToken);
-        var visitasUrgentes = await mediator.Send(
-            new ObtenerVisitasQuery(Busqueda: null, SoloActivas: true, NotificadoCliente: null, SoloUrgentes: true, TamanoPagina: 200),
-            cancellationToken);
+        var visitasUrgentes = await mediator.Send(GestionesUrgentesDeVisita.ConsultaCandidatas(), cancellationToken);
         var sugerenciasVisita = await mediator.Send(new ObtenerSugerenciasVisitaCorreoPendientesQuery(), cancellationToken);
         var detecciones = await mediator.Send(new ObtenerDeteccionesPendientesQuery(), cancellationToken);
         var pendientesPlataforma = await mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(), cancellationToken);
@@ -318,7 +316,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             TrabajadorNombre: rq.TrabajadorNombre)));
 
         items.AddRange(visitasUrgentes
-            .Where(v => v.NivelUrgencia is NivelUrgenciaVisita.Urgente or NivelUrgenciaVisita.Critica)
+            .Where(GestionesUrgentesDeVisita.EsUrgente)
             .Select(v => new ItemBandejaDto(
                 Id: IdDeFilaDeCola.Visita(v.Id),
                 Tipo: TipoItemBandeja.VisitaUrgente,
@@ -334,14 +332,8 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
                 ClienteNombre: v.ClienteRazonSocial,
                 VisitaId: v.Id)));
 
-        // Sin fecha detectada la IA no pudo precisar cuándo es — se trata
-        // como "visita sorpresa" (mismo día, sin margen) en vez de
-        // descartarla por falta de dato: el pedido original explícito es
-        // "avisar cuando llega una visita sorpresa para el mismo día".
         items.AddRange(sugerenciasVisita
-            .Where(s => s.FechaInicioSugerida is null || CalculadoraUrgenciaVisita.Calcular(
-                s.FechaInicioSugerida.Value, s.FechaInicioSugerida.Value, hoy, horasAvisoVisita, horasCriticasVisita)
-                is not NivelUrgenciaVisita.Normal)
+            .Where(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, horasAvisoVisita, horasCriticasVisita))
             .Select(s => new ItemBandejaDto(
                 Id: IdDeFilaDeCola.SugerenciaVisita(s.Id),
                 Tipo: TipoItemBandeja.SugerenciaVisitaUrgente,

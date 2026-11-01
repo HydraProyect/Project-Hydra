@@ -747,7 +747,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
         // Fase F: aviso por hora (solo campana, sin correo en v1) de
-        // gestiones urgentes de visita — reutiliza ObtenerBandejaGestorQuery,
+        // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen
         // de alertas por correo, no manda nada fuera de la aplicación).
         services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();

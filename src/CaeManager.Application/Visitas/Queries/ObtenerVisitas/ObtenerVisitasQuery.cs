@@ -106,7 +106,19 @@ public record VisitaListaDto(
 public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
 {
-    public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
+    public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken) =>
+        await CalcularAsync(request, await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// El listado con el alcance de Centros ya resuelto. <see cref="Handle"/> lo resuelve para el
+    /// usuario de la sesión; un trabajo de fondo no tiene usuario, y por <see cref="IAlcanceDatosService"/>
+    /// obtendría una lista vacía, así que llama aquí con <paramref name="centroIdsVisibles"/> a <c>null</c>:
+    /// el Tenant entero, ya acotado por <see cref="AmbitoTenantExplicito"/> y por RLS (mismo patrón que
+    /// <c>ObtenerAlertasQueryHandler.CalcularAsync</c>). Es un parámetro de este método y no un campo de
+    /// <see cref="ObtenerVisitasQuery"/> para que ninguna sesión de usuario pueda pedir ese alcance.
+    /// </summary>
+    public async Task<ResultadoPaginado<VisitaListaDto>> CalcularAsync(
+        ObtenerVisitasQuery request, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -119,7 +131,6 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                        join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
                        select new { visita, centro, cliente, empresa };
 
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
             consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
