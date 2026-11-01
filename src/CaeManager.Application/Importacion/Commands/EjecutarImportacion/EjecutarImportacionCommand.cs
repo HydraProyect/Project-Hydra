@@ -87,6 +87,15 @@ public record ResultadoImportacionDto(
 /// siquiera declaraba del que venía en Centros_Plataformas pero no pudo
 /// crearse en esta misma importación.
 ///
+/// Dos causales más, con su propio motivo y sin abortar el archivo (C-06, C-07):
+/// un nombre AMBIGUO —dos Centros homónimos bajo distintos Clientes empresariales,
+/// o dos razones sociales o Tipos de documento que solo difieren en mayúsculas—
+/// omite solo las filas que lo citan (Asignaciones, Trabajadores, Documentos), nunca
+/// se resuelve al primero que aparezca; y un DNI de un Trabajador que está en la
+/// Papelera (el índice único incluye a los eliminados) omite el alta, el Documento
+/// o la Asignación de ese DNI con «restáuralo», sin revelar datos del eliminado, en
+/// vez de dejar que el guardado entero falle con un 23505.
+///
 /// La deduplicación es la excepción razonada, no un olvido: reutilizar una
 /// entidad que ya existe no es descartar una fila. El paso de análisis ya lo
 /// anuncia marcando la fila <c>YaExiste</c>, y la vista previa no la cuenta
@@ -159,19 +168,40 @@ public class EjecutarImportacionCommandHandler(
         // su fila se omitía con el motivo "no existe todavía". "Cliente" es la
         // Empresa contraparte con EsCritico != null, mismo discriminador que
         // ObtenerClientesQuery.
-        var clientesPorNombre = await empresasContext.Empresas.Where(e => e.EsCritico != null).ToDictionaryAsync(
-            c => c.RazonSocial, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var centrosPorNombre = await centrosContext.Centros.ToDictionaryAsync(
-            c => c.Nombre, c => c.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var empresasPorRazonSocial = await empresasContext.Empresas.ToDictionaryAsync(
-            e => e.RazonSocial, e => e.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        //
+        // C-06: los emparejamientos por nombre (Cliente, Centro, razón social y Tipo de documento) usan
+        // CatalogoPorNombre y no ToDictionaryAsync/TryAdd: dos Centros homónimos bajo distintos Clientes
+        // empresariales, o dos razones sociales o Tipos de documento que solo difieren en mayúsculas, son datos
+        // legítimos (los índices únicos distinguen mayúsculas) y un diccionario con clave repetida tumbaba la
+        // importación entera. Un nombre ambiguo omite SOLO las filas que lo citan, con su causal propia.
+        var clientesPorNombre = CatalogoPorNombre<Guid>.De(
+            await empresasContext.Empresas.Where(e => e.EsCritico != null)
+                .Select(e => new { e.RazonSocial, e.Id }).ToListAsync(cancellationToken),
+            e => e.RazonSocial, e => e.Id);
+        var centrosPorNombre = CatalogoPorNombre<Guid>.De(
+            await centrosContext.Centros.Select(c => new { c.Nombre, c.Id }).ToListAsync(cancellationToken),
+            c => c.Nombre, c => c.Id);
+        var empresasPorRazonSocial = CatalogoPorNombre<Guid>.De(
+            await empresasContext.Empresas.Select(e => new { e.RazonSocial, e.Id }).ToListAsync(cancellationToken),
+            e => e.RazonSocial, e => e.Id);
         // Un trabajador anonimizado (Dni null) no puede ser destino de un
         // emparejamiento por DNI: queda fuera del diccionario.
         var trabajadoresPorDni = await trabajadoresContext.Trabajadores
             .Where(t => t.Dni != null)
             .ToDictionaryAsync(t => t.Dni!, t => t.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
-        var tiposDocumentoPorNombre = await tiposDocumentoContext.TiposDocumento.ToDictionaryAsync(
-            t => t.Nombre, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var tiposDocumentoPorNombre = CatalogoPorNombre<TipoDocumento>.De(
+            await tiposDocumentoContext.TiposDocumento.ToListAsync(cancellationToken), t => t.Nombre, t => t);
+
+        // C-07: el índice (TenantId, Dni) incluye a los Trabajadores de la Papelera, que el diccionario de arriba no
+        // ve (filtro global). Un alta con uno de esos DNI haría fallar el guardado entero con un 23505 genérico; se
+        // detectan una vez, de los DNI del plan que no están activos, y la fila se omite con su causal.
+        var dnisEnPapelera = await DnisEnPapelera.ObtenerAsync(
+            trabajadorRepositorio,
+            plan.Trabajadores.Select(t => t.Dni).Concat(plan.Documentos.Select(d => d.Dni)).Concat(plan.Asignaciones.Select(a => a.Dni))
+                .Where(dni => !trabajadoresPorDni.ContainsKey(dni)),
+            cancellationToken);
+        bool EstaEnPapelera(string dni) =>
+            !trabajadoresPorDni.ContainsKey(dni) && dnisEnPapelera.Contains(DnisEnPapelera.Normalizar(dni));
 
         var clientesCreados = 0;
         var centrosCreados = 0;
@@ -210,17 +240,20 @@ public class EjecutarImportacionCommandHandler(
             // de importar. Crear cualquiera de los dos de cero se deja para cuando
             // la plantilla incluya esos campos; mientras tanto se omite con un
             // motivo explícito en vez de fallar o inventar un CIF/Empresa falsos.
-            if (!clientesPorNombre.ContainsKey(fila.Nombre))
+            var busquedaCliente = clientesPorNombre.Buscar(fila.Nombre);
+            if (busquedaCliente != ResultadoBusquedaPorNombre.Unico)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, fila.Nombre,
-                    "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
+                    busquedaCliente == ResultadoBusquedaPorNombre.Ambiguo
+                        ? $"Hay varios Clientes empresariales llamados «{fila.Nombre}» (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila."
+                        : "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
                 continue;
             }
 
-            var clienteId = clientesPorNombre[fila.Nombre];
-
-            if (!centrosPorNombre.ContainsKey(fila.Nombre))
+            // Un Centro homónimo (ambiguo) sí existe: esta fila no promete crear nada. La ambigüedad se reporta en
+            // las Asignaciones que lo citan, que son las que no pueden elegir.
+            if (centrosPorNombre.Buscar(fila.Nombre) == ResultadoBusquedaPorNombre.NoExiste)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, fila.Nombre,
@@ -230,7 +263,17 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Empresas)
         {
-            if (empresasPorRazonSocial.ContainsKey(fila.RazonSocial))
+            var busquedaEmpresa = empresasPorRazonSocial.Buscar(fila.RazonSocial);
+            if (busquedaEmpresa == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                // No hay una Empresa que reutilizar ni se crea otra: la fila se omite con su causal, y los
+                // Trabajadores que la citen la repiten (no se les asigna a una Empresa elegida al azar).
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, fila.RazonSocial, MotivoVariasEmpresas(fila.RazonSocial)));
+                continue;
+            }
+
+            if (busquedaEmpresa == ResultadoBusquedaPorNombre.Unico)
             {
                 // Reutilización, no descarte: el análisis ya la marcó YaExiste y la
                 // vista previa no prometió crearla. Solo se registra si el plan sí
@@ -258,7 +301,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 var empresa = new Empresa(fila.RazonSocial);
                 empresaRepositorio.Agregar(empresa);
-                empresasPorRazonSocial[fila.RazonSocial] = empresa.Id;
+                empresasPorRazonSocial.Agregar(fila.RazonSocial, empresa.Id);
                 empresasCreadas++;
             }
             catch (ArgumentException ex)
@@ -279,7 +322,22 @@ public class EjecutarImportacionCommandHandler(
                 continue;
             }
 
-            if (!empresasPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
+            if (EstaEnPapelera(fila.Dni))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
+                continue;
+            }
+
+            var busquedaEmpresaDelTrabajador = empresasPorRazonSocial.Buscar(fila.RazonSocialEmpresa, out var empresaId);
+            if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", MotivoVariasEmpresas(fila.RazonSocialEmpresa)));
+                continue;
+            }
+
+            if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.NoExiste)
             {
                 // Dependencia dentro del propio archivo: la Empresa del trabajador
                 // ni existía antes ni pudo crearse en esta importación.
@@ -316,13 +374,25 @@ public class EjecutarImportacionCommandHandler(
             {
                 // El documento se queda sin titular: su trabajador no existía ni
                 // pudo crearse (su propia fila se omitió más arriba, con su motivo).
+                // Si está en la Papelera, el motivo es ese: «no existe» sería falso.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
-                    $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
+                    EstaEnPapelera(fila.Dni)
+                        ? DnisEnPapelera.Motivo(fila.Dni)
+                        : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
                 continue;
             }
 
-            if (!tiposDocumentoPorNombre.TryGetValue(fila.NombreTipoDocumento, out var tipoDocumento))
+            var busquedaTipo = tiposDocumentoPorNombre.Buscar(fila.NombreTipoDocumento, out var tipoDocumento);
+            if (busquedaTipo == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    $"Hay varios tipos de documento llamados «{fila.NombreTipoDocumento}» en el catálogo (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere. Renombra o elimina el duplicado en Tipos de documento y vuelve a importar."));
+                continue;
+            }
+
+            if (busquedaTipo == ResultadoBusquedaPorNombre.NoExiste)
             {
                 // Referencia a una entidad del catálogo que no existe: a diferencia
                 // del caso anterior, este archivo nunca pudo crearla — el catálogo
@@ -333,7 +403,7 @@ public class EjecutarImportacionCommandHandler(
                 continue;
             }
 
-            if (!clavesDocumentosExistentes.Add((trabajadorId, tipoDocumento.Id)))
+            if (!clavesDocumentosExistentes.Add((trabajadorId, tipoDocumento!.Id)))
             {
                 // Reutilización anunciada por el análisis (ver nota de la clase).
                 if (!fila.YaExiste)
@@ -350,7 +420,7 @@ public class EjecutarImportacionCommandHandler(
                 // solo un tipo con vencimiento automático calcula fecha; en los
                 // demás el documento entra sin vigencia confirmada.
                 var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
-                    tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
+                    tipoDocumento!.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
                     fila.FechaEmision, fechaVencimientoManual: null, noCaducaConfirmado: false);
                 var documento = Documento.DeTrabajador(trabajadorId, tipoDocumento.Id, fila.FechaEmision, vigencia);
                 documentoRepositorio.Agregar(documento);
@@ -397,11 +467,24 @@ public class EjecutarImportacionCommandHandler(
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
+                    EstaEnPapelera(fila.Dni)
+                        ? DnisEnPapelera.Motivo(fila.Dni)
+                        : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
                 continue;
             }
 
-            if (!centrosPorNombre.TryGetValue(fila.NombreCentro, out var centroId))
+            var busquedaCentro = centrosPorNombre.Buscar(fila.NombreCentro, out var centroId);
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                // Esta plantilla no recoge el Cliente empresarial del Centro, así que no hay forma de elegir entre
+                // homónimos; asignar a uno cualquiera pondría al trabajador en el Centro equivocado.
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                    $"Hay varios centros llamados «{fila.NombreCentro}» en el sistema (por ejemplo, de distintos Clientes empresariales); esta plantilla no recoge el Cliente del centro y la importación no puede saber a cuál asignar al trabajador. Haz esta asignación manualmente desde el centro que corresponda."));
+                continue;
+            }
+
+            if (busquedaCentro == ResultadoBusquedaPorNombre.NoExiste)
             {
                 // DCR-12 B exige distinguir aquí la causal, no dar un motivo común.
                 // Son tres situaciones distintas y el usuario actúa distinto en cada
@@ -501,4 +584,7 @@ public class EjecutarImportacionCommandHandler(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,
             plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]);
     }
+
+    private static string MotivoVariasEmpresas(string razonSocial) =>
+        $"Hay varias empresas con la razón social «{razonSocial}» en el sistema (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila. Unifica o renombra las empresas duplicadas y vuelve a importar.";
 }

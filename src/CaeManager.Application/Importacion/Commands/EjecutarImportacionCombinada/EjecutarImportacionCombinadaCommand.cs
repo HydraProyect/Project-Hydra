@@ -165,9 +165,12 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // direcciones: un Cliente empresarial sin CIF que el análisis prometía
         // se omitía al escribir, y una Subcontrata con CIF que el análisis
         // rechazaba podía recibir centros aquí.
-        var clientesIdPorRazonSocial = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        // C-06: dos Clientes empresariales que solo difieren en mayúsculas dejan el nombre AMBIGUO (el último que
+        // se cargara ganaba, al azar). La hoja Clientes, que identifica por CIF, sí fija a qué Cliente se refiere
+        // el nombre que declara.
+        var clientesIdPorRazonSocial = new CatalogoPorNombre<Guid>();
         foreach (var cliente in await empresasContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken))
-            clientesIdPorRazonSocial[cliente.RazonSocial] = cliente.Id;
+            clientesIdPorRazonSocial.Agregar(cliente.RazonSocial, cliente.Id);
 
         var clientesCreados = 0;
         var clientesActualizados = 0;
@@ -220,7 +223,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     clientesActualizados++;
                 }
 
-                clientesIdPorRazonSocial[fila.RazonSocial] = existente.Id;
+                clientesIdPorRazonSocial.Fijar(fila.RazonSocial, existente.Id);
                 continue;
             }
 
@@ -236,7 +239,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 empresaRepositorio.Agregar(cliente);
                 razonesSocialesEscritas.Add(cliente.RazonSocial);
                 clientesPorCif[fila.Cif.Trim().ToUpperInvariant()] = cliente;
-                clientesIdPorRazonSocial[fila.RazonSocial] = cliente.Id;
+                clientesIdPorRazonSocial.Fijar(fila.RazonSocial, cliente.Id);
                 clientesCreados++;
             }
             catch (ArgumentException ex)
@@ -248,11 +251,18 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // Semilla con lo que la hoja "Clientes" ya creó/tocó en memoria (ver
         // comentario de clase) antes de consultar la base de datos — luego la
         // consulta a la base de datos completa el resto sin pisar estas.
-        var empresasPorRazonSocial = new Dictionary<string, Empresa>(StringComparer.OrdinalIgnoreCase);
+        //
+        // C-06: dos Empresas cuyas razones sociales solo difieren en mayúsculas (el índice único las distingue;
+        // RestaurarEmpresa puede dejarlas así) son DOS entidades. Con TryAdd la importación elegía una al azar
+        // (la que llegara primera) y colgaba de ella Centros y Trabajadores; ahora el nombre queda AMBIGUO y las
+        // filas que lo citan se omiten con su causal. La misma Empresa leída dos veces (semilla de Clientes y
+        // consulta) no es una homónima: se compara por Id.
+        var empresasPorRazonSocial = new CatalogoPorNombre<Empresa>(
+            EqualityComparer<Empresa>.Create((a, b) => a?.Id == b?.Id, e => e.Id.GetHashCode()));
         foreach (var cliente in clientesPorCif.Values)
-            empresasPorRazonSocial[cliente.RazonSocial] = cliente;
+            empresasPorRazonSocial.Agregar(cliente.RazonSocial, cliente);
         foreach (var empresa in await empresasContext.Empresas.ToListAsync(cancellationToken))
-            empresasPorRazonSocial.TryAdd(empresa.RazonSocial, empresa);
+            empresasPorRazonSocial.Agregar(empresa.RazonSocial, empresa);
 
         // F4.2c — "actuales" sale de la arista, CLASIFICADA al eje Empresa
         // propia→Cliente. La clasificación protege dos cosas a la vez: una
@@ -277,7 +287,27 @@ public class EjecutarImportacionCombinadaCommandHandler(
         foreach (var fila in plan.Empresas)
         {
             Empresa empresa;
-            var esNueva = !empresasPorRazonSocial.TryGetValue(fila.RazonSocial, out var existente);
+            var busquedaEmpresa = empresasPorRazonSocial.Buscar(fila.RazonSocial, out var existente);
+            if (busquedaEmpresa == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empresas", fila.Fila, fila.RazonSocial, MotivoVariasEmpresas(fila.RazonSocial)));
+                continue;
+            }
+
+            // Un Cliente asociado ambiguo deja la fila sin resolver: se omite ENTERA antes de tocar la Empresa o sus
+            // Relaciones. Seguir sin él haría que Reemplazar lo viera como "ausente" y cerrase por error una Relación
+            // Empresarial vigente, y la fila saldría a la vez omitida y contada.
+            var clientesAmbiguos = fila.ClientesAsociados
+                .Where(nombre => clientesIdPorRazonSocial.Buscar(nombre) == ResultadoBusquedaPorNombre.Ambiguo).ToList();
+            if (clientesAmbiguos.Count > 0)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empresas", fila.Fila, fila.RazonSocial, MotivoVariosClientes(clientesAmbiguos)));
+                continue;
+            }
+
+            var esNueva = busquedaEmpresa == ResultadoBusquedaPorNombre.NoExiste;
 
             if (esNueva)
             {
@@ -293,7 +323,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 {
                     empresa = new Empresa(fila.RazonSocial);
                     empresaRepositorio.Agregar(empresa);
-                    empresasPorRazonSocial[fila.RazonSocial] = empresa;
+                    empresasPorRazonSocial.Agregar(fila.RazonSocial, empresa);
                     empresasCreadas++;
                 }
                 catch (ArgumentException ex)
@@ -307,9 +337,15 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 empresa = existente!;
             }
 
-            var clienteIdsDeseados = fila.ClientesAsociados
-                .Where(nombre => clientesIdPorRazonSocial.ContainsKey(nombre))
-                .Select(nombre => clientesIdPorRazonSocial[nombre])
+            var asociadosBuscados = fila.ClientesAsociados.Select(nombre =>
+            {
+                var busqueda = clientesIdPorRazonSocial.Buscar(nombre, out var idDelCliente);
+                return (Nombre: nombre, Busqueda: busqueda, Id: idDelCliente);
+            }).ToList();
+
+            var clienteIdsDeseados = asociadosBuscados
+                .Where(a => a.Busqueda == ResultadoBusquedaPorNombre.Unico)
+                .Select(a => a.Id)
                 .ToHashSet();
 
             var asociacionesDeLaEmpresa = asociacionesActuales.Where(ec => ec.EmpresaId == empresa.Id).ToList();
@@ -345,34 +381,63 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 empresasActualizadas++;
         }
 
-        var empresasIdPorRazonSocial = empresasPorRazonSocial.Values.ToDictionary(e => e.RazonSocial, e => e.Id, StringComparer.OrdinalIgnoreCase);
+        var empresasIdPorRazonSocial = CatalogoPorNombre<Guid>.De(
+            empresasPorRazonSocial.Entradas, e => e.Nombre, e => e.Valor.Id);
 
         var centrosExistentes = await centrosContext.Centros.ToListAsync(cancellationToken);
-        var centrosPorClienteYNombre = centrosExistentes.ToDictionary(
-            c => (c.ClienteId, c.Nombre.ToUpperInvariant()), c => c);
+        // Centros no tiene índice único por nombre (solo CrearCentro lo vigila, con una comprobación previa): dos del
+        // mismo Cliente empresarial que solo difieren en mayúsculas dejan el nombre AMBIGUO en vez de lanzar.
+        static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
+        var centrosPorClienteYNombre = CatalogoPorNombre<Centro>.De(
+            centrosExistentes, c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
 
         var centrosCreados = 0;
         var centrosActualizados = 0;
 
         foreach (var fila in plan.Centros)
         {
-            if (!clientesIdPorRazonSocial.TryGetValue(fila.RazonSocialCliente, out var clienteId))
+            var busquedaClienteDelCentro = clientesIdPorRazonSocial.Buscar(fila.RazonSocialCliente, out var clienteId);
+            if (busquedaClienteDelCentro == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Centros", fila.Fila, fila.Nombre, MotivoVariosClientes([fila.RazonSocialCliente])));
+                continue;
+            }
+
+            if (busquedaClienteDelCentro == ResultadoBusquedaPorNombre.NoExiste)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     "Centros", fila.Fila, fila.Nombre, $"No se encontró el Cliente \"{fila.RazonSocialCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
                 continue;
             }
 
-            if (!empresasIdPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
+            var busquedaEmpresaDelCentro = empresasIdPorRazonSocial.Buscar(fila.RazonSocialEmpresa, out var empresaId);
+            if (busquedaEmpresaDelCentro == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Centros", fila.Fila, fila.Nombre, MotivoVariasEmpresas(fila.RazonSocialEmpresa)));
+                continue;
+            }
+
+            if (busquedaEmpresaDelCentro == ResultadoBusquedaPorNombre.NoExiste)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     "Centros", fila.Fila, fila.Nombre, $"No se encontró la empresa \"{fila.RazonSocialEmpresa}\" (ni en el sistema ni en la hoja Empresas de este archivo)."));
                 continue;
             }
 
-            var clave = (clienteId, fila.Nombre.ToUpperInvariant());
+            var clave = ClaveCentro(clienteId, fila.Nombre);
 
-            if (centrosPorClienteYNombre.TryGetValue(clave, out var existente))
+            var busquedaCentro = centrosPorClienteYNombre.Buscar(clave, out var existente);
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Centros", fila.Fila, fila.Nombre,
+                    $"Hay varios centros llamados \"{fila.Nombre}\" en este Cliente empresarial (el nombre solo cambia en mayúsculas); la importación no puede saber cuál actualizar. Unifica o renombra los duplicados y vuelve a importar."));
+                continue;
+            }
+
+            if (busquedaCentro == ResultadoBusquedaPorNombre.Unico && existente is not null)
             {
                 var codigoCentro = ResolverTexto(existente.CodigoCentro, fila.CodigoCentro, reemplazar);
                 var direccion = ResolverTexto(existente.Direccion, fila.Direccion, reemplazar);
@@ -396,7 +461,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 var centro = new Centro(
                     clienteId, empresaId, fila.Nombre, fila.CodigoCentro, fila.Direccion, fila.Contacto, fila.ContratoVigenteHasta);
                 centroRepositorio.Agregar(centro);
-                centrosPorClienteYNombre[clave] = centro;
+                centrosPorClienteYNombre.Agregar(clave, centro);
                 centrosCreados++;
             }
             catch (ArgumentException ex)
@@ -411,12 +476,34 @@ public class EjecutarImportacionCombinadaCommandHandler(
             .Where(t => t.Dni != null)
             .ToDictionaryAsync(t => t.Dni!, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
+        var dnisEnPapelera = await DnisEnPapelera.ObtenerAsync(
+            trabajadorRepositorio, plan.Trabajadores.Select(t => t.Dni).Where(dni => !trabajadoresExistentes.ContainsKey(dni)),
+            cancellationToken);
+
         var trabajadoresCreados = 0;
         var trabajadoresActualizados = 0;
 
         foreach (var fila in plan.Trabajadores)
         {
-            if (!empresasIdPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
+            // C-07: un DNI en la Papelera no está en el diccionario de activos, pero el índice (TenantId, Dni) lo
+            // incluye: el alta haría fallar el guardado de todo el archivo (23505). Se omite solo esta fila, y antes
+            // que cualquier otra causal, como en el Importador simple.
+            if (!trabajadoresExistentes.ContainsKey(fila.Dni) && dnisEnPapelera.Contains(DnisEnPapelera.Normalizar(fila.Dni)))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
+                continue;
+            }
+
+            var busquedaEmpresaDelTrabajador = empresasIdPorRazonSocial.Buscar(fila.RazonSocialEmpresa, out var empresaId);
+            if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.Ambiguo)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", MotivoVariasEmpresas(fila.RazonSocialEmpresa)));
+                continue;
+            }
+
+            if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.NoExiste)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
@@ -464,6 +551,12 @@ public class EjecutarImportacionCombinadaCommandHandler(
             centrosCreados, centrosActualizados, trabajadoresCreados, trabajadoresActualizados,
             plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]);
     }
+
+    private static string MotivoVariasEmpresas(string razonSocial) =>
+        $"Hay varias empresas con la razón social \"{razonSocial}\" en el sistema (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila. Unifica o renombra las empresas duplicadas y vuelve a importar.";
+
+    private static string MotivoVariosClientes(IReadOnlyCollection<string> razonesSociales) =>
+        $"Hay varios Clientes empresariales que coinciden con {string.Join(", ", razonesSociales.Select(r => $"\"{r}\""))} salvo por mayúsculas (en el sistema o entre las filas de la hoja Clientes de este archivo) y la importación no puede saber a cuál se refiere esta fila. Unifica o renombra los duplicados y vuelve a importar.";
 
     /// <summary>
     /// Con Reemplazar=true, el valor del archivo gana siempre que venga

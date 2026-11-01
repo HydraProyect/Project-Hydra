@@ -35,6 +35,7 @@ namespace CaeManager.IntegrationTests.Importacion;
 public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
 {
     private const string Dni = "12345678Z";
+    private const string DniSinTrabajadorActivo = "87654321X";
     private const string NombreTipoDocumento = "Certificado de aptitud médica";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
@@ -158,12 +159,11 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
     /// operación "confirmada" sin haberse confirmado de verdad, y un reintento
     /// legítimo se quedaría creyendo para siempre que ya se hizo.
     ///
-    /// El disparador tiene que ser un fallo REAL que ocurra justo ahí: dos
-    /// Empresas que solo difieren en mayúsculas colisionan al construir el
-    /// diccionario case-insensitive (<c>ToDictionaryAsync</c> con
-    /// <c>StringComparer.OrdinalIgnoreCase</c>, antes de entrar en los bucles
-    /// por fila que sí tienen su propio <c>catch (ArgumentException)</c>) — un
-    /// <c>CancellationToken</c> ya cancelado NO sirve para esto: se descubre
+    /// El disparador tiene que ocurrir justo ahí: la consulta de DNI en Papelera
+    /// corre tras registrar la marca y antes de los bucles por fila, que sí
+    /// tienen su propio <c>catch (ArgumentException)</c>. Los nombres que solo
+    /// difieren en mayúsculas ya no sirven: desde C-06 omiten la fila, no lanzan.
+    /// Un <c>CancellationToken</c> ya cancelado tampoco sirve para esto: se descubre
     /// en el pre-check de <c>ExisteAsync</c>, antes incluso de registrar la
     /// marca, así que no ejercitaría nada (lo confirmó una mutación: quitar el
     /// try/catch del Handle seguía dando verde con ese disparador).
@@ -172,20 +172,17 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
     public async Task Un_fallo_inesperado_antes_de_guardar_no_consume_la_operacion_ni_envenena_el_contexto()
     {
         await using var contexto = CrearContexto();
-        contexto.Empresas.Add(new Empresa("Empresa Duplicada Por Mayusculas S.L."));
-        contexto.Empresas.Add(new Empresa("empresa duplicada por mayusculas s.l."));
-        await contexto.SaveChangesAsync();
-
         var operacionId = Guid.NewGuid();
         var plan = new PlanImportacionDto(
             OperacionId: operacionId,
             ClientesCentros: [], Empresas: [], Trabajadores: [],
-            Documentos: [new DocumentoImportadoDto(Dni, NombreTipoDocumento, new DateOnly(2026, 2, 1), YaExiste: false)],
+            Documentos: [new DocumentoImportadoDto(DniSinTrabajadorActivo, NombreTipoDocumento, new DateOnly(2026, 2, 1), YaExiste: false)],
             Asignaciones: [], Advertencias: [], Omitidos: []);
 
-        var intentoFallido = () => ConstruirHandler(contexto).Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
-        await intentoFallido.Should().ThrowAsync<ArgumentException>(
-            "las dos Empresas del montaje solo difieren en mayúsculas y colisionan al construir el diccionario case-insensitive");
+        var intentoFallido = () => ConstruirHandler(contexto, new TrabajadorRepositorioQueFallaAlConsultarPapelera(contexto))
+            .Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
+        await intentoFallido.Should().ThrowAsync<InvalidOperationException>(
+            "la consulta de DNI en Papelera falla después de registrar la marca de operación");
 
         // El mismo contexto se reutiliza para un guardado completamente ajeno
         // — exactamente lo que dispara RegistrarHistorialImportacionCommand
@@ -200,9 +197,10 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             "el fallo ocurrió antes de guardar de verdad — un guardado ajeno no puede darla por confirmada");
     }
 
-    private static EjecutarImportacionCommandHandler ConstruirHandler(CaeManagerDbContext contexto) =>
+    private static EjecutarImportacionCommandHandler ConstruirHandler(
+        CaeManagerDbContext contexto, ITrabajadorRepository? trabajadorRepositorio = null) =>
         new(
-            new EmpresaRepository(contexto), new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
+            new EmpresaRepository(contexto), trabajadorRepositorio ?? new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
             new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto));
@@ -225,5 +223,13 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+    }
+
+    private sealed class TrabajadorRepositorioQueFallaAlConsultarPapelera(CaeManagerDbContext contexto)
+        : TrabajadorRepository(contexto), ITrabajadorRepository
+    {
+        public new Task<IReadOnlySet<string>> ObtenerDnisEnPapeleraAsync(
+            IReadOnlyCollection<string> dnis, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Fallo simulado tras registrar la marca de operación.");
     }
 }
