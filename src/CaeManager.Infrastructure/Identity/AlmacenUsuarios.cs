@@ -47,7 +47,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// ninguna fila. Dentro de <see cref="AmbitoIdentificacionSinTenant"/>, y solo
 /// mientras <see cref="ITenantActual"/> no tenga Tenant, las búsquedas por clave
 /// (Id, nombre, correo) resuelven primero el Tenant de la cuenta con una función
-/// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
+/// <c>SECURITY DEFINER</c> de la que solo se lee ese dato, y leen la fila dentro de
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
 /// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Los roles
 /// de la cuenta (<c>GetRolesAsync</c>; no <c>IsInRoleAsync</c> ni <c>GetUsersInRoleAsync</c>)

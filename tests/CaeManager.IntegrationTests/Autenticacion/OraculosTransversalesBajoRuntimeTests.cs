@@ -148,6 +148,23 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Las_busquedas_conservan_lo_que_lee_la_version_anterior_durante_el_relevo()
+    {
+        // El ValidadorUnicidadGlobalCuenta de la versión que sigue sirviendo mientras corre el migrador pregunta con
+        // el Tenant del alta en el contexto y lee cuenta_id de otro Tenant. Se retira con la migración que quite
+        // cuenta_id y filtre por Tenant, después de que esta versión esté en producción.
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _tenantB);
+
+        (await ConsultarAsync(conexion,
+                $"SELECT cuenta_id = '{_cuentaA}' AND tenant_id = '{_tenantA}' FROM app_cuenta_por_nombre_normalizado('{_nombreA}')"))
+            .Should().BeTrue();
+        (await ConsultarAsync(conexion,
+                $"SELECT cuenta_id = '{_cuentaA}' AND tenant_id = '{_tenantA}' FROM app_cuentas_por_email_normalizado('{_correoA}')"))
+            .Should().BeTrue();
+    }
+
+    [Fact]
     public async Task La_unicidad_solo_dice_si_el_valor_lo_usa_otra_cuenta()
     {
         await using var conexion = await AbrirComoRuntimeAsync();

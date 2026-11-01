@@ -21,7 +21,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// Lo demás depende de quién llama. Los webhooks entran anónimos: con un Tenant en el contexto no resuelven. El
     /// Actor que exporta solo se comprueba como lo hace la CLI, con el Tenant exportado y sin usuario, porque antes
-    /// servía de oráculo sobre la concesión de cualquier cuenta y Tenant. La unicidad global de la cuenta pasa a
+    /// aceptaba cualquier correo y cualquier Tenant. La unicidad global de la cuenta pasa a
     /// <c>app_nombre_en_uso_por_otra_cuenta</c> y <c>app_correo_en_uso_por_otra_cuenta</c>, que dan un booleano.
     /// </para>
     ///
@@ -42,11 +42,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 BEGIN
-                    IF COALESCE(public.app_ctx_valido(), false) THEN
-                        RETURN;
-                    END IF;
                     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles
                                 WHERE rolname = session_user AND (rolsuper OR rolbypassrls)) THEN
+                        RETURN;
+                    END IF;
+                    IF COALESCE(public.app_ctx_valido(), false) THEN
                         RETURN;
                     END IF;
                     RAISE EXCEPTION 'Esta resolución entre Tenants exige contexto RLS firmado' USING ERRCODE = '42501';
