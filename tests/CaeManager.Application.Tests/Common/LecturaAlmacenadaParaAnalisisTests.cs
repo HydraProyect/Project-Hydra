@@ -95,6 +95,39 @@ public class LecturaAlmacenadaParaAnalisisTests
     }
 
     [Fact]
+    public async Task Un_flujo_sin_longitud_que_entrega_mas_que_el_maximo_reservado_se_corta_y_no_deja_nada_reservado()
+    {
+        // Reservó cuatro veces el máximo supuesto (10 MiB) y el flujo entrega un byte más: la copia se corta en vez de
+        // crecer en memoria por encima de lo que el presupuesto cuenta.
+        var peorCaso = (long)LimitesArchivoSubido.TamanoMaximoBytes * LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis;
+        var amplio = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = peorCaso * 2, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+            TimeProvider.System);
+        var almacen = new AlmacenFalso(new byte[LimitesArchivoSubido.TamanoMaximoBytes + 1]) { SinLongitud = true };
+
+        var leer = async () => await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, amplio, "a.pdf");
+
+        await leer.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        amplio.Reservado.Should().Be(0, "el corte devuelve la reserva");
+        almacen.FlujoAbierto.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_flujo_sin_longitud_que_entrega_exactamente_el_maximo_reservado_se_copia_entero()
+    {
+        var peorCaso = (long)LimitesArchivoSubido.TamanoMaximoBytes * LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis;
+        var amplio = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = peorCaso * 2, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+            TimeProvider.System);
+        var almacen = new AlmacenFalso(new byte[LimitesArchivoSubido.TamanoMaximoBytes]) { SinLongitud = true };
+
+        using var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, amplio, "a.pdf");
+
+        lectura.Contenido.Should().HaveCount(LimitesArchivoSubido.TamanoMaximoBytes);
+        amplio.Reservado.Should().Be(peorCaso);
+    }
+
+    [Fact]
     public async Task Si_el_analisis_no_cabe_junto_al_flujo_abierto_se_rechaza_en_vez_de_recortarse()
     {
         // 4 x 80.000 no cabe en 100.000: recortar la reserva a lo que queda dejaría seguir con una cobertura menor que
@@ -169,12 +202,12 @@ public class LecturaAlmacenadaParaAnalisisTests
 
         public override bool CanSeek => !sinLongitud && base.CanSeek;
 
-        // MemoryStream copia sin pasar por Read: lo que importa a la prueba es que se pidió copiar.
-        public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        // La lectura acotada pasa por ReadAsync: ahí se anota que se pidió leer y se simula el fallo.
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             Leido = true;
             if (fallarAlLeer) throw new IOException("Fallo de lectura de la prueba.");
-            return base.CopyToAsync(destination, bufferSize, cancellationToken);
+            return base.ReadAsync(buffer, cancellationToken);
         }
         protected override void Dispose(bool disposing)
         {

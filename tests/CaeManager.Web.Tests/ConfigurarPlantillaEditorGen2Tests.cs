@@ -44,8 +44,10 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
     public ConfigurarPlantillaEditorGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        JSInterop.SetupModule(Modulo);
+        _moduloJs = JSInterop.SetupModule(Modulo);
     }
+
+    private readonly BunitJSModuleInterop _moduloJs;
 
     // --------------------------------------------------------------- Dobles
 

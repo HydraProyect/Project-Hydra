@@ -471,13 +471,24 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _idLocalSeleccionado = null;
         ReiniciarEstadoDeGeneracion();
 
-        _paginas = await RasterizarPaginasAsync(contenidoPdf);
+        try
+        {
+            _paginas = await RasterizarPaginasAsync(contenidoPdf);
 
-        if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
-            await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
+            if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
+                await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
 
-        if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
-            await CargarOpcionesGeneracionAsync(carga);
+            if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
+                await CargarOpcionesGeneracionAsync(carga);
+        }
+        catch
+        {
+            // Si la detección o las opciones fallan con las páginas ya creadas, el editor se muestra con el error de
+            // carga y no con las páginas: se sueltan con sus reservas en vez de retenerlas hasta cerrar la página.
+            SoltarReservasEditor();
+            _paginas = [];
+            throw;
+        }
 
         // Con la versión ya montada (y la detección inicial, que se persiste al
         // momento, ya aplicada): lo que el servidor tiene es el punto de partida.
@@ -801,11 +812,19 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_moduloIniciado || _paginas.Count == 0) return;
+        if (_paginas.Count == 0 || !EnEditor)
+        {
+            // Sin editor visible el contenedor del lienzo no existe (carga, error, alta): el siguiente que se pinte es
+            // un elemento nuevo, sin los eventos de arrastre, y hay que iniciarlo de nuevo.
+            _moduloIniciado = false;
+            return;
+        }
+
+        if (_moduloIniciado) return;
 
         _moduloIniciado = true;
-        _referencia = DotNetObjectReference.Create(this);
-        _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js");
+        _referencia ??= DotNetObjectReference.Create(this);
+        _modulo ??= await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js");
         await _modulo.InvokeVoidAsync("iniciar", _referencia, _idContenedor);
     }
 

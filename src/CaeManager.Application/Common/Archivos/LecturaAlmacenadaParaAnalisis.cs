@@ -44,7 +44,8 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
     /// </summary>
     /// <exception cref="FileNotFoundException">No existe o no es del Tenant activo.</exception>
     /// <exception cref="PresupuestoMemoriaAgotadoException">
-    /// Sin hueco, al abrir o al reservar el análisis: es saturación transitoria y falla cerrado, sin copiar el archivo.
+    /// Sin hueco, al abrir o al reservar el análisis, o el flujo entrega más bytes que los reservados: es saturación
+    /// transitoria o contenido fuera de lo declarado, y falla cerrado, sin dejar nada reservado.
     /// </exception>
     public static async Task<LecturaAlmacenadaParaAnalisis> LeerAsync(
         IFileStorageService almacenamiento, IPresupuestoMemoriaDocumentos presupuesto, string archivoUrl,
@@ -64,8 +65,21 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
 
         try
         {
+            // La copia se corta al llegar a lo reservado: un flujo que no dice su longitud (o que miente) y entrega más
+            // que el máximo supuesto no puede crecer en memoria por encima de lo que el presupuesto cuenta.
             using var memoria = new MemoryStream(capacity: (int)Math.Min(longitud, Array.MaxLength));
-            await flujo.CopyToAsync(memoria, cancellationToken);
+            var bloque = new byte[Math.Min(81_920, Math.Max(1, longitud + 1))];
+            while (true)
+            {
+                var leidos = await flujo.ReadAsync(bloque, cancellationToken);
+                if (leidos == 0) break;
+
+                if (memoria.Length + leidos > longitud)
+                    throw new PresupuestoMemoriaAgotadoException();
+
+                memoria.Write(bloque, 0, leidos);
+            }
+
             return new LecturaAlmacenadaParaAnalisis(memoria.ToArray(), reserva);
         }
         catch
