@@ -476,12 +476,20 @@ public partial class CuadroDireccionTests
         cut.Find("[data-franja=texto]").TextContent.Should().Contain("9–13 h").And.Contain("Lun");
     }
 
+    /// <summary>El calendario solo pinta lunes a viernes: el día de la siembra no puede ser fin de semana (el día 1 lo es algunos meses).</summary>
+    private static DateOnly PrimerDiaLaborable(DateOnly hoy)
+    {
+        var dia = new DateOnly(hoy.Year, hoy.Month, 1);
+        while (dia.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) dia = dia.AddDays(1);
+        return dia;
+    }
+
     [Fact]
     public void El_calendario_de_gestiones_por_dia_pinta_un_cuadro_por_dia_laborable()
     {
         var hoy = DiaDeNegocio.Hoy();
         var dias = new GestionesPorDiaCuadroDireccionDto(
-            [new GestionesPorDiaTenantDto(TenantA, "Refrielectric S.A.", [new GestionesDelDiaDto(new DateOnly(hoy.Year, hoy.Month, 1), 5)])], 0);
+            [new GestionesPorDiaTenantDto(TenantA, "Refrielectric S.A.", [new GestionesDelDiaDto(PrimerDiaLaborable(hoy), 5)])], 0);
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _,
             serie: _ => SerieDe(i => Cifras(EstadoCifraMensual.Estimado, 25)), gestionesDia: dias);
 
