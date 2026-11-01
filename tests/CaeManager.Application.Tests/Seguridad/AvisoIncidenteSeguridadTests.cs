@@ -570,7 +570,8 @@ public class AvisoIncidenteSeguridadTests
         public bool Falla { get; init; }
         public int Consultas { get; private set; }
 
-        public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken) =>
+        public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+            Guid usuarioActualId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ContactoSeguridadPropuestoDto>>([]);
 
         public Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken) =>
