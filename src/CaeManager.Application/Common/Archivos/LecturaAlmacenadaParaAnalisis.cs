@@ -23,8 +23,6 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
     /// </summary>
     public const int FactorMemoriaAnalisis = 4;
 
-    /// <summary>Margen que el almacenamiento suma al claro en la reserva de su flujo abierto (<c>DiskFileStorageService.MargenCifradoBytes</c>).</summary>
-    private const long MargenFlujoAlmacenamientoBytes = 4 * 1024;
 
     private readonly ReservaMemoriaDocumentos _reserva;
 
@@ -56,15 +54,14 @@ public sealed class LecturaAlmacenadaParaAnalisis : IDisposable
 
         // Un flujo que no dice su longitud se reserva por el peor caso, no por cero.
         var longitud = flujo.CanSeek ? flujo.Length : LimitesArchivoSubido.TamanoMaximoBytes;
-        var pedido = longitud * FactorMemoriaAnalisis;
+        // El flujo sigue abierto y retiene su claro: esperar hueco con esa reserva retenida haría que varias lecturas
+        // se esperasen unas a otras hasta agotar el plazo y rechazasen trabajo que cabría por separado. Se amplía sin
+        // esperar y sin recortar (TryReservar): si el análisis no cabe junto al flujo, se rechaza con la saturación
+        // transitoria en vez de seguir con una reserva menor que su estimación.
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!presupuesto.TryReservar(longitud * FactorMemoriaAnalisis, out var reserva))
+            throw new PresupuestoMemoriaAgotadoException();
 
-        // El flujo sigue abierto y retiene su claro más el margen: pedir más de lo que cabe junto a él dejaría a
-        // esta lectura esperando, hasta rechazarse, a la reserva de su propio flujo. Como en cualquier petición
-        // mayor que el presupuesto, lo que no cabe se queda con lo que queda.
-        if (flujo.CanSeek)
-            pedido = Math.Min(pedido, Math.Max(0, presupuesto.Maximo - longitud - MargenFlujoAlmacenamientoBytes));
-
-        var reserva = await presupuesto.ReservarAsync(pedido, cancellationToken);
         try
         {
             using var memoria = new MemoryStream(capacity: (int)Math.Min(longitud, Array.MaxLength));

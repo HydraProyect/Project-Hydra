@@ -265,6 +265,9 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             _cargandoEditor = false;
             _errorCarga = false;
             _noEncontrada = false;
+            // El editor anterior ya no se muestra: sus páginas dejan de retenerse.
+            SoltarReservasEditor();
+            _paginas = [];
             FijarInstantaneaFormulario();
             return;
         }
@@ -285,6 +288,11 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _cargandoEditor = true;
         _errorCarga = false;
         _noEncontrada = false;
+
+        // Las páginas de la versión anterior se sueltan ANTES de leer la nueva: si se retuvieran mientras la lectura
+        // espera hueco, recargar o reintentar esperaría a la memoria de esta misma instancia.
+        SoltarReservasEditor();
+        _paginas = [];
         StateHasChanged();
 
         try

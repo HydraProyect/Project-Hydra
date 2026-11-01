@@ -72,31 +72,58 @@ public class LecturaAlmacenadaParaAnalisisTests
     }
 
     [Fact]
-    public async Task Un_flujo_sin_longitud_se_reserva_por_el_peor_caso()
+    public async Task Un_flujo_sin_longitud_se_reserva_por_el_peor_caso_y_si_no_cabe_se_rechaza()
     {
-        var presupuesto = CrearPresupuesto();
         var almacen = new AlmacenFalso(new byte[Longitud]) { SinLongitud = true };
+        var peorCaso = (long)LimitesArchivoSubido.TamanoMaximoBytes * LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis;
 
-        using var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, presupuesto, "a.pdf");
+        // Presupuesto que admite el peor caso: se reserva entero, no cero.
+        var amplio = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = peorCaso * 2, EsperaMaxima = TimeSpan.FromMilliseconds(100) }),
+            TimeProvider.System);
+        using (var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, amplio, "a.pdf"))
+        {
+            lectura.Contenido.Should().HaveCount(Longitud);
+            amplio.Reservado.Should().Be(peorCaso);
+        }
 
-        lectura.Contenido.Should().HaveCount(Longitud);
-        // El peor caso supera el presupuesto de la prueba: se recorta al presupuesto entero, nunca a cero.
-        presupuesto.Reservado.Should().Be(Maximo);
+        // Presupuesto menor que el peor caso: no se recorta, se rechaza.
+        var pequeno = CrearPresupuesto();
+        var leer = async () => await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, pequeno, "a.pdf");
+        await leer.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        pequeno.Reservado.Should().Be(0);
     }
 
     [Fact]
-    public async Task La_reserva_nunca_pide_mas_de_lo_que_cabe_junto_al_flujo_abierto()
+    public async Task Si_el_analisis_no_cabe_junto_al_flujo_abierto_se_rechaza_en_vez_de_recortarse()
     {
-        // El flujo del almacenamiento retiene su claro (+4 KiB) mientras se copia: pedir cuatro veces el archivo lo
-        // dejaría esperando a la reserva de su propio flujo.
-        var presupuesto = CrearPresupuesto();
-        const int grande = 80_000;
-        var almacen = new AlmacenFalso(new byte[grande]);
+        // 4 x 80.000 no cabe en 100.000: recortar la reserva a lo que queda dejaría seguir con una cobertura menor que
+        // la estimación. Se rechaza, sin esperar y sin dejar nada reservado.
+        var presupuesto = CrearPresupuesto(TimeSpan.FromMinutes(1));
+        var almacen = new AlmacenFalso(new byte[80_000]);
 
-        using var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, presupuesto, "a.pdf");
+        var leer = async () => await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, presupuesto, "a.pdf");
 
-        presupuesto.Reservado.Should().Be(Maximo - grande - 4 * 1024);
-        lectura.Contenido.Should().HaveCount(grande);
+        await leer.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(0);
+        presupuesto.EnEspera.Should().Be(0, "no espera reteniendo la reserva de su flujo");
+        almacen.FlujoAbierto.Should().BeFalse();
+        almacen.FlujoCopiado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_hueco_no_espera_aunque_la_espera_maxima_sea_larga()
+    {
+        var presupuesto = CrearPresupuesto(TimeSpan.FromMinutes(1));
+        using var ocupado = await presupuesto.ReservarAsync(Maximo - 10);
+        var almacen = new AlmacenFalso(new byte[Longitud]);
+
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        var leer = async () => await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, presupuesto, "a.pdf");
+
+        await leer.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
+        presupuesto.Reservado.Should().Be(Maximo - 10);
     }
 
     [Fact]
