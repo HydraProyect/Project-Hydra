@@ -1,4 +1,3 @@
-using System.Globalization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
@@ -200,15 +199,16 @@ public class VigilanciaVisitasUrgentesHostedService(
         var parametros = await dbContext.ParametrosSistema.SingleAsync(stoppingToken);
         var hoy = DiaDeNegocio.Hoy();
 
+        // Texto genérico, sin Centro ni fecha: el aviso sobrevive a un cambio de cartera del destinatario
+        // y a una reprogramación, y se copia a la auditoría. El detalle lo da Mi trabajo con su alcance.
+        // DistinctBy: la paginación no usa instantánea y una gestión repetida abortaría el lote por el índice.
         return
         [
-            .. visitas.Where(GestionesUrgentesDeVisita.EsUrgente).Select(v => new GestionUrgente(
-                v.Id,
-                $"La visita a {v.CentroNombre} del {v.FechaInicio.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} está dentro de la ventana mínima de validación.")),
+            .. visitas.Where(GestionesUrgentesDeVisita.EsUrgente)
+                .Select(v => new GestionUrgente(v.Id, "Hay una visita dentro de la ventana mínima de validación."))
+                .DistinctBy(g => g.Id),
             .. sugerencias.Where(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita))
-                .Select(s => new GestionUrgente(
-                    s.Id,
-                    $"Hay una sugerencia de visita sin confirmar para {s.CentroNombre ?? "un Centro sin identificar"}.")),
+                .Select(s => new GestionUrgente(s.Id, "Hay una sugerencia de visita sin confirmar.")),
         ];
     }
 

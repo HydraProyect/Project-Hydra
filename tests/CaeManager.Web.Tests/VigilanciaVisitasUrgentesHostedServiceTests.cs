@@ -76,12 +76,15 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
         var otraConElMismoTexto = new GestionUrgente(Guid.NewGuid(), gestion.Mensaje);
         var destinatario = Guid.NewGuid();
         var sinLeer = Aviso(destinatario, gestion with { Mensaje = "Otro texto" });
+        var creadaEn = sinLeer.CreadaEnUtc;
+        Thread.Sleep(2);
 
         var nuevas = VigilanciaVisitasUrgentesHostedService.ReabrirLeidasYCrearLasQueFaltan(
             [gestion, otraConElMismoTexto], [destinatario], [sinLeer]);
 
         nuevas.Should().ContainSingle().Which.EventoOrigenId.Should().Be(otraConElMismoTexto.Id);
         sinLeer.Leida.Should().BeFalse();
+        sinLeer.CreadaEnUtc.Should().Be(creadaEn, "reabrir lo sin leer escribiría y auditaría cada fila cada hora");
     }
 
     [Fact]
@@ -246,7 +249,7 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
         }
     }
 
-    /// <summary>Sustituye solo el recuento: con cero gestiones el servicio no llega a tocar la base.</summary>
+    /// <summary>Sustituye la lectura de gestiones y devuelve ninguna: así el servicio no llega a tocar la base.</summary>
     private sealed class VigilanciaFalsa(
         IServiceProvider servicios, Func<Guid, int> contar, ILogger<VigilanciaVisitasUrgentesHostedService>? log = null)
         : VigilanciaVisitasUrgentesHostedService(

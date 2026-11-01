@@ -122,11 +122,11 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
     }
 
     /// <summary>
-    /// Si dos instancias llegaran a la vez, lo último que las separa es el índice único: la segunda
-    /// falla en vez de duplicar, y el ciclo siguiente la encuentra ya avisada.
+    /// Si dos instancias llegaran a la vez, lo último que las separa es el índice único. Aquí solo se
+    /// fija el índice, con dos inserciones directas; no se ejerce el servicio en concurrencia.
     /// </summary>
     [Fact]
-    public async Task Dos_instancias_a_la_vez_no_pueden_duplicar_el_aviso()
+    public async Task El_indice_unico_impide_una_segunda_fila_del_mismo_aviso()
     {
         using var actor = AmbitoActorAuditoria.EstablecerSistema();
         var (tenant, destinatarios) = await TenantConDestinatariosAsync(await TenantsConCentroAsync());
