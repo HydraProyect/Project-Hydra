@@ -87,7 +87,7 @@
                alcanza quien mira (decisión de Chris, 2026-10-20): con ella cobra el Operador CAE. Para un Operador CAE, solo las
                Visitas dentro de la vigencia de su Asignación de Operación en cada Empresa gestionada (las que cuenta la cifra). No sigue el ámbito.
                No se ofrece en Sesión Privilegiada: su endpoint exige rol. *@
-            @if (_puedeExportarExtranjeros)
+            @if (_puedeExportar)
             {
                 <Boton Class="cuadro-exportar-extranjeros" Variante="VarianteBoton.Secundario" Href="@RutaExtranjerosDelMes" download data-enhance-nav="false">@Textos["BotonExportarExtranjeros"]</Boton>
             }
@@ -104,9 +104,9 @@
             }
         }
     </div>
-    @if (_avisoExportar)
+    @if (_avisoExportar is not null)
     {
-        <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos["ExportarNoDisponible"]</p>
+        <p class="cuadro-nota" role="status" data-aviso="exportar">@Textos[_avisoExportar]</p>
     }
 
     @if (_error)
