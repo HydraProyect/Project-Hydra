@@ -36,13 +36,27 @@ cat > "$TMP/bin/docker" <<'EOF'
 echo "docker $* IMAGEN_TAG=${IMAGEN_TAG:-}" >> "$LOG"
 c() { echo "$ESTADO/c/$1"; }
 nuevo_id() { n=$(( $(cat "$ESTADO/ids" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$ESTADO/ids"; echo "id$n"; }
+# REINICIA: el contenedor vuelve a la vida tras la siguiente lectura de su estado,
+# salvo que `docker update --restart=no` le haya quitado la política.
+reinicia_si_toca() { [ "${REINICIA:-}" = "$1" ] && [ ! -f "$(c "$1")/sin_reinicio" ] && : > "$(c "$1")/reinicia"; }
 case "$1" in
   inspect)
     if [ "$2" = "-f" ]; then fmt=$3; nombre=$4; else fmt=""; nombre=$2; fi
-    [ -d "$(c "$nombre")" ] || exit 1
     case "$fmt" in
-      *State.Running*) cat "$(c "$nombre")/en_marcha" ;;
-      *Health*) cat "$(c "$nombre")/salud" 2>/dev/null || echo healthy ;;
+      *guarda-correo*)   # etiqueta de imagen o contenedor; por defecto, declarada
+        [ "${INSPECT_GUARDA_FALLA:-0}" = 1 ] && exit 1
+        if [ -f "$ESTADO/sin-guarda/${nombre#caemanager:}" ]; then echo "<no value>"; else echo 1; fi
+        exit 0 ;;
+    esac
+    [ -d "$(c "$nombre")" ] || { echo "Error: No such object: $nombre" >&2; exit 1; }
+    case "$fmt" in
+      *State.Running*)
+        [ -f "$(c "$nombre")/estado_perdido" ] && exit 1
+        cat "$(c "$nombre")/en_marcha"
+        [ -f "$(c "$nombre")/reinicia" ] && { rm "$(c "$nombre")/reinicia"; echo true > "$(c "$nombre")/en_marcha"; } ;;
+      *Health*)
+        [ "${INSPECT_SALUD_FALLA:-}" = "$nombre" ] && exit 1
+        cat "$(c "$nombre")/salud" 2>/dev/null || echo healthy ;;
       *.Id*) cat "$(c "$nombre")/id" ;;
       *Config.Image*) cat "$(c "$nombre")/imagen" ;;
       *Mounts*) cat "$(c "$nombre")/montajes" 2>/dev/null; echo ;;
@@ -81,6 +95,36 @@ case "$1" in
     case "$*" in
       *" config --services"*)
         case "$*" in *staging*) printf 'migrador\ndb\nseq\n' ;; *) printf 'migrador\ndb\ncaddy\nseq\n' ;; esac ;;
+      *" config")   # configuración efectiva: la forma real la mide compose-techos-memoria.tests.sh
+        if [ "${CONFIG_FALLA:-0}" = 1 ]; then echo "línea ilegible: SECRETO_CENTINELA" >&2; exit 1; fi
+        predeterminada='      EnvioCorreo__Modo: Abierto'
+        case "$*" in *staging*) predeterminada='      EnvioCorreo__Modo: Cerrado' ;; esac
+        sed '/^$/d' <<YAML
+name: caemanager
+services:
+  app-azul:
+    container_name: caemanager-app-azul
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Clave__Secreta: SECRETO_CENTINELA
+${CORREO_AZUL-$predeterminada}
+    image: caemanager:x
+  app-verde:
+    container_name: caemanager-app-verde
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Clave__Secreta: SECRETO_CENTINELA
+${CORREO_VERDE-$predeterminada}
+    image: caemanager:x
+  migrador:
+    environment:
+      EnvioCorreo__Modo: Abierto
+networks:
+  app-verde:
+    environment:
+      EnvioCorreo__Modo: Abierto
+YAML
+        ;;
       *" up "*" caddy")   # transición: recrear Caddy con el montaje
         mkdir -p "$(c caemanager-caddy)"; echo "/etc/caddy/Caddyfile /etc/caddy/ranuras /data" > "$(c caemanager-caddy)/montajes" ;;
       *" up "*)
@@ -89,7 +133,24 @@ case "$1" in
         d="$(c "$pref-$ranura")"; mkdir -p "$d"; echo true > "$d/en_marcha"; nuevo_id > "$d/id"
         if [ "${COMPOSE_NO_CAMBIA:-0}" = 1 ]; then echo "caemanager:otra" > "$d/imagen"; else echo "caemanager:$IMAGEN_TAG" > "$d/imagen"; fi ;;
     esac ;;
-  stop) nombre="${*: -1}"; [ "${STOP_FALLA:-}" = "$nombre" ] && exit 1; [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  stop)
+    nombre="${*: -1}"
+    [ "${STOP_CUELGA:-}" = "$nombre" ] && sleep 30
+    [ "${STOP_FALLA:-}" = "$nombre" ] && exit 1
+    [ "${STOP_NO_PARA:-}" = "$nombre" ] && exit 0   # sale con 0 y el contenedor sigue vivo
+    [ "${STOP_PIERDE_ESTADO:-}" = "$nombre" ] && { : > "$(c "$nombre")/estado_perdido"; exit 0; }
+    [ "${STOP_ELIMINA:-}" = "$nombre" ] && { rm -rf "$(c "$nombre")"; exit 0; }
+    reinicia_si_toca "$nombre"
+    [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  kill)
+    nombre="${*: -1}"
+    [ "${KILL_FALLA:-}" = "$nombre" ] && exit 1
+    reinicia_si_toca "$nombre"
+    [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  update)
+    nombre="${*: -1}"
+    [ "${UPDATE_FALLA:-}" = "$nombre" ] && exit 1
+    [ -d "$(c "$nombre")" ] && : > "$(c "$nombre")/sin_reinicio" ;;
   rm) rm -rf "$(c "$2")" ;;
   logs) ;;
 esac
@@ -113,7 +174,7 @@ exit 0
 EOF
 chmod +x "$TMP/bin/"*
 export PATH="$TMP/bin:$PATH" LOG="$TMP/log" ESTADO="$TMP/estado"
-export RAIZ_DESPLIEGUE="$TMP/raiz" DIR_RANURAS="$TMP/ranuras" DRENAJE_INTERVALO=0
+export RAIZ_DESPLIEGUE="$TMP/raiz" DIR_RANURAS="$TMP/ranuras" DRENAJE_INTERVALO=0 RELEVO_ESPERA_PARADA=0
 mkdir -p "$RAIZ_DESPLIEGUE/deploy/local"
 { cat "$AQUI/local/Caddyfile"; echo "# MARCA_CHECKOUT"; } > "$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
 
@@ -147,6 +208,8 @@ limpio() {
   : > "$LOG"
 }
 fichero() { mkdir -p "$DIR_RANURAS"; printf '# prueba\n%s\n' "$2" > "$DIR_RANURAS/$1.caddy"; }
+# sin_guarda SHA|CONTENEDOR: esa imagen o ese contenedor no lleva la etiqueta.
+sin_guarda() { mkdir -p "$ESTADO/sin-guarda"; : > "$ESTADO/sin-guarda/$1"; }
 relevo() { # [VAR=valor ...] -- ARGS
   local vars=()
   while [ "$1" != "--" ]; do vars+=("$1"); shift; done; shift
@@ -405,6 +468,292 @@ relevo -- desplegar produccion "$A"
 comprobar "sin ninguna ranura en marcha: arranca azul sola" "0 to caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
 comprobar "  y no hay nada que drenar" 0 "$(grep -c '^systemd-run' "$LOG")"
 
+echo "desplegar: guarda de envío de correo (C-04)"
+# escenario_correo ENTORNO: azul activa en los dos entornos y Caddy SIN el
+# montaje, para ver que abortar tampoco recrea Caddy.
+escenario_correo() {
+  limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-staging-app-azul "$A"
+  fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+  echo "/etc/caddy/Caddyfile /data" > "$ESTADO/c/caemanager-caddy/montajes"
+}
+sin_tocar_nada() { # ENTORNO: la huella de un relevo abortado antes de empezar
+  local e=$1 pref=caemanager-app
+  [ "$e" = staging ] && pref=caemanager-staging-app
+  echo "$(grep -c ' up ' "$LOG") $(grep -c '^RECARGA' "$LOG") $(grep -c '^systemd-run' "$LOG") $(ranuras "$e") $(en_marcha $pref-azul)"
+}
+for caso in "ausente|" 'vacía|      EnvioCorreo__Modo: ""' 'solo espacios|      EnvioCorreo__Modo: "  "' "null|      EnvioCorreo__Modo: null" "otra clave con el mismo prefijo|      EnvioCorreo__ModoAntiguo: Abierto"; do
+  escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar produccion "$B"
+  comprobar "${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+  comprobar "  dice qué falta y dónde" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor, en el entorno efectivo de app-verde. Añádela a .env en el servidor" "$salida")"
+  comprobar "  no imprime ningún valor" 0 "$(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
+done
+
+escenario_correo; relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "abortar no recrea Caddy" 0 "$(grep -c 'no-deps --no-build caddy' "$LOG")"
+comprobar "la configuración se resuelve con la imagen nueva y las ranuras a la vista" si \
+  "$(contiene "docker compose -f docker-compose.produccion.yml --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+limpio; contenedor caemanager-app-verde "$A"; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "mira la ranura que arranca, no la otra: sin clave en la activa verde, azul sí la lleva" "0 to caemanager-app-azul:8080 caemanager-app-verde:8080" "$codigo $(ranuras produccion)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "  y al revés: con la clave solo en la activa azul, verde aborta" "1 to caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+escenario_correo; relevo CONFIG_FALLA=1 -- desplegar produccion "$B"
+comprobar "config falla: aborta igual, sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  con su propio mensaje" si "$(contiene "no se pudo resolver la configuración efectiva de app-verde" "$salida")"
+comprobar "  y sin repetir el error de Compose, que puede citar valores" 0 "$(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
+
+escenario_correo; relevo CORREO_VERDE= -- desplegar staging "$B"
+comprobar "staging también aborta sin la clave" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "  nombra .env.staging" si "$(contiene "Añádela a .env.staging en el servidor" "$salida")"
+comprobar "  y resuelve con su compose y su .env" si \
+  "$(contiene "docker compose -f docker-compose.staging.yml --env-file .env.staging --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado" -- desplegar staging "$B"
+comprobar "staging con Cerrado explícito conmuta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Cerrado\"" -- desplegar staging "$B"
+comprobar "  también entrecomillado" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Abierto\"" -- desplegar produccion "$B"
+comprobar "un valor entrecomillado cuenta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+for caso in "Abierto|      EnvioCorreo__Modo: Abierto" \
+            'Abierto entrecomillado|      EnvioCorreo__Modo: "Abierto"' \
+            "SoloPermitidos|      EnvioCorreo__Modo: SoloPermitidos" \
+            "abierto en minúsculas|      EnvioCorreo__Modo: abierto" \
+            "un modo que no existe|      EnvioCorreo__Modo: Entreabierto" \
+            "Cerrado y otra grafía de la clave con Abierto|      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto"; do
+  escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar staging "$B"
+  comprobar "staging con ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+  comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado en el entorno efectivo de app-verde" "$salida")"
+  comprobar "  nombra .env.staging" si "$(contiene "Corrígelo en .env.staging en el servidor" "$salida")"
+  comprobar "  no imprime el valor ni ningún otro" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|abierto|SoloPermitidos')"
+done
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_AZUL=      EnvioCorreo__Modo: Abierto" -- desplegar staging "$B"
+comprobar "staging mira la ranura que arranca: Abierto en la que no arranca no aborta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- desplegar produccion "$B"
+comprobar "producción no exige Cerrado" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto" -- desplegar produccion "$B"
+comprobar "  y otra grafía de la clave no le afecta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+echo "comprobar-guarda: la guarda sola, sobre la ranura de desplegar"
+escenario_correo; relevo -- comprobar-guarda produccion "$B"
+comprobar "cumplida: sale 0 sin tocar nada" "0 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  y sin recrear Caddy" 0 "$(grep -c 'no-deps --no-build caddy' "$LOG")"
+comprobar "  resuelve con la imagen de destino" si \
+  "$(contiene "docker compose -f docker-compose.produccion.yml --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+escenario_correo; relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
+comprobar "sin la clave: sale 1 sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  y dice qué falta" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor, en el entorno efectivo de app-verde" "$salida")"
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- comprobar-guarda staging "$B"
+comprobar "staging sin Cerrado: sale 1 sin tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+limpio; contenedor caemanager-app-verde "$A"; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
+comprobar "con verde activa mira azul, como desplegar: sin clave en verde pasa" 0 "$codigo"
+relevo CORREO_AZUL= -- comprobar-guarda produccion "$B"
+comprobar "  y sin clave en azul no pasa" 1 "$codigo"
+limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-app-verde "$B"; echo unhealthy > "$ESTADO/c/caemanager-app-verde/salud"
+fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_AZUL= -- comprobar-guarda produccion "$C"
+comprobar "con la primera del fichero insana, la que sirve es la sana: arranca verde" 0 "$codigo"
+relevo -- comprobar-guarda produccion latest
+comprobar "SHA no válido: uso" 2 "$codigo"
+relevo -- comprobar-guarda otro "$B"
+comprobar "entorno no válido: uso" 2 "$codigo"
+
+echo "imágenes sin la guarda de correo: ignoran el modo y se comportan como Abierto"
+escenario_correo; sin_guarda "$B"; relevo -- desplegar staging "$B"
+comprobar "staging no arranca una imagen sin la etiqueta aunque el modo sea Cerrado" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "  dice qué falta" si "$(contiene "caemanager:$B no declara es.talveg.guarda-correo" "$salida")"
+comprobar "  no llega a resolver la configuración, y no imprime ningún valor" "0 0" \
+  "$(grep -c 'profile ranura config' "$LOG") $(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
+escenario_correo; sin_guarda "$B"; relevo -- comprobar-guarda staging "$B"
+comprobar "comprobar-guarda lo mismo: la vuelta atrás se detiene antes de restaurar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+escenario_correo; relevo INSPECT_GUARDA_FALLA=1 -- desplegar staging "$B"
+comprobar "si no se puede leer la etiqueta, staging tampoco arranca" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+escenario_correo; sin_guarda "$B"; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- comprobar-guarda produccion "$B"
+comprobar "producción con Abierto sí admite una imagen sin la etiqueta: no cambia nada" "0 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+for caso in "Cerrado|      EnvioCorreo__Modo: Cerrado" \
+            "SoloPermitidos|      EnvioCorreo__Modo: SoloPermitidos" \
+            "abierto en minúsculas|      EnvioCorreo__Modo: abierto" \
+            "Abierto y otra grafía de la clave con Cerrado|      EnvioCorreo__Modo: Abierto
+      ENVIOCORREO__MODO: Cerrado"; do
+  escenario_correo; sin_guarda "$B"; relevo "CORREO_VERDE=${caso#*|}" -- desplegar produccion "$B"
+  comprobar "producción, imagen sin la etiqueta y ${caso%%|*}: aborta sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+  comprobar "  dice por qué" si "$(contiene "esa imagen ignoraría el modo" "$salida")"
+done
+escenario_correo; relevo INSPECT_GUARDA_FALLA=1 "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado" -- desplegar produccion "$B"
+comprobar "producción con la etiqueta ilegible y Cerrado: aborta" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+escenario_correo; sin_guarda "$B"; relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "producción, imagen sin la etiqueta y sin la clave: aborta por la clave" "1 0" \
+  "$codigo $(grep -c ' up ' "$LOG")"
+comprobar "  y lo dice" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor" "$salida")"
+
+echo "saliente sin la guarda: no drena salvo con Abierto"
+# saliente_staging: staging sirve con azul (imagen A, sin la etiqueta) y releva a B.
+saliente_staging() {
+  limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda caemanager-staging-app-azul
+  fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+saliente_staging; relevo -- desplegar staging "$B"
+comprobar "conmuta y la saliente sale de Caddy, sin drenaje" "0 to caemanager-staging-app-verde:8080 0" "$codigo $(ranuras staging) $(grep -c '^systemd-run' "$LOG")"
+comprobar "  y queda parada" false "$(en_marcha caemanager-staging-app-azul)"
+comprobar "  sin borrarla, que es una ranura" 0 "$(grep -c '^docker rm' "$LOG")"
+comprobar "  Caddy deja de verla antes de pararla" si \
+  "$(l_r="$(grep -n '^RECARGA.*staging=\[to caemanager-staging-app-verde:8080\]' "$LOG" | tail -1 | cut -d: -f1)"; l_s="$(grep -n 'docker stop -t 30 caemanager-staging-app-azul' "$LOG" | cut -d: -f1)"; [ -n "$l_r" ] && [ -n "$l_s" ] && [ "$l_r" -lt "$l_s" ] && echo si || echo "no ($l_r/$l_s)")"
+kills_de() { grep -c "^docker kill $1 " "$LOG"; }
+stops_de() { grep -c "^docker stop -t 30 $1 " "$LOG"; }
+AZUL_STG=caemanager-staging-app-azul
+saliente_staging; relevo "STOP_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop falla: se fuerza y el relevo es válido, sin drenaje" "0 false 1 0 to caemanager-staging-app-verde:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(kills_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+saliente_staging; relevo "STOP_NO_PARA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop sale con 0 pero sigue viva: se fuerza, que decide el contenedor" "0 false 1" "$codigo $(en_marcha "$AZUL_STG") $(kills_de "$AZUL_STG")"
+saliente_staging; relevo RELEVO_TOPE_STOP=1 "STOP_CUELGA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop colgado: el tope lo corta y se fuerza" "0 false" "$codigo $(en_marcha "$AZUL_STG")"
+saliente_staging; relevo "STOP_FALLA=$AZUL_STG" "KILL_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "stop y kill fallan: el relevo acaba en error, sin drenaje, fuera de Caddy" "1 true 0 to caemanager-staging-app-verde:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+comprobar "  tras un número acotado de intentos" "3 3" "$(stops_de "$AZUL_STG") $(kills_de "$AZUL_STG")"
+comprobar "  nombra la ranura que sigue viva" si "$(contiene "::error::no se pudo parar $AZUL_STG" "$salida")"
+comprobar "  y da el relevo por incompleto" si "$(contiene "::error::Relevo de staging incompleto" "$salida")"
+saliente_staging; relevo "STOP_PIERDE_ESTADO=$AZUL_STG" -- desplegar staging "$B"
+comprobar "si su estado no se puede leer, no cuenta como parada" "1 0" "$codigo $(grep -c '^systemd-run' "$LOG")"
+saliente_staging; relevo "STOP_ELIMINA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "si deja de existir al pararla, cuenta como parada" 0 "$codigo"
+saliente_staging; relevo "REINICIA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "con política de reinicio: se le quita antes de pararla y no vuelve" "0 false" "$codigo $(en_marcha "$AZUL_STG")"
+saliente_staging; relevo "REINICIA=$AZUL_STG" "UPDATE_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "si no se le puede quitar y vuelve tras pararla, el relevo acaba en error" "1 true" "$codigo $(en_marcha "$AZUL_STG")"
+saliente_staging; relevo "INSPECT_SALUD_FALLA=caemanager-staging-app-verde" -- desplegar staging "$B"
+comprobar "un fallo al leer la salud de la nueva no es «sin healthcheck»: no se para" "1 true 0 0" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG")"
+saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- desplegar staging "$B"
+comprobar "si la nueva no está sana, no se para, no drena y el relevo acaba en error" "1 true 0 0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+comprobar "  y dice por qué" si "$(contiene "no se para porque caemanager-staging-app-verde no está sana" "$salida")"
+# Saliente de un relevo anterior: staging sirve con el contenedor anterior a P1-F2
+# y verde sigue en el fichero. La nueva va a azul.
+VERDE_STG=caemanager-staging-app-verde
+saliente_previa() {
+  limpio; contenedor caemanager-staging-app "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
+  fichero staging "to caemanager-staging-app:8080 $VERDE_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+saliente_previa; relevo "STOP_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "saliente previa sin la etiqueta: también se fuerza" "0 false 1" "$codigo $(en_marcha "$VERDE_STG") $(kills_de "$VERDE_STG")"
+saliente_previa; relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "  y si sigue viva, el relevo acaba en error" "1 true" "$codigo $(en_marcha "$VERDE_STG")"
+comprobar "  nombrándola" si "$(contiene "::error::no se pudo parar $VERDE_STG" "$salida")"
+saliente_previa; mkdir -p "$ESTADO/c/$AZUL_STG"; echo unhealthy > "$ESTADO/c/$AZUL_STG/salud"
+relevo -- desplegar staging "$B"
+comprobar "  y con la nueva sin sanar no se para: acaba en error" "1 true 0" "$codigo $(en_marcha "$VERDE_STG") $(stops_de "$VERDE_STG")"
+saliente_previa; : > "$ESTADO/c/$VERDE_STG/estado_perdido"
+relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "saliente previa con el estado ilegible: no cuenta como parada, acaba en error" "1 3" "$codigo $(stops_de "$VERDE_STG")"
+saliente_previa; rm -rf "$ESTADO/c/$VERDE_STG"; relevo -- desplegar staging "$B"
+comprobar "saliente previa que ya no existe: no bloquea el relevo" 0 "$codigo"
+# Un relevo que no pudo parar el contenedor anterior a las ranuras lo deja fuera del
+# fichero y vivo: el siguiente tiene que encontrarlo igual.
+LEGADO_STG=caemanager-staging-app
+saliente_anterior() {
+  limpio; contenedor "$LEGADO_STG" "$A"; sin_guarda "$LEGADO_STG"
+  fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+saliente_anterior; relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- desplegar staging "$B"
+comprobar "el contenedor anterior sin parar queda fuera del fichero, y el relevo en error" "1 true to caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha "$LEGADO_STG") $(ranuras staging)"
+relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- desplegar staging "$C"
+comprobar "  el reintento lo encuentra sin estar anotado: si sigue vivo, otra vez error" "1 true" "$codigo $(en_marcha "$LEGADO_STG")"
+comprobar "  nombrándolo" si "$(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
+relevo -- desplegar staging "$A"
+comprobar "  y en cuanto se puede parar, lo retira y el relevo vale" "0 <no existe>" "$codigo $(en_marcha "$LEGADO_STG")"
+# retirar-sin-guarda: la usa volver-atras.sh cuando el destino ya sirve.
+saliente_anterior; relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- desplegar staging "$B"
+relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- retirar-sin-guarda staging "$B"
+comprobar "retirar-sin-guarda: si sigue viva, sale con 1 y la nombra" "1 true si" \
+  "$codigo $(en_marcha "$LEGADO_STG") $(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  y en cuanto se puede, la retira" "0 <no existe> to caemanager-staging-app-azul:8080" "$codigo $(en_marcha "$LEGADO_STG") $(ranuras staging)"
+: > "$LOG"; relevo -- retirar-sin-guarda staging "$B"
+comprobar "  sin nada pendiente no toca nada" "0 0" "$codigo $(grep -cE '^(docker (stop|kill|update|rm)|RECARGA)' "$LOG")"
+saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- desplegar staging "$B"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  con la que sirve aún sin sanar no para la anotada y sale con 1" "1 true to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
+rm "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  una que siguiera anotada también sale de Caddy" "0 false to caemanager-staging-app-verde:8080" "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
+# Conmutación interrumpida: el fichero señala la sana y Caddy puede servir la anterior.
+interrumpida() {
+  saliente_staging; mkdir -p "$ESTADO/c/$VERDE_STG"; echo unhealthy > "$ESTADO/c/$VERDE_STG/salud"
+  relevo -- desplegar staging "$B"; rm "$ESTADO/c/$VERDE_STG/salud"; : > "$LOG"
+}
+interrumpida; relevo RECARGA_FALLA=1 -- retirar-sin-guarda staging "$B"
+comprobar "  si Caddy no acepta la recarga, no para nada: sale con 1" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo confirmar que Caddy sirve $VERDE_STG" "$salida")"
+interrumpida; relevo CONFIG_FALLA=1 RECARGA_FALLA=1 -- retirar-sin-guarda staging "$B"
+comprobar "  si tampoco se puede leer el modo, no para nada: sale con 1" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo leer EnvioCorreo__Modo" "$salida")"
+saliente_staging; relevo -- retirar-sin-guarda staging "$A"
+comprobar "  la imagen que sirve sin la guarda con modo Cerrado no se da por buena ni se para" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::$AZUL_STG sirve staging e ignora" "$salida")"
+saliente_staging; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- retirar-sin-guarda staging "$A"
+comprobar "  staging tampoco la da por buena con modo Abierto, como al arrancarla" "1 true" "$codigo $(en_marcha "$AZUL_STG")"
+limpio; contenedor caemanager-app-azul "$A"; sin_guarda caemanager-app-azul
+fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo -- retirar-sin-guarda produccion "$A"
+comprobar "  producción con modo Abierto hace lo que esa imagen haría: vale" "0 true" "$codigo $(en_marcha caemanager-app-azul)"
+ranura_sin_anotar() {
+  limpio; contenedor "$LEGADO_STG" "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
+  fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+ranura_sin_anotar; relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "una ranura sin anotar que ignora la guarda también se busca" "1 true" "$codigo $(en_marcha "$VERDE_STG")"
+limpio; contenedor caemanager-staging-app "$A"; sin_guarda caemanager-staging-app
+fichero staging "to caemanager-staging-app:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo -- desplegar staging "$B"
+comprobar "el contenedor anterior a P1-F2 se borra, que no tiene servicio" "0 <no existe>" "$codigo $(en_marcha caemanager-staging-app)"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo -- desplegar staging "$B"
+comprobar "saliente que declara la guarda: drena como siempre" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080 1 true" \
+  "$codigo $(ranuras staging) $(grep -c '^systemd-run' "$LOG") $(en_marcha caemanager-staging-app-azul)"
+saliente_produccion() {
+  limpio; contenedor caemanager-app-azul "$A"; sin_guarda caemanager-app-azul
+  fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+}
+saliente_produccion; relevo -- desplegar produccion "$B"
+comprobar "producción con Abierto: la saliente sin la etiqueta drena con normalidad" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080 1 true" \
+  "$codigo $(ranuras produccion) $(grep -c '^systemd-run' "$LOG") $(en_marcha caemanager-app-azul)"
+saliente_produccion; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado" -- desplegar produccion "$B"
+comprobar "producción con otro modo: se retira sin drenar" "0 to caemanager-app-verde:8080 0 false" \
+  "$codigo $(ranuras produccion) $(grep -c '^systemd-run' "$LOG") $(en_marcha caemanager-app-azul)"
+
+echo "la etiqueta y el Dockerfile"
+comprobar "el Dockerfile declara la etiqueta que lee el guion" 1 "$(tr -d '\r' < "$AQUI/../Dockerfile" | grep -cx 'LABEL es.talveg.guarda-correo="1"')"
+comprobar "  en la etapa final, la que se despliega" si \
+  "$(l_f="$(grep -n '^FROM ' "$AQUI/../Dockerfile" | tail -1 | cut -d: -f1)"; l_l="$(grep -n '^LABEL es.talveg.guarda-correo=' "$AQUI/../Dockerfile" | cut -d: -f1)"; [ -n "$l_f" ] && [ -n "$l_l" ] && [ "$l_l" -gt "$l_f" ] && echo si || echo "no ($l_f/$l_l)")"
+comprobar "  y no en deploy.yml, que la pondría a cualquier commit que construya" 0 "$(grep -c 'es.talveg.guarda-correo' "$AQUI/../.github/workflows/deploy.yml")"
+comprobar "el guion lee ese mismo nombre" 1 "$(grep -cx 'ETIQUETA_GUARDA_CORREO="es.talveg.guarda-correo"' "$GUION")"
+DI_CORREO="$AQUI/../src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs"
+comprobar "lo que la etiqueta declara: SMTP y Microsoft 365 se registran detrás de la guarda" "1 1" \
+  "$(grep -c 'ActivatorUtilities.CreateInstance<GuardaEnvioEmailService>' "$DI_CORREO") $(grep -c 'ActivatorUtilities.CreateInstance<GuardaEnvioMicrosoft365GraphClient>' "$DI_CORREO")"
+
+comprobar "ningún compose da valor a la clave: la decide cada .env" "0 0" \
+  "$(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.produccion.yml") $(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.staging.yml")"
+comprobar "los dos .env de ejemplo la llevan activa" "1 1" \
+  "$(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.example") $(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.staging.example")"
+comprobar "el ejemplo de staging lleva el único modo que el relevo admite allí" 1 \
+  "$(tr -d '\r' < "$AQUI/local/.env.staging.example" | grep -cx 'EnvioCorreo__Modo=Cerrado')"
+
 echo "conexiones_establecidas"
 limpio; contenedor x "$A" true 3
 # shellcheck source=deploy/relevo-app.sh
@@ -453,6 +802,8 @@ comprobar "ci-deploy.sh hace el relevo en vez de un up de todo el stack" "1 0" \
   "$(grep -c '^    if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "\$ENTORNO" "\$SHA" < /dev/null; then$' "$AQUI/ci-deploy.sh") $(grep -cE '^[^#]*docker compose [^|]* up ' "$AQUI/ci-deploy.sh")"
 comprobar "volver-atras.sh también" "1 0" \
   "$(grep -c 'bash "\$RELEVO_APP" desplegar "\$entorno" "\$sha"' "$AQUI/volver-atras.sh") $(grep -cE '^[^#]*docker compose [^|]* up ' "$AQUI/volver-atras.sh")"
+comprobar "volver-atras.sh pide la guarda con la orden que este guion atiende" 1 \
+  "$(grep -c 'bash "\$RELEVO_APP" comprobar-guarda "\$entorno" "\$sha" < /dev/null' "$AQUI/volver-atras.sh")"
 
 # Mutaciones: cada una devuelve un defecto concreto y su caso tiene que verlo.
 if [ -z "${RELEVO_GUION:-}" ]; then
@@ -501,6 +852,154 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   comp_cero() { [ "$(en_marcha caemanager-app-azul)" = true ] && echo si || echo no; }
   mutar "el máximo de drenaje no se respeta" \
     's#^        if \[ "\$vacias" -ge 2 \] || \[ \$(( SECONDS - inicio )) -ge "\$max" \]; then$#        if [ "$vacias" -ge 2 ]; then#' esc_cero comp_cero
+
+  esc_correo() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                 CORREO_VERDE="${CORREO_MUTANTE-}" bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_correo() { [ "$(ranuras produccion)" != "to caemanager-app-azul:8080" ] && echo si || echo no; }
+  mutar "el relevo no exige la guarda de correo" \
+    's#^    exigir_guarda_de_correo "\$entorno" "\$sha" "app-\$nueva" || return 1$#    :#' esc_correo comp_correo
+  mutar "basta con que cualquier servicio lleve la clave" \
+    's#actual = (\$0 == "  " servicio ":"); if (actual) visto = 1;#actual = 1; visto = 1;#' esc_correo comp_correo
+  mutar "una sección que no es services cuenta como servicio" \
+    's#en_servicios = (\$0 == "services:");#en_servicios = 1;#' esc_correo comp_correo
+  CORREO_MUTANTE='      EnvioCorreo__Modo: ""'
+  mutar "un valor vacío cuenta como presente" \
+    's#presente = (valor != "" \&\& valor != "null" \&\& valor != "~")#presente = 1#' esc_correo comp_correo
+  unset CORREO_MUTANTE
+
+  esc_staging() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                  CORREO_VERDE="$CORREO_MUTANTE" bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_staging() { [ "$(ranuras staging)" != "to caemanager-staging-app-azul:8080" ] && echo si || echo no; }
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Abierto'
+  mutar "staging no exige Cerrado" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    :#' esc_staging comp_staging
+  mutar "un modo distinto del exigido no aborta" \
+    's#exit discrepa ? 3 : 0#exit 0#' esc_staging comp_staging
+  mutar "la comparación con el modo exigido va al revés" \
+    's#if (valor != exigido) discrepa = 1#if (valor == exigido) discrepa = 1#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto'
+  mutar "otra grafía de la clave no cuenta" \
+    's#index(tolower(\$0), "      " tolower(clave) ":") == 1#index($0, "      " clave ":") == 1#' esc_staging comp_staging
+  unset CORREO_MUTANTE
+
+  esc_prod_abierto() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                       bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_prod_abierto() { [ "$(ranuras produccion)" = "to caemanager-app-azul:8080" ] && echo si || echo no; }
+  mutar "producción también exige Cerrado" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    modo_exigido="$MODO_CORREO_STAGING"#' esc_prod_abierto comp_prod_abierto
+
+  esc_orden() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                CORREO_VERDE= bash "$1" comprobar-guarda produccion "$B" > /dev/null 2>&1; codigo=$?; }
+  comp_orden() { [ "$codigo" = 0 ] && echo si || echo no; }
+  mutar "la orden comprobar-guarda no comprueba nada" \
+    's#^    exigir_guarda_de_correo "\$entorno" "\$sha" "app-\$nueva"$#    :#' esc_orden comp_orden
+
+  esc_img_staging() { limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda "$B"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                      bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_img_staging() { [ "$(ranuras staging)" != "to caemanager-staging-app-azul:8080" ] && echo si || echo no; }
+  mutar "no se mira la etiqueta de la imagen de destino" \
+    's#^    if ! declara_guarda_de_correo "caemanager:\$sha"; then$#    if false; then#' esc_img_staging comp_img_staging
+  esc_img_inspect() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                      INSPECT_GUARDA_FALLA=1 bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  mutar "un fallo de inspect cuenta como que la declara" \
+    's#"\$1" 2>/dev/null || true)" = 1 \]$#"$1" 2>/dev/null || echo 1)" = 1 ]#' esc_img_inspect comp_img_staging
+
+  esc_img_prod() { limpio; contenedor caemanager-app-azul "$A"; sin_guarda "$B"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                   CORREO_VERDE='      EnvioCorreo__Modo: Cerrado' bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_img_prod() { [ "$(ranuras produccion)" != "to caemanager-app-azul:8080" ] && echo si || echo no; }
+  mutar "producción no exige Abierto a una imagen sin la etiqueta" \
+    's#^        modo_exigido="\$MODO_CORREO_SIN_GUARDA"$#        :#' esc_img_prod comp_img_prod
+
+  esc_sal() { limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda caemanager-staging-app-azul; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+              bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_sal() { [ "$(en_marcha caemanager-staging-app-azul)" = true ] && echo si || echo no; }
+  mutar "la saliente sin la etiqueta drena igual" \
+    's#^        if saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$activa_"; then$#        if false; then#' esc_sal comp_sal
+
+  esc_sal_insana() { limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda caemanager-staging-app-azul; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                     mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+                     bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_sal_insana() { [ "$(en_marcha caemanager-staging-app-azul)" = false ] && echo si || echo no; }
+  mutar "se retira la saliente aunque la nueva no esté sana" \
+    's#^    if ! sana "\$nueva"; then$#    if false; then#' esc_sal_insana comp_sal_insana
+
+  esc_parada() { saliente_staging; STOP_FALLA="$AZUL_STG" KILL_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  comp_parada() { [ "$codigo" = 0 ] && echo si || echo no; }
+  mutar "la parada se da por buena sin mirar el contenedor" \
+    's#^parada_confirmada() { ! puede_estar_en_marcha "\$1"; }$#parada_confirmada() { true; }#' esc_parada comp_parada
+  mutar "el relevo no falla si la imagen sin guarda sigue viva" \
+    's#^    if \[ "\$sin_guarda_viva" != 0 \]; then$#    if false; then#' esc_parada comp_parada
+
+  esc_forzar() { saliente_staging; STOP_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_forzar() { [ "$(en_marcha "$AZUL_STG")" = true ] && echo si || echo no; }
+  mutar "no se fuerza la parada" \
+    's#^        timeout "\$RELEVO_TOPE_KILL" docker kill "\$contenedor" > /dev/null 2>&1 || true$#        :#' esc_forzar comp_forzar
+
+  esc_previa() { saliente_previa; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "una saliente previa sin la etiqueta queda en un aviso" \
+    's#^        if puede_estar_en_marcha "\$previa" \&\& saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$previa"; then$#        if false; then#' esc_previa comp_parada
+  esc_previa_ilegible() { saliente_previa; : > "$ESTADO/c/$VERDE_STG/estado_perdido"; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "el estado ilegible de una saliente previa cuenta como parada" \
+    's#^        if puede_estar_en_marcha "\$previa" \&\& #        if en_marcha "$previa" \&\& #' esc_previa_ilegible comp_parada
+
+  esc_reintento() { saliente_anterior; STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1
+                    STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" desplegar staging "$C" > /dev/null 2>&1; codigo=$?; }
+  mutar "el reintento solo mira lo anotado en el fichero" \
+    's#^        if puede_estar_en_marcha "\$c" \&\& saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$c"; then$#        if false; then#' esc_reintento comp_parada
+
+  esc_ausente() { saliente_previa; rm -rf "$ESTADO/c/$VERDE_STG"; bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  comp_ausente() { [ "$codigo" != 0 ] && echo si || echo no; }
+  mutar "un contenedor inexistente cuenta como vivo" \
+    's#^        \*\[Nn\]"o such object"\*|\*\[Nn\]"o such container"\*) return 1 ;;$#        nunca) return 1 ;;#' esc_ausente comp_ausente
+
+  esc_pendientes() { saliente_anterior; STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1
+                     STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "retirar-sin-guarda sale bien con la imagen viva" \
+    's#^    return "\$fallo"$#    return 0#' esc_pendientes comp_parada
+
+  esc_activa_sin_guarda() { saliente_staging; bash "$1" retirar-sin-guarda staging "$A" > /dev/null 2>&1; codigo=$?; }
+  mutar "retirar-sin-guarda da por buena la imagen que sirve sin la guarda" \
+    's#^    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_" || {.*; then$#    if false; then#' esc_activa_sin_guarda comp_parada
+  esc_activa_abierto() { saliente_staging; CORREO_VERDE='      EnvioCorreo__Modo: Abierto' bash "$1" retirar-sin-guarda staging "$A" > /dev/null 2>&1; codigo=$?; }
+  mutar "staging da por buena la imagen que sirve sin la guarda con modo Abierto" \
+    's#^\(    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_"\) || {.*; then$#\1; then#' esc_activa_abierto comp_parada
+
+  esc_interrumpida_recarga() { interrumpida; RECARGA_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
+  esc_interrumpida_modo() { interrumpida; CONFIG_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
+  comp_azul_parada() { [ "$(en_marcha "$AZUL_STG")" = false ] && echo si || echo no; }
+  mutar "retirar-sin-guarda para sin confirmar que Caddy sirve la sana" \
+    's#|| ! recargar_caddy; then$#|| false; then#' esc_interrumpida_recarga comp_azul_parada
+  mutar "retirar-sin-guarda para sin poder leer el modo" \
+    's#^    if \[ "\$modo" != 3 \]; then$#    if false; then#' esc_interrumpida_modo comp_azul_parada
+
+  esc_reinicio() { saliente_staging; REINICIA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "no se quita la política de reinicio" \
+    's#^        timeout "\$RELEVO_TOPE_KILL" docker update --restart=no "\$contenedor" > /dev/null 2>&1 || true$#        :#' esc_reinicio comp_ausente
+
+  esc_reinicio_sin_update() { saliente_staging; REINICIA="$AZUL_STG" UPDATE_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "la parada no se vuelve a mirar tras la pausa" \
+    's#^    sleep "\$RELEVO_ESPERA_PARADA"$#    return 0#' esc_reinicio_sin_update comp_parada
+
+  esc_ranura_sin_anotar() { ranura_sin_anotar; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "solo se busca sin anotar el contenedor anterior a las ranuras" \
+    's#^    for c in "\$base" "\$base-azul" "\$base-verde"; do$#    for c in "$base"; do#' esc_ranura_sin_anotar comp_parada
+
+  esc_salud() { saliente_staging; INSPECT_SALUD_FALLA=caemanager-staging-app-verde bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  mutar "un fallo al leer la salud cuenta como sin healthcheck" \
+    's#^    salud="\$(docker inspect -f .{{if .State.Health}}{{.State.Health.Status}}{{end}}. "\$1" 2>/dev/null)" || return 1$#    salud=""#' esc_salud comp_sal_insana
+
+  esc_sal_ok() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                 bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_sal_ok() { [ "$(en_marcha caemanager-staging-app-azul)" = false ] && echo si || echo no; }
+  mutar "se corta también a la saliente que declara la guarda" \
+    's#^    declara_guarda_de_correo "\$saliente" \&\& return 1$#    :#' esc_sal_ok comp_sal_ok
+
+  esc_sal_prod() { limpio; contenedor caemanager-app-azul "$A"; sin_guarda caemanager-app-azul; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                   bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_sal_prod() { [ "$(en_marcha caemanager-app-azul)" = false ] && echo si || echo no; }
+  mutar "producción corta la saliente sin la etiqueta aunque el modo sea Abierto" \
+    's#^    ! medir_guarda_de_correo "\$entorno" "\$sha" "\$servicio" "\$MODO_CORREO_SIN_GUARDA"$#    true#' esc_sal_prod comp_sal_prod
 fi
 
 if [ "$fallos" -gt 0 ]; then

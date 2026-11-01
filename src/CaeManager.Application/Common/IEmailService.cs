@@ -16,6 +16,12 @@ namespace CaeManager.Application.Common;
 /// resultado de cada envío.
 ///
 /// <para>
+/// Lo que se inyecta siempre lleva delante la guarda de envío (C-04): cerrada
+/// por defecto en todo entorno, devuelve un <see cref="Result"/> fallido con
+/// <c>Email.EnvioCerrado</c> en vez de enviar.
+/// </para>
+///
+/// <para>
 /// Sistema de correo TALVEG: <c>cuerpoHtml</c> sigue siendo solo el contenido
 /// interior (lo que hoy ya componen los llamadores); la implementación lo
 /// envuelve en la cabecera y el pie de marca antes de enviarlo, para que
