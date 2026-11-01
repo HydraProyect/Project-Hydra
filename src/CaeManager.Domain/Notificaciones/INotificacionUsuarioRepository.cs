@@ -9,8 +9,5 @@ public interface INotificacionUsuarioRepository
     /// <summary>Las notificaciones del Tenant actual, de cualquier destinatario, emitidas por un mismo evento de origen.</summary>
     Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventoOrigenAsync(Guid eventoOrigenId, CancellationToken cancellationToken = default);
 
-    /// <summary>Las notificaciones del Tenant actual, de cualquier destinatario, emitidas por alguno de esos eventos de origen.</summary>
-    Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventosOrigenAsync(IReadOnlyCollection<Guid> eventoOrigenIds, CancellationToken cancellationToken = default);
-
     void Agregar(NotificacionUsuario notificacion);
 }

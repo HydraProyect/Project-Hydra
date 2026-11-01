@@ -42,10 +42,11 @@ namespace CaeManager.Infrastructure.Visitas;
 /// Trabajador/Centro → Empresa/Subcontrata → Cliente, y esa relación puede
 /// ser N:M (ver el comentario de EnvioAlertasVencimientoHostedService).
 ///
-/// Un aviso por Tenant, destinatario y gestión, nunca por texto: <c>EventoOrigenId</c> es el Id de la
-/// Visita o de la sugerencia, y el índice único de <see cref="NotificacionUsuario"/> sobre esas tres
-/// coordenadas impide el duplicado. Mientras esté sin leer no se repite; leído y con la gestión aún
-/// urgente, el ciclo siguiente reabre la misma fila (ver <see cref="ReabrirLeidasYCrearLasQueFaltan"/>).
+/// Un único aviso agregado por Tenant y destinatario, con el número de gestiones urgentes y enlace a
+/// Mi trabajo: <see cref="EventoAvisoGestionesUrgentes"/> es fijo, y el índice único de
+/// <see cref="NotificacionUsuario"/> sobre Tenant, destinatario y evento impide una segunda fila. Sin
+/// leer se actualiza el número; leído y con urgencias, el ciclo siguiente reabre la misma fila; a cero
+/// se retira (ver <see cref="SincronizarAvisos"/>).
 /// </summary>
 public class VigilanciaVisitasUrgentesHostedService(
     IServiceScopeFactory ambitoFactory,
@@ -53,6 +54,9 @@ public class VigilanciaVisitasUrgentesHostedService(
     ILogger<VigilanciaVisitasUrgentesHostedService> logger)
     : BackgroundService
 {
+    /// <summary>Identifica el aviso agregado, no un evento concreto: es la tercera coordenada de su índice único.</summary>
+    public static readonly Guid EventoAvisoGestionesUrgentes = new("5c1e9f0a-7b3d-4a62-9e84-2d6f1c3ab075");
+
     private static readonly TimeSpan IntervaloSondeo = TimeSpan.FromHours(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -168,11 +172,11 @@ public class VigilanciaVisitasUrgentesHostedService(
     }
 
     /// <summary>
-    /// Las gestiones urgentes del Tenant entero. Recorre todas las páginas: las Visitas en curso son
-    /// candidatas, van delante por fecha y no cuentan, así que una sola página podría quedarse sin
-    /// ninguna urgente de verdad.
+    /// Cuántas gestiones urgentes hay en el Tenant entero. Recorre todas las páginas: las Visitas en
+    /// curso son candidatas, van delante por fecha y no cuentan, así que una sola página podría
+    /// quedarse sin ninguna urgente de verdad.
     /// </summary>
-    protected virtual async Task<IReadOnlyList<GestionUrgente>> ObtenerGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    protected virtual async Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
@@ -199,17 +203,9 @@ public class VigilanciaVisitasUrgentesHostedService(
         var parametros = await dbContext.ParametrosSistema.SingleAsync(stoppingToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        // Texto genérico, sin Centro ni fecha: el aviso sobrevive a un cambio de cartera del destinatario
-        // y a una reprogramación, y se copia a la auditoría. El detalle lo da Mi trabajo con su alcance.
-        // DistinctBy: la paginación no usa instantánea y una gestión repetida abortaría el lote por el índice.
-        return
-        [
-            .. visitas.Where(GestionesUrgentesDeVisita.EsUrgente)
-                .Select(v => new GestionUrgente(v.Id, "Hay una visita dentro de la ventana mínima de validación."))
-                .DistinctBy(g => g.Id),
-            .. sugerencias.Where(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita))
-                .Select(s => new GestionUrgente(s.Id, "Hay una sugerencia de visita sin confirmar.")),
-        ];
+        // DistinctBy: la paginación no usa instantánea y una Visita podría repetirse entre dos páginas.
+        return visitas.DistinctBy(v => v.Id).Count(GestionesUrgentesDeVisita.EsUrgente)
+            + sugerencias.Count(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
     }
 
     /// <summary>
@@ -229,61 +225,77 @@ public class VigilanciaVisitasUrgentesHostedService(
             .ToList();
 
     /// <summary>
-    /// Aplica el aviso a cada pareja de gestión y destinatario: reabre el leído y deja el que sigue sin
-    /// leer. <paramref name="existentes"/> ya viene acotado al Tenant, por eso la clave es solo destinatario
-    /// y gestión.
+    /// Deja el aviso de cada destinatario en el número de gestiones: el sin leer se actualiza sin
+    /// reabrirlo, el leído se reabre y el que falta se crea. A cero, o para quien ya no es destinatario,
+    /// el aviso sin leer se retira de la campana y conserva su fila para reabrirse si vuelve a tocar.
+    /// <paramref name="existentes"/> ya viene acotado al Tenant, por eso la clave es solo el destinatario.
     /// </summary>
     /// <returns>Los avisos que no existían, por añadir.</returns>
-    internal static IReadOnlyList<NotificacionUsuario> ReabrirLeidasYCrearLasQueFaltan(
-        IReadOnlyCollection<GestionUrgente> gestiones,
+    internal static IReadOnlyList<NotificacionUsuario> SincronizarAvisos(
+        int gestiones,
         IReadOnlyCollection<Guid> destinatarios,
-        IEnumerable<NotificacionUsuario> existentes)
+        IReadOnlyCollection<NotificacionUsuario> existentes)
     {
-        var porDestinatarioYGestion = existentes.ToDictionary(n => (n.UsuarioDestinatarioId, n.EventoOrigenId));
+        foreach (var aviso in existentes.Where(n => !n.Leida && (gestiones == 0 || !destinatarios.Contains(n.UsuarioDestinatarioId))))
+            aviso.MarcarComoLeida();
+
+        if (gestiones == 0) return [];
+
+        var mensaje = MensajeDelAviso(gestiones);
+        var porDestinatario = existentes.ToDictionary(n => n.UsuarioDestinatarioId);
         var nuevas = new List<NotificacionUsuario>();
 
-        foreach (var gestion in gestiones)
+        foreach (var destinatario in destinatarios)
         {
-            foreach (var destinatario in destinatarios)
-            {
-                if (!porDestinatarioYGestion.TryGetValue((destinatario, gestion.Id), out var existente))
-                    nuevas.Add(new NotificacionUsuario(
-                        destinatario, "Gestión urgente de visita", gestion.Mensaje, "/bandeja", "Ver Mi trabajo", gestion.Id));
-                else if (existente.Leida)
-                    existente.Reabrir();
-            }
+            if (!porDestinatario.TryGetValue(destinatario, out var existente))
+                nuevas.Add(new NotificacionUsuario(
+                    destinatario, "Gestiones urgentes de visita", mensaje, "/bandeja", "Ver Mi trabajo", EventoAvisoGestionesUrgentes));
+            else if (existente.Leida)
+                existente.Reabrir(mensaje);
+            else
+                existente.ActualizarMensaje(mensaje);
         }
 
         return nuevas;
     }
 
-    /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
-    private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    /// <summary>
+    /// Escribe también con cero gestiones: ese ciclo es el que retira los avisos que quedaron sin leer, y
+    /// por eso los destinatarios solo se resuelven si hay algo que avisar.
+    /// </summary>
+    protected virtual async Task SincronizarAvisosAsync(IServiceScope ambito, int gestiones, CancellationToken stoppingToken)
     {
-        var gestiones = await ObtenerGestionesUrgentesAsync(ambito, stoppingToken);
-        if (gestiones.Count == 0) return 0;
-
-        var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
-        var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
-        var direccionCae = await directorio.ObtenerVisiblesEnRolAsync(Roles.DireccionCae, stoppingToken);
-
-        var rolesEjercidosPorDelegados = await directorio.ObtenerRolesDeOperadoresDelegadosAsync(stoppingToken);
-
-        var destinatarios = DestinatariosDelAviso(administradores, direccionCae, rolesEjercidosPorDelegados);
-        if (destinatarios.Count == 0) return gestiones.Count;
-
         var repositorio = ambito.ServiceProvider.GetRequiredService<INotificacionUsuarioRepository>();
-        var existentes = await repositorio.ObtenerPorEventosOrigenAsync(gestiones.Select(g => g.Id).ToList(), stoppingToken);
+        var existentes = await repositorio.ObtenerPorEventoOrigenAsync(EventoAvisoGestionesUrgentes, stoppingToken);
 
-        var destinatarioIds = destinatarios.Select(d => d.Id).ToList();
-        foreach (var aviso in ReabrirLeidasYCrearLasQueFaltan(gestiones, destinatarioIds, existentes))
+        IReadOnlyCollection<Guid> destinatarios = [];
+        if (gestiones > 0)
+        {
+            var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
+            var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
+            var direccionCae = await directorio.ObtenerVisiblesEnRolAsync(Roles.DireccionCae, stoppingToken);
+            var rolesEjercidosPorDelegados = await directorio.ObtenerRolesDeOperadoresDelegadosAsync(stoppingToken);
+
+            destinatarios = DestinatariosDelAviso(administradores, direccionCae, rolesEjercidosPorDelegados)
+                .Select(d => d.Id).ToList();
+        }
+
+        foreach (var aviso in SincronizarAvisos(gestiones, destinatarios, existentes))
             repositorio.Agregar(aviso);
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
-
-        return gestiones.Count;
     }
-}
 
-/// <summary>Una gestión urgente de visita. <paramref name="Id"/>, de la Visita o de la sugerencia, identifica su aviso.</summary>
-public sealed record GestionUrgente(Guid Id, string Mensaje);
+    /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
+    private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    {
+        var gestiones = await ContarGestionesUrgentesAsync(ambito, stoppingToken);
+        await SincronizarAvisosAsync(ambito, gestiones, stoppingToken);
+
+        return gestiones;
+    }
+
+    private static string MensajeDelAviso(int gestiones) => gestiones == 1
+        ? "Hay 1 gestión urgente de visita pendiente (ventana mínima de validación)."
+        : $"Hay {gestiones} gestiones urgentes de visita pendientes (ventana mínima de validación).";
+}

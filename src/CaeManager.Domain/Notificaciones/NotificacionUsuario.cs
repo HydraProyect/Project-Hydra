@@ -51,12 +51,22 @@ public class NotificacionUsuario : EntidadConTenant
 
     public void MarcarComoLeida() => Leida = true;
 
+    /// <summary>Cambia el texto de un aviso sin leer, sin presentarlo como nuevo.</summary>
+    public void ActualizarMensaje(string mensaje)
+    {
+        if (string.IsNullOrWhiteSpace(mensaje))
+            throw new ArgumentException("El mensaje de la notificación es obligatorio.", nameof(mensaje));
+
+        Mensaje = mensaje.Length > LongitudMaximaMensaje ? mensaje[..LongitudMaximaMensaje] : mensaje;
+    }
+
     /// <summary>
     /// Vuelve a avisar en la misma fila, para un aviso cuya condición sigue en pie después de leído: el
     /// índice único (Tenant, destinatario, evento de origen) no admite una segunda fila.
     /// </summary>
-    public void Reabrir()
+    public void Reabrir(string mensaje)
     {
+        ActualizarMensaje(mensaje);
         Leida = false;
         CreadaEnUtc = DateTime.UtcNow;
     }
