@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="TituloDocumento" xml:space="preserve"><value>Incident de seguretat</value></data>
+  <data name="ErrorCarga" xml:space="preserve"><value>No s&apos;ha pogut carregar l&apos;incident.</value></data>
+  <data name="BotonReintentar" xml:space="preserve"><value>Torna-ho a provar</value></data>
+  <data name="Titulo" xml:space="preserve"><value>Incident {0}</value></data>
+  <data name="EstadoSospechado" xml:space="preserve"><value>Sospitós</value></data>
+  <data name="EstadoEnEvaluacion" xml:space="preserve"><value>En avaluació</value></data>
+  <data name="EstadoConfirmado" xml:space="preserve"><value>Confirmat</value></data>
+  <data name="EstadoDescartado" xml:space="preserve"><value>Descartat</value></data>
+  <data name="Detectado" xml:space="preserve"><value>Detectat el {0}</value></data>
+  <data name="SinCorreoContactoTalveg" xml:space="preserve"><value>Falta configurar el correu de contacte de seguretat de TALVEG: l&apos;avís sortirà sense adreça de resposta.</value></data>
+  <data name="QueHaPasado" xml:space="preserve"><value>Què ha passat</value></data>
+  <data name="Plazos" xml:space="preserve"><value>Terminis de l&apos;avís</value></data>
+  <data name="PlazoPrimerAviso" xml:space="preserve"><value>Primer avís (24 h)</value></data>
+  <data name="PlazoNotificacionCompleta" xml:space="preserve"><value>Notificació completa (36 h)</value></data>
+  <data name="PlazosDesdeConfirmacion" xml:space="preserve"><value>Comptats des de la confirmació, el {0}.</value></data>
+  <data name="TenantsAfectados" xml:space="preserve"><value>Organitzacions afectades ({0})</value></data>
+  <data name="SinDestinatario" xml:space="preserve"><value>Sense destinatari: no se li pot avisar</value></data>
+  <data name="SinContactoValidado" xml:space="preserve"><value>Sense contacte de seguretat validat: s&apos;avisa els seus Administradors</value></data>
+  <data name="PrimerAvisoTitulo" xml:space="preserve"><value>Primer avís</value></data>
+  <data name="PrimerAvisoAyuda" xml:space="preserve"><value>Revisa el text. En confirmar, l&apos;incident queda confirmat i l&apos;avís s&apos;envia a cada organització afectada. No s&apos;envia res sense aquest clic.</value></data>
+  <data name="BotonReintentarPrimerAviso" xml:space="preserve"><value>Torna a provar els enviaments pendents</value></data>
+  <data name="BotonReintentarPrimerAvisoSecundario" xml:space="preserve"><value>Torna a provar el primer avís</value></data>
+  <data name="TextoComunAyuda" xml:space="preserve"><value>Cada organització afectada rep aquest mateix text: no hi incloguis dades ni el nom d'una altra.</value></data>
+  <data name="PrimerAvisoPendienteAyuda" xml:space="preserve"><value>El primer avís no ha arribat a tots els destinataris. Pots tornar-ho a provar aquí mateix; no cal esperar la notificació completa.</value></data>
+  <data name="BotonConfirmarYEnviar" xml:space="preserve"><value>Confirma i envia el primer avís</value></data>
+  <data name="BotonMasTiempo" xml:space="preserve"><value>Necessito més temps per avaluar-ho</value></data>
+  <data name="BotonDescartar" xml:space="preserve"><value>Descarta (falsa alarma)</value></data>
+  <data name="CompletaTitulo" xml:space="preserve"><value>Notificació completa</value></data>
+  <data name="ApartadosPendientes" xml:space="preserve"><value>Falten per completar: {0}.</value></data>
+  <data name="BotonEnviarCompleta" xml:space="preserve"><value>Envia la notificació completa</value></data>
+  <data name="Registro" xml:space="preserve"><value>Registre</value></data>
+  <data name="Transicion" xml:space="preserve"><value>{0}, {1}</value></data>
+  <data name="EnvioEnviando" xml:space="preserve"><value>{0} a {1} ({2}): s&apos;està enviant, {3}</value></data>
+  <data name="EnvioEnviado" xml:space="preserve"><value>{0} enviat a {1} ({2}), {3}</value></data>
+  <data name="EnvioFallido" xml:space="preserve"><value>{0} a {1} ({2}): ha fallat, {3}</value></data>
+  <data name="PlantillaPrimerAviso" xml:space="preserve"><value>Primer avís</value></data>
+  <data name="PlantillaNotificacionCompleta" xml:space="preserve"><value>Notificació completa</value></data>
+  <data name="DescartarTitulo" xml:space="preserve"><value>Descarta l&apos;incident</value></data>
+  <data name="BotonConfirmarDescarte" xml:space="preserve"><value>Descarta</value></data>
+  <data name="BotonCancelar" xml:space="preserve"><value>Cancel·la</value></data>
+  <data name="DescartarTexto" xml:space="preserve"><value>L&apos;incident es tanca com a falsa alarma i no s&apos;avisa ningú. Queda registrat qui el descarta i per què.</value></data>
+  <data name="CampoMotivo" xml:space="preserve"><value>Motiu</value></data>
+  <data name="ApartadoNaturaleza" xml:space="preserve"><value>Naturalesa de la violació</value></data>
+  <data name="ApartadoDatosEInteresados" xml:space="preserve"><value>Categories de dades i interessats</value></data>
+  <data name="ApartadoConsecuencias" xml:space="preserve"><value>Conseqüències probables</value></data>
+  <data name="ApartadoMedidas" xml:space="preserve"><value>Mesures adoptades o proposades</value></data>
+  <data name="ApartadoContacto" xml:space="preserve"><value>Punt de contacte</value></data>
+  <data name="PlazoCumplido" xml:space="preserve"><value>Enviat</value></data>
+  <data name="PlazoVencido" xml:space="preserve"><value>Vençut</value></data>
+  <data name="PlazoQuedan" xml:space="preserve"><value>Queden {0} h {1} min</value></data>
+  <data name="PorDeteccionAutomatica" xml:space="preserve"><value>per la detecció automàtica de TALVEG</value></data>
+  <data name="EnvioSinDestinatario" xml:space="preserve"><value>{0} organitzacions afectades no tenen destinatari: no se'ls ha pogut avisar.</value></data>
+  <data name="PorTi" xml:space="preserve"><value>per tu</value></data>
+  <data name="PorOtroActor" xml:space="preserve"><value>per un altre Actor de Plataforma TALVEG</value></data>
+  <data name="EnvioIncompleto" xml:space="preserve"><value>Enviament incomplet: {0} enviats, {1} fallits i {2} en curs. Pots tornar-ho a provar.</value></data>
+  <data name="EnvioCorrecto" xml:space="preserve"><value>Avís enviat a {0} destinataris.</value></data>
+  <data name="ErrorEnvio" xml:space="preserve"><value>No s&apos;ha pogut enviar l&apos;avís. Torna-ho a provar.</value></data>
+  <data name="ErrorDecidir" xml:space="preserve"><value>No s&apos;ha pogut registrar la decisió. Torna-ho a provar.</value></data>
+  <data name="MotivoObligatorio" xml:space="preserve"><value>Indica el motiu.</value></data>
+  <data name="DescartadoAviso" xml:space="preserve"><value>Incident descartat.</value></data>
+</root>
