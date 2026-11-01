@@ -16,6 +16,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     [Migration("20261103000000_ProtegeLecturaIaInicialSalud")]
     partial class ProtegeLecturaIaInicialSalud
     {
+        /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -8895,6 +8896,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<DateTime?>("ConfirmadoEnUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ContextoUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Detecciones")
                         .HasColumnType("integer");
