@@ -22,7 +22,9 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// tenants que su propia concesión ya cubre — la comprobación de cobertura vive en
 /// la fila HIJA (<c>TenantsAlcanzadosPorConcesion</c>), porque es la única que lleva
 /// <c>TenantId</c>; el padre es deliberadamente más laxo (solo exige AdminPlataforma
-/// vigente en ALGÚN tenant) y depende de la hija para la prueba fuerte.
+/// vigente en ALGÚN tenant) y depende de la hija para la prueba fuerte. Cada alta va en una
+/// transacción, como la de <c>ConcederPrivilegioCommand</c>: fuera de ella la hija se rechaza siempre
+/// (<c>AlcanceDeConcesionSoloEnSuCreacion</c>), y estos tests no probarían nada.
 /// </summary>
 public class ConcesionPorAdminDePlataformaTests : IAsyncLifetime
 {
@@ -62,6 +64,7 @@ public class ConcesionPorAdminDePlataformaTests : IAsyncLifetime
     public async Task Un_admin_con_AdminPlataforma_sobre_el_tenant_concede_Aprovisionamiento_a_un_tercero()
     {
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         var concesionId = await InsertarConcesionAsync(
             conexion, _beneficiario, "Aprovisionamiento", esAlcanceGlobal: false, concedidaPor: _admin);
@@ -74,6 +77,7 @@ public class ConcesionPorAdminDePlataformaTests : IAsyncLifetime
     public async Task Un_admin_con_concesion_global_tambien_puede_conceder()
     {
         await using var conexion = await AbrirRestringidaComoAsync(_adminGlobal);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         var concesionId = await InsertarConcesionAsync(
             conexion, _beneficiario, "Aprovisionamiento", esAlcanceGlobal: false, concedidaPor: _adminGlobal);
@@ -88,6 +92,7 @@ public class ConcesionPorAdminDePlataformaTests : IAsyncLifetime
     public async Task El_padre_se_inserta_aunque_el_tenant_no_este_cubierto_pero_la_hija_lo_rechaza()
     {
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         // El padre no lleva tenant: solo exige AdminPlataforma vigente en ALGUNO.
         var concesionId = await InsertarConcesionAsync(
@@ -131,6 +136,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         // ADR-011 § 8.7, punto 3: la capacidad acotada de Soporte TALVEG se concede con las
         // mismas condiciones que Aprovisionamiento: tercero, por Tenant, cubierto.
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         var concesionId = await InsertarConcesionAsync(
             conexion, _beneficiario, "RestablecimientoSegundoFactor", esAlcanceGlobal: false, concedidaPor: _admin);
@@ -145,6 +151,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         // capacidad acotada, concedible con las mismas condiciones. Fija el ALTER POLICY de
         // 20261026120000_SoporteRevocaOperadorCaeExterno: sin él, este INSERT da 42501.
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         var concesionId = await InsertarConcesionAsync(
             conexion, _beneficiario, "RevocacionOperadorCaeExterno", esAlcanceGlobal: false, concedidaPor: _admin);
@@ -158,6 +165,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         // Decisión del 2026-10-30. Fija el ALTER POLICY de 20261030220000_PlataformaConcedeAdministrador:
         // sin él, este INSERT da 42501.
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
+        await using var alta = await conexion.BeginTransactionAsync();
 
         var concesionId = await InsertarConcesionAsync(
             conexion, _beneficiario, "ConcesionAdministrador", esAlcanceGlobal: false, concedidaPor: _admin);
