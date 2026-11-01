@@ -83,6 +83,7 @@ cat > "$TMP/bin/relevo-app.sh" <<'EOF'
 case "$1" in
   activa) [ -f "$ESTADO/contenedores/$APP" ] || exit 1; echo "$APP" ;;
   recargar) echo "relevo recargar $2" >> "$DOCKER_LOG"; [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1; exit 0 ;;
+  retirar-sin-guarda) echo "relevo retirar-sin-guarda $2 $3" >> "$DOCKER_LOG"; [ "${RETIRADA_FALLA:-0}" = 1 ] && exit 1; exit 0 ;;
   comprobar-guarda)
     echo "relevo guarda $2 $3" >> "$DOCKER_LOG"
     [ "${GUARDA_FALLA:-0}" = 1 ] && { echo "::error::Relevo de $2 abortado por la guarda" >&2; exit 1; }
@@ -409,6 +410,14 @@ escenario produccion "$A"; imagen "$A"
 volver RECARGA_FALLA=1 -- produccion "$A"
 comprobar "  y si la recarga falla, no da por buena la vuelta atrás" 1 "$codigo"
 comprobar "  tras comprobar /salud" 1 "$(cat "$ESTADO/salud_llamadas")"
+escenario produccion "$A"; imagen "$A"
+volver -- produccion "$A"
+comprobar "  y retira lo que un relevo fallido dejó vivo sin la guarda, con ese sha" si \
+  "$(contiene "relevo retirar-sin-guarda produccion $A" "$(cat "$DOCKER_LOG")")"
+escenario produccion "$A"; imagen "$A"
+volver RETIRADA_FALLA=1 -- produccion "$A"
+comprobar "  y si sigue viva, no dice «nada que hacer»: se detiene" "1 0" "$codigo $(llamadas_up)"
+comprobar "  avisando de la imagen sin guarda" si "$(contiene "ignora la guarda de correo" "$salida")"
 
 escenario produccion "$A"; imagen "$A"
 volver SALUD_FALLA_PRIMERAS=99 -- produccion "$A"
@@ -478,6 +487,9 @@ if [ -z "${VOLVER_ATRAS_GUION:-}" ]; then
   mutar "se restaura sin mirar la huella de la imagen" 's#= "\$HUELLA_HISTORIA_PREVIA" \]; then#!= "x" ]; then#' preparar_linea_base_otra_imagen
   MUT_VARS=(GUARDA_FALLA=1)
   mutar "no se pide la guarda de correo" 's#^    bash "\$RELEVO_APP" comprobar-guarda "\$entorno" "\$sha" < /dev/null \\$#    true \\#' preparar
+  preparar_mismo_sha() { escenario produccion "$A"; imagen "$A"; }
+  MUT_VARS=(RETIRADA_FALLA=1)
+  mutar "«nada que hacer» con una imagen sin guarda viva" 's#^        bash "\$RELEVO_APP" retirar-sin-guarda "\$entorno" "\$sha" < /dev/null \\$#        true \\#' preparar_mismo_sha
   MUT_VARS=(X=1)
 
   # Este defecto no cambia el código de salida, sino lo que queda hecho al

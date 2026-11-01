@@ -36,6 +36,9 @@ cat > "$TMP/bin/docker" <<'EOF'
 echo "docker $* IMAGEN_TAG=${IMAGEN_TAG:-}" >> "$LOG"
 c() { echo "$ESTADO/c/$1"; }
 nuevo_id() { n=$(( $(cat "$ESTADO/ids" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$ESTADO/ids"; echo "id$n"; }
+# REINICIA: el contenedor vuelve a la vida tras la siguiente lectura de su estado,
+# salvo que `docker update --restart=no` le haya quitado la política.
+reinicia_si_toca() { [ "${REINICIA:-}" = "$1" ] && [ ! -f "$(c "$1")/sin_reinicio" ] && : > "$(c "$1")/reinicia"; }
 case "$1" in
   inspect)
     if [ "$2" = "-f" ]; then fmt=$3; nombre=$4; else fmt=""; nombre=$2; fi
@@ -47,7 +50,10 @@ case "$1" in
     esac
     [ -d "$(c "$nombre")" ] || { echo "Error: No such object: $nombre" >&2; exit 1; }
     case "$fmt" in
-      *State.Running*) [ -f "$(c "$nombre")/estado_perdido" ] && exit 1; cat "$(c "$nombre")/en_marcha" ;;
+      *State.Running*)
+        [ -f "$(c "$nombre")/estado_perdido" ] && exit 1
+        cat "$(c "$nombre")/en_marcha"
+        [ -f "$(c "$nombre")/reinicia" ] && { rm "$(c "$nombre")/reinicia"; echo true > "$(c "$nombre")/en_marcha"; } ;;
       *Health*)
         [ "${INSPECT_SALUD_FALLA:-}" = "$nombre" ] && exit 1
         cat "$(c "$nombre")/salud" 2>/dev/null || echo healthy ;;
@@ -134,11 +140,17 @@ YAML
     [ "${STOP_NO_PARA:-}" = "$nombre" ] && exit 0   # sale con 0 y el contenedor sigue vivo
     [ "${STOP_PIERDE_ESTADO:-}" = "$nombre" ] && { : > "$(c "$nombre")/estado_perdido"; exit 0; }
     [ "${STOP_ELIMINA:-}" = "$nombre" ] && { rm -rf "$(c "$nombre")"; exit 0; }
+    reinicia_si_toca "$nombre"
     [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
   kill)
     nombre="${*: -1}"
     [ "${KILL_FALLA:-}" = "$nombre" ] && exit 1
+    reinicia_si_toca "$nombre"
     [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  update)
+    nombre="${*: -1}"
+    [ "${UPDATE_FALLA:-}" = "$nombre" ] && exit 1
+    [ -d "$(c "$nombre")" ] && : > "$(c "$nombre")/sin_reinicio" ;;
   rm) rm -rf "$(c "$2")" ;;
   logs) ;;
 esac
@@ -616,6 +628,10 @@ saliente_staging; relevo "STOP_PIERDE_ESTADO=$AZUL_STG" -- desplegar staging "$B
 comprobar "si su estado no se puede leer, no cuenta como parada" "1 0" "$codigo $(grep -c '^systemd-run' "$LOG")"
 saliente_staging; relevo "STOP_ELIMINA=$AZUL_STG" -- desplegar staging "$B"
 comprobar "si deja de existir al pararla, cuenta como parada" 0 "$codigo"
+saliente_staging; relevo "REINICIA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "con política de reinicio: se le quita antes de pararla y no vuelve" "0 false" "$codigo $(en_marcha "$AZUL_STG")"
+saliente_staging; relevo "REINICIA=$AZUL_STG" "UPDATE_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "si no se le puede quitar y vuelve tras pararla, el relevo acaba en error" "1 true" "$codigo $(en_marcha "$AZUL_STG")"
 saliente_staging; relevo "INSPECT_SALUD_FALLA=caemanager-staging-app-verde" -- desplegar staging "$B"
 comprobar "un fallo al leer la salud de la nueva no es «sin healthcheck»: no se para" "1 true 0 0" \
   "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG")"
@@ -659,6 +675,20 @@ comprobar "  el reintento lo encuentra sin estar anotado: si sigue vivo, otra ve
 comprobar "  nombrándolo" si "$(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
 relevo -- desplegar staging "$A"
 comprobar "  y en cuanto se puede parar, lo retira y el relevo vale" "0 <no existe>" "$codigo $(en_marcha "$LEGADO_STG")"
+# retirar-sin-guarda: la usa volver-atras.sh cuando el destino ya sirve.
+saliente_anterior; relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- desplegar staging "$B"
+relevo "STOP_FALLA=$LEGADO_STG" "KILL_FALLA=$LEGADO_STG" -- retirar-sin-guarda staging "$B"
+comprobar "retirar-sin-guarda: si sigue viva, sale con 1 y la nombra" "1 true si" \
+  "$codigo $(en_marcha "$LEGADO_STG") $(contiene "::error::no se pudo parar $LEGADO_STG" "$salida")"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  y en cuanto se puede, la retira" "0 <no existe> to caemanager-staging-app-azul:8080" "$codigo $(en_marcha "$LEGADO_STG") $(ranuras staging)"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  sin nada pendiente no toca nada" "0 0" "$codigo $(grep -c '^docker stop.*caemanager-staging-app-azul' "$LOG")"
+saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- desplegar staging "$B"
+rm "$ESTADO/c/caemanager-staging-app-verde/salud"
+relevo -- retirar-sin-guarda staging "$B"
+comprobar "  una que siguiera anotada también sale de Caddy" "0 false to caemanager-staging-app-verde:8080" "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
 ranura_sin_anotar() {
   limpio; contenedor "$LEGADO_STG" "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
   fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
@@ -899,6 +929,19 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   comp_ausente() { [ "$codigo" != 0 ] && echo si || echo no; }
   mutar "un contenedor inexistente cuenta como vivo" \
     's#^        \*\[Nn\]"o such object"\*|\*\[Nn\]"o such container"\*) return 1 ;;$#        nunca) return 1 ;;#' esc_ausente comp_ausente
+
+  esc_pendientes() { saliente_anterior; STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1
+                     STOP_FALLA="$LEGADO_STG" KILL_FALLA="$LEGADO_STG" bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "retirar-sin-guarda sale bien con la imagen viva" \
+    's#^    return "\$fallo"$#    return 0#' esc_pendientes comp_parada
+
+  esc_reinicio() { saliente_staging; REINICIA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "no se quita la política de reinicio" \
+    's#^        timeout "\$RELEVO_TOPE_KILL" docker update --restart=no "\$contenedor" > /dev/null 2>&1 || true$#        :#' esc_reinicio comp_ausente
+
+  esc_reinicio_sin_update() { saliente_staging; REINICIA="$AZUL_STG" UPDATE_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "la parada no se vuelve a mirar tras la pausa" \
+    's#^    sleep "\$RELEVO_ESPERA_PARADA"$#    return 0#' esc_reinicio_sin_update comp_parada
 
   esc_ranura_sin_anotar() { ranura_sin_anotar; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
   mutar "solo se busca sin anotar el contenedor anterior a las ranuras" \

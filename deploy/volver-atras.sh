@@ -230,6 +230,10 @@ main_volver_atras() {
         # que hacer».
         bash "$RELEVO_APP" recargar "$entorno" < /dev/null \
             || detener "no se pudo recargar Caddy con las ranuras de $entorno: revisa 'docker logs caemanager-caddy'."
+        # El relevo que dejó aquí esta imagen pudo acabar en error con otra viva
+        # que ignora la guarda de correo: esa no se da por buena aunque /salud responda.
+        bash "$RELEVO_APP" retirar-sin-guarda "$entorno" "$sha" < /dev/null \
+            || detener "$entorno corre ${sha}, pero sigue en marcha una imagen que ignora la guarda de correo y puede enviar. Párala a mano y repite la orden."
         echo "$entorno ya corre ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} y /salud responde: nada que hacer."
         exit 0
     fi

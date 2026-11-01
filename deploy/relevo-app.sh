@@ -49,6 +49,11 @@
 #   relevo-app.sh comprobar-guarda <staging|produccion> <sha>
 #       Solo el paso 0 de `desplegar`, sobre la misma ranura, sin tocar nada más.
 #       volver-atras.sh la llama antes de restaurar el historial de migraciones.
+#   relevo-app.sh retirar-sin-guarda <staging|produccion> <sha>
+#       Con el cerrojo de despliegue tomado por quien llama, retira las imágenes
+#       que ignoran la guarda y que un relevo fallido dejó vivas, junto a la ranura
+#       que sirve. Sale con 1 si alguna sigue viva. volver-atras.sh la llama cuando
+#       el destino ya sirve y no pasa por `desplegar`.
 #   relevo-app.sh activa <staging|produccion>
 #       Imprime el container_name de la ranura activa (o del contenedor
 #       anterior a P1-F2, si aún no ha habido relevo). Sale con 1 si no hay.
@@ -447,16 +452,26 @@ saliente_ignora_la_guarda() {
 
 parada_confirmada() { ! puede_estar_en_marcha "$1"; }
 
+# Sigue parada tras una pausa: una política de reinicio la devolvería a la vida.
+parada_estable() {
+    parada_confirmada "$1" || return 1
+    sleep "$RELEVO_ESPERA_PARADA"
+    parada_confirmada "$1"
+}
+
 # Para el contenedor o devuelve 1: hasta RELEVO_INTENTOS_PARADA vueltas de stop y
-# kill, cada orden con su tope (unos 190 s en el peor caso). El código de salida de
-# esas órdenes no decide: decide lo que dice el contenedor después.
+# kill, cada orden con su tope (unos 4 min en el peor caso). Primero le quita la
+# política de reinicio, porque `restart: unless-stopped` podría arrancarlo tras el
+# kill. El código de salida de esas órdenes no decide: decide lo que dice el
+# contenedor después.
 parar_con_tope() {
     local contenedor="$1" intento
     for (( intento = 1; intento <= RELEVO_INTENTOS_PARADA; intento++ )); do
+        timeout "$RELEVO_TOPE_KILL" docker update --restart=no "$contenedor" > /dev/null 2>&1 || true
         timeout "$RELEVO_TOPE_STOP" docker stop -t 30 "$contenedor" > /dev/null 2>&1 || true
-        parada_confirmada "$contenedor" && return 0
+        parada_estable "$contenedor" && return 0
         timeout "$RELEVO_TOPE_KILL" docker kill "$contenedor" > /dev/null 2>&1 || true
-        parada_confirmada "$contenedor" && return 0
+        parada_estable "$contenedor" && return 0
         [ "$intento" -lt "$RELEVO_INTENTOS_PARADA" ] && sleep "$RELEVO_ESPERA_PARADA"
     done
     return 1
@@ -502,6 +517,24 @@ sin_guarda_sin_anotar() {
             echo "$c"
         fi
     done
+}
+
+# Para quien da por bueno un <sha> que ya sirve sin pasar por `desplegar`: un relevo
+# a ese sha pudo conmutar y acabar en error con una imagen sin guarda viva. Con el
+# cerrojo de despliegue tomado por quien llama. Devuelve 1 si alguna sigue viva.
+retirar_sin_guarda_pendientes() {
+    local entorno="$1" sha="$2" activa_ c en_caddy fallo=0
+    activa_="$(ranura_que_sirve "$entorno")"
+    if [ -z "$activa_" ]; then
+        echo "::error::$entorno no tiene ninguna ranura en marcha: no se pueden retirar las imágenes que ignoran la guarda de correo." >&2
+        return 1
+    fi
+    for c in $(sin_guarda_sin_anotar "$entorno" "$sha" "app-$(ranura_libre "$activa_")" "$activa_"); do
+        en_caddy=""
+        [[ $'\n'"$(ranuras_en_fichero "$entorno")"$'\n' == *$'\n'"$c"$'\n'* ]] && en_caddy="$entorno"
+        retirar_sin_guarda "$c" "$activa_" "$en_caddy" || fallo=1
+    done
+    return "$fallo"
 }
 
 # La ranura que sirve de verdad: la primera del fichero que esté SANA (en marcha
@@ -735,6 +768,10 @@ main_relevo() {
             es_entorno "${2:-}" && [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] && [ $# -eq 3 ] \
                 || { echo "uso: relevo-app.sh comprobar-guarda <staging|produccion> <sha de 40>" >&2; exit 2; }
             comprobar_guarda "$2" "$3" ;;
+        retirar-sin-guarda)
+            es_entorno "${2:-}" && [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] && [ $# -eq 3 ] \
+                || { echo "uso: relevo-app.sh retirar-sin-guarda <staging|produccion> <sha de 40>" >&2; exit 2; }
+            retirar_sin_guarda_pendientes "$2" "$3" ;;
         activa)
             es_entorno "${2:-}" && [ $# -eq 2 ] || { echo "uso: relevo-app.sh activa <staging|produccion>" >&2; exit 2; }
             activa "$2" ;;
@@ -746,7 +783,7 @@ main_relevo() {
                 || { echo "uso: relevo-app.sh drenar <entorno> <contenedor> <id> <max_s>" >&2; exit 2; }
             drenar "$2" "$3" "$4" "$5" ;;
         *)
-            echo "uso: relevo-app.sh <desplegar|comprobar-guarda|activa|recargar|drenar> ..." >&2; exit 2 ;;
+            echo "uso: relevo-app.sh <desplegar|comprobar-guarda|retirar-sin-guarda|activa|recargar|drenar> ..." >&2; exit 2 ;;
     esac
 }
 
