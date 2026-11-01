@@ -67,7 +67,7 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
         await using var contexto = NuevoContexto();
         var migrador = contexto.GetService<IMigrator>();
         await migrador.MigrateAsync(MigracionDelCambio);
-        // Una versi?n anterior crea esta fila despu?s del primer apagado.
+        // Una versión anterior crea esta fila después del primer apagado.
         var duranteRelevo = Guid.NewGuid();
         await SembrarCopiaAsync(duranteRelevo, "Durante relevo", "CategoriaEspecialSalud");
         (await LeerAsync(duranteRelevo)).Should().Be((true, true));
@@ -83,6 +83,15 @@ public class LecturaIaApagadaEnTiposDeSaludTests : IAsyncLifetime
 
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Sensibilidad\" = 'CategoriaEspecialSalud' WHERE \"Id\" = @id", nuevaNoSalud);
         (await LeerAsync(nuevaNoSalud)).Should().Be((false, false));
+
+        var cambioYActivacion = Guid.NewGuid();
+        await SembrarCopiaAsync(cambioYActivacion, "Cambio y activación", "DatosPersonales");
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = false, \"VerificacionIaActiva\" = false WHERE \"Id\" = @id", cambioYActivacion);
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Sensibilidad\" = 'CategoriaEspecialSalud', \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", cambioYActivacion);
+        (await LeerAsync(cambioYActivacion)).Should().Be((false, false));
+
+        await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", nuevaSalud);
+        (await LeerAsync(nuevaSalud)).Should().Be((false, true));
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"LecturaIaActiva\" = true, \"VerificacionIaActiva\" = true WHERE \"Id\" = @id", nuevaSalud);
         (await LeerAsync(nuevaSalud)).Should().Be((true, true));
         await EjecutarAsync("UPDATE \"TiposDocumento\" SET \"Nombre\" = 'Actualizado' WHERE \"Id\" = @id", nuevaSalud);

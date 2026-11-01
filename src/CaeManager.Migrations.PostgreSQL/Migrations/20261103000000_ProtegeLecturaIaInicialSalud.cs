@@ -17,8 +17,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 END
                 $$;
 
-                CREATE OR REPLACE FUNCTION proteger_lectura_ia_inicial_salud() RETURNS trigger
-                LANGUAGE plpgsql AS $$
+                CREATE OR REPLACE FUNCTION public.proteger_lectura_ia_inicial_salud() RETURNS trigger
+                LANGUAGE plpgsql
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
                 BEGIN
                     IF NEW."Sensibilidad" = 'CategoriaEspecialSalud' AND
                        (TG_OP = 'INSERT' OR OLD."Sensibilidad" IS DISTINCT FROM 'CategoriaEspecialSalud') THEN
@@ -28,13 +30,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN NEW;
                 END
                 $$;
+                REVOKE ALL ON FUNCTION public.proteger_lectura_ia_inicial_salud() FROM PUBLIC;
 
-                DROP TRIGGER IF EXISTS proteger_lectura_ia_inicial_salud ON "TiposDocumento";
+                DROP TRIGGER IF EXISTS proteger_lectura_ia_inicial_salud ON public."TiposDocumento";
                 CREATE TRIGGER proteger_lectura_ia_inicial_salud
-                    BEFORE INSERT OR UPDATE ON "TiposDocumento"
-                    FOR EACH ROW EXECUTE FUNCTION proteger_lectura_ia_inicial_salud();
+                    BEFORE INSERT OR UPDATE ON public."TiposDocumento"
+                    FOR EACH ROW EXECUTE FUNCTION public.proteger_lectura_ia_inicial_salud();
 
-                UPDATE "TiposDocumento"
+                UPDATE public."TiposDocumento"
                 SET "LecturaIaActiva" = false, "VerificacionIaActiva" = false
                 WHERE "Sensibilidad" = 'CategoriaEspecialSalud';
                 """);
@@ -42,7 +45,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Se conserva la protecci?n al retroceder: retirar el trigger reabrir?a el relevo inseguro.
+            // Se conserva la protección al retroceder: retirar el trigger reabriría el relevo inseguro.
         }
     }
 }
