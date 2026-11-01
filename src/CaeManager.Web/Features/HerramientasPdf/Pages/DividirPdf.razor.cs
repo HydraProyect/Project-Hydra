@@ -19,8 +19,8 @@ namespace CaeManager.Web.Features.HerramientasPdf.Pages;
 /// <summary>
 /// Dividir un PDF con varios documentos: elegir el PDF, marcar los cortes, un paso por documento, revisar y crear. La
 /// detección es local y solo sugiere; cada alta pasa por <see cref="CrearDocumentosDesdeDivisionCommand"/>, que delega en
-/// el alta normal. La Empresa gestionada no se elige aquí: sale del selector de la barra lateral, y sin selección no se
-/// puede subir nada.
+/// el alta normal. La Empresa gestionada sale del selector de la barra lateral, y sin selección no se puede subir nada;
+/// solo si esa barra no ofrece selector y hay varias Empresas propias se elige aquí.
 ///
 /// El original vive en el almacén temporal del circuito, no en memoria, y desaparece al crear o al salir: no se conserva.
 /// </summary>
