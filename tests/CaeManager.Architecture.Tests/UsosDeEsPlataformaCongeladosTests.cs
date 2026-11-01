@@ -465,6 +465,11 @@ public class UsosDeEsPlataformaCongeladosTests
                 "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +
                 "incremento 3a): quien valida o rechaza debe ser una cuenta de un Tenant de plataforma trabajando desde " +
                 "ese Tenant, además de la concesión AdminPlataforma global. Solo restringe, como el segundo factor"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261101163000_AnadeEnviosAvisoIncidenteSeguridad.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "comentario y predicado de app_actor_plataforma_aviso_seguridad (aviso de violaciones de seguridad, " +
+                "incremento 3b): quien decide sobre un incidente o envía su aviso debe ser una cuenta de un Tenant de " +
+                "plataforma trabajando desde ese Tenant, además de la concesión AdminPlataforma global. Solo restringe"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261028070101_ContactoSeguridadCuatroOjos.cs"] =
             new(4, CategoriaUso.MigracionManual,
                 "comentario y predicado de app_resolver_contacto_seguridad en Up (cuerpo nuevo con los cuatro ojos) y en " +

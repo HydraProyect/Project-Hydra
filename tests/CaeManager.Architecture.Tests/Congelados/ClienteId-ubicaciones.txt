@@ -121,17 +121,14 @@ src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: cli
 src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/Commands/CrearDocumento/CrearDocumentoCommand.cs :: ClienteId = 5
-src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId = 2
-src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteId = 2
-src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteIdDeProyecto = 2
+src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId = 5
+src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteId = 4
+src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteIdDeProyecto = 4
 src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: clienteIds = 2
-src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: ClienteId = 7
-src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: clienteId = 2
-src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: clienteIdDeProyecto = 2
-src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: proyectoClienteId = 2
+src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: ClienteId = 6
 # Destinos en Centros de la lista de Documentos: JOIN inevitable con la FK legacy Centro.ClienteId (Empresa en
 # posición cliente empresarial) y la lista local clienteIds de las tolerancias por cliente; sin entidad nueva
 # ni cambio de propiedad o autorización.

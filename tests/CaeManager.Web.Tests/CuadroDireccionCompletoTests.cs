@@ -872,6 +872,53 @@ public partial class CuadroDireccionTests
         csv.Should().Contain("Empresa;Trab.").And.Contain("Refrielectric S.A.").And.Contain("Montajes Ebro S.L.");
     }
 
+    [Fact]
+    public void El_CSV_deja_rastro_de_la_exportacion_antes_de_descargar()
+    {
+        var modulo = ModuloPreferencias();
+        Registro.DescargasHechas = () => modulo.Invocations["descargar"].Count;
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+        IrA(cut, "Empresas");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
+
+        var llamada = Registro.Llamadas.Should().ContainSingle().Subject;
+        llamada.Entidad.Should().Be("CuadroDireccion");
+        llamada.Criterios.Should().Contain("tabla", "empresas").And.ContainKey("anyo").And.ContainKey("mes");
+        llamada.DescargasHechas.Should().Be(0, "el rastro se deja antes de que el fichero salga");
+        var csv = modulo.Invocations["descargar"].Single().Arguments[1]!.ToString()!;
+        llamada.Filas.Should().Be(csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length - 1, "cuenta filas de datos, no la cabecera");
+    }
+
+    [Fact]
+    public void Si_el_rastro_no_se_guarda_el_CSV_no_se_descarga()
+    {
+        var modulo = ModuloPreferencias();
+        Registro.Fallo = new InvalidOperationException("auditoría no disponible");
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+        IrA(cut, "Empresas");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
+
+        modulo.Invocations["descargar"].Should().BeEmpty("sin rastro no hay fichero (fallo cerrado)");
+        cut.Find("[data-aviso=exportar]").TextContent.Should().Contain("constancia");
+    }
+
+    [Fact]
+    public void Bajo_Sesion_Privilegiada_el_CSV_no_se_registra_ni_se_descarga()
+    {
+        var modulo = ModuloPreferencias();
+        // Bajo Sesión Privilegiada el middleware quita los roles de negocio: la sesión llega sin rol.
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa(), rol: "SesionPrivilegiadaSinRol");
+        IrA(cut, "Empresas");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
+
+        modulo.Invocations["descargar"].Should().BeEmpty();
+        Registro.Llamadas.Should().BeEmpty();
+        cut.Find("[data-aviso=exportar]").TextContent.Should().Contain("Sesión Privilegiada");
+    }
+
     // ---------------------------------------------------------------- tooltips y accesibilidad de los gráficos
 
     [Fact]

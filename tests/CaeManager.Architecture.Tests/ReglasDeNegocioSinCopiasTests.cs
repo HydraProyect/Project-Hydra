@@ -385,6 +385,9 @@ public class ReglasDeNegocioSinCopiasTests
         //     (ObtenerDocumentosQuery) ya muestra solo los operativos desde la PR 4 (Renovar sustituye y el anterior
         //     pasaría a salir duplicado); la búsqueda global sigue sin filtrar hasta la PR 9. ---
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
+        // La puerta de lectura por Id (SEG-16): un Documento sustituido se sigue abriendo desde el historial, y con él su
+        // validación oficial y sus firmas. Autoriza la coordenada del Documento, no decide estado.
+        ["src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs"] = 1,
         // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
         // de versiones del mismo propietario y tipo, incluidas las sustituidas.
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,

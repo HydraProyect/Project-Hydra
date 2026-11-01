@@ -20,8 +20,10 @@ public enum SenalIncidenteSeguridad
 }
 
 /// <summary>
-/// Estado del incidente. Nace <see cref="Sospechado"/>; las transiciones las hará la
-/// página de confirmación del Actor de Plataforma TALVEG (incremento 3).
+/// Estado del incidente. Nace <see cref="Sospechado"/>; las transiciones las hace el Actor de
+/// Plataforma TALVEG desde la página del incidente, por la función <c>app_decidir_incidente_seguridad</c>:
+/// <see cref="EnEvaluacion"/> («Necesito más tiempo»), <see cref="Confirmado"/> («Confirmar y enviar el
+/// primer aviso») o <see cref="Descartado"/> (falsa alarma, con motivo). Confirmado y Descartado son finales.
 /// </summary>
 public enum EstadoIncidenteSeguridad
 {
