@@ -77,7 +77,7 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        // Aserción de URL, no WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación mejorada (sin documento nuevo) que cae entre ambos no la ve.
         await Expect(page).ToHaveURLAsync(PaginaSubcontrata360, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
 
@@ -96,13 +96,15 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var page = await AbrirSubcontratasAsync(contexto);
         var cabecera = page.Locator(".cabecera-columnas-subcontratas");
 
+        // Aserción de URL, no WaitForURLAsync: ordenar escribe la URL con replaceState justo tras el clic y
+        // WaitForURLAsync, que mira la URL y se suscribe después, perdía el aviso si caía entre ambos.
         await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"orden=contratadapor(&|$)"));
+        await Expect(page).ToHaveURLAsync(new Regex(@"orden=contratadapor(&|$)"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(cabecera.Locator(".col-sort-asc .col-title")).ToHaveTextAsync("Contratada por");
         await Expect(page.Locator(".lista-filas-acordeon .fila-pulsable")).Not.ToHaveCountAsync(0);
 
         await cabecera.GetByRole(AriaRole.Button, new() { Name = "Contratada por" }).ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"orden=contratadapor-desc"));
+        await Expect(page).ToHaveURLAsync(new Regex(@"orden=contratadapor-desc"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(cabecera.Locator(".col-sort-desc .col-title")).ToHaveTextAsync("Contratada por");
 
         // La pastilla existe en la barra; elegir una Empresa lo prueban bUnit (URL, consulta y chip) y la integración (SQL).

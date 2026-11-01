@@ -219,7 +219,7 @@
                                     <tr>
                                         <th>Persona</th>
                                         <th>Rol CAE</th>
-                                        @if (!OperandoWorkspaceAjeno)
+                                        @if (PuedeRetirarPersonas(delegacion))
                                         {
                                             <th>Acción</th>
                                         }
@@ -233,7 +233,7 @@
                                                 @NombreDeUsuario(operador.UsuarioId)
                                             </td>
                                             <td>@RolCaeMostrado(operador)</td>
-                                            @if (!OperandoWorkspaceAjeno)
+                                            @if (PuedeRetirarPersonas(delegacion))
                                             {
                                                 <td>
                                                     <Boton Tamano="TamanoBoton.Pequeno"
