@@ -1,4 +1,4 @@
-@page "/plantillas/nueva"
+﻿@page "/plantillas/nueva"
 @page "/plantillas/{PlantillaDocumentoVersionId:guid}/editar"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
@@ -13,6 +13,7 @@
 @inject IJSRuntime JSRuntime
 @inject CaeManager.Application.Common.IFileStorageService AlmacenamientoArchivos
 @inject CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador
+@inject CaeManager.Application.Common.IPresupuestoMemoriaDocumentos PresupuestoMemoria
 @inject NavigationManager Navigation
 
 <LimiteDeErrores Pagina="this">

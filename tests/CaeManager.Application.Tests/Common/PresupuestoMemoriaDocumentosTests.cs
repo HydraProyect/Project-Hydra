@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -52,6 +52,42 @@ public class PresupuestoMemoriaDocumentosTests
         };
 
         await trabajo.Should().ThrowExactlyAsync<InvalidOperationException>();
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task TryReservar_toma_lo_que_cabe_sin_esperar_y_lo_devuelve_al_desechar()
+    {
+        var presupuesto = Crear(TimeSpan.FromMinutes(1));
+        using var ocupado = await presupuesto.ReservarAsync(600);
+
+        presupuesto.TryReservar(400, out var cabe).Should().BeTrue();
+        presupuesto.Reservado.Should().Be(Maximo);
+        presupuesto.TryReservar(1, out var noCabe).Should().BeFalse("no hay hueco y no espera, aunque la espera máxima sea de un minuto");
+        noCabe.Bytes.Should().Be(0);
+        presupuesto.Reservado.Should().Be(Maximo, "el rechazo no descuenta nada");
+        presupuesto.EnEspera.Should().Be(0, "no se pone en la cola");
+
+        cabe.Dispose();
+        presupuesto.Reservado.Should().Be(600);
+    }
+
+    [Fact]
+    public async Task TryReservar_no_recorta_una_peticion_mayor_que_el_presupuesto_y_no_se_adelanta_a_quien_espera()
+    {
+        var presupuesto = Crear(TimeSpan.FromMinutes(1));
+
+        presupuesto.TryReservar(Maximo + 1, out _).Should().BeFalse("no cabría nunca: se rechaza, no se recorta");
+        presupuesto.TryReservar(0, out var vacia).Should().BeTrue();
+        vacia.Bytes.Should().Be(0);
+
+        using var ocupado = await presupuesto.ReservarAsync(900);
+        var esperando = presupuesto.ReservarAsync(500).AsTask();
+        presupuesto.EnEspera.Should().Be(1);
+        presupuesto.TryReservar(50, out _).Should().BeFalse("cabría, pero hay una reserva esperando antes");
+
+        ocupado.Dispose();
+        (await esperando).Dispose();
         presupuesto.Reservado.Should().Be(0);
     }
 

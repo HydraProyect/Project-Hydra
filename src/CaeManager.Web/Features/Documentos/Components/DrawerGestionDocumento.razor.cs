@@ -1,4 +1,4 @@
-using CaeManager.Domain.Common;
+﻿using CaeManager.Domain.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -660,7 +660,16 @@ public partial class DrawerGestionDocumento : ComponentBase
                 }
             }
 
-            var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
+            // La reserva de la lectura se calculó con el tamaño comprimido, que no acota lo que cuesta
+            // decodificar una imagen: se amplía con el coste que declaran sus dimensiones antes de
+            // convertir (OWASP API4:2023, ASVS 4.0.3 V12.1.1 y V5.2.1). Sin hueco falla cerrado con el
+            // mismo aviso que la lectura, y el finally de abajo devuelve la reserva de la lectura.
+            byte[] pdfUnificado;
+            using (ConversorArchivosPdf.ReservarDecodificacion(presupuesto, reserva, contenidos))
+            {
+                pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
+            }
+
             // Desde aquí solo hace falta el PDF unificado: los originales se sueltan ya.
             contenidos.Clear();
 

@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -63,7 +63,8 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(_dbContext),
             new AuditoriaExtraccionIaRepository(_dbContext), new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual,
-            transaccion ?? new TransaccionDocumentoBloqueado(_dbContext, _tenantActual), _dbContext);
+            transaccion ?? new TransaccionDocumentoBloqueado(_dbContext, _tenantActual), _dbContext,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     private static EncargoVerificacionIa Encargo(Documento documento) => new(documento.Id, DateTime.UtcNow, documento.Version);
 

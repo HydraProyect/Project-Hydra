@@ -1,8 +1,10 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.TiposDocumento;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using Microsoft.EntityFrameworkCore;
@@ -68,7 +70,8 @@ public class VerificacionIaDocumentoService(
     IInstruccionTratamientoIaService instruccionTratamientoIa,
     ITenantActual tenantActual,
     ITransaccionDocumentoBloqueado transaccion,
-    IUnitOfWork unitOfWork) : IVerificacionIaDocumentoService
+    IUnitOfWork unitOfWork,
+    IPresupuestoMemoriaDocumentos presupuestoMemoria) : IVerificacionIaDocumentoService
 {
     /// <summary>Por debajo de este umbral, la confianza general por sí sola ya justifica revisión humana (ver Issue #19, "70-95% revisar").</summary>
     private const int UmbralConfianzaBaja = 70;
@@ -111,13 +114,12 @@ public class VerificacionIaDocumentoService(
         if (motivoDescartePrevio is not null)
             return motivoDescartePrevio;
 
-        byte[] contenido;
+        // La copia que analiza la IA sigue reservada en el presupuesto de memoria hasta que acaba la extracción
+        // (OWASP API4:2023, ASVS 4.0.3 V12.1.1): el flujo del almacenamiento solo retiene la suya mientras está abierto.
+        LecturaAlmacenadaParaAnalisis lectura;
         try
         {
-            await using var archivo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-            using var buffer = new MemoryStream();
-            await archivo.CopyToAsync(buffer, cancellationToken);
-            contenido = buffer.ToArray();
+            lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacenamiento, presupuestoMemoria, documento.ArchivoUrl, cancellationToken);
         }
         catch (FileNotFoundException)
         {
@@ -147,7 +149,11 @@ public class VerificacionIaDocumentoService(
                 $"No se pudo abrir el archivo del Documento {documentoId} para verificación IA.", ex);
         }
 
-        var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
+        Result<MetadatosDocumentoExtraidosDto> resultadoExtraccion;
+        using (lectura)
+        {
+            resultadoExtraccion = await extraccion.ExtraerAsync(lectura.Contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
+        }
 
         if (resultadoExtraccion.EsFallido)
         {

@@ -1,4 +1,4 @@
-using CaeManager.Web.Components.Layout;
+﻿using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -44,8 +44,10 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
     public ConfigurarPlantillaEditorGen2Tests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        JSInterop.SetupModule(Modulo);
+        _moduloJs = JSInterop.SetupModule(Modulo);
     }
+
+    private readonly BunitJSModuleInterop _moduloJs;
 
     // --------------------------------------------------------------- Dobles
 
@@ -116,6 +118,9 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
     /// <summary>Devuelve siempre el mismo PDF de una página: es el fondo que el editor rasteriza.</summary>
     private sealed class AlmacenamientoFalso : IFileStorageService
     {
+        /// <summary>Longitud del PDF que devuelve <see cref="AbrirAsync"/>.</summary>
+        public static int LongitudPdf => PdfDeUnaPagina().Length;
+
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
             Task.FromResult("blob-plantilla");
 
@@ -165,6 +170,7 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<IFileStorageService, AlmacenamientoFalso>();
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
         Services.AddScoped<IRasterizadorPaginasPdfService, RasterizadorFalso>();
         // Los textos del aviso de cambios sin guardar (P1-E2b) salen de TextosComunes.
         Services.AddLocalization();
