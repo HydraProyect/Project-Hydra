@@ -1132,9 +1132,11 @@ volcar_diagnostico_si_falla() {
     # que sirve, con el mismo `up -d --wait --no-build` de siempre para los
     # demás servicios; cuando está sana, Caddy conmuta y la anterior drena sus
     # circuitos. Si no llega a sana, la anterior sigue sirviendo y se sale con 1
-    # como antes. Ver la cabecera de deploy/relevo-app.sh.
+    # como antes. También se sale con 1 con la nueva ya conmutada si queda viva
+    # una imagen que ignora la guarda de correo: lo dice su ::error::. Ver la
+    # cabecera de deploy/relevo-app.sh.
     if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "$ENTORNO" "$SHA" < /dev/null; then
-        echo "=== Despliegue no llego a sano — estado de los contenedores ===" >&2
+        echo "=== Relevo fallido — estado de los contenedores ===" >&2
         docker compose "${args[@]}" ps >&2 || true
         for contenedor in $(docker compose "${args[@]}" ps --format '{{.Name}}' 2>/dev/null || true); do
             echo "=== docker logs --tail 300 ${contenedor} ===" >&2

@@ -435,9 +435,9 @@ parada_confirmada() {
     [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = false ]
 }
 
-# Para el contenedor o devuelve 1, en un tiempo acotado aunque Docker se cuelgue:
-# hasta RELEVO_INTENTOS_PARADA vueltas de stop y kill. El código de salida de esas
-# órdenes no decide: decide lo que dice el contenedor después.
+# Para el contenedor o devuelve 1: hasta RELEVO_INTENTOS_PARADA vueltas de stop y
+# kill, cada orden con su tope (unos 190 s en el peor caso). El código de salida de
+# esas órdenes no decide: decide lo que dice el contenedor después.
 parar_con_tope() {
     local contenedor="$1" intento
     for (( intento = 1; intento <= RELEVO_INTENTOS_PARADA; intento++ )); do
@@ -452,12 +452,18 @@ parar_con_tope() {
 
 # Retira una saliente que ignora la guarda. Como en retirar_saliente, nunca si la
 # que se queda no está sana: dejaría el entorno sin servir. Devuelve 1, con
-# ::error::, si la saliente sigue viva. Sacarla de Caddy es cosa de quien llama.
+# ::error::, si la saliente sigue viva. Con un tercer argumento, el entorno, además
+# la saca de Caddy: va aquí para que una sola comprobación de `sana` decida las dos
+# cosas. Un fallo de Caddy no impide la parada: la cookie vieja reintenta en la nueva.
 retirar_sin_guarda() {
-    local contenedor="$1" nueva="$2"
+    local contenedor="$1" nueva="$2" entorno_en_caddy="${3:-}"
     if ! sana "$nueva"; then
         echo "::error::$contenedor ignora la guarda de correo y sigue en marcha: no se para porque $nueva no está sana y dejaría el entorno sin servir." >&2
         return 1
+    fi
+    if [ -n "$entorno_en_caddy" ]; then
+        { escribir_ranuras "$entorno_en_caddy" "$nueva" && recargar_caddy; } \
+            || echo "::warning::no se pudo sacar $contenedor de Caddy; la cookie vieja reintentará en la activa." >&2
     fi
     if ! parar_con_tope "$contenedor"; then
         echo "::error::no se pudo parar $contenedor, que ignora la guarda de correo, tras $RELEVO_INTENTOS_PARADA intentos de stop y kill." >&2
@@ -593,11 +599,7 @@ desplegar() {
         # queda parada aquí, o el relevo acaba en error.
         if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_"; then
             echo "$activa_ no declara la guarda de correo y el modo no es $MODO_CORREO_SIN_GUARDA: se retira sin drenar."
-            if sana "$cont_nueva"; then
-                { escribir_ranuras "$entorno" "$cont_nueva" && recargar_caddy; } \
-                    || echo "::warning::no se pudo sacar $activa_ de Caddy; la cookie vieja reintentará en la activa." >&2
-            fi
-            retirar_sin_guarda "$activa_" "$cont_nueva" || sin_guarda_viva=1
+            retirar_sin_guarda "$activa_" "$cont_nueva" "$entorno" || sin_guarda_viva=1
         else
             id_activa="$(id_de "$activa_")"
             lanzar_drenaje "$entorno" "$activa_" "$id_activa" \

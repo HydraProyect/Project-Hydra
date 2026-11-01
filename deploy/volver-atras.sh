@@ -246,7 +246,7 @@ main_volver_atras() {
     comprobar_esquema "$entorno" "$sha" || detener "el esquema no admite volver a ${sha}."
 
     if ! bash "$RELEVO_APP" desplegar "$entorno" "$sha" < /dev/null; then
-        [ -z "${HISTORIA_RESTAURADA:-}" ] || echo "Aviso P1-M3: __EFMigrationsHistory ya tiene de nuevo las 185 migraciones previas a la compactación; la ranura que sigue sirviendo no las lee, y el siguiente despliegue hacia delante vuelve a transicionarlo solo." >&2
+        [ -z "${HISTORIA_RESTAURADA:-}" ] || echo "Aviso P1-M3: __EFMigrationsHistory ya tiene de nuevo las 185 migraciones previas a la compactación; una ranura que ya estaba sirviendo no las lee, y el siguiente despliegue hacia delante vuelve a transicionarlo solo." >&2
         detener "el relevo de $entorno a ${sha} no terminó bien: sigue sirviendo la ranura de antes, salvo que el error de arriba diga que ya conmutó. Revisa los logs y decide a mano."
     fi
 

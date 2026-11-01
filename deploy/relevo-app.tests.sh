@@ -628,6 +628,9 @@ comprobar "saliente previa sin la etiqueta: también se fuerza" "0 false 1" "$co
 saliente_previa; relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
 comprobar "  y si sigue viva, el relevo acaba en error" "1 true" "$codigo $(en_marcha "$VERDE_STG")"
 comprobar "  nombrándola" si "$(contiene "::error::no se pudo parar $VERDE_STG" "$salida")"
+saliente_previa; mkdir -p "$ESTADO/c/$AZUL_STG"; echo unhealthy > "$ESTADO/c/$AZUL_STG/salud"
+relevo -- desplegar staging "$B"
+comprobar "  y con la nueva sin sanar no se para: acaba en error" "1 true 0" "$codigo $(en_marcha "$VERDE_STG") $(stops_de "$VERDE_STG")"
 saliente_previa; rm -rf "$ESTADO/c/$VERDE_STG"; relevo -- desplegar staging "$B"
 comprobar "saliente previa que ya no existe: no bloquea el relevo" 0 "$codigo"
 limpio; contenedor caemanager-staging-app "$A"; sin_guarda caemanager-staging-app
