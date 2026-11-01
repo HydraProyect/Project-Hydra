@@ -494,6 +494,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
+        services.AddScoped<CaeManager.Domain.ApiKeys.IClaveIntegracionTenantRepository, ClaveIntegracionTenantRepository>();
+        services.AddScoped<CaeManager.Infrastructure.Autenticacion.EmisorTokenClaveIntegracion>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());

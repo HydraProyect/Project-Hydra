@@ -1,5 +1,6 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
+using CaeManager.Domain.ApiKeys;
 using MediatR;
 using System.Text.Json.Serialization;
 
@@ -18,13 +19,13 @@ public static class ClientesApiEndpoints
             IMediator mediator = default!, CancellationToken cancellationToken = default) =>
             Results.Ok(await mediator.Send(
                 new ObtenerClientesQuery(busqueda, soloCriticos, Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
-                cancellationToken)));
+                cancellationToken))).RequiereAlcanceIntegracion(AlcancesIntegracion.ClientesLeer);
 
         endpoints.MapGet("/clientes/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
             var cliente = await mediator.Send(new ObtenerClientePorIdQuery(id), cancellationToken);
             return cliente is null ? Results.NotFound() : Results.Ok(ClienteApiDetalleDto.DesdeInterno(cliente));
-        });
+        }).RequiereAlcanceIntegracion(AlcancesIntegracion.ClientesLeer);
 
         return endpoints;
     }

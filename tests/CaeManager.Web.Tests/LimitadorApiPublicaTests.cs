@@ -4,6 +4,7 @@ using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -29,6 +30,7 @@ namespace CaeManager.Web.Tests;
 public class LimitadorApiPublicaTests
 {
     private const int CupoPorClave = 3;
+    private static readonly IDataProtectionProvider Proteccion = new EphemeralDataProtectionProvider();
 
     [Fact]
     public async Task Dos_claves_distintas_no_comparten_cupo()
@@ -109,7 +111,7 @@ public class LimitadorApiPublicaTests
         var contexto = new DefaultHttpContext();
         contexto.Request.Headers.Authorization = $"ApiKey {clave}";
 
-        var particion = LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave).PartitionKey;
+        var particion = LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave, Proteccion).PartitionKey;
 
         particion.Should().StartWith("clave:")
             .And.NotContain(clave)
@@ -129,8 +131,43 @@ public class LimitadorApiPublicaTests
         if (cabecera is not null)
             contexto.Request.Headers.Authorization = cabecera;
 
-        LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave).PartitionKey
+        LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave, Proteccion).PartitionKey
             .Should().Be("ip:203.0.113.9");
+    }
+
+    [Fact]
+    public void El_token_de_una_Clave_de_Integracion_cuenta_por_la_clave_y_renovarlo_no_da_un_cupo_nuevo()
+    {
+        var claveId = Guid.NewGuid();
+        var primero = ParticionDeBearer(TokenClaveIntegracion.Proteger(Proteccion, claveId, Guid.NewGuid()));
+        var renovado = ParticionDeBearer(TokenClaveIntegracion.Proteger(Proteccion, claveId, Guid.NewGuid()));
+
+        primero.Should().Be($"integracion:{claveId:N}").And.Be(renovado);
+        ParticionDeBearer("token-ilegible").Should().Be("ip:203.0.113.9");
+    }
+
+    private static string ParticionDeBearer(string token)
+    {
+        var contexto = new DefaultHttpContext();
+        contexto.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
+        contexto.Request.Headers.Authorization = $"Bearer {token}";
+        return LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave, Proteccion).PartitionKey;
+    }
+
+    [Fact]
+    public void La_particion_del_token_lleva_una_huella_del_secreto_y_nunca_el_secreto()
+    {
+        const string secreto = "talveg_int_secreto-de-prueba";
+        var contexto = new DefaultHttpContext();
+        contexto.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.9");
+        var credencial = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{Guid.NewGuid()}:{secreto}"));
+        contexto.Request.Headers.Authorization = $"Basic {credencial}";
+
+        LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey
+            .Should().StartWith("token:").And.NotContain(secreto).And.NotContain(CabeceraClaveApi.HashDeClave(secreto));
+
+        contexto.Request.Headers.Authorization = "Basic basura";
+        LimitadorApiPublica.ParticionToken(contexto, CupoPorClave).PartitionKey.Should().Be("token-ip:203.0.113.9");
     }
 
     [Theory]
@@ -142,7 +179,7 @@ public class LimitadorApiPublicaTests
         var contexto = new DefaultHttpContext();
         contexto.Connection.RemoteIpAddress = IPAddress.Parse(ip);
 
-        LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave).PartitionKey.Should().Be(esperada);
+        LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave, Proteccion).PartitionKey.Should().Be(esperada);
         LimitadorApiPublica.ParticionGlobal(Ruta(contexto, "/api/v1/x"), 10)!.Value.PartitionKey
             .Should().Be(esperada.Replace("ip:", "api-ip:"));
     }
@@ -196,7 +233,7 @@ public class LimitadorApiPublicaTests
             {
                 opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
                 opciones.AddPolicy(LimitadorApiPublica.Politica, contexto =>
-                    LimitadorApiPublica.ParticionPorLlamante(contexto, limitePorClave));
+                    LimitadorApiPublica.ParticionPorLlamante(contexto, limitePorClave, Proteccion));
                 opciones.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
                     LimitadorApiPublica.ParticionGlobal(contexto, limitePorIp) is { } particion
                         ? particion
