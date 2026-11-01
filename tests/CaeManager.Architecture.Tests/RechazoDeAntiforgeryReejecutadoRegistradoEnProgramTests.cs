@@ -1,4 +1,5 @@
-﻿using FluentAssertions;
+﻿using System.Text.RegularExpressions;
+using FluentAssertions;
 using Xunit;
 
 namespace CaeManager.Architecture.Tests;
@@ -18,9 +19,10 @@ public class RechazoDeAntiforgeryReejecutadoRegistradoEnProgramTests
     {
         var program = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));
 
-        var paginasDeEstado = program.IndexOf("app.UseStatusCodePagesWithReExecute(", StringComparison.Ordinal);
-        var correccion = program.IndexOf("app.UseRechazoDeAntiforgeryReejecutado();", StringComparison.Ordinal);
-        var antiforgery = program.IndexOf("app.UseAntiforgery();", StringComparison.Ordinal);
+        // Solo cuentan las llamadas reales: una línea comentada no registra nada.
+        var paginasDeEstado = PosicionDe(program, @"app\.UseStatusCodePagesWithReExecute\(");
+        var correccion = PosicionDe(program, @"app\.UseRechazoDeAntiforgeryReejecutado\(\);");
+        var antiforgery = PosicionDe(program, @"app\.UseAntiforgery\(\);");
 
         paginasDeEstado.Should().BeGreaterThan(-1);
         correccion.Should().BeGreaterThan(-1,
@@ -28,10 +30,15 @@ public class RechazoDeAntiforgeryReejecutadoRegistradoEnProgramTests
         antiforgery.Should().BeGreaterThan(-1);
         correccion.Should().BeGreaterThan(paginasDeEstado, "la corta la reejecución, que nace en UseStatusCodePagesWithReExecute");
         correccion.Should().BeLessThan(antiforgery, "tiene que ver la petición antes de que UseAntiforgery la valide otra vez");
-        program.Substring(correccion + "app.UseRechazoDeAntiforgeryReejecutado();".Length, antiforgery - correccion - "app.UseRechazoDeAntiforgeryReejecutado();".Length)
-            .Should().NotContain("app.Use", "ningún otro middleware debe interponerse entre la corrección y UseAntiforgery");
+        Regex.IsMatch(program[correccion..antiforgery].Split('\n', 2)[1], @"(?m)^\s*app\.Use")
+            .Should().BeFalse("ningún otro middleware debe interponerse entre la corrección y UseAntiforgery");
     }
 
+    private static int PosicionDe(string program, string llamada)
+    {
+        var coincidencia = Regex.Match(program, @"(?m)^[ \t]*" + llamada);
+        return coincidencia.Success ? coincidencia.Index : -1;
+    }
     private static string RaizDelRepositorio()
     {
         var actual = new DirectoryInfo(AppContext.BaseDirectory);

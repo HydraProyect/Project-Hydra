@@ -168,6 +168,47 @@ public class RechazoDeAntiforgeryEnPostDeCuentaTests
         using var respuesta = await cliente.PostAsync(ruta, new StringContent(cuerpo, Encoding.UTF8, "application/x-www-form-urlencoded"));
         await SinDetalle(respuesta);
     }
+    [Fact]
+    public async Task Un_post_sin_token_a_una_ruta_inexistente_responde_4xx_sin_detalle()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        await cliente.GetStringAsync("/token");
+        using var respuesta = await cliente.PostAsync("/cuenta/no-existe", new FormUrlEncodedContent([]));
+        await SinDetalle(respuesta);
+    }
+
+    /// <summary>
+    /// La corrección solo corta cuando el antiforgery de la primera pasada fue rechazado: un 404 normal sigue
+    /// reejecutándose y pintando la página de «no encontrado».
+    /// </summary>
+    [Fact]
+    public async Task Un_404_de_GET_sigue_mostrando_la_pagina_de_no_encontrado()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        await cliente.GetStringAsync("/token");
+        using var respuesta = await cliente.GetAsync("/cuenta/no-existe");
+        respuesta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await respuesta.Content.ReadAsStringAsync()).Should().Contain("pagina no encontrada");
+    }
+
+    [Fact]
+    public async Task Un_rechazo_de_antiforgery_se_registra_una_vez_con_metodo_y_ruta_y_sin_el_cuerpo_ni_la_consulta()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        await cliente.GetStringAsync("/token");
+        using var respuesta = await cliente.PostAsync(Ruta + "?secreto=consulta-privada", new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["campo"] = "valor-privado" }));
+        respuesta.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var rechazos = app.Services.GetRequiredService<ProveedorDiagnostico>().Lineas
+            .Where(l => l.Contains("rechazada por antiforgery", StringComparison.Ordinal)).ToList();
+        var registro = rechazos.Should().ContainSingle().Subject;
+        registro.Should().StartWith("Warning").And.Contain("POST " + Ruta)
+            .And.NotContain("consulta-privada").And.NotContain("valor-privado");
+    }
     [Theory]
     [MemberData(nameof(Rutas))]
     public async Task El_token_valido_sigue_aceptandose(string ruta)
@@ -184,7 +225,7 @@ public class RechazoDeAntiforgeryEnPostDeCuentaTests
     {
         var cuerpo = await respuesta.Content.ReadAsStringAsync();
         var estado = (int)respuesta.StatusCode;
-        estado.Should().BeInRange(400, 499, "un rechazo de la petición no es un fallo del servidor; cuerpo: " + cuerpo + " REGISTRO: " + string.Join(" // ", ProveedorDiagnostico.Lineas.Where(l => !l.StartsWith("Information Executing") && !l.StartsWith("Information Executed") && !l.StartsWith("Information Request starting")).Where(l => l.StartsWith("Error") || l.StartsWith("Warning") || l.Contains("Exception")).Take(8)));
+        estado.Should().BeInRange(400, 499, "un rechazo de la petición no es un fallo del servidor");
         if (esperado is { } concreto) respuesta.StatusCode.Should().Be(concreto);
         cuerpo.Should().NotContain("Exception").And.NotContain("   at ").And.NotContain("Stack");
     }
@@ -199,7 +240,9 @@ public class RechazoDeAntiforgeryEnPostDeCuentaTests
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = Environments.Production });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddLogging();
-        builder.Logging.AddProvider(ProveedorDiagnostico.Instancia);
+        var diagnostico = new ProveedorDiagnostico();
+        builder.Services.AddSingleton(diagnostico);
+        builder.Logging.AddProvider(diagnostico);
         builder.Services.AddDataProtection();
         builder.Services.AddAntiforgery();
         builder.Services.AddRazorComponents();
@@ -233,8 +276,7 @@ public class RechazoDeAntiforgeryEnPostDeCuentaTests
 
     private sealed class ProveedorDiagnostico : ILoggerProvider, ILogger
     {
-        public static readonly ProveedorDiagnostico Instancia = new();
-        public static readonly System.Collections.Concurrent.ConcurrentQueue<string> Lineas = new();
+        public System.Collections.Concurrent.ConcurrentQueue<string> Lineas { get; } = new();
         public ILogger CreateLogger(string categoria) => this;
         public void Dispose() { }
         public IDisposable? BeginScope<TState>(TState estado) where TState : notnull => null;
