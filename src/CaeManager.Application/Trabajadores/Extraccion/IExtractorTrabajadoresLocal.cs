@@ -31,7 +31,11 @@ public sealed record PaginaPdf(int Numero, IReadOnlyList<PalabraPdf> Palabras, d
 /// <summary>Puerto de lectura de palabras con posición de un PDF; la implementación real (PdfPig) vive en Infrastructure.</summary>
 public interface IExtractorPalabrasPdf
 {
+    /// <summary>Lee con el tope de tamaño de la subida (<see cref="Common.LimitesArchivoSubido.TamanoMaximoBytes"/>).</summary>
     Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf);
+
+    /// <summary>Lee con un tope propio: Dividir admite originales mayores que un Documento. El resto de topes no cambia.</summary>
+    Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf, long tamanoMaximoBytes);
 }
 
 /// <summary>

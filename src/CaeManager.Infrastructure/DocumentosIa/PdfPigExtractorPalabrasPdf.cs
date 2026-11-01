@@ -15,8 +15,8 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// resto del proyecto, no expone texto con posición.
 ///
 /// El PDF lo ha preparado un tercero (lo subió un Tenant o llegó adjunto), así que se acota antes y
-/// durante la lectura: tamaño del archivo (el mismo tope que la subida,
-/// <see cref="LimitesArchivoSubido.TamanoMaximoBytes"/>), páginas declaradas
+/// durante la lectura: tamaño del archivo (por defecto el mismo tope que la subida,
+/// <see cref="LimitesArchivoSubido.TamanoMaximoBytes"/>; Dividir pide el suyo), páginas declaradas
 /// (<see cref="LectorRecuentoPaginasPdfSinAbrir"/>) y reales (se cuentan al recorrerlas, porque
 /// el recuento declarado puede mentir), palabras en total y un presupuesto de tiempo que se
 /// comprueba entre páginas. Lo que no se puede acotar desde fuera es el coste de decodificar
@@ -28,9 +28,12 @@ namespace CaeManager.Infrastructure.DocumentosIa;
 /// </summary>
 public sealed class PdfPigExtractorPalabrasPdf(ILogger<PdfPigExtractorPalabrasPdf> logger) : IExtractorPalabrasPdf
 {
-    public Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf)
+    public Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf) =>
+        ExtraerPalabras(contenidoPdf, LimitesArchivoSubido.TamanoMaximoBytes);
+
+    public Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf, long tamanoMaximoBytes)
     {
-        if (contenidoPdf.Length > LimitesArchivoSubido.TamanoMaximoBytes)
+        if (contenidoPdf.Length > tamanoMaximoBytes)
             return Fallo("ExtractorPalabrasPdf.ArchivoDemasiadoGrande");
 
         if (LectorRecuentoPaginasPdfSinAbrir.IntentarLeerRecuentoDePaginasSinAbrir(contenidoPdf) is { } declaradas

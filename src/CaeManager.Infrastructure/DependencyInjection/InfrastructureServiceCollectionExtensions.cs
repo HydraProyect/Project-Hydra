@@ -391,6 +391,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
