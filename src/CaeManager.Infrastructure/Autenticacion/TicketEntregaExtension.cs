@@ -18,28 +18,14 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// No es de un solo uso (no hay estado en el servidor): dentro de su minuto se puede repetir la recogida. Cada una pasa
 /// otra vez las comprobaciones, el límite de ritmo y el registro de acceso.
 /// </para>
-///
-/// <para>
-/// <b>Relevo entre versiones.</b> Se emite siempre el propósito vigente y al recoger se leen el vigente y el anterior:
-/// un ticket emitido por el binario saliente sigue valiendo en el entrante. Al revés no hay arreglo posible desde aquí:
-/// el binario saliente no conoce un propósito posterior, así que un ticket del entrante que recoja el saliente responde
-/// 404. La extensión lo muestra como fallo de recogida y volver a intentarlo emite otro ticket.
-/// </para>
 /// </summary>
 public static class TicketEntregaExtension
 {
     /// <summary>
-    /// Nombre del protector con el que se emite. v2: la carga añade el Tenant y la Asignación de Operación.
+    /// Nombre del protector. Cambiarlo invalida los tickets vivos, que duran un minuto. v2: la carga añade el Tenant y la
+    /// Asignación de Operación; un ticket v1 no se puede reinterpretar sin inventarlos.
     /// </summary>
     private const string PropositoProtector = "CaeManager.Extension.EntregaArchivo.v2";
-
-    /// <summary>
-    /// Solo se lee, nunca se emite: lo emitía el binario anterior a la Asignación de Operación en el ticket, que solo
-    /// operaba en el Tenant de origen. Su carga no lleva Tenant ni Asignación de Operación y no se inventan:
-    /// <see cref="ParsearCargaUtilAnterior"/> los deja vacíos y solo vale en el Tenant de origen de ese usuario. Se retira
-    /// cuando no quede por desplegar ningún relevo desde ese binario: un ticket v1 vive un minuto.
-    /// </summary>
-    private const string PropositoProtectorAnterior = "CaeManager.Extension.EntregaArchivo.v1";
 
     public static readonly TimeSpan Vigencia = TimeSpan.FromSeconds(60);
 
@@ -49,7 +35,7 @@ public static class TicketEntregaExtension
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPortal);
 
-        return CrearProtector(dataProtectionProvider, PropositoProtector).Protect(
+        return CrearProtector(dataProtectionProvider).Protect(
             $"{usuarioId:N}|{tenantId:N}|{asignacionOperacionId ?? Guid.Empty:N}|{acreditacionId:N}|{documentoId:N}|{hostPortal}",
             Vigencia);
     }
@@ -63,17 +49,9 @@ public static class TicketEntregaExtension
         if (string.IsNullOrWhiteSpace(ticket))
             return null;
 
-        return Leer(dataProtectionProvider, PropositoProtector, ticket, ParsearCargaUtil)
-            ?? Leer(dataProtectionProvider, PropositoProtectorAnterior, ticket, ParsearCargaUtilAnterior);
-    }
-
-    private static CargaUtilTicketEntrega? Leer(
-        IDataProtectionProvider dataProtectionProvider, string proposito, string ticket,
-        Func<string, CargaUtilTicketEntrega?> parsear)
-    {
         try
         {
-            return parsear(CrearProtector(dataProtectionProvider, proposito).Unprotect(ticket));
+            return ParsearCargaUtil(CrearProtector(dataProtectionProvider).Unprotect(ticket));
         }
         catch (System.Security.Cryptography.CryptographicException)
         {
@@ -81,7 +59,7 @@ public static class TicketEntregaExtension
         }
     }
 
-    /// <summary>La mitad de <see cref="Leer(IDataProtectionProvider, string?)"/> que no es criptografía; pública para probar cada rama de rechazo.</summary>
+    /// <summary>La mitad de <see cref="Leer"/> que no es criptografía; pública para probar cada rama de rechazo.</summary>
     public static CargaUtilTicketEntrega? ParsearCargaUtil(string cargaUtil)
     {
         var partes = cargaUtil.Split('|');
@@ -102,30 +80,10 @@ public static class TicketEntregaExtension
             acreditacionId, documentoId, partes[5]);
     }
 
-    /// <summary>La carga de <see cref="PropositoProtectorAnterior"/>: <c>usuario|acreditación|documento|host</c>.</summary>
-    public static CargaUtilTicketEntrega? ParsearCargaUtilAnterior(string cargaUtil)
-    {
-        var partes = cargaUtil.Split('|');
-        if (partes.Length != 4)
-            return null;
-
-        if (!Guid.TryParseExact(partes[0], "N", out var usuarioId) || usuarioId == Guid.Empty
-            || !Guid.TryParseExact(partes[1], "N", out var acreditacionId) || acreditacionId == Guid.Empty
-            || !Guid.TryParseExact(partes[2], "N", out var documentoId) || documentoId == Guid.Empty
-            || string.IsNullOrWhiteSpace(partes[3]))
-            return null;
-
-        return new CargaUtilTicketEntrega(usuarioId, null, null, acreditacionId, documentoId, partes[3]);
-    }
-
-    private static ITimeLimitedDataProtector CrearProtector(IDataProtectionProvider dataProtectionProvider, string proposito) =>
-        dataProtectionProvider.CreateProtector(proposito).ToTimeLimitedDataProtector();
+    private static ITimeLimitedDataProtector CrearProtector(IDataProtectionProvider dataProtectionProvider) =>
+        dataProtectionProvider.CreateProtector(PropositoProtector).ToTimeLimitedDataProtector();
 }
 
 /// <summary>Contenido verificado de un ticket de entrega — ver <see cref="TicketEntregaExtension"/>.</summary>
-/// <param name="TenantId">
-/// El Tenant con el que se emitió, o <c>null</c> en un ticket del propósito anterior, que no lo lleva: esos solo valen en
-/// el Tenant de origen del usuario. Un <c>null</c> nunca significa «cualquier Tenant».
-/// </param>
 public record CargaUtilTicketEntrega(
-    Guid UsuarioId, Guid? TenantId, Guid? AsignacionOperacionId, Guid AcreditacionId, Guid DocumentoId, string HostPortal);
+    Guid UsuarioId, Guid TenantId, Guid? AsignacionOperacionId, Guid AcreditacionId, Guid DocumentoId, string HostPortal);

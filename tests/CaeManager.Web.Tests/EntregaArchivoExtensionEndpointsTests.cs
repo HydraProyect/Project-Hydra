@@ -241,57 +241,6 @@ public class EntregaArchivoExtensionEndpointsTests
         }
     }
 
-    [Fact]
-    public async Task Un_ticket_del_binario_saliente_recoge_el_archivo_en_el_Tenant_de_origen_con_las_mismas_comprobaciones()
-    {
-        var mediador = new Mediador(null);
-        var registro = new RegistroEspia();
-        await using var app = await ArrancarAsync(mediador, registro);
-        using var cliente = Cliente(app);
-
-        using var respuesta = await PedirArchivoAsync(cliente, TicketDelBinarioSaliente(Usuario));
-
-        respuesta.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await respuesta.Content.ReadAsByteArrayAsync()).Should().Equal(Pdf);
-        mediador.Preparaciones.Should().ContainSingle("tampoco es una foto: se vuelve a comprobar al servir");
-        registro.Accesos.Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task Un_ticket_del_binario_saliente_de_otro_usuario_no_recoge_nada()
-    {
-        var mediador = new Mediador(null);
-        await using var app = await ArrancarAsync(mediador);
-        using var cliente = Cliente(app);
-
-        using var respuesta = await PedirArchivoAsync(cliente, TicketDelBinarioSaliente(Guid.NewGuid()));
-
-        respuesta.StatusCode.Should().Be(HttpStatusCode.NotFound);
-        mediador.Preparaciones.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Un_ticket_sin_Tenant_solo_vale_en_el_Tenant_de_origen_y_sin_Asignacion_de_Operacion()
-    {
-        var ticket = new CargaUtilTicketEntrega(Usuario, null, null, Acreditacion, Documento, "app.dokify.net");
-        var enOrigen = new TenantDeLaPrueba();
-        var otroTenant = Guid.NewGuid();
-
-        EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, enOrigen, new SinSeleccion(), Tenant)
-            .Should().BeTrue();
-        EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, enOrigen, new SinSeleccion(), otroTenant)
-            .Should().BeFalse("la petición opera en un Tenant que no es el de origen del usuario");
-        EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, enOrigen, new ConAsignacionDeOperacion(), Tenant)
-            .Should().BeFalse("en un Tenant beneficiario no vale, aunque coincidiera el Id");
-        EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, enOrigen, new SinSeleccion(), null)
-            .Should().BeFalse("sin Tenant de origen no hay contra qué comprobarlo");
-    }
-
-    /// <summary>Lo que emitía el binario anterior a v2: un Tenant ligado solo por implicación, nunca en la carga.</summary>
-    private string TicketDelBinarioSaliente(Guid usuario) =>
-        _proteccion.CreateProtector("CaeManager.Extension.EntregaArchivo.v1").ToTimeLimitedDataProtector()
-            .Protect($"{usuario:N}|{Acreditacion:N}|{Documento:N}|app.dokify.net", TicketEntregaExtension.Vigencia);
-
     private static Task<HttpResponseMessage> PedirEntregaAsync(HttpClient cliente) => cliente.PostAsync(RutaEntrega,
         new StringContent("{\"dominioPortal\":\"app.dokify.net\"}", Encoding.UTF8, "application/json"));
 
@@ -378,18 +327,13 @@ public class EntregaArchivoExtensionEndpointsTests
                 : AuthenticateResult.NoResult());
     }
 
-    /// <summary>
-    /// Los endpoints preguntan quién es el usuario y, solo con un ticket sin Tenant, cuál es su Tenant de origen:
-    /// cualquier otra pregunta haría fallar la prueba.
-    /// </summary>
+    /// <summary>Los endpoints solo preguntan quién es el usuario: cualquier otra pregunta haría fallar la prueba.</summary>
     public class UsuarioDelToken : DispatchProxy
     {
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => targetMethod!.Name switch
-        {
-            nameof(ICurrentUserService.ObtenerUsuarioActualIdAsync) => Task.FromResult<Guid?>(Usuario),
-            nameof(ICurrentUserService.ObtenerTenantOrigenIdAsync) => Task.FromResult<Guid?>(Tenant),
-            _ => throw new NotSupportedException(targetMethod.Name),
-        };
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod!.Name == nameof(ICurrentUserService.ObtenerUsuarioActualIdAsync)
+                ? Task.FromResult<Guid?>(Usuario)
+                : throw new NotSupportedException(targetMethod.Name);
     }
 
     private sealed class AlmacenFijo : IFileStorageService
@@ -412,13 +356,6 @@ public class EntregaArchivoExtensionEndpointsTests
     {
         public Guid? TenantIdSeleccionado => null;
         public Guid? AsignacionOperacionIdSeleccionada => null;
-        public Guid? SesionPrivilegiadaIdSeleccionada => null;
-    }
-
-    private sealed class ConAsignacionDeOperacion : IClienteActivoSeleccionado
-    {
-        public Guid? TenantIdSeleccionado => Tenant;
-        public Guid? AsignacionOperacionIdSeleccionada { get; } = Guid.NewGuid();
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 

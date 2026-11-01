@@ -90,9 +90,7 @@ public static class EntregaArchivoExtensionEndpoints
         var ticket = TicketEntregaExtension.Leer(dataProtectionProvider, contexto.Request.Headers[CabeceraTicket].ToString());
         if (ticket is null || ticket.AcreditacionId != id
             || await usuarioActual.ObtenerUsuarioActualIdAsync() != ticket.UsuarioId
-            || !TicketEsDeEstaPeticion(
-                ticket, tenantActual, seleccion,
-                ticket.TenantId is null ? await usuarioActual.ObtenerTenantOrigenIdAsync() : null))
+            || !TicketEsDeEstaPeticion(ticket, tenantActual, seleccion))
             return Results.NotFound();
 
         // El ticket no es una foto válida durante un minuto: el kill switch, la cartera o una Acreditación que dejó de
@@ -114,14 +112,10 @@ public static class EntregaArchivoExtensionEndpoints
     /// <summary>
     /// ¿Se emitió el ticket para el mismo Tenant y la misma Asignación de Operación que resuelve ahora la petición? Si la
     /// cartera cambió entre la emisión y la recogida, no: un ticket no sobrevive a la autorización con la que nació.
-    /// Un ticket del propósito anterior no nombra Tenant (<see cref="CargaUtilTicketEntrega.TenantId"/>): solo se emitía
-    /// en el Tenant de origen, así que solo vale ahí y sin Asignación de Operación, nunca en un Tenant beneficiario.
     /// </summary>
-    /// <param name="tenantOrigenId">El Tenant de origen del usuario; hace falta solo para un ticket sin Tenant.</param>
     public static bool TicketEsDeEstaPeticion(
-        CargaUtilTicketEntrega ticket, ITenantActual tenantActual, IClienteActivoSeleccionado seleccion, Guid? tenantOrigenId) =>
-        tenantActual.TenantId is { } tenantEfectivo
-        && tenantEfectivo == (ticket.TenantId ?? tenantOrigenId)
+        CargaUtilTicketEntrega ticket, ITenantActual tenantActual, IClienteActivoSeleccionado seleccion) =>
+        tenantActual.TenantId == ticket.TenantId
         && seleccion.AsignacionOperacionIdSeleccionada == ticket.AsignacionOperacionId;
 
     private static async Task<PrepararEntregaPeticion?> LeerPeticionAsync(HttpRequest solicitud, CancellationToken cancellationToken)
