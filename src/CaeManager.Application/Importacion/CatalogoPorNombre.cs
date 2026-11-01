@@ -49,6 +49,9 @@ internal sealed class CatalogoPorNombre<TValor>
             lista.Add(valor);
     }
 
+    /// <summary>Declara a qué entidad se refiere el nombre, sustituyendo cualquier otra con ese nombre (p. ej. la hoja Clientes, que identifica por CIF).</summary>
+    public void Fijar(string nombre, TValor valor) => _entradas[nombre] = [valor];
+
     public ResultadoBusquedaPorNombre Buscar(string nombre, out TValor? valor)
     {
         valor = default;

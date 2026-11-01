@@ -16,6 +16,7 @@ public class EjecutarImportacionCombinadaPapeleraTests
     private const string EmpresaNueva = "Montajes del Ebro S.L.";
     private const string DniEnPapelera = "12345678Z";
     private const string DniSano = "00000000T";
+    private const string DniOtro = "99999999R";
     private const string RazonSocialRepetida = "ACME Servicios S.L.";
     private const string EmpresaUnica = "Instalaciones Únicas S.L.";
 
@@ -58,7 +59,7 @@ public class EjecutarImportacionCombinadaPapeleraTests
             trabajadores:
             [
                 Trabajador(RazonSocialRepetida, DniSano, 5),
-                Trabajador(EmpresaUnica, DniEnPapelera, 6),
+                Trabajador(EmpresaUnica, DniOtro, 6),
             ]);
 
         var resultado = await escenario.EjecutarAsync(plan);
@@ -67,6 +68,28 @@ public class EjecutarImportacionCombinadaPapeleraTests
         resultado.Omitidos.Select(o => o.Hoja).Should().BeEquivalentTo("Empresas", "Centros", "Trabajadores");
         resultado.ClientesCreados.Should().Be(1, "el resto del archivo sigue");
         resultado.TrabajadoresCreados.Should().Be(1);
-        escenario.TrabajadorRepositorio.Trabajadores.Should().ContainSingle().Which.Dni.Should().Be(DniEnPapelera);
+        escenario.TrabajadorRepositorio.Trabajadores.Should().ContainSingle().Which.Dni.Should().Be(DniOtro);
+    }
+
+    [Fact]
+    public async Task Clientes_empresariales_que_solo_difieren_en_mayusculas_no_se_resuelven_al_azar_en_Centros_ni_en_Empresas()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        escenario.EmpresaRepositorio.Empresas.Add(
+            Empresa.CrearComoCliente("Acme S.L.", "B12345674", false, notas: null, ejecutivoUsuarioId: null));
+        escenario.EmpresaRepositorio.Empresas.Add(
+            Empresa.CrearComoCliente("ACME S.L.", "P1234567D", false, notas: null, ejecutivoUsuarioId: null));
+        escenario.EmpresaRepositorio.Empresas.Add(new Empresa(EmpresaUnica));
+        var plan = EscenarioImportacionCombinada.Plan(
+            // Si se resolviera al azar, la Relación Empresarial se crearía con uno de los dos: el doble de
+            // relaciones de este escenario lanza si se le pide crear alguna.
+            empresas: [new EmpresaCombinadaImportadaDto(EmpresaUnica, ["Acme S.L."], YaExiste: true, Fila: 2)],
+            centros: [new CentroImportadoDto("Planta Norte", "Acme S.L.", EmpresaUnica, null, null, null, null, YaExiste: false, Fila: 3)]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        resultado.Omitidos.Should().HaveCount(2).And.OnlyContain(o => o.Motivo.Contains("Hay varios Clientes empresariales"));
+        resultado.Omitidos.Select(o => o.Hoja).Should().BeEquivalentTo("Empresas", "Centros");
+        resultado.CentrosCreados.Should().Be(0);
     }
 }

@@ -162,6 +162,20 @@ public class EjecutarImportacionResilienciaTests
     }
 
     [Fact]
+    public async Task El_DNI_se_compara_normalizado_con_la_Papelera_aunque_el_plan_lo_traiga_en_minusculas_o_con_guiones()
+    {
+        var escenario = new EscenarioImportacion().ConEmpresaExistente();
+        escenario.TrabajadorRepositorio.DnisEnPapelera.Add(EscenarioImportacion.DniConocido);
+        var plan = EscenarioImportacion.Plan(trabajadores:
+            [Trabajador(EscenarioImportacion.EmpresaConocida, "1234-5678-z")]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Papelera");
+        resultado.TrabajadoresCreados.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Documento_de_un_DNI_en_la_Papelera_dice_Papelera_y_no_que_no_existe()
     {
         var escenario = new EscenarioImportacion().ConTipoDocumentoExistente();

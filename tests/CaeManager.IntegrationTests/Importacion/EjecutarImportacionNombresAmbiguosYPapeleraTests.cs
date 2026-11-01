@@ -29,6 +29,7 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
     private const string DniActivo = "00000000T";
     private const string CentroHomonimo = "Planta Norte";
     private const string TipoUnico = "Reconocimiento médico";
+    private const string DniEnPapeleraDeOtroTenant = "11111111H";
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly TenantActualAmbiental _tenantActual = new() { TenantId = Guid.NewGuid() };
@@ -56,6 +57,16 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
         contexto.TiposDocumento.Add(new TipoDocumento("Formación 20H", 12, true, orden: 2, AmbitoAplicacion.Trabajador));
         contexto.TiposDocumento.Add(new TipoDocumento(TipoUnico, 12, true, orden: 3, AmbitoAplicacion.Trabajador));
         await contexto.SaveChangesAsync();
+
+        // Otro Tenant propietario, con un Trabajador en SU Papelera: su DNI no puede afectar a la importación de este.
+        var otroTenant = new TenantActualAmbiental { TenantId = Guid.NewGuid() };
+        await using var contextoOtroTenant = CrearContexto(otroTenant);
+        var empresaOtroTenant = new Empresa("Empresa de otro Tenant S.L.");
+        contextoOtroTenant.Empresas.Add(empresaOtroTenant);
+        var eliminadoOtroTenant = Trabajador.DeEmpresa(empresaOtroTenant.Id, "Ana", "Ajena", DniEnPapeleraDeOtroTenant);
+        eliminadoOtroTenant.MarcarComoEliminado(Guid.NewGuid());
+        contextoOtroTenant.Trabajadores.Add(eliminadoOtroTenant);
+        await contextoOtroTenant.SaveChangesAsync();
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -81,6 +92,20 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
         (await verificacion.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.Dni == DniEnPapelera)).Should().Be(1,
             "el Trabajador de la Papelera sigue siendo el único con ese DNI");
         (await verificacion.Trabajadores.CountAsync(t => t.Dni == "99999999R")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_DNI_en_la_Papelera_de_otro_Tenant_no_afecta_a_la_importacion_ni_se_revela()
+    {
+        var plan = Plan(trabajadores:
+            [new TrabajadorImportadoDto(NombreEmpresa, "Luis", "Pérez", DniEnPapeleraDeOtroTenant, null, null, YaExiste: false)]);
+
+        await using var contexto = CrearContexto();
+        var resultado = await ConstruirHandler(contexto).Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.TrabajadoresCreados.Should().Be(1, "el DNI de la Papelera de otro Tenant no existe para este");
+        resultado.Valor.Omitidos.Should().BeEmpty("ni siquiera se insinúa que ese DNI esté en la Papelera de otro Tenant");
     }
 
     [Fact]
@@ -122,17 +147,18 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
             contexto, contexto, contexto, contexto, contexto, contexto,
             new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto));
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(TenantActualAmbiental? tenant = null)
     {
+        tenant ??= _tenantActual;
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql =>
             {
                 npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL");
                 npgsql.EnableRetryOnFailure(maxRetryCount: 6, maxRetryDelay: TimeSpan.FromSeconds(30), errorCodesToAdd: null);
             })
-            .AddInterceptors(new TenantSelladoInterceptor(_tenantActual))
+            .AddInterceptors(new TenantSelladoInterceptor(tenant))
             .Options;
 
-        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenant);
     }
 }
