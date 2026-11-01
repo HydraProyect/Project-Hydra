@@ -180,14 +180,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
         // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
-        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
-        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
-        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
-        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        // 20260925184521_RlsAspNetUsers) exigen el contexto firmado (migración
+        // OraculosTransversalesExigenContextoFirmado) y de ellas solo se lee el
+        // TenantId; la fila se lee después por EF dentro del AmbitoTenantExplicito
+        // de su Tenant. La unicidad global de nombre y correo
+        // (ValidadorUnicidadGlobalCuenta) no recibe identificadores: solo un
+        // booleano. Parámetros por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
-            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+            "await db.Database.SqlQuery<Guid>(")] = 2,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_nombre_en_uso_por_otra_cuenta({nombreNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({emailNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
         // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
         // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",

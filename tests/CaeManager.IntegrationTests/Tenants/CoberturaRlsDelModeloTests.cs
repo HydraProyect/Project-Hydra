@@ -362,6 +362,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "las funciones SECURITY DEFINER de RlsAspNetUsers (app_tenant_de_cuenta, app_cuenta_por_nombre_normalizado, " +
             "app_cuentas_por_email_normalizado), que cae_app_runtime invoca en cada inicio de sesión antes de conocer " +
             "el Tenant, corren con el rol propietario de las tablas y buscan la cuenta en todos los Tenants; también " +
+            "app_nombre_en_uso_por_otra_cuenta, app_correo_en_uso_por_otra_cuenta (unicidad global de la cuenta), " +
             "app_tenant_tiene_administrador_propio (WITH CHECK de EncargosAdministracion) y " +
             "app_es_administrador_del_tenant. El backfill de asignaciones lee además dbContext.Users de todos los " +
             "Tenants con la identidad de bootstrap. Con FORCE y un rol propietario sometido a RLS no encontrarían " +
