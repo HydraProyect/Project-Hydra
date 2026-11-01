@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using PdfSharp.Drawing;
@@ -94,20 +94,26 @@ public static class ConversorArchivosPdf
     /// <summary>
     /// Reserva, antes de <see cref="UnificarAsync"/>, la memoria que cuesta decodificar sus imágenes (OWASP API4:2023,
     /// ASVS 4.0.3 V12.1.1 y V5.2.1): <paramref name="reservaLectura"/> se calculó con el tamaño comprimido de los archivos,
-    /// que no acota ese coste (un PNG de 136 KB de 12000 x 12000 px cuesta unos 789 MB). Pide solo lo que falta para
-    /// sumar el coste a lo que ya retiene la lectura, con tope en el presupuesto entero: pedir más lo dejaría esperando,
-    /// hasta rechazarse, a una reserva que él mismo retiene. El llamador la desecha en cuanto acaba la conversión.
+    /// que no acota ese coste (un PNG de 136 KB de 12000 x 12000 px cuesta unos 789 MB). Suma el coste a lo que ya retiene
+    /// la lectura <b>sin esperar</b> (<see cref="IPresupuestoMemoriaDocumentos.TryReservar"/>): esperar reteniendo la
+    /// reserva de la lectura haría que varias conversiones se esperaran unas a otras hasta agotar el plazo y rechazaran
+    /// trabajo que cabría por separado. Y <b>no recorta</b>: si la lectura más el coste superan el presupuesto entero, la
+    /// operación no cabe nunca y se rechaza en vez de seguir con una reserva menor que su estimación. El llamador la
+    /// desecha en cuanto acaba la conversión. Sin imágenes no reserva nada.
     /// </summary>
-    /// <exception cref="PresupuestoMemoriaAgotadoException">Sin hueco: el llamador falla cerrado con el aviso que ya usa.</exception>
-    public static ValueTask<ReservaMemoriaDocumentos> ReservarDecodificacionAsync(
+    /// <exception cref="PresupuestoMemoriaAgotadoException">
+    /// No caben ahora (o no caben nunca): el llamador falla cerrado con el aviso que ya usa.
+    /// </exception>
+    public static ReservaMemoriaDocumentos ReservarDecodificacion(
         IPresupuestoMemoriaDocumentos presupuesto, ReservaMemoriaDocumentos reservaLectura,
-        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> archivos, CancellationToken cancellationToken = default)
+        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> archivos)
     {
-        var yaReservado = reservaLectura.Bytes;
-        var total = Math.Min(yaReservado + CosteDecodificacionImagenesBytes(archivos), presupuesto.Maximo);
-        return presupuesto.ReservarAsync(Math.Max(0, total - yaReservado), cancellationToken);
-    }
+        var coste = CosteDecodificacionImagenesBytes(archivos);
+        if (coste > 0 && reservaLectura.Bytes + coste > presupuesto.Maximo)
+            throw new PresupuestoMemoriaAgotadoException();
 
+        return presupuesto.TryReservar(coste, out var reserva) ? reserva : throw new PresupuestoMemoriaAgotadoException();
+    }
     /// <summary>
     /// Combina uno o varios archivos (PDF, imagen o Word) en un único PDF,
     /// en el orden recibido. Con un solo archivo PDF de entrada, el

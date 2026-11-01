@@ -1,4 +1,4 @@
-using System.IO.Compression;
+﻿using System.IO.Compression;
 using CaeManager.Application.Common;
 using CaeManager.Web.Documentos;
 using FluentAssertions;
@@ -234,7 +234,7 @@ public class DimensionesImagenTests
         var png = CabeceraPngCon(8000, 6000);
         using var lectura = await presupuesto.ReservarAsync(4L * png.Length);
 
-        var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(presupuesto, lectura, [(png, "foto.png")]);
+        var decodificacion = ConversorArchivosPdf.ReservarDecodificacion(presupuesto, lectura, [(png, "foto.png")]);
 
         presupuesto.Reservado.Should().Be(4L * png.Length + 8000L * 6000 * DimensionesImagen.BytesPorPixelDecodificado,
             "el coste real de decodificar, no cuatro veces los pocos bytes comprimidos");
@@ -243,46 +243,48 @@ public class DimensionesImagenTests
     }
 
     [Fact]
-    public async Task La_ampliacion_nunca_pide_mas_de_lo_que_cabe_junto_a_la_reserva_de_la_lectura()
+    public async Task Si_la_estimacion_supera_el_presupuesto_se_rechaza_en_vez_de_recortarse()
     {
-        // La lectura ya retiene casi todo el presupuesto (varias páginas grandes): pedir el coste entero
-        // dejaría a la conversión esperando, hasta rechazarse, a su propia reserva.
+        // La lectura más el coste (300 MB + 288 MB) no caben nunca en 400 MB: recortar la reserva a lo que cabe dejaría
+        // continuar una conversión cuya estimación el presupuesto no puede cubrir.
         var presupuesto = CrearPresupuesto(400_000_000);
         using var lectura = await presupuesto.ReservarAsync(300_000_000);
 
-        using var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(
-            presupuesto, lectura, [(CabeceraPngCon(8000, 6000), "foto.png")]);
+        var reservar = () => ConversorArchivosPdf.ReservarDecodificacion(presupuesto, lectura, [(CabeceraPngCon(8000, 6000), "foto.png")]);
 
-        presupuesto.Reservado.Should().Be(400_000_000, "se amplía hasta el presupuesto entero, sin pasarse");
+        reservar.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(300_000_000, "el rechazo no descuenta nada y la lectura sigue reservada");
     }
 
     [Fact]
-    public async Task Sin_hueco_para_decodificar_falla_cerrado_y_no_pierde_la_reserva_de_la_lectura()
+    public async Task Sin_hueco_para_decodificar_falla_cerrado_sin_esperar_reteniendo_la_reserva_de_la_lectura()
     {
-        var presupuesto = CrearPresupuesto(512L * 1024 * 1024);
+        // Espera máxima de un minuto: si la ampliación esperase, esta prueba tardaría un minuto. Falla de inmediato.
+        var presupuesto = CrearPresupuesto(512L * 1024 * 1024, TimeSpan.FromMinutes(1));
         var png = CabeceraPngCon(8000, 6000);
         using var lectura = await presupuesto.ReservarAsync(4L * png.Length);
         using var ocupado = await presupuesto.ReservarAsync(presupuesto.Maximo - 4L * png.Length - 1_000);
 
-        var reservar = async () => await ConversorArchivosPdf.ReservarDecodificacionAsync(presupuesto, lectura, [(png, "foto.png")]);
+        var reservar = () => ConversorArchivosPdf.ReservarDecodificacion(presupuesto, lectura, [(png, "foto.png")]);
 
-        await reservar.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        reservar.Should().Throw<PresupuestoMemoriaAgotadoException>();
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
         presupuesto.Reservado.Should().Be(presupuesto.Maximo - 1_000, "el rechazo no descuenta nada y la lectura sigue reservada");
-        presupuesto.EnEspera.Should().Be(0);
+        presupuesto.EnEspera.Should().Be(0, "no se pone en la cola reteniendo la reserva de la lectura");
     }
 
     [Fact]
-    public async Task Sin_imagenes_la_ampliacion_no_reserva_nada()
+    public async Task Sin_imagenes_la_ampliacion_no_reserva_nada_ni_siquiera_con_la_lectura_al_maximo()
     {
         var presupuesto = CrearPresupuesto(1_000_000);
-        using var lectura = await presupuesto.ReservarAsync(4_000);
+        using var lectura = await presupuesto.ReservarAsync(4_000_000);
 
-        using var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(
+        using var decodificacion = ConversorArchivosPdf.ReservarDecodificacion(
             presupuesto, lectura, [("%PDF-1.7\nresto"u8.ToArray(), "a.pdf")]);
 
-        presupuesto.Reservado.Should().Be(4_000);
+        presupuesto.Reservado.Should().Be(1_000_000, "solo la lectura, recortada al presupuesto como siempre");
     }
-
     private sealed class ConversorWordFalso : IConversorWordPdfService
     {
         public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) =>

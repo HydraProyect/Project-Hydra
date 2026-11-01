@@ -1,4 +1,4 @@
-using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
+﻿using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
@@ -321,7 +321,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         }
     }
 
-    private class RouterQueNuncaSeDebeLlamar :CaeManager.Application.DocumentosIa.IDocumentAIRouterService
+    private class RouterQueNuncaSeDebeLlamar : CaeManager.Application.DocumentosIa.IDocumentAIRouterService
     {
         public Task<Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>> ProcesarAsync(
             byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>

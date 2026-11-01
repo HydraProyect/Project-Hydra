@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -293,7 +293,9 @@ public class VerificacionIaTardiaBajoRuntimeTests
             contexto, contexto, new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(contexto),
             new AuditoriaExtraccionIaRepository(contexto), new InstruccionSiempreHabilitada(), _tenant,
-            new TransaccionDocumentoBloqueado(contexto, _tenant), contexto);
+            new TransaccionDocumentoBloqueado(contexto, _tenant), contexto,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
         return await servicio.ProcesarDocumentoAsync(encargo);
     }
 

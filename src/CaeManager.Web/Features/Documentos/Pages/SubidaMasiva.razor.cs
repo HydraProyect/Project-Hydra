@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.ConfirmarDocumentoPropuestoPorIa;
@@ -666,7 +666,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         ReservaMemoriaDocumentos reservaDecodificacion;
         try
         {
-            reservaDecodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(PresupuestoMemoria, reservaLectura, entrada, token);
+            reservaDecodificacion = ConversorArchivosPdf.ReservarDecodificacion(PresupuestoMemoria, reservaLectura, entrada);
         }
         catch (PresupuestoMemoriaAgotadoException)
         {

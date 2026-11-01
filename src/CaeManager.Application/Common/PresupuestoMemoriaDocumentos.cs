@@ -1,4 +1,4 @@
-namespace CaeManager.Application.Common;
+﻿namespace CaeManager.Application.Common;
 
 /// <summary>
 /// Tope de los bytes de documento que el proceso entero puede tener a la vez en
@@ -88,6 +88,16 @@ public interface IPresupuestoMemoriaDocumentos
     /// <exception cref="PresupuestoMemoriaAgotadoException">Pasó la espera máxima sin hueco.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> se canceló esperando.</exception>
     ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reserva <paramref name="bytes"/> solo si caben ahora mismo, sin esperar y sin adelantarse a quien ya espera.
+    /// Es lo que debe usar quien ya retiene una reserva y necesita más: esperar reteniendo hace que varias operaciones
+    /// se esperen unas a otras hasta agotar el plazo y rechacen trabajo que cabría por separado. A diferencia de
+    /// <see cref="ReservarAsync"/>, una petición mayor que el presupuesto entero no se recorta: no cabe nunca y se
+    /// rechaza.
+    /// </summary>
+    /// <returns>Falso, sin reservar nada, si no caben ahora (el llamador falla cerrado con <see cref="PresupuestoMemoriaAgotadoException"/>).</returns>
+    bool TryReservar(long bytes, out ReservaMemoriaDocumentos reserva);
 }
 
 /// <summary>
@@ -237,6 +247,29 @@ public sealed class PresupuestoMemoriaDocumentos : IPresupuestoMemoriaDocumentos
                 throw new PresupuestoMemoriaAgotadoException();
             throw;
         }
+    }
+
+    public bool TryReservar(long bytes, out ReservaMemoriaDocumentos reserva)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        if (bytes == 0)
+        {
+            reserva = new ReservaMemoriaDocumentos(null, 0);
+            return true;
+        }
+
+        lock (_cerrojo)
+        {
+            if (bytes <= Maximo && _cola.Count == 0 && _reservado + bytes <= Maximo)
+            {
+                _reservado += bytes;
+                reserva = new ReservaMemoriaDocumentos(this, bytes);
+                return true;
+            }
+        }
+
+        reserva = new ReservaMemoriaDocumentos(null, 0);
+        return false;
     }
 
     internal void Devolver(long bytes)

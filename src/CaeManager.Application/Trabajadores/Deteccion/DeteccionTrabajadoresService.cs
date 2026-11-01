@@ -1,4 +1,5 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -59,7 +60,8 @@ public class DeteccionTrabajadoresService(
     INotificacionUsuarioRepository notificacionRepositorio,
     IInstruccionTratamientoIaService instruccionTratamientoIa,
     ITenantActual tenantActual,
-    IUnitOfWork unitOfWork) : IDeteccionTrabajadoresService
+    IUnitOfWork unitOfWork,
+    IPresupuestoMemoriaDocumentos presupuestoMemoria) : IDeteccionTrabajadoresService
 {
     public async Task ProcesarDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default)
     {
@@ -103,13 +105,12 @@ public class DeteccionTrabajadoresService(
         if (yaHayDeteccionPendiente)
             return;
 
-        byte[] contenido;
+        // La copia que lee la IA sigue reservada en el presupuesto de memoria hasta que acaba la extracción
+        // (OWASP API4:2023, ASVS 4.0.3 V12.1.1): el flujo del almacenamiento solo retiene la suya mientras está abierto.
+        LecturaAlmacenadaParaAnalisis lectura;
         try
         {
-            await using var archivo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-            using var buffer = new MemoryStream();
-            await archivo.CopyToAsync(buffer, cancellationToken);
-            contenido = buffer.ToArray();
+            lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacenamiento, presupuestoMemoria, documento.ArchivoUrl, cancellationToken);
         }
         catch (FileNotFoundException)
         {
@@ -130,7 +131,11 @@ public class DeteccionTrabajadoresService(
                 $"No se pudo abrir el archivo del Documento {documentoId} para lectura IA.", ex);
         }
 
-        var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, cancellationToken);
+        Result<IReadOnlyList<TrabajadorExtraidoDto>> resultadoExtraccion;
+        using (lectura)
+        {
+            resultadoExtraccion = await extraccion.ExtraerAsync(lectura.Contenido, cancellationToken);
+        }
 
         if (resultadoExtraccion.EsFallido)
         {

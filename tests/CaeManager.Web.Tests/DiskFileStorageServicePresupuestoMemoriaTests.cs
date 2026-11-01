@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;
@@ -305,6 +305,9 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
 
         // Explícita: esta clase ya tiene un método Maximo(ref, long) auxiliar.
         long IPresupuestoMemoriaDocumentos.Maximo => Interno.Maximo;
+
+        bool IPresupuestoMemoriaDocumentos.TryReservar(long bytes, out ReservaMemoriaDocumentos reserva) =>
+            Interno.TryReservar(bytes, out reserva);
 
         public async ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default)
         {

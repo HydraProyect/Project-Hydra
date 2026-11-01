@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
