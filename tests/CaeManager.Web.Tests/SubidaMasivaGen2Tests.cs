@@ -855,6 +855,47 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Revisión de Codex del 2026-11-01 (OWASP API4:2023, ASVS 4.0.3 V12.1.1 y V5.2.1): la lectura reserva cuatro veces el
+    /// tamaño comprimido, que no acota lo que cuesta decodificar una imagen. Un PNG de 2000 x 1500 px pesa unos KB y
+    /// decodificado cuesta 6 B por píxel: antes de convertirlo se reserva además ese coste. Con ese hueco entra;
+    /// con un byte menos, el archivo acaba en Error con el mensaje de la cuota, sin llegar a la IA, y nada queda reservado.
+    /// </summary>
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public async Task Una_imagen_muy_comprimida_reserva_ademas_el_coste_de_decodificarla(long bytesOcupados, bool entra)
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var png = DimensionesImagenTests.CrearPngUniforme(2000, 1500);
+        var necesario = 4L * png.Length + 2000L * 1500 * DimensionesImagen.BytesPorPixelDecodificado;
+        _presupuestoMemoria = new PresupuestoMemoriaDocumentos(Options.Create(new OpcionesPresupuestoMemoriaDocumentos
+        {
+            MaximoBytes = necesario,
+            EsperaMaxima = TimeSpan.FromMilliseconds(100)
+        }), TimeProvider.System);
+        using var ocupado = await _presupuestoMemoria.ReservarAsync(bytesOcupados);
+        var cut = Render<SubidaMasiva>();
+        var manejador = typeof(SubidaMasiva).GetMethod("ManejarArchivosSeleccionadosAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        await cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [new InputFileChangeEventArgs([new ArchivoContado("foto.png", png)])])!)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        if (entra)
+        {
+            cut.WaitForAssertion(() => FilaDe(cut, "foto.png").TextContent.Should().Contain("Pendiente de confirmar"), TimeSpan.FromSeconds(10));
+        }
+        else
+        {
+            cut.WaitForAssertion(() => FilaDe(cut, "foto.png").QuerySelector(".item-subida-masiva-error")!.TextContent.Should()
+                .Be("No cabe en esta subida: confirma o descarta los archivos pendientes y vuelve a soltarlo."), TimeSpan.FromSeconds(10));
+            _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().BeEmpty("no se convirtió ni llegó a la IA");
+        }
+
+        cut.WaitForAssertion(() => _presupuestoMemoria.Reservado.Should().Be(bytesOcupados, "ninguna de las dos reservas se pierde"), TimeSpan.FromSeconds(10));
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>
     /// Seguimiento de S-C-3: si al confirmar el almacenamiento no tiene hueco en el presupuesto de memoria,
     /// el rechazo es pasajero: avisa con el mensaje de la cuota, la fila sigue pendiente con su PDF y se
     /// puede volver a confirmar sin repetir la subida ni la lectura de la IA. La vista previa abierta se
@@ -1078,11 +1119,13 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     /// En el Dispatcher del renderer: el metodo llama a StateHasChanged, y fuera de el lanza (medido 2026-09-12).
     /// Lee un archivo que ya esta en memoria (el paso de «Leyendo…»), sin pasar por la subida de bytes.
     /// </summary>
-    private static Task ProcesarAsync(IRenderedComponent<SubidaMasiva> cut, string nombre)
+    private static async Task ProcesarAsync(IRenderedComponent<SubidaMasiva> cut, string nombre)
     {
         var item = AgregarItem(cut, nombre, "Procesando");
         var metodo = typeof(SubidaMasiva).GetMethod("LeerItemAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        return cut.InvokeAsync(() => (Task)metodo.Invoke(cut.Instance, [item, CrearPdf(), 1, CancellationToken.None])!)
+        // La reserva de la lectura (vacía aquí: el original ya está en memoria) que LeerItemAsync amplía si hay imágenes.
+        using var reservaLectura = await cut.Services.GetRequiredService<IPresupuestoMemoriaDocumentos>().ReservarAsync(0);
+        await cut.InvokeAsync(() => (Task)metodo.Invoke(cut.Instance, [item, CrearPdf(), reservaLectura, 1, CancellationToken.None])!)
             .WaitAsync(TimeSpan.FromSeconds(10));
     }
 

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
@@ -40,7 +41,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
     IInstruccionTratamientoIaService instruccionTratamientoIa, ITenantActual tenantActual,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService, IPresupuestoMemoriaDocumentos presupuestoMemoria)
     : IRequestHandler<DetectarActualizacionDocumentoDesdeAdjuntoQuery, Result<DeteccionActualizacionDocumentoDto>>
 {
     private const string TipoEsperadoDesconocido =
@@ -76,17 +77,16 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
         if (!opciones.Value.Activa)
             return Result.Exito(SinDeteccion(adjunto.Id));
 
-        // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria hasta
-        // cerrarse, y no tiene por qué retenerla durante la llamada al proveedor de extracción.
-        byte[] contenido;
-        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        // El flujo del almacenamiento solo retiene su reserva mientras está abierto, y el análisis trabaja con
+        // una copia suya: la reserva del análisis se toma antes de copiar y dura hasta que acaba la
+        // extracción (OWASP API4:2023, ASVS 4.0.3 V12.1.1). Sin hueco falla cerrado con la saturación
+        // transitoria, igual que abrir el archivo (PresupuestoMemoriaAgotadoException), sin copiarlo.
+        Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto> resultado;
+        using (var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacenamiento, presupuestoMemoria, adjunto.ArchivoUrl, cancellationToken))
         {
-            using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria, cancellationToken);
-            contenido = memoria.ToArray();
+            resultado = await router.ProcesarAsync(lectura.Contenido, adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         }
 
-        var resultado = await router.ProcesarAsync(contenido, adjunto.NombreArchivo, TipoEsperadoDesconocido, cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             return Result.Fallo<DeteccionActualizacionDocumentoDto>(resultado.Error);
 

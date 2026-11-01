@@ -7,6 +7,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
 using MediatR;
@@ -235,6 +236,44 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
             cut.WaitForAssertion(() => Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == mensaje));
             _almacen.ContenidoGuardado.Should().BeNull();
         }
+    }
+
+    /// <summary>
+    /// Revisión de Codex del 2026-11-01 (OWASP API4:2023, ASVS 4.0.3 V12.1.1 y V5.2.1): el tamaño comprimido de una imagen
+    /// no acota lo que cuesta decodificarla. Un PNG de 2000 x 1500 px pesa unos pocos KB y decodificado cuesta
+    /// 6 B por píxel (<see cref="DimensionesImagen.BytesPorPixelDecodificado"/>): la conversión reserva, además de
+    /// cuatro veces lo declarado, ese coste. Con exactamente ese hueco entra; con un byte menos, no.
+    /// </summary>
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public async Task Una_imagen_muy_comprimida_reserva_ademas_el_coste_de_decodificarla(long bytesDeMenos, bool entra)
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        var png = DimensionesImagenTests.CrearPngUniforme(2000, 1500);
+        var lectura = 4L * png.Length;
+        var decodificacion = 2000L * 1500 * DimensionesImagen.BytesPorPixelDecodificado;
+        decodificacion.Should().BeGreaterThan(100 * lectura, "control: la reserva por tamaño comprimido no se acerca al coste real");
+        using var ocupado = await _presupuesto.ReservarAsync(_presupuesto.Maximo - (lectura + decodificacion) + bytesDeMenos);
+        var mensaje = Services.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>()["ErrorSinEspacio"].Value;
+        var subiendo = typeof(DrawerGestionDocumento).GetField("_subiendoArchivo", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(png, "foto.png", contentType: "image/png"));
+
+        if (entra)
+            cut.WaitForAssertion(() => _almacen.ContenidoGuardado.Should().NotBeNull());
+        else
+            cut.WaitForAssertion(() => Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == mensaje));
+        cut.WaitForAssertion(() => subiendo.GetValue(cut.Instance).Should().Be(false));
+
+        if (entra)
+            Toasts.Should().NotContain(t => t.Mensaje == mensaje);
+        else
+            _almacen.ContenidoGuardado.Should().BeNull("sin hueco para decodificar no se convierte ni se guarda nada");
+
+        _presupuesto.Reservado.Should().Be(ocupado.Bytes, "ni la reserva de la lectura ni la de la decodificación se pierden");
     }
 
     /// <summary>Sin hueco al guardar (el almacén no pudo reservar): mismo aviso, no queda adjunto y no retiene nada.</summary>

@@ -42,6 +42,28 @@ public static class DimensionesImagen
     public const long MaximoPixeles = 50_000_000;
 
     /// <summary>
+    /// Bytes que cuesta decodificar un píxel: los ~5,5 B/píxel medidos (ver <see cref="MaximoPixeles"/>), redondeados
+    /// hacia arriba porque el presupuesto de memoria es una cota, no una medida exacta. La medición es de un PNG de
+    /// 8 bits en escala de grises; RGB, RGBA y 16 bits están sin medir, así que para ellos es una cota optimista.
+    /// </summary>
+    public const long BytesPorPixelDecodificado = 6;
+
+    /// <summary>
+    /// Memoria que costará decodificar la imagen, calculada con las dimensiones que declara su cabecera y no con el
+    /// tamaño del archivo (que no la acota: ver el comentario de la clase). Una cabecera por encima de
+    /// <see cref="MaximoPixeles"/> cuesta cero: la conversión la rechaza antes de decodificar, y reservar para ella
+    /// haría esperar en la cola del presupuesto a quien sí decodifica. Si la cabecera no declara dimensiones legibles
+    /// se supone el peor caso admitido, nunca cero: falla cerrado.
+    /// </summary>
+    public static long CosteDecodificacionBytes(byte[] contenido) =>
+        PixelesDeclarados(contenido) switch
+        {
+            null => MaximoPixeles * BytesPorPixelDecodificado,
+            > MaximoPixeles => 0,
+            var pixeles => pixeles.Value * BytesPorPixelDecodificado,
+        };
+
+    /// <summary>
     /// Píxeles declarados por la cabecera, o null si no se reconoce el formato
     /// (que es el caso de un PDF o un .docx: no son imágenes y no pasan por
     /// aquí).
@@ -74,7 +96,10 @@ public static class DimensionesImagen
     {
         var ancho = BinaryPrimitives.ReadUInt32BigEndian(contenido.AsSpan(16, 4));
         var alto = BinaryPrimitives.ReadUInt32BigEndian(contenido.AsSpan(20, 4));
-        return (long)ancho * alto;
+
+        // uint x uint cabe en ulong pero no siempre en long: una cabecera de 0xFFFFFFFF x 0xFFFFFFFF daba un
+        // producto negativo, que pasaba el límite y costaba cero. Se satura en long.MaxValue.
+        return (long)Math.Min((ulong)ancho * alto, long.MaxValue);
     }
 
     /// <summary>

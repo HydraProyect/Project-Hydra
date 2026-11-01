@@ -172,6 +172,117 @@ public class DimensionesImagenTests
         DimensionesImagen.EstaDentroDelLimite(pdf).Should().BeTrue();
     }
 
+    // ---- Coste de decodificación y su reserva (revisión de Codex del 2026-11-01; OWASP API4:2023, ASVS 4.0.3 V12.1.1 y V5.2.1) ----
+
+    [Fact]
+    public void El_coste_de_decodificacion_sale_de_las_dimensiones_y_no_del_tamano_del_archivo()
+    {
+        var png = CabeceraPngCon(8000, 6000);
+
+        png.Length.Should().BeLessThan(1024, "control: el archivo comprimido es minúsculo");
+        DimensionesImagen.CosteDecodificacionBytes(png).Should().Be(8000L * 6000 * DimensionesImagen.BytesPorPixelDecodificado);
+        DimensionesImagen.CosteDecodificacionBytes(CrearCabeceraJpeg(4000, 3000)).Should().Be(4000L * 3000 * DimensionesImagen.BytesPorPixelDecodificado);
+    }
+
+    [Fact]
+    public void Una_cabecera_ilegible_cuesta_el_peor_caso_admitido_y_una_que_supera_el_limite_nada_porque_se_rechaza()
+    {
+        var peorCaso = DimensionesImagen.MaximoPixeles * DimensionesImagen.BytesPorPixelDecodificado;
+
+        // Un JPEG cuyo SOF no se encuentra no puede costar cero: falla cerrado.
+        DimensionesImagen.CosteDecodificacionBytes([0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02]).Should().Be(peorCaso);
+        // Por encima del límite la conversión lo rechaza antes de decodificar: no ocupa cola en el presupuesto.
+        DimensionesImagen.CosteDecodificacionBytes(CabeceraPngCon(12000, 12000)).Should().Be(0);
+    }
+
+    [Fact]
+    public void Una_cabecera_con_el_maximo_de_ancho_y_de_alto_no_desborda_y_se_rechaza()
+    {
+        // 0xFFFFFFFF x 0xFFFFFFFF supera long.MaxValue: con aritmética de long daba negativo, pasaba el límite y costaba cero.
+        var bomba = CabeceraPngCon(-1, -1);
+
+        DimensionesImagen.PixelesDeclarados(bomba).Should().Be(long.MaxValue);
+        DimensionesImagen.EstaDentroDelLimite(bomba).Should().BeFalse();
+        DimensionesImagen.CosteDecodificacionBytes(bomba).Should().Be(0);
+    }
+
+    [Fact]
+    public void El_coste_de_unificar_es_el_de_la_imagen_mas_cara_y_los_pdf_no_cuentan()
+    {
+        var pdf = "%PDF-1.7\nresto"u8.ToArray();
+        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> archivos =
+        [
+            (pdf, "a.pdf"), (CabeceraPngCon(1000, 1000), "b.png"), (CrearCabeceraJpeg(4000, 3000), "c.jpg"), (CabeceraPngCon(2000, 2000), "d.png"),
+        ];
+
+        ConversorArchivosPdf.CosteDecodificacionImagenesBytes(archivos)
+            .Should().Be(4000L * 3000 * DimensionesImagen.BytesPorPixelDecodificado);
+        ConversorArchivosPdf.CosteDecodificacionImagenesBytes([(pdf, "a.pdf")]).Should().Be(0);
+    }
+
+    private static PresupuestoMemoriaDocumentos CrearPresupuesto(long maximo, TimeSpan? espera = null) =>
+        new(Microsoft.Extensions.Options.Options.Create(new OpcionesPresupuestoMemoriaDocumentos
+        {
+            MaximoBytes = maximo,
+            EsperaMaxima = espera ?? TimeSpan.FromMilliseconds(50)
+        }), TimeProvider.System);
+
+    [Fact]
+    public async Task Una_imagen_diminuta_pero_enorme_decodificada_amplia_la_reserva_y_al_desechar_se_devuelve()
+    {
+        var presupuesto = CrearPresupuesto(512L * 1024 * 1024);
+        var png = CabeceraPngCon(8000, 6000);
+        using var lectura = await presupuesto.ReservarAsync(4L * png.Length);
+
+        var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(presupuesto, lectura, [(png, "foto.png")]);
+
+        presupuesto.Reservado.Should().Be(4L * png.Length + 8000L * 6000 * DimensionesImagen.BytesPorPixelDecodificado,
+            "el coste real de decodificar, no cuatro veces los pocos bytes comprimidos");
+        decodificacion.Dispose();
+        presupuesto.Reservado.Should().Be(4L * png.Length);
+    }
+
+    [Fact]
+    public async Task La_ampliacion_nunca_pide_mas_de_lo_que_cabe_junto_a_la_reserva_de_la_lectura()
+    {
+        // La lectura ya retiene casi todo el presupuesto (varias páginas grandes): pedir el coste entero
+        // dejaría a la conversión esperando, hasta rechazarse, a su propia reserva.
+        var presupuesto = CrearPresupuesto(400_000_000);
+        using var lectura = await presupuesto.ReservarAsync(300_000_000);
+
+        using var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(
+            presupuesto, lectura, [(CabeceraPngCon(8000, 6000), "foto.png")]);
+
+        presupuesto.Reservado.Should().Be(400_000_000, "se amplía hasta el presupuesto entero, sin pasarse");
+    }
+
+    [Fact]
+    public async Task Sin_hueco_para_decodificar_falla_cerrado_y_no_pierde_la_reserva_de_la_lectura()
+    {
+        var presupuesto = CrearPresupuesto(512L * 1024 * 1024);
+        var png = CabeceraPngCon(8000, 6000);
+        using var lectura = await presupuesto.ReservarAsync(4L * png.Length);
+        using var ocupado = await presupuesto.ReservarAsync(presupuesto.Maximo - 4L * png.Length - 1_000);
+
+        var reservar = async () => await ConversorArchivosPdf.ReservarDecodificacionAsync(presupuesto, lectura, [(png, "foto.png")]);
+
+        await reservar.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(presupuesto.Maximo - 1_000, "el rechazo no descuenta nada y la lectura sigue reservada");
+        presupuesto.EnEspera.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Sin_imagenes_la_ampliacion_no_reserva_nada()
+    {
+        var presupuesto = CrearPresupuesto(1_000_000);
+        using var lectura = await presupuesto.ReservarAsync(4_000);
+
+        using var decodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(
+            presupuesto, lectura, [("%PDF-1.7\nresto"u8.ToArray(), "a.pdf")]);
+
+        presupuesto.Reservado.Should().Be(4_000);
+    }
+
     private sealed class ConversorWordFalso : IConversorWordPdfService
     {
         public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) =>

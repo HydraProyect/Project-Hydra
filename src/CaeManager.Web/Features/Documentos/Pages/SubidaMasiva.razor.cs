@@ -621,7 +621,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
                     _almacen?.Eliminar(original);
                 }
 
-                await LeerItemAsync(item, contenido, carga, token);
+                await LeerItemAsync(item, contenido, reserva, carga, token);
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -634,7 +634,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     /// <summary>Valida el archivo, lo convierte a PDF y le pide a la IA su propuesta; el item acaba pendiente de confirmar o en Error.</summary>
-    private async Task LeerItemAsync(ItemLote item, byte[] contenido, int carga, CancellationToken token)
+    private async Task LeerItemAsync(ItemLote item, byte[] contenido, ReservaMemoriaDocumentos reservaLectura, int carga, CancellationToken token)
     {
         var nombreArchivo = item.NombreArchivo;
         if (!ConversorArchivosPdf.EsPdf(nombreArchivo) && !ConversorArchivosPdf.EsImagen(nombreArchivo) && !ConversorArchivosPdf.EsWord(nombreArchivo))
@@ -658,10 +658,32 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
+        // La reserva de la lectura se calculó con el tamaño comprimido, que no acota lo que cuesta
+        // decodificar una imagen: se amplía con el coste que declaran sus dimensiones mientras dura la
+        // conversión (OWASP API4:2023, ASVS 4.0.3 V12.1.1 y V5.2.1). Sin hueco el archivo se queda en
+        // Error con el mismo mensaje que la lectura.
+        IReadOnlyList<(byte[] Contenido, string NombreArchivo)> entrada = [(contenido, nombreArchivo)];
+        ReservaMemoriaDocumentos reservaDecodificacion;
+        try
+        {
+            reservaDecodificacion = await ConversorArchivosPdf.ReservarDecodificacionAsync(PresupuestoMemoria, reservaLectura, entrada, token);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            if (!EsVigente(carga)) return;
+            MarcarError(item, Textos["ErrorSinEspacio"]);
+            StateHasChanged();
+            return;
+        }
+
         byte[] contenidoPdf;
         try
         {
-            contenidoPdf = await ConversorArchivosPdf.UnificarAsync([(contenido, nombreArchivo)], ConversorWordPdf);
+            using (reservaDecodificacion)
+            {
+                contenidoPdf = await ConversorArchivosPdf.UnificarAsync(entrada, ConversorWordPdf);
+            }
+
             if (!EsVigente(carga)) return;
         }
         catch (ConversionWordPdfOcupadaException)

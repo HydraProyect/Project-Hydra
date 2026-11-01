@@ -73,6 +73,13 @@ public sealed class OpcionesPresupuestoMemoriaDocumentos
 public interface IPresupuestoMemoriaDocumentos
 {
     /// <summary>
+    /// Bytes que el presupuesto admite a la vez en todo el proceso. Quien ya retiene una reserva y necesita ampliarla
+    /// lo usa para no pedir más de lo que cabe junto a ella: una segunda petición que, sumada a la primera, pasara de
+    /// aquí esperaría a una reserva que ella misma retiene.
+    /// </summary>
+    long Maximo { get; }
+
+    /// <summary>
     /// Reserva <paramref name="bytes"/> del presupuesto. Si no hay hueco, espera como
     /// mucho <see cref="OpcionesPresupuestoMemoriaDocumentos.EsperaMaxima"/>, en orden de
     /// llegada. Una petición mayor que el presupuesto entero no se rechaza por serlo:

@@ -1,5 +1,6 @@
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -63,7 +64,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"), PresupuestoDePrueba());
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -83,7 +84,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"), PresupuestoDePrueba());
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -114,7 +115,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(conexionesIntegracionAjenas: [conexionAjenaId]), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"), PresupuestoDePrueba());
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -146,7 +147,7 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: rol));
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: rol), PresupuestoDePrueba());
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
@@ -179,13 +180,98 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
         var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
             contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueNuncaSeDebeLlamar(),
             new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
-            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso());
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(), PresupuestoDePrueba());
 
         var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
     }
+
+    /// <summary>
+    /// Auditoría del 2026-11-01 (OWASP API4:2023, ASVS 4.0.3 V12.1.1): con la extracción activa, el adjunto copiado a
+    /// memoria sigue reservado mientras el router lo analiza, y la reserva se devuelve al terminar.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_extraccion_activa_la_reserva_sigue_viva_durante_el_analisis_y_se_devuelve_despues()
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Reserva Analisis S.L.", "B10380194", false, null, null);
+        contexto.Empresas.Add(cliente);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Documentación recibida");
+        conversacion.AsignarCliente(cliente.Id);
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var contenidoAdjunto = new byte[1000];
+        var presupuesto = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
+        var router = new RouterQueAnotaElPresupuesto(presupuesto);
+        var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = true });
+        var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueDevuelve(contenidoAdjunto),
+            router, opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"), presupuesto);
+
+        var resultado = await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("el router de la prueba falla a propósito después de anotar el presupuesto");
+        router.ReservadoDuranteElAnalisis.Should().BeGreaterThanOrEqualTo(
+            contenidoAdjunto.Length * LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis,
+            "el adjunto copiado a memoria no puede estar sin reserva mientras se analiza");
+        presupuesto.Reservado.Should().Be(0, "terminado el análisis la reserva se devuelve");
+    }
+
+    /// <summary>Sin hueco para el análisis la query falla cerrada con la saturación transitoria: no llama al router y no deja nada reservado.</summary>
+    [Fact]
+    public async Task Con_la_extraccion_activa_y_sin_hueco_en_el_presupuesto_falla_cerrado_sin_llamar_al_router()
+    {
+        await using var contexto = CrearContexto();
+
+        var cliente = Empresa.CrearComoCliente("Cliente Sin Hueco Analisis S.L.", "B10380194", false, null, null);
+        contexto.Empresas.Add(cliente);
+        await contexto.SaveChangesAsync();
+
+        var conversacion = new Conversacion("Documentación recibida");
+        conversacion.AsignarCliente(cliente.Id);
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+
+        var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "Adjunto el certificado");
+        await contexto.SaveChangesAsync();
+
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "certificado.pdf", "application/pdf", 1024, "adjuntos/certificado.pdf");
+        contexto.AdjuntosMensaje.Add(adjunto);
+        await contexto.SaveChangesAsync();
+
+        var presupuesto = new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = 100_000, EsperaMaxima = TimeSpan.FromMilliseconds(50) }),
+            TimeProvider.System);
+        using var ocupado = await presupuesto.ReservarAsync(80_000);
+        var opciones = Options.Create(new ExtraccionDocumentoAdjuntoOptions { Activa = true });
+        var handler = new DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(), new AlmacenamientoQueDevuelve(new byte[10_000]),
+            new RouterQueNuncaSeDebeLlamar(), opciones, contexto, contexto, contexto,
+            new InstruccionTratamientoIaSiempreHabilitada(), new TenantActualFalso(_tenant), new CurrentUserServiceFalso(rol: "GestorCae"), presupuesto);
+
+        var analizar = async () => await handler.Handle(new DetectarActualizacionDocumentoDesdeAdjuntoQuery(adjunto.Id), CancellationToken.None);
+
+        await analizar.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(80_000, "el rechazo no deja nada reservado");
+    }
+
+    private static PresupuestoMemoriaDocumentos PresupuestoDePrueba() =>
+        new(Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System);
 
     private CaeManagerDbContext CrearContexto()
     {
@@ -210,7 +296,32 @@ public class DetectarActualizacionDocumentoDesdeAdjuntoQueryTests : IAsyncLifeti
             throw new InvalidOperationException("No debería llamarse con el kill switch apagado.");
     }
 
-    private class RouterQueNuncaSeDebeLlamar : CaeManager.Application.DocumentosIa.IDocumentAIRouterService
+    private sealed class AlmacenamientoQueDevuelve(byte[] contenido) : IFileStorageService
+    {
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Esta prueba no guarda.");
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Stream>(new MemoryStream(contenido, writable: false));
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Esta prueba no borra.");
+    }
+
+    private sealed class RouterQueAnotaElPresupuesto(PresupuestoMemoriaDocumentos presupuesto) : CaeManager.Application.DocumentosIa.IDocumentAIRouterService
+    {
+        public long ReservadoDuranteElAnalisis { get; private set; }
+
+        public Task<Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>> ProcesarAsync(
+            byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default)
+        {
+            ReservadoDuranteElAnalisis = presupuesto.Reservado;
+            return Task.FromResult(Result.Fallo<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>(
+                Error.Crear("Prueba.Fallo", "Fallo de prueba.")));
+        }
+    }
+
+    private class RouterQueNuncaSeDebeLlamar :CaeManager.Application.DocumentosIa.IDocumentAIRouterService
     {
         public Task<Result<CaeManager.Application.DocumentosIa.Common.ExtraccionEstructuradaDto>> ProcesarAsync(
             byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default) =>

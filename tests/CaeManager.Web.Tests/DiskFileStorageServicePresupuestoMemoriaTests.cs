@@ -303,6 +303,9 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
         public long MaximoReservado => Interlocked.Read(ref _maximoReservado);
         public int Pedidos => Volatile.Read(ref _pedidos);
 
+        // Explícita: esta clase ya tiene un método Maximo(ref, long) auxiliar.
+        long IPresupuestoMemoriaDocumentos.Maximo => Interno.Maximo;
+
         public async ValueTask<ReservaMemoriaDocumentos> ReservarAsync(long bytes, CancellationToken cancellationToken = default)
         {
             var reserva = await Interno.ReservarAsync(bytes, cancellationToken);
