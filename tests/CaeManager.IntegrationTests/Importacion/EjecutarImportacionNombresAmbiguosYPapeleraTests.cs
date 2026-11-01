@@ -120,6 +120,16 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_consulta_de_Papelera_no_devuelve_el_DNI_de_un_Trabajador_activo()
+    {
+        await using var contexto = CrearContexto();
+
+        var enPapelera = await new TrabajadorRepository(contexto).ObtenerDnisEnPapeleraAsync([DniActivo, DniEnPapelera]);
+
+        enPapelera.Should().BeEquivalentTo([DniEnPapelera], "el activo no está en la Papelera");
+    }
+
+    [Fact]
     public async Task Centros_homonimos_y_Tipos_de_documento_que_difieren_en_mayusculas_omiten_solo_las_filas_ambiguas()
     {
         var plan = Plan(

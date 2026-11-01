@@ -157,4 +157,19 @@ public class EjecutarImportacionCombinadaNombresAmbiguosTests
 
         resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Papelera");
     }
+
+    [Fact]
+    public async Task El_DNI_de_la_Combinada_se_compara_normalizado_con_la_Papelera()
+    {
+        var escenario = new EscenarioImportacionCombinada();
+        escenario.EmpresaRepositorio.Empresas.Add(new Empresa(EmpresaProveedora));
+        escenario.TrabajadorRepositorio.DnisEnPapelera.Add("12345678Z");
+        var plan = EscenarioImportacionCombinada.Plan(trabajadores:
+            [new TrabajadorImportadoDto(EmpresaProveedora, "Lucía", "Fernández", "1234-5678-z", null, null, YaExiste: false, Hoja: "Trabajadores", Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan);
+
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Papelera");
+        resultado.TrabajadoresCreados.Should().Be(0);
+    }
 }
