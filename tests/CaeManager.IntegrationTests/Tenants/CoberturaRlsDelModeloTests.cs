@@ -850,7 +850,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     [
         ("TenantsAlcanzadosPorConcesion", "alcance_por_quien_concede", 'a',
             ["app_ctx_usuario_id()", "ConcedidaPorUsuarioId", "app_es_admin_plataforma_sobre(", "EsAlcanceGlobal", "Vigente",
-             "c.\"TransaccionDeAlta\" = pg_current_xact_id()", "VigenciaDesde", "00:05:00"], []),
+             "c.\"TransaccionDeAlta\" = pg_current_xact_id()", "c.\"InicioTransaccionDeAlta\" = now()"], []),
         ("SesionesPrivilegiadas", "sesion_privilegiada_apertura", 'a',
             ["app_ctx_usuario_id()", "UsuarioPlataformaId", "TenantsAlcanzadosPorConcesion", "TenantObjetivoId", "Vigente",
              "VigenciaHasta", "UsuarioSimuladoId", "04:00:00", "00:05:00"], []),
@@ -986,13 +986,15 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     }
 
     /// <summary>
-    /// <c>alcance_por_quien_concede</c> se apoya en <c>TransaccionDeAlta</c>
-    /// (<c>AlcanceDeConcesionSoloEnSuCreacion</c>): tiene que ser <c>xid8</c>, que no da la vuelta, sin
-    /// <c>DEFAULT</c> que aparente sellarla, y con el trigger <c>BEFORE INSERT</c> activo, que es lo que
-    /// impide elegirla en el <c>INSERT</c>.
+    /// <c>alcance_por_quien_concede</c> se apoya en <c>TransaccionDeAlta</c> e
+    /// <c>InicioTransaccionDeAlta</c> (<c>AlcanceDeConcesionSoloEnSuCreacion</c>): el identificador tiene
+    /// que ser <c>xid8</c>, que no da la vuelta, las dos sin <c>DEFAULT</c> que aparente sellarlas, y con
+    /// el trigger <c>BEFORE INSERT</c> activo, que es lo que impide elegirlas en el <c>INSERT</c>.
     /// </summary>
-    [Fact]
-    public async Task La_transaccion_de_alta_de_una_concesion_la_sella_un_trigger_en_xid8()
+    [Theory]
+    [InlineData("TransaccionDeAlta", "xid8")]
+    [InlineData("InicioTransaccionDeAlta", "timestamp with time zone")]
+    public async Task La_identidad_de_alta_de_una_concesion_la_sella_un_trigger(string columna, string tipo)
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -1008,14 +1010,15 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                        AND (t.tgtype & 4) <> 0)  -- INSERT
             FROM pg_catalog.pg_attribute a
             WHERE a.attrelid = 'public."ConcesionesPrivilegio"'::regclass
-              AND a.attname = 'TransaccionDeAlta' AND NOT a.attisdropped;
+              AND a.attname = @columna AND NOT a.attisdropped;
             """;
+        comando.Parameters.AddWithValue("columna", columna);
 
         await using var lector = await comando.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue("la migración tiene que haber creado la columna");
 
         using var _ = new AssertionScope();
-        lector.GetString(0).Should().Be("xid8", "xid truncaría a 32 bits y daría la vuelta");
+        lector.GetString(0).Should().Be(tipo, "xid truncaría a 32 bits y daría la vuelta");
         lector.GetBoolean(1).Should().BeFalse("un DEFAULT dejaría filas antiguas con valor y se podría falsificar");
         lector.GetBoolean(2).Should().BeFalse("las concesiones anteriores conservan NULL y no admiten alcance");
         lector.GetInt64(3).Should().Be(1, "sin el trigger, cae_app_runtime elegiría el valor en el INSERT");

@@ -216,32 +216,43 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
             .Should().Be(1);
     }
 
-    [Fact]
-    public async Task Una_concesion_sin_transaccion_de_alta_no_recibe_alcance()
+    [Theory]
+    [InlineData("TransaccionDeAlta")]
+    [InlineData("InicioTransaccionDeAlta")]
+    public async Task Una_concesion_sin_identidad_de_alta_no_recibe_alcance(string columna)
     {
         // Es lo que queda en las filas anteriores a la migración: NULL nunca coincide.
         var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
             usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB,
-            trasElAlta: @"UPDATE ""ConcesionesPrivilegio"" SET ""TransaccionDeAlta"" = NULL WHERE ""Id"" = @id;");
+            trasElAlta: $@"UPDATE ""ConcesionesPrivilegio"" SET ""{columna}"" = NULL WHERE ""Id"" = @id;");
 
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
     [Fact]
-    public async Task Una_concesion_con_mas_de_cinco_minutos_no_recibe_alcance_aunque_coincida_la_transaccion()
+    public async Task Tras_restaurar_un_xid_repetido_no_amplia_la_concesion_aunque_la_transaccion_siga_abierta()
     {
-        // La coincidencia que deja una restauración lógica, que reinicia la cuenta de transacciones.
-        var accion = async () => await AnadirAlcanceDentroDelAltaAsync(
-            usuario: _admin, beneficiario: _tecnico, concedente: _admin, _tenantB,
-            vigenciaDesde: "now() - interval '6 minutes'");
+        // pg_restore reinicia la cuenta de transacciones y una concesión restaurada guarda un número que
+        // el clúster aún no ha usado. El UPDATE del propietario simula esa coincidencia: una transacción
+        // abierta poco después de crear la concesión, mantenida sin xid y que acaba recibiendo el mismo.
+        var accion = async () => await AmpliarConIdentidadRepetidaAsync(repiteTambienElInicio: false);
 
         (await accion.Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "ninguna transacción posterior comparte el inicio de la que creó la concesión");
     }
 
     [Fact]
-    public async Task La_transaccion_de_alta_no_se_elige_en_el_INSERT()
+    public async Task Con_toda_la_identidad_repetida_el_mismo_recorrido_escribe_el_alcance()
+    {
+        // Control positivo: sin él, el rechazo anterior pasaría también si el recorrido fallara por otra
+        // causa, y la condición que lo decide es solo el inicio de la transacción.
+        (await AmpliarConIdentidadRepetidaAsync(repiteTambienElInicio: true)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_identidad_de_alta_no_se_elige_en_el_INSERT()
     {
         // Sin el trigger, quien concede anotaría un identificador futuro y ampliaría la concesión al
         // llegar la cuenta a él. Es la falsificación que un DEFAULT no impide.
@@ -255,10 +266,10 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
 INSERT INTO public.""ConcesionesPrivilegio""
     (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
      ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"",
-     ""TransaccionDeAlta"")
+     ""TransaccionDeAlta"", ""InicioTransaccionDeAlta"")
 VALUES (@id, @beneficiario, 'Aprovisionamiento', false, @desde, @hasta, 'Vigente', @concedente,
         'Alta por debajo del dominio (test)', @desde, gen_random_uuid(), 'Ordinaria',
-        (pg_current_xact_id()::text::numeric + 1000)::text::xid8);";
+        (pg_current_xact_id()::text::numeric + 1000)::text::xid8, now() + interval '1 hour');";
             insertar.Parameters.AddWithValue("id", concesion);
             insertar.Parameters.AddWithValue("beneficiario", _tecnico);
             insertar.Parameters.AddWithValue("desde", ahora);
@@ -269,7 +280,8 @@ VALUES (@id, @beneficiario, 'Aprovisionamiento', false, @desde, @hasta, 'Vigente
 
         await using var leer = conexion.CreateCommand();
         leer.CommandText =
-            @"SELECT ""TransaccionDeAlta"" = pg_current_xact_id() FROM ""ConcesionesPrivilegio"" WHERE ""Id"" = @id;";
+            @"SELECT ""TransaccionDeAlta"" = pg_current_xact_id() AND ""InicioTransaccionDeAlta"" = now()
+                FROM ""ConcesionesPrivilegio"" WHERE ""Id"" = @id;";
         leer.Parameters.AddWithValue("id", concesion);
 
         ((bool)(await leer.ExecuteScalarAsync())!).Should().BeTrue(
@@ -281,7 +293,11 @@ VALUES (@id, @beneficiario, 'Aprovisionamiento', false, @desde, @hasta, 'Vigente
         PostgresErrorCodes.InsufficientPrivilege)]
     [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada', ""TransaccionDeAlta"" = pg_current_xact_id() WHERE ""Id"" = @id;",
         PostgresErrorCodes.CheckViolation)]
-    public async Task La_transaccion_de_alta_no_se_reescribe_despues(string sql, string sqlState)
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""InicioTransaccionDeAlta"" = now() WHERE ""Id"" = @id;",
+        PostgresErrorCodes.InsufficientPrivilege)]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada', ""InicioTransaccionDeAlta"" = now() WHERE ""Id"" = @id;",
+        PostgresErrorCodes.CheckViolation)]
+    public async Task La_identidad_de_alta_no_se_reescribe_despues(string sql, string sqlState)
     {
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
 
@@ -676,7 +692,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
     /// </summary>
     private async Task<int> AnadirAlcanceDentroDelAltaAsync(
         Guid usuario, Guid beneficiario, Guid concedente, Guid tenantId,
-        string estado = "Vigente", bool esAlcanceGlobal = false, string vigenciaDesde = "now()",
+        string estado = "Vigente", bool esAlcanceGlobal = false,
         bool enPuntoDeGuardado = false, string? trasElAlta = null)
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
@@ -690,11 +706,11 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         var concesionId = Guid.NewGuid();
         await using (var insertar = conexion.CreateCommand())
         {
-            insertar.CommandText = $@"
+            insertar.CommandText = @"
 INSERT INTO public.""ConcesionesPrivilegio""
     (""Id"", ""UsuarioPlataformaId"", ""Capacidad"", ""EsAlcanceGlobal"", ""VigenciaDesde"", ""VigenciaHasta"",
      ""Estado"", ""ConcedidaPorUsuarioId"", ""MotivoConcesion"", ""CreadoEnUtc"", ""Version"", ""Origen"")
-VALUES (@id, @beneficiario, @capacidad, @global, {vigenciaDesde}, now() + interval '7 days', @estado, @concedente,
+VALUES (@id, @beneficiario, @capacidad, @global, now(), now() + interval '7 days', @estado, @concedente,
         'Alta por debajo del dominio (test)', now(), gen_random_uuid(), 'Ordinaria');";
             insertar.Parameters.AddWithValue("id", concesionId);
             insertar.Parameters.AddWithValue("beneficiario", beneficiario);
@@ -719,6 +735,50 @@ VALUES (@id, @beneficiario, @capacidad, @global, {vigenciaDesde}, now() + interv
         }
 
         return await InsertarAlcanceAsync(conexion, concesionId, tenantId);
+    }
+
+    /// <summary>
+    /// Crea la concesión en su propia transacción, abre otra, deja pasar tiempo real dentro de ella y le
+    /// escribe como propietario la identidad de esa transacción, que es lo que dejaría una coincidencia
+    /// tras restaurar. La concesión acaba de nacer y sigue vigente: si se aceptara, la ampliaría.
+    /// </summary>
+    private async Task<int> AmpliarConIdentidadRepetidaAsync(bool repiteTambienElInicio)
+    {
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            _tecnico, CapacidadPrivilegio.Aprovisionamiento, [_tenantA],
+            ahora, ahora.AddDays(7), concedidaPorUsuarioId: _admin, motivoConcesion: "Alta de A");
+        await using (var contexto = CrearContexto(_admin))
+        {
+            new PlataformaWriter(contexto).AnadirConcesion(concesion);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, usuarioId: _admin);
+        await using var abierta = await conexion.BeginTransactionAsync();
+
+        await using (var mantener = conexion.CreateCommand())
+        {
+            // now() queda fijo en la primera sentencia y pg_sleep no asigna xid.
+            mantener.CommandText = "SELECT pg_sleep(1.1);";
+            await mantener.ExecuteNonQueryAsync();
+        }
+
+        var inicio = repiteTambienElInicio ? @", ""InicioTransaccionDeAlta"" = now()" : "";
+        (await EjecutarAsync(conexion,
+                $@"UPDATE ""ConcesionesPrivilegio"" SET ""TransaccionDeAlta"" = pg_current_xact_id(){inicio} WHERE ""Id"" = @id;",
+                concesion.Id))
+            .Should().Be(1, "la preparación tiene que tocar la concesión");
+
+        await using (var setRol = conexion.CreateCommand())
+        {
+            setRol.CommandText = "SET LOCAL ROLE cae_app_runtime;";
+            await setRol.ExecuteNonQueryAsync();
+        }
+
+        return await InsertarAlcanceAsync(conexion, concesion.Id, _tenantB);
     }
 
     private static async Task<int> InsertarSesionAsync(

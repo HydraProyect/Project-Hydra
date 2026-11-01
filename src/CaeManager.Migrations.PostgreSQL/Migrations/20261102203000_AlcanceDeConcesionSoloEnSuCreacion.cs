@@ -19,12 +19,28 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     ///
     /// <para>
     /// <b>La identidad de la transacción.</b> Cada concesión guarda en <c>TransaccionDeAlta</c>
-    /// (<c>xid8</c>) el <c>pg_current_xact_id()</c> de la transacción que la crea, y el <c>WITH CHECK</c>
-    /// exige que coincida con el de la transacción que escribe el alcance. <c>xid8</c> lleva la época:
-    /// son 64 bits que no dan la vuelta, y por eso no sirve <c>xmin</c>, que trunca a 32 bits y
-    /// coincidiría con una transacción posterior tras unos 4.000 millones de ellas, que quien concedió
-    /// puede forzar. <c>pg_current_xact_id()</c> devuelve siempre la transacción de nivel superior, así
-    /// que el alta dentro de un punto de guardado también pasa, cosa que <c>xmin</c> no permitía.
+    /// (<c>xid8</c>) el <c>pg_current_xact_id()</c> de la transacción que la crea, y en
+    /// <c>InicioTransaccionDeAlta</c> su <c>now()</c>. El <c>WITH CHECK</c> exige que los dos coincidan
+    /// con los de la transacción que escribe el alcance. <c>xid8</c> lleva la época: son 64 bits que no
+    /// dan la vuelta, y por eso no sirve <c>xmin</c>, que trunca a 32 bits y coincidiría con una
+    /// transacción posterior tras unos 4.000 millones de ellas, que quien concedió puede forzar.
+    /// <c>pg_current_xact_id()</c> devuelve siempre la transacción de nivel superior, así que el alta
+    /// dentro de un punto de guardado también pasa, cosa que <c>xmin</c> no permitía.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Por qué hace falta el inicio.</b> <c>xid8</c> solo es único dentro de un clúster. Las copias
+    /// son <c>pg_dump</c> (<c>scripts/backup-borg.sh</c>), y <c>pg_restore</c> carga los datos en un
+    /// clúster cuya cuenta de transacciones empieza de cero, así que una concesión restaurada guarda un
+    /// número que ese clúster aún no ha usado y que una transacción nueva puede alcanzar. Una cota de
+    /// fecha no lo cierra: con <c>now()</c>, fijado al empezar la transacción, bastaría abrirla dentro
+    /// de la ventana y mantenerla sin xid; con <c>clock_timestamp()</c> quedarían los minutos de la
+    /// ventana, en los que un clúster recién restaurado aún puede consumir los identificadores que le
+    /// faltan. El inicio se compara por igualdad y no depende de ninguna ventana: toda transacción del
+    /// clúster restaurado empieza después que la que creó la concesión, también si se mantiene abierta,
+    /// y el par no se repite. Dentro de un clúster, dos transacciones pueden empezar en el mismo
+    /// microsegundo, y de eso responde <c>xid8</c>. La caducidad del contexto firmado no aportaría nada:
+    /// no ata la escritura a la concesión.
     /// </para>
     ///
     /// <para>
@@ -34,27 +50,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <c>concesion_privilegio_sella_su_alta</c> pisa siempre lo que venga, y un <c>GRANT</c> por columnas
     /// dependería de que nadie vuelva a conceder la tabla entera. Los <c>UPDATE</c> no lo tocan bajo RLS:
     /// <c>concesion_privilegio_solo_se_cierra</c> compara todas las columnas salvo <c>Estado</c>,
-    /// <c>VigenciaHasta</c> y <c>Version</c>, y la columna nueva entra sola en esa comparación. Un
-    /// cierre tampoco reabre nada: <c>Estado = 'Vigente'</c> sigue en el <c>EXISTS</c>.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>La cota de fecha se queda.</b> <c>VigenciaDesde >= now() - 5 minutos</c> ya no hace falta para
-    /// la vuelta de los 32 bits, y sí tras una restauración lógica: las copias son <c>pg_dump</c>
-    /// (<c>scripts/backup-borg.sh</c>), y <c>pg_restore</c> carga los datos en un clúster cuya cuenta de
-    /// transacciones empieza de cero, así que una concesión restaurada guarda un número que el clúster
-    /// aún no ha usado. La cota deja fuera esa coincidencia salvo en los minutos siguientes a crear la
-    /// concesión. No toca el alta legítima: en esta misma transacción
-    /// <c>privilegio_concesion_a_tercero</c> exigió esa misma cota con el mismo <c>now()</c>, y
-    /// <c>concesion_privilegio_solo_se_cierra</c> impide reescribirla.
+    /// <c>VigenciaHasta</c> y <c>Version</c>, y las columnas nuevas entran solas en esa comparación. Un
+    /// cierre tampoco reabre nada: <c>Estado = 'Vigente'</c> sigue en el <c>EXISTS</c>. Un
+    /// <c>pg_restore</c> de solo datos sobre un esquema migrado dispararía el trigger y sellaría las
+    /// concesiones con la transacción de la restauración, que ya no vuelve.
     /// </para>
     ///
     /// <para>
     /// <b>Filas existentes y ranura anterior.</b> <c>ADD COLUMN</c> sin valor por defecto deja
     /// <c>NULL</c> en las concesiones anteriores, y <c>NULL</c> nunca coincide: ninguna admite alcance
-    /// nuevo. La columna no entra en el modelo de EF Core porque ni el dominio ni la aplicación la leen
-    /// ni la escriben, así que ninguna versión la conoce y el trigger la rellena en todas: la ranura
-    /// anterior sirviendo no nota el cambio. No cambia el modelo ni el snapshot.
+    /// nuevo. Las columnas no entran en el modelo de EF Core porque ni el dominio ni la aplicación las
+    /// leen ni las escriben, así que ninguna versión las conoce y el trigger las rellena en todas: la
+    /// ranura anterior sirviendo no nota el cambio. No cambia el modelo ni el snapshot.
     /// </para>
     ///
     /// <para>
@@ -85,7 +92,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
             migrationBuilder.Sql(
                 """
-                ALTER TABLE public."ConcesionesPrivilegio" ADD COLUMN "TransaccionDeAlta" xid8;
+                ALTER TABLE public."ConcesionesPrivilegio"
+                    ADD COLUMN "TransaccionDeAlta" xid8,
+                    ADD COLUMN "InicioTransaccionDeAlta" timestamp with time zone;
 
                 CREATE FUNCTION public.app_concesion_privilegio_sella_su_alta() RETURNS trigger
                     LANGUAGE plpgsql
@@ -93,6 +102,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AS $$
                 BEGIN
                     NEW."TransaccionDeAlta" := pg_catalog.pg_current_xact_id();
+                    NEW."InicioTransaccionDeAlta" := pg_catalog.now();
                     RETURN NEW;
                 END;
                 $$;
@@ -109,7 +119,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                                 AND (c."EsAlcanceGlobal" = false)
                                 AND ((c."Estado")::text = 'Vigente'::text)
                                 AND (c."TransaccionDeAlta" = pg_catalog.pg_current_xact_id())
-                                AND (c."VigenciaDesde" >= (now() - '00:05:00'::interval)))))
+                                AND (c."InicioTransaccionDeAlta" = pg_catalog.now()))))
                         AND public.app_es_admin_plataforma_sobre((SELECT public.app_ctx_usuario_id()), "TenantId")));
                 """);
         }
@@ -130,7 +140,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                 DROP TRIGGER concesion_privilegio_sella_su_alta ON public."ConcesionesPrivilegio";
                 DROP FUNCTION public.app_concesion_privilegio_sella_su_alta();
-                ALTER TABLE public."ConcesionesPrivilegio" DROP COLUMN "TransaccionDeAlta";
+                ALTER TABLE public."ConcesionesPrivilegio"
+                    DROP COLUMN "InicioTransaccionDeAlta",
+                    DROP COLUMN "TransaccionDeAlta";
                 """);
         }
     }
