@@ -43,6 +43,14 @@ async function obtenerConexion() {
   return { hydraUrl: hydraUrl ?? null, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
 }
 
+// Lo único que sale por mensajería: el content script corre dentro de un portal ajeno,
+// y lo que pueda pedir él lo puede pedir quien comprometa esa página. El token no sale
+// de este fichero más que en la cabecera hacia TALVEG.
+async function estadoDeConexion() {
+  const { hydraUrl, expiraEnUtc, conectado } = await obtenerConexion();
+  return { hydraUrl, expiraEnUtc, conectado };
+}
+
 function normalizarOrigen(url) {
   try {
     return new URL(url).origin;
@@ -82,7 +90,9 @@ async function avisarDeLaConexion(conectado, expiraEnUtc = null) {
 
 async function conectar(hydraUrl, token, expiraEnUtc) {
   const origen = normalizarOrigen(hydraUrl);
-  if (!origen) return { ok: false, error: "La URL de TALVEG no es válida." };
+  // El token se manda a este origen en cada petición: ni un código pegado ni un
+  // mensaje deciden a dónde va.
+  if (!ORIGENES_TALVEG_PERMITIDOS.includes(origen)) return { ok: false, error: "La URL de TALVEG no es válida." };
 
   // Sin chrome.permissions.request: host_permissions ya cubre de forma
   // estática los dos orígenes de TALVEG (ver cabecera del fichero) — no hace
@@ -766,11 +776,11 @@ chrome.tabs?.onRemoved?.addListener?.((idPestana) => enSerie(async () => {
 }));
 chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
-    obtenerConexion: () => obtenerConexion(),
-    conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
-    conectarManual: (m) => conectarManual(m),
+    obtenerConexion: () => estadoDeConexion(),
+    // La conexión se abre y se cierra en el popup, nunca desde una pestaña del portal.
+    conectarManual: (m) => (remitente?.tab ? Promise.resolve({ ok: false }) : conectarManual(m)),
     // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
-    desconectar: () => desconectar({ borrarEnvios: true }),
+    desconectar: () => (remitente?.tab ? Promise.resolve({ ok: false }) : desconectar({ borrarEnvios: true })),
     listarPendientes: () => listarPendientesDelFlujo(remitente?.tab?.id),
     obtenerTenants: () => obtenerTenants(),
     // La selección se cambia en el popup, nunca desde una pestaña del portal.

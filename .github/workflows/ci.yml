@@ -665,6 +665,9 @@ jobs:
       - name: background.js — el código de conexión que empaqueta el C# se lee aquí
         run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
 
+      - name: background.js — una pestaña del portal no lee el token ni redirige la conexión
+        run: node extension/pruebas/comprobar-frontera-conexion.mjs extension/background.js
+
       # E3 — empaquetado. El zip se construye con extension/herramientas/empaquetar.mjs:
       # solo lo que el manifiesto alcanza (sin pruebas ni herramientas), con
       # fechas y orden fijos, así que dos ejecuciones dan los mismos bytes.
