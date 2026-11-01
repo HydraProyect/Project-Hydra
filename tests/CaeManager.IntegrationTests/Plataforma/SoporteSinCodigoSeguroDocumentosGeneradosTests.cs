@@ -177,14 +177,14 @@ public class SoporteSinCodigoSeguroDocumentosGeneradosTests : IAsyncLifetime
         var sesion = Guid.NewGuid();
         await using var soporte = CrearContexto(sesionPrivilegiadaId: sesion);
         var resultadoSoporte = await new ObtenerValidacionOficialDocumentoQueryHandler(
-            soporte, new ClienteActivoSeleccionadoFalso(_tenant, sesion)).Handle(new(_documentoId), CancellationToken.None);
+            soporte, soporte, new AlcanceDatosServiceFalso(), new ClienteActivoSeleccionadoFalso(_tenant, sesion)).Handle(new(_documentoId), CancellationToken.None);
         resultadoSoporte.Should().NotBeNull();
         resultadoSoporte!.CodigoVerificacionDisponible.Should().BeFalse();
         resultadoSoporte.CodigoVerificacion.Should().BeNull();
 
         await using var runtime = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
         var resultadoRuntime = await new ObtenerValidacionOficialDocumentoQueryHandler(
-            runtime, new ClienteActivoSeleccionadoFalso(_tenant, null)).Handle(new(_documentoId), CancellationToken.None);
+            runtime, runtime, new AlcanceDatosServiceFalso(), new ClienteActivoSeleccionadoFalso(_tenant, null)).Handle(new(_documentoId), CancellationToken.None);
         resultadoRuntime.Should().NotBeNull();
         resultadoRuntime!.CodigoVerificacionDisponible.Should().BeTrue();
         resultadoRuntime.CodigoVerificacion.Should().Be("CSV-123");

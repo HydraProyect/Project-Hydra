@@ -509,6 +509,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
+        // La puerta de lectura por Id (DocumentoLegibleAsync) resuelve el Cliente empresarial de un Documento de Proyecto.
+        ("Documentos.ObtenerFirmasEnCampoDocumentoQueryHandler", "IProyectosQueryContext"),
+        ("Documentos.ObtenerValidacionOficialDocumentoQueryHandler", "IProyectosQueryContext"),
         // La entrega del archivo a la extensión hace las mismas preguntas que «Lo he enviado» y que la lista.
         ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "ICentrosQueryContext"),
         ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
