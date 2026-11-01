@@ -16,7 +16,11 @@
 #   1. Cerrojo de despliegue (el mismo que ci-deploy.sh): nunca a la vez que un
 #      despliegue ni que otra vuelta atrás.
 #   2. La imagen existe y su etiqueta OCI de revisión es ese SHA.
-#   3. ESQUEMA: la lista de migraciones de EF de la imagen (etiqueta
+#   3. GUARDA DE CORREO: la misma comprobación que hará el relevo
+#      (relevo-app.sh comprobar-guarda), antes del paso 4 porque ese paso puede
+#      reescribir __EFMigrationsHistory. Rige aunque la imagen de destino sea
+#      anterior a la guarda y no la lea: el camino es uno solo.
+#   4. ESQUEMA: la lista de migraciones de EF de la imagen (etiqueta
 #      es.talveg.migraciones-ef, ver listar-migraciones-ef.sh) tiene que ser
 #      exactamente la de `__EFMigrationsHistory`. Si la base tiene migraciones
 #      que la imagen no conoce, volver exigiría deshacer esquema, y este guion
@@ -26,12 +30,11 @@
 #      (construida antes de P1-F1) no se puede comprobar: se detiene. Única
 #      excepción: base en la línea base compactada e imagen anterior a la
 #      compactación (P1-M3), mismo esquema; se le devuelve su historial y sigue.
-#   4. Relevo sin corte (deploy/relevo-app.sh desplegar, P1-F2), igual que
+#   5. Relevo sin corte (deploy/relevo-app.sh desplegar, P1-F2), igual que
 #      ci-deploy.sh: <sha> arranca en la ranura libre, Caddy conmuta cuando está
 #      sana y la ranura que servía drena. Si no llega a sana, sigue sirviendo la
-#      de antes. Si el .env no lleva EnvioCorreo__Modo, el relevo aborta sin
-#      tocar nada, aunque la imagen de destino sea anterior a esa guarda.
-#   5. SALUD: la ranura activa corre caemanager:<sha> y su /salud responde. Solo
+#      de antes.
+#   6. SALUD: la ranura activa corre caemanager:<sha> y su /salud responde. Solo
 #      entonces se da por buena. Si no, sale con 1 y lo dice.
 #
 # La vuelta atrás usa los docker-compose.*.yml del checkout ACTUAL (el de la
@@ -234,6 +237,9 @@ main_volver_atras() {
         --format "{{index .Config.Labels \"$ETIQUETA_REVISION\"}}" 2>/dev/null)" \
         || detener "${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} no está en el VPS (¿retirada por la retención?). Este guion no reconstruye."
     [ "$revision" = "$sha" ] || detener "${REPOSITORIO_IMAGEN_DESPLIEGUE}:${sha} declara la revisión '$revision'."
+
+    bash "$RELEVO_APP" comprobar-guarda "$entorno" "$sha" < /dev/null \
+        || detener "la guarda de correo no admite arrancar ${sha}: no se ha restaurado el historial de migraciones ni se ha arrancado nada."
 
     comprobar_esquema "$entorno" "$sha" || detener "el esquema no admite volver a ${sha}."
 

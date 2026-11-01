@@ -83,6 +83,10 @@ cat > "$TMP/bin/relevo-app.sh" <<'EOF'
 case "$1" in
   activa) [ -f "$ESTADO/contenedores/$APP" ] || exit 1; echo "$APP" ;;
   recargar) echo "relevo recargar $2" >> "$DOCKER_LOG"; [ "${RECARGA_FALLA:-0}" = 1 ] && exit 1; exit 0 ;;
+  comprobar-guarda)
+    echo "relevo guarda $2 $3" >> "$DOCKER_LOG"
+    [ "${GUARDA_FALLA:-0}" = 1 ] && { echo "::error::Relevo de $2 abortado por la guarda" >&2; exit 1; }
+    exit 0 ;;
   desplegar)
     echo "relevo desplegar $2 $3" >> "$DOCKER_LOG"
     [ "${COMPOSE_FALLA:-0}" = 1 ] && exit 1
@@ -346,6 +350,29 @@ volver RESTAURAR_FALLA=1 -- produccion "$A"
 comprobar "la restauración falla: se detiene sin arrancar" "1 0" "$codigo $(llamadas_up)"
 comprobar "  y lo dice" si "$(contiene "No se pudo restaurar el historial previo" "$salida")"
 
+# Guarda de correo (C-04): se comprueba antes que el esquema, porque el esquema
+# puede reescribir __EFMigrationsHistory.
+escenario produccion "$B"; imagen "$A" "$HISTORIA_PREVIA"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+volver GUARDA_FALLA=1 -- produccion "$A"
+comprobar "guarda de correo sin cumplir: se detiene sin restaurar el historial ni arrancar" "1 0 no $LINEA_BASE" \
+  "$codigo $(llamadas_up) $([ -f "$ESTADO/sql_restaurar" ] && echo si || echo no) $(cat "$ESTADO/base")"
+comprobar "  y lo dice" si "$(contiene "no se ha restaurado el historial de migraciones ni se ha arrancado nada" "$salida")"
+comprobar "  sin aviso P1-M3, que no ha pasado nada" "no" "$(case "$salida" in *"Aviso P1-M3"*) echo si ;; *) echo no ;; esac)"
+comprobar "  con el error del relevo a la vista" si "$(contiene "::error::Relevo de produccion abortado" "$salida")"
+
+escenario produccion "$B"; imagen "$A"; printf '%s,20260301000000_Nueva' "$MIGS" > "$ESTADO/base"
+volver -- produccion "$A"
+comprobar "la guarda se pide para ese entorno y esa imagen, antes de leer la base" si \
+  "$(l_g="$(grep -n "^relevo guarda produccion $A$" "$DOCKER_LOG" | head -1 | cut -d: -f1)"; l_p="$(grep -n 'psql' "$DOCKER_LOG" | head -1 | cut -d: -f1)"; [ -n "$l_g" ] && [ -n "$l_p" ] && [ "$l_g" -lt "$l_p" ] && echo si || echo "no ($l_g/$l_p)")"
+
+escenario staging "$B"; imagen "$A"
+volver GUARDA_FALLA=1 -- staging "$A"
+comprobar "también en staging" "1 0 relevo guarda staging $A" "$codigo $(llamadas_up) $(grep '^relevo guarda' "$DOCKER_LOG")"
+
+escenario produccion "$A"; imagen "$A"
+volver GUARDA_FALLA=1 -- produccion "$A"
+comprobar "destino igual al actual y sano: no arranca nada, así que no pide la guarda" "0 0" "$codigo $(grep -c '^relevo guarda' "$DOCKER_LOG")"
+
 escenario produccion "$B"
 volver -- produccion "$A"
 comprobar "imagen que no está en el VPS: se detiene sin reconstruir" "1 0" "$codigo $(llamadas_up)"
@@ -449,6 +476,25 @@ if [ -z "${VOLVER_ATRAS_GUION:-}" ]; then
   mutar "no se mira si sobran migraciones" 's#if \[ -n "\$sobran" \]; then#if false; then#' preparar_esquema
   preparar_linea_base_otra_imagen() { preparar; printf '%s' "$LINEA_BASE" > "$ESTADO/base"; }
   mutar "se restaura sin mirar la huella de la imagen" 's#= "\$HUELLA_HISTORIA_PREVIA" \]; then#!= "x" ]; then#' preparar_linea_base_otra_imagen
+  MUT_VARS=(GUARDA_FALLA=1)
+  mutar "no se pide la guarda de correo" 's#^    bash "\$RELEVO_APP" comprobar-guarda "\$entorno" "\$sha" < /dev/null \\$#    true \\#' preparar
+  MUT_VARS=(X=1)
+
+  # Este defecto no cambia el código de salida, sino lo que queda hecho al
+  # detenerse: con la guarda detrás del esquema, el historial ya está reescrito.
+  dir_orden="$TMP/mutante-orden"; rm -rf "$dir_orden"; mkdir -p "$dir_orden"
+  cp "$RETENIDAS" "$dir_orden/"
+  sed -e '/^    bash "\$RELEVO_APP" comprobar-guarda /,/^        || detener "la guarda de correo/d' \
+      -e 's#^    comprobar_esquema "\$entorno" "\$sha" || detener .*$#&\n    bash "$RELEVO_APP" comprobar-guarda "$entorno" "$sha" < /dev/null || detener "guarda"#' \
+      "$GUION" > "$dir_orden/volver-atras.sh"
+  if cmp -s "$GUION" "$dir_orden/volver-atras.sh"; then
+    comprobar "mutación 'la guarda va detrás del esquema' cambia el guion" si no
+  else
+    escenario produccion "$B"; imagen "$A" "$HISTORIA_PREVIA"; printf '%s' "$LINEA_BASE" > "$ESTADO/base"
+    env GUARDA_FALLA=1 bash "$dir_orden/volver-atras.sh" produccion "$A" > /dev/null 2>&1
+    comprobar "mutación 'la guarda va detrás del esquema' la caza su caso (restaura el historial)" si \
+      "$([ -f "$ESTADO/sql_restaurar" ] && echo si || echo no)"
+  fi
 
   # Mutaciones de imagenes-retenidas.sh que devuelven el comportamiento previo
   # (seguir retirando sin historial legible o con el registro fallido): su

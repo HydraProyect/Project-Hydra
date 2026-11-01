@@ -23,8 +23,9 @@
 #       Con la imagen caemanager:<sha> ya cargada y el cerrojo de despliegue
 #       YA TOMADO por quien llama (ci-deploy.sh, volver-atras.sh):
 #         0. Exige EnvioCorreo__Modo con valor en el entorno efectivo de la
-#            ranura nueva (exigir_guarda_de_correo). Si falta, sale con 1 antes
-#            de tocar Caddy, el fichero de ranuras, el migrador o los contenedores.
+#            ranura nueva, y en staging que ese valor sea Cerrado
+#            (exigir_guarda_de_correo). Si no, sale con 1 antes de tocar Caddy,
+#            el fichero de ranuras, el migrador o los contenedores.
 #         1. Saca de Caddy y para las salientes de un relevo anterior que sigan
 #            en el fichero (la libre si aún drenaba, o una cuyo drenaje murió).
 #         2. `docker compose up -d --wait --no-build` de los servicios sin
@@ -37,6 +38,9 @@
 #            la de antes.
 #         4. Lanza el drenaje de la anterior (systemd-run si existe).
 #       Sale con 0 solo si la nueva ranura quedó sirviendo.
+#   relevo-app.sh comprobar-guarda <staging|produccion> <sha>
+#       Solo el paso 0 de `desplegar`, sobre la misma ranura, sin tocar nada más.
+#       volver-atras.sh la llama antes de restaurar el historial de migraciones.
 #   relevo-app.sh activa <staging|produccion>
 #       Imprime el container_name de la ranura activa (o del contenedor
 #       anterior a P1-F2, si aún no ha habido relevo). Sale con 1 si no hay.
@@ -79,6 +83,7 @@ DRENAJE_MAX_STAGING="${DRENAJE_MAX_STAGING:-300}"
 DRENAJE_INTERVALO="${DRENAJE_INTERVALO:-30}"
 RELEVO_ESPERA_SALUD="${RELEVO_ESPERA_SALUD:-180}"
 CLAVE_GUARDA_CORREO="EnvioCorreo__Modo"
+MODO_CORREO_STAGING="Cerrado"
 GUION_RELEVO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 es_entorno() { [ "${1:-}" = staging ] || [ "${1:-}" = produccion ]; }
@@ -291,19 +296,32 @@ volcar_ranura_fallida() {
 # salida entera y no imprime nada: esa salida lleva todas las credenciales del
 # entorno, y el valor no sale de awk. Vacío, solo espacios y null cuentan como
 # ausente, igual que los trata la aplicación.
+#
+# Con un tercer argumento, además sale con 3 si la clave no vale exactamente eso,
+# sin distinguir mayúsculas en el nombre de la clave: la aplicación lee cualquier
+# grafía, así que otra línea con el mismo nombre podría decidir el modo efectivo.
 clave_con_valor_en_servicio() {
-    awk -v servicio="$1" -v clave="$2" '
+    awk -v servicio="$1" -v clave="$2" -v exigido="${3:-}" '
+        function valor_de(linea) {
+            linea = substr(linea, length("      " clave ":") + 1)
+            gsub(/[ \t\r"]/, "", linea)
+            gsub("\047", "", linea)
+            return linea
+        }
         /^[^ ]/ { en_servicios = ($0 == "services:"); actual = 0; en_entorno = 0; next }
         en_servicios && /^  [^ ]/ { actual = ($0 == "  " servicio ":"); if (actual) visto = 1; en_entorno = 0; next }
         actual && /^    [^ ]/ { en_entorno = ($0 == "    environment:"); next }
+        en_entorno && exigido != "" && index(tolower($0), "      " tolower(clave) ":") == 1 {
+            valor = valor_de($0)
+            if (valor != exigido) discrepa = 1
+            valor = ""
+        }
         en_entorno && index($0, "      " clave ":") == 1 {
-            valor = substr($0, length("      " clave ":") + 1)
-            gsub(/[ \t\r"]/, "", valor)
-            gsub("\047", "", valor)
+            valor = valor_de($0)
             presente = (valor != "" && valor != "null" && valor != "~")
             valor = ""
         }
-        END { if (!visto) exit 2; exit presente ? 0 : 1 }'
+        END { if (!visto) exit 2; if (!presente) exit 1; exit discrepa ? 3 : 0 }'
 }
 
 # Guarda de envío de correo (C-04). Sin EnvioCorreo__Modo la aplicación arranca
@@ -311,47 +329,52 @@ clave_con_valor_en_servicio() {
 # contraseña ni avisos de seguridad con solo un aviso en el log, después de
 # conmutar. El cierre por defecto de la aplicación no cambia y aquí no se da
 # valor a la clave: se exige que alguien la haya decidido en el `.env` del
-# entorno, staging incluido, donde el valor esperado es Cerrado o SoloPermitidos.
+# entorno.
+#
+# En staging se exige además que el valor sea Cerrado: staging arranca como
+# Production, nada más lo distingue, y una copia del `.env` de producción dejaría
+# salir correo real a destinatarios reales. El valor no se imprime. En producción
+# no se valida: uno ilegible impide arrancar (ValidateOnStart) y lo resuelve el
+# `up`.
 #
 # Mide la configuración efectiva de la ranura que va a arrancar, la misma que
 # usará el `up`: entra lo que aporten env_file y environment y queda fuera un
 # comentario. Va antes de tocar nada, así que abortar deja sirviendo lo que ya
 # servía y sin migrar. stderr se descarta porque un error de análisis del `.env`
-# puede citar la línea. No se valida el valor: uno ilegible impide arrancar
-# (ValidateOnStart) y lo resuelve el `up`.
+# puede citar la línea.
 #
-# También cubre volver-atras.sh, que entra por el mismo `desplegar`.
+# También cubre volver-atras.sh, que la pide con `comprobar-guarda` antes de
+# restaurar nada y vuelve a pasar por ella al entrar en `desplegar`. Los mensajes
+# hablan solo del relevo: quien llama responde de lo que haya hecho antes.
 exigir_guarda_de_correo() {
-    local entorno="$1" sha="$2" servicio="$3" fichero=.env resultado=0
+    local entorno="$1" sha="$2" servicio="$3" fichero=.env modo_exigido="" resultado=0
+    local intacto="El relevo no ha tocado Caddy, el fichero de ranuras, el migrador ni los contenedores: sigue sirviendo la ranura de antes."
     local -a args
     [ "$entorno" = staging ] && fichero=.env.staging
+    [ "$entorno" = staging ] && modo_exigido="$MODO_CORREO_STAGING"
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
 
     ( cd "$RAIZ_DESPLIEGUE/deploy/local" \
         && IMAGEN_TAG="$sha" docker compose "${args[@]}" --profile ranura config 2>/dev/null ) \
-        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" || resultado=$?
+        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" "$modo_exigido" || resultado=$?
 
     case "$resultado" in
         0) return 0 ;;
-        2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). No se ha tocado nada: sigue sirviendo la ranura de antes." >&2 ;;
-        *) echo "::error::Relevo de $entorno abortado: falta $CLAVE_GUARDA_CORREO, o no tiene valor, en el entorno efectivo de $servicio. Añádela a $fichero en el servidor y repite el despliegue. Sin ella no sale ningún correo: ni activación, ni recuperación de contraseña, ni avisos de seguridad. No se ha tocado nada: sigue sirviendo la ranura de antes." >&2 ;;
+        2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). $intacto" >&2 ;;
+        3) echo "::error::Relevo de $entorno abortado: $CLAVE_GUARDA_CORREO no es $MODO_CORREO_STAGING en el entorno efectivo de $servicio, y en staging no se admite otro modo, para que no salga correo real. Corrígelo en $fichero en el servidor y repite la operación. $intacto" >&2 ;;
+        *) echo "::error::Relevo de $entorno abortado: falta $CLAVE_GUARDA_CORREO, o no tiene valor, en el entorno efectivo de $servicio. Añádela a $fichero en el servidor y repite la operación. Sin ella no sale ningún correo: ni activación, ni recuperación de contraseña, ni avisos de seguridad. $intacto" >&2 ;;
     esac
     return 1
 }
 
-desplegar() {
-    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa
-    local -a args
-    args=(-f "docker-compose.$entorno.yml")
-    [ "$entorno" = staging ] && args+=(--env-file .env.staging)
-
-    # La que sirve de verdad: la primera del fichero que esté SANA (en marcha
-    # y healthy); si ninguna lo está, la primera en marcha. Si la activa murió
-    # o no responde y queda una saliente sana (Caddy ya la usa por el
-    # reintento), esa es la que hay que conservar, y la nueva va en la ranura
-    # de la otra, no en la de la sana.
-    local candidata primera_en_marcha=""
+# La ranura que sirve de verdad: la primera del fichero que esté SANA (en marcha
+# y healthy); si ninguna lo está, la primera en marcha. Si la activa murió o no
+# responde y queda una saliente sana (Caddy ya la usa por el reintento), esa es
+# la que hay que conservar, y la nueva va en la ranura de la otra, no en la de
+# la sana. Imprime el contenedor, o nada si no hay ninguno.
+ranura_que_sirve() {
+    local entorno="$1" activa_="" candidata primera_en_marcha=""
     for candidata in $(ranuras_en_fichero "$entorno"); do
         if sana "$candidata"; then activa_="$candidata"; break; fi
         [ -z "$primera_en_marcha" ] && en_marcha "$candidata" && primera_en_marcha="$candidata"
@@ -360,10 +383,31 @@ desplegar() {
     if [ -z "$activa_" ] && [ ! -f "$(fichero_ranuras "$entorno")" ] && en_marcha "$(prefijo "$entorno")"; then
         activa_="$(prefijo "$entorno")"   # sin fichero: el contenedor único anterior a P1-F2
     fi
-    case "$activa_" in
-        *-azul) nueva=verde ;;
-        *) nueva=azul ;;
+    echo "$activa_"
+}
+
+# Ranura en la que arranca la versión nueva: la otra que la que sirve.
+ranura_libre() {
+    case "$1" in
+        *-azul) echo verde ;;
+        *) echo azul ;;
     esac
+}
+
+comprobar_guarda() {
+    local entorno="$1" sha="$2" nueva
+    nueva="$(ranura_libre "$(ranura_que_sirve "$entorno")")"
+    exigir_guarda_de_correo "$entorno" "$sha" "app-$nueva"
+}
+
+desplegar() {
+    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa
+    local -a args
+    args=(-f "docker-compose.$entorno.yml")
+    [ "$entorno" = staging ] && args+=(--env-file .env.staging)
+
+    activa_="$(ranura_que_sirve "$entorno")"
+    nueva="$(ranura_libre "$activa_")"
     cont_nueva="$(prefijo "$entorno")-$nueva"
     echo "Relevo de $entorno: activa ${activa_:-<ninguna>}, nueva $cont_nueva (caemanager:$sha)."
 
@@ -529,6 +573,10 @@ main_relevo() {
             es_entorno "${2:-}" && [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] && [ $# -eq 3 ] \
                 || { echo "uso: relevo-app.sh desplegar <staging|produccion> <sha de 40>" >&2; exit 2; }
             desplegar "$2" "$3" ;;
+        comprobar-guarda)
+            es_entorno "${2:-}" && [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] && [ $# -eq 3 ] \
+                || { echo "uso: relevo-app.sh comprobar-guarda <staging|produccion> <sha de 40>" >&2; exit 2; }
+            comprobar_guarda "$2" "$3" ;;
         activa)
             es_entorno "${2:-}" && [ $# -eq 2 ] || { echo "uso: relevo-app.sh activa <staging|produccion>" >&2; exit 2; }
             activa "$2" ;;
@@ -540,7 +588,7 @@ main_relevo() {
                 || { echo "uso: relevo-app.sh drenar <entorno> <contenedor> <id> <max_s>" >&2; exit 2; }
             drenar "$2" "$3" "$4" "$5" ;;
         *)
-            echo "uso: relevo-app.sh <desplegar|activa|recargar|drenar> ..." >&2; exit 2 ;;
+            echo "uso: relevo-app.sh <desplegar|comprobar-guarda|activa|recargar|drenar> ..." >&2; exit 2 ;;
     esac
 }
 

@@ -13,7 +13,7 @@
 #   4. Un valor que Docker no entiende hace fallar `config`: el despliegue se
 #      detiene antes de tocar nada en vez de arrancar sin techo en silencio.
 #   5. La guarda de correo de deploy/relevo-app.sh ve EnvioCorreo__Modo en la
-#      salida real de `config`, y ve su ausencia.
+#      salida real de `config`, ve su ausencia y distingue un valor del exigido.
 #
 # No mide que el kernel aplique el techo ni que el valor sea el adecuado: eso
 # se comprueba en el servidor (`memory.max` del contenedor) tras fijarlo.
@@ -168,6 +168,28 @@ for caso in "${CASOS[@]}"; do
   obtenido=0; clave_en servicio-que-no-existe || obtenido=$?
   [ "$obtenido" = 2 ] || { echo "FALLO: $compose: un servicio que no existe da $obtenido, se esperaba 2" >&2; exit 1; }
   echo "OK: la clave del fichero de entorno llega a las dos ranuras y su ausencia se ve"
+
+  # Con modo exigido, el mismo uso que hace el relevo en staging.
+  medir_modo() {  # <salida esperada> <descripción>
+    local ranura obtenido
+    for ranura in app-azul app-verde; do
+      obtenido=0
+      ( source "$DIR_GUION/relevo-app.sh"; efectiva "$compose" "$entorno" | clave_con_valor_en_servicio "$ranura" EnvioCorreo__Modo Cerrado ) || obtenido=$?
+      [ "$obtenido" = "$1" ] \
+        || { echo "FALLO: $compose: $ranura con $2 da $obtenido, se esperaba $1" >&2; exit 1; }
+    done
+  }
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Cerrado"
+  medir_modo 0 "el modo exigido"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Abierto"
+  medir_modo 3 "Abierto"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=SoloPermitidos"
+  medir_modo 3 "SoloPermitidos"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Cerrado" "ENVIOCORREO__MODO=Abierto"
+  medir_modo 3 "otra grafía de la clave con otro valor"
+  escribir_entorno "$DIR/$entorno"
+  medir_modo 1 "la clave ausente"
+  echo "OK: el modo exigido se distingue en la salida real de config"
 done
 
 echo "TODAS LAS PRUEBAS PASARON"

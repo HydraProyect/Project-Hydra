@@ -84,6 +84,7 @@ case "$1" in
       *" config")   # configuración efectiva: la forma real la mide compose-techos-memoria.tests.sh
         if [ "${CONFIG_FALLA:-0}" = 1 ]; then echo "línea ilegible: SECRETO_CENTINELA" >&2; exit 1; fi
         predeterminada='      EnvioCorreo__Modo: Abierto'
+        case "$*" in *staging*) predeterminada='      EnvioCorreo__Modo: Cerrado' ;; esac
         sed '/^$/d' <<YAML
 name: caemanager
 services:
@@ -477,15 +478,69 @@ comprobar "  y resuelve con su compose y su .env" si \
   "$(contiene "docker compose -f docker-compose.staging.yml --env-file .env.staging --profile ranura config IMAGEN_TAG=$B" "$(log)")"
 limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
 relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado" -- desplegar staging "$B"
-comprobar "staging con Cerrado explícito conmuta: se exige la clave, no que abra" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+comprobar "staging con Cerrado explícito conmuta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Cerrado\"" -- desplegar staging "$B"
+comprobar "  también entrecomillado" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
 limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
 relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Abierto\"" -- desplegar produccion "$B"
 comprobar "un valor entrecomillado cuenta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+for caso in "Abierto|      EnvioCorreo__Modo: Abierto" \
+            'Abierto entrecomillado|      EnvioCorreo__Modo: "Abierto"' \
+            "SoloPermitidos|      EnvioCorreo__Modo: SoloPermitidos" \
+            "abierto en minúsculas|      EnvioCorreo__Modo: abierto" \
+            "un modo que no existe|      EnvioCorreo__Modo: Entreabierto" \
+            "Cerrado y otra grafía de la clave con Abierto|      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto"; do
+  escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar staging "$B"
+  comprobar "staging con ${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+  comprobar "  dice qué exige y dónde" si "$(contiene "EnvioCorreo__Modo no es Cerrado en el entorno efectivo de app-verde" "$salida")"
+  comprobar "  nombra .env.staging" si "$(contiene "Corrígelo en .env.staging en el servidor" "$salida")"
+  comprobar "  no imprime el valor ni ningún otro" 0 "$(printf '%s\n' "$salida" | grep -ciE 'SECRETO_CENTINELA|abierto|SoloPermitidos')"
+done
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_AZUL=      EnvioCorreo__Modo: Abierto" -- desplegar staging "$B"
+comprobar "staging mira la ranura que arranca: Abierto en la que no arranca no aborta" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- desplegar produccion "$B"
+comprobar "producción no exige Cerrado" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto" -- desplegar produccion "$B"
+comprobar "  y otra grafía de la clave no le afecta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+echo "comprobar-guarda: la guarda sola, sobre la ranura de desplegar"
+escenario_correo; relevo -- comprobar-guarda produccion "$B"
+comprobar "cumplida: sale 0 sin tocar nada" "0 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  y sin recrear Caddy" 0 "$(grep -c 'no-deps --no-build caddy' "$LOG")"
+comprobar "  resuelve con la imagen de destino" si \
+  "$(contiene "docker compose -f docker-compose.produccion.yml --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+escenario_correo; relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
+comprobar "sin la clave: sale 1 sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  y dice qué falta" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor, en el entorno efectivo de app-verde" "$salida")"
+escenario_correo; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- comprobar-guarda staging "$B"
+comprobar "staging sin Cerrado: sale 1 sin tocar nada" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+limpio; contenedor caemanager-app-verde "$A"; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- comprobar-guarda produccion "$B"
+comprobar "con verde activa mira azul, como desplegar: sin clave en verde pasa" 0 "$codigo"
+relevo CORREO_AZUL= -- comprobar-guarda produccion "$B"
+comprobar "  y sin clave en azul no pasa" 1 "$codigo"
+limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-app-verde "$B"; echo unhealthy > "$ESTADO/c/caemanager-app-verde/salud"
+fichero produccion "to caemanager-app-verde:8080 caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_AZUL= -- comprobar-guarda produccion "$C"
+comprobar "con la primera del fichero insana, la que sirve es la sana: arranca verde" 0 "$codigo"
+relevo -- comprobar-guarda produccion latest
+comprobar "SHA no válido: uso" 2 "$codigo"
+relevo -- comprobar-guarda otro "$B"
+comprobar "entorno no válido: uso" 2 "$codigo"
 
 comprobar "ningún compose da valor a la clave: la decide cada .env" "0 0" \
   "$(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.produccion.yml") $(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.staging.yml")"
 comprobar "los dos .env de ejemplo la llevan activa" "1 1" \
   "$(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.example") $(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.staging.example")"
+comprobar "el ejemplo de staging lleva el único modo que el relevo admite allí" 1 \
+  "$(tr -d '\r' < "$AQUI/local/.env.staging.example" | grep -cx 'EnvioCorreo__Modo=Cerrado')"
 
 echo "conexiones_establecidas"
 limpio; contenedor x "$A" true 3
@@ -535,6 +590,8 @@ comprobar "ci-deploy.sh hace el relevo en vez de un up de todo el stack" "1 0" \
   "$(grep -c '^    if ! bash /opt/talveg/deploy/relevo-app.sh desplegar "\$ENTORNO" "\$SHA" < /dev/null; then$' "$AQUI/ci-deploy.sh") $(grep -cE '^[^#]*docker compose [^|]* up ' "$AQUI/ci-deploy.sh")"
 comprobar "volver-atras.sh también" "1 0" \
   "$(grep -c 'bash "\$RELEVO_APP" desplegar "\$entorno" "\$sha"' "$AQUI/volver-atras.sh") $(grep -cE '^[^#]*docker compose [^|]* up ' "$AQUI/volver-atras.sh")"
+comprobar "volver-atras.sh pide la guarda con la orden que este guion atiende" 1 \
+  "$(grep -c 'bash "\$RELEVO_APP" comprobar-guarda "\$entorno" "\$sha" < /dev/null' "$AQUI/volver-atras.sh")"
 
 # Mutaciones: cada una devuelve un defecto concreto y su caso tiene que verlo.
 if [ -z "${RELEVO_GUION:-}" ]; then
@@ -597,6 +654,34 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "un valor vacío cuenta como presente" \
     's#presente = (valor != "" \&\& valor != "null" \&\& valor != "~")#presente = 1#' esc_correo comp_correo
   unset CORREO_MUTANTE
+
+  esc_staging() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+                  CORREO_VERDE="$CORREO_MUTANTE" bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_staging() { [ "$(ranuras staging)" != "to caemanager-staging-app-azul:8080" ] && echo si || echo no; }
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Abierto'
+  mutar "staging no exige Cerrado" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    :#' esc_staging comp_staging
+  mutar "un modo distinto del exigido no aborta" \
+    's#exit discrepa ? 3 : 0#exit 0#' esc_staging comp_staging
+  mutar "la comparación con el modo exigido va al revés" \
+    's#if (valor != exigido) discrepa = 1#if (valor == exigido) discrepa = 1#' esc_staging comp_staging
+  CORREO_MUTANTE='      EnvioCorreo__Modo: Cerrado
+      ENVIOCORREO__MODO: Abierto'
+  mutar "otra grafía de la clave no cuenta" \
+    's#index(tolower(\$0), "      " tolower(clave) ":") == 1#index($0, "      " clave ":") == 1#' esc_staging comp_staging
+  unset CORREO_MUTANTE
+
+  esc_prod_abierto() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                       bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_prod_abierto() { [ "$(ranuras produccion)" = "to caemanager-app-azul:8080" ] && echo si || echo no; }
+  mutar "producción también exige Cerrado" \
+    's#^    \[ "\$entorno" = staging \] \&\& modo_exigido="\$MODO_CORREO_STAGING"$#    modo_exigido="$MODO_CORREO_STAGING"#' esc_prod_abierto comp_prod_abierto
+
+  esc_orden() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                CORREO_VERDE= bash "$1" comprobar-guarda produccion "$B" > /dev/null 2>&1; codigo=$?; }
+  comp_orden() { [ "$codigo" = 0 ] && echo si || echo no; }
+  mutar "la orden comprobar-guarda no comprueba nada" \
+    's#^    exigir_guarda_de_correo "\$entorno" "\$sha" "app-\$nueva"$#    :#' esc_orden comp_orden
 fi
 
 if [ "$fallos" -gt 0 ]; then
