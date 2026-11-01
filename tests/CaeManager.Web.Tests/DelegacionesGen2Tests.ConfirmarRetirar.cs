@@ -66,6 +66,30 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
+    public void En_una_delegacion_de_Soporte_TALVEG_el_Tenant_propietario_tambien_ve_retirar()
+    {
+        var delegacion = Delegacion(soporte: true, somosLaConsultora: false);
+        var (cut, _, _) = Renderizar(delegacion);
+
+        BotonConTexto(cut, "Retirar").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Operando_el_Workspace_operativo_derivado_de_otro_Tenant_no_se_ofrece_retirar()
+    {
+        // El handler rechaza la retirada desde un Tenant activo ajeno a la delegación:
+        // con un Tenant beneficiario seleccionado la columna «Acción» no existe.
+        _tenantSeleccionado = Guid.NewGuid();
+        var delegacion = Delegacion(somosLaConsultora: false, tenantClienteId: _tenantSeleccionado);
+        var (cut, _, _) = Renderizar(delegacion);
+
+        cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle("control positivo: la persona sigue listada");
+        cut.FindAll(".delegaciones-tabla button").Should().BeEmpty();
+        cut.FindAll(".delegaciones-tabla thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Persona", "Rol CAE");
+    }
+
+    [Fact]
     public async Task Retirar_a_una_persona_pide_confirmacion_y_cancelar_no_envia_el_Command()
     {
         var delegacion = Delegacion(somosLaConsultora: false);
