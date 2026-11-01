@@ -39,9 +39,11 @@
 #            restaura el fichero, para la nueva y sale con 1: sigue sirviendo
 #            la de antes.
 #         4. Lanza el drenaje de la anterior (systemd-run si existe), salvo que
-#            la anterior no declare la guarda y el modo no sea Abierto: esa se
-#            saca de Caddy y se para sin drenar.
-#       Sale con 0 solo si la nueva ranura quedó sirviendo.
+#            la anterior no declare la guarda y el modo no sea Abierto: esa nunca
+#            drena. Se saca de Caddy y se para con reintentos acotados, stop y
+#            kill, solo si la nueva está sana.
+#       Sale con 0 solo si la nueva ranura quedó sirviendo y no queda en marcha
+#       ninguna imagen que ignore la guarda con modo distinto de Abierto.
 #   relevo-app.sh comprobar-guarda <staging|produccion> <sha>
 #       Solo el paso 0 de `desplegar`, sobre la misma ranura, sin tocar nada más.
 #       volver-atras.sh la llama antes de restaurar el historial de migraciones.
@@ -70,7 +72,8 @@
 #
 # Variables (con sus valores reales por defecto; los tests las sustituyen):
 # RAIZ_DESPLIEGUE, DIR_RANURAS, CONTENEDOR_CADDY, DRENAJE_MAX_PRODUCCION,
-# DRENAJE_MAX_STAGING, DRENAJE_INTERVALO, RELEVO_ESPERA_SALUD.
+# DRENAJE_MAX_STAGING, DRENAJE_INTERVALO, RELEVO_ESPERA_SALUD,
+# RELEVO_INTENTOS_PARADA, RELEVO_ESPERA_PARADA, RELEVO_TOPE_STOP, RELEVO_TOPE_KILL.
 
 set -euo pipefail
 
@@ -86,6 +89,12 @@ DRENAJE_MAX_PRODUCCION="${DRENAJE_MAX_PRODUCCION:-1800}"
 DRENAJE_MAX_STAGING="${DRENAJE_MAX_STAGING:-300}"
 DRENAJE_INTERVALO="${DRENAJE_INTERVALO:-30}"
 RELEVO_ESPERA_SALUD="${RELEVO_ESPERA_SALUD:-180}"
+# Parada de una saliente que ignora la guarda de correo. El tope de stop supera
+# los 30 s de gracia de `docker stop -t 30`.
+RELEVO_INTENTOS_PARADA="${RELEVO_INTENTOS_PARADA:-3}"
+RELEVO_ESPERA_PARADA="${RELEVO_ESPERA_PARADA:-5}"
+RELEVO_TOPE_STOP="${RELEVO_TOPE_STOP:-45}"
+RELEVO_TOPE_KILL="${RELEVO_TOPE_KILL:-15}"
 CLAVE_GUARDA_CORREO="EnvioCorreo__Modo"
 ETIQUETA_GUARDA_CORREO="es.talveg.guarda-correo"
 MODO_CORREO_STAGING="Cerrado"
@@ -420,6 +429,47 @@ saliente_ignora_la_guarda() {
     ! medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$MODO_CORREO_SIN_GUARDA"
 }
 
+# Solo «false» cuenta como parada: en_marcha no distingue un contenedor parado de
+# uno cuyo estado no se pudo leer, y aquí eso daría por parada una imagen viva.
+parada_confirmada() {
+    [ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" = false ]
+}
+
+# Para el contenedor o devuelve 1, en un tiempo acotado aunque Docker se cuelgue:
+# hasta RELEVO_INTENTOS_PARADA vueltas de stop y kill. El código de salida de esas
+# órdenes no decide: decide lo que dice el contenedor después.
+parar_con_tope() {
+    local contenedor="$1" intento
+    for (( intento = 1; intento <= RELEVO_INTENTOS_PARADA; intento++ )); do
+        timeout "$RELEVO_TOPE_STOP" docker stop -t 30 "$contenedor" > /dev/null 2>&1 || true
+        parada_confirmada "$contenedor" && return 0
+        timeout "$RELEVO_TOPE_KILL" docker kill "$contenedor" > /dev/null 2>&1 || true
+        parada_confirmada "$contenedor" && return 0
+        [ "$intento" -lt "$RELEVO_INTENTOS_PARADA" ] && sleep "$RELEVO_ESPERA_PARADA"
+    done
+    return 1
+}
+
+# Retira una saliente que ignora la guarda. Como en retirar_saliente, nunca si la
+# que se queda no está sana: dejaría el entorno sin servir. Devuelve 1, con
+# ::error::, si la saliente sigue viva. Sacarla de Caddy es cosa de quien llama.
+retirar_sin_guarda() {
+    local contenedor="$1" nueva="$2"
+    if ! sana "$nueva"; then
+        echo "::error::$contenedor ignora la guarda de correo y sigue en marcha: no se para porque $nueva no está sana y dejaría el entorno sin servir." >&2
+        return 1
+    fi
+    if ! parar_con_tope "$contenedor"; then
+        echo "::error::no se pudo parar $contenedor, que ignora la guarda de correo, tras $RELEVO_INTENTOS_PARADA intentos de stop y kill." >&2
+        return 1
+    fi
+    case "$contenedor" in
+        *-azul|*-verde) ;;
+        *) docker rm "$contenedor" > /dev/null 2>&1 || true ;;
+    esac
+    echo "$contenedor retirada."
+}
+
 # La ranura que sirve de verdad: la primera del fichero que esté SANA (en marcha
 # y healthy); si ninguna lo está, la primera en marcha. Si la activa murió o no
 # responde y queda una saliente sana (Caddy ya la usa por el reintento), esa es
@@ -453,7 +503,7 @@ comprobar_guarda() {
 }
 
 desplegar() {
-    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa
+    local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa sin_guarda_viva=0
     local -a args
     args=(-f "docker-compose.$entorno.yml")
     [ "$entorno" = staging ] && args+=(--env-file .env.staging)
@@ -519,10 +569,15 @@ desplegar() {
     echo "Caddy conmutado: $entorno sirve $cont_nueva (caemanager:$sha)."
 
     # Salientes de relevos anteriores que no son la activa ni la nueva: ya
-    # fuera de Caddy, se paran ahora que la nueva sirve.
+    # fuera de Caddy, se paran ahora que la nueva sirve. Una que ya no corre no
+    # puede enviar, y su etiqueta quizá ni se pueda leer.
     for previa in $previas; do
         [ "$previa" = "$cont_nueva" ] && continue
         echo "Saliente de un relevo anterior: se retira $previa."
+        if en_marcha "$previa" && saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$previa"; then
+            retirar_sin_guarda "$previa" "$cont_nueva" || sin_guarda_viva=1
+            continue
+        fi
         docker stop -t 30 "$previa" > /dev/null 2>&1 \
             || echo "::warning::no se pudo parar $previa: sigue en marcha fuera de Caddy; párala a mano."
         case "$previa" in
@@ -533,27 +588,28 @@ desplegar() {
 
     if [ -n "$activa_" ]; then
         detener_drenaje_previo "$entorno"
-        # Su drenaje dejaría una ventana de envío real con la guarda ya
-        # conmutada: se corta a quien siga en ella. Como en retirar_saliente,
-        # nunca si la que se queda no está sana. Si no está sana o no se puede
-        # parar, el drenaje de abajo es quien reintenta.
-        if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_" && sana "$cont_nueva"; then
+        # El drenaje dejaría una ventana de envío real, y puede aplazarse sin
+        # límite (retirar_saliente), así que esta saliente nunca pasa por él: o
+        # queda parada aquí, o el relevo acaba en error.
+        if saliente_ignora_la_guarda "$entorno" "$sha" "app-$nueva" "$activa_"; then
             echo "$activa_ no declara la guarda de correo y el modo no es $MODO_CORREO_SIN_GUARDA: se retira sin drenar."
-            { escribir_ranuras "$entorno" "$cont_nueva" && recargar_caddy; } \
-                || echo "::warning::no se pudo sacar $activa_ de Caddy; la cookie vieja reintentará en la activa." >&2
-            if docker stop -t 30 "$activa_" > /dev/null 2>&1; then
-                case "$activa_" in
-                    *-azul|*-verde) ;;
-                    *) docker rm "$activa_" > /dev/null 2>&1 || true ;;
-                esac
-                echo "$activa_ retirada de $entorno."
-                return 0
+            if sana "$cont_nueva"; then
+                { escribir_ranuras "$entorno" "$cont_nueva" && recargar_caddy; } \
+                    || echo "::warning::no se pudo sacar $activa_ de Caddy; la cookie vieja reintentará en la activa." >&2
             fi
-            echo "::error::no se pudo parar $activa_, que ignora la guarda de correo: se lanza su drenaje para que reintente; comprueba que se detiene." >&2
+            retirar_sin_guarda "$activa_" "$cont_nueva" || sin_guarda_viva=1
+        else
+            id_activa="$(id_de "$activa_")"
+            lanzar_drenaje "$entorno" "$activa_" "$id_activa" \
+                || echo "::warning::no se pudo lanzar el drenaje de $activa_: sigue en marcha y con sus circuitos; páralo a mano cuando se vacíe (runbook)."
         fi
-        id_activa="$(id_de "$activa_")"
-        lanzar_drenaje "$entorno" "$activa_" "$id_activa" \
-            || echo "::warning::no se pudo lanzar el drenaje de $activa_: sigue en marcha y con sus circuitos; páralo a mano cuando se vacíe (runbook)."
+    fi
+
+    # La nueva ya sirve, pero el relevo no se da por bueno: quien llama no lo
+    # registra y queda en rojo. Repetir el despliegue recrea esa ranura.
+    if [ "$sin_guarda_viva" != 0 ]; then
+        echo "::error::Relevo de $entorno incompleto: $cont_nueva ya conmutó, pero sigue en marcha una imagen que ignora $CLAVE_GUARDA_CORREO y puede enviar correo. Párala a mano, o repite el despliegue para recrear su ranura." >&2
+        return 1
     fi
 }
 

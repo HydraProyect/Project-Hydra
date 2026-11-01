@@ -47,7 +47,7 @@ case "$1" in
     esac
     [ -d "$(c "$nombre")" ] || exit 1
     case "$fmt" in
-      *State.Running*) cat "$(c "$nombre")/en_marcha" ;;
+      *State.Running*) [ -f "$(c "$nombre")/estado_perdido" ] && exit 1; cat "$(c "$nombre")/en_marcha" ;;
       *Health*) cat "$(c "$nombre")/salud" 2>/dev/null || echo healthy ;;
       *.Id*) cat "$(c "$nombre")/id" ;;
       *Config.Image*) cat "$(c "$nombre")/imagen" ;;
@@ -125,7 +125,17 @@ YAML
         d="$(c "$pref-$ranura")"; mkdir -p "$d"; echo true > "$d/en_marcha"; nuevo_id > "$d/id"
         if [ "${COMPOSE_NO_CAMBIA:-0}" = 1 ]; then echo "caemanager:otra" > "$d/imagen"; else echo "caemanager:$IMAGEN_TAG" > "$d/imagen"; fi ;;
     esac ;;
-  stop) nombre="${*: -1}"; [ "${STOP_FALLA:-}" = "$nombre" ] && exit 1; [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  stop)
+    nombre="${*: -1}"
+    [ "${STOP_CUELGA:-}" = "$nombre" ] && sleep 30
+    [ "${STOP_FALLA:-}" = "$nombre" ] && exit 1
+    [ "${STOP_NO_PARA:-}" = "$nombre" ] && exit 0   # sale con 0 y el contenedor sigue vivo
+    [ "${STOP_PIERDE_ESTADO:-}" = "$nombre" ] && { : > "$(c "$nombre")/estado_perdido"; exit 0; }
+    [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
+  kill)
+    nombre="${*: -1}"
+    [ "${KILL_FALLA:-}" = "$nombre" ] && exit 1
+    [ -d "$(c "$nombre")" ] && echo false > "$(c "$nombre")/en_marcha" ;;
   rm) rm -rf "$(c "$2")" ;;
   logs) ;;
 esac
@@ -149,7 +159,7 @@ exit 0
 EOF
 chmod +x "$TMP/bin/"*
 export PATH="$TMP/bin:$PATH" LOG="$TMP/log" ESTADO="$TMP/estado"
-export RAIZ_DESPLIEGUE="$TMP/raiz" DIR_RANURAS="$TMP/ranuras" DRENAJE_INTERVALO=0
+export RAIZ_DESPLIEGUE="$TMP/raiz" DIR_RANURAS="$TMP/ranuras" DRENAJE_INTERVALO=0 RELEVO_ESPERA_PARADA=0
 mkdir -p "$RAIZ_DESPLIEGUE/deploy/local"
 { cat "$AQUI/local/Caddyfile"; echo "# MARCA_CHECKOUT"; } > "$RAIZ_DESPLIEGUE/deploy/local/Caddyfile"
 
@@ -583,13 +593,43 @@ comprobar "  y queda parada" false "$(en_marcha caemanager-staging-app-azul)"
 comprobar "  sin borrarla, que es una ranura" 0 "$(grep -c '^docker rm' "$LOG")"
 comprobar "  Caddy deja de verla antes de pararla" si \
   "$(l_r="$(grep -n '^RECARGA.*staging=\[to caemanager-staging-app-verde:8080\]' "$LOG" | tail -1 | cut -d: -f1)"; l_s="$(grep -n 'docker stop -t 30 caemanager-staging-app-azul' "$LOG" | cut -d: -f1)"; [ -n "$l_r" ] && [ -n "$l_s" ] && [ "$l_r" -lt "$l_s" ] && echo si || echo "no ($l_r/$l_s)")"
-saliente_staging; relevo STOP_FALLA=caemanager-staging-app-azul -- desplegar staging "$B"
-comprobar "si no se puede parar, sale con 0 (la nueva sirve) y queda un drenaje que reintenta" "0 1" "$codigo $(grep -c '^systemd-run' "$LOG")"
-comprobar "  y lo dice como error" si "$(contiene "::error::no se pudo parar caemanager-staging-app-azul" "$salida")"
+kills_de() { grep -c "^docker kill $1 " "$LOG"; }
+stops_de() { grep -c "^docker stop -t 30 $1 " "$LOG"; }
+AZUL_STG=caemanager-staging-app-azul
+saliente_staging; relevo "STOP_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop falla: se fuerza y el relevo es válido, sin drenaje" "0 false 1 0 to caemanager-staging-app-verde:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(kills_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+saliente_staging; relevo "STOP_NO_PARA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop sale con 0 pero sigue viva: se fuerza, que decide el contenedor" "0 false 1" "$codigo $(en_marcha "$AZUL_STG") $(kills_de "$AZUL_STG")"
+saliente_staging; relevo RELEVO_TOPE_STOP=1 "STOP_CUELGA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "docker stop colgado: el tope lo corta y se fuerza" "0 false" "$codigo $(en_marcha "$AZUL_STG")"
+saliente_staging; relevo "STOP_FALLA=$AZUL_STG" "KILL_FALLA=$AZUL_STG" -- desplegar staging "$B"
+comprobar "stop y kill fallan: el relevo acaba en error, sin drenaje, fuera de Caddy" "1 true 0 to caemanager-staging-app-verde:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+comprobar "  tras un número acotado de intentos" "3 3" "$(stops_de "$AZUL_STG") $(kills_de "$AZUL_STG")"
+comprobar "  nombra la ranura que sigue viva" si "$(contiene "::error::no se pudo parar $AZUL_STG" "$salida")"
+comprobar "  y da el relevo por incompleto" si "$(contiene "::error::Relevo de staging incompleto" "$salida")"
+saliente_staging; relevo "STOP_PIERDE_ESTADO=$AZUL_STG" -- desplegar staging "$B"
+comprobar "si su estado no se puede leer, no cuenta como parada" "1 0" "$codigo $(grep -c '^systemd-run' "$LOG")"
 saliente_staging; mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
 relevo -- desplegar staging "$B"
-comprobar "si la nueva no está sana, la saliente no se para y queda el drenaje, que espera a que lo esté" "0 true 1 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
-  "$codigo $(en_marcha caemanager-staging-app-azul) $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+comprobar "si la nueva no está sana, no se para, no drena y el relevo acaba en error" "1 true 0 0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(grep -c '^systemd-run' "$LOG") $(ranuras staging)"
+comprobar "  y dice por qué" si "$(contiene "no se para porque caemanager-staging-app-verde no está sana" "$salida")"
+# Saliente de un relevo anterior: staging sirve con el contenedor anterior a P1-F2
+# y verde sigue en el fichero. La nueva va a azul.
+VERDE_STG=caemanager-staging-app-verde
+saliente_previa() {
+  limpio; contenedor caemanager-staging-app "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
+  fichero staging "to caemanager-staging-app:8080 $VERDE_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
+}
+saliente_previa; relevo "STOP_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "saliente previa sin la etiqueta: también se fuerza" "0 false 1" "$codigo $(en_marcha "$VERDE_STG") $(kills_de "$VERDE_STG")"
+saliente_previa; relevo "STOP_FALLA=$VERDE_STG" "KILL_FALLA=$VERDE_STG" -- desplegar staging "$B"
+comprobar "  y si sigue viva, el relevo acaba en error" "1 true" "$codigo $(en_marcha "$VERDE_STG")"
+comprobar "  nombrándola" si "$(contiene "::error::no se pudo parar $VERDE_STG" "$salida")"
+saliente_previa; rm -rf "$ESTADO/c/$VERDE_STG"; relevo -- desplegar staging "$B"
+comprobar "saliente previa que ya no existe: no bloquea el relevo" 0 "$codigo"
 limpio; contenedor caemanager-staging-app "$A"; sin_guarda caemanager-staging-app
 fichero staging "to caemanager-staging-app:8080"; fichero produccion "to caemanager-app-azul:8080"
 relevo -- desplegar staging "$B"
@@ -787,14 +827,30 @@ if [ -z "${RELEVO_GUION:-}" ]; then
               bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
   comp_sal() { [ "$(en_marcha caemanager-staging-app-azul)" = true ] && echo si || echo no; }
   mutar "la saliente sin la etiqueta drena igual" \
-    's#^        if saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$activa_" \&\& sana "\$cont_nueva"; then$#        if false; then#' esc_sal comp_sal
+    's#^        if saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$activa_"; then$#        if false; then#' esc_sal comp_sal
 
   esc_sal_insana() { limpio; contenedor caemanager-staging-app-azul "$A"; sin_guarda caemanager-staging-app-azul; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
                      mkdir -p "$ESTADO/c/caemanager-staging-app-verde"; echo unhealthy > "$ESTADO/c/caemanager-staging-app-verde/salud"
                      bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
   comp_sal_insana() { [ "$(en_marcha caemanager-staging-app-azul)" = false ] && echo si || echo no; }
   mutar "se retira la saliente aunque la nueva no esté sana" \
-    's#"\$activa_" \&\& sana "\$cont_nueva"; then$#"$activa_"; then#' esc_sal_insana comp_sal_insana
+    's#^    if ! sana "\$nueva"; then$#    if false; then#' esc_sal_insana comp_sal_insana
+
+  esc_parada() { saliente_staging; STOP_FALLA="$AZUL_STG" KILL_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  comp_parada() { [ "$codigo" = 0 ] && echo si || echo no; }
+  mutar "la parada se da por buena sin mirar el contenedor" \
+    's#^    \[ "\$(docker inspect -f .{{.State.Running}}. "\$1" 2>/dev/null || true)" = false \]$#    true#' esc_parada comp_parada
+  mutar "el relevo no falla si la imagen sin guarda sigue viva" \
+    's#^    if \[ "\$sin_guarda_viva" != 0 \]; then$#    if false; then#' esc_parada comp_parada
+
+  esc_forzar() { saliente_staging; STOP_FALLA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; }
+  comp_forzar() { [ "$(en_marcha "$AZUL_STG")" = true ] && echo si || echo no; }
+  mutar "no se fuerza la parada" \
+    's#^        timeout "\$RELEVO_TOPE_KILL" docker kill "\$contenedor" > /dev/null 2>&1 || true$#        :#' esc_forzar comp_forzar
+
+  esc_previa() { saliente_previa; STOP_FALLA="$VERDE_STG" KILL_FALLA="$VERDE_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
+  mutar "una saliente previa sin la etiqueta queda en un aviso" \
+    's#^        if en_marcha "\$previa" \&\& saliente_ignora_la_guarda "\$entorno" "\$sha" "app-\$nueva" "\$previa"; then$#        if false; then#' esc_previa comp_parada
 
   esc_sal_ok() { limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
                  bash "$1" desplegar staging "$B" > /dev/null 2>&1; }

@@ -247,7 +247,7 @@ main_volver_atras() {
 
     if ! bash "$RELEVO_APP" desplegar "$entorno" "$sha" < /dev/null; then
         [ -z "${HISTORIA_RESTAURADA:-}" ] || echo "Aviso P1-M3: __EFMigrationsHistory ya tiene de nuevo las 185 migraciones previas a la compactación; la ranura que sigue sirviendo no las lee, y el siguiente despliegue hacia delante vuelve a transicionarlo solo." >&2
-        detener "$entorno no llegó a sano con ${sha}: sigue sirviendo la ranura de antes. Revisa los logs y decide a mano."
+        detener "el relevo de $entorno a ${sha} no terminó bien: sigue sirviendo la ranura de antes, salvo que el error de arriba diga que ya conmutó. Revisa los logs y decide a mano."
     fi
 
     comprobar_salud "$entorno" "$sha" || detener "$entorno arrancó ${sha} pero no está sano: no se da por buena."
