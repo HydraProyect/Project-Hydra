@@ -12,7 +12,7 @@ namespace CaeManager.Architecture.Tests;
 /// base de datos qué queda; el comportamiento bajo runtime lo prueba
 /// <c>IncidentesSeguridadBajoRuntimeTests</c> en CI.
 /// </summary>
-public class RegistroIncidenteDistingueSinActorTests
+public class RegistroIncidenteDistingueSinUsuarioTests
 {
     private static string CuerpoOriginal()
     {
@@ -37,7 +37,7 @@ public class RegistroIncidenteDistingueSinActorTests
         return cuerpo;
     }
 
-    private static string CuerpoReescrito() => Aplicar(CuerpoOriginal(), RegistroIncidenteDistingueSinActor.Cambios);
+    private static string CuerpoReescrito() => Aplicar(CuerpoOriginal(), RegistroIncidenteDistingueSinUsuario.Cambios);
 
     [Fact]
     public void Sin_contexto_firmado_se_rechaza_antes_de_tocar_nada()
@@ -86,7 +86,7 @@ public class RegistroIncidenteDistingueSinActorTests
     [Fact]
     public void El_Down_devuelve_el_cuerpo_exacto()
     {
-        var inversos = Enumerable.Reverse(RegistroIncidenteDistingueSinActor.Cambios).Select(c => (c.Despues, c.Antes));
+        var inversos = Enumerable.Reverse(RegistroIncidenteDistingueSinUsuario.Cambios).Select(c => (c.Despues, c.Antes));
 
         Aplicar(CuerpoReescrito(), inversos).Should().Be(CuerpoOriginal());
     }
@@ -94,7 +94,7 @@ public class RegistroIncidenteDistingueSinActorTests
     [Fact]
     public void La_migracion_reescribe_sin_tocar_permisos_ni_depender_del_fin_de_linea()
     {
-        var migracion = new RegistroIncidenteDistingueSinActor();
+        var migracion = new RegistroIncidenteDistingueSinUsuario();
         var up = migracion.UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
         var down = migracion.DownOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
 

@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261101170000_RegistroIncidenteDistingueSinActor")]
-    partial class RegistroIncidenteDistingueSinActor
+    [Migration("20261101170000_RegistroIncidenteDistingueSinUsuario")]
+    partial class RegistroIncidenteDistingueSinUsuario
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

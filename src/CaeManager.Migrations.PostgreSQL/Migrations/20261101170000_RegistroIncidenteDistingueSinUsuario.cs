@@ -23,9 +23,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// registra en un ámbito nuevo que no tiene su identidad. Queda dicho lo que el contexto muestra:
     /// <c>sin_usuario_en_contexto</c> en la evidencia, Actor nulo en la transición y motivo que lo dice;
     /// no se deduce ni se inventa un Actor. Y nunca agrupa ni es agrupada: en la base una señal plantada y
-    /// una legítima sin usuario son indistinguibles, así que cada una abre su incidente. No multiplica
-    /// alertas: las señales con umbral saltan una vez por ventana en <c>VentanaDeslizantePorSujeto</c>, y
-    /// «No he sido yo» es una confirmación humana.
+    /// una legítima sin usuario son indistinguibles, así que cada una abre su incidente. El coste está
+    /// acotado: las señales con umbral saltan una vez por ventana de la señal y proceso en
+    /// <c>VentanaDeslizantePorSujeto</c>, y cada «No he sido yo» es una confirmación humana.
     /// </para>
     ///
     /// <para>
@@ -49,7 +49,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// conexión (<c>TenantRlsConnectionInterceptor</c>), así que basta un paso.
     /// </para>
     /// </summary>
-    public partial class RegistroIncidenteDistingueSinActor : Migration
+    public partial class RegistroIncidenteDistingueSinUsuario : Migration
     {
         private const string Firma = "public.app_registrar_incidente_seguridad(uuid,uuid,text,text,uuid[],jsonb,integer)";
 

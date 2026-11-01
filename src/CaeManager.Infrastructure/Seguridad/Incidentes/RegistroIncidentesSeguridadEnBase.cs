@@ -24,7 +24,7 @@ namespace CaeManager.Infrastructure.Seguridad.Incidentes;
 /// <b>Ámbito propio.</b> Cada registro abre su ámbito de servicios y, con él, su propia
 /// conexión: si el DbContext de la petición estuviera dentro de una transacción, un
 /// error aquí la abortaría, y detectar no puede romper la operación que disparó la señal.
-/// El contexto RLS (Tenant y usuario) es el de la petición, que fluye por el ámbito. La
+/// En una petición HTTP el contexto RLS (Tenant y usuario) fluye por el ámbito. La
 /// función no autoriza con él, pero sí lo exige y lo contrasta: sin contexto firmado
 /// rechaza; con usuario distinto del sujeto lo marca en la evidencia; y sin usuario (el
 /// enlace «No he sido yo» llega sin sesión, y este ámbito nuevo no hereda la identidad de
