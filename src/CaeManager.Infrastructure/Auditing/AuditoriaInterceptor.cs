@@ -163,6 +163,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // leídos por la IA; y la solicitud de Microsoft 365 es una tabla entera retirada,
         // de la que aquí solo queda su Id y su Tenant.
         [typeof(ClaveApi)] = [nameof(ClaveApi.HashClave)],
+        [typeof(ClaveIntegracionTenant)] = [nameof(ClaveIntegracionTenant.HashClave)],
         [typeof(ConexionIntegracion)] = [nameof(ConexionIntegracion.UltimoError)],
         [typeof(VerificacionDocumentoOficial)] = [nameof(VerificacionDocumentoOficial.CodigoVerificacion)],
         [typeof(EventoWebhook)] = [nameof(EventoWebhook.PayloadCrudo)],

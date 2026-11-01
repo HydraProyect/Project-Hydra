@@ -83,6 +83,7 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
         ("app_cuenta_por_nombre_normalizado", $"SELECT EXISTS (SELECT 1 FROM app_cuenta_por_nombre_normalizado('{_nombreA}'))"),
         ("app_cuentas_por_email_normalizado", $"SELECT EXISTS (SELECT 1 FROM app_cuentas_por_email_normalizado('{_correoA}'))"),
         ("app_tenant_de_cuenta", $"SELECT app_tenant_de_cuenta('{_cuentaA}') IS NOT NULL"),
+        ("app_tenant_de_clave_integracion", "SELECT app_tenant_de_clave_integracion('sin-clave') IS NULL"),
         ("app_tenant_de_webhook_graph", $"SELECT app_tenant_de_webhook_graph('{_conexionGraph}') IS NOT NULL"),
         ("app_tenant_de_webhook_whatsapp", $"SELECT app_tenant_de_webhook_whatsapp('{Telefono}') IS NOT NULL"),
         ("app_nombre_en_uso_por_otra_cuenta", $"SELECT app_nombre_en_uso_por_otra_cuenta('{_nombreA}', '{Guid.NewGuid()}')"),
