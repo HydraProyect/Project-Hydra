@@ -229,9 +229,15 @@
     /// <summary>
     /// Un único texto para credenciales inválidas y cuenta bloqueada —
     /// distinguirlos permitiría enumerar cuentas existentes y bloqueadas
-    /// (hallazgo de la auditoría de PR #48 sobre P0-2).
+    /// (hallazgo de la auditoría de PR #48 sobre P0-2; ASVS 4.0.3 V2.2, OWASP A07).
+    /// El texto ofrece además una salida común a ambos casos —restablecer la
+    /// contraseña o consultar con quien gestiona su acceso en su organización—:
+    /// quien tiene la cuenta desactivada (<c>LockoutEnd = MaxValue</c>) no debe
+    /// reintentar sin fin ante un mensaje que solo le dice «revisa tus datos»,
+    /// y como el texto es el mismo para ambos, la salida no revela cuál de los
+    /// dos casos es.
     /// </summary>
-    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
+    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña. Si sigue sin funcionar, restablece tu contraseña o consulta con quien gestiona tu acceso en tu organización.";
 
     private sealed class DatosEntrada
     {
