@@ -526,13 +526,13 @@ public partial class ConfigurarPlantillaEditorGen2Tests : BunitContext
         var mediador = new MediatorFalso { Version = Result.Exito(Detalle(_versionId)) };
         mediador.Retener = p => p is ObtenerPlantillaDocumentoVersionQuery ? respuesta.Task : null;
         Registrar(mediador);
-        Render<ConfigurarPlantilla>(p => p.Add(c => c.PlantillaDocumentoVersionId, _versionId));
+        var cut = Render<ConfigurarPlantilla>(p => p.Add(c => c.PlantillaDocumentoVersionId, _versionId));
 
         var token = mediador.TokenDe<ObtenerPlantillaDocumentoVersionQuery>();
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la carga en curso");
         var llegaTarde = () => respuesta.SetResult(Result.Exito(Detalle(_versionId)));

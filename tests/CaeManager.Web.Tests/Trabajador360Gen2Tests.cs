@@ -2193,7 +2193,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
         mediador.Centros[id] = [norte];
 
-        Renderizar(id);
+        var cut = Renderizar(id);
 
         var consultas = mediador.Tokens
             .Where(t => t.Peticion.GetType().Name.EndsWith("Query", StringComparison.Ordinal)).ToList();
@@ -2201,7 +2201,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested,
             "cada consulta tiene que llevar el token del ciclo de la página, no CancellationToken.None");
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         consultas.Should().OnlyContain(t => t.Token.IsCancellationRequested,
             "retirada la página no queda ninguna consulta suya trabajando para nadie");

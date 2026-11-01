@@ -296,7 +296,7 @@ public partial class Documento360Gen2Tests : BunitContext
             .Which.Token.CanBeCanceled.Should().BeFalse("cerrar la ficha no deshace una escritura ya solicitada");
 
         var token = consultas[0];
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue("retirar el panel ejecuta su Dispose, no cut.Dispose()");
     }
 

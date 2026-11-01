@@ -537,7 +537,7 @@ public class RevisionIaGen2Tests : BunitContext
 
         var operacion = InvocarPrivadoAsync(cut, "AceptarDeteccionAsync", revision.Id);
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace de aceptar");
@@ -555,7 +555,7 @@ public class RevisionIaGen2Tests : BunitContext
 
         var operacion = InvocarPrivadoAsync(cut, "ResolverSeleccionadaAsync");
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace de descartar");
@@ -575,7 +575,7 @@ public class RevisionIaGen2Tests : BunitContext
         var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Titulo == "Aceptar las lecturas seleccionadas");
         var operacion = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
         await inicio.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace del bloque");
@@ -608,7 +608,7 @@ public class RevisionIaGen2Tests : BunitContext
         var token = mediador.Tokens.Should().ContainSingle("control positivo: se inició la consulta de carga").Subject.Token;
 
         token.CanBeCanceled.Should().BeTrue();
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         token.IsCancellationRequested.Should().BeTrue("retirar el componente cancela la consulta que permanece en vuelo");
         espera.SetResult();
     }

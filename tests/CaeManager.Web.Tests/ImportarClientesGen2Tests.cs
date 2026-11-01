@@ -942,7 +942,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         // La instancia se toma ANTES: tras desechar ya no hay componente que pedir.
         var instancia = cut.Instance;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Campo<bool>(instancia, "_desechada").Should().BeTrue("el Dispose de la página se ejecutó");
         token.IsCancellationRequested.Should().BeTrue("el análisis en vuelo se cancela al retirar la página");
@@ -966,7 +966,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Campo<bool>(instancia, "_cargandoHistorial").Should().BeTrue("la página espera la puerta para buscar al usuario");
         _usuarios.Buscados.Should().BeEmpty();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mediador.Recibidas.Single(r => r.Peticion is ObtenerHistorialImportacionesQuery).Token.IsCancellationRequested
             .Should().BeTrue("la consulta del historial llevaba el token del ciclo de la página");
@@ -989,7 +989,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         _usuarios.Buscados.Should().ContainSingle("la primera búsqueda está retenida");
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         // El doble no atiende al token: la búsqueda en curso termina y lo que se corta es la siguiente.
         primeraBusqueda.SetResult();
         await PasarPorLaPuertaDeDatos();
@@ -1025,7 +1025,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         var enviadasAntes = mediador.Recibidas.Count;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         // Mismo patrón que las respuestas tardías: se marshalla al Dispatcher
         // del renderer en vez de invocar directamente, para que una excepción
@@ -1058,7 +1058,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var instancia = cut.Instance;
         var enviadasAntes = mediador.Recibidas.Count;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         Func<Task> llegaTarde = () => Renderer.Dispatcher.InvokeAsync(() => InvocarAsync(instancia, "CargarHistorialAsync"));
         await llegaTarde.Should().NotThrowAsync(

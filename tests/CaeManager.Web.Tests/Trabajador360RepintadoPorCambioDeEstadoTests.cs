@@ -109,7 +109,7 @@ public partial class Trabajador360Gen2Tests
 
         // Cerrada la página, la suscripción se da de baja y un aviso ya no relee nada (esperando de verdad).
         var antesDeCerrar = mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         OyentesDe(cache).Should().Be(0, "la página se dio de baja al cerrarse");
         notificador.Publicar(new AvisoCambioEstado(TenantLeido, 3, [id]));
         await Task.Delay(EsperaNegativa);

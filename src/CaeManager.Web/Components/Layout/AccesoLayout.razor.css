@@ -319,6 +319,79 @@
     outline-offset: 2px;
 }
 
+/* «o» entre el formulario y el botón de Microsoft, con filetes a los lados. */
+.acceso-centro ::deep .acceso-separador {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 14px;
+    font-size: 12px;
+    color: rgba(242, 238, 225, .62);
+}
+
+.acceso-centro ::deep .acceso-separador::before,
+.acceso-centro ::deep .acceso-separador::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(242, 238, 225, .22);
+}
+
+/* Botón «Iniciar sesión con Microsoft». Variante clara de la guía de marca de
+   Microsoft Learn (fondo #FFFFFF, filete #8C8C8C, texto #5E5E5E semibold de
+   15 px, alto 41 px, logotipo de 21 px y 12 px entre el logotipo y el texto,
+   con el contenido centrado como el botón principal). La escena de acceso es siempre oscura, así que la variante oscura (#2F2F2F,
+   texto blanco) se confundiría con el fondo y no se usa. Los cuatro cuadrados
+   conservan sus colores y su proporción en cualquier tema. */
+.acceso-centro ::deep .acceso-microsoft {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 41px;
+    padding: 0 12px;
+    font: 600 15px/1.2 'Segoe UI', 'Segoe UI Web (West European)', -apple-system, system-ui, sans-serif;
+    color: #5E5E5E;
+    background: #FFFFFF;
+    border: 1px solid #8C8C8C;
+    border-radius: 7px; /* el mismo radio que los campos y el botón principal */
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .18s ease;
+}
+
+.acceso-centro ::deep .acceso-microsoft-logo {
+    flex: none;
+    width: 21px;
+    height: 21px;
+}
+
+.acceso-centro ::deep .acceso-microsoft + .acceso-nota {
+    margin-top: 10px;
+}
+
+.acceso-centro ::deep .acceso-microsoft:hover {
+    background: #F2F2F2;
+}
+
+.acceso-centro ::deep .acceso-microsoft:active {
+    background: #E6E6E6;
+}
+
+/* Con el dedo, el objetivo sube a los 44 px habituales en móvil. */
+@media (pointer: coarse) {
+    .acceso-centro ::deep .acceso-microsoft {
+        min-height: 44px;
+    }
+}
+
+.acceso-centro ::deep .acceso-microsoft:focus-visible {
+    outline: 2px solid #F2EEE1;
+    outline-offset: 2px;
+}
+
 .acceso-centro ::deep .acceso-alterno {
     margin: 17px 0 0;
     font-size: 12px;
