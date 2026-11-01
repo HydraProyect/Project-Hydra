@@ -17,5 +17,10 @@ public class NotificacionUsuarioRepository(CaeManagerDbContext dbContext) : INot
     public async Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventoOrigenAsync(Guid eventoOrigenId, CancellationToken cancellationToken = default) =>
         await dbContext.NotificacionesUsuario.Where(n => n.EventoOrigenId == eventoOrigenId).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventosOrigenAsync(IReadOnlyCollection<Guid> eventoOrigenIds, CancellationToken cancellationToken = default) =>
+        await dbContext.NotificacionesUsuario
+            .Where(n => n.EventoOrigenId != null && eventoOrigenIds.Contains(n.EventoOrigenId.Value))
+            .ToListAsync(cancellationToken);
+
     public void Agregar(NotificacionUsuario notificacion) => dbContext.NotificacionesUsuario.Add(notificacion);
 }

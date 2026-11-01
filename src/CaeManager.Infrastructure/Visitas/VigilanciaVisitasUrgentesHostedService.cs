@@ -1,3 +1,4 @@
+using System.Globalization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
 using CaeManager.Application.Configuracion;
@@ -20,7 +21,7 @@ using Microsoft.Extensions.Logging;
 namespace CaeManager.Infrastructure.Visitas;
 
 /// <summary>
-/// Fase F: avisa por hora (no por correo en v1 — solo la campana,
+/// Fase F: comprueba cada hora y avisa (no por correo en v1 — solo la campana,
 /// <see cref="NotificacionUsuario"/>) cuando un tenant tiene gestiones
 /// urgentes de visita pendientes (Visitas dentro de la ventana mínima de
 /// validación, o sugerencias de visita sorpresa sin confirmar) — mismo
@@ -34,16 +35,18 @@ namespace CaeManager.Infrastructure.Visitas;
 /// de la sesión, inexistente en un job de fondo, y sin usuario el alcance es vacío, así que el aviso
 /// nunca saldría y el trabajo se registraría «exitoso, 0 evaluados».
 ///
-/// Destinatarios: quienes ejercen Administrador o DireccionCae en el Tenant, porque el recuento es
-/// del Tenant entero (ver <see cref="DestinatariosDelAviso"/>). Mismos roles (y misma
+/// Destinatarios: quienes ejercen Administrador o DireccionCae en el Tenant, porque se vigila el
+/// Tenant entero (ver <see cref="DestinatariosDelAviso"/>). Mismos roles (y misma
 /// limitación documentada) que el resumen de alertas por correo, que aún mira el rol de
 /// origen del Operador Delegado — atribuir
 /// una gestión urgente a "el" Gestor CAE responsable exigiría resolver
 /// Trabajador/Centro → Empresa/Subcontrata → Cliente, y esa relación puede
 /// ser N:M (ver el comentario de EnvioAlertasVencimientoHostedService).
-/// Sin dedupe entre avisos: es deliberadamente un aviso por hora mientras la
-/// condición se mantenga, no una notificación única por gestión — el propio
-/// nombre del pedido ("avisos por hora") lo pide así.
+///
+/// Un aviso por Tenant, destinatario y gestión, nunca por texto: <c>EventoOrigenId</c> es el Id de la
+/// Visita o de la sugerencia, y el índice único de <see cref="NotificacionUsuario"/> sobre esas tres
+/// coordenadas impide el duplicado. Mientras esté sin leer no se repite; leído y con la gestión aún
+/// urgente, el ciclo siguiente reabre la misma fila (ver <see cref="ReabrirLeidasYCrearLasQueFaltan"/>).
 /// </summary>
 public class VigilanciaVisitasUrgentesHostedService(
     IServiceScopeFactory ambitoFactory,
@@ -166,11 +169,11 @@ public class VigilanciaVisitasUrgentesHostedService(
     }
 
     /// <summary>
-    /// Cuántas gestiones urgentes hay en el Tenant entero. Recorre todas las páginas: las Visitas en
-    /// curso son candidatas, van delante por fecha y no cuentan, así que una sola página podría
-    /// quedarse sin ninguna urgente de verdad.
+    /// Las gestiones urgentes del Tenant entero. Recorre todas las páginas: las Visitas en curso son
+    /// candidatas, van delante por fecha y no cuentan, así que una sola página podría quedarse sin
+    /// ninguna urgente de verdad.
     /// </summary>
-    protected virtual async Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
+    protected virtual async Task<IReadOnlyList<GestionUrgente>> ObtenerGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
@@ -197,8 +200,16 @@ public class VigilanciaVisitasUrgentesHostedService(
         var parametros = await dbContext.ParametrosSistema.SingleAsync(stoppingToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        return visitas.Count(GestionesUrgentesDeVisita.EsUrgente)
-            + sugerencias.Count(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita));
+        return
+        [
+            .. visitas.Where(GestionesUrgentesDeVisita.EsUrgente).Select(v => new GestionUrgente(
+                v.Id,
+                $"La visita a {v.CentroNombre} del {v.FechaInicio.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)} está dentro de la ventana mínima de validación.")),
+            .. sugerencias.Where(s => GestionesUrgentesDeVisita.EsUrgente(s, hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita))
+                .Select(s => new GestionUrgente(
+                    s.Id,
+                    $"Hay una sugerencia de visita sin confirmar para {s.CentroNombre ?? "un Centro sin identificar"}.")),
+        ];
     }
 
     /// <summary>
@@ -217,11 +228,40 @@ public class VigilanciaVisitasUrgentesHostedService(
                         || rolEjercido is Roles.Administrador or Roles.DireccionCae)
             .ToList();
 
+    /// <summary>
+    /// Aplica el aviso a cada pareja de gestión y destinatario: reabre el leído y deja el que sigue sin
+    /// leer. <paramref name="existentes"/> ya viene acotado al Tenant, por eso la clave es solo destinatario
+    /// y gestión.
+    /// </summary>
+    /// <returns>Los avisos que no existían, por añadir.</returns>
+    internal static IReadOnlyList<NotificacionUsuario> ReabrirLeidasYCrearLasQueFaltan(
+        IReadOnlyCollection<GestionUrgente> gestiones,
+        IReadOnlyCollection<Guid> destinatarios,
+        IEnumerable<NotificacionUsuario> existentes)
+    {
+        var porDestinatarioYGestion = existentes.ToDictionary(n => (n.UsuarioDestinatarioId, n.EventoOrigenId));
+        var nuevas = new List<NotificacionUsuario>();
+
+        foreach (var gestion in gestiones)
+        {
+            foreach (var destinatario in destinatarios)
+            {
+                if (!porDestinatarioYGestion.TryGetValue((destinatario, gestion.Id), out var existente))
+                    nuevas.Add(new NotificacionUsuario(
+                        destinatario, "Gestión urgente de visita", gestion.Mensaje, "/bandeja", "Ver Mi trabajo", gestion.Id));
+                else if (existente.Leida)
+                    existente.Reabrir();
+            }
+        }
+
+        return nuevas;
+    }
+
     /// <returns>Cuántas gestiones urgentes había, avisadas o no.</returns>
     private async Task<int> AvisarTenantAsync(IServiceScope ambito, CancellationToken stoppingToken)
     {
-        var gestionesUrgentes = await ContarGestionesUrgentesAsync(ambito, stoppingToken);
-        if (gestionesUrgentes == 0) return 0;
+        var gestiones = await ObtenerGestionesUrgentesAsync(ambito, stoppingToken);
+        if (gestiones.Count == 0) return 0;
 
         var directorio = ambito.ServiceProvider.GetRequiredService<DirectorioUsuariosTenant>();
         var administradores = await directorio.ObtenerVisiblesEnRolAsync(Roles.Administrador, stoppingToken);
@@ -230,18 +270,20 @@ public class VigilanciaVisitasUrgentesHostedService(
         var rolesEjercidosPorDelegados = await directorio.ObtenerRolesDeOperadoresDelegadosAsync(stoppingToken);
 
         var destinatarios = DestinatariosDelAviso(administradores, direccionCae, rolesEjercidosPorDelegados);
-        if (destinatarios.Count == 0) return gestionesUrgentes;
+        if (destinatarios.Count == 0) return gestiones.Count;
 
         var repositorio = ambito.ServiceProvider.GetRequiredService<INotificacionUsuarioRepository>();
-        var mensaje = gestionesUrgentes == 1
-            ? "Hay 1 gestión urgente de visita pendiente (ventana mínima de validación)."
-            : $"Hay {gestionesUrgentes} gestiones urgentes de visita pendientes (ventana mínima de validación).";
+        var existentes = await repositorio.ObtenerPorEventosOrigenAsync(gestiones.Select(g => g.Id).ToList(), stoppingToken);
 
-        foreach (var destinatario in destinatarios)
-            repositorio.Agregar(new NotificacionUsuario(destinatario.Id, "Gestiones urgentes de visita", mensaje, "/bandeja", "Ver Mi trabajo"));
+        var destinatarioIds = destinatarios.Select(d => d.Id).ToList();
+        foreach (var aviso in ReabrirLeidasYCrearLasQueFaltan(gestiones, destinatarioIds, existentes))
+            repositorio.Agregar(aviso);
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
 
-        return gestionesUrgentes;
+        return gestiones.Count;
     }
 }
+
+/// <summary>Una gestión urgente de visita. <paramref name="Id"/>, de la Visita o de la sugerencia, identifica su aviso.</summary>
+public sealed record GestionUrgente(Guid Id, string Mensaje);

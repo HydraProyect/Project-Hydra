@@ -16,5 +16,9 @@ public class NotificacionUsuarioRepositorioFalso : INotificacionUsuarioRepositor
     public Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventoOrigenAsync(Guid eventoOrigenId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<NotificacionUsuario>>(Notificaciones.Where(n => n.EventoOrigenId == eventoOrigenId).ToList());
 
+    public Task<IReadOnlyList<NotificacionUsuario>> ObtenerPorEventosOrigenAsync(IReadOnlyCollection<Guid> eventoOrigenIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<NotificacionUsuario>>(
+            Notificaciones.Where(n => n.EventoOrigenId is { } evento && eventoOrigenIds.Contains(evento)).ToList());
+
     public void Agregar(NotificacionUsuario notificacion) => Notificaciones.Add(notificacion);
 }

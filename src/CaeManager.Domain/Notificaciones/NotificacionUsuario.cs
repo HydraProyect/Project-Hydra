@@ -50,4 +50,14 @@ public class NotificacionUsuario : EntidadConTenant
     }
 
     public void MarcarComoLeida() => Leida = true;
+
+    /// <summary>
+    /// Vuelve a avisar en la misma fila, para un aviso cuya condición sigue en pie después de leído: el
+    /// índice único (Tenant, destinatario, evento de origen) no admite una segunda fila.
+    /// </summary>
+    public void Reabrir()
+    {
+        Leida = false;
+        CreadaEnUtc = DateTime.UtcNow;
+    }
 }

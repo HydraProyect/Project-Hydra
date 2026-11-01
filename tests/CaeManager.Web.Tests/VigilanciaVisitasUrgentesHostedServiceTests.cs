@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Configuracion;
 using CaeManager.Infrastructure.Coordinacion;
@@ -50,6 +51,61 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
     }
 
     private static CuentaVisibleEnRol Cuenta() => new(Guid.NewGuid(), "Cuenta", null, null);
+
+    [Fact]
+    public void Sin_aviso_previo_se_crea_uno_por_destinatario_y_gestion()
+    {
+        var (gestion, otraGestion) = (Gestion(), Gestion());
+        var (destinatario, otroDestinatario) = (Guid.NewGuid(), Guid.NewGuid());
+
+        var nuevas = VigilanciaVisitasUrgentesHostedService.ReabrirLeidasYCrearLasQueFaltan(
+            [gestion, otraGestion], [destinatario, otroDestinatario], []);
+
+        nuevas.Select(n => (n.UsuarioDestinatarioId, n.EventoOrigenId)).Should().BeEquivalentTo(new (Guid, Guid?)[]
+        {
+            (destinatario, gestion.Id), (destinatario, otraGestion.Id),
+            (otroDestinatario, gestion.Id), (otroDestinatario, otraGestion.Id),
+        });
+    }
+
+    /// <summary>La identidad es la gestión: ni un texto distinto repite el aviso ni uno igual lo tapa.</summary>
+    [Fact]
+    public void Sin_leer_no_se_repite_y_otra_gestion_con_el_mismo_texto_si_avisa()
+    {
+        var gestion = Gestion();
+        var otraConElMismoTexto = new GestionUrgente(Guid.NewGuid(), gestion.Mensaje);
+        var destinatario = Guid.NewGuid();
+        var sinLeer = Aviso(destinatario, gestion with { Mensaje = "Otro texto" });
+
+        var nuevas = VigilanciaVisitasUrgentesHostedService.ReabrirLeidasYCrearLasQueFaltan(
+            [gestion, otraConElMismoTexto], [destinatario], [sinLeer]);
+
+        nuevas.Should().ContainSingle().Which.EventoOrigenId.Should().Be(otraConElMismoTexto.Id);
+        sinLeer.Leida.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Leido_y_aun_urgente_se_reabre_la_misma_fila_sin_tocar_a_otro_destinatario()
+    {
+        var gestion = Gestion();
+        var (destinatario, otroDestinatario) = (Guid.NewGuid(), Guid.NewGuid());
+        var leido = Aviso(destinatario, gestion);
+        leido.MarcarComoLeida();
+        var leidoDeOtro = Aviso(otroDestinatario, gestion);
+        leidoDeOtro.MarcarComoLeida();
+
+        var nuevas = VigilanciaVisitasUrgentesHostedService.ReabrirLeidasYCrearLasQueFaltan(
+            [gestion], [destinatario], [leido, leidoDeOtro]);
+
+        nuevas.Should().BeEmpty("el índice único no admite una segunda fila");
+        leido.Leida.Should().BeFalse();
+        leidoDeOtro.Leida.Should().BeTrue("quien ya no es destinatario no recibe la reapertura");
+    }
+
+    private static GestionUrgente Gestion() => new(Guid.NewGuid(), "La visita está dentro de la ventana.");
+
+    private static NotificacionUsuario Aviso(Guid destinatario, GestionUrgente gestion) =>
+        new(destinatario, "Gestión urgente de visita", gestion.Mensaje, eventoOrigenId: gestion.Id);
 
     [Fact]
     public async Task El_fallo_de_un_Tenant_se_registra_y_no_deja_sin_ciclo_al_siguiente()
@@ -199,11 +255,12 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
     {
         public List<Guid> Consultados { get; } = [];
 
-        protected override Task<int> ContarGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
+        protected override Task<IReadOnlyList<GestionUrgente>> ObtenerGestionesUrgentesAsync(IServiceScope ambito, CancellationToken stoppingToken)
         {
             var tenant = AmbitoTenantExplicito.TenantIdActual!.Value;
             Consultados.Add(tenant);
-            return Task.FromResult(contar(tenant));
+            contar(tenant);
+            return Task.FromResult<IReadOnlyList<GestionUrgente>>([]);
         }
 
         private sealed class LiderSinUso : IEleccionLiderService

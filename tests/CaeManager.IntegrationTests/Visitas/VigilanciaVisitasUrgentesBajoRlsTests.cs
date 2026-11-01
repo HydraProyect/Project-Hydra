@@ -26,8 +26,8 @@ namespace CaeManager.IntegrationTests.Visitas;
 /// C-02: la vigilancia de gestiones urgentes pedía la cola de la Bandeja sin usuario, el alcance de
 /// datos caía en «ninguno» y el trabajo se registraba «exitoso, 0 evaluados» sin avisar jamás. Aquí
 /// corre un ciclo real del servicio de fondo bajo <c>cae_app_runtime</c>, sin usuario y con el
-/// cableado de producción: cuenta el Tenant entero, avisa a sus Administradores y a Dirección CAE, no
-/// toca a otro Tenant y no abre ese alcance a quien pregunta por la vía de una sesión.
+/// cableado de producción: cuenta el Tenant entero, avisa a sus Administradores y a Dirección CAE una
+/// vez por gestión, no toca a otro Tenant y no abre ese alcance a quien pregunta por la vía de una sesión.
 ///
 /// <para>
 /// La línea base de cada test sale de un ciclo previo: la siembra ya puede dejar gestiones urgentes.
@@ -38,8 +38,6 @@ namespace CaeManager.IntegrationTests.Visitas;
 public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixture fixture)
     : IClassFixture<EstadoMaterializadoPilotoFixture>
 {
-    private const string TituloDelAviso = "Gestiones urgentes de visita";
-
     [Fact]
     public async Task Sin_usuario_una_Visita_urgente_llega_a_los_destinatarios_de_su_Tenant_y_no_toca_a_otro()
     {
@@ -54,9 +52,7 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         var otroInicial = await EstadoAsync(otroTenant);
 
         var manana = DiaDeNegocio.Hoy().AddDays(1);
-        await AnadirVisitasAsync(tenant, 1, manana, manana);
-        await fixture.Arnes.EnTenantAsync(tenant, (db, _) =>
-            db.Set<NotificacionUsuario>().Where(n => n.Titulo == TituloDelAviso).ExecuteDeleteAsync());
+        var visita = (await AnadirVisitasAsync(tenant, 1, manana, manana))[0];
         await CicloAsync();
 
         var estado = await EstadoAsync(tenant);
@@ -66,16 +62,81 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         (await EstadoAsync(otroTenant)).UltimosElementosEvaluados.Should().Be(
             otroInicial.UltimosElementosEvaluados, "la Visita es de otro Tenant");
 
-        var total = estado.UltimosElementosEvaluados!.Value;
-        var mensaje = total == 1
-            ? "Hay 1 gestión urgente de visita pendiente (ventana mínima de validación)."
-            : $"Hay {total} gestiones urgentes de visita pendientes (ventana mínima de validación).";
+        var avisos = await AvisosAsync(tenant, visita);
+        avisos.Select(n => n.UsuarioDestinatarioId).Should().BeEquivalentTo(destinatarios);
+    }
 
-        var avisados = await fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Set<NotificacionUsuario>()
-            .Where(n => n.Titulo == TituloDelAviso && n.Mensaje == mensaje)
-            .Select(n => n.UsuarioDestinatarioId)
-            .ToListAsync());
-        avisados.Should().BeEquivalentTo(destinatarios);
+    [Fact]
+    public async Task Sin_leer_no_se_repite_y_leido_con_la_urgencia_en_pie_se_reabre_en_el_ciclo_siguiente()
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(DateTimeOffset.UtcNow));
+        using var actor = AmbitoActorAuditoria.EstablecerSistema();
+        var (tenant, destinatarios) = await TenantConDestinatariosAsync(await TenantsConCentroAsync());
+        var manana = DiaDeNegocio.Hoy().AddDays(1);
+        var visita = (await AnadirVisitasAsync(tenant, 1, manana, manana))[0];
+
+        await CicloAsync();
+        var primeros = await AvisosAsync(tenant, visita);
+        primeros.Should().HaveCount(destinatarios.Count);
+
+        await CicloAsync();
+        (await AvisosAsync(tenant, visita)).Select(n => n.Id).Should().BeEquivalentTo(primeros.Select(n => n.Id));
+
+        var leido = primeros[0].Id;
+        await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            (await db.Set<NotificacionUsuario>().SingleAsync(n => n.Id == leido)).MarcarComoLeida();
+            return await db.SaveChangesAsync();
+        });
+        await CicloAsync();
+
+        var tras = await AvisosAsync(tenant, visita);
+        tras.Select(n => n.Id).Should().BeEquivalentTo(primeros.Select(n => n.Id), "se reabre la misma fila");
+        tras.Should().OnlyContain(n => !n.Leida);
+    }
+
+    /// <summary>
+    /// Bajo <c>cae_app_runtime</c> la comprobación solo ve su Tenant, y lo corta la RLS: sin los filtros
+    /// de EF tampoco aparece, así que el aviso de otro Tenant no puede tapar ni reabrirse desde aquí.
+    /// </summary>
+    [Fact]
+    public async Task La_comprobacion_de_avisos_no_ve_los_de_otro_Tenant()
+    {
+        using var actor = AmbitoActorAuditoria.EstablecerSistema();
+        var tenants = await TenantsConCentroAsync();
+        var (tenant, destinatarios) = await TenantConDestinatariosAsync(tenants);
+        var otroTenant = tenants.First(t => t != tenant);
+        var gestion = Guid.NewGuid();
+        await AgregarAvisoAsync(tenant, destinatarios[0], gestion);
+
+        var enSuTenant = await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+            sp.GetRequiredService<INotificacionUsuarioRepository>().ObtenerPorEventosOrigenAsync([gestion]));
+        var enOtroTenant = await fixture.Arnes.EnTenantAsync(otroTenant, (_, sp) =>
+            sp.GetRequiredService<INotificacionUsuarioRepository>().ObtenerPorEventosOrigenAsync([gestion]));
+        var enOtroTenantSinFiltros = await fixture.Arnes.EnTenantAsync(otroTenant, (db, _) =>
+            db.Set<NotificacionUsuario>().IgnoreQueryFilters().CountAsync(n => n.EventoOrigenId == gestion));
+
+        enSuTenant.Should().ContainSingle();
+        enOtroTenant.Should().BeEmpty();
+        enOtroTenantSinFiltros.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Si dos instancias llegaran a la vez, lo último que las separa es el índice único: la segunda
+    /// falla en vez de duplicar, y el ciclo siguiente la encuentra ya avisada.
+    /// </summary>
+    [Fact]
+    public async Task Dos_instancias_a_la_vez_no_pueden_duplicar_el_aviso()
+    {
+        using var actor = AmbitoActorAuditoria.EstablecerSistema();
+        var (tenant, destinatarios) = await TenantConDestinatariosAsync(await TenantsConCentroAsync());
+        var gestion = Guid.NewGuid();
+        await AgregarAvisoAsync(tenant, destinatarios[0], gestion);
+
+        var segunda = () => AgregarAvisoAsync(tenant, destinatarios[0], gestion);
+
+        await segunda.Should().ThrowAsync<DbUpdateException>();
+        (await AvisosAsync(tenant, gestion)).Should().ContainSingle();
     }
 
     /// <summary>
@@ -195,12 +256,25 @@ public class VigilanciaVisitasUrgentesBajoRlsTests(EstadoMaterializadoPilotoFixt
         fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Set<EstadoAutomatizacion>().AsNoTracking()
             .SingleAsync(e => e.TrabajoId == CatalogoAutomatizaciones.VigilanciaVisitasUrgentes));
 
-    private Task AnadirVisitasAsync(Guid tenant, int cuantas, DateOnly inicio, DateOnly fin) =>
+    private Task<List<Guid>> AnadirVisitasAsync(Guid tenant, int cuantas, DateOnly inicio, DateOnly fin) =>
         fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
         {
             var centro = await db.Centros.OrderBy(c => c.Id).Select(c => c.Id).FirstAsync();
-            db.Visitas.AddRange(Enumerable.Range(0, cuantas).Select(_ => new Visita(centro, inicio, fin, notas: null)));
-            return await db.SaveChangesAsync();
+            var visitas = Enumerable.Range(0, cuantas).Select(_ => new Visita(centro, inicio, fin, notas: null)).ToList();
+            db.Visitas.AddRange(visitas);
+            await db.SaveChangesAsync();
+            return visitas.Select(v => v.Id).ToList();
+        });
+
+    private Task<List<NotificacionUsuario>> AvisosAsync(Guid tenant, Guid gestion) =>
+        fixture.Arnes.EnTenantAsync(tenant, (db, _) =>
+            db.Set<NotificacionUsuario>().AsNoTracking().Where(n => n.EventoOrigenId == gestion).ToListAsync());
+
+    private Task<int> AgregarAvisoAsync(Guid tenant, Guid destinatario, Guid gestion) =>
+        fixture.Arnes.EnTenantAsync(tenant, (db, _) =>
+        {
+            db.Set<NotificacionUsuario>().Add(new NotificacionUsuario(destinatario, "Gestión urgente de visita", "Aviso de prueba.", eventoOrigenId: gestion));
+            return db.SaveChangesAsync();
         });
 
     private sealed class RelojFijo(DateTimeOffset instante) : TimeProvider
