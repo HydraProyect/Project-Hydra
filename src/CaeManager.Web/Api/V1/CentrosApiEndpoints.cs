@@ -26,7 +26,7 @@ public static class CentrosApiEndpoints
                     Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina),
                     ConIncidencias: esSoporte),
                 cancellationToken);
-            return esSoporte ? Results.Ok(resultado) : Results.Ok(CentroApiListaDto.DesdeInterno(resultado));
+            return Results.Ok(resultado);
         }).RequiereAlcanceIntegracion(AlcancesIntegracion.CentrosLeer);
 
         endpoints.MapGet("/centros/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
