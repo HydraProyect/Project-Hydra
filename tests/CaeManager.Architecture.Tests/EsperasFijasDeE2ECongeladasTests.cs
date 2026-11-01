@@ -36,7 +36,8 @@ public class EsperasFijasDeE2ECongeladasTests
         "Una espera fija en un E2E es tiempo muerto en cada run del job y esconde la condición que de verdad se espera. " +
         "NUEVA o CRECE: no añadas ni subas la línea; espera la condición con una aserción de Playwright, que reintenta sola " +
         "(await Expect(locator).ToBeVisibleAsync(), ToHaveTextAsync, ToHaveCountAsync…), con page.WaitForFunctionAsync(…) o con " +
-        "page.WaitForURLAsync(…). Solo si la espera ES un reloj del servidor (un ciclo de revalidación, una caducidad) se " +
+        "Expect(page).ToHaveURLAsync(…) (page.WaitForURLAsync solo para un documento nuevo: tras un cambio de URL sin él, " +
+        "como el de un filtro, se pierde el aviso si llega entre su comprobación y su suscripción). Solo si la espera ES un reloj del servidor (un ciclo de revalidación, una caducidad) se " +
         "añade o se sube la línea en tests/CaeManager.Architecture.Tests/Congelados/" + Lista + ".txt, con un comentario '#' " +
         "encima que diga qué reloj es. BAJA u OBSOLETA: has retirado esperas; baja la cifra o borra la línea en ese mismo " +
         "fichero, para que la lista no quede permisiva (HYDRA_TRINQUETES_VOLCAR=<directorio> vuelca la medida).";

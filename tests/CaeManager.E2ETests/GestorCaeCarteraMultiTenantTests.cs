@@ -337,7 +337,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = CentroA })).ToBeVisibleAsync();
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroFuera}");
-        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+        await Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/centros", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}" })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
 
@@ -462,7 +462,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
-            await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+            await Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/centros", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
             await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}; te llevamos a la lista." }))
                 .ToBeVisibleAsync(EsperaEnFrio);
             await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);

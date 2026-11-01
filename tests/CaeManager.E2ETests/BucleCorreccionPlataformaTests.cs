@@ -41,8 +41,8 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         await Expect(tarjeta).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
 
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new("^Corregir en ") }).ClickAsync();
-        await page.WaitForURLAsync(url => url.Contains("pestana=plataforma") && url.Contains("acreditacionId="),
-            new PageWaitForURLOptions { Timeout = 15_000 });
+        await Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex("^(?=.*pestana=plataforma)(?=.*acreditacionId=)"),
+            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
         var acreditacionId = new Uri(page.Url).Query.Split('&').Single(p => p.Contains("acreditacionId="))
             .Split('=')[1];
 
