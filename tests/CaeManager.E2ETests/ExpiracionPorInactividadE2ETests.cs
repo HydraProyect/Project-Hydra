@@ -65,17 +65,18 @@ public class ExpiracionPorInactividadE2ETests(WebAppFixtureConRevalidacionRapida
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // Control positivo: antes del plazo (4 de 5 minutos) la cookie vale y el circuito sigue abierto.
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(4));
-        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(contexto, "/clientes")).Estado);
+        // Control positivo: antes del plazo (3 de 5 minutos) la cookie vale y el circuito sigue abierto.
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
+        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(await CookieDeAsync(contexto), "/clientes")).Estado);
         await EsperarCiclosDeRevalidacionAsync();
         Assert.DoesNotContain(RutaAcceso, page.Url);
 
         // Pasado el plazo (6 minutos), sin que la persona haya tocado nada: el circuito, que no hace
-        // peticiones, vuelve al acceso solo, y la cookie ya no vale.
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(2));
+        // peticiones, vuelve al acceso solo, y la cookie de antes de caducar ya no vale.
+        var cookie = await CookieDeAsync(contexto);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
         await Assertions.Expect(page).ToHaveURLAsync(Acceso, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        AfirmarCaducada(await PedirAsync(contexto, "/clientes"));
+        AfirmarCaducada(await PedirAsync(cookie, "/clientes"));
     }
 
     [Fact]
@@ -89,24 +90,25 @@ public class ExpiracionPorInactividadE2ETests(WebAppFixtureConRevalidacionRapida
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // Una interacción real a los 4 minutos (la primera señal del documento sale sin aplazarse).
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(4));
+        // Una interaccion real a los 3 minutos (la primera señal del documento sale sin aplazarse).
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
         var senal = page.WaitForResponseAsync(r =>
             r.Request.Method == "POST" && r.Url.EndsWith("/sesion/actividad", StringComparison.Ordinal));
         await page.Locator("body").ClickAsync(new LocatorClickOptions { Position = new Position { X = 1, Y = 1 } });
         Assert.Equal(204, (await senal).Status);
 
-        // 8 minutos desde el inicio de sesión, 4 desde la interacción: sigue viva, la cookie y el circuito.
+        // 6 minutos desde el inicio de sesión, 3 desde la interacción: sigue viva, la cookie y el circuito.
         // Sin el reinicio de la señal habría caído a los 5.
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(4));
-        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(contexto, "/clientes")).Estado);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
+        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(await CookieDeAsync(contexto), "/clientes")).Estado);
         await EsperarCiclosDeRevalidacionAsync();
         Assert.DoesNotContain(RutaAcceso, page.Url);
 
         // 6 minutos desde la interacción, sin otra: cae.
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(2));
+        var cookie = await CookieDeAsync(contexto);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
         await Assertions.Expect(page).ToHaveURLAsync(Acceso, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        AfirmarCaducada(await PedirAsync(contexto, "/clientes"));
+        AfirmarCaducada(await PedirAsync(cookie, "/clientes"));
     }
 
     /// <summary>
@@ -124,19 +126,21 @@ public class ExpiracionPorInactividadE2ETests(WebAppFixtureConRevalidacionRapida
         var page = await contexto.NewPageAsync();
         await EntrarVisitandoAsync(page, TenantBeneficiarioA);
 
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(4));
-        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(contexto, "/mi-trabajo")).Estado);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
+        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(await CookieDeAsync(contexto), "/mi-trabajo")).Estado);
         await EsperarCiclosDeRevalidacionAsync();
         Assert.DoesNotContain(RutaAcceso, page.Url);
 
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(2));
+        var cookie = await CookieDeAsync(contexto);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(3));
         await Assertions.Expect(page).ToHaveURLAsync(Acceso, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        AfirmarCaducada(await PedirAsync(contexto, "/mi-trabajo"));
+        AfirmarCaducada(await PedirAsync(cookie, "/mi-trabajo"));
     }
 
     /// <summary>
     /// La otra dirección: el Tenant visitado tiene un plazo mínimo (5) y el de la cuenta el máximo (480).
-    /// No cae a los 6 minutos con el plazo del visitado ni con el por defecto (30): cae a los 481, con el suyo.
+    /// No cae a los 6 minutos (plazo del visitado) ni a los 40 (pasado el plazo por defecto de 30, por si el
+    /// claim se ignorase): cae a los 481, con el plazo de su Tenant.
     /// </summary>
     [Fact]
     public async Task Visitando_un_Tenant_con_plazo_mas_corto_no_cae_por_el_del_visitado_sino_por_el_de_la_cuenta()
@@ -150,14 +154,21 @@ public class ExpiracionPorInactividadE2ETests(WebAppFixtureConRevalidacionRapida
 
         // 6 minutos: ya pasó el plazo del Tenant visitado (5) pero no el de la cuenta (480).
         fixture.AdelantarReloj(TimeSpan.FromMinutes(6));
-        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(contexto, "/mi-trabajo")).Estado);
+        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(await CookieDeAsync(contexto), "/mi-trabajo")).Estado);
+        await EsperarCiclosDeRevalidacionAsync();
+        Assert.DoesNotContain(RutaAcceso, page.Url);
+
+        // 40 minutos: también pasado el plazo por defecto (30), que regiría si el claim no se leyera.
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(34));
+        Assert.Equal(HttpStatusCode.OK, (await PedirAsync(await CookieDeAsync(contexto), "/mi-trabajo")).Estado);
         await EsperarCiclosDeRevalidacionAsync();
         Assert.DoesNotContain(RutaAcceso, page.Url);
 
         // 481 minutos (por debajo del tope de 12 h): pasado el plazo de 480 de su Tenant.
-        fixture.AdelantarReloj(TimeSpan.FromMinutes(475));
+        var cookie = await CookieDeAsync(contexto);
+        fixture.AdelantarReloj(TimeSpan.FromMinutes(441));
         await Assertions.Expect(page).ToHaveURLAsync(Acceso, new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        AfirmarCaducada(await PedirAsync(contexto, "/mi-trabajo"));
+        AfirmarCaducada(await PedirAsync(cookie, "/mi-trabajo"));
     }
 
     private async Task EntrarVisitandoAsync(IPage page, string nombreTenantVisitado)
@@ -192,13 +203,17 @@ public class ExpiracionPorInactividadE2ETests(WebAppFixtureConRevalidacionRapida
             """,
             ("m", minutos.ToString()), ("n", nombreTenant)));
 
+    private static async Task<string> CookieDeAsync(IBrowserContext contexto) =>
+        string.Join("; ", (await contexto.CookiesAsync()).Select(c => $"{c.Name}={c.Value}"));
+
     /// <summary>
-    /// GET con la cookie del contexto y nada más (sin cookie jar, sin seguir redirecciones): 200 = sesión
+    /// GET con esa cabecera de cookie y nada más (sin cookie jar, sin seguir redirecciones): 200 = sesión
     /// válida, 302 hacia el acceso = rechazada. No es una interacción: solo cuenta POST /sesion/actividad.
+    /// Las comprobaciones de «cayó» reproducen la cookie capturada ANTES de caer: la del contexto, después de
+    /// que el navegador vuelva al acceso, ya viene borrada y cualquier petición anónima también daría 302.
     /// </summary>
-    private async Task<(HttpStatusCode Estado, string? Destino)> PedirAsync(IBrowserContext contexto, string ruta)
+    private async Task<(HttpStatusCode Estado, string? Destino)> PedirAsync(string cookie, string ruta)
     {
-        var cookie = string.Join("; ", (await contexto.CookiesAsync()).Select(c => $"{c.Name}={c.Value}"));
         using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(fixture.BaseUrl) };
         using var peticion = new HttpRequestMessage(HttpMethod.Get, ruta);

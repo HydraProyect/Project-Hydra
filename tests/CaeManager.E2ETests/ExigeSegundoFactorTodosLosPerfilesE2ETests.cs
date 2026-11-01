@@ -113,13 +113,37 @@ public class ExigeSegundoFactorTodosLosPerfilesE2ETests(WebAppFixtureCuentaAMedi
 
         var interruptor = tarjeta.GetByRole(AriaRole.Switch,
             new LocatorGetByRoleOptions { Name = "Exigir verificación en dos pasos a todos los perfiles" });
-        if (await interruptor.GetAttributeAsync("aria-checked") != (exigir ? "true" : "false"))
-            await interruptor.ClickAsync();
-        await Expect(interruptor).ToHaveAttributeAsync("aria-checked", exigir ? "true" : "false");
+        var esperado = exigir ? "true" : "false";
 
-        await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
-        await Expect(pagina.Locator(".toast")).ToContainTextAsync(
-            "Seguridad de acceso actualizada.", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        // Un clic antes de que el circuito conecte no hace nada (el HTML prerenderizado ya está, su @onclick no):
+        // se repite hasta que el interruptor cambia. Solo se pulsa si no está como se quiere.
+        for (var intento = 1; await interruptor.GetAttributeAsync("aria-checked") != esperado; intento++)
+        {
+            await interruptor.ClickAsync();
+            try
+            {
+                await Expect(interruptor).ToHaveAttributeAsync("aria-checked", esperado, new LocatorAssertionsToHaveAttributeOptions { Timeout = 3_000 });
+            }
+            catch (PlaywrightException) when (intento < 5)
+            {
+            }
+        }
+
+        // Guardar es idempotente: repetirlo mientras no salga el aviso solo cuesta otra escritura del mismo valor.
+        var guardar = tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true });
+        for (var intento = 1; ; intento++)
+        {
+            await guardar.ClickAsync();
+            try
+            {
+                await Expect(pagina.Locator(".toast")).ToContainTextAsync(
+                    "Seguridad de acceso actualizada.", new LocatorAssertionsToContainTextOptions { Timeout = 8_000 });
+                break;
+            }
+            catch (PlaywrightException) when (intento < 3)
+            {
+            }
+        }
 
         Assert.Equal(exigir ? "true" : "false", await LeerExigenciaAsync());
     }

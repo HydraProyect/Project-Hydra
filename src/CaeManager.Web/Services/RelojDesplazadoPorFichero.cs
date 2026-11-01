@@ -17,8 +17,11 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// Solo cambia <see cref="GetUtcNow"/>, que es lo que leen <see cref="CaducidadSesion"/> y
-/// <see cref="ProveedorAutenticacionRevalidada"/> a través de <see cref="TimeProvider"/> inyectado.
+/// Solo cambia <see cref="GetUtcNow"/>; los temporizadores siguen en tiempo real. Pero sustituye el
+/// <see cref="TimeProvider"/> de todo el proceso, no solo el de <see cref="CaducidadSesion"/> y
+/// <see cref="ProveedorAutenticacionRevalidada"/>: también lo leen el TOTP de un solo uso, el firmante del
+/// contexto RLS, la Sesión Privilegiada y los servicios de cambio de día. Un test que lo adelante no puede
+/// iniciar sesión con segundo factor mientras esté adelantado, y debe devolver el reloj al terminar.
 /// Un fichero ausente o ilegible deja el último desplazamiento leído (0 al empezar): nunca falla la
 /// petición por culpa del arnés.
 /// </para>

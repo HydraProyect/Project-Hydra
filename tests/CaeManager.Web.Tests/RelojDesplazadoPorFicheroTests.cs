@@ -33,6 +33,21 @@ public class RelojDesplazadoPorFicheroTests
     }
 
     [Theory]
+    [InlineData("Production", null)]
+    [InlineData("Production", "")]
+    [InlineData("Production", "   ")]
+    [InlineData("Staging", null)]
+    public void Sin_clave_o_con_la_clave_en_blanco_un_entorno_real_arranca_sin_reloj_desplazado(string entorno, string? ruta)
+    {
+        var servicios = new ServiceCollection();
+
+        var accion = () => RelojDesplazadoPorFichero.Registrar(servicios, Configuracion(ruta), Entorno(entorno));
+
+        accion.Should().NotThrow();
+        servicios.Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData("Production")]
     [InlineData("Staging")]
     public void Con_la_clave_fuera_de_Development_el_arranque_lanza(string entorno)
