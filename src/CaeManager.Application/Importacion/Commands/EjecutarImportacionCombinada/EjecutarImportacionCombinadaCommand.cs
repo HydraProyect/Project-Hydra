@@ -387,7 +387,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         var centrosExistentes = await centrosContext.Centros.ToListAsync(cancellationToken);
         // Centros no tiene índice único por nombre (solo CrearCentro lo vigila, con una comprobación previa): dos del
         // mismo Cliente empresarial que solo difieren en mayúsculas dejan el nombre AMBIGUO en vez de lanzar.
-        static string ClaveCentro(Guid clienteId, string nombre) => $"{clienteId:N}|{nombre}";
+        static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
         var centrosPorClienteYNombre = CatalogoPorNombre<Centro>.De(
             centrosExistentes, c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
 

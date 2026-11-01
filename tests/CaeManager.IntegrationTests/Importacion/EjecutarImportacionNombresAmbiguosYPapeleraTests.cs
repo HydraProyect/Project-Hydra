@@ -109,6 +109,17 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sin_Tenant_propietario_resuelto_la_consulta_de_Papelera_no_devuelve_ningun_DNI()
+    {
+        await using var contexto = CrearContexto(new TenantActualAmbiental { TenantId = null });
+
+        var enPapelera = await new TrabajadorRepository(contexto).ObtenerDnisEnPapeleraAsync(
+            [DniEnPapelera, DniEnPapeleraDeOtroTenant]);
+
+        enPapelera.Should().BeEmpty("sin Tenant propietario el predicado explícito falla cerrado: IgnoreQueryFilters no abre nada");
+    }
+
+    [Fact]
     public async Task Centros_homonimos_y_Tipos_de_documento_que_difieren_en_mayusculas_omiten_solo_las_filas_ambiguas()
     {
         var plan = Plan(
