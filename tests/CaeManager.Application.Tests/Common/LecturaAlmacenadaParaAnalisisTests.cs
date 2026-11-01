@@ -113,6 +113,19 @@ public class LecturaAlmacenadaParaAnalisisTests
     }
 
     [Fact]
+    public async Task Un_flujo_posicionable_que_declara_menos_de_lo_que_entrega_se_corta_y_no_deja_nada_reservado()
+    {
+        var presupuesto = CrearPresupuesto();
+        var almacen = new AlmacenFalso(new byte[2 * Longitud]) { LongitudDeclarada = Longitud };
+
+        var leer = async () => await LecturaAlmacenadaParaAnalisis.LeerAsync(almacen, presupuesto, "a.pdf");
+
+        await leer.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        presupuesto.Reservado.Should().Be(0);
+        almacen.FlujoAbierto.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Un_flujo_sin_longitud_que_entrega_exactamente_el_maximo_reservado_se_copia_entero()
     {
         var peorCaso = (long)LimitesArchivoSubido.TamanoMaximoBytes * LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis;
@@ -178,13 +191,14 @@ public class LecturaAlmacenadaParaAnalisisTests
         public bool FallarAlCopiar { get; init; }
         public bool SinLongitud { get; init; }
         public bool NoExiste { get; init; }
+        public long? LongitudDeclarada { get; init; }
         public bool FlujoAbierto => _flujo is { Cerrado: false };
         public bool FlujoCopiado => _flujo is { Leido: true };
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)
         {
             if (NoExiste) throw new FileNotFoundException("No existe.");
-            _flujo = new FlujoFalso(contenido, SinLongitud, FallarAlCopiar);
+            _flujo = new FlujoFalso(contenido, SinLongitud, FallarAlCopiar, LongitudDeclarada);
             return Task.FromResult<Stream>(_flujo);
         }
 
@@ -195,10 +209,14 @@ public class LecturaAlmacenadaParaAnalisisTests
             throw new NotSupportedException();
     }
 
-    private sealed class FlujoFalso(byte[] contenido, bool sinLongitud, bool fallarAlLeer) : MemoryStream(contenido, writable: false)
+    private sealed class FlujoFalso(byte[] contenido, bool sinLongitud, bool fallarAlLeer, long? longitudDeclarada)
+        : MemoryStream(contenido, writable: false)
     {
         public bool Cerrado { get; private set; }
         public bool Leido { get; private set; }
+
+        // Un flujo posicionable que declara menos de lo que entrega: la reserva se hizo por lo declarado.
+        public override long Length => longitudDeclarada ?? base.Length;
 
         public override bool CanSeek => !sinLongitud && base.CanSeek;
 

@@ -37,6 +37,8 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private DotNetObjectReference<ConfigurarPlantilla>? _referencia;
     private IJSObjectReference? _modulo;
     private bool _moduloIniciado;
+    private Task<IJSObjectReference>? _tareaModulo;
+    private int _generacionContenedor;
 
     private sealed class PaginaEditor
     {
@@ -481,10 +483,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
                 await CargarOpcionesGeneracionAsync(carga);
         }
-        catch
+        catch when (EsVigente(carga))
         {
             // Si la detección o las opciones fallan con las páginas ya creadas, el editor se muestra con el error de
             // carga y no con las páginas: se sueltan con sus reservas en vez de retenerlas hasta cerrar la página.
+            // Solo lo hace la carga vigente: una superada (otra carga, volver al alta o cerrar la página) ya perdió sus
+            // páginas cuando la sustituyeron, y soltar aquí liberaría las de la carga que montó las suyas después.
             SoltarReservasEditor();
             _paginas = [];
             throw;
@@ -815,16 +819,53 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         if (_paginas.Count == 0 || !EnEditor)
         {
             // Sin editor visible el contenedor del lienzo no existe (carga, error, alta): el siguiente que se pinte es
-            // un elemento nuevo, sin los eventos de arrastre, y hay que iniciarlo de nuevo.
-            _moduloIniciado = false;
+            // un elemento nuevo, sin los eventos de arrastre, y hay que iniciarlo de nuevo. Cambiar de generación
+            // invalida cualquier inicio que siga esperando la importación del módulo para el contenedor anterior.
+            if (_moduloIniciado)
+            {
+                _moduloIniciado = false;
+                _generacionContenedor++;
+            }
+
             return;
         }
 
         if (_moduloIniciado) return;
 
         _moduloIniciado = true;
+        var generacion = _generacionContenedor;
         _referencia ??= DotNetObjectReference.Create(this);
-        _modulo ??= await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js");
+
+        // Una sola importación del módulo por instancia, aunque varios renders la esperen a la vez.
+        var tareaModulo = _tareaModulo ??= JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js").AsTask();
+        IJSObjectReference modulo;
+        try
+        {
+            modulo = await tareaModulo;
+        }
+        catch
+        {
+            if (ReferenceEquals(_tareaModulo, tareaModulo))
+                _tareaModulo = null;
+            if (generacion == _generacionContenedor)
+                _moduloIniciado = false;
+            throw;
+        }
+
+        _modulo ??= modulo;
+
+        if (_desechado)
+        {
+            // La página se cerró mientras se importaba: DisposeAsync no vio el módulo y lo suelta quien lo recibe.
+            await SoltarModuloAsync(modulo);
+            return;
+        }
+
+        // Tras la espera, solo inicia quien sigue siendo el contenedor vigente: un render sin editor entre medias lo
+        // destruyó y el siguiente ya pidió su propio inicio. Así `iniciar` no se llama dos veces para el mismo elemento.
+        if (generacion != _generacionContenedor || !_moduloIniciado || _paginas.Count == 0 || !EnEditor)
+            return;
+
         await _modulo.InvokeVoidAsync("iniciar", _referencia, _idContenedor);
     }
 
@@ -1079,17 +1120,26 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _ciclo.Dispose();
         SoltarReservasEditor();
 
-        if (_modulo is not null)
-        {
-            try
-            {
-                await _modulo.DisposeAsync();
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-        }
+        await SoltarModuloAsync(_modulo);
 
         _referencia?.Dispose();
+    }
+
+    private bool _moduloSoltado;
+
+    /// <summary>Suelta el módulo JS una sola vez, lo haga DisposeAsync o la importación que terminó después de cerrar la página.</summary>
+    private async ValueTask SoltarModuloAsync(IJSObjectReference? modulo)
+    {
+        if (modulo is null || _moduloSoltado)
+            return;
+
+        _moduloSoltado = true;
+        try
+        {
+            await modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 }
