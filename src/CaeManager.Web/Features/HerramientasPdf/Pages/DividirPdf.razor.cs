@@ -267,8 +267,6 @@ public partial class DividirPdf : CaeManager.Web.Components.PaginaInteractiva, I
             _paginaAmpliada = Math.Clamp(pagina + salto, 1, division.NumeroPaginas);
     }
 
-    private string ClaveVolverTramo => _indiceTramo == 0 ? "VolverADividir" : "Anterior";
-
     private static Action<ChangeEventArgs> AlMarcarOmitido(AsignacionTramo asignacion) =>
         e => asignacion.Omitido = e.Value is true;
 

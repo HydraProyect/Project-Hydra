@@ -76,7 +76,7 @@
 
 @code {
     /// <summary>La única acción principal de la pantalla: cada paso pinta la suya, y solo se ve un paso a la vez.</summary>
-    private static RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
+    private RenderFragment BotonPrincipal(string texto, EventCallback accion, bool deshabilitado = false, bool cargando = false, string? href = null) =>
         @<Boton Variante="VarianteBoton.Primario" Deshabilitado="deshabilitado" Cargando="cargando" OnClick="accion" Href="@href">@texto</Boton>;
 
     private RenderFragment PintarSubir() => @<text>
@@ -182,7 +182,7 @@
                                     aria-pressed="@(corte is not null ? "true" : "false")"
                                     aria-label="@Textos[corte is null ? "DividirTras" : "QuitarDivision", pagina]"
                                     @onclick="() => AlternarCorte(pagina)">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg>
+                                <Icono Nombre="tijeras" />
                             </button>
                         }
                     }
@@ -349,7 +349,7 @@
             </div>
 
             <div class="barra-acciones-dividir">
-                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@Textos[ClaveVolverTramo]</Boton>
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="AnteriorTramo">@(_indiceTramo == 0 ? Textos["VolverADividir"] : Textos["Anterior"])</Boton>
                 @BotonPrincipal(Textos[_indiceTramo == rangos.Count - 1 ? "RevisarYCrear" : "SiguienteDocumento"], EventCallback.Factory.Create(this, SiguienteTramo))
             </div>
         </text>;

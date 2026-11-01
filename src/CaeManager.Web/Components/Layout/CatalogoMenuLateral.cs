@@ -277,7 +277,7 @@ public static class CatalogoMenuLateral
             Condicion: c => c.ComunicacionesActivo),
         new("gestiones", "operacion", "gestiones", "evaluaciones", "Gestiones"),
         new("visitas", "operacion", "visitas", "visitas", "Visitas"),
-        new("herramientas-pdf", "operacion", "herramientas-pdf", "documentos", "MenuHerramientasPdf",
+        new("herramientas-pdf", "operacion", "herramientas-pdf", "tijeras", "MenuHerramientasPdf",
             Condicion: c => c.HerramientasPdfDisponibles && c.TieneAlgunRol(RolesDeGestionDocumental),
             ClaveRotulo: "MenuHerramientasPdf"),
         // Incidencias y Revisión IA ya no tienen enlace propio: son pestañas de sección de Documentos
