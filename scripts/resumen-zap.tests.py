@@ -181,7 +181,7 @@ CASOS = [
 
 def ejecutar(contenido, carpeta):
     entrada = pathlib.Path(carpeta) / "informe.json"
-    salida = pathlib.Path(carpeta) / "resumen.md"
+    salida = pathlib.Path(carpeta) / "resumen.txt"
     if contenido is not None:
         entrada.write_text(contenido, encoding="utf-8")
     proceso = subprocess.run(

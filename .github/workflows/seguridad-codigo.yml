@@ -264,15 +264,15 @@ jobs:
         if: always()
         run: |
           mkdir -p zap
-          python3 scripts/resumen-zap.py zap/informe-zap.json zap/resumen-zap-baseline.md "ZAP baseline"
-          cat zap/resumen-zap-baseline.md >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/resumen-zap.py zap/informe-zap.json zap/resumen-zap-baseline.txt "ZAP baseline"
+          cat zap/resumen-zap-baseline.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publicar resumen de ZAP
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: resumen-zap-baseline
-          path: zap/resumen-zap-baseline.md
+          path: zap/resumen-zap-baseline.txt
           retention-days: 7
           if-no-files-found: ignore
 
@@ -724,8 +724,8 @@ jobs:
         if: always()
         run: |
           mkdir -p zap
-          python3 scripts/resumen-zap.py zap/informe-zap-autenticado.json zap/resumen-zap-autenticado.md "ZAP autenticado"
-          cat zap/resumen-zap-autenticado.md >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/resumen-zap.py zap/informe-zap-autenticado.json zap/resumen-zap-autenticado.txt "ZAP autenticado"
+          cat zap/resumen-zap-autenticado.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Evaluar hallazgos
         run: |
@@ -749,6 +749,6 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: resumen-zap-autenticado
-          path: zap/resumen-zap-autenticado.md
+          path: zap/resumen-zap-autenticado.txt
           retention-days: 7
           if-no-files-found: ignore
