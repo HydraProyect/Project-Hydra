@@ -144,6 +144,16 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool PuedeGestionar => _esAdministradorPlataforma && !OperandoWorkspaceAjeno;
 
     /// <summary>
+    /// Si se ofrece «Retirar» a una persona de la delegación. El Command rechaza la retirada en una
+    /// delegación de Operador CAE externo salvo desde el Tenant propietario
+    /// (<c>RequiereTenantPropietario</c>): desde el Operador CAE externo (<c>SomosLaConsultora</c>)
+    /// la retirada se pide al Tenant propietario y el botón no se pinta. La de Soporte TALVEG sí la
+    /// atiende el extremo consultora. Etiqueta de oferta, no autoridad: la puerta es el handler.
+    /// </summary>
+    private bool PuedeRetirarPersonas(AsignacionLista delegacion) =>
+        !OperandoWorkspaceAjeno && (delegacion.EsSoporte || !delegacion.SomosLaConsultora);
+
+    /// <summary>
     /// Fuera de la organización propia no: la operación delegada se escribe con el
     /// Tenant propietario como workspace activo, y RLS la rechazaría desde otro.
     /// </summary>
