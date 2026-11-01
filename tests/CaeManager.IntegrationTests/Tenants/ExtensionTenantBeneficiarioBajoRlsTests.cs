@@ -202,7 +202,7 @@ public class ExtensionTenantBeneficiarioBajoRlsTests : IAsyncLifetime
         bool? vale = null;
         var recogida = await PedirAsync(_a, peticion =>
         {
-            vale = EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, peticion.TenantActual, peticion.Seleccion);
+            vale = EntregaArchivoExtensionEndpoints.TicketEsDeEstaPeticion(ticket, peticion.TenantActual, peticion.Seleccion, _origen);
             return Task.CompletedTask;
         });
 
