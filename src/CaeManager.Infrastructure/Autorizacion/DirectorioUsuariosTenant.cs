@@ -412,8 +412,10 @@ public class DirectorioUsuariosTenant(
     /// pintar su rol de origen alarmaría sin motivo a quien lo ve.
     ///
     /// <para>
-    /// Es una etiqueta, no autoridad: ninguna puerta lee este diccionario, y la visibilidad de las
-    /// cuentas sigue saliendo de <see cref="OperadoresDelegadosVigentes"/> sin mirar el rol.
+    /// Es una etiqueta, no autoridad: ninguna puerta de acceso lee este diccionario, y la visibilidad
+    /// de las cuentas sigue saliendo de <see cref="OperadoresDelegadosVigentes"/> sin mirar el rol. Su
+    /// único otro lector es <c>VigilanciaVisitasUrgentesHostedService</c>, que lo usa para estrechar a
+    /// quién avisa: cambiar la etiqueta cambia también esos destinatarios.
     /// </para>
     /// </summary>
     public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken cancellationToken = default) =>
