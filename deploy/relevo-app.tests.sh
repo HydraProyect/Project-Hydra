@@ -692,6 +692,22 @@ comprobar "  con la que sirve aún sin sanar no para la anotada y sale con 1" "1
 rm "$ESTADO/c/caemanager-staging-app-verde/salud"
 relevo -- retirar-sin-guarda staging "$B"
 comprobar "  una que siguiera anotada también sale de Caddy" "0 false to caemanager-staging-app-verde:8080" "$codigo $(en_marcha "$AZUL_STG") $(ranuras staging)"
+# Conmutación interrumpida: el fichero señala la sana y Caddy puede servir la anterior.
+interrumpida() {
+  saliente_staging; mkdir -p "$ESTADO/c/$VERDE_STG"; echo unhealthy > "$ESTADO/c/$VERDE_STG/salud"
+  relevo -- desplegar staging "$B"; rm "$ESTADO/c/$VERDE_STG/salud"; : > "$LOG"
+}
+interrumpida; relevo RECARGA_FALLA=1 -- retirar-sin-guarda staging "$B"
+comprobar "  si Caddy no acepta la recarga, no para nada: sale con 1" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo confirmar que Caddy sirve $VERDE_STG" "$salida")"
+interrumpida; relevo CONFIG_FALLA=1 RECARGA_FALLA=1 -- retirar-sin-guarda staging "$B"
+comprobar "  si tampoco se puede leer el modo, no para nada: sale con 1" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::no se pudo leer EnvioCorreo__Modo" "$salida")"
+saliente_staging; relevo -- retirar-sin-guarda staging "$A"
+comprobar "  la imagen que sirve sin la guarda con modo Cerrado no se da por buena ni se para" "1 true 0 si" \
+  "$codigo $(en_marcha "$AZUL_STG") $(stops_de "$AZUL_STG") $(contiene "::error::$AZUL_STG sirve staging e ignora" "$salida")"
+saliente_staging; relevo "CORREO_VERDE=      EnvioCorreo__Modo: Abierto" -- retirar-sin-guarda staging "$A"
+comprobar "  y con modo Abierto hace lo que esa imagen haría: vale" "0 true" "$codigo $(en_marcha "$AZUL_STG")"
 ranura_sin_anotar() {
   limpio; contenedor "$LEGADO_STG" "$A"; contenedor "$VERDE_STG" "$A"; sin_guarda "$VERDE_STG"
   fichero staging "to $LEGADO_STG:8080"; fichero produccion "to caemanager-app-azul:8080"
@@ -938,11 +954,17 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   mutar "retirar-sin-guarda sale bien con la imagen viva" \
     's#^    return "\$fallo"$#    return 0#' esc_pendientes comp_parada
 
-  esc_pendiente_insana() { saliente_staging; mkdir -p "$ESTADO/c/$VERDE_STG"; echo unhealthy > "$ESTADO/c/$VERDE_STG/salud"
-                           bash "$1" desplegar staging "$B" > /dev/null 2>&1
-                           bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; codigo=$?; }
-  mutar "retirar-sin-guarda excluye la saliente si la primera no está sana" \
-    's#^    activa_="\$(activa "\$entorno" || true)"$#    activa_="$(ranura_que_sirve "$entorno")"#' esc_pendiente_insana comp_parada
+  esc_activa_sin_guarda() { saliente_staging; bash "$1" retirar-sin-guarda staging "$A" > /dev/null 2>&1; codigo=$?; }
+  mutar "retirar-sin-guarda da por buena la imagen que sirve sin la guarda" \
+    's#^    if saliente_ignora_la_guarda "\$entorno" "\$sha" "\$servicio" "\$activa_"; then$#    if false; then#' esc_activa_sin_guarda comp_parada
+
+  esc_interrumpida_recarga() { interrumpida; RECARGA_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
+  esc_interrumpida_modo() { interrumpida; CONFIG_FALLA=1 bash "$1" retirar-sin-guarda staging "$B" > /dev/null 2>&1; }
+  comp_azul_parada() { [ "$(en_marcha "$AZUL_STG")" = false ] && echo si || echo no; }
+  mutar "retirar-sin-guarda para sin confirmar que Caddy sirve la sana" \
+    's#|| ! recargar_caddy; then$#|| false; then#' esc_interrumpida_recarga comp_azul_parada
+  mutar "retirar-sin-guarda para sin poder leer el modo" \
+    's#^    if \[ "\$modo" != 3 \]; then$#    if false; then#' esc_interrumpida_modo comp_azul_parada
 
   esc_reinicio() { saliente_staging; REINICIA="$AZUL_STG" bash "$1" desplegar staging "$B" > /dev/null 2>&1; codigo=$?; }
   mutar "no se quita la política de reinicio" \

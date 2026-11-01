@@ -52,8 +52,10 @@
 #   relevo-app.sh retirar-sin-guarda <staging|produccion> <sha>
 #       Con el cerrojo de despliegue tomado por quien llama, retira las imágenes
 #       que ignoran la guarda y que un relevo fallido dejó vivas, junto a la ranura
-#       que sirve. Sale con 1 si alguna sigue viva. volver-atras.sh la llama cuando
-#       el destino ya sirve y no pasa por `desplegar`.
+#       que sirve. Sale con 1 si alguna sigue viva o si la que sirve la ignora, y
+#       sin parar nada si no puede leer el modo o confirmar que Caddy sirve la
+#       sana. volver-atras.sh la llama cuando el destino ya sirve y no pasa por
+#       `desplegar`.
 #   relevo-app.sh activa <staging|produccion>
 #       Imprime el container_name de la ranura activa (o del contenedor
 #       anterior a P1-F2, si aún no ha habido relevo). Sale con 1 si no hay.
@@ -521,20 +523,40 @@ sin_guarda_sin_anotar() {
 
 # Para quien da por bueno un <sha> que ya sirve sin pasar por `desplegar`: un relevo
 # a ese sha pudo conmutar y acabar en error con una imagen sin guarda viva. Con el
-# cerrojo de despliegue tomado por quien llama. Devuelve 1 si alguna sigue viva. Se
-# queda la primera del fichero, la que quien llama comprobó, no ranura_que_sirve: si
-# esa no estuviera sana, esta devolvería la saliente y la excluiría de la búsqueda.
+# cerrojo de despliegue tomado por quien llama. Devuelve 1 si alguna sigue viva, y
+# también si la propia activa ignora la guarda. Se queda la primera del fichero, la
+# que quien llama comprobó. Nada se para sin leer el modo, sin esa activa sana y sin
+# que Caddy acepte servirla: un error visible es preferible a cortar el servicio.
 retirar_sin_guarda_pendientes() {
-    local entorno="$1" sha="$2" activa_ c en_caddy fallo=0
+    local entorno="$1" sha="$2" activa_ servicio candidatas c modo=0 fallo=0
     activa_="$(activa "$entorno" || true)"
     if [ -z "$activa_" ]; then
         echo "::error::$entorno no tiene ninguna ranura en marcha: no se pueden retirar las imágenes que ignoran la guarda de correo." >&2
         return 1
     fi
-    for c in $(sin_guarda_sin_anotar "$entorno" "$sha" "app-$(ranura_libre "$activa_")" "$activa_"); do
-        en_caddy=""
-        [[ $'\n'"$(ranuras_en_fichero "$entorno")"$'\n' == *$'\n'"$c"$'\n'* ]] && en_caddy="$entorno"
-        retirar_sin_guarda "$c" "$activa_" "$en_caddy" || fallo=1
+    servicio="app-$(ranura_libre "$activa_")"
+    if saliente_ignora_la_guarda "$entorno" "$sha" "$servicio" "$activa_"; then
+        echo "::error::$activa_ sirve $entorno e ignora la guarda de correo con un modo distinto de $MODO_CORREO_SIN_GUARDA o que no se pudo leer: puede enviar correo." >&2
+        return 1
+    fi
+    candidatas="$(sin_guarda_sin_anotar "$entorno" "$sha" "$servicio" "$activa_")"
+    [ -n "$candidatas" ] || return 0
+
+    medir_guarda_de_correo "$entorno" "$sha" "$servicio" "$MODO_CORREO_SIN_GUARDA" || modo=$?
+    if [ "$modo" != 3 ]; then
+        echo "::error::no se pudo leer $CLAVE_GUARDA_CORREO de $entorno: no se para nada, y sigue en marcha $candidatas, que ignora la guarda de correo." >&2
+        return 1
+    fi
+    if ! sana "$activa_"; then
+        echo "::error::$activa_ no está sana: no se para nada, y sigue en marcha $candidatas, que ignora la guarda de correo." >&2
+        return 1
+    fi
+    if ! escribir_ranuras "$entorno" "$activa_" $(ranuras_en_fichero "$entorno" | grep -vx -- "$activa_" | grep -Fxv -- "$candidatas" | awk 'NR == 1' || true) || ! recargar_caddy; then
+        echo "::error::no se pudo confirmar que Caddy sirve $activa_: no se para nada, y sigue en marcha $candidatas, que ignora la guarda de correo." >&2
+        return 1
+    fi
+    for c in $candidatas; do
+        retirar_sin_guarda "$c" "$activa_" || fallo=1
     done
     return "$fallo"
 }
