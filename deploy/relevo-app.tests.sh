@@ -81,6 +81,35 @@ case "$1" in
     case "$*" in
       *" config --services"*)
         case "$*" in *staging*) printf 'migrador\ndb\nseq\n' ;; *) printf 'migrador\ndb\ncaddy\nseq\n' ;; esac ;;
+      *" config")   # configuración efectiva: la forma real la mide compose-techos-memoria.tests.sh
+        if [ "${CONFIG_FALLA:-0}" = 1 ]; then echo "línea ilegible: SECRETO_CENTINELA" >&2; exit 1; fi
+        predeterminada='      EnvioCorreo__Modo: Abierto'
+        sed '/^$/d' <<YAML
+name: caemanager
+services:
+  app-azul:
+    container_name: caemanager-app-azul
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Clave__Secreta: SECRETO_CENTINELA
+${CORREO_AZUL-$predeterminada}
+    image: caemanager:x
+  app-verde:
+    container_name: caemanager-app-verde
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Clave__Secreta: SECRETO_CENTINELA
+${CORREO_VERDE-$predeterminada}
+    image: caemanager:x
+  migrador:
+    environment:
+      EnvioCorreo__Modo: Abierto
+networks:
+  app-verde:
+    environment:
+      EnvioCorreo__Modo: Abierto
+YAML
+        ;;
       *" up "*" caddy")   # transición: recrear Caddy con el montaje
         mkdir -p "$(c caemanager-caddy)"; echo "/etc/caddy/Caddyfile /etc/caddy/ranuras /data" > "$(c caemanager-caddy)/montajes" ;;
       *" up "*)
@@ -405,6 +434,59 @@ relevo -- desplegar produccion "$A"
 comprobar "sin ninguna ranura en marcha: arranca azul sola" "0 to caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
 comprobar "  y no hay nada que drenar" 0 "$(grep -c '^systemd-run' "$LOG")"
 
+echo "desplegar: guarda de envío de correo (C-04)"
+# escenario_correo ENTORNO: azul activa en los dos entornos y Caddy SIN el
+# montaje, para ver que abortar tampoco recrea Caddy.
+escenario_correo() {
+  limpio; contenedor caemanager-app-azul "$A"; contenedor caemanager-staging-app-azul "$A"
+  fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+  echo "/etc/caddy/Caddyfile /data" > "$ESTADO/c/caemanager-caddy/montajes"
+}
+sin_tocar_nada() { # ENTORNO: la huella de un relevo abortado antes de empezar
+  local e=$1 pref=caemanager-app
+  [ "$e" = staging ] && pref=caemanager-staging-app
+  echo "$(grep -c ' up ' "$LOG") $(grep -c '^RECARGA' "$LOG") $(grep -c '^systemd-run' "$LOG") $(ranuras "$e") $(en_marcha $pref-azul)"
+}
+for caso in "ausente|" 'vacía|      EnvioCorreo__Modo: ""' 'solo espacios|      EnvioCorreo__Modo: "  "' "null|      EnvioCorreo__Modo: null" "otra clave con el mismo prefijo|      EnvioCorreo__ModoAntiguo: Abierto"; do
+  escenario_correo; relevo "CORREO_VERDE=${caso#*|}" -- desplegar produccion "$B"
+  comprobar "${caso%%|*}: aborta sin up, sin recarga, sin drenaje y sin tocar la activa" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+  comprobar "  dice qué falta y dónde" si "$(contiene "falta EnvioCorreo__Modo, o no tiene valor, en el entorno efectivo de app-verde. Añádela a .env en el servidor" "$salida")"
+  comprobar "  no imprime ningún valor" 0 "$(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
+done
+
+escenario_correo; relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "abortar no recrea Caddy" 0 "$(grep -c 'no-deps --no-build caddy' "$LOG")"
+comprobar "la configuración se resuelve con la imagen nueva y las ranuras a la vista" si \
+  "$(contiene "docker compose -f docker-compose.produccion.yml --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+limpio; contenedor caemanager-app-verde "$A"; fichero produccion "to caemanager-app-verde:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "mira la ranura que arranca, no la otra: sin clave en la activa verde, azul sí la lleva" "0 to caemanager-app-azul:8080 caemanager-app-verde:8080" "$codigo $(ranuras produccion)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo CORREO_VERDE= -- desplegar produccion "$B"
+comprobar "  y al revés: con la clave solo en la activa azul, verde aborta" "1 to caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+escenario_correo; relevo CONFIG_FALLA=1 -- desplegar produccion "$B"
+comprobar "config falla: aborta igual, sin tocar nada" "1 0 0 0 to caemanager-app-azul:8080 true" "$codigo $(sin_tocar_nada produccion)"
+comprobar "  con su propio mensaje" si "$(contiene "no se pudo resolver la configuración efectiva de app-verde" "$salida")"
+comprobar "  y sin repetir el error de Compose, que puede citar valores" 0 "$(printf '%s\n' "$salida" | grep -c 'SECRETO_CENTINELA')"
+
+escenario_correo; relevo CORREO_VERDE= -- desplegar staging "$B"
+comprobar "staging también aborta sin la clave" "1 0 0 0 to caemanager-staging-app-azul:8080 true" "$codigo $(sin_tocar_nada staging)"
+comprobar "  nombra .env.staging" si "$(contiene "Añádela a .env.staging en el servidor" "$salida")"
+comprobar "  y resuelve con su compose y su .env" si \
+  "$(contiene "docker compose -f docker-compose.staging.yml --env-file .env.staging --profile ranura config IMAGEN_TAG=$B" "$(log)")"
+limpio; contenedor caemanager-staging-app-azul "$A"; fichero staging "to caemanager-staging-app-azul:8080"; fichero produccion "to caemanager-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: Cerrado" -- desplegar staging "$B"
+comprobar "staging con Cerrado explícito conmuta: se exige la clave, no que abra" "0 to caemanager-staging-app-verde:8080 caemanager-staging-app-azul:8080" "$codigo $(ranuras staging)"
+limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+relevo "CORREO_VERDE=      EnvioCorreo__Modo: \"Abierto\"" -- desplegar produccion "$B"
+comprobar "un valor entrecomillado cuenta" "0 to caemanager-app-verde:8080 caemanager-app-azul:8080" "$codigo $(ranuras produccion)"
+
+comprobar "ningún compose da valor a la clave: la decide cada .env" "0 0" \
+  "$(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.produccion.yml") $(grep -c 'EnvioCorreo__Modo' "$AQUI/local/docker-compose.staging.yml")"
+comprobar "los dos .env de ejemplo la llevan activa" "1 1" \
+  "$(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.example") $(grep -c '^EnvioCorreo__Modo=[A-Za-z]' "$AQUI/local/.env.staging.example")"
+
 echo "conexiones_establecidas"
 limpio; contenedor x "$A" true 3
 # shellcheck source=deploy/relevo-app.sh
@@ -501,6 +583,20 @@ if [ -z "${RELEVO_GUION:-}" ]; then
   comp_cero() { [ "$(en_marcha caemanager-app-azul)" = true ] && echo si || echo no; }
   mutar "el máximo de drenaje no se respeta" \
     's#^        if \[ "\$vacias" -ge 2 \] || \[ \$(( SECONDS - inicio )) -ge "\$max" \]; then$#        if [ "$vacias" -ge 2 ]; then#' esc_cero comp_cero
+
+  esc_correo() { limpio; contenedor caemanager-app-azul "$A"; fichero produccion "to caemanager-app-azul:8080"; fichero staging "to caemanager-staging-app-azul:8080"
+                 CORREO_VERDE="${CORREO_MUTANTE-}" bash "$1" desplegar produccion "$B" > /dev/null 2>&1; }
+  comp_correo() { [ "$(ranuras produccion)" != "to caemanager-app-azul:8080" ] && echo si || echo no; }
+  mutar "el relevo no exige la guarda de correo" \
+    's#^    exigir_guarda_de_correo "\$entorno" "\$sha" "app-\$nueva" || return 1$#    :#' esc_correo comp_correo
+  mutar "basta con que cualquier servicio lleve la clave" \
+    's#actual = (\$0 == "  " servicio ":"); if (actual) visto = 1;#actual = 1; visto = 1;#' esc_correo comp_correo
+  mutar "una sección que no es services cuenta como servicio" \
+    's#en_servicios = (\$0 == "services:");#en_servicios = 1;#' esc_correo comp_correo
+  CORREO_MUTANTE='      EnvioCorreo__Modo: ""'
+  mutar "un valor vacío cuenta como presente" \
+    's#presente = (valor != "" \&\& valor != "null" \&\& valor != "~")#presente = 1#' esc_correo comp_correo
+  unset CORREO_MUTANTE
 fi
 
 if [ "$fallos" -gt 0 ]; then

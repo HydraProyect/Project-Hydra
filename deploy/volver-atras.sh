@@ -29,7 +29,8 @@
 #   4. Relevo sin corte (deploy/relevo-app.sh desplegar, P1-F2), igual que
 #      ci-deploy.sh: <sha> arranca en la ranura libre, Caddy conmuta cuando está
 #      sana y la ranura que servía drena. Si no llega a sana, sigue sirviendo la
-#      de antes.
+#      de antes. Si el .env no lleva EnvioCorreo__Modo, el relevo aborta sin
+#      tocar nada, aunque la imagen de destino sea anterior a esa guarda.
 #   5. SALUD: la ranura activa corre caemanager:<sha> y su /salud responde. Solo
 #      entonces se da por buena. Si no, sale con 1 y lo dice.
 #

@@ -12,6 +12,8 @@
 #   3. El techo de la app (LIMITE_MEMORIA_APP) no se ve afectado.
 #   4. Un valor que Docker no entiende hace fallar `config`: el despliegue se
 #      detiene antes de tocar nada en vez de arrancar sin techo en silencio.
+#   5. La guarda de correo de deploy/relevo-app.sh ve EnvioCorreo__Modo en la
+#      salida real de `config`, y ve su ausencia.
 #
 # No mide que el kernel aplique el techo ni que el valor sea el adecuado: eso
 # se comprueba en el servidor (`memory.max` del contenedor) tras fijarlo.
@@ -140,6 +142,32 @@ for caso in "${CASOS[@]}"; do
     exit 1
   fi
   echo "OK: config falla con un valor ilegible"
+
+  echo "=== Caso 5 ($compose): la guarda de correo del relevo lee la configuración efectiva real ==="
+  # El relevo-app.tests.sh usa un doble de `docker`: aquí se fija que su función
+  # entiende lo que Compose imprime de verdad, con el .env entrando por env_file.
+  clave_en() {  # <servicio>
+    ( source "$DIR_GUION/relevo-app.sh"; efectiva "$compose" "$entorno" | clave_con_valor_en_servicio "$1" EnvioCorreo__Modo )
+  }
+  medir_clave() {  # <salida esperada> <descripción>
+    local ranura obtenido
+    for ranura in app-azul app-verde; do
+      obtenido=0; clave_en "$ranura" || obtenido=$?
+      [ "$obtenido" = "$1" ] \
+        || { echo "FALLO: $compose: $ranura con $2 da $obtenido, se esperaba $1" >&2; exit 1; }
+    done
+  }
+  escribir_entorno "$DIR/$entorno"
+  medir_clave 1 "la clave ausente"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo="
+  medir_clave 1 "la clave vacía"
+  escribir_entorno "$DIR/$entorno" "#EnvioCorreo__Modo=Abierto"
+  medir_clave 1 "la clave comentada"
+  escribir_entorno "$DIR/$entorno" "EnvioCorreo__Modo=Cerrado"
+  medir_clave 0 "la clave en el fichero de entorno"
+  obtenido=0; clave_en servicio-que-no-existe || obtenido=$?
+  [ "$obtenido" = 2 ] || { echo "FALLO: $compose: un servicio que no existe da $obtenido, se esperaba 2" >&2; exit 1; }
+  echo "OK: la clave del fichero de entorno llega a las dos ranuras y su ausencia se ve"
 done
 
 echo "TODAS LAS PRUEBAS PASARON"

@@ -22,6 +22,9 @@
 #   relevo-app.sh desplegar <staging|produccion> <sha>
 #       Con la imagen caemanager:<sha> ya cargada y el cerrojo de despliegue
 #       YA TOMADO por quien llama (ci-deploy.sh, volver-atras.sh):
+#         0. Exige EnvioCorreo__Modo con valor en el entorno efectivo de la
+#            ranura nueva (exigir_guarda_de_correo). Si falta, sale con 1 antes
+#            de tocar Caddy, el fichero de ranuras, el migrador o los contenedores.
 #         1. Saca de Caddy y para las salientes de un relevo anterior que sigan
 #            en el fichero (la libre si aún drenaba, o una cuyo drenaje murió).
 #         2. `docker compose up -d --wait --no-build` de los servicios sin
@@ -75,6 +78,7 @@ DRENAJE_MAX_PRODUCCION="${DRENAJE_MAX_PRODUCCION:-1800}"
 DRENAJE_MAX_STAGING="${DRENAJE_MAX_STAGING:-300}"
 DRENAJE_INTERVALO="${DRENAJE_INTERVALO:-30}"
 RELEVO_ESPERA_SALUD="${RELEVO_ESPERA_SALUD:-180}"
+CLAVE_GUARDA_CORREO="EnvioCorreo__Modo"
 GUION_RELEVO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
 es_entorno() { [ "${1:-}" = staging ] || [ "${1:-}" = produccion ]; }
@@ -281,6 +285,61 @@ volcar_ranura_fallida() {
     docker stop "$contenedor" > /dev/null 2>&1 || true
 }
 
+# Lee `docker compose config` por stdin y mira si <servicio> lleva <clave> con
+# valor en su `environment:`. Sale con 0 si lo lleva, 1 si no y 2 si el servicio
+# no aparece (config falló, o el instrumento no observa lo que debe). Lee la
+# salida entera y no imprime nada: esa salida lleva todas las credenciales del
+# entorno, y el valor no sale de awk. Vacío, solo espacios y null cuentan como
+# ausente, igual que los trata la aplicación.
+clave_con_valor_en_servicio() {
+    awk -v servicio="$1" -v clave="$2" '
+        /^[^ ]/ { en_servicios = ($0 == "services:"); actual = 0; en_entorno = 0; next }
+        en_servicios && /^  [^ ]/ { actual = ($0 == "  " servicio ":"); if (actual) visto = 1; en_entorno = 0; next }
+        actual && /^    [^ ]/ { en_entorno = ($0 == "    environment:"); next }
+        en_entorno && index($0, "      " clave ":") == 1 {
+            valor = substr($0, length("      " clave ":") + 1)
+            gsub(/[ \t\r"]/, "", valor)
+            gsub("\047", "", valor)
+            presente = (valor != "" && valor != "null" && valor != "~")
+            valor = ""
+        }
+        END { if (!visto) exit 2; exit presente ? 0 : 1 }'
+}
+
+# Guarda de envío de correo (C-04). Sin EnvioCorreo__Modo la aplicación arranca
+# cerrada, y un `.env` que no la lleve dejaría sin activación, recuperación de
+# contraseña ni avisos de seguridad con solo un aviso en el log, después de
+# conmutar. El cierre por defecto de la aplicación no cambia y aquí no se da
+# valor a la clave: se exige que alguien la haya decidido en el `.env` del
+# entorno, staging incluido, donde el valor esperado es Cerrado o SoloPermitidos.
+#
+# Mide la configuración efectiva de la ranura que va a arrancar, la misma que
+# usará el `up`: entra lo que aporten env_file y environment y queda fuera un
+# comentario. Va antes de tocar nada, así que abortar deja sirviendo lo que ya
+# servía y sin migrar. stderr se descarta porque un error de análisis del `.env`
+# puede citar la línea. No se valida el valor: uno ilegible impide arrancar
+# (ValidateOnStart) y lo resuelve el `up`.
+#
+# También cubre volver-atras.sh, que entra por el mismo `desplegar`.
+exigir_guarda_de_correo() {
+    local entorno="$1" sha="$2" servicio="$3" fichero=.env resultado=0
+    local -a args
+    [ "$entorno" = staging ] && fichero=.env.staging
+    args=(-f "docker-compose.$entorno.yml")
+    [ "$entorno" = staging ] && args+=(--env-file .env.staging)
+
+    ( cd "$RAIZ_DESPLIEGUE/deploy/local" \
+        && IMAGEN_TAG="$sha" docker compose "${args[@]}" --profile ranura config 2>/dev/null ) \
+        | clave_con_valor_en_servicio "$servicio" "$CLAVE_GUARDA_CORREO" || resultado=$?
+
+    case "$resultado" in
+        0) return 0 ;;
+        2) echo "::error::Relevo de $entorno abortado: no se pudo resolver la configuración efectiva de $servicio para comprobar $CLAVE_GUARDA_CORREO (revisa $fichero y docker-compose.$entorno.yml; el error de Compose no se imprime porque puede citar valores). No se ha tocado nada: sigue sirviendo la ranura de antes." >&2 ;;
+        *) echo "::error::Relevo de $entorno abortado: falta $CLAVE_GUARDA_CORREO, o no tiene valor, en el entorno efectivo de $servicio. Añádela a $fichero en el servidor y repite el despliegue. Sin ella no sale ningún correo: ni activación, ni recuperación de contraseña, ni avisos de seguridad. No se ha tocado nada: sigue sirviendo la ranura de antes." >&2 ;;
+    esac
+    return 1
+}
+
 desplegar() {
     local entorno="$1" sha="$2" activa_="" nueva cont_nueva id_activa servicios previas previa
     local -a args
@@ -307,6 +366,8 @@ desplegar() {
     esac
     cont_nueva="$(prefijo "$entorno")-$nueva"
     echo "Relevo de $entorno: activa ${activa_:-<ninguna>}, nueva $cont_nueva (caemanager:$sha)."
+
+    exigir_guarda_de_correo "$entorno" "$sha" "app-$nueva" || return 1
 
     asegurar_ficheros_ranuras
     asegurar_montaje_caddy
