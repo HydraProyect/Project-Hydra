@@ -322,10 +322,10 @@
     <value>{0} documentos creados</value>
   </data>
   <data name="ResultadoDe" xml:space="preserve">
-    <value>De {0} para la Empresa gestionada {1}.</value>
+    <value>De {0} para la Empresa gestionada {1} —</value>
   </data>
   <data name="ResultadoHora" xml:space="preserve">
-    <value>Creados por ti hoy a las {0}.</value>
+    <value>creados por ti hoy a las {0}.</value>
   </data>
   <data name="ColumnaAbrir" xml:space="preserve">
     <value>Abrir</value>

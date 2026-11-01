@@ -1,5 +1,5 @@
-.tarjeta-herramienta { align-items: center; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); display: flex; flex-wrap: wrap; gap: var(--space-4); max-width: 720px; padding: var(--space-5); }
-.tarjeta-herramienta > div { flex: 1; min-width: 240px; }
-.tarjeta-herramienta h2 { font: var(--font-h4); margin: 0 0 var(--space-1); }
-.tarjeta-herramienta p { color: var(--color-text-muted); font: var(--font-body-md); margin: 0; }
-.icono-herramienta { align-items: center; background: var(--color-primary-50); border-radius: var(--radius-full); color: var(--color-primary-500); display: flex; flex: none; height: 44px; justify-content: center; width: 44px; }
+.rejilla-herramientas { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.tarjeta-herramienta { align-items: flex-start; background: var(--color-surface); border: var(--border-default); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); }
+.tarjeta-herramienta h2 { font: var(--font-h4); margin: 0; }
+.tarjeta-herramienta p { color: var(--color-text-muted); flex: 1; font: var(--font-body-md); margin: 0; }
+.icono-herramienta { align-items: center; background: var(--color-surface-subtle); border-radius: var(--radius-md); color: var(--color-text); display: inline-flex; flex: none; height: 40px; justify-content: center; width: 40px; }

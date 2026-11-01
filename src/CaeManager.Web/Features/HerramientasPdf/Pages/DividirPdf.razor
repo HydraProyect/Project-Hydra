@@ -152,71 +152,70 @@
             </div>
         }
 
-        <div class="dividir-columnas">
-            <section class="dividir-paginas" aria-label="@Textos["PaginasEtiqueta"]">
-                <div class="dividir-herramientas">
-                    <span class="texto-suave">@Textos["PistaTijeras"]</span>
-                    <CampoSelect Etiqueta="@Textos["TamanoPaginas"]" Valor="@_tamanoPaginas.ToString()" ValorChanged="ElegirTamano">
-                        <option value="84">@Textos["TamanoPequenas"]</option>
-                        <option value="112">@Textos["TamanoMedianas"]</option>
-                        <option value="168">@Textos["TamanoGrandes"]</option>
-                    </CampoSelect>
-                </div>
-                <div class="rejilla-paginas" style="--ancho-pagina: @(_tamanoPaginas)px">
-                    @for (var i = 1; i <= division.NumeroPaginas; i++)
-                    {
-                        var pagina = i;
-                        var corte = division.CorteTras(pagina);
-                        <div class="pagina-pdf">
-                            <button type="button" class="hoja-pdf" aria-label="@Textos["VerPagina", pagina]" @onclick="() => _paginaAmpliada = pagina">
-                                @if (Miniatura(pagina) is { } miniatura)
-                                {
-                                    <img src="data:image/png;base64,@miniatura" alt="" />
-                                }
-                            </button>
-                            <span class="numero-pagina">@pagina</span>
-                        </div>
-                        @if (pagina < division.NumeroPaginas)
+        <aside class="detectado" aria-label="@Textos["DetectadoTitulo"]">
+            <h2>@Textos["DetectadoTitulo"]</h2>
+            <ol>
+                @foreach (var rango in division.Rangos)
+                {
+                    var asignacion = division.Asignacion(rango);
+                    <li>
+                        <strong>@TextoPaginas(rango)</strong>
+                        @if (asignacion.Sugerencia is { TipoNombre: not null } or { TitularNombre: not null })
                         {
-                            <button type="button" class="tijera @(corte switch { OrigenCorte.Sugerido => "tijera-sugerida", OrigenCorte.Usuario => "tijera-usuario", _ => string.Empty })"
-                                    aria-pressed="@(corte is not null ? "true" : "false")"
-                                    aria-label="@Textos[corte is null ? "DividirTras" : "QuitarDivision", pagina]"
-                                    @onclick="() => AlternarCorte(pagina)">
-                                <Icono Nombre="tijeras" />
-                            </button>
+                            <span>@(asignacion.Sugerencia.TipoNombre ?? Textos["SinIdentificar"].Value)</span>
+                            @if (asignacion.Sugerencia.TitularNombre is { } titular)
+                            {
+                                <span>@titular</span>
+                            }
+                            <span class="motivo-deteccion">@TextoMotivo(asignacion.Sugerencia)</span>
                         }
+                        else
+                        {
+                            <span>@Textos["SinIdentificar"]</span>
+                            <span class="texto-suave">@Textos["LoAsignarasEnSuPaso"]</span>
+                        }
+                    </li>
+                }
+            </ol>
+        </aside>
+
+        <section class="dividir-paginas" aria-label="@Textos["PaginasEtiqueta"]">
+            <div class="dividir-herramientas">
+                <span class="texto-suave">@Textos["PistaTijeras"]</span>
+                <div class="tamanos-paginas" role="group" aria-label="@Textos["TamanoPaginas"]">
+                    @foreach (var (valor, clave) in new[] { (84, "TamanoPequenas"), (112, "TamanoMedianas"), (168, "TamanoGrandes") })
+                    {
+                        var ancho = valor;
+                        <button type="button" class="boton-tamano" aria-pressed="@(_tamanoPaginas == ancho ? "true" : "false")" @onclick="() => ElegirTamano(ancho.ToString(System.Globalization.CultureInfo.InvariantCulture))">@Textos[clave]</button>
                     }
                 </div>
-            </section>
-
-            <aside class="detectado" aria-label="@Textos["DetectadoTitulo"]">
-                <h2>@Textos["DetectadoTitulo"]</h2>
-                <ol>
-                    @foreach (var rango in division.Rangos)
+            </div>
+            <div class="rejilla-paginas" style="--ancho-pagina: @(_tamanoPaginas)px">
+                @for (var i = 1; i <= division.NumeroPaginas; i++)
+                {
+                    var pagina = i;
+                    var corte = division.CorteTras(pagina);
+                    <div class="pagina-pdf">
+                        <button type="button" class="hoja-pdf" aria-label="@Textos["VerPagina", pagina]" @onclick="() => _paginaAmpliada = pagina">
+                            @if (Miniatura(pagina) is { } miniatura)
+                            {
+                                <img src="data:image/png;base64,@miniatura" alt="" />
+                            }
+                        </button>
+                        <span class="numero-pagina">@pagina</span>
+                    </div>
+                    @if (pagina < division.NumeroPaginas)
                     {
-                        var asignacion = division.Asignacion(rango);
-                        <li>
-                            <strong>@TextoPaginas(rango)</strong>
-                            @if (asignacion.Sugerencia is { TipoNombre: not null } or { TitularNombre: not null })
-                            {
-                                <span>@(asignacion.Sugerencia.TipoNombre ?? Textos["SinIdentificar"].Value)</span>
-                                @if (asignacion.Sugerencia.TitularNombre is { } titular)
-                                {
-                                    <span>@titular</span>
-                                }
-                                <span class="motivo-deteccion">@TextoMotivo(asignacion.Sugerencia)</span>
-                            }
-                            else
-                            {
-                                <span>@Textos["SinIdentificar"]</span>
-                                <span class="texto-suave">@Textos["LoAsignarasEnSuPaso"]</span>
-                            }
-                        </li>
+                        <button type="button" class="tijera @(corte switch { OrigenCorte.Sugerido => "tijera-sugerida", OrigenCorte.Usuario => "tijera-usuario", _ => string.Empty })"
+                                aria-pressed="@(corte is not null ? "true" : "false")"
+                                aria-label="@Textos[corte is null ? "DividirTras" : "QuitarDivision", pagina]"
+                                @onclick="() => AlternarCorte(pagina)">
+                            <Icono Nombre="tijeras" />
+                        </button>
                     }
-                </ol>
-            </aside>
-        </div>
-
+                }
+            </div>
+        </section>
         <div class="barra-acciones-dividir">
             <span>@Textos["ResumenDivision", division.Rangos.Count, division.Rangos.Min(r => r.Paginas), division.Rangos.Max(r => r.Paginas)]</span>
             <Boton Variante="VarianteBoton.Fantasma" OnClick="ReiniciarAsync">@Textos["CambiarPdf"]</Boton>

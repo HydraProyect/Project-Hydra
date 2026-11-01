@@ -21,14 +21,12 @@
         }
         else if (_disponible == true)
         {
-            <article class="tarjeta-herramienta">
+            <div class="rejilla-herramientas"><article class="tarjeta-herramienta">
                 <span class="icono-herramienta"><Icono Nombre="documentos" /></span>
-                <div>
-                    <h2>@Textos["PortadaDividirTitulo"]</h2>
-                    <p>@Textos["PortadaDividirDescripcion"]</p>
-                </div>
-                <Boton Variante="VarianteBoton.Primario" Href="herramientas-pdf/dividir">@Textos["PortadaDividirAccion"]</Boton>
-            </article>
+                <h2>@Textos["PortadaDividirTitulo"]</h2>
+                <p>@Textos["PortadaDividirDescripcion"]</p>
+                <Boton Variante="VarianteBoton.Secundario" Href="herramientas-pdf/dividir">@Textos["PortadaDividirAccion"]</Boton>
+            </article></div>
         }
     </div>
 </LimiteDeErrores>
