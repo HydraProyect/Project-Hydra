@@ -35,8 +35,9 @@ namespace CaeManager.Infrastructure.Visitas;
 /// nunca saldría y el trabajo se registraría «exitoso, 0 evaluados».
 ///
 /// Destinatarios: quienes ejercen Administrador o DireccionCae en el Tenant, porque el recuento es
-/// del Tenant entero (ver <see cref="DestinatariosDelAviso"/>). Mismo criterio (y misma
-/// limitación documentada) que el resumen de alertas por correo — atribuir
+/// del Tenant entero (ver <see cref="DestinatariosDelAviso"/>). Mismos roles (y misma
+/// limitación documentada) que el resumen de alertas por correo, que aún mira el rol de
+/// origen del Operador Delegado — atribuir
 /// una gestión urgente a "el" Gestor CAE responsable exigiría resolver
 /// Trabajador/Centro → Empresa/Subcontrata → Cliente, y esa relación puede
 /// ser N:M (ver el comentario de EnvioAlertasVencimientoHostedService).
@@ -202,8 +203,8 @@ public class VigilanciaVisitasUrgentesHostedService(
 
     /// <summary>
     /// <c>ObtenerVisiblesEnRolAsync</c> mira el rol de origen, y el de un Operador Delegado es el de
-    /// otra organización: un Administrador del Operador CAE externo con cartera acotada, o el
-    /// personal de Soporte TALVEG en su ventana, no ejercen ese rol aquí y no deben recibir el
+    /// otra organización: un Administrador del Operador CAE externo sin Asignación de Operación del
+    /// Tenant entero, o el personal de Soporte TALVEG en su ventana, no ejercen ese rol aquí y no deben recibir el
     /// recuento del Tenant entero. El rol ejercido solo estrecha a quién se avisa: no concede acceso.
     /// </summary>
     internal static IReadOnlyList<CuentaVisibleEnRol> DestinatariosDelAviso(

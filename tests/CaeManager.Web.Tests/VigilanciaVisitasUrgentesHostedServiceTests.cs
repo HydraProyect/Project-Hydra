@@ -6,6 +6,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Visitas;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Web.Tests;
@@ -28,22 +29,24 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
     public void Un_delegado_solo_recibe_el_aviso_si_ejerce_aqui_el_rol()
     {
         var propio = Cuenta();
-        var delegadoConOperacionEntera = Cuenta();
-        var delegadoConCarteraAcotada = Cuenta();
+        var administradorDelegado = Cuenta();
+        var direccionDelegada = Cuenta();
+        var delegadoSinOperacionEntera = Cuenta();
         var soporte = Cuenta();
         var direccion = Cuenta();
 
         var destinatarios = VigilanciaVisitasUrgentesHostedService.DestinatariosDelAviso(
-            [propio, delegadoConOperacionEntera, delegadoConCarteraAcotada, soporte],
-            [direccion, propio],
+            [propio, administradorDelegado, delegadoSinOperacionEntera, soporte],
+            [direccion, direccionDelegada, propio],
             new Dictionary<Guid, string>
             {
-                [delegadoConOperacionEntera.Id] = Roles.Administrador,
-                [delegadoConCarteraAcotada.Id] = "GestorCae",
+                [administradorDelegado.Id] = Roles.Administrador,
+                [direccionDelegada.Id] = Roles.DireccionCae,
+                [delegadoSinOperacionEntera.Id] = "GestorCae",
                 [soporte.Id] = "Consulta",
             });
 
-        destinatarios.Should().BeEquivalentTo([propio, delegadoConOperacionEntera, direccion]);
+        destinatarios.Should().BeEquivalentTo([propio, administradorDelegado, direccion, direccionDelegada]);
     }
 
     private static CuentaVisibleEnRol Cuenta() => new(Guid.NewGuid(), "Cuenta", null, null);
@@ -82,6 +85,23 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
         var ejecucion = registros.Ejecuciones.Should().ContainSingle().Subject;
         ejecucion.Exitosa.Should().BeFalse();
         ejecucion.Instancia.Should().NotBe(registros.PrimeraInstancia, "el registro del interruptor es el del ámbito que falló");
+    }
+
+    /// <summary>
+    /// Relanzar tras registrar no se nota en las ejecuciones, porque el bucle lo absorbe: se nota en
+    /// que el mismo fallo se contaría dos veces en el log.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_ya_registrado_no_se_relanza()
+    {
+        var registros = new Registros();
+        var log = new LogDeErrores();
+        using var servicios = Servicios(registros);
+        var servicio = new VigilanciaFalsa(servicios, _ => throw new InvalidOperationException("Sin conexión."), log);
+
+        await servicio.ProcesarTenantsAsync([TenantQueFalla], CancellationToken.None);
+
+        log.Errores.Should().Be(1);
     }
 
     [Fact]
@@ -155,11 +175,27 @@ public class VigilanciaVisitasUrgentesHostedServiceTests
         }
     }
 
+    private sealed class LogDeErrores : ILogger<VigilanciaVisitasUrgentesHostedService>
+    {
+        public int Errores { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error) Errores++;
+        }
+    }
+
     /// <summary>Sustituye solo el recuento: con cero gestiones el servicio no llega a tocar la base.</summary>
-    private sealed class VigilanciaFalsa(IServiceProvider servicios, Func<Guid, int> contar)
+    private sealed class VigilanciaFalsa(
+        IServiceProvider servicios, Func<Guid, int> contar, ILogger<VigilanciaVisitasUrgentesHostedService>? log = null)
         : VigilanciaVisitasUrgentesHostedService(
             servicios.GetRequiredService<IServiceScopeFactory>(), new LiderSinUso(),
-            NullLogger<VigilanciaVisitasUrgentesHostedService>.Instance)
+            log ?? NullLogger<VigilanciaVisitasUrgentesHostedService>.Instance)
     {
         public List<Guid> Consultados { get; } = [];
 
