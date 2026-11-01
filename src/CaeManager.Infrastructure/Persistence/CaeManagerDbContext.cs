@@ -430,6 +430,7 @@ public class CaeManagerDbContext(
     IQueryable<RegistroTiempoGestion> ITelemetriaQueryContext.RegistrosTiempoGestion => RegistrosTiempoGestion;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
+    public DbSet<ClaveIntegracionTenant> ClavesIntegracionTenant => Set<ClaveIntegracionTenant>();
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();

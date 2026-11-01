@@ -37,6 +37,20 @@ public class OraculosExigenContextoFirmadoTests
             .And.Contain("PERFORM public.app_exigir_contexto_firmado();");
     }
 
+    /// <summary>Las resoluciones transversales que nacen después de esa migración llevan la guardia desde el principio.</summary>
+    [Fact]
+    public void La_resolucion_de_la_clave_de_integracion_exige_el_contexto_firmado()
+    {
+        var sql = string.Concat(new AnadeClavesIntegracionTenant().UpOperations.OfType<SqlOperation>().Select(o => o.Sql));
+        var inicio = sql.IndexOf("FUNCTION public.app_tenant_de_clave_integracion(hash_clave text)", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(-1);
+
+        sql[inicio..sql.IndexOf("$$;", inicio, StringComparison.Ordinal)]
+            .Should().Contain("SECURITY DEFINER")
+            .And.Contain("SET search_path TO 'pg_catalog', 'pg_temp'")
+            .And.Contain("PERFORM public.app_exigir_contexto_firmado();");
+    }
+
     [Fact]
     public void La_guardia_solo_exime_a_la_sesion_que_ya_evita_RLS()
     {
