@@ -77,6 +77,20 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
     }
 
     [Fact]
+    public void Ninguna_ruta_de_la_API_v1_se_mapea_fuera_del_grupo()
+    {
+        var web = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web");
+        var mapeos = Directory.EnumerateFiles(web, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"\.Map\w*\(\s*\$?@?""/?api(?:/v1[^""]*)?""").Select(m => Regex.Replace(m.Value, @"\s+", "")))
+            .ToList();
+
+        mapeos.Should().BeEquivalentTo(
+            [@".MapGroup(""/api/v1""", @".MapPost(""/api/v1/token""", @".MapOpenApi(""/api/v1/openapi.json"""],
+            "una ruta con su propio mapeo no la recorre RutasApiV1DeclaranAlcanceTests ni pasa por el filtro de alcance");
+    }
+
+    [Fact]
     public void El_documento_OpenAPI_exige_clave_salvo_en_el_entorno_del_escaneo()
     {
         Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\);")

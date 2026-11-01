@@ -1,8 +1,11 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Common;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using MediatR;
+using System.Security.Claims;
+using System.Text.Json.Serialization;
 
 namespace CaeManager.Web.Api.V1;
 
@@ -13,13 +16,18 @@ public static class CentrosApiEndpoints
         // pagina/tamanoPagina llevan valor por defecto: sin él, Minimal API los
         // trata como parámetros de query obligatorios (verificado con curl).
         endpoints.MapGet("/centros", async (
-            string? busqueda, Guid? clienteId, int pagina = 1, int tamanoPagina = 20,
+            string? busqueda, Guid? clienteId, ClaimsPrincipal usuario, int pagina = 1, int tamanoPagina = 20,
             IMediator mediator = default!, CancellationToken cancellationToken = default) =>
-            Results.Ok(await mediator.Send(
+        {
+            var esSoporte = ApiV1.EsClaveDeSoporte(usuario);
+            var resultado = await mediator.Send(
                 new ObtenerCentrosQuery(
                     busqueda, clienteId,
-                    Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina)),
-                cancellationToken))).RequiereAlcanceIntegracion(AlcancesIntegracion.CentrosLeer);
+                    Pagina: ApiV1.Pagina(pagina), TamanoPagina: ApiV1.TamanoPagina(tamanoPagina),
+                    ConIncidencias: esSoporte),
+                cancellationToken);
+            return esSoporte ? Results.Ok(resultado) : Results.Ok(CentroApiListaDto.DesdeInterno(resultado));
+        }).RequiereAlcanceIntegracion(AlcancesIntegracion.CentrosLeer);
 
         endpoints.MapGet("/centros/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
@@ -29,6 +37,25 @@ public static class CentrosApiEndpoints
 
         return endpoints;
     }
+}
+
+/// <summary>
+/// Lo que ve la Clave de Integración del Tenant en la lista. Sin estado, cumplimiento ni incidencias: salen de todos
+/// los documentos del Centro, y las incidencias nombran el documento, su vencimiento y al Trabajador.
+/// </summary>
+public record CentroApiListaDto(
+    Guid Id, string Nombre, string? CodigoCentro,
+    [property: JsonPropertyName("clienteId")] Guid ClienteEmpresarialId, string ClienteRazonSocial,
+    Guid EmpresaId, string EmpresaRazonSocial)
+{
+    public static CentroApiListaDto DesdeInterno(CentroListaDto dto)
+    {
+        var (id, nombre, codigoCentro, clienteEmpresarialId, clienteRazonSocial, empresaId, empresaRazonSocial, _, _, _) = dto;
+        return new(id, nombre, codigoCentro, clienteEmpresarialId, clienteRazonSocial, empresaId, empresaRazonSocial);
+    }
+
+    public static ResultadoPaginado<CentroApiListaDto> DesdeInterno(ResultadoPaginado<CentroListaDto> resultado) =>
+        new(resultado.Elementos.Select(DesdeInterno).ToList(), resultado.TotalElementos, resultado.Pagina, resultado.TamanoPagina);
 }
 
 /// <summary>

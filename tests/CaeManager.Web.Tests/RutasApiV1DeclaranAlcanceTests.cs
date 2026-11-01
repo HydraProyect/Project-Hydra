@@ -39,13 +39,19 @@ public class RutasApiV1DeclaranAlcanceTests
         }
     }
 
-    // El estado documental sale de todos los documentos del Trabajador, también de los de salud.
+    // El estado, el cumplimiento y las incidencias salen de todos los documentos, también de los de salud.
     [Theory]
+    [InlineData(typeof(ClienteApiListaDto))]
+    [InlineData(typeof(ClienteApiDetalleDto))]
+    [InlineData(typeof(CentroApiListaDto))]
+    [InlineData(typeof(CentroApiDetalleDto))]
     [InlineData(typeof(TrabajadorApiListaSinDatosPersonalesDto))]
     [InlineData(typeof(TrabajadorApiListaConDatosPersonalesDto))]
     [InlineData(typeof(TrabajadorApiDetalleSinDatosPersonalesDto))]
     public void Las_proyecciones_de_la_Clave_de_Integracion_no_llevan_estado_documental(Type proyeccion) =>
-        proyeccion.GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Estado", StringComparison.Ordinal));
+        proyeccion.GetProperties().Select(p => p.Name).Should().NotContain(n =>
+            n.Contains("Estado", StringComparison.Ordinal) || n.Contains("Cumplimiento", StringComparison.Ordinal)
+            || n.Contains("Recuento", StringComparison.Ordinal) || n.Contains("Incidencia", StringComparison.Ordinal));
 
     [Theory]
     [InlineData(ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema, AlcancesIntegracion.ClientesLeer, AlcancesIntegracion.ClientesLeer, true)]

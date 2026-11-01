@@ -7,6 +7,7 @@ using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -271,6 +272,35 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         using var json = JsonDocument.Parse(cuerpo);
         if (json.RootElement.TryGetProperty("recuentosPorEstado", out var recuentos))
             recuentos.ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Las_listas_de_Clientes_empresariales_y_Centros_no_traen_estado_que_delate_un_documento_de_salud()
+    {
+        await using (var contexto = CrearContextoPropietario())
+        using (AmbitoTenantExplicito.Establecer(_tenantA))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente empresarial Alfa", "B12345674", false, null, null);
+            var propia = new Empresa("Empresa propia Alfa", "P1234567D");
+            contexto.Empresas.AddRange(cliente, propia);
+            await contexto.SaveChangesAsync();
+            contexto.Centros.Add(new Centro(cliente.Id, propia.Id, "Centro Alfa"));
+            await contexto.SaveChangesAsync();
+        }
+
+        const string secreto = $"{ClaveIntegracionTenant.PrefijoSecreto}listas0123456789abcdef";
+        var clave = await EmitirClaveAsync(_tenantA, secreto, [AlcancesIntegracion.ClientesLeer, AlcancesIntegracion.CentrosLeer]);
+        await using var api = await Api.IniciarAsync(this);
+        var token = await api.TokenAsync(clave, secreto);
+
+        var clientes = await api.GetAsync(token, "/api/v1/clientes");
+        clientes.Estado.Should().Be(HttpStatusCode.OK, clientes.Cuerpo);
+        clientes.Cuerpo.Should().Contain("Cliente empresarial Alfa", "control positivo").And.NotContain("estadoDocumental");
+
+        var centros = await api.GetAsync(token, "/api/v1/centros");
+        centros.Estado.Should().Be(HttpStatusCode.OK, centros.Cuerpo);
+        centros.Cuerpo.Should().Contain("Centro Alfa", "control positivo")
+            .And.NotContain("\"estado\"").And.NotContain("cumplimientoPorcentaje").And.NotContain("recuentos\"");
     }
 
     [Fact]
