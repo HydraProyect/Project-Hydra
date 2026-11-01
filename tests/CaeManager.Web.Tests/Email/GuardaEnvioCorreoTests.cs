@@ -236,6 +236,32 @@ public class GuardaEnvioCorreoTests
     }
 
     [Fact]
+    public void La_composicion_real_registra_el_aviso_de_arranque()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
+
+        servicios.Should().Contain(d => d.ServiceType == typeof(IHostedService)
+            && d.ImplementationType == typeof(AvisoGuardaEnvioCorreoHostedService));
+    }
+
+    /// <summary>
+    /// El paso «Comprobar que el correo está apagado» de ZAP busca esta línea en el log: si la
+    /// constante cambia sin él, ese job se queda sin control y solo se ve en CI, tras la cola.
+    /// </summary>
+    [Fact]
+    public void El_job_de_ZAP_busca_el_mismo_texto_que_escribe_la_guarda()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        var flujo = File.ReadAllText(Path.Combine(actual!.FullName, ".github", "workflows", "seguridad-codigo.yml"));
+
+        flujo.Should().Contain($"aviso='{EnvioCorreoOptions.TextoBloqueo}'");
+    }
+
+    [Fact]
     public void Las_variables_de_entorno_con_doble_guion_bajo_llegan_a_la_guarda()
     {
         Environment.SetEnvironmentVariable("GuardaCorreoPrueba__EnvioCorreo__Modo", "SoloPermitidos");
