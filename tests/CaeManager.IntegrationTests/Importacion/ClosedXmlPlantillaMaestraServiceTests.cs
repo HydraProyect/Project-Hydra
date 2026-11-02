@@ -201,6 +201,33 @@ public class ClosedXmlPlantillaMaestraServiceTests
     }
 
     [Fact]
+    public async Task Muchas_cabeceras_repetidas_cuentan_para_el_tope_de_columnas()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        for (var c = 5; c < 5 + 101; c++) hoja.Cell(1, c).Value = "CNAE";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Should().BeEmpty();
+        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("columnas distintas"));
+    }
+
+    [Fact]
+    public async Task Una_fila_con_datos_solo_bajo_una_cabecera_sin_nombre_se_anuncia()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        hoja.Cell(1, 6).Value = "Cabecera";
+        hoja.Cell(1, 5).Clear();
+        hoja.Cell(5, 5).Value = "dato suelto"; // fila 5: sin nada bajo las columnas con nombre
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Advertencias.Should().Contain(a => a.Hoja == "Empresas" && a.Motivo.Contains("sin cabecera, columna 5"));
+    }
+
+    [Fact]
     public async Task El_mismo_Cliente_empresarial_con_otra_nota_en_una_segunda_fila_se_advierte()
     {
         var libro = LibroValido();

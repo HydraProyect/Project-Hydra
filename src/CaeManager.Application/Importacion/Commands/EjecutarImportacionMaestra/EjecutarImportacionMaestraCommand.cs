@@ -507,6 +507,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                     || observaciones != existente.Observaciones)
                 {
                     string? telefonoPersistido = null;
+                    var cambioReal = false;
                     var (nombre0, apellidos0, nacimiento0, email0, observaciones0, telefono0, puesto0) =
                         (existente.Nombre, existente.Apellidos, existente.FechaNacimiento, existente.Email, existente.Observaciones, existente.Telefono, existente.Puesto);
                     if (IntentarActualizar(
@@ -514,10 +515,17 @@ public class EjecutarImportacionMaestraCommandHandler(
                             () => existente.Actualizar(nombre0, apellidos0, nacimiento0, email0, observaciones0, existente.Alias, telefono0, puesto0),
                             out var error,
                             // El dominio normaliza el teléfono: N14 informa el valor realmente persistido, no el de la celda.
-                            trasAplicar: () => telefonoPersistido = existente.Telefono))
+                            trasAplicar: () =>
+                            {
+                                telefonoPersistido = existente.Telefono;
+                                cambioReal = existente.Nombre != nombre0 || existente.Apellidos != apellidos0
+                                    || existente.FechaNacimiento != nacimiento0 || existente.Email != email0
+                                    || existente.Puesto != puesto0 || existente.Observaciones != observaciones0
+                                    || telefonoPersistido != telefono0;
+                            }))
                     {
                         AjustarTelefonoSobrescrito(fila.Fila, sobrescritosAntes, telefono0, telefonoPersistido);
-                        trabajadoresActualizados++;
+                        if (cambioReal) trabajadoresActualizados++;
                     }
                     else
                     {

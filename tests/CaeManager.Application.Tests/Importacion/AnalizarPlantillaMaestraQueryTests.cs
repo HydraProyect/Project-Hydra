@@ -21,9 +21,13 @@ public class AnalizarPlantillaMaestraQueryTests
         }
     }
 
-    private sealed class Autorizacion(bool administrador) : IAutorizacionEscrituraEfectiva
+    private sealed class Usuario(string rol) : ICurrentUserService
     {
-        public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(administrador);
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     [Fact]
@@ -31,7 +35,7 @@ public class AnalizarPlantillaMaestraQueryTests
     {
         var servicio = new ServicioFalso();
 
-        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Autorizacion(false))
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Gestor CAE"))
             .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
 
         r.EsExitoso.Should().BeFalse();
@@ -43,7 +47,7 @@ public class AnalizarPlantillaMaestraQueryTests
     {
         var servicio = new ServicioFalso();
 
-        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Autorizacion(true))
+        var r = await new AnalizarPlantillaMaestraQueryHandler(servicio, new Usuario("Administrador"))
             .Handle(new AnalizarPlantillaMaestraQuery([1, 2, 3]), CancellationToken.None);
 
         r.EsExitoso.Should().BeTrue();

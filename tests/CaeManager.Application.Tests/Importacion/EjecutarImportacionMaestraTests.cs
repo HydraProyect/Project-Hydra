@@ -277,7 +277,7 @@ public class EjecutarImportacionMaestraTests
         var gestionada = GestionadaExistente();
         e.Empresas.ListaEmpresas.Add(gestionada);
         var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(
-            gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid", telefono: "+34600111222");
+            gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid", telefono: "+34600111222", puesto: "Oficial 1ª");
         e.Trabajadores.ListaTrabajadores.Add(trabajador);
         var fila = FilaTrabajador(correo: "previo@ejemplo.invalid") with { Telefono = "0034 600 111 222", YaExiste = true };
 
@@ -286,6 +286,7 @@ public class EjecutarImportacionMaestraTests
 
         trabajador.Telefono.Should().Be("+34600111222");
         real.ValoresSobrescritos.Should().NotContain(v => v.Campo == "Teléfono", "el valor persistido no cambió");
+        real.TrabajadoresActualizados.Should().Be(0, "ningún valor persistido cambió");
         real.Should().BeEquivalentTo(previa);
     }
 

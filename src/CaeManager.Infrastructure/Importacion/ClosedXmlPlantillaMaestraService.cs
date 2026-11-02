@@ -422,7 +422,8 @@ public class ClosedXmlPlantillaMaestraService(
                 if (nombre.Length == 0) { _noLeidas.Add(($"(sin cabecera, columna {c})", c)); continue; }
                 if (!_columnas.TryAdd(nombre, c)) _noLeidas.Add(($"{nombre} (columna repetida {c})", c));
             }
-            ExcedeColumnas = _columnas.Count > MaxColumnasPorHoja;
+            // Cuenta también las columnas no leídas (repetidas o vacías): el coste del recorrido crece con todas ellas.
+            ExcedeColumnas = _columnas.Count + _noLeidas.Count > MaxColumnasPorHoja;
         }
 
         private static string NombreCabecera(string texto) => texto.Trim().TrimEnd('*').Trim();
@@ -456,7 +457,12 @@ public class ClosedXmlPlantillaMaestraService(
             for (var f = PrimeraFilaDatos; f <= ultima; f++)
             {
                 var primera = _columnas.Values.Select(c => TextoBruto(f, c)).FirstOrDefault(t => t is not null);
-                if (primera is null) continue;
+                // Una fila con datos solo bajo una cabecera repetida o vacía cuenta como fila con datos: así se anuncia.
+                if (primera is null)
+                {
+                    if (_noLeidas.Any(k => TextoBruto(f, k.Columna) is not null)) yield return f;
+                    continue;
+                }
                 // Solo la fila 2 con el marcador es el ejemplo de la plantilla; una razón social que empiece por «Ejemplares»
                 // u «Ejemplo» en otra fila es un dato real y se importa.
                 if (f == PrimeraFilaDatos && primera.StartsWith(MarcadorEjemplo, StringComparison.OrdinalIgnoreCase)
