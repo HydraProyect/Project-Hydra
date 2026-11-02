@@ -33,7 +33,8 @@ public class IngestaWebhookService(
     IRelevanciaCaeService relevanciaCae,
     IAlertaCriticaService alertaCritica,
     ILogger<IngestaWebhookService> logger,
-    IIntencionConversacionService intenciones)
+    IIntencionConversacionService intenciones,
+    ResponsableBuzonElegible elegibilidadResponsable)
 {
     private readonly List<string> _archivosGuardados = [];
 
@@ -150,7 +151,10 @@ public class IngestaWebhookService(
                     ? Conversacion.ContinuarCorreo(anterior, mensaje.Asunto)
                     : new Conversacion(mensaje.Asunto, conexion.ClienteId);
                 if (anterior is null)
+                {
                     conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
+                    await AsignarAlResponsableDelBuzonAsync(conversacion, conexion, cancellationToken);
+                }
                 conversacionRepositorio.Agregar(conversacion);
                 conversacionNueva = true;
             }
@@ -219,6 +223,28 @@ public class IngestaWebhookService(
                     clasificacionMensaje?.CambiarMotivo(MotivoRuidoMensaje.ResumenSinCambios);
             }
         }
+    }
+
+    /// <summary>
+    /// Toda conversación nace asignada al responsable de su buzón. La continuación de un hilo cerrado conserva
+    /// a quien ya la llevaba. Quien ya no puede atenderla (<see cref="ResponsableBuzonElegible"/>: rol, cuenta y
+    /// cartera pueden haber cambiado desde que se le nombró, y un Id sin cuenta es lo mismo que no alcanzable) no
+    /// se asigna: una conversación en manos de alguien sin acceso quedaría oculta para el resto, y sin asignar
+    /// sigue visible en la bandeja.
+    /// </summary>
+    private async Task AsignarAlResponsableDelBuzonAsync(
+        Conversacion conversacion, ConexionIntegracion conexion, CancellationToken cancellationToken)
+    {
+        if (conexion.ResponsableEfectivoId is not { } responsableId)
+            return;
+
+        var motivo = await elegibilidadResponsable.EvaluarAsync(responsableId, conexion, cancellationToken);
+        if (motivo is null)
+            conversacion.Asignar(responsableId);
+        else
+            logger.LogWarning(
+                "La conversación nueva de la conexión {ConexionId} queda sin asignar: su responsable {UsuarioId} no puede atenderla ({Motivo}).",
+                conexion.Id, responsableId, motivo);
     }
 
     /// <summary>

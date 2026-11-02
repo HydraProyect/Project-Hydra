@@ -15,6 +15,19 @@ namespace CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDeleg
 /// la Consultora o cambia de cartera. Sin esto, la única forma de quitarle el
 /// acceso era revocar la delegación completa, que afecta a todo el equipo
 /// (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
+///
+/// <para>
+/// Quién retira por este comando a una persona de un Operador CAE externo: solo el Administrador
+/// del Tenant propietario, desde su casa (<see cref="AdministradorQueReactiva"/>; decisión de Chris
+/// del 2026-10-26 y ADR-004 § 12.2). Es el mismo predicado que reactiva su acceso, y la misma
+/// autoridad que lo autoriza: decide qué persona entra en los datos y cierra su cartera, así que un
+/// Gestor CAE del Tenant propietario no lo hace aunque RLS y la escritura general se lo admitan. La
+/// de Soporte TALVEG (plano 3) conserva las dos partes como criterio
+/// (<c>DelegacionAdministrablePorElUsuarioAsync</c>). Las rutas de cartera del plano de Operación
+/// (<c>AsignarCarteraGestorCaeCommand</c>, <c>RevocarIncorporacionCarteraCommand</c>,
+/// <c>RetirarApoyoConcedidoCommand</c>) y la revocación entera siguen en el equipo del Operador CAE
+/// externo: este comando no las gobierna.
+/// </para>
 /// </summary>
 public record RevocarAsignacionOperadorDelegadoCommand(Guid AsignacionId) : ICommand;
 
@@ -32,7 +45,8 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    IAutorizacionDelegacionTenant autorizacion)
     : IRequestHandler<RevocarAsignacionOperadorDelegadoCommand, Result>
 {
     public async Task<Result> Handle(RevocarAsignacionOperadorDelegadoCommand request, CancellationToken cancellationToken)
@@ -53,7 +67,7 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
         // Tenant activo sea un extremo de la delegación. Desde el Workspace operativo
         // derivado de un tercero el DELETE no alcanzaría ninguna fila y EF lo convertiría
         // en un DbUpdateConcurrencyException: se rechaza aquí, antes de tocar nada. Esta
-        // guarda solo restringe; la autoridad ya se decidió arriba por el Tenant de origen.
+        // guarda solo restringe; la autoridad sale del Tenant de origen, nunca del activo.
         var tenantPropietarioId = delegacion.TenantClienteId;
         var tenantActivo = tenantActual.TenantId;
         if (tenantActivo != tenantPropietarioId && tenantActivo != delegacion.TenantConsultoraId)
@@ -70,6 +84,17 @@ public class RevocarAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo(Error.Crear(
                 "AsignacionOperadorDelegado.RequiereTenantPropietario",
                 "Pide a la organización cuyos datos gestiona que retire a esta persona."));
+
+        // Estar en un extremo solo dice que la fila no es ajena. Retirar a una persona de un
+        // Operador CAE externo le interrumpe el acceso y cierra su cartera: es del plano de
+        // Propiedad y de su Administrador, con el mismo predicado que reactivar. Soporte TALVEG
+        // no pasa por aquí: su criterio sigue siendo el de las dos partes, ya comprobado arriba.
+        if (deOperadorExterno
+            && !await AdministradorQueReactiva.PuedeAsync(
+                tenantPropietarioId, currentUserService, tenantActual, autorizacion, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "AsignacionOperadorDelegado.NoAutorizado",
+                "Solo un Administrador de la organización propietaria de los datos puede retirar a esta persona."));
 
         repositorio.Eliminar(asignacion);
 

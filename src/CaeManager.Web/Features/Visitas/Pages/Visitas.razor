@@ -167,9 +167,9 @@
                 <table class="@("tabla-datos visitas-lista" + (_seleccionMultiple ? " visitas-con-seleccion" : string.Empty))" aria-label="@Textos["TituloPagina"]" aria-busy="@_cargando">
                     <thead><tr>
                         @if (_seleccionMultiple) { <th><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th> }
-                        <th></th><th aria-sort="@AriaOrden(nameof(VisitaListaDto.CentroNombre))"><button type="button" @onclick="() => OrdenarColumnaAsync(nameof(VisitaListaDto.CentroNombre))">@Textos["EtiquetaCentro"]</button></th><th aria-sort="@AriaOrden(nameof(VisitaListaDto.ClienteRazonSocial))"><button type="button" @onclick="() => OrdenarColumnaAsync(nameof(VisitaListaDto.ClienteRazonSocial))">@Textos["ColumnaClienteEmpresa"]</button></th>
+                        <th><span class="visitas-solo-lector">@Textos["ColumnaDesplegar"]</span></th><th aria-sort="@AriaOrden(nameof(VisitaListaDto.CentroNombre))"><button type="button" @onclick="() => OrdenarColumnaAsync(nameof(VisitaListaDto.CentroNombre))">@Textos["EtiquetaCentro"]</button></th><th aria-sort="@AriaOrden(nameof(VisitaListaDto.ClienteRazonSocial))"><button type="button" @onclick="() => OrdenarColumnaAsync(nameof(VisitaListaDto.ClienteRazonSocial))">@Textos["ColumnaClienteEmpresa"]</button></th>
                         <th aria-sort="@AriaOrden(nameof(VisitaListaDto.FechaInicio))"><button type="button" @onclick="OrdenarFechasAsync">@Textos["ColumnaFechas"]</button></th>
-                        <th>@Textos["ColumnaPreparacion"]</th><th>@Textos["ColumnaEstadoDocumental"]</th><th></th>
+                        <th>@Textos["ColumnaPreparacion"]</th><th>@Textos["ColumnaEstadoDocumental"]</th><th><span class="visitas-solo-lector">@Textos["ColumnaAcciones"]</span></th>
                     </tr></thead>
                     <tbody>
                     @foreach (var grupo in GruposDeVisitas)

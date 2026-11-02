@@ -15,6 +15,9 @@
   <data name="IrAMiAvatar" xml:space="preserve">
     <value>Ves al meu avatar</value>
   </data>
+  <data name="IrAHerramientasPdf" xml:space="preserve">
+    <value>Vés a Eines PDF</value>
+  </data>
   <data name="IrAMiTrabajoDeLaCartera" xml:space="preserve">
     <value>Vés a La meva feina de tota la cartera</value>
   </data>

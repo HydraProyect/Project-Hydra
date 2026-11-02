@@ -14,7 +14,7 @@
     var indice = 0;
 
     <div class="buscador-superposicion" @onclick="Cerrar">
-        <div class="buscador-panel" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-label="Buscar o ejecutar">
+        <div class="buscador-panel" @ref="_panelElemento" tabindex="-1" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-label="Buscar o ejecutar">
 
             <div class="buscador-cabecera">
                 <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
