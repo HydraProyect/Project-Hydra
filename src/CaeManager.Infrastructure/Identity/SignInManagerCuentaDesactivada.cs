@@ -40,6 +40,16 @@ namespace CaeManager.Infrastructure.Identity;
 /// </list>
 ///
 /// <para>
+/// <b>Sello de la cookie.</b> Entre dos revalidaciones la cookie no se compara con la base, y una que
+/// escapó a la revocación de un cambio de credencial sigue autenticando. Reemitirla con el sello nuevo
+/// la dejaría viva, así que ninguna cookie nueva sale con un sello distinto del de la base: una sesión
+/// nueva lo comprueba tras registrar su fila, y un refresco exige además que la cookie llevara el sello
+/// vigente o el que esta misma petición acaba de sustituir (<see cref="SelloSeguridadCuenta"/>). Quien
+/// rota el sello fuera de un refresco (generar la clave del autenticador) debe refrescar en esa misma
+/// petición: en otra posterior su cookie ya estaría obsoleta y dejaría de poder refrescarse.
+/// </para>
+///
+/// <para>
 /// <b>Identificador de sesión (<see cref="ClaimSid"/>).</b> Cada emisión nueva de la cookie
 /// lleva un identificador aleatorio de sesión, registrado en <c>SesionesUsuario</c>
 /// (<see cref="IRegistroSesionesUsuario"/>); <c>RefreshSignInAsync</c> y la revalidación
@@ -63,7 +73,8 @@ public class SignInManagerCuentaDesactivada(
     IUserConfirmation<ApplicationUser> confirmation,
     IVigilanciaInicioSesion vigilancia,
     IRegistroSesionesUsuario sesiones,
-    VerificacionContrasenaFicticia contrasenaFicticia)
+    VerificacionContrasenaFicticia contrasenaFicticia,
+    ISelloSeguridadCuenta sellos)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
     /// <summary>
@@ -197,8 +208,8 @@ public class SignInManagerCuentaDesactivada(
     private string? _marcaAutenticacionConservada;
 
     /// <summary>
-    /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor) reemite la cookie
-    /// conservando solo <c>amr</c> y el método de autenticación: perdía la marca
+    /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor, generar la clave del
+    /// autenticador) reemite la cookie conservando solo <c>amr</c> y el método de autenticación: perdía la marca
     /// <see cref="RestriccionLoginLocalClaimsTransformation.MetodoLoginSso"/> y un Gestor CAE del Tenant
     /// declarado que había entrado por Microsoft quedaba en Consulta. Se conserva solo si la cookie
     /// autenticada de esta petición ya la traía y es de la misma cuenta; nunca se crea donde no estaba.
@@ -217,6 +228,7 @@ public class SignInManagerCuentaDesactivada(
         // Refrescar la cookie no abre una sesión nueva: conserva su identificador (y con él su
         // revocación). Sin cookie de la misma cuenta, la emisión registra una sesión nueva.
         _sidConservado = mismaCuenta ? LeerSid(autenticada.Principal) : null;
+        _selloDeLaCookie = mismaCuenta ? LeerSello(autenticada.Principal) : null;
         try
         {
             await base.RefreshSignInAsync(user);
@@ -227,10 +239,37 @@ public class SignInManagerCuentaDesactivada(
             _marcaTotpConservada = null;
             _marcaAutenticacionConservada = null;
             _sidConservado = null;
+            _selloDeLaCookie = null;
         }
     }
 
     private Guid? _sidConservado;
+    private string? _selloDeLaCookie;
+
+    /// <summary>El sello de seguridad que lleva el principal, o nulo si no lleva ninguno.</summary>
+    private string? LeerSello(ClaimsPrincipal? principal) =>
+        principal?.FindFirst(Options.ClaimsIdentity.SecurityStampClaimType)?.Value;
+
+    /// <summary>
+    /// ¿Es el sello que va a llevar la cookie nueva el que hay en la base? La entidad de la petición pudo
+    /// cargarse antes de un cambio de credencial, y no vale compararla consigo misma.
+    /// </summary>
+    private async Task<bool> SelloDeLaCuentaEsElVigenteAsync(ApplicationUser user) =>
+        await sellos.VigenteAsync(user.Id, user.TenantId) is { } vigente
+        && string.Equals(user.SecurityStamp, vigente, StringComparison.Ordinal);
+
+    /// <summary>
+    /// ¿Puede esta cookie heredar el sello de la cuenta? Solo si llevaba el vigente o el que esta misma
+    /// petición acaba de rotar. Una cookie con otro sello es una sesión que se quedó atrás en un cambio de
+    /// credencial ajeno a ella, aunque su fila no se haya revocado.
+    /// </summary>
+    private async Task<bool> CookiePuedeRefrescarseAsync(ApplicationUser user)
+    {
+        var esperado = sellos.RotadoEnEstaPeticion(user.Id, out var anterior) ? anterior : user.SecurityStamp;
+        return _selloDeLaCookie is not null
+            && string.Equals(_selloDeLaCookie, esperado, StringComparison.Ordinal)
+            && await SelloDeLaCuentaEsElVigenteAsync(user);
+    }
 
     /// <summary>
     /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
@@ -380,10 +419,28 @@ public class SignInManagerCuentaDesactivada(
             Logger.LogWarning("No se refresca la sesión: la sesión de la cuenta {UsuarioId} está revocada.", user.Id);
             return;
         }
+        if (sid is not null && !await CookiePuedeRefrescarseAsync(user))
+        {
+            // Mismo criterio: una cookie que escapó a la revocación de un cambio de credencial saldría de
+            // aquí con el sello nuevo y un IssuedUtc nuevo, viva para siempre. Se deja caer en la
+            // siguiente validación.
+            Logger.LogWarning("No se refresca la sesión: la cookie de la cuenta {UsuarioId} lleva un sello obsoleto.", user.Id);
+            return;
+        }
         if (sid is null)
         {
             sid = Guid.NewGuid();
             await sesiones.RegistrarAsync(user.Id, user.TenantId, sid.Value);
+
+            // Tras registrar la fila y no antes: un inicio que verificó la contraseña antigua y se queda
+            // aquí mientras un cambio de credencial termina. Si lee el sello antiguo, su fila ya estaba
+            // cuando se escribió el nuevo y la revocación posterior la alcanza; si lee el nuevo, no se
+            // emite. Su fila queda sin cookie que la use.
+            if (!await SelloDeLaCuentaEsElVigenteAsync(user))
+            {
+                Logger.LogWarning("No se emite sesión: la credencial de la cuenta {UsuarioId} cambió durante el inicio de sesión.", user.Id);
+                return;
+            }
             await RevocarSesionQueSustituyeAsync();
         }
         additionalClaims = additionalClaims.Append(new Claim(ClaimSid, sid.Value.ToString("N")));

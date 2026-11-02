@@ -163,7 +163,7 @@ public partial class ConectarExtension : CaeManager.Web.Components.PaginaInterac
             // instance" que la puerta existe para evitar. Antes era deuda
             // registrada en IdentityEnComponentesPorLaPuertaDeAccesoADatosTests.
             var resultado = await PuertaAccesoDatos.EjecutarAsync(() =>
-                EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User), UserManager, DataProtectionProvider, Sesiones, Seleccion, FabricaRegistro));
+                EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User), estadoAutenticacion.User.FindFirst(UserManager.Options.ClaimsIdentity.SecurityStampClaimType)?.Value, UserManager, DataProtectionProvider, Sesiones, Seleccion, FabricaRegistro));
             if (resultado.EsFallido)
             {
                 _error = resultado.Error.Mensaje;

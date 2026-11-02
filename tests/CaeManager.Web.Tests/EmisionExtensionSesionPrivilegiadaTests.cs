@@ -100,10 +100,25 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     [Fact]
     public async Task Sin_sesion_privilegiada_emite_token_legible()
     {
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, new Seleccion(false), new LoggerFactory([_registro]));
         DebeNombrarSoloALaCuentaAutenticada(resultado);
         TokenSesionExtension.Leer(_protector, resultado.Valor.Token)!.SecurityStamp.Should().Be("sello");
         _registro.Avisos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El token lleva el sello vigente: una sesión que no lo ha visto, porque escapó a la revocación de un
+    /// cambio de credencial, lo obtendría sin haberlo visto. El alcance de integración lo prueba contra la base.
+    /// </summary>
+    [Theory]
+    [InlineData("sello-anterior")]
+    [InlineData(null)]
+    public async Task Sesion_sin_el_sello_vigente_no_obtiene_token(string? selloDeLaSesion)
+    {
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, selloDeLaSesion, Gestor(), _protector, _sesiones, new Seleccion(false), new LoggerFactory([_registro]));
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
     }
 
     /// <summary>
@@ -167,7 +182,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         seleccion.SesionPrivilegiadaIdSeleccionada.Should().Be(SesionPrivilegiada);
         seleccion.Invalidar();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, seleccion, new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, seleccion, new LoggerFactory([_registro]));
 
         DebeNombrarSoloALaCuentaAutenticada(resultado);
     }
@@ -184,7 +199,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     }
 
     private Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirConCookieAsync(string cookie) =>
-        EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, SeleccionReal(cookie), new LoggerFactory([_registro]));
+        EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, SeleccionReal(cookie), new LoggerFactory([_registro]));
 
     private ClienteActivoSeleccionado SeleccionReal(string cookie)
     {

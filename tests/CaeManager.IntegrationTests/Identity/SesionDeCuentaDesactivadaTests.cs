@@ -76,6 +76,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         servicios.AddIdentityCore<ApplicationUser>()
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
+            .AddUserStore<AlmacenUsuarios>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             // El autenticador real: un código TOTP aceptado no vuelve a valer (V2.8.4).
@@ -92,6 +93,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
         servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        servicios.AddScoped<ISelloSeguridadCuenta, SelloSeguridadCuenta>();
         // La revalidación del circuito pasa por aquí; sin selección, por el SignInManager real.
         servicios.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
         servicios.AddSingleton<IClienteActivoSeleccionado, SinSeleccion>();
@@ -296,6 +298,76 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         string[] esperado = conMarca ? [RestriccionLoginLocalClaimsTransformation.MetodoLoginSso] : [];
         PrincipalDeLaCookie(refrescada)!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
             .Select(c => c.Value).Should().Equal(esperado);
+    }
+
+    [Fact]
+    public async Task Refrescar_una_cookie_con_el_sello_obsoleto_no_la_reemite_aunque_su_fila_siga_viva()
+    {
+        // C4 H3 y C5 H1: la sesión escapó a la revocación de un cambio de credencial y activa el TOTP,
+        // que también rota el sello, antes de la siguiente revalidación.
+        var usuario = await CrearUsuarioAsync("sello-obsoleto@x.test");
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+        cookie.Should().NotBeEmpty("control: la cookie de partida");
+        await RotarSelloAsync(usuario.Id);
+
+        var refrescada = await RefrescarTrasRotarAsync(usuario.Id, cookie);
+
+        refrescada.Should().BeEmpty("saldría con el sello nuevo y un IssuedUtc nuevo");
+    }
+
+    [Fact]
+    public async Task Refrescar_tras_rotar_en_la_misma_peticion_conserva_la_sesion_con_el_sello_de_la_base()
+    {
+        // Cambiar la contraseña o activar el TOTP: con el almacén real, la rotación es de esta petición.
+        var usuario = await CrearUsuarioAsync("sello-propio@x.test");
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+
+        var refrescada = await RefrescarTrasRotarAsync(usuario.Id, cookie);
+
+        refrescada.Should().NotBeEmpty("quien cambia su credencial no pierde su sesión");
+        var principal = PrincipalDeLaCookie(refrescada)!;
+        SignInManagerCuentaDesactivada.LeerSid(principal).Should().Be(SignInManagerCuentaDesactivada.LeerSid(PrincipalDeLaCookie(cookie)));
+        using var ambito = _servicios.CreateScope();
+        var vigente = await ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>().VigenteAsync(usuario.Id, _tenant);
+        principal.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(vigente);
+    }
+
+    [Fact]
+    public async Task Iniciar_sesion_con_una_cuenta_cargada_antes_del_cambio_de_credencial_no_emite()
+    {
+        // C4 H3: el inicio verificó la contraseña antigua y sigue con la entidad de antes del cambio.
+        var usuario = await CrearUsuarioAsync("sello-inicio@x.test");
+        using var ambito = _servicios.CreateScope();
+        var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+        ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+        var cargada = await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString());
+
+        await RotarSelloAsync(usuario.Id);
+        await ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().SignInAsync(cargada!, isPersistent: false);
+
+        contexto.Response.Headers.SetCookie.ToString().Should().BeEmpty();
+    }
+
+    private async Task RotarSelloAsync(Guid usuarioId)
+    {
+        using var ambito = _servicios.CreateScope();
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        (await userManager.UpdateSecurityStampAsync(usuario!)).Succeeded.Should().BeTrue();
+    }
+
+    /// <summary>Lo que hacen las pantallas: rotar el sello y refrescar en la misma petición.</summary>
+    private async Task<string> RefrescarTrasRotarAsync(Guid usuarioId, string cookiePrevia)
+    {
+        using var ambito = _servicios.CreateScope();
+        var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+        contexto.Request.Headers.Cookie = cookiePrevia.Split(';')[0];
+        ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+        (await userManager.UpdateSecurityStampAsync(usuario!)).Succeeded.Should().BeTrue();
+        await ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().RefreshSignInAsync(usuario!);
+        return contexto.Response.Headers.SetCookie.ToString();
     }
 
     [Fact]

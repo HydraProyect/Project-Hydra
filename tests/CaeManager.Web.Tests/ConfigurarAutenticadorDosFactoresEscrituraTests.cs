@@ -286,6 +286,66 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         cut.FindAll("[role=alert]").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Generar la clave rota el sello en la carga. Sin reemitir ahí, la cookie llegaría al envío del código
+    /// con un sello que ya nadie sustituye en esa petición, y SignInManagerCuentaDesactivada la dejaría caer.
+    /// </summary>
+    [Fact]
+    public async Task Una_sesion_con_sello_obsoleto_no_da_de_alta_el_factor()
+    {
+        _almacen.Usuario!.SecurityStamp = "sello-vigente";
+        _autenticacion.Sello = "sello-obsoleto";
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await EnviarCodigoAsync(cut);
+
+        _almacen.DosFactoresActivo.Should().BeFalse("el factor quedaría activo aunque no se le reemita la cookie");
+        _signIn.SesionReemitida.Should().BeFalse();
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("sello obsoleto"));
+    }
+
+    [Fact]
+    public async Task Una_sesion_con_el_sello_vigente_da_de_alta_el_factor()
+    {
+        _almacen.Usuario!.SecurityStamp = "sello-vigente";
+        _autenticacion.Sello = "sello-vigente";
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await EnviarCodigoAsync(cut);
+
+        _almacen.DosFactoresActivo.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Si_generar_la_clave_rota_el_sello_reemite_la_sesion_en_esa_misma_peticion()
+    {
+        _gestor.RotaElSelloAlGenerarLaClave = true;
+
+        Render<ConfigurarAutenticadorDosFactores>();
+
+        _signIn.SesionReemitida.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Si_el_sello_no_cambia_al_cargar_no_reemite_la_sesion()
+    {
+        Render<ConfigurarAutenticadorDosFactores>();
+
+        _signIn.SesionReemitida.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Si_generar_la_clave_falla_no_reemite_la_sesion()
+    {
+        _gestor.RotaElSelloAlGenerarLaClave = true;
+        _almacen.FallaAlActualizar = true;
+        _almacen.MensajeError = "El almacén no está disponible.";
+
+        Render<ConfigurarAutenticadorDosFactores>();
+
+        _signIn.SesionReemitida.Should().BeFalse("el sello rotado no llegó a la base");
+    }
+
     [Fact]
     public async Task Si_SetTwoFactorEnabledAsync_falla_la_cuenta_sigue_sin_segundo_factor()
     {
@@ -569,10 +629,13 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     {
         public bool Reciente { get; set; } = true;
         public bool Microsoft { get; set; }
+        public string? Sello { get; set; }
 
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             var identidad = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba");
+            if (Sello is not null)
+                identidad.AddClaim(new Claim(new IdentityOptions().ClaimsIdentity.SecurityStampClaimType, Sello));
             var inicio = Reciente ? DateTimeOffset.UtcNow : DateTimeOffset.UtcNow.AddHours(-1);
             identidad.AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion,
                 inicio.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
@@ -599,6 +662,16 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         public override Task<bool> VerifyTwoFactorTokenAsync(ApplicationUser user, string tokenProvider, string token) =>
             Task.FromResult(token == CodigoValido);
+
+        // El almacén falso no implementa IUserSecurityStampStore: esto hace lo que Identity con uno que sí.
+        public bool RotaElSelloAlGenerarLaClave { get; set; }
+
+        public override Task<IdentityResult> ResetAuthenticatorKeyAsync(ApplicationUser user)
+        {
+            if (RotaElSelloAlGenerarLaClave)
+                user.SecurityStamp = Guid.NewGuid().ToString();
+            return base.ResetAuthenticatorKeyAsync(user);
+        }
 
         // La página pregunta el rol solo para decidir el aviso de 2FA obligatoria,
         // que aquí no se mide (lo cubre ConfigurarDosFactoresGen2Tests); el

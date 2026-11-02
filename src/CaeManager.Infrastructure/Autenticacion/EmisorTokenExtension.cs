@@ -21,7 +21,7 @@ namespace CaeManager.Infrastructure.Autenticacion;
 public static class EmisorTokenExtension
 {
     public static async Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirAsync(
-        Guid usuarioId, Guid? sid, UserManager<ApplicationUser> userManager, IDataProtectionProvider dataProtectionProvider,
+        Guid usuarioId, Guid? sid, string? selloDeLaSesion, UserManager<ApplicationUser> userManager, IDataProtectionProvider dataProtectionProvider,
         IRegistroSesionesUsuario sesiones, IClienteActivoSeleccionado seleccion, ILoggerFactory fabricaRegistro)
     {
         // Ninguna guarda del pipeline alcanza esta vía: las dos entradas llaman aquí sin pasar por MediatR
@@ -59,6 +59,11 @@ public static class EmisorTokenExtension
             return Result.Fallo<(string, DateTime)>(Error.Crear(
                 "Extension.CuentaAMedioActivar",
                 "La cuenta no puede conectar la extensión todavía. Cambia la contraseña para completar su activación."));
+
+        // Como el refresco de la cookie (SignInManagerCuentaDesactivada): el token lleva el sello vigente, y
+        // una sesión que escapó a la revocación de un cambio de credencial lo obtendría sin haberlo visto.
+        if (!string.Equals(selloDeLaSesion, usuario.SecurityStamp, StringComparison.Ordinal))
+            return Result.Fallo<(string, DateTime)>(Error.Crear("Extension.SesionNoVigente", "La sesión ya no está vigente. Vuelve a iniciar sesión."));
 
         var token = TokenSesionExtension.Proteger(dataProtectionProvider, usuarioId, usuario.SecurityStamp, sid.Value);
         return Result.Exito((token, DateTime.UtcNow.Add(TokenSesionExtension.Vigencia)));
