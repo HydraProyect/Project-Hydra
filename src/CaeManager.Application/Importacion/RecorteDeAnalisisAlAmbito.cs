@@ -51,8 +51,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
                 if (!e.Clientes.Contains(c.Nombre))
                     omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre, MotivosDeOmision.ClienteNoExiste));
                 else if (!e.Centros.Contains(c.Nombre))
-                    omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre,
-                        "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
+                    omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre, MotivosDeOmision.CentroNoExiste));
                 else
                     visibles.Add(c);
             }
