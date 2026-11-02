@@ -388,8 +388,8 @@ public class ReglasDeNegocioSinCopiasTests
         // La puerta de lectura por Id (SEG-16): un Documento sustituido se sigue abriendo desde el historial, y con él su
         // validación oficial y sus firmas. Autoriza la coordenada del Documento, no decide estado.
         ["src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs"] = 1,
-        // Resolución por Id: comprueba si el Documento reservado llegó a la base para decidir sobre la copia del fichero.
-        // Existe aunque ya esté sustituido; no decide estado.
+        // Resolución por Id: comprueba si hay fila con el Id reservado para decidir sobre la copia del fichero. Cuenta aunque
+        // esté sustituida o eliminada; no decide estado.
         ["src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs"] = 1,
         // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
         // de versiones del mismo propietario y tipo, incluidas las sustituidas.

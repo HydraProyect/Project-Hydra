@@ -23,9 +23,16 @@ public enum EstadoAsignacionAdjunto
     Conflicto = 2,
 
     /// <summary>
-    /// Falló sin saber en qué punto. Documento y adjunto se guardan juntos, así que el estado del adjunto dice qué pasó.
+    /// Falló sin confirmar el alta o antes de llegar a ella. Documento y adjunto se guardan juntos, así que el estado del
+    /// adjunto dice qué pasó.
     /// </summary>
-    Error = 3
+    Error = 3,
+
+    /// <summary>
+    /// No se pudo comprobar si el alta llegó a guardarse: no afirma ni que sí ni que no. Hay que revisar el adjunto antes
+    /// de reintentar, y <see cref="ResultadoAsignacionAdjunto.DocumentoId"/> va vacío porque no consta ninguno.
+    /// </summary>
+    Indeterminado = 4
 }
 
 public record ResultadoAsignacionAdjunto(Guid AdjuntoId, EstadoAsignacionAdjunto Estado, Guid? DocumentoId, string? Detalle);
@@ -104,9 +111,14 @@ public class AsignarAdjuntosLoteCommandHandler(
             if (asignado.EsExitoso)
                 return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Asignado, asignado.Valor, null);
 
-            return asignado.Error.Codigo == ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto
-                ? new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Conflicto, null, asignado.Error.Mensaje)
-                : NoAsignado(item, asignado.Error.Mensaje);
+            return asignado.Error.Codigo switch
+            {
+                ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto =>
+                    new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Conflicto, null, asignado.Error.Mensaje),
+                ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado =>
+                    new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Indeterminado, null, asignado.Error.Mensaje),
+                _ => NoAsignado(item, asignado.Error.Mensaje)
+            };
         }
         catch (ValidationException ex)
         {
@@ -118,7 +130,7 @@ public class AsignarAdjuntosLoteCommandHandler(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Crear o renovar confirman antes de publicar sus eventos: el fallo pudo llegar con todo ya guardado.
+            // El alta comprueba lo guardado antes de propagar: lo que llega aquí no confirmó nada, o ni la alcanzó.
             logger.LogWarning("La asignación por lote falló en el adjunto {AdjuntoId} ({Excepcion}).", item.AdjuntoId, ex.GetType().Name);
             return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Error, null, "No se pudo completar. Comprueba el estado del adjunto.");
         }

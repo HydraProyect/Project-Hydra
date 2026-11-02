@@ -45,9 +45,12 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// (la ventana que esto cierra) o una transacción envolvente que dispararía ese evento antes de su commit. La reserva
 /// viaja en una propiedad que solo esta capa puede fijar y que ninguna serialización lee, y el Documento la toma al nacer.
 ///
-/// Solo se borra la copia del fichero si la base confirma que el Documento reservado no existe: los eventos que siguen al
-/// commit también pueden lanzar o devolver un fallo, y el tipo de error no dice en qué lado del guardado ocurrió. Si el
-/// Documento existe, el alta está hecha aunque el resultado diga otra cosa; si no se puede saber, la copia se queda.
+/// Los eventos que siguen al commit también pueden lanzar o devolver un fallo, y el error no dice en qué lado del guardado
+/// ocurrió, así que tras cualquier fallo decide la base. El adjunto guardado con el Id reservado prueba el commit, porque
+/// viaja en el mismo guardado que el Documento y nada limpia ese campo después: el alta está hecha, aunque el Documento se
+/// haya eliminado ya. Si no lo prueba, la copia del fichero solo se borra cuando tampoco hay fila con ese Id, ni entre las
+/// eliminadas, que son restaurables. Lo demás es <see cref="ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado"/>:
+/// la copia se conserva y la respuesta no afirma ni que se guardó ni que no.
 ///
 /// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta que leyó del adjunto en vez de con
 /// lo que eligió una persona: si la propuesta ya es otra, es un conflicto antes de guardar nada.
@@ -91,11 +94,14 @@ public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator
 public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
     IComunicacionesQueryContext comunicacionesContext, IAdjuntoMensajeRepository repositorio, IAlcanceDatosService alcanceDatos,
     IDocumentosQueryContext documentosContext, IMediator mediator, IPublisher publisher,
-    IFileStorageService almacenamiento, ICurrentUserService currentUserService,
+    IFileStorageService almacenamiento, ICurrentUserService currentUserService, ITenantActual tenantActual,
     ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler> logger)
     : IRequestHandler<ActualizarDocumentoDesdeAdjuntoCommand, Result<Guid>>
 {
     public const string CodigoConflicto = "Adjunto.Conflicto";
+    public const string CodigoEstadoIndeterminado = "Adjunto.EstadoIndeterminado";
+
+    private enum DesenlaceAlta { Confirmada, NoConfirmada, Indeterminada }
 
     public async Task<Result<Guid>> Handle(ActualizarDocumentoDesdeAdjuntoCommand request, CancellationToken cancellationToken)
     {
@@ -187,35 +193,50 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                     request.NoCaduca) { DocumentoIdReservado = documentoReservadoId },
                     cancellationToken);
         }
-        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or ValidationException)
+        catch (OperationCanceledException)
         {
-            // Lo habitual es que salgan al validar o al leer el archivo, antes de guardar: sin Documento, la copia no la
-            // referencia nadie. Pero un evento tras el commit también puede lanzarlas, y por eso decide la base, no el tipo.
+            // Quien pidió el alta ya no espera respuesta, y no se comprueba nada con su cancelación: la copia se queda.
             repositorio.OlvidarCambios(adjunto);
-            if (await DocumentoConfirmadoAsync(documentoReservadoId, cancellationToken) == false)
-                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
             throw;
         }
-        catch
+        catch (Exception ex)
         {
-            // Pudo salir después del commit, de los eventos de Crear/RenovarDocumento: la copia se queda, porque ya
-            // puede ser el archivo del Documento. Una copia huérfana se puede limpiar; un Documento sin archivo, no.
-            repositorio.OlvidarCambios(adjunto);
-            throw;
+            var desenlace = await ComprobarDesenlaceAsync(request.AdjuntoId, documentoReservadoId, cancellationToken);
+            if (desenlace != DesenlaceAlta.Confirmada)
+            {
+                repositorio.OlvidarCambios(adjunto);
+                if (desenlace == DesenlaceAlta.Indeterminada)
+                {
+                    logger.LogError(ex, "No se pudo determinar el resultado del alta desde el adjunto {AdjuntoId}.", request.AdjuntoId);
+                    return Result.Fallo<Guid>(EstadoIndeterminado());
+                }
+
+                // Validación y falta de memoria son rechazos del alta, y la base acaba de probar que no se guardó. Una
+                // excepción desconocida no dice si el commit seguía en curso: esa copia se queda. Una copia huérfana se
+                // puede limpiar; un Documento sin archivo, no.
+                if (ex is PresupuestoMemoriaAgotadoException or ValidationException)
+                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+                throw;
+            }
+
+            logger.LogWarning("El alta del documento {DocumentoId} se confirmó, pero un paso posterior falló ({TipoExcepcion}).",
+                documentoReservadoId, ex.GetType().Name);
+            alta = Result.Exito(documentoReservadoId);
         }
 
         if (alta.EsFallido)
         {
-            var confirmado = await DocumentoConfirmadoAsync(documentoReservadoId, cancellationToken);
-            if (confirmado != true)
+            var desenlace = await ComprobarDesenlaceAsync(request.AdjuntoId, documentoReservadoId, cancellationToken);
+            if (desenlace != DesenlaceAlta.Confirmada)
             {
                 repositorio.OlvidarCambios(adjunto);
-                if (confirmado == false)
-                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+                if (desenlace == DesenlaceAlta.Indeterminada)
+                    return Result.Fallo<Guid>(EstadoIndeterminado());
+
+                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
                 return Result.Fallo<Guid>(alta.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? Conflicto() : alta.Error);
             }
 
-            // Documento y transición ya son firmes: lo que falló vino después del commit y no deshace el alta.
             logger.LogWarning("El alta del documento {DocumentoId} se confirmó, pero un paso posterior falló ({Codigo}).",
                 documentoReservadoId, alta.Error.Codigo);
             alta = Result.Exito(documentoReservadoId);
@@ -244,22 +265,36 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
     private static Error Conflicto() => Error.Crear(
         CodigoConflicto, "Este adjunto o su Documento cambiaron mientras se asignaba, y no se ha guardado nada. Revísalo y vuelve a intentarlo.");
 
+    private static Error EstadoIndeterminado() => Error.Crear(
+        CodigoEstadoIndeterminado, "No hemos podido comprobar si este adjunto se asignó. Revisa su estado antes de volver a intentarlo.");
+
     private static Result<Guid> ArchivoNoValido() => Result.Fallo<Guid>(Error.Crear(
         "Adjunto.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
-    // Pregunta a la base, no al contexto: el fallo pudo dejar el Documento en memoria o descartarlo. Null es «no se
-    // sabe», y quien llama conserva la copia. Resolución por Id, sin filtro de operativos: uno ya sustituido también existe.
-    private async Task<bool?> DocumentoConfirmadoAsync(Guid documentoId, CancellationToken cancellationToken)
+    // Pregunta a la base, no al contexto: el adjunto en memoria lleva la transición aunque no se haya guardado. Una fila
+    // con el Id reservado que no prueba el alta no se explica aquí (una colisión, o algo no previsto), y por eso no se
+    // da por éxito ni autoriza borrar. Sin filtro global, porque una fila eliminada es restaurable y conserva su archivo:
+    // ignorarlo deja de filtrar por Tenant, así que se compara a mano, y RLS sigue aplicando debajo.
+    private async Task<DesenlaceAlta> ComprobarDesenlaceAsync(Guid adjuntoId, Guid documentoId, CancellationToken cancellationToken)
     {
         try
         {
-            return await documentosContext.Documentos.AnyAsync(d => d.Id == documentoId, cancellationToken);
+            if (await repositorio.ObtenerDocumentoGuardadoIdAsync(adjuntoId, cancellationToken) == documentoId)
+                return DesenlaceAlta.Confirmada;
+
+            if (tenantActual.TenantId is not { } tenantId)
+                return DesenlaceAlta.Indeterminada;
+
+            var hayFila = await documentosContext.Documentos
+                .IgnoreQueryFilters()
+                .AnyAsync(d => d.Id == documentoId && d.TenantId == tenantId, cancellationToken);
+
+            return hayFila ? DesenlaceAlta.Indeterminada : DesenlaceAlta.NoConfirmada;
         }
         catch (Exception ex)
         {
-            logger.LogWarning("No se pudo comprobar si el documento {DocumentoId} llegó a confirmarse ({TipoExcepcion}).",
-                documentoId, ex.GetType().Name);
-            return null;
+            logger.LogWarning("No se pudo comprobar el alta del adjunto {AdjuntoId} ({TipoExcepcion}).", adjuntoId, ex.GetType().Name);
+            return DesenlaceAlta.Indeterminada;
         }
     }
 

@@ -203,6 +203,62 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         adjunto.DocumentoId.Should().Be(alta.Valor);
     }
 
+    /// <summary>
+    /// El filtro global ya no ve el Documento, pero el adjunto guardado prueba el commit: su archivo se queda, porque la
+    /// fila eliminada es restaurable.
+    /// </summary>
+    [Fact]
+    public async Task Un_Documento_eliminado_tras_el_commit_da_el_alta_por_hecha_y_conserva_su_archivo()
+    {
+        var tipoDocumentoId = await SembrarTipoDeEmpresaAsync();
+        var almacen = AlmacenConElAdjunto();
+        await using var alta = CrearRuntime();
+        await using var otraSesion = CrearRuntime();
+        var mediador = new AltaGuardadaDeVerdad(alta, despuesDeGuardar: async documentoId =>
+        {
+            var documento = await otraSesion.Documentos.SingleAsync(d => d.Id == documentoId);
+            documento.MarcarComoEliminado(Guid.NewGuid());
+            await otraSesion.SaveChangesAsync();
+            throw new InvalidOperationException("Un paso posterior al commit.");
+        });
+
+        var resultado = await Alta(alta, almacen, mediador).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        almacen.Identificadores.Should().HaveCount(2, "el original y el archivo del Documento eliminado");
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == resultado.Valor)).EstaEliminado.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Bajo el rol de runtime: el filtro ignorado sigue limitado por RLS y por el Tenant explícito, y aun así ve la fila
+    /// eliminada, que basta para no borrar el archivo. El adjunto no la respalda, así que tampoco es éxito.
+    /// </summary>
+    [Fact]
+    public async Task Una_fila_eliminada_con_el_Id_reservado_que_el_adjunto_no_respalda_deja_el_estado_indeterminado()
+    {
+        var tipoDocumentoId = await SembrarTipoDeEmpresaAsync();
+        var almacen = AlmacenConElAdjunto();
+        await using var alta = CrearRuntime();
+        var mediador = new AltaGuardadaDeVerdad(alta, enLugarDeGuardar: async documentoId =>
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
+            var eliminado = Documento.DeEmpresa(_empresaPropia, tipoDocumentoId, new DateOnly(2026, 10, 1),
+                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), "documentos/eliminado.pdf", idReservado: documentoId);
+            eliminado.MarcarComoEliminado(Guid.NewGuid());
+            _propietario.Documentos.Add(eliminado);
+            await _propietario.SaveChangesAsync();
+            return Result.Fallo<Guid>(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona lo cambió."));
+        });
+
+        var resultado = await Alta(alta, almacen, mediador).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        almacen.Identificadores.Should().HaveCount(2, "en duda, la copia se conserva");
+        alta.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
     /// <summary>La propuesta cambia con el alta ya en marcha: el token tumba el Documento, y queda lo que fijó la otra sesión.</summary>
     [Fact]
     public async Task Si_otra_sesion_cambia_la_propuesta_durante_el_alta_no_queda_Documento()
@@ -276,7 +332,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
     private ActualizarDocumentoDesdeAdjuntoCommandHandler Alta(
         CaeManagerDbContext runtime, IFileStorageService almacen, AltaGuardadaDeVerdad mediador) => new(
         runtime, new AdjuntoMensajeRepository(runtime), Alcance(runtime), runtime, mediador, mediador, almacen,
-        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion),
+        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), _tenantDeLaPeticion,
         NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     private async Task<Guid> SembrarTipoDeEmpresaAsync()
@@ -342,13 +398,20 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
     /// <summary>
     /// Lo que importa de <see cref="CrearDocumentoCommand"/> para la carrera: el Documento con el Id reservado, guardado
     /// en el contexto del alta bajo <see cref="ConcurrenciaBehavior{TRequest,TResponse}"/>, como en el pipeline real.
-    /// <paramref name="antesDeGuardar"/> es la otra sesión colándose entre la lectura y el guardado.
+    /// <paramref name="antesDeGuardar"/> es la otra sesión colándose entre la lectura y el guardado;
+    /// <paramref name="despuesDeGuardar"/>, lo que pasa tras el commit; <paramref name="enLugarDeGuardar"/>, un alta que
+    /// no llega a guardar y responde lo que le digan.
     /// </summary>
-    private sealed class AltaGuardadaDeVerdad(CaeManagerDbContext contexto, Func<Task>? antesDeGuardar = null) : IMediator
+    private sealed class AltaGuardadaDeVerdad(
+        CaeManagerDbContext contexto, Func<Task>? antesDeGuardar = null, Func<Guid, Task>? despuesDeGuardar = null,
+        Func<Guid, Task<Result<Guid>>>? enLugarDeGuardar = null) : IMediator
     {
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             var crear = (CrearDocumentoCommand)request;
+            if (enLugarDeGuardar is not null)
+                return (TResponse)(object)await enLugarDeGuardar(crear.DocumentoIdReservado!.Value);
+
             var documento = Documento.DeEmpresa(crear.EmpresaId!.Value, crear.TipoDocumentoId, crear.FechaEmision,
                 VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), crear.ArchivoUrl, idReservado: crear.DocumentoIdReservado);
             contexto.Documentos.Add(documento);
@@ -361,6 +424,10 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
                 await contexto.SaveChangesAsync(cancellationToken);
                 return Result.Exito(documento.Id);
             }, cancellationToken);
+
+            if (despuesDeGuardar is not null)
+                await despuesDeGuardar(documento.Id);
+
             return (TResponse)(object)resultado;
         }
 

@@ -26,11 +26,13 @@ using FluentValidation.Results;
 using MediatR;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using TenantActualFijo = CaeManager.Application.Tests.AutorizacionesLectura.TenantActualFijo;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
 public class RepartoAdjuntosTests
 {
+    private readonly Guid _tenant = Guid.NewGuid();
     private readonly ComunicacionesQueryContextFalso _contexto = new();
     private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
@@ -531,64 +533,176 @@ public class RepartoAdjuntosTests
         _almacen.ArchivosGuardados.Should().Be(1);
     }
 
-    [Fact]
-    public async Task Una_validacion_que_sale_tras_confirmar_el_Documento_conserva_la_copia()
+    public static TheoryData<string> FallosTrasElCommit => ["excepcion-validacion", "excepcion-desconocida", "resultado-conflicto"];
+
+    private static Exception? ExcepcionDe(string fallo) => fallo switch
+    {
+        "excepcion-validacion" => new ValidationException("En un evento posterior."),
+        "excepcion-desconocida" => new InvalidOperationException("En un evento posterior."),
+        _ => null
+    };
+
+    private static Error? ErrorDe(string fallo) =>
+        fallo == "resultado-conflicto" ? Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "En un evento posterior.") : null;
+
+    /// <summary>
+    /// El adjunto guardado con el Id reservado prueba el commit, esté como esté ya el Documento: otra operación pudo
+    /// eliminarlo y el filtro global lo ocultaría, y su archivo tiene que seguir ahí para poder restaurarlo.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(FallosTrasElCommit))]
+    public async Task Tras_confirmar_el_alta_se_da_por_hecha_y_la_copia_se_queda_aunque_el_Documento_ya_no_se_vea(string fallo)
     {
         var adjunto = await SembrarConArchivo();
-        var alta = new AltaDeDocumentoFalsa { ConfirmaEn = _documentos, Excepcion = new ValidationException("En un evento posterior.") };
+        var alta = new AltaDeDocumentoFalsa { ConfirmaEn = _repositorio, Excepcion = ExcepcionDe(fallo), Fallo = ErrorDe(fallo) };
 
-        var accion = () => Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+        var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
 
-        await accion.Should().ThrowAsync<ValidationException>();
+        _documentos.ListaDocumentos.Should().BeEmpty();
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be(adjunto.DocumentoId!.Value);
+        _repositorio.Olvidados.Should().BeEmpty();
         _almacen.ArchivosGuardados.Should().Be(2, "es el archivo de un Documento confirmado");
     }
 
-    [Fact]
-    public async Task Un_fallo_tras_confirmar_el_Documento_conserva_la_copia_y_el_alta_se_da_por_hecha()
+    public static TheoryData<bool, bool> LecturasRotas => new()
+    {
+        { true, false }, { false, false }, { true, true }, { false, true }
+    };
+
+    [Theory]
+    [MemberData(nameof(LecturasRotas))]
+    public async Task Si_no_se_puede_comprobar_el_alta_la_copia_se_queda_y_el_resultado_no_afirma_nada(bool conExcepcion, bool fallaLaLecturaDelAdjunto)
     {
         var adjunto = await SembrarConArchivo();
         var alta = new AltaDeDocumentoFalsa
         {
-            ConfirmaEn = _documentos,
-            Fallo = Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "En un evento posterior.")
+            AntesDeResponder = () =>
+            {
+                _repositorio.LecturaRota = fallaLaLecturaDelAdjunto;
+                _documentos.LecturaRota = !fallaLaLecturaDelAdjunto;
+            },
+            Excepcion = conExcepcion ? new ValidationException("Fecha no válida.") : null,
+            Fallo = conExcepcion ? null : Error.Crear("Alta.Rechazada", "Rechazada.")
         };
 
         var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
 
-        resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.Should().Be(adjunto.DocumentoId!.Value);
-        _documentos.ListaDocumentos.Should().ContainSingle(d => d.Id == resultado.Valor);
-        _repositorio.Olvidados.Should().BeEmpty();
-        _almacen.ArchivosGuardados.Should().Be(2);
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        _repositorio.Olvidados.Should().ContainSingle();
+        _almacen.ArchivosGuardados.Should().Be(2, "en duda, la copia se conserva");
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Si_no_se_puede_comprobar_el_Documento_la_copia_se_queda(bool conExcepcion)
+    [Fact]
+    public async Task Un_conflicto_sin_comprobacion_no_dice_que_no_se_guardo_nada()
     {
         var adjunto = await SembrarConArchivo();
         var alta = new AltaDeDocumentoFalsa
         {
             AntesDeResponder = () => _documentos.LecturaRota = true,
-            Excepcion = conExcepcion ? new ValidationException("Fecha no válida.") : null,
-            Fallo = conExcepcion ? null : Error.Crear("Alta.Rechazada", "Rechazada.")
+            Fallo = Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona lo cambió.")
         };
+
+        var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        resultado.Error.Mensaje.Should().NotContain("no se ha guardado");
+        _almacen.ArchivosGuardados.Should().Be(2);
+    }
+
+    /// <summary>
+    /// Hay fila con el Id reservado y el adjunto no la respalda: puede ser una colisión o una eliminada, y ninguna de las
+    /// dos prueba esta alta ni deja borrar el archivo.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_fila_con_el_Id_reservado_que_el_adjunto_no_respalda_no_es_exito_ni_borra_la_copia(bool eliminada)
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa
+        {
+            DejaFilaEn = _documentos,
+            TenantDeLaFila = _tenant,
+            FilaEliminada = eliminada,
+            Fallo = Error.Crear("Alta.Rechazada", "Rechazada.")
+        };
+
+        var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("un rechazo previo no se convierte en éxito porque exista el Id");
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        _repositorio.Olvidados.Should().ContainSingle();
+        _almacen.ArchivosGuardados.Should().Be(2);
+    }
+
+    /// <summary>La lectura sin filtro global queda acotada al Tenant actual en la propia consulta.</summary>
+    [Fact]
+    public async Task Una_fila_de_otro_Tenant_no_cuenta_al_comprobar_el_alta()
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa
+        {
+            DejaFilaEn = _documentos,
+            TenantDeLaFila = Guid.NewGuid(),
+            Fallo = Error.Crear("Alta.Rechazada", "Rechazada.")
+        };
+
+        var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Alta.Rechazada");
+        _almacen.ArchivosGuardados.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_Tenant_actual_el_alta_no_se_puede_comprobar_y_la_copia_se_queda()
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa { Fallo = Error.Crear("Alta.Rechazada", "Rechazada.") };
+
+        var resultado = await Handler(alta, tenantId: null, sinTenant: true)
+            .Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        _almacen.ArchivosGuardados.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Una_cancelacion_durante_el_alta_conserva_la_copia_y_olvida_el_cambio()
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa { Excepcion = new OperationCanceledException() };
 
         var accion = () => Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
 
-        if (conExcepcion)
-        {
-            await accion.Should().ThrowAsync<ValidationException>();
-        }
-        else
-        {
-            var resultado = await accion();
-            resultado.Error.Codigo.Should().Be("Alta.Rechazada");
-        }
-
+        await accion.Should().ThrowAsync<OperationCanceledException>();
         _repositorio.Olvidados.Should().ContainSingle();
-        _almacen.ArchivosGuardados.Should().Be(2, "en duda, la copia se conserva");
+        _almacen.ArchivosGuardados.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task En_el_lote_un_alta_que_no_se_pudo_comprobar_sale_en_su_fila_y_el_resto_sigue()
+    {
+        var enDuda = await SembrarConArchivo();
+        enDuda.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var siguiente = await SembrarConArchivo();
+        siguiente.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var dudosa = new AltaDeDocumentoFalsa
+        {
+            AntesDeResponder = () => _repositorio.LecturaRota = true,
+            Fallo = Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona lo cambió.")
+        };
+        var mediador = new MediadorDelLote
+        {
+            Alta = comando => Handler(comando.AdjuntoId == enDuda.Id ? dudosa : new AltaDeDocumentoFalsa()).Handle(comando, CancellationToken.None)
+        };
+
+        var resultado = await Lote(Total(), mediador).Handle(
+            new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(enDuda), Item(siguiente)]), CancellationToken.None);
+
+        resultado.Valor.Select(r => r.Estado).Should().Equal(EstadoAsignacionAdjunto.Indeterminado, EstadoAsignacionAdjunto.Asignado);
+        resultado.Valor[0].DocumentoId.Should().BeNull();
+        resultado.Valor[0].Detalle.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]
@@ -709,9 +823,10 @@ public class RepartoAdjuntosTests
     private static ActualizarDocumentoDesdeAdjuntoCommand Comando(AdjuntoMensaje adjunto, Guid? trabajadorId, Guid? empresaId, Guid tipoId) =>
         new(adjunto.Id, tipoId, trabajadorId, empresaId, new DateOnly(2026, 10, 1), null, null);
 
-    private ActualizarDocumentoDesdeAdjuntoCommandHandler Handler(AltaDeDocumentoFalsa alta, Guid? usuarioId = null) => new(
+    private ActualizarDocumentoDesdeAdjuntoCommandHandler Handler(
+        AltaDeDocumentoFalsa alta, Guid? usuarioId = null, Guid? tenantId = null, bool sinTenant = false) => new(
         _contexto, _repositorio, Total(), _documentos, alta, alta, _almacen, new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()),
-        NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        new TenantActualFijo(sinTenant ? null : tenantId ?? _tenant), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     /// <summary>Permite que la lectura de Documentos falle a partir de un momento: el alta sigue su curso antes de eso.</summary>
     private sealed class DocumentosConLecturaRompible : DocumentosQueryContextFalso, IDocumentosQueryContext
@@ -726,6 +841,13 @@ public class RepartoAdjuntosTests
     {
         public Task<AdjuntoMensaje?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(contexto.ListaAdjuntosMensaje.FirstOrDefault(a => a.Id == id));
+
+        /// <summary>Lo que hay en la base: el adjunto del contexto falso lleva la transición aunque no se haya guardado.</summary>
+        public Guid? DocumentoGuardadoId { get; set; }
+        public bool LecturaRota { get; set; }
+
+        public Task<Guid?> ObtenerDocumentoGuardadoIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+            LecturaRota ? throw new InvalidOperationException("Sin conexión.") : Task.FromResult(DocumentoGuardadoId);
 
         public List<AdjuntoMensaje> Olvidados { get; } = [];
         public void OlvidarCambios(AdjuntoMensaje adjunto) => Olvidados.Add(adjunto);
@@ -742,8 +864,13 @@ public class RepartoAdjuntosTests
         public AdjuntoMensaje? Adjunto { get; init; }
         public bool AdjuntoAsignadoAlGuardar { get; private set; }
 
-        /// <summary>Si se indica, el Documento reservado queda en la base antes de responder: lo que siga es posterior al commit.</summary>
-        public DocumentosQueryContextFalso? ConfirmaEn { get; init; }
+        /// <summary>Si se indica, el adjunto queda guardado con el Id reservado antes de responder: lo que siga es posterior al commit.</summary>
+        public AdjuntoRepositorioFalso? ConfirmaEn { get; init; }
+
+        /// <summary>Si se indica, hay una fila con el Id reservado sin que nada la relacione con esta alta.</summary>
+        public DocumentosQueryContextFalso? DejaFilaEn { get; init; }
+        public Guid TenantDeLaFila { get; init; }
+        public bool FilaEliminada { get; init; }
 
         public Action? AntesDeResponder { get; init; }
 
@@ -758,8 +885,16 @@ public class RepartoAdjuntosTests
                 RenovarDocumentoCommand renovar => renovar.DocumentoIdReservado,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
-            ConfirmaEn?.ListaDocumentos.Add(Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 1),
-                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), "copia", null, reservado));
+            if (ConfirmaEn is not null) ConfirmaEn.DocumentoGuardadoId = reservado;
+            if (DejaFilaEn is not null)
+            {
+                var fila = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 1),
+                    VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), "copia", null, reservado);
+                typeof(EntidadConTenant).GetProperty(nameof(EntidadConTenant.TenantId))!.SetValue(fila, TenantDeLaFila);
+                if (FilaEliminada) fila.MarcarComoEliminado(Guid.NewGuid());
+                DejaFilaEn.ListaDocumentos.Add(fila);
+            }
+
             AntesDeResponder?.Invoke();
 
             if (Excepcion is not null) throw Excepcion;
