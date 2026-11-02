@@ -560,6 +560,7 @@ public class LogoTenantTests
         public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
             new TestAsyncQueryable<AsignacionOperacion>(new List<AsignacionOperacion>().AsQueryable());
 
+        public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera =>
             new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }

@@ -25,4 +25,7 @@ public interface IOperacionesQueryContext
 {
     IQueryable<AsignacionOperacion> AsignacionesOperacion { get; }
     IQueryable<AsignacionCartera> AsignacionesCartera { get; }
+
+    /// <summary>Tenants en suspensión operativa: ninguna Asignación de Operación abre uno (decisión D-3).</summary>
+    IQueryable<Guid> TenantsSuspendidosIds { get; }
 }
