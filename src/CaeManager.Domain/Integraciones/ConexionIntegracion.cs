@@ -45,6 +45,12 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>A quién se asigna una conversación nueva de este buzón; null si nadie responde de él todavía.</summary>
     public Guid? ResponsableEfectivoId => GestorPropietarioId ?? ResponsableUsuarioId;
 
+    /// <summary>
+    /// Si el buzón responde con el acuse automático al primer correo de una conversación nueva. Desactivado por
+    /// defecto (decisión de 2026-11-02): nada sale de un buzón hasta que alguien con autoridad sobre él lo pide.
+    /// </summary>
+    public bool AcuseAutomaticoActivo { get; private set; }
+
     /// <summary>Identificador de display de la conexión: el buzón en Microsoft 365, el número E.164 en WhatsApp (deuda nominal documentada — la clave operativa WhatsApp es LineaWhatsApp.PhoneNumberId).</summary>
     public string BuzonEmail { get; private set; } = string.Empty;
 
@@ -85,6 +91,14 @@ public class ConexionIntegracion : EntidadBase
             throw new InvalidOperationException("El buzón personal de un gestor no tiene responsable aparte.");
 
         ResponsableUsuarioId = usuarioId;
+    }
+
+    public void FijarAcuseAutomatico(bool activo)
+    {
+        if (GestorPropietarioId is not null)
+            throw new InvalidOperationException("El buzón personal de un gestor no envía acuses automáticos.");
+
+        AcuseAutomaticoActivo = activo;
     }
 
     public void MarcarConError(string mensaje)

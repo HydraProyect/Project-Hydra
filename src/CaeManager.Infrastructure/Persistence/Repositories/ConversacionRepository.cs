@@ -34,6 +34,19 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
          where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
          select m).AnyAsync(cancellationToken);
 
+    public Task<bool> ExisteAcuseRecienteAsync(
+        Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default)
+    {
+        var normalizado = remitente.Trim().ToLowerInvariant();
+
+        return dbContext.Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.FechaUltimoMensajeUtc >= desdeUtc)
+            .Where(c => dbContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.Direccion == DireccionMensaje.Saliente
+                                                    && m.EsAutomatico && m.FechaUtc >= desdeUtc))
+            .AnyAsync(c => dbContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.Direccion == DireccionMensaje.Entrante
+                                                       && m.Remitente.ToLower() == normalizado), cancellationToken);
+    }
+
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
         dbContext.Conversaciones

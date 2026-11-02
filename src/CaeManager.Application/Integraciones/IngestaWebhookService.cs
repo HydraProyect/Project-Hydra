@@ -51,6 +51,16 @@ public class IngestaWebhookService(
     /// </summary>
     public IReadOnlyList<string> ArchivosGuardados => _archivosGuardados;
 
+    private readonly List<AcusePendiente> _acusesPendientes = [];
+
+    /// <summary>
+    /// Acuses de los mensajes ingeridos en ESTE <see cref="ProcesarAsync"/>, para enviarlos cuando la ingesta esté
+    /// confirmada (<see cref="AcuseAutomaticoBuzonService"/>), no antes: un envío no se deshace, y un guardado que
+    /// fallase después devolvería el evento a la cola y repetiría el acuse. Un mensaje que falla a medias no entra:
+    /// su reintento lo descarta por duplicado, y es preferible perder un acuse a enviarlo dos veces.
+    /// </summary>
+    public IReadOnlyList<AcusePendiente> AcusesPendientes => _acusesPendientes;
+
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
@@ -138,6 +148,7 @@ public class IngestaWebhookService(
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         var conversacionNueva = false;
+        var primerCorreoDelHilo = false;
         if (conversacion is null)
         {
             var anterior = await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
@@ -154,6 +165,9 @@ public class IngestaWebhookService(
                 {
                     conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
                     await AsignarAlResponsableDelBuzonAsync(conversacion, conexion, cancellationToken);
+                    // La continuación de un hilo cerrado también lleva número nuevo, pero el remitente ya está en
+                    // ese hilo con una persona: no es el primer correo de una conversación, y no lleva acuse.
+                    primerCorreoDelHilo = true;
                 }
                 conversacionRepositorio.Agregar(conversacion);
                 conversacionNueva = true;
@@ -223,6 +237,12 @@ public class IngestaWebhookService(
                     clasificacionMensaje?.CambiarMotivo(MotivoRuidoMensaje.ResumenSinCambios);
             }
         }
+
+        // Dos correos de un hilo desconocido en la misma notificación no se ven entre sí hasta confirmar la ingesta.
+        if (primerCorreoDelHilo
+            && ReglaAcuseBuzon.Procede(conexion, mensaje, dominioDePlataformaCae: candidatos.Count > 0)
+            && !_acusesPendientes.Any(a => a.Conversacion.HiloExternoId == conversacion.HiloExternoId))
+            _acusesPendientes.Add(new AcusePendiente(conexion, conversacion, mensaje.MensajeExternoId, mensaje.Remitente));
     }
 
     /// <summary>

@@ -1,0 +1,106 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
+using CaeManager.Domain.Comunicaciones;
+using Microsoft.Extensions.Logging;
+
+namespace CaeManager.Application.Integraciones;
+
+/// <summary>
+/// Envía los acuses que dejó <see cref="IngestaWebhookService"/>. <c>IngestaWebhookHostedService</c> lo llama después de
+/// confirmar la ingesta, en el mismo ámbito de Tenant, por dos razones: el reintento de un evento ve el mensaje ya
+/// guardado y no repite el acuse, y el registro de salida se niega a guardar con cambios pendientes en el contexto.
+/// La consecuencia es que un acuse sale como mucho una vez: si el proceso cae justo después de confirmar, no sale.
+///
+/// <para>
+/// Nada de lo que falle aquí vuelve a la ingesta, ya confirmada. Los registros llevan solo Ids, el código del error
+/// y el tipo de la excepción, nunca su mensaje: no es seguro que no repita una dirección.
+/// </para>
+/// </summary>
+public class AcuseAutomaticoBuzonService(
+    IConversacionRepository conversacionRepositorio,
+    IMicrosoft365GraphClient graphClient,
+    AccesoGraphService accesoGraph,
+    IRegistroExportacionService registroSalida,
+    IUnitOfWork unitOfWork,
+    IDescarteCambiosPendientes descarteCambios,
+    ILogger<AcuseAutomaticoBuzonService> logger)
+{
+    /// <summary>
+    /// Corte de bucles con un autorrespondedor que no se identifica y abre un hilo cada vez: la cabecera no lo delata y el
+    /// hilo tampoco. Sin un tope por remitente, dos sistemas se contestarían sin fin.
+    /// </summary>
+    public static readonly TimeSpan IntervaloMinimoPorRemitente = TimeSpan.FromHours(24);
+
+    public async Task EnviarAsync(IReadOnlyList<AcusePendiente> pendientes, CancellationToken cancellationToken)
+    {
+        foreach (var acuse in pendientes)
+        {
+            try
+            {
+                await EnviarUnoAsync(acuse, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // El correo ya está guardado y el evento cerrado: un apagado solo pierde este acuse.
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    "Falló el acuse de la conversación {ConversacionId} ({TipoExcepcion}): si ya había salido, queda sin registrar.",
+                    acuse.Conversacion.Id, ex.GetType().Name);
+
+                // Descartar suelta también las conversaciones del resto del lote: un acuse suyo saldría sin quedar registrado.
+                descarteCambios.DescartarCambiosPendientes();
+                return;
+            }
+        }
+    }
+
+    private async Task EnviarUnoAsync(AcusePendiente acuse, CancellationToken cancellationToken)
+    {
+        var (conexion, conversacion, mensajeExternoId, destinatario) = acuse;
+
+        var desde = DateTime.UtcNow - IntervaloMinimoPorRemitente;
+        if (await conversacionRepositorio.ExisteAcuseRecienteAsync(conexion.Id, destinatario, desde, cancellationToken))
+        {
+            logger.LogInformation(
+                "La conversación {ConversacionId} no lleva acuse: su remitente ya recibió uno de este buzón en el intervalo.",
+                conversacion.Id);
+            return;
+        }
+
+        // Antes de pedir el token, que puede dejar la credencial pendiente de guardar: ver RegistroSalidaComunicaciones.
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.AcuseAutomatico, conexion.Id, [destinatario], copia: null, adjuntos: null, cancellationToken);
+
+        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        if (token.EsFallido)
+        {
+            logger.LogWarning(
+                "No se envió el acuse de la conversación {ConversacionId}: sin token de acceso ({CodigoError}).",
+                conversacion.Id, token.Error.Codigo);
+            return;
+        }
+
+        // Por el cliente del contenedor: lo envuelve la guarda de envío C-04, que aquí decide igual que para una respuesta.
+        var envio = await graphClient.EnviarRespuestaAsync(
+            token.Valor, conexion.BuzonEmail, mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
+
+        if (envio.EsFallido)
+        {
+            logger.LogWarning(
+                "No se envió el acuse de la conversación {ConversacionId} ({CodigoError}).", conversacion.Id, envio.Error.Codigo);
+        }
+        else
+        {
+            // Automático: no cuenta como respuesta de una persona ni para el plazo ni para la respuesta sugerida.
+            conversacion.AgregarMensaje(
+                DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, PlantillaAcuseBuzon.CuerpoHtml, esAutomatico: true);
+        }
+
+        // También si falló: el token puede haberse renovado, y Graph invalida el refresh token anterior. Sin el token de
+        // parada porque el correo ya salió: es este registro el que corta el siguiente acuse al mismo remitente.
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+    }
+}

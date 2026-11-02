@@ -21,7 +21,8 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
-    DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null);
+    DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
+    bool AcuseAutomaticoActivo = false);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -59,7 +60,8 @@ public class ObtenerConexionesIntegracionQueryHandler(
             orderby conexion.FechaConectadaUtc descending
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
-                conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null, conexion.ResponsableUsuarioId);
+                conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null, conexion.ResponsableUsuarioId,
+                conexion.AcuseAutomaticoActivo);
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)

@@ -70,7 +70,7 @@ public class IngestaWebhookServiceTests
         }
     }
 
-    private static IngestaWebhookService CrearServicio(
+    internal static IngestaWebhookService CrearServicio(
         ConexionIntegracionRepositorioFalso conexionRepositorio,
         ConversacionRepositorioFalso conversacionRepositorio,
         Microsoft365GraphClientFalso graphClient,

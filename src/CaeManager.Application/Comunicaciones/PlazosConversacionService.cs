@@ -39,7 +39,8 @@ public class PlazosConversacionService(IContextoOperativoConversacionService con
 
     public static DateTime? PrimerEntranteSinRespuesta(IEnumerable<Mensaje> mensajes)
     {
-        var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente)
+        // Un acuse automático no es una respuesta: el plazo sigue corriendo.
+        var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente && !m.EsAutomatico)
             .Select(m => (DateTime?)m.FechaUtc).Max();
         return mensajes.Where(m => m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico
                                    && (ultimoSaliente is null || m.FechaUtc > ultimoSaliente))

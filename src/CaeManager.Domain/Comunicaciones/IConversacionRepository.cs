@@ -36,6 +36,9 @@ public interface IConversacionRepository
     /// </summary>
     Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
+    /// <summary>Si este buzón ya mandó un acuse automático a este remitente desde <paramref name="desdeUtc"/>, sin distinguir mayúsculas.</summary>
+    Task<bool> ExisteAcuseRecienteAsync(Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default);
+
     /// <summary>Hilo WhatsApp: la conversación más reciente NO cerrada de ese teléfono en esa línea, o null si toca crear una nueva. Incluye Mensajes.</summary>
     Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default);
 

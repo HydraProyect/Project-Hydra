@@ -134,6 +134,33 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_acuse_automatico_no_hace_que_la_conversacion_parezca_respondida()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            var conversacion = new Conversacion("Con acuse");
+            var inicio = DateTime.UtcNow.AddMinutes(-5);
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta del contacto", inicio);
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", inicio.AddMinutes(1), esAutomatico: true);
+            contexto.Conversaciones.Add(conversacion);
+
+            var respondida = new Conversacion("Respondida por una persona");
+            respondida.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta", inicio);
+            respondida.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Respuesta", inicio.AddMinutes(1));
+            contexto.Conversaciones.Add(respondida);
+            await contexto.SaveChangesAsync();
+        }
+
+        var esperando = await EjecutarAsync(new ObtenerConversacionesQuery(SoloEsperandoCliente: true));
+        var bandeja = await EjecutarAsync(new ObtenerConversacionesQuery());
+
+        esperando.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Respondida por una persona");
+        var conAcuse = bandeja.Elementos.Should().ContainSingle(c => c.Asunto == "Con acuse").Subject;
+        conAcuse.PreviewUltimoMensaje.Should().Contain("Pregunta del contacto");
+        conAcuse.UltimoMensajeDireccion.Should().Be(DireccionMensaje.Entrante);
+    }
+
+    [Fact]
     public async Task La_busqueda_encuentra_una_conversacion_por_el_cuerpo_de_un_mensaje_aunque_el_asunto_no_coincida()
     {
         await using (var contexto = CrearContexto())

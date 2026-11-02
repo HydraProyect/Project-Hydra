@@ -15,6 +15,7 @@ public enum OrigenSalidaComunicacion
     Reclamacion,
     PrioridadValidacion,
     MigracionACorreo,
+    AcuseAutomatico,
 }
 
 /// <summary>

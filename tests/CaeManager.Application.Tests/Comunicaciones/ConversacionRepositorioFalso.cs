@@ -23,6 +23,14 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
                  && c.Estado != EstadoConversacion.Cerrada));
 
+    public Task<bool> ExisteAcuseRecienteAsync(
+        Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Conversaciones
+            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
+            .Any(c => c.Mensajes.Any(m => m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico && m.FechaUtc >= desdeUtc)
+                      && c.Mensajes.Any(m => m.Direccion == DireccionMensaje.Entrante
+                                             && m.Remitente.Equals(remitente.Trim(), StringComparison.OrdinalIgnoreCase))));
+
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones
             .Where(c => c.ConexionIntegracionId == conexionIntegracionId)

@@ -7075,6 +7075,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AcuseAutomaticoActivo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("BuzonEmail")
                         .IsRequired()
                         .HasMaxLength(320)

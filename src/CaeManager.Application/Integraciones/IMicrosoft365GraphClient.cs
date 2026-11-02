@@ -25,7 +25,7 @@ public record AdjuntoParaEnviarDto(string NombreArchivo, string TipoContenido, b
 public record MensajeGraphDto(
     string MensajeExternoId, string HiloExternoId, string Asunto, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos,
-    IReadOnlyList<CabeceraCorreoDto>? Cabeceras = null);
+    IReadOnlyList<CabeceraCorreoDto>? Cabeceras = null, IReadOnlyList<string>? ResponderA = null);
 
 public record CabeceraCorreoDto(string Nombre, string Valor);
 
