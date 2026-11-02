@@ -334,6 +334,25 @@ public class SesionRevocableEnServidorTests
         autenticacion.Emitido.Should().BeSameAs(emitida);
     }
 
+    /// <summary>
+    /// La primera rotación de una cuenta sin sello deja nulo el anterior, igual que el de una cookie sin
+    /// sello: dos ausencias no son el mismo sello.
+    /// </summary>
+    [Fact]
+    public async Task Una_cookie_sin_sello_no_hereda_la_primera_rotacion_de_una_cuenta_sin_sello()
+    {
+        var sellos = new SellosFalsos();
+        var (gestor, autenticacion, _, cuenta) = Montar(sellos: sellos);
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+        var emitida = autenticacion.Emitido!;
+        autenticacion.Cookie = new ClaimsPrincipal(new ClaimsIdentity(emitida.Claims.Where(c => c.Type != ClaimSello), "test"));
+        sellos.AnotarRotacion(cuenta.Id, selloAnterior: null);
+
+        await gestor.RefreshSignInAsync(cuenta);
+
+        autenticacion.Emitido.Should().BeSameAs(emitida);
+    }
+
     [Fact]
     public async Task Refrescar_cuando_la_cuenta_no_se_encuentra_no_reemite()
     {
