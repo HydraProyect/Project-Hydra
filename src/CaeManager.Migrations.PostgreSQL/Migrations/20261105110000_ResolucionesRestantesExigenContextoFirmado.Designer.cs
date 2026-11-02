@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261103011500_ResolucionesRestantesExigenContextoFirmado")]
+    [Migration("20261105110000_ResolucionesRestantesExigenContextoFirmado")]
     partial class ResolucionesRestantesExigenContextoFirmado
     {
         /// <inheritdoc />
@@ -6957,6 +6957,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("ResponsableUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
