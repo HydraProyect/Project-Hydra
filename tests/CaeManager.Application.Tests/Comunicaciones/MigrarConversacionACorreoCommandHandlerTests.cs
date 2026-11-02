@@ -69,6 +69,20 @@ public class MigrarConversacionACorreoCommandHandlerTests
     }
 
     [Fact]
+    public async Task La_migracion_deja_una_fila_de_salida_con_el_destinatario_enmascarado()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        AgregarBuzonHabilitado();
+
+        await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@cliente.com", "<p>Hola</p>"), CancellationToken.None);
+
+        var fila = _registro.Filas.Should().ContainSingle().Subject;
+        fila.Criterios["origen"].Should().Be("MigracionACorreo");
+        fila.Criterios["destinatarios"].Should().Be("c***@cliente.com");
+    }
+
+    [Fact]
     public async Task Con_ventana_abierta_devuelve_fallo_y_no_persiste_nada()
     {
         var conexionWhatsApp = new ConexionIntegracion("+34686543364", "Línea", proveedor: ProveedorIntegracion.WhatsApp);

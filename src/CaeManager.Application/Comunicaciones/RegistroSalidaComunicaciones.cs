@@ -9,6 +9,7 @@ public enum OrigenSalidaComunicacion
 {
     Redaccion,
     Respuesta,
+    RespuestaWhatsApp,
     Informe,
     PaqueteAcreditacion,
     Reclamacion,
@@ -17,7 +18,7 @@ public enum OrigenSalidaComunicacion
 }
 
 /// <summary>
-/// Rastro de salida de un correo por un buzón conectado (C-11, decisión D-5 opción a): una fila
+/// Rastro de salida de un mensaje por un buzón o una línea conectados (C-11, decisión D-5 opción a): una fila
 /// por envío, no por adjunto ni por destinatario, sobre <see cref="IRegistroExportacionService"/>,
 /// que ya separa Actor real y Usuario simulado. Así un informe enviado por correo no elude el
 /// rastro que deja su descarga.
@@ -27,7 +28,13 @@ public enum OrigenSalidaComunicacion
 /// cerrado). Antes del token por una razón concreta: al refrescarlo la credencial queda
 /// modificada en el contexto, y el registro se niega a guardar con cambios pendientes ajenos.
 /// La fila atestigua la orden de salida autorizada, no la entrega: un fallo posterior de Graph
-/// deja la fila sin correo, nunca correo sin fila.
+/// deja la fila sin correo, nunca correo sin fila. Lo mismo la guarda de envío C-04 y un reintento:
+/// cada intento autorizado es una fila.
+/// </para>
+/// <para>
+/// El registro falla cerrado también ante cambios pendientes en el contexto del circuito. Por eso
+/// quien tolera un guardado fallido tras enviar los descarta (<see cref="IDescarteCambiosPendientes"/>):
+/// si no, el siguiente envío de esa pantalla no saldría.
 /// </para>
 /// <para>
 /// La fila nunca lleva el asunto, el cuerpo, el nombre de los adjuntos ni una dirección completa.
@@ -56,7 +63,7 @@ public static class RegistroSalidaComunicaciones
         return registro.RegistrarAsync(nameof(Mensaje), adjuntos?.Count ?? 0, criterios, cancellationToken);
     }
 
-    /// <summary><c>contacto@cliente.com</c> → <c>c***@cliente.com</c>. Sin arroba válida no se conserva nada.</summary>
+    /// <summary><c>contacto@cliente.com</c> → <c>c***@cliente.com</c>. Sin arroba válida, como un teléfono, no se conserva nada.</summary>
     public static string Enmascarar(string correo)
     {
         var limpio = correo.Trim();

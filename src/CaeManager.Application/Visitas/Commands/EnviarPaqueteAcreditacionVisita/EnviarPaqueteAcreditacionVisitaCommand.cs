@@ -53,7 +53,8 @@ public class EnviarPaqueteAcreditacionVisitaCommandValidator : AbstractValidator
 public class EnviarPaqueteAcreditacionVisitaCommandHandler(
     IVisitaRepository repositorio, ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos,
     ISender mediator, IUnitOfWork unitOfWork,
-    ILogger<EnviarPaqueteAcreditacionVisitaCommandHandler> logger)
+    ILogger<EnviarPaqueteAcreditacionVisitaCommandHandler> logger,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<EnviarPaqueteAcreditacionVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(EnviarPaqueteAcreditacionVisitaCommand request, CancellationToken cancellationToken)
@@ -101,6 +102,7 @@ public class EnviarPaqueteAcreditacionVisitaCommandHandler(
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "El paquete de la visita {VisitaId} se envió, pero no se pudo marcar su documentación como gestionada.", visita.Id);
+            descarteCambios.DescartarCambiosPendientes();
         }
 
         return envio;

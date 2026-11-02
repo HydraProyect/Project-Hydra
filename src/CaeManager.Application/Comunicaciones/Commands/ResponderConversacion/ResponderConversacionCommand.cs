@@ -57,7 +57,8 @@ public class ResponderConversacionCommandHandler(
     IOptions<ComunicacionesRemitenteOptions> opcionesRemitente,
     IUnitOfWork unitOfWork,
     ILogger<ResponderConversacionCommandHandler> logger,
-    IRegistroExportacionService registroSalida)
+    IRegistroExportacionService registroSalida,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -108,6 +109,7 @@ public class ResponderConversacionCommandHandler(
             logger.LogError(ex,
                 "El mensaje se envió por Graph pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
                 request.ConversacionId);
+            descarteCambios.DescartarCambiosPendientes();
             return Result.Exito();
         }
 

@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -21,6 +22,8 @@ public class RastroSalidaComunicacionesTests
     private readonly ConexionIntegracion _conexion = new("cae@cliente.com", "Buzón CAE");
     private readonly Microsoft365GraphClientFalso _graph = new();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
+    private readonly DescarteCambiosPendientesFalso _descarte = new();
+    private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
 
     private (ConexionIntegracionRepositorioFalso Conexiones, AccesoGraphService Acceso) Dependencias()
     {
@@ -39,13 +42,14 @@ public class RastroSalidaComunicacionesTests
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), registro);
     }
 
-    private ResponderConversacionCommandHandler HandlerRespuesta(RegistroExportacionFalso registro, bool remitenteSimulado = false)
+    private ResponderConversacionCommandHandler HandlerRespuesta(
+        RegistroExportacionFalso registro, bool remitenteSimulado = false, IUnitOfWork? unitOfWork = null)
     {
         var (conexiones, acceso) = Dependencias();
         return new ResponderConversacionCommandHandler(
             _conversaciones, conexiones, new AlcanceDatosServiceFalso(), _graph, acceso, new FileStorageServiceFalso(),
             Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = remitenteSimulado }),
-            new UnitOfWorkFalso(), NullLogger<ResponderConversacionCommandHandler>.Instance, registro);
+            unitOfWork ?? new UnitOfWorkFalso(), NullLogger<ResponderConversacionCommandHandler>.Instance, registro, _descarte);
     }
 
     private Conversacion ConversacionConEntrante(bool conBuzon = true)
@@ -175,6 +179,75 @@ public class RastroSalidaComunicacionesTests
 
         resultado.EsExitoso.Should().BeTrue();
         registro.Filas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_respuesta_sale_y_no_se_guarda_descarta_los_cambios_para_no_bloquear_el_siguiente_envio()
+    {
+        var conversacion = ConversacionConEntrante();
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("Fallo simulado de guardado.") };
+
+        var resultado = await HandlerRespuesta(new RegistroExportacionFalso(), unitOfWork: unitOfWork).Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>respuesta</p>"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    private (ResponderConversacionWhatsAppCommandHandler Handler, Conversacion Conversacion) WhatsApp(
+        RegistroExportacionFalso registro, UnitOfWorkFalso? unitOfWork = null)
+    {
+        var conversacion = Conversacion.CrearWhatsApp("+34600111222", _conexion.Id, Guid.NewGuid(), null);
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.WhatsApp, "+34600111222", "hola");
+        _conversaciones.Agregar(conversacion);
+        var (conexiones, _) = Dependencias();
+        var lineas = new LineaWhatsAppRepositorioFalso();
+        lineas.Agregar(new LineaWhatsApp(_conexion.Id, "111222333", "waba", "+34900000000", "token", ModoAsignacionLinea.GestorFijo, Guid.NewGuid()));
+        var handler = new ResponderConversacionWhatsAppCommandHandler(
+            _conversaciones, conexiones, lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? new UnitOfWorkFalso(),
+            NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance, registro, _descarte);
+        return (handler, conversacion);
+    }
+
+    [Fact]
+    public async Task Una_respuesta_por_WhatsApp_deja_fila_sin_el_telefono()
+    {
+        var registro = new RegistroExportacionFalso
+        {
+            AlRegistrar = () => _whatsApp.EnviosRealizados.Should().BeEmpty("la fila se escribe antes de enviar"),
+        };
+        var (handler, conversacion) = WhatsApp(registro);
+
+        await handler.Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, "respuesta"), CancellationToken.None);
+
+        _whatsApp.EnviosRealizados.Should().ContainSingle();
+        var fila = registro.Filas.Should().ContainSingle().Subject;
+        fila.Criterios["origen"].Should().Be("RespuestaWhatsApp");
+        fila.Criterios["destinatarios"].Should().Be("***");
+        fila.Criterios.Values.Should().NotContain(valor => valor.Contains("600111222"));
+    }
+
+    [Fact]
+    public async Task Sin_fila_no_sale_el_WhatsApp()
+    {
+        var (handler, conversacion) = WhatsApp(new RegistroExportacionFalso { Falla = true });
+
+        var acto = () => handler.Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, "respuesta"), CancellationToken.None);
+
+        await acto.Should().ThrowAsync<InvalidOperationException>();
+        _whatsApp.EnviosRealizados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_WhatsApp_sale_y_no_se_guarda_descarta_los_cambios()
+    {
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("Fallo simulado de guardado.") };
+        var (handler, conversacion) = WhatsApp(new RegistroExportacionFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, "respuesta"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _descarte.VecesDescartado.Should().Be(1);
     }
 
     [Theory]

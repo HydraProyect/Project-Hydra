@@ -16,7 +16,8 @@ namespace CaeManager.Application.Comunicaciones.Eventos;
 /// no puede tumbar la operación.
 /// </summary>
 public class RegistrarEventoReclamacionEnviadaHandler(
-    IEventoConversacionRepository repositorio, IUnitOfWork unitOfWork, ILogger<RegistrarEventoReclamacionEnviadaHandler> logger)
+    IEventoConversacionRepository repositorio, IUnitOfWork unitOfWork, ILogger<RegistrarEventoReclamacionEnviadaHandler> logger,
+    IDescarteCambiosPendientes descarteCambios)
     : INotificationHandler<ReclamacionEnviadaEvent>
 {
     public async Task Handle(ReclamacionEnviadaEvent notification, CancellationToken cancellationToken)
@@ -32,6 +33,7 @@ public class RegistrarEventoReclamacionEnviadaHandler(
         {
             logger.LogWarning(
                 ex, "No se pudo registrar el evento de reclamación enviada en la conversación {ConversacionId}.", notification.ConversacionId);
+            descarteCambios.DescartarCambiosPendientes();
         }
     }
 }

@@ -35,6 +35,7 @@ public class DocumentacionGestionadaVisitaTests
         public VisitaRepositorioFalso Visitas { get; } = new();
         public CentrosQueryContextFalso Centros { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+        public DescarteCambiosPendientesFalso Descarte { get; } = new();
         public AlcanceDatosServiceFalso Alcance { get; set; } = new();
         public EmisorDeMensajes Emisor { get; } = new();
 
@@ -55,7 +56,7 @@ public class DocumentacionGestionadaVisitaTests
 
         public Task<Result<Guid>> EnviarPaqueteAsync(Guid? version = null) =>
             new EnviarPaqueteAcreditacionVisitaCommandHandler(
-                    Visitas, Centros, Alcance, Emisor, UnitOfWork, NullLogger<EnviarPaqueteAcreditacionVisitaCommandHandler>.Instance)
+                    Visitas, Centros, Alcance, Emisor, UnitOfWork, NullLogger<EnviarPaqueteAcreditacionVisitaCommandHandler>.Instance, Descarte)
                 .Handle(
                     new EnviarPaqueteAcreditacionVisitaCommand(
                         Visita.Id, version ?? Visita.Version, Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>Adjunto</p>",
@@ -416,6 +417,7 @@ public class DocumentacionGestionadaVisitaTests
         resultado.EsExitoso.Should().BeTrue();
         escenario.Emisor.Enviados.Should().ContainSingle();
         escenario.UnitOfWork.VecesGuardado.Should().Be(0, "control: el guardado de la marca falló de verdad");
+        escenario.Descarte.VecesDescartado.Should().Be(1, "con la marca pendiente, el rastro del siguiente envío de la pantalla no se guardaría");
     }
 
     /// <summary>
