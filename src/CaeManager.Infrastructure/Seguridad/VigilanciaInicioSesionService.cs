@@ -274,6 +274,7 @@ public sealed class VigilanciaInicioSesionService(
         {
             sesionesCerradas = false;
             logger.LogError(ex, "«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId}: se sigue con la señal, el enlace y el aviso.", usuario.Id);
+            usuario = await DescartarEscrituraFallidaAsync(ambito.ServiceProvider, userManager, usuario);
         }
 
         // Señal de incidente de seguridad sospechado (plano de Plataforma): la persona titular
@@ -329,6 +330,27 @@ public sealed class VigilanciaInicioSesionService(
         }
 
         return sesionesCerradas ? resultado : ResultadoNoHeSidoYo.SesionesSinCerrar;
+    }
+
+    /// <summary>
+    /// Si la rotación del sello falló al guardar, la entidad conserva un sello que la base no tiene y el
+    /// contexto del ámbito, el cambio pendiente: el enlace nacería muerto y guardar el aviso repetiría la
+    /// escritura fallida. Se limpia el contexto y se relee la cuenta. Si ni eso se puede, se sigue con lo
+    /// que hay: la señal y el aviso valen más que el enlace, que también se puede pedir desde la página.
+    /// </summary>
+    private async Task<ApplicationUser> DescartarEscrituraFallidaAsync(
+        IServiceProvider servicios, UserManager<ApplicationUser> userManager, ApplicationUser usuario)
+    {
+        try
+        {
+            servicios.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
+            return await userManager.FindByIdAsync(usuario.Id.ToString()) ?? usuario;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "«No he sido yo»: no se pudo releer la cuenta {UsuarioId} tras el fallo al cerrar sus sesiones.", usuario.Id);
+            return usuario;
+        }
     }
 
     private async Task AvisarAsync(

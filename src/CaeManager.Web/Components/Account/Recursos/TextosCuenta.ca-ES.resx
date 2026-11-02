@@ -154,7 +154,7 @@
     <value>No hem pogut tancar les teves sessions</value>
   </data>
   <data name="NoHeSidoYoSesionesSinCerrarExplicacion" xml:space="preserve">
-    <value>Hem registrat el teu avís, però les teves sessions obertes continuen actives. Si entres amb contrasenya, l'anterior ja no serveix: en crear-ne una de nova es tanquen totes; si no t'arriba el correu, demana'l des de «¿Olvidaste tu contraseña?». Si entres amb Microsoft, avisa el teu Administrador.</value>
+    <value>Hem registrat el teu avís, però les teves sessions obertes poden continuar actives. Si entres amb contrasenya, l&apos;anterior ja no serveix: en crear-ne una de nova es tanquen totes; si no t&apos;arriba el correu, demana-ho des d&apos;aquí. Si entres amb Microsoft, avisa el teu Administrador.</value>
   </data>
   <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
     <value>No has estat tu?</value>

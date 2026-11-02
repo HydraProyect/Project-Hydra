@@ -45,10 +45,13 @@ public class NoHeSidoYoSesionPrivilegiadaTests : BunitContext
         var cut = Render<NoHeSidoYo>();
         await cut.Find("form").SubmitAsync();
 
-        cut.Markup.Should().Contain("No hemos podido cerrar tus sesiones");
+        cut.Markup.Should().Contain("No hemos podido cerrar tus sesiones").And.Contain("pueden seguir activas");
         cut.Markup.Should().NotContain("Cuenta protegida");
         cut.Markup.Should().NotContain("Hemos cerrado");
         cut.FindAll(".acceso-exito").Should().BeEmpty();
+        var enlace = cut.Find("a.acceso-entrar");
+        enlace.GetAttribute("href").Should().Be("/cuenta/olvide-contrasena");
+        enlace.TextContent.Should().Be("Crear una contraseña nueva");
     }
 
     private sealed class VigilanciaFalsa : IVigilanciaInicioSesion

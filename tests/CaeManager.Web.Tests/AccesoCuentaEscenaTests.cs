@@ -1095,6 +1095,77 @@ public class AccesoCuentaEscenaTests : BunitContext
     }
 
     /// <summary>
+    /// Con el registro real: la rotación del sello falla al guardar, y eso deja en la entidad un sello
+    /// que la base no tiene y en el contexto el cambio pendiente. El enlace tiene que firmarse con el
+    /// sello guardado y el aviso no puede repetir la escritura fallida.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_falla_la_rotacion_del_sello_el_enlace_vale_y_el_aviso_se_guarda()
+    {
+        var escena = new EscenaNoHeSidoYo(this, conRegistroReal: true);
+        _almacen.ComoEf = escena.Contexto;
+        _almacen.GuardadosCorrectos = 1;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Registro.Errores.Should().ContainSingle().Which.Should().Contain("sin poder cerrar las sesiones");
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        (await escena.ElEnlaceDelCorreoEsValidoAsync()).Should().BeTrue("el token tiene que firmarse con el sello guardado");
+        escena.Contexto.Guardadas.Should().ContainSingle()
+            .Which.UsuarioDestinatarioId.Should().Be(EscenaNoHeSidoYo.Administrador);
+    }
+
+    /// <summary>Ni releer la cuenta puede perder la señal, el correo ni el aviso.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_tampoco_se_puede_releer_la_cuenta_da_senal_correo_y_aviso()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this);
+        _almacen.BusquedasCorrectas = 1;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Registro.Errores.Should().HaveCount(2);
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        escena.Correos.Enviados.Should().Contain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>Una cuenta solo de Microsoft no recibe enlace, pero tampoco lee que esté protegida.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_sin_revocar_en_una_cuenta_solo_Microsoft_da_senal_y_aviso_sin_enlace()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this, conContrasena: false);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Senales.NoReconocidos.Should().Equal([(escena.Usuario.Id, escena.Usuario.TenantId, false)]);
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == EscenaNoHeSidoYo.CorreoAdministrador)
+            .Which.Cuerpo.Should().Contain("No se han podido cerrar sus sesiones; entra con Microsoft");
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>Las sesiones sin cerrar pesan más que el correo perdido: la página no dice que estén cerradas.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_sin_revocar_y_con_el_envio_fallido_no_se_queda_en_protegida_sin_correo()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>
     /// Devolver 0 se leería como «no tenía sesiones» y quien llama diría que están cerradas. Revocar una
     /// sola no cambia: dice que no había una viva.
     /// </summary>
@@ -1121,12 +1192,21 @@ public class AccesoCuentaEscenaTests : BunitContext
         public const string CorreoAdministrador = "administrador@example.test";
 
         private readonly VigilanciaInicioSesionService _vigilancia;
+        private readonly UserManager<ApplicationUser> _usuarios;
 
-        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas)
+        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false)
         {
-            Usuario = new ApplicationUser { Id = Guid.NewGuid(), TenantId = Guid.NewGuid(), Email = "marta@example.test" };
+            _usuarios = pruebas._usuarios;
+            Usuario = new ApplicationUser
+            {
+                Id = Guid.NewGuid(),
+                TenantId = Guid.NewGuid(),
+                Email = "marta@example.test",
+                SecurityStamp = "sello-inicial",
+            };
             pruebas._almacen.Usuario = Usuario;
-            pruebas._almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(Usuario, "Abcdefghijk1");
+            if (conContrasena)
+                pruebas._almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(Usuario, "Abcdefghijk1");
             pruebas._usuarios.RegisterTokenProvider(ProveedorTokenNoHeSidoYo.Nombre, new TokenSiempreValido());
 
             var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
@@ -1135,9 +1215,12 @@ public class AccesoCuentaEscenaTests : BunitContext
                 .Options;
             Contexto = new ContextoSinServidor(opciones);
 
+            IRegistroSesionesUsuario sesiones = conRegistroReal
+                ? new RegistroSesionesUsuario(Contexto, pruebas._usuarios, null!, NullLogger<RegistroSesionesUsuario>.Instance)
+                : pruebas._sesiones;
             var ambitos = new ServiceCollection()
                 .AddSingleton(pruebas._usuarios)
-                .AddSingleton<IRegistroSesionesUsuario>(pruebas._sesiones)
+                .AddSingleton(sesiones)
                 .AddSingleton<IEmailService>(Correos)
                 .AddSingleton<CaeManagerDbContext>(Contexto)
                 .BuildServiceProvider()
@@ -1158,6 +1241,19 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         public Task<ResultadoNoHeSidoYo> ConfirmarAsync() =>
             _vigilancia.ConfirmarNoHeSidoYoAsync(Usuario.Id.ToString(), WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token")));
+
+        /// <summary>Contra lo guardado, como cuando la persona abra el enlace en otra petición.</summary>
+        public async Task<bool> ElEnlaceDelCorreoEsValidoAsync()
+        {
+            var cuerpo = Correos.Enviados.Single(c => c.Destinatario == Usuario.Email).Cuerpo;
+            var codigo = cuerpo[(cuerpo.IndexOf("code=", StringComparison.Ordinal) + "code=".Length)..];
+            codigo = codigo[..codigo.IndexOf('"')];
+            var token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(codigo));
+            Contexto.ChangeTracker.Clear();
+            var guardada = await _usuarios.FindByIdAsync(Usuario.Id.ToString());
+            return await _usuarios.VerifyUserTokenAsync(guardada!, _usuarios.Options.Tokens.PasswordResetTokenProvider,
+                UserManager<ApplicationUser>.ResetPasswordTokenPurpose, token);
+        }
     }
 
     private sealed class ConexionSinServidor : DbConnectionInterceptor
@@ -1188,6 +1284,8 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {
+            if (ChangeTracker.Entries<ApplicationUser>().Any(e => e.State == EntityState.Modified))
+                throw new DbUpdateException("La escritura de la cuenta que ya falló se repite y vuelve a fallar.");
             Guardadas.AddRange(ChangeTracker.Entries<NotificacionUsuario>().Select(e => e.Entity));
             return Task.FromResult(Guardadas.Count);
         }
@@ -1211,9 +1309,12 @@ public class AccesoCuentaEscenaTests : BunitContext
     private sealed class CorreosCapturados : IEmailService
     {
         public List<(string Destinatario, string Asunto, string Cuerpo)> Enviados { get; } = [];
+        public string? FallaPara { get; set; }
 
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
+            if (destinatarioEmail == FallaPara)
+                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", "fallo simulado")));
             Enviados.Add((destinatarioEmail, asunto, cuerpoHtml));
             return Task.FromResult(Result.Exito());
         }
@@ -1430,8 +1531,42 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// <summary>Para sembrar la contraseña inicial directamente en el test, sin pasar por CreateAsync (no soportado).</summary>
         public string? HashContrasena { get => _hashContrasena; set => _hashContrasena = value; }
 
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
-            Task.FromResult(Usuario is not null && Usuario.Id.ToString() == userId ? Usuario : null);
+        /// <summary>
+        /// Con contexto, el almacén se comporta como el <c>UserStore</c> de EF: el sello vive en la entidad,
+        /// la cuenta rastreada es la que se devuelve y lo guardado solo cambia si el guardado sale bien.
+        /// </summary>
+        public ContextoSinServidor? ComoEf { get; set; }
+
+        /// <summary>Guardados que salen bien antes de que el siguiente falle y deje el cambio pendiente.</summary>
+        public int? GuardadosCorrectos { get; set; }
+
+        /// <summary>Búsquedas por identificador que salen bien antes de que las siguientes lancen.</summary>
+        public int? BusquedasCorrectas { get; set; }
+
+        private string? _selloGuardado;
+
+        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct)
+        {
+            if (BusquedasCorrectas is { } busquedas)
+            {
+                if (busquedas == 0)
+                    throw new InvalidOperationException("fallo simulado al buscar");
+                BusquedasCorrectas = busquedas - 1;
+            }
+
+            if (Usuario is null || Usuario.Id.ToString() != userId)
+                return Task.FromResult<ApplicationUser?>(null);
+            if (ComoEf is null)
+                return Task.FromResult<ApplicationUser?>(Usuario);
+
+            _selloGuardado ??= Usuario.SecurityStamp;
+            var rastreada = ComoEf.ChangeTracker.Entries<ApplicationUser>().SingleOrDefault()?.Entity;
+            if (rastreada is not null)
+                return Task.FromResult<ApplicationUser?>(rastreada);
+            var leida = new ApplicationUser { Id = Usuario.Id, TenantId = Usuario.TenantId, Email = Usuario.Email, SecurityStamp = _selloGuardado };
+            ComoEf.Attach(leida);
+            return Task.FromResult<ApplicationUser?>(leida);
+        }
 
         private int _busquedasCorreo;
         public int BusquedasCorreo => Volatile.Read(ref _busquedasCorreo);
@@ -1460,8 +1595,21 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// segunda escritura explícita separada. <see cref="ResultadoUpdate"/>
         /// gobierna esa única llamada.
         /// </summary>
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) =>
-            Task.FromResult(ResultadoUpdate);
+        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct)
+        {
+            if (GuardadosCorrectos is not { } guardados)
+                return Task.FromResult(ResultadoUpdate);
+
+            if (guardados == 0)
+            {
+                ComoEf!.Entry(user).State = EntityState.Modified;
+                return Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "fallo simulado al guardar" }));
+            }
+
+            GuardadosCorrectos = guardados - 1;
+            _selloGuardado = user.SecurityStamp;
+            return Task.FromResult(IdentityResult.Success);
+        }
 
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
@@ -1484,9 +1632,11 @@ public class AccesoCuentaEscenaTests : BunitContext
         public Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken ct)
         {
             _securityStamp = stamp;
+            user.SecurityStamp = stamp;
             return Task.CompletedTask;
         }
 
-        public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult<string?>(_securityStamp);
+        public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) =>
+            Task.FromResult<string?>(ComoEf is null ? _securityStamp : user.SecurityStamp);
     }
 }
