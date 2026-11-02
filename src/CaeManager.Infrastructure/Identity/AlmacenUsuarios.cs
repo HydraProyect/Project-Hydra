@@ -59,9 +59,22 @@ namespace CaeManager.Infrastructure.Identity;
 /// </para>
 /// </summary>
 public class AlmacenUsuarios(
-    CaeManagerDbContext context, ITenantActual tenantActual, IdentityErrorDescriber? describer = null)
+    CaeManagerDbContext context, ITenantActual tenantActual, IdentityErrorDescriber? describer = null,
+    ISelloSeguridadCuenta? sellos = null)
     : UserStore<ApplicationUser, IdentityRole<Guid>, CaeManagerDbContext, Guid>(context, describer)
 {
+    /// <summary>
+    /// Toda rotación del sello de Identity pasa por aquí con el sello anterior aún en la entidad: lo
+    /// necesita el refresco de la cookie de esta petición (ver <see cref="SelloSeguridadCuenta"/>). Sin
+    /// la anotación, ese refresco falla en cerrado.
+    /// </summary>
+    public override Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        sellos?.AnotarRotacion(user.Id, user.SecurityStamp);
+        return base.SetSecurityStampAsync(user, stamp, cancellationToken);
+    }
+
     // Los mismos valores que las constantes privadas de UserStoreBase: la fila
     // es la misma que usaría Identity sin este almacén.
     internal const string ProveedorInterno = "[AspNetUserStore]";

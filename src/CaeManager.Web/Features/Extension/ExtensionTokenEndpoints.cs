@@ -52,6 +52,7 @@ public static class ExtensionTokenEndpoints
             UserManager<ApplicationUser> userManager,
             IDataProtectionProvider dataProtectionProvider,
             IRegistroSesionesUsuario sesiones,
+            ISelloSeguridadCuenta sellos,
             IClienteActivoSeleccionado seleccion,
             ILoggerFactory fabricaRegistro) =>
         {
@@ -59,7 +60,7 @@ public static class ExtensionTokenEndpoints
             if (!Guid.TryParse(valorClaim, out var usuarioId))
                 return Results.Unauthorized();
 
-            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), userManager, dataProtectionProvider, sesiones, seleccion, fabricaRegistro);
+            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), usuarioActual.FindFirst(userManager.Options.ClaimsIdentity.SecurityStampClaimType)?.Value, userManager, dataProtectionProvider, sesiones, sellos, seleccion, fabricaRegistro);
             if (resultado.EsFallido)
                 return resultado.Error.Codigo == "Extension.UsuarioNoEncontrado"
                     ? Results.Unauthorized()

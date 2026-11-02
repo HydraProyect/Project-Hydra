@@ -40,6 +40,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         servicios.AddSingleton(_protector);
         servicios.AddSingleton<ITenantActual>(new TenantActualFijo());
         servicios.AddScoped<PuertaAccesoDatos>();
+        servicios.AddScoped<ISelloSeguridadCuenta, SelloSeguridadCuenta>();
 
         servicios.AddDbContext<CaeManagerDbContext>(opciones => opciones
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL")));
@@ -77,7 +78,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), usuario.SecurityStamp, userManager, _protector, new SesionesExtensionFalsas(), ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.ExpiraEnUtc.Should().BeCloseTo(DateTime.UtcNow.Add(TokenSesionExtension.Vigencia), TimeSpan.FromSeconds(5));
@@ -94,7 +95,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Guid.NewGuid(), Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(Guid.NewGuid(), Guid.NewGuid(), null, userManager, _protector, new SesionesExtensionFalsas(), ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Extension.UsuarioNoEncontrado");
@@ -116,7 +117,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), usuario.SecurityStamp, userManager, _protector, new SesionesExtensionFalsas(), ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>(), new SeleccionSinSesion(), NullLoggerFactory.Instance);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Extension.CuentaAMedioActivar");
