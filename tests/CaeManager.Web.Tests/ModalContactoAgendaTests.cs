@@ -115,6 +115,28 @@ public sealed class ModalContactoAgendaTests : BunitContext
         _visible.Should().BeFalse("guardado correctamente cierra");
     }
 
+    [Fact]
+    public async Task Guardar_envia_la_nota_que_el_formulario_cargo_al_abrir_aunque_el_contacto_se_refresque()
+    {
+        static ContactoAgendaDto Contacto(Guid id, string notas) =>
+            new(id, "Marta Ruiz", "marta@example.test", null, null, notas, false, false, false, [], [], []);
+
+        var id = Guid.NewGuid();
+        var cut = Render<ModalContactoAgenda>(p => p
+            .Add(x => x.Visible, _visible)
+            .Add(x => x.VisibleChanged, v => _visible = v)
+            .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
+            .Add(x => x.PropietarioId, Guid.NewGuid())
+            .Add(x => x.Contacto, Contacto(id, "Nota vista al abrir")));
+
+        await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.Contacto, Contacto(id, "Nota fijada desde el panel"))));
+        await Pulsar(cut, "Guardar");
+
+        var comando = _mediador.Enviadas.OfType<GuardarContactoAgendaCommand>().Should().ContainSingle().Which;
+        comando.Notas.Should().Be("Nota vista al abrir");
+        comando.NotasAlCargar.Should().Be("Nota vista al abrir");
+    }
+
     private sealed class Mediador : IMediator
     {
         public List<object> Enviadas { get; } = [];
