@@ -49,6 +49,7 @@ public class GuardarContactoAgendaCommandHandler(
     IContactoAgendaRepository repositorio,
     TiposDocumento.ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarContactoAgendaCommand, Result<Guid>>
 {
@@ -87,11 +88,11 @@ public class GuardarContactoAgendaCommandHandler(
         if (request.ContactoId is { } contactoId)
         {
             var existente = await repositorio.ObtenerPorIdAsync(contactoId, cancellationToken);
-            if (existente is null || !PerteneceA(existente, request))
+            if (existente is null || !PerteneceA(existente, request.Tipo, request.PropietarioId))
                 return Result.Fallo<Guid>(Error.Crear("ContactoAgenda.NoEncontrado", "No encontramos este contacto."));
 
             existente.Actualizar(
-                request.Nombre, request.Email, request.Telefono, request.Cargo, request.Notas,
+                request.Nombre, request.Email, request.Telefono, request.Cargo,
                 request.EsPredeterminado, request.RecibeProgramacionVisitas, request.RecibeFacturacion);
             contacto = existente;
         }
@@ -100,22 +101,23 @@ public class GuardarContactoAgendaCommandHandler(
             contacto = request.Tipo switch
             {
                 TipoPropietarioAgenda.Cliente => ContactoAgenda.DeCliente(
-                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, request.Notas,
+                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, notas: null,
                     request.EsPredeterminado, request.RecibeProgramacionVisitas, request.RecibeFacturacion),
                 TipoPropietarioAgenda.Empresa => ContactoAgenda.DeEmpresa(
-                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, request.Notas,
+                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, notas: null,
                     request.EsPredeterminado, request.RecibeProgramacionVisitas, request.RecibeFacturacion),
                 TipoPropietarioAgenda.Subcontrata => ContactoAgenda.DeSubcontrata(
-                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, request.Notas,
+                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, notas: null,
                     request.EsPredeterminado, request.RecibeProgramacionVisitas, request.RecibeFacturacion),
                 _ => ContactoAgenda.DeCentro(
-                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, request.Notas,
+                    request.PropietarioId, request.Nombre, request.Email, request.Telefono, request.Cargo, notas: null,
                     request.EsPredeterminado, request.RecibeProgramacionVisitas, request.RecibeFacturacion)
             };
 
             repositorio.Agregar(contacto);
         }
 
+        contacto.FijarNotas(request.Notas, await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
         contacto.EstablecerTiposDocumento(tipoDocumentoIdsValidos);
         contacto.EstablecerRoles(request.Roles);
 
@@ -123,12 +125,12 @@ public class GuardarContactoAgendaCommandHandler(
         return Result.Exito(contacto.Id);
     }
 
-    private static bool PerteneceA(ContactoAgenda contacto, GuardarContactoAgendaCommand request) => request.Tipo switch
+    internal static bool PerteneceA(ContactoAgenda contacto, TipoPropietarioAgenda tipo, Guid propietarioId) => tipo switch
     {
-        TipoPropietarioAgenda.Cliente => contacto.ClienteId == request.PropietarioId,
-        TipoPropietarioAgenda.Empresa => contacto.EmpresaId == request.PropietarioId,
-        TipoPropietarioAgenda.Subcontrata => contacto.SubcontrataId == request.PropietarioId,
-        TipoPropietarioAgenda.Centro => contacto.CentroId == request.PropietarioId,
+        TipoPropietarioAgenda.Cliente => contacto.ClienteId == propietarioId,
+        TipoPropietarioAgenda.Empresa => contacto.EmpresaId == propietarioId,
+        TipoPropietarioAgenda.Subcontrata => contacto.SubcontrataId == propietarioId,
+        TipoPropietarioAgenda.Centro => contacto.CentroId == propietarioId,
         _ => false
     };
 }

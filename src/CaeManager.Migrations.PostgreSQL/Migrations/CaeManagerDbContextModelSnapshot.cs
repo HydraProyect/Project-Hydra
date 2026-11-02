@@ -2053,6 +2053,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<DateTime?>("NotasActualizadasEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("NotasAutorUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("RecibeFacturacion")
                         .HasColumnType("boolean");
 
