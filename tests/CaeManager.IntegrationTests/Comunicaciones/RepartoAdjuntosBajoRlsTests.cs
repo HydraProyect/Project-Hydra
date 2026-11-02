@@ -151,20 +151,23 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
     public async Task El_marcado_de_asignado_persiste_en_lo_propio_y_no_alcanza_lo_ajeno()
     {
         var documentoId = Guid.NewGuid();
+        var tipoDocumentoId = Guid.NewGuid();
         await using (var runtime = CrearRuntime())
         {
             var handler = new MarcarAdjuntoAsignadoHandler(new AdjuntoMensajeRepository(runtime),
                 new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), runtime,
                 NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
 
-            await handler.Handle(new DocumentoActualizadoEvent(_conversacionPropia, documentoId, _adjuntoPropio), CancellationToken.None);
-            await handler.Handle(new DocumentoActualizadoEvent(_conversacionAjena, documentoId, _adjuntoAjeno), CancellationToken.None);
+            await handler.Handle(new DocumentoActualizadoEvent(_conversacionPropia, documentoId, _adjuntoPropio, null, _empresaPropia, tipoDocumentoId), CancellationToken.None);
+            await handler.Handle(new DocumentoActualizadoEvent(_conversacionAjena, documentoId, _adjuntoAjeno, null, _empresaPropia, tipoDocumentoId), CancellationToken.None);
         }
 
         await using var comprobacion = CrearPropietarioLimpio();
         var propio = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
         propio.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
         propio.DocumentoId.Should().Be(documentoId);
+        propio.DestinoEmpresaId.Should().Be(_empresaPropia);
+        propio.TipoDocumentoPropuestoId.Should().Be(tipoDocumentoId);
         (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().Where(a => a.Id == _adjuntoAjeno).Select(a => a.EstadoReparto).SingleAsync())
             .Should().Be(EstadoRepartoAdjunto.Pendiente);
     }

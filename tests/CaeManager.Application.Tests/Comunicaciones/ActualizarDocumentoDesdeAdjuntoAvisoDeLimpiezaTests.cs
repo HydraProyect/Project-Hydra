@@ -1,4 +1,5 @@
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -63,11 +64,44 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         almacenamiento.ArchivosGuardados.Should().Be(valido ? 2 : 1);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_evento_lleva_el_destino_y_el_tipo_del_alta(bool aplicaPropuestaFijada)
+    {
+        var contexto = new ComunicacionesQueryContextFalso();
+        var conversacion = new Conversacion("Documentación", empresaId: Guid.NewGuid());
+        var mensaje = new Mensaje(conversacion.Id, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente", "asunto", DateTime.UtcNow);
+        var almacenamiento = new FileStorageServiceFalso();
+        var clave = await almacenamiento.GuardarAsync(new MemoryStream("%PDF-"u8.ToArray()), "adjunto.pdf");
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "adjunto.pdf", "application/pdf", 2, clave);
+        contexto.ListaConversaciones.Add(conversacion);
+        contexto.ListaMensajes.Add(mensaje);
+        contexto.ListaAdjuntosMensaje.Add(adjunto);
+        var mediador = new MediadorFalso();
+        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(contexto, new AlcanceDatosServiceFalso(),
+            new DocumentosQueryContextFalso(), mediador, mediador, almacenamiento, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        var tipoId = Guid.NewGuid();
+        var trabajadorId = Guid.NewGuid();
+
+        var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, tipoId, trabajadorId, null,
+            DateOnly.FromDateTime(DateTime.UtcNow), null, null, AplicaPropuestaFijada: aplicaPropuestaFijada), CancellationToken.None);
+
+        mediador.Publicados.Should().ContainSingle().Which.Should().Be(new DocumentoActualizadoEvent(
+            conversacion.Id, resultado.Valor, adjunto.Id, trabajadorId, null, tipoId, aplicaPropuestaFijada));
+    }
+
     private sealed class MediadorFalso : IMediator
     {
+        public List<object> Publicados { get; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)Result.Exito(Guid.NewGuid()));
-        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification
+        {
+            Publicados.Add(notification);
+            return Task.CompletedTask;
+        }
         public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

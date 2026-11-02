@@ -28,7 +28,7 @@ public class AdjuntoMensaje : EntidadConTenant, IVersionable
 
     public EstadoRepartoAdjunto EstadoReparto { get; private set; }
 
-    /// <summary>Destino propuesto: un Trabajador o una Empresa, nunca los dos. Asignar lo convierte en Documento.</summary>
+    /// <summary>Destino propuesto: un Trabajador o una Empresa, nunca los dos. Una vez asignado, el que recibió el Documento.</summary>
     public Guid? DestinoTrabajadorId { get; private set; }
     public Guid? DestinoEmpresaId { get; private set; }
     public Guid? TipoDocumentoPropuestoId { get; private set; }

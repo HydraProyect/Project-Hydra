@@ -32,10 +32,14 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// <c>ObtenerAdjuntoParaDescargaQuery</c> quedaba apuntando a un archivo ya
 /// eliminado, sin aviso y sin vuelta atrás. Cada clave debe tener exactamente
 /// una fila propietaria con autoridad para borrarla.
+///
+/// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta guardada en el adjunto en vez de
+/// con lo que eligió una persona: ver <see cref="DocumentoActualizadoEvent"/>.
 /// </summary>
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
-    DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? Comentarios, bool NoCaduca = false)
+    DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? Comentarios, bool NoCaduca = false,
+    bool AplicaPropuestaFijada = false)
     : ICommand<Guid>;
 
 public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator<ActualizarDocumentoDesdeAdjuntoCommand>
@@ -190,7 +194,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // criterio que VisitaCreadaEvent.
         try
         {
-            await publisher.Publish(new DocumentoActualizadoEvent(adjunto.ConversacionId, documentoId, request.AdjuntoId), cancellationToken);
+            await publisher.Publish(new DocumentoActualizadoEvent(
+                adjunto.ConversacionId, documentoId, request.AdjuntoId, request.TrabajadorId, request.EmpresaId,
+                request.TipoDocumentoId, request.AplicaPropuestaFijada), cancellationToken);
         }
         catch (Exception ex)
         {

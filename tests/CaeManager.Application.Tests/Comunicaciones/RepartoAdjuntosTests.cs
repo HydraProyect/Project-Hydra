@@ -345,12 +345,175 @@ public class RepartoAdjuntosTests
         var handler = new MarcarAdjuntoAsignadoHandler(new AdjuntoRepositorioFalso(_contexto), new CurrentUserServiceFalso(usuarioId), _unitOfWork,
             NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
 
-        await handler.Handle(new DocumentoActualizadoEvent(_conversacion.Id, documentoId, adjunto.Id), CancellationToken.None);
+        await handler.Handle(new DocumentoActualizadoEvent(_conversacion.Id, documentoId, adjunto.Id, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
 
         adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
         adjunto.DocumentoId.Should().Be(documentoId);
         adjunto.ResueltoPorUsuarioId.Should().Be(usuarioId);
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    private MarcarAdjuntoAsignadoHandler Marcado() => new(
+        new AdjuntoRepositorioFalso(_contexto), new CurrentUserServiceFalso(Guid.NewGuid()), _unitOfWork, NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
+
+    [Fact]
+    public async Task Sin_propuesta_fijada_el_alta_suelta_marca_y_deja_lo_que_uso()
+    {
+        var adjunto = Sembrar();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+
+        await Marcado().Handle(new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id, trabajadorId, null, tipoId), CancellationToken.None);
+
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        adjunto.DestinoTrabajadorId.Should().Be(trabajadorId);
+        adjunto.DestinoEmpresaId.Should().BeNull();
+        adjunto.TipoDocumentoPropuestoId.Should().Be(tipoId);
+    }
+
+    [Fact]
+    public async Task En_el_alta_suelta_lo_que_elige_la_persona_sustituye_a_la_propuesta()
+    {
+        var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var empresaId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+
+        await Marcado().Handle(new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id, null, empresaId, tipoId), CancellationToken.None);
+
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        adjunto.DestinoTrabajadorId.Should().BeNull();
+        adjunto.DestinoEmpresaId.Should().Be(empresaId);
+        adjunto.TipoDocumentoPropuestoId.Should().Be(tipoId);
+    }
+
+    [Fact]
+    public async Task Con_la_propuesta_intacta_el_alta_del_lote_marca()
+    {
+        var adjunto = Sembrar();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        adjunto.FijarDestino(trabajadorId, null, tipoId);
+        var documentoId = Guid.NewGuid();
+
+        await Marcado().Handle(new DocumentoActualizadoEvent(_conversacion.Id, documentoId, adjunto.Id, trabajadorId, null, tipoId, AplicaPropuestaFijada: true), CancellationToken.None);
+
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        adjunto.DocumentoId.Should().Be(documentoId);
+    }
+
+    [Theory]
+    [InlineData("trabajador")]
+    [InlineData("empresa")]
+    [InlineData("tipo")]
+    [InlineData("retirada")]
+    public async Task Si_la_propuesta_cambio_el_alta_del_lote_no_marca(string cambio)
+    {
+        var adjunto = Sembrar();
+        var trabajadorId = Guid.NewGuid();
+        var tipoId = Guid.NewGuid();
+        adjunto.FijarDestino(trabajadorId, null, tipoId);
+        var evento = new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id, trabajadorId, null, tipoId, AplicaPropuestaFijada: true);
+
+        switch (cambio)
+        {
+            case "trabajador": adjunto.FijarDestino(Guid.NewGuid(), null, tipoId); break;
+            case "empresa": adjunto.FijarDestino(null, Guid.NewGuid(), tipoId); break;
+            case "tipo": adjunto.FijarDestino(trabajadorId, null, Guid.NewGuid()); break;
+            default: adjunto.FijarDestino(null, null, null); break;
+        }
+        var destinoNuevo = (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId);
+
+        await Marcado().Handle(evento, CancellationToken.None);
+
+        adjunto.EstaPendiente.Should().BeTrue();
+        adjunto.DocumentoId.Should().BeNull();
+        (adjunto.DestinoTrabajadorId, adjunto.DestinoEmpresaId, adjunto.TipoDocumentoPropuestoId).Should().Be(destinoNuevo);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_lote_relee_cada_adjunto_justo_antes_de_su_alta()
+    {
+        var primero = Sembrar();
+        primero.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var cambiado = Sembrar();
+        cambiado.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var resuelto = Sembrar();
+        resuelto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var trabajadorNuevo = Guid.NewGuid();
+        var tipoNuevo = Guid.NewGuid();
+        var mediador = new MediadorDelLote(_contexto)
+        {
+            TrasElAlta = (comando, _) =>
+            {
+                if (comando.AdjuntoId == primero.Id)
+                {
+                    cambiado.FijarDestino(trabajadorNuevo, null, tipoNuevo);
+                    resuelto.Descartar(Guid.NewGuid(), DateTime.UtcNow);
+                }
+                return Task.CompletedTask;
+            }
+        };
+
+        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id,
+            [Item(primero), Item(cambiado), Item(resuelto)]), CancellationToken.None);
+
+        mediador.Enviados.Should().HaveCount(2);
+        mediador.Enviados[1].TrabajadorId.Should().Be(trabajadorNuevo);
+        mediador.Enviados[1].TipoDocumentoId.Should().Be(tipoNuevo);
+        mediador.Enviados.Should().OnlyContain(c => c.AplicaPropuestaFijada);
+        resultado.Valor[2].Detalle.Should().Be("Este adjunto ya está resuelto.");
+    }
+
+    [Fact]
+    public async Task Si_la_propuesta_cambia_durante_el_alta_el_lote_no_confirma_y_el_adjunto_sigue_pendiente()
+    {
+        var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var trabajadorNuevo = Guid.NewGuid();
+        var mediador = new MediadorDelLote
+        {
+            TrasElAlta = async (comando, documentoId) =>
+            {
+                adjunto.FijarDestino(trabajadorNuevo, null, comando.TipoDocumentoId);
+                await Marcado().Handle(new DocumentoActualizadoEvent(_conversacion.Id, documentoId, comando.AdjuntoId,
+                    comando.TrabajadorId, comando.EmpresaId, comando.TipoDocumentoId, comando.AplicaPropuestaFijada), CancellationToken.None);
+            }
+        };
+
+        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None);
+
+        var fila = resultado.Valor.Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoAsignacionAdjunto.SinConfirmar);
+        fila.DocumentoId.Should().NotBeNull();
+        fila.Detalle.Should().Be("El destino o el tipo del adjunto cambiaron mientras se asignaba: revisa el Documento.");
+        adjunto.EstaPendiente.Should().BeTrue();
+        adjunto.DestinoTrabajadorId.Should().Be(trabajadorNuevo);
+    }
+
+    [Fact]
+    public async Task Si_el_adjunto_quedo_asignado_a_otro_Documento_el_lote_no_lo_da_por_suyo()
+    {
+        var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var documentoDeLaOtraAlta = Guid.NewGuid();
+        var mediador = new MediadorDelLote
+        {
+            TrasElAlta = (_, _) =>
+            {
+                adjunto.MarcarAsignado(documentoDeLaOtraAlta, null, DateTime.UtcNow);
+                return Task.CompletedTask;
+            }
+        };
+
+        var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None);
+
+        var fila = resultado.Valor.Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoAsignacionAdjunto.SinConfirmar);
+        fila.DocumentoId.Should().NotBe(documentoDeLaOtraAlta);
+        fila.Detalle.Should().Be("El adjunto quedó asignado a otro Documento.");
+        adjunto.DocumentoId.Should().Be(documentoDeLaOtraAlta);
     }
 
     [Fact]
@@ -361,7 +524,7 @@ public class RepartoAdjuntosTests
         var handler = new MarcarAdjuntoAsignadoHandler(repositorio, new CurrentUserServiceFalso(Guid.NewGuid()), new UnitOfWorkQueFalla(),
             NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
 
-        await handler.Handle(new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id), CancellationToken.None);
+        await handler.Handle(new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
 
         repositorio.Olvidados.Should().ContainSingle().Which.Should().BeSameAs(adjunto);
     }
@@ -416,7 +579,10 @@ public class RepartoAdjuntosTests
         public Guid? RechazarAdjuntoId { get; init; }
         public Dictionary<Guid, Exception> ExcepcionPorAdjunto { get; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>Lo que pasa entre el commit del alta y la relectura del lote.</summary>
+        public Func<ActualizarDocumentoDesdeAdjuntoCommand, Guid, Task>? TrasElAlta { get; init; }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             if (request is not ActualizarDocumentoDesdeAdjuntoCommand comando)
             {
@@ -432,7 +598,8 @@ public class RepartoAdjuntosTests
                 : Result.Exito(Guid.NewGuid());
             if (resultado.EsExitoso)
                 contexto?.ListaAdjuntosMensaje.Single(a => a.Id == comando.AdjuntoId).MarcarAsignado(resultado.Valor, null, DateTime.UtcNow);
-            return Task.FromResult((TResponse)(object)resultado);
+            if (resultado.EsExitoso && TrasElAlta is not null) await TrasElAlta(comando, resultado.Valor);
+            return (TResponse)(object)resultado;
         }
 
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
