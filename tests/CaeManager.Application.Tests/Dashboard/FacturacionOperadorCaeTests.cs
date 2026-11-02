@@ -152,6 +152,7 @@ public class FacturacionOperadorCaeTests
     private sealed class OperacionesFalsas(IReadOnlyList<AsignacionOperacion> asignaciones) : IOperacionesQueryContext
     {
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => new TestAsyncQueryable<AsignacionOperacion>(asignaciones.AsQueryable());
+        public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera => new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }
 

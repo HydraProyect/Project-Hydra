@@ -29,6 +29,7 @@ public class InicioSesionMicrosoftTests
     [InlineData("sin-cuenta", false)]
     [InlineData("invitada", false)]
     [InlineData("sin-mfa", true)]
+    [InlineData("suspendido", false)]
     public async Task El_callback_rechaza_la_cookie_externa_de_prueba_o_manipulada(string caso, bool manipulada)
     {
         // La primera vinculación (cuenta hallada por correo) ya no se rechaza: va al TOTP
@@ -36,7 +37,7 @@ public class InicioSesionMicrosoftTests
         var cuenta = new ApplicationUser { TenantId = TenantDestino };
         var usuarios = new UsuariosConVinculos
         {
-            DuenaDeLaIdentidad = caso is "sin-mfa" or "invitada" ? cuenta : null,
+            DuenaDeLaIdentidad = caso is "sin-mfa" or "invitada" or "suspendido" ? cuenta : null,
         };
         var vigilancia = new VigilanciaDePrueba();
         var builder = WebApplication.CreateSlimBuilder();
@@ -50,6 +51,8 @@ public class InicioSesionMicrosoftTests
         builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
         builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
         builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
+        builder.Services.AddSingleton<CaeManager.Application.Tenants.IEstadoOperativoTenant>(
+            new EstadoOperativoDePrueba(caso == "suspendido" ? TenantDestino : null));
         await using var app = builder.Build();
         app.UseAuthentication();
         app.MapIdentityEndpoints();
@@ -82,7 +85,7 @@ public class InicioSesionMicrosoftTests
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var error = manipulada || caso == "invitada" ? "fallo" : caso;
+        var error = manipulada || caso == "invitada" ? "fallo" : caso == "suspendido" ? "sin-cuenta" : caso;
         respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
         usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
         respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
@@ -92,7 +95,7 @@ public class InicioSesionMicrosoftTests
             && c.Split(';')[0].Split('=', 2)[1].Length > 0,
             "ningún rechazo emite una sesión de aplicación");
         vigilancia.Resultados.Should().Equal(manipulada ? [] :
-            [caso == "sin-mfa"
+            [caso is "sin-mfa" or "suspendido"
                 ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado
                 : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
         await app.StopAsync();
@@ -138,6 +141,8 @@ public class InicioSesionMicrosoftTests
         builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
         builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
         builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
+        builder.Services.AddSingleton<CaeManager.Application.Tenants.IEstadoOperativoTenant>(
+            new EstadoOperativoDePrueba(null));
         await using var app = builder.Build();
         app.UseAuthentication();
         app.MapIdentityEndpoints();
@@ -359,6 +364,12 @@ public class InicioSesionMicrosoftTests
         public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => Task.FromResult(0);
         public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => Task.FromResult(0);
+    }
+
+    private sealed class EstadoOperativoDePrueba(Guid? suspendido) : CaeManager.Application.Tenants.IEstadoOperativoTenant
+    {
+        public Task<bool> EstaSuspendidoAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tenantId == suspendido);
     }
 
     private sealed class VigilanciaDePrueba : CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion

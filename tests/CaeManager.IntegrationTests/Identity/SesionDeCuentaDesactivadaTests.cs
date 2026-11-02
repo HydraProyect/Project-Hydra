@@ -86,6 +86,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El registro de inicios de sesión tiene su propio test
         // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
         servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
+        servicios.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, CaeManager.Infrastructure.Persistence.EstadoOperativoTenant>();
         // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
@@ -904,15 +905,16 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // Presupuesto, no una medida exacta, con el almacén real (AlmacenUsuarios).
         // Validar sin Tenant en el contexto, como el SecurityStampValidator de la
         // cookie, resuelve el Tenant de la cuenta (app_tenant_de_cuenta: sin él la
-        // RLS de AspNetUsers no la deja ver), lee la cuenta y pregunta si su sesión
-        // sigue sin revocar (app_sesion_vigente); con Tenant sobra la primera.
+        // RLS de AspNetUsers no la deja ver), lee la cuenta,
+        // mira si su Tenant está suspendido y pregunta si su sesión sigue sin revocar
+        // (app_sesion_vigente); con Tenant sobra la primera.
         // Reconstruir el principal añade roles, claims y el ajuste del Tenant. El
         // circuito y la cookie hacen ambas cosas en cada ciclo. Si esto crece sin
         // querer, el coste por sesión activa y minuto deja de ser el medido. El
         // sello llega con la lectura de la cuenta: otra lectura suya sería redundante.
-        soloValidar.Should().BeLessThanOrEqualTo(3);
-        validarConTenant.Should().BeLessThanOrEqualTo(2);
-        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(8);
+        soloValidar.Should().BeLessThanOrEqualTo(4);
+        validarConTenant.Should().BeLessThanOrEqualTo(3);
+        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(9);
         textosAlValidar.Should().ContainSingle(t => t.Contains("app_tenant_de_cuenta"));
         textosAlValidar.Should().ContainSingle(t => t.Contains("app_sesion_vigente"));
         textosAlValidar.Should().ContainSingle(t => t.Contains("SecurityStamp"));

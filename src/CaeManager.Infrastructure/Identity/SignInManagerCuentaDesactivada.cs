@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Seguridad;
 using Microsoft.AspNetCore.Authentication;
@@ -76,7 +77,8 @@ public class SignInManagerCuentaDesactivada(
     IVigilanciaInicioSesion vigilancia,
     IRegistroSesionesUsuario sesiones,
     VerificacionContrasenaFicticia contrasenaFicticia,
-    ISelloSeguridadCuenta sellos)
+    ISelloSeguridadCuenta sellos,
+    IEstadoOperativoTenant estadoOperativo)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
     /// <summary>
@@ -142,7 +144,23 @@ public class SignInManagerCuentaDesactivada(
             return false;
         }
 
+        if (user is not null && await estadoOperativo.EstaSuspendidoAsync(user.TenantId))
+        {
+            Logger.LogWarning("Sesión rechazada: el Tenant {TenantId} de la cuenta {UsuarioId} está suspendido.", user.TenantId, user.Id);
+            return false;
+        }
+
         return await base.ValidateSecurityStampAsync(user, securityStamp);
+    }
+
+    /// <summary>
+    /// La cookie de dos pasos puede sobrevivir a la suspensión: sin este corte, el alta de TOTP de la primera
+    /// vinculación de Microsoft seguiría cambiando credenciales de una cuenta que ya no puede entrar.
+    /// </summary>
+    public override async Task<ApplicationUser?> GetTwoFactorAuthenticationUserAsync()
+    {
+        var usuario = await base.GetTwoFactorAuthenticationUserAsync();
+        return usuario is not null && await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId) ? null : usuario;
     }
 
     /// <summary>Lo pone <see cref="RefreshSignInAsync"/> mientras refresca una sesión que entró por Microsoft.</summary>
@@ -444,6 +462,12 @@ public class SignInManagerCuentaDesactivada(
             return;
         }
 
+        if (await estadoOperativo.EstaSuspendidoAsync(user.TenantId))
+        {
+            Logger.LogWarning("No se emite sesión: el Tenant {TenantId} de la cuenta {UsuarioId} está suspendido.", user.TenantId, user.Id);
+            return;
+        }
+
         // Una sesión nueva (contraseña, segundo factor, callback de Microsoft) se registra antes de
         // emitir la cookie; si el registro falla, no se emite. Un refresco conserva la suya.
         var sid = _sidConservado;
@@ -536,6 +560,8 @@ public class SignInManagerCuentaDesactivada(
     public override async Task<bool> CanSignInAsync(ApplicationUser user)
     {
         if (!await base.CanSignInAsync(user))
+            return false;
+        if (await estadoOperativo.EstaSuspendidoAsync(user.TenantId))
             return false;
         if (await vigilancia.PermiteOrigenAsync(user.Id, user.TenantId))
             return true;

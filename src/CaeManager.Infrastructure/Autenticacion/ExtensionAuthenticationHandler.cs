@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -41,7 +42,7 @@ public class ExtensionAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// </para>
 ///
 /// <para>
-/// <b>Cuatro motivos de rechazo que la cookie no comprueba en cada petición</b>
+/// <b>Cinco motivos de rechazo que la cookie no comprueba en cada petición</b>
 /// y aquí sí, deliberadamente, porque este credencial vive fuera del
 /// navegador y de sus protecciones:
 /// </para>
@@ -55,6 +56,8 @@ public class ExtensionAuthenticationSchemeOptions : AuthenticationSchemeOptions
 ///   Administrador sin 2FA). La UI lo hace cumplir en cada navegación con
 ///   <c>CuentaAMedioActivarSinAccesoMiddleware</c>; sin esta comprobación la
 ///   extensión sería la puerta que se salta esa exigencia.</item>
+///   <item>Tenant de la cuenta en suspensión operativa (decisión D-3): la cookie
+///   tarda hasta la siguiente revalidación; este credencial se corta al instante.</item>
 /// </list>
 /// </summary>
 public class ExtensionAuthenticationHandler(
@@ -64,7 +67,8 @@ public class ExtensionAuthenticationHandler(
     IDataProtectionProvider dataProtectionProvider,
     UserManager<ApplicationUser> userManager,
     IUserClaimsPrincipalFactory<ApplicationUser> fabricaPrincipal,
-    IRegistroSesionesUsuario sesiones)
+    IRegistroSesionesUsuario sesiones,
+    IEstadoOperativoTenant estadoOperativo)
     : AuthenticationHandler<ExtensionAuthenticationSchemeOptions>(options, logger, encoder)
 {
     private const string EsquemaCabecera = "Extension";
@@ -106,6 +110,9 @@ public class ExtensionAuthenticationHandler(
 
         if (await userManager.IsLockedOutAsync(usuario))
             return AuthenticateResult.Fail("La cuenta está bloqueada.");
+
+        if (await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId, Context.RequestAborted))
+            return AuthenticateResult.Fail("La organización está suspendida.");
 
         var principal = await fabricaPrincipal.CreateAsync(usuario);
 

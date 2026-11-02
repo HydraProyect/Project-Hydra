@@ -157,6 +157,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveIntegracionTenantRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_integracion({hashClave}) AS \"Value\"")""")] = 1,
 
+        // Rastro agregado de la API v1: suma atómica con ON CONFLICT, bajo RLS.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RastroUsoApi.cs",
+            "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+
         // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
         // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER
         // app_tenant_tiene_administrador_propio (migración 20261015180535), que devuelve solo un

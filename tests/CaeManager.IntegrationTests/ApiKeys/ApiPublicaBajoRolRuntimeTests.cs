@@ -3,6 +3,7 @@ using System.Security.Claims;
 using CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
@@ -153,6 +154,13 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
             "que la resolución hash→clave no sobrevive a la política RLS de ClavesApi");
         cuerpo.Should().Contain(RazonSocialDelCliente,
             "autenticar no basta: el tenant resuelto desde la clave tiene que ser el que ve su propia cartera");
+
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT \"TipoClave\" FROM \"UsosApiDiarios\";";
+        ((int)(await consulta.ExecuteScalarAsync())!).Should().Be((int)TipoClaveUsoApi.ClaveSoporte,
+            "el rastro distingue la Clave de Soporte de la Clave de Integración del Tenant");
     }
 
     /// <summary>
@@ -483,6 +491,7 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         app.MapGroup("/api/v1")
             .RequireAuthorization("ApiPublica")
             .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
+            .AddEndpointFilter<RastroUsoApiEndpointFilter>()
             .MapClientesApiEndpoints();
 
         await app.StartAsync();
