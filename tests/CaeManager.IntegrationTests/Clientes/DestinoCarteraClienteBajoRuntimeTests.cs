@@ -58,6 +58,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _consultaDelegada = Guid.NewGuid();
     private readonly Guid _gestorAjeno = Guid.NewGuid();
     private readonly Guid _gestorOperadorSinAsignacion = Guid.NewGuid();
+    private readonly Guid _cuentaSoporte = Guid.NewGuid();
 
     private Guid _clienteId;
 
@@ -109,6 +110,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         Cuenta(_consultaDelegada, _operadorExterno.Id, "GestorCae");
         Cuenta(_gestorAjeno, _ajeno.Id, "GestorCae");
         Cuenta(_gestorOperadorSinAsignacion, _operadorExterno.Id, "GestorCae");
+        Cuenta(_cuentaSoporte, _ajeno.Id, "Administrador");
 
         var raiz = AsignacionOperacion.Raiz(_propietario.Id, ServicioCae.Outbound, ahora.AddDays(-1), ahora);
         contexto.AsignacionesOperacion.Add(raiz);
@@ -123,6 +125,11 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
             new AsignacionOperadorDelegado(delegacion.Id, _otroGestorDelegado, "GestorCae"),
             new AsignacionOperadorDelegado(delegacion.Id, _coordinadorDelegado, "CoordinadorCae"),
             new AsignacionOperadorDelegado(delegacion.Id, _consultaDelegada, "Consulta"));
+
+        var soporte = DelegacionTenant.ParaSoporte(_ajeno.Id, _propietario.Id);
+        soporte.ActivarParaSoporte("Prueba de integración", ahora.AddHours(1), ahora);
+        contexto.DelegacionesTenant.Add(soporte);
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(soporte.Id, _cuentaSoporte, "Consulta"));
 
         var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, _gestorActual);
         contexto.Empresas.Add(cliente);
@@ -145,13 +152,15 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         var directorio = Directorio(contexto);
 
         (await directorio.ObtenerAsync(_gestorDelCoordinador)).Should()
-            .Be(new DestinoCartera(true, "GestorCae", _coordinador, EsOperadorDelegado: false));
+            .Be(new DestinoCartera(true, "GestorCae", _coordinador, EsOperadorDelegado: false, _propietario.Id));
         (await directorio.ObtenerAsync(_gestorDesactivado))!.Activa.Should().BeFalse();
         (await directorio.ObtenerAsync(_consulta))!.RolEfectivo.Should().Be("Consulta");
         (await directorio.ObtenerAsync(_gestorDelegado)).Should()
-            .Be(new DestinoCartera(true, "GestorCae", _coordinadorDelegado, EsOperadorDelegado: true));
+            .Be(new DestinoCartera(true, "GestorCae", _coordinadorDelegado, EsOperadorDelegado: true, _operadorExterno.Id, "GestorCae"));
         (await directorio.ObtenerAsync(_coordinadorDelegado))!.RolEfectivo.Should().Be(
             "CoordinadorCae", "el rol de Identity en su organización es GestorCae; aquí opera como Coordinador CAE");
+        (await directorio.ObtenerAsync(_coordinadorDelegado))!.PerfilDeOrigen.Should().Be(
+            "GestorCae", "bajo RLS el perfil de origen de la cuenta delegada se lee aparte de su rol guardado");
         (await directorio.ObtenerAsync(_gestorAjeno)).Should().BeNull("otro Tenant sin delegación vigente no es alcanzable");
         (await directorio.ObtenerAsync(_gestorOperadorSinAsignacion)).Should().BeNull(
             "la delegación del Operador CAE externo no alcanza a quien no tiene Asignación de Operador Delegado");
@@ -174,6 +183,21 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         (await directorio.ObtenerAsync(_gestorAjeno)).Should().BeNull();
         (await directorio.ObtenerAsync(_gestorOperadorSinAsignacion)).Should().BeNull();
         (await directorio.ObtenerAsync(_gestorDelegado))!.RolEfectivo.Should().Be("GestorCae", "control positivo");
+    }
+
+    /// <summary>
+    /// Sin RLS, para observar el filtro del directorio y no la visibilidad de la cuenta: el Soporte TALVEG
+    /// nunca sube a su perfil de origen (<c>RolEjercidoEnTenantBeneficiario</c>).
+    /// </summary>
+    [Fact]
+    public async Task El_Soporte_TALVEG_no_expone_perfil_de_origen()
+    {
+        await using var contexto = ContextoPropietario();
+
+        var soporte = await Directorio(contexto).ObtenerAsync(_cuentaSoporte);
+
+        soporte!.EsOperadorDelegado.Should().BeTrue("control: es una cuenta de otro Tenant con delegación vigente");
+        soporte.PerfilDeOrigen.Should().BeNull();
     }
 
     [Fact]

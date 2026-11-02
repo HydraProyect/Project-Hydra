@@ -251,7 +251,7 @@ public class IngestaWebhookServiceTests
         conexion.FijarResponsable(responsable);
 
         var conversacion = await IngerirHiloNuevoAsync(
-            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador),
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador, "CoordinadorCae"),
             ResponsableBuzonElegibleDePrueba.OperacionUniversal(tenant, operador), tenant,
             empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
 
@@ -269,7 +269,7 @@ public class IngestaWebhookServiceTests
         var log = new LogDeAvisos();
 
         var conversacion = await IngerirHiloNuevoAsync(
-            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador),
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador, "CoordinadorCae"),
             ResponsableBuzonElegibleDePrueba.OperacionUniversal(tenant, operador), tenant, log,
             ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
 

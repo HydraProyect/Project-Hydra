@@ -28,11 +28,10 @@ public enum MotivoResponsableNoElegible
 /// <item>activa;</item>
 /// <item>con un rol de gestión que escribe: ni el rol Cliente de portal ni Consulta responden un correo;</item>
 /// <item>con acceso al Cliente empresarial del buzón: Administrador y Dirección CAE lo tienen por su rol, sin más
-/// condición; Gestor CAE por su Asignación de Cartera; Coordinador CAE por la suya, la de su equipo o, si viene de un
-/// Operador CAE externo, por una Asignación de Operación del Tenant entero. Quien alcanza por el Tenant entero solo
-/// alcanza las Empresas que son Cliente empresarial (<c>EsCritico</c> informado), como
-/// <c>AlcanceDatosService.ObtenerClienteIdsVisiblesAsync</c>; bajo una operación acotada, solo la de esa operación.
-/// Un buzón sin Cliente empresarial es triage compartido
+/// condición; Gestor CAE por su Asignación de Cartera; Coordinador CAE por la suya, la de su equipo o, si entra por
+/// la vía de Operación, por el Tenant entero. Quien alcanza por el Tenant entero solo alcanza las Empresas que son
+/// Cliente empresarial (<c>EsCritico</c> informado), como <c>AlcanceDatosService.ObtenerClienteIdsVisiblesAsync</c>;
+/// bajo una operación acotada, solo la de esa operación. Un buzón sin Cliente empresarial es triage compartido
 /// (<see cref="AlcanceDatosServiceExtensions.ClienteOpcionalVisibleAsync"/>) y ahí decide solo el rol.</item>
 /// </list>
 ///
@@ -44,8 +43,16 @@ public enum MotivoResponsableNoElegible
 /// <para>
 /// <b>Solo deniega el enrutado, no restringe datos ni concede nada.</b> Quién ve qué lo sigue decidiendo
 /// <c>AlcanceDatosService</c>; esto repite su ámbito efectivo desde la posición de propietario para no dejar una
-/// conversación en manos de quien no la vería. Para una cuenta delegada mira el rol guardado en su Asignación de
-/// Operador Delegado, no el que ejerce (ver <see cref="DestinoCartera"/>): falla cerrado.
+/// conversación en manos de quien no la vería.
+/// </para>
+///
+/// <para>
+/// <b>Una cuenta de un Operador CAE externo se evalúa por la vía con la que entraría</b>
+/// (<c>CurrentUserService.ResolverRolParaAmbitoExplicitoAsync</c>), no por el rol guardado en su Asignación de Operador
+/// Delegado: por la vía de Operación rige su perfil de origen; el rol guardado solo rige por la vía heredada. Si el
+/// perfil no se puede determinar, o es Soporte TALVEG, no atiende (<see cref="DestinoCartera.PerfilDeOrigen"/>). Es el
+/// perfil de la cuenta: sin sesión no se conoce una restricción de login local, y ese usuario puede recibir una
+/// conversación que en esa sesión solo lea.
 /// </para>
 /// </summary>
 public class ResponsableBuzonElegible(
@@ -69,7 +76,10 @@ public class ResponsableBuzonElegible(
         if (destino is null) return MotivoResponsableNoElegible.NoAlcanzable;
         if (!destino.Activa) return MotivoResponsableNoElegible.Desactivado;
 
-        switch (destino.RolEfectivo)
+        var ahora = DateTime.UtcNow;
+        var acceso = await ResolverAccesoAsync(usuarioId, destino, ahora, cancellationToken);
+
+        switch (acceso.Rol)
         {
             case RolAdministrador or RolDireccionCae:
                 return null;
@@ -82,32 +92,62 @@ public class ResponsableBuzonElegible(
         if (buzon.ClienteId is not { } clienteEmpresarial)
             return null;
 
-        return await CarteraLoAlcanzaAsync(usuarioId, destino, clienteEmpresarial, cancellationToken)
+        return await AlcanzaAsync(usuarioId, destino, acceso, clienteEmpresarial, ahora, cancellationToken)
             ? null
             : MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa;
     }
 
-    private async Task<bool> CarteraLoAlcanzaAsync(
-        Guid usuarioId, DestinoCartera destino, Guid clienteEmpresarial, CancellationToken cancellationToken)
+    /// <summary>El rol con el que la cuenta entraría en el Tenant activo, y si entraría por una operación entera.</summary>
+    private readonly record struct AccesoEfectivo(string? Rol, bool TenantEnteroPorOperacion = false);
+
+    /// <summary>
+    /// <see cref="TenantsBeneficiariosAutorizados.OperacionesQueAutorizan"/> desde la posición de propietario: la vía de
+    /// Operación, si autoriza, manda sobre la heredada, también cuando discrepan los dos roles.
+    /// </summary>
+    private async Task<AccesoEfectivo> ResolverAccesoAsync(
+        Guid usuarioId, DestinoCartera destino, DateTime ahora, CancellationToken cancellationToken)
     {
-        if (tenantActual.TenantId is not { } propietarioTenantId || destino.TenantOrigenId is not { } operadorTenantId)
-            return false;
+        if (!destino.EsOperadorDelegado) return new(destino.RolEfectivo);
 
-        var ahora = DateTime.UtcNow;
-        var esCoordinador = destino.RolEfectivo == RolCoordinadorCae;
+        if (destino.PerfilDeOrigen is not { } perfil
+            || tenantActual.TenantId is not { } propietarioTenantId
+            || destino.TenantOrigenId is not { } operadorTenantId)
+            return new(null);
 
-        // Decisión del 2026-10-20: en un Tenant beneficiario, el Coordinador CAE de la organización que lo opera
-        // entero lo alcanza sin cartera (AlcanceDatosService.ObtenerAlcanceRealAsync).
-        if (esCoordinador && destino.EsOperadorDelegado
+        if (TenantsBeneficiariosAutorizados.RolesConAccesoPorOperacion.Contains(perfil)
             && await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
                 operaciones, operadorTenantId, propietarioTenantId, ahora, cancellationToken))
+            return new(perfil, TenantEnteroPorOperacion: true);
+
+        if (perfil == TenantsBeneficiariosAutorizados.RolAcotadoPorCartera
+            && await TenantsBeneficiariosAutorizados.CarterasPorOperacion(operaciones, usuarioId, operadorTenantId, ahora)
+                .AnyAsync(v => v.Operacion.PropietarioTenantId == propietarioTenantId, cancellationToken))
+            return new(perfil);
+
+        // Vía heredada: el rol guardado, con la lista blanca de CurrentUserService.ResolverRolViaHeredadaAsync.
+        return new(destino.RolEfectivo is { } guardado
+                   && TenantsBeneficiariosAutorizados.RolesDelegablesPorOperacion.Contains(guardado)
+            ? guardado
+            : null);
+    }
+
+    private async Task<bool> AlcanzaAsync(
+        Guid usuarioId, DestinoCartera destino, AccesoEfectivo acceso, Guid clienteEmpresarial, DateTime ahora,
+        CancellationToken cancellationToken)
+    {
+        // Decisión del 2026-10-20: en un Tenant beneficiario, el Coordinador CAE de la organización que lo opera
+        // entero lo alcanza sin cartera (AlcanceDatosService.ObtenerAlcanceRealAsync).
+        if (acceso.TenantEnteroPorOperacion)
             return await EsClienteEmpresarialAsync(clienteEmpresarial, cancellationToken);
+
+        if (tenantActual.TenantId is not { } propietarioTenantId || destino.TenantOrigenId is not { } operadorTenantId)
+            return false;
 
         // El equipo se lee desde su Tenant: el de un Coordinador CAE externo no es legible aquí, y sin él solo
         // cuenta su propia cartera. Las cuentas desactivadas del equipo también cuentan, como en
         // AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync.
         IReadOnlyCollection<Guid> personas = [usuarioId];
-        if (esCoordinador && !destino.EsOperadorDelegado)
+        if (acceso.Rol == RolCoordinadorCae && !destino.EsOperadorDelegado)
             personas = [usuarioId, .. (await equipoCoordinador.ObtenerEquipoAsync(usuarioId, cancellationToken)).Select(m => m.Id)];
 
         var ambitos = await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(

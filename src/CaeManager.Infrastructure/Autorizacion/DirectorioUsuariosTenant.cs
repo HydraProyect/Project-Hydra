@@ -855,6 +855,13 @@ public class DirectorioUsuariosTenant(
     /// 2026-10-20): ese solo cambió la etiqueta; alinear aquí la validación del destino de una
     /// cartera sería un cambio de permisos y queda fuera.
     /// </para>
+    ///
+    /// <para>
+    /// Su perfil de origen viaja aparte (<c>PerfilDeOrigen</c>), con la misma lectura de
+    /// <c>AspNetUserRoles</c> que <see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>,
+    /// y solo la cuenta ya alcanzable por su delegación vigente. El Soporte TALVEG no lo lleva, por el
+    /// mismo motivo que <c>RolEjercidoEnTenantBeneficiario</c>: nunca sube a su perfil de origen.
+    /// </para>
     /// </summary>
     public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(
         Guid usuarioId, CancellationToken cancellationToken = default) =>
@@ -873,16 +880,7 @@ public class DirectorioUsuariosTenant(
             var activa = !ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.LockoutEnd, DateTimeOffset.UtcNow);
 
             if (cuenta.TenantId == tenantId)
-            {
-                var roles = await (
-                    from usuarioRol in identidad.UserRoles
-                    where usuarioRol.UserId == usuarioId
-                    join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
-                    select rol.Name)
-                    .ToListAsync(cancellationToken);
-
-                return new(activa, roles.Count == 1 ? roles[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false, cuenta.TenantId);
-            }
+                return new(activa, await LeerRolUnicoAsync(usuarioId, cancellationToken), cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false, cuenta.TenantId);
 
             var rolesDelegados = await OperadoresDelegadosVigentes(tenantId)
                 .Where(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId)
@@ -895,8 +893,25 @@ public class DirectorioUsuariosTenant(
             // "inactiva" ni "sin rol", para no revelar nada de una cuenta ajena.
             if (rolesDelegados.Count == 0) return null;
 
-            return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true, cuenta.TenantId);
+            var esSoporte = await OperadoresDelegadosVigentes(tenantId)
+                .AnyAsync(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId && o.EsSoporte, cancellationToken);
+
+            return new(
+                activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true, cuenta.TenantId,
+                esSoporte ? null : await LeerRolUnicoAsync(usuarioId, cancellationToken));
         }, cancellationToken);
+
+    private async Task<string?> LeerRolUnicoAsync(Guid usuarioId, CancellationToken cancellationToken)
+    {
+        var roles = await (
+            from usuarioRol in identidad.UserRoles
+            where usuarioRol.UserId == usuarioId
+            join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+            select rol.Name)
+            .ToListAsync(cancellationToken);
+
+        return roles.Count == 1 ? roles[0] : null;
+    }
 
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await OperadoresDelegadosVigentes(tenantId)

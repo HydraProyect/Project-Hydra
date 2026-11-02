@@ -29,7 +29,7 @@ public class FijarResponsableBuzonCommandHandlerTests
         new(_conexiones, alcance ?? new AlcanceDatosServiceFalso(),
             new ResponsableBuzonElegible(
                 new DirectorioDestinosCarteraFalso(responsableVisible
-                    ? new DestinoCartera(responsableActivo, rolResponsable, null, delegado, delegado ? OperadorExterno : Tenant)
+                    ? new DestinoCartera(responsableActivo, rolResponsable, null, delegado, delegado ? OperadorExterno : Tenant, delegado ? rolResponsable : null)
                     : null)
                 { Eventos = eventos },
                 new EquipoVacio(), operaciones ?? new OperacionesEnMemoria([], []), empresas ?? new EmpresasQueryContextFalso(),

@@ -24,8 +24,9 @@ public interface IDirectorioDestinosCartera
 /// <param name="Activa">La cuenta no está desactivada.</param>
 /// <param name="RolEfectivo">
 /// El rol con el que la cuenta operaría en el Tenant activo: el de Identity si es
-/// propia, el de su Asignación de Operador Delegado si es de un Operador CAE
-/// externo. <c>null</c> si no hay exactamente uno (fallo cerrado).
+/// propia, el guardado en su Asignación de Operador Delegado si es de un Operador CAE
+/// externo, que solo rige por la vía heredada (ver <paramref name="PerfilDeOrigen"/>).
+/// <c>null</c> si no hay exactamente uno (fallo cerrado).
 /// </param>
 /// <param name="CoordinadorUsuarioId">El Coordinador CAE al que reporta, si lo tiene.</param>
 /// <param name="EsOperadorDelegado">Pertenece al Tenant de un Operador CAE externo, no al Tenant activo.</param>
@@ -33,8 +34,15 @@ public interface IDirectorioDestinosCartera
 /// El Tenant de la cuenta: el que debe operar la Asignación de Operación que ampara su cartera.
 /// <c>null</c> si quien construye el destino no lo sabe (fallo cerrado: sin él no hay cartera que comprobar).
 /// </param>
+/// <param name="PerfilDeOrigen">
+/// Solo de una cuenta de un Operador CAE externo: su rol de Identity en su Tenant, que es el que rige por la vía de
+/// Operación (<see cref="Tenants.TenantsBeneficiariosAutorizados.OperacionesQueAutorizan"/>). Es un hecho de la cuenta,
+/// no autoridad: quien lo use decide con él, sin ampliar un alcance. <c>null</c> en una cuenta propia, si no hay
+/// exactamente un rol o en Soporte TALVEG, que nunca sube a su perfil de origen.
+/// </param>
 public record DestinoCartera(
-    bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado, Guid? TenantOrigenId = null);
+    bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado, Guid? TenantOrigenId = null,
+    string? PerfilDeOrigen = null);
 
 /// <summary>
 /// Quién puede ser el Gestor CAE de referencia de un Cliente empresarial (FS-25, revisión Codex

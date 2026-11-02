@@ -96,7 +96,10 @@ public class ResponsableBuzonElegibleTests
 
     private static DestinoCartera Propio(string? rol) => new(true, rol, null, false, Propietario);
 
-    private static DestinoCartera Delegado(string? rol) => new(true, rol, null, true, OperadorExterno);
+    private static DestinoCartera Delegado(string? rol) => Delegado(guardado: rol, perfil: rol);
+
+    private static DestinoCartera Delegado(string? guardado, string? perfil) =>
+        new(true, guardado, null, true, OperadorExterno, perfil);
 
     private static T Vigente<T>(T asignacion) where T : class => ResponsableBuzonElegibleDePrueba.Vigente(asignacion);
 
@@ -168,7 +171,94 @@ public class ResponsableBuzonElegibleTests
     public async Task Administrador_y_Direccion_CAE_no_dependen_del_discriminador_de_la_Empresa(string rol)
     {
         (await EvaluarAsync(Propio(rol), cliente: EmpresaSinDiscriminador)).Should().BeNull();
-        (await EvaluarAsync(Delegado(rol), cliente: EmpresaSinDiscriminador)).Should().BeNull();
+    }
+
+    // Los dos sentidos en que el rol guardado discrepa del perfil de origen: por la vía de Operación rige el perfil.
+    [Fact]
+    public async Task Un_Gestor_CAE_en_origen_con_rol_guardado_Coordinador_CAE_no_alcanza_por_la_operacion_universal()
+    {
+        var universal = Externa(AmbitoAsignacion.Universal);
+        var clienteB = Guid.NewGuid();
+        var soloB = Externa(AmbitoAsignacion.DeRelacionCliente(clienteB));
+        var cartera = Externa(soloB, Gestor);
+        var destino = Delegado(guardado: "CoordinadorCae", perfil: "GestorCae");
+
+        (await EvaluarAsync(destino, [universal, soloB], [cartera], cliente: Empresa))
+            .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa);
+        (await EvaluarAsync(destino, [universal, soloB], [cartera], cliente: clienteB)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_en_origen_sin_cartera_no_alcanza_aunque_su_rol_guardado_sea_Coordinador_CAE()
+    {
+        (await EvaluarAsync(
+                Delegado(guardado: "CoordinadorCae", perfil: "GestorCae"), [Externa(AmbitoAsignacion.Universal)]))
+            .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa);
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Con_operacion_universal_el_perfil_de_origen_de_acceso_total_manda_sobre_el_rol_guardado(string perfil)
+    {
+        var destino = Delegado(guardado: "GestorCae", perfil);
+
+        (await EvaluarAsync(destino, [Externa(AmbitoAsignacion.Universal)], cliente: EmpresaSinDiscriminador)).Should().BeNull();
+        (await EvaluarAsync(destino, [Externa(AmbitoAsignacion.DeRelacionCliente(Empresa))]))
+            .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa, "sin operación entera rige el rol guardado");
+    }
+
+    [Fact]
+    public async Task Con_operacion_universal_un_perfil_de_origen_Consulta_no_atiende_aunque_su_rol_guardado_gestione()
+    {
+        (await EvaluarAsync(Delegado(guardado: "GestorCae", perfil: "Consulta"), [Externa(AmbitoAsignacion.Universal)]))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
+    }
+
+    [Fact]
+    public async Task Con_operacion_universal_un_Coordinador_CAE_en_origen_atiende_aunque_su_rol_guardado_sea_Consulta()
+    {
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "CoordinadorCae"), [Externa(AmbitoAsignacion.Universal)]))
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Con_cartera_un_Gestor_CAE_en_origen_atiende_aunque_su_rol_guardado_sea_Consulta()
+    {
+        var operacion = Externa(AmbitoAsignacion.Universal);
+
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "GestorCae"), [operacion], [Externa(operacion, Gestor)]))
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sin_via_de_Operacion_rige_el_rol_guardado_de_la_via_heredada()
+    {
+        var acotada = Externa(AmbitoAsignacion.DeRelacionCliente(Empresa));
+
+        (await EvaluarAsync(Delegado(guardado: "Consulta", perfil: "CoordinadorCae"), [acotada]))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Un_rol_guardado_de_Propiedad_no_concede_nada_por_la_via_heredada(string guardado)
+    {
+        (await EvaluarAsync(Delegado(guardado, perfil: "GestorCae"), cliente: EmpresaSinDiscriminador))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
+    }
+
+    [Fact]
+    public async Task Sin_perfil_de_origen_una_cuenta_delegada_no_atiende_ni_con_cartera_ni_en_un_buzon_sin_Empresa()
+    {
+        var operacion = Externa(AmbitoAsignacion.Universal);
+        var cartera = Externa(operacion, Gestor);
+        var destino = Delegado(guardado: "CoordinadorCae", perfil: null);
+
+        (await EvaluarAsync(destino, [operacion], [cartera])).Should().Be(MotivoResponsableNoElegible.RolSinGestion);
+        (await EvaluarAsync(destino, [operacion], [cartera], conEmpresa: false))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
     }
 
     [Theory]
@@ -407,5 +497,11 @@ public class ResponsableBuzonElegibleTests
         (await ResponsableBuzonElegibleDePrueba.Con(Propio("GestorCae") with { TenantOrigenId = null }, operaciones, Propietario)
                 .EvaluarAsync(Gestor, Buzon(Empresa), default))
             .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa);
+        (await ResponsableBuzonElegibleDePrueba.Con(Delegado("GestorCae"), operaciones, tenantActual: null)
+                .EvaluarAsync(Gestor, Buzon(Empresa), default))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
+        (await ResponsableBuzonElegibleDePrueba.Con(Delegado("GestorCae") with { TenantOrigenId = null }, operaciones, Propietario)
+                .EvaluarAsync(Gestor, Buzon(Empresa), default))
+            .Should().Be(MotivoResponsableNoElegible.RolSinGestion);
     }
 }
