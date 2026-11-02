@@ -39,7 +39,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// </summary>
 public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IOptions<OpcionesLimitesImportacion>? limites = null) : IPlantillaClientesService
 {
-    private const string NombreHoja = "Clientes";
+    private const string NombreHoja = MotivosDeOmision.HojaClientes;
     private const int FilaCabecera = 1;
     private const int PrimeraFilaDatos = 2;
     private const string MarcadorEjemplo = "EJEMPLO";
@@ -124,7 +124,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
             {
                 omitidos.Add(new ItemImportacionDto(
                     NombreHoja, fila, nombre,
-                    "Este Cliente no existe todavía. Ahora requiere una identificación fiscal (CIF, DNI o NIE), que esta plantilla no recoge — créalo manualmente en Clientes."));
+                    MotivosDeOmision.ClienteNoExiste));
                 continue;
             }
 
@@ -132,7 +132,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
             {
                 omitidos.Add(new ItemImportacionDto(
                     NombreHoja, fila, nombre,
-                    "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
+                    MotivosDeOmision.CentroNoExiste));
                 continue;
             }
 

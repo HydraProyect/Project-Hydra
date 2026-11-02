@@ -23,13 +23,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext)
 {
-    private const string HojaDocumentos = "Documentos";
-    private const string HojaClientes = "Clientes";
     private const string SeparadorElemento = " — ";
-    private const string MotivoSinCliente =
-        "Este Cliente no existe todavía. Ahora requiere una identificación fiscal (CIF, DNI o NIE), que esta plantilla no recoge — créalo manualmente en Clientes.";
-    private const string MotivoSinTrabajador =
-        "No existe ningún trabajador con este DNI. Da de alta al trabajador antes de importar sus documentos.";
 
     private static string ClaveCentro(string cliente, string centro) => cliente + "\u001f" + centro;
 
@@ -55,7 +49,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
             foreach (var c in plan.ClientesCentros)
             {
                 if (!e.Clientes.Contains(c.Nombre))
-                    omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre, MotivoSinCliente));
+                    omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre, MotivosDeOmision.ClienteNoExiste));
                 else if (!e.Centros.Contains(c.Nombre))
                     omitidos.Add(new ItemImportacionDto(c.Hoja, c.Fila, c.Nombre,
                         "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
@@ -72,7 +66,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
                 if (e.Dnis.Contains(d.Dni))
                     visibles.Add(d);
                 else
-                    omitidos.Add(new ItemImportacionDto(d.Hoja, d.Fila, d.Dni, MotivoSinTrabajador));
+                    omitidos.Add(new ItemImportacionDto(d.Hoja, d.Fila, d.Dni, MotivosDeOmision.TrabajadorNoExiste));
             }
             documentos = visibles;
         }
@@ -80,11 +74,11 @@ public sealed class RecorteDeAnalisisAlAmbito(
         // duplicada; o «el centro no existe» solo si el Cliente existe): el mensaje distinto delata que el DNI o el Cliente
         // existen. Fuera del ámbito se sustituyen por el omitido de la inexistencia, con el mismo texto y la misma fila.
         if (plan.Empresas.Count == 0 && plan.Trabajadores.Count == 0 && plan.ClientesCentros.Count == 0)
-            omitidos = [.. omitidos.Select(o => EsOmitidoPosteriorDeDocumento(o, e) ? o with { Descripcion = DniDe(o), Motivo = MotivoSinTrabajador } : o)];
+            omitidos = [.. omitidos.Select(o => EsOmitidoPosteriorDeDocumento(o, e) ? o with { Descripcion = DniDe(o), Motivo = MotivosDeOmision.TrabajadorNoExiste } : o)];
         if (plan.Empresas.Count == 0 && plan.Trabajadores.Count == 0 && plan.Documentos.Count == 0)
-            omitidos = [.. omitidos.Select(o => o.Hoja == HojaClientes
-                && o.Motivo.StartsWith("Este centro no existe todavía", StringComparison.Ordinal)
-                && !e.Clientes.Contains(o.Descripcion) ? o with { Motivo = MotivoSinCliente } : o)];
+            omitidos = [.. omitidos.Select(o => o.Hoja == MotivosDeOmision.HojaClientes
+                && o.Motivo.StartsWith(MotivosDeOmision.PrefijoCentroNoExiste, StringComparison.Ordinal)
+                && !e.Clientes.Contains(o.Descripcion) ? o with { Motivo = MotivosDeOmision.ClienteNoExiste } : o)];
         omitidos = [.. omitidos.OrderBy(o => o.Fila)];
 
         return plan with
@@ -109,11 +103,11 @@ public sealed class RecorteDeAnalisisAlAmbito(
     private static string DniDe(ItemImportacionDto o) => o.Descripcion.Split(SeparadorElemento, 2)[0];
 
     private static bool EsOmitidoPosteriorDeDocumento(ItemImportacionDto o, Existentes e) =>
-        o.Hoja == HojaDocumentos
+        o.Hoja == MotivosDeOmision.HojaDocumentos
         && !e.Dnis.Contains(DniDe(o))
-        && (o.Motivo.StartsWith("No existe este tipo de documento", StringComparison.Ordinal)
-            || o.Motivo.StartsWith("La fecha de emisión", StringComparison.Ordinal)
-            || o.Motivo.StartsWith("Fila duplicada dentro del propio archivo", StringComparison.Ordinal));
+        && (o.Motivo.StartsWith(MotivosDeOmision.TipoDocumentoNoExiste, StringComparison.Ordinal)
+            || o.Motivo.StartsWith(MotivosDeOmision.PrefijoFechaEmisionFutura, StringComparison.Ordinal)
+            || o.Motivo.StartsWith(MotivosDeOmision.FilaDuplicadaEnElArchivo, StringComparison.Ordinal));
 
     public async Task<PlanImportacionCombinadaDto> RecortarAsync(PlanImportacionCombinadaDto plan, CancellationToken cancellationToken)
     {

@@ -179,12 +179,15 @@ public class RecorteDeAnalisisAlAmbitoTests
         omitido.Motivo.Should().StartWith("No existe ningún trabajador con este DNI.");
     }
 
-    [Fact]
-    public async Task Plantilla_de_documentos_conserva_el_motivo_posterior_de_un_DNI_dentro_de_ambito()
+    [Theory]
+    [InlineData("No existe este tipo de documento en el catálogo del sistema.")]
+    [InlineData("La fecha de emisión (01/01/2099) es futura; no se puede importar.")]
+    [InlineData("Fila duplicada dentro del propio archivo.")]
+    public async Task Plantilla_de_documentos_conserva_el_motivo_posterior_de_un_DNI_dentro_de_ambito(string motivo)
     {
         var escenario = Existente();
         var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [escenario.TrabajadorExistente!.Id]);
-        var original = new ItemImportacionDto("Documentos", 5, $"{EscenarioImportacion.DniConocido} — Tipo", "No existe este tipo de documento en el catálogo del sistema.");
+        var original = new ItemImportacionDto("Documentos", 5, $"{EscenarioImportacion.DniConocido} — Tipo", motivo);
         var plan = EscenarioImportacion.Plan() with { Omitidos = [original] };
 
         var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
