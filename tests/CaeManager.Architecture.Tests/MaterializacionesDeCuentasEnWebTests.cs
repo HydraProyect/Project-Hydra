@@ -49,9 +49,7 @@ public class MaterializacionesDeCuentasEnWebTests
         ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/Login.razor"] = 1,
         ["src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor"] = 1,
-        // Dos: la cuenta del enlace al abrir la página y su relectura dentro del cerrojo de credencial,
-        // para verificar el token y cambiar la contraseña sobre lo que hay en la base en ese instante.
-        ["src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs"] = 2,
+        ["src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs"] = 1,
         ["src/CaeManager.Web/Services/CurrentUserService.cs"] = 1,
         ["src/CaeManager.Web/Services/RecuperacionContrasena.cs"] = 1,
         // La lista de /usuarios: calcula «pendiente de activación» con la contraseña.

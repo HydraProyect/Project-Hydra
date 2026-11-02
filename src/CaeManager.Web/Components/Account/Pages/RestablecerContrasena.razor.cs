@@ -182,25 +182,19 @@ public partial class RestablecerContrasena : ComponentBase
         // OnInitializedAsync) y ANTES de tocar ResetPasswordAsync: el
         // competidor se rechaza sin gastar ningún intento contra Identity.
         //
-        // Un ámbito de servicios propio, como VigilanciaInicioSesionService: _usuario se leyó antes del
-        // cerrojo y el contexto de la petición lo tiene rastreado, así que FindByIdAsync devolvería esa
-        // misma instancia con su sello antiguo y un enlace gastado seguiría verificando. La revocación va
-        // en este ámbito porque rotar el sello con la instancia antigua chocaría con el cambio de contraseña.
+        // En un ámbito de servicios propio: _usuario se leyó antes del cerrojo y el contexto de la petición
+        // lo tiene rastreado (ver AmbitoDeCredencial).
         IdentityResult? resultadoObtenido = null;
         var enlaceGastado = false;
-        await using var ambito = Ambitos.CreateAsyncScope();
-        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var sesiones = ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>();
+        await using var credencial = AmbitoDeCredencial.Abrir(Ambitos);
         var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
             $"credencial:{_usuario.Id}",
             async _ =>
             {
                 // Lo primero, antes de revocar: otro restablecimiento pudo gastar el enlace entre la
                 // prevalidación y el cerrojo, y con un enlace gastado no se revoca nada.
-                var cuenta = await usuarios.FindByIdAsync(_usuario.Id.ToString());
-                if (cuenta is null || !await usuarios.VerifyUserTokenAsync(
-                        cuenta, usuarios.Options.Tokens.PasswordResetTokenProvider,
-                        UserManager<ApplicationUser>.ResetPasswordTokenPurpose, _token))
+                var cuenta = await credencial.ReleerSiElEnlaceValeAsync(_usuario.Id, _token);
+                if (cuenta is null)
                 {
                     enlaceGastado = true;
                     return;
@@ -214,7 +208,7 @@ public partial class RestablecerContrasena : ComponentBase
                 // Si lo que falla es ResetPasswordAsync, la cuenta queda sin sesiones y con su contraseña,
                 // el lado seguro. CerrarLasDemasAsync porque no rota el sello: el token depende de él, y
                 // CerrarTodasAsync lo invalidaría antes de usarlo. Sin sesión conservada, revoca todas.
-                await sesiones.CerrarLasDemasAsync(cuenta.Id, null);
+                await credencial.Sesiones.CerrarLasDemasAsync(cuenta.Id, null);
 
                 // Se fija ANTES de ResetPasswordAsync, sobre la misma
                 // instancia de la cuenta que la operación va a actualizar:
@@ -227,7 +221,7 @@ public partial class RestablecerContrasena : ComponentBase
                 // persiste en base de datos ni la contraseña ni esta bandera
                 // — porque Identity no llega a guardar.
                 cuenta.DebeCambiarContrasena = false;
-                resultadoObtenido = await usuarios.ResetPasswordAsync(cuenta, _token, Entrada.ContrasenaNueva);
+                resultadoObtenido = await credencial.RestablecerAsync(cuenta, _token, Entrada.ContrasenaNueva);
             },
             CancellationToken.None);
 
@@ -276,7 +270,7 @@ public partial class RestablecerContrasena : ComponentBase
         // nuevo. Un fallo se propaga, como en CierreSesionEnServidor: la página no dice «actualizada» con
         // sesiones abiertas. La contraseña ya cambió y este enlace ya no vuelve a servir, pero solo quedan
         // sin revocar las de esa ventana, hasta otro restablecimiento con un enlace nuevo.
-        await sesiones.CerrarTodasAsync(_usuario.Id);
+        await credencial.Sesiones.CerrarTodasAsync(_usuario.Id);
 
         await SignInManager.SignOutAsync();
         _completado = true;
