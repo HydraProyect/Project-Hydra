@@ -444,6 +444,20 @@ public class RespuestaSugeridaTests
     }
 
     [Fact]
+    public async Task Dos_entrantes_con_la_misma_fecha_dan_siempre_el_mismo_origen()
+    {
+        var conversacion = Hilo();
+        var primero = conversacion.Mensajes.Single();
+        var segundo = Entrante(conversacion, primero.FechaUtc);
+        var esperado = primero.Id.CompareTo(segundo.Id) > 0 ? primero : segundo;
+        _redaccion.Respuesta = Result.Exito("Recibido.");
+
+        await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle().Which.MensajeOrigenId.Should().Be(esperado.Id);
+    }
+
+    [Fact]
     public async Task Si_mientras_Vega_redacta_entra_un_automatico_la_sugerencia_se_guarda()
     {
         var conversacion = Hilo();

@@ -81,16 +81,18 @@ public class GenerarRespuestaSugeridaCommandHandler(
         if (conversacion.Estado is EstadoConversacion.Resuelta or EstadoConversacion.Cerrada)
             return Result.Fallo<Guid>(NoProcede);
 
+        // Antes de elegir el último: un mensaje que entre entre las dos lecturas hace que el recuento no cuadre al guardar.
+        var mensajesAlEmpezar = await ContarMensajesAsync(conversacion.Id, cancellationToken);
+
         // Con la misma fecha, que Graph da al segundo, gana la salida: el hilo puede estar ya contestado.
         var ultimoMensaje = await comunicaciones.Mensajes
             .Where(m => m.ConversacionId == conversacion.Id && !m.EsAutomatico)
             .OrderByDescending(m => m.FechaUtc)
             .ThenBy(m => m.Direccion == DireccionMensaje.Entrante)
+            .ThenByDescending(m => m.Id)
             .FirstOrDefaultAsync(cancellationToken);
         if (ultimoMensaje is null || ultimoMensaje.Direccion != DireccionMensaje.Entrante)
             return Result.Fallo<Guid>(NoProcede);
-
-        var mensajesAlEmpezar = await ContarMensajesAsync(conversacion.Id, cancellationToken);
 
         var activa = await comunicaciones.RespuestasSugeridas
             .Where(r => r.ConversacionId == conversacion.Id &&
