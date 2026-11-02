@@ -880,6 +880,12 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         _consultas.Reiniciar();
         await ValidarAsync(principal);
         var soloValidar = _consultas.Total;
+        var textosAlValidar = _consultas.Textos.ToList();
+
+        _consultas.Reiniciar();
+        using (AmbitoTenantExplicito.Establecer(_tenant))
+            await ValidarAsync(principal);
+        var validarConTenant = _consultas.Total;
 
         // Lo que añade la cookie cuando la validación sale bien: reconstruir el
         // principal (roles, claims) para renovar el ticket.
@@ -893,15 +899,23 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         }
         var conRenovacionDeCookie = _consultas.Total;
 
-        salida.WriteLine($"CONSULTAS: revalidar circuito = {soloValidar}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
+        salida.WriteLine($"CONSULTAS: revalidar sin Tenant = {soloValidar}; con Tenant = {validarConTenant}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
 
-        // Presupuesto, no una medida exacta: validar lee el usuario y pregunta
-        // si su sesión sigue sin revocar (app_sesion_vigente); reconstruir el
-        // principal añade roles, claims y el ajuste del Tenant. El circuito y
-        // la cookie hacen ambas cosas en cada ciclo. Si esto crece sin querer,
-        // el coste por sesión activa y minuto deja de ser el medido.
-        soloValidar.Should().BeLessThanOrEqualTo(2);
+        // Presupuesto, no una medida exacta, con el almacén real (AlmacenUsuarios).
+        // Validar sin Tenant en el contexto, como el SecurityStampValidator de la
+        // cookie, resuelve el Tenant de la cuenta (app_tenant_de_cuenta: sin él la
+        // RLS de AspNetUsers no la deja ver), lee la cuenta y pregunta si su sesión
+        // sigue sin revocar (app_sesion_vigente); con Tenant sobra la primera.
+        // Reconstruir el principal añade roles, claims y el ajuste del Tenant. El
+        // circuito y la cookie hacen ambas cosas en cada ciclo. Si esto crece sin
+        // querer, el coste por sesión activa y minuto deja de ser el medido. El
+        // sello llega con la lectura de la cuenta: otra lectura suya sería redundante.
+        soloValidar.Should().BeLessThanOrEqualTo(3);
+        validarConTenant.Should().BeLessThanOrEqualTo(2);
         conRenovacionDeCookie.Should().BeLessThanOrEqualTo(8);
+        textosAlValidar.Should().ContainSingle(t => t.Contains("app_tenant_de_cuenta"));
+        textosAlValidar.Should().ContainSingle(t => t.Contains("app_sesion_vigente"));
+        textosAlValidar.Should().ContainSingle(t => t.Contains("SecurityStamp"));
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(string email)
@@ -1078,13 +1092,20 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     {
         private int _total;
         public int Total => Volatile.Read(ref _total);
-        public void Reiniciar() => Interlocked.Exchange(ref _total, 0);
+        public System.Collections.Concurrent.ConcurrentQueue<string> Textos { get; } = new();
+
+        public void Reiniciar()
+        {
+            Interlocked.Exchange(ref _total, 0);
+            Textos.Clear();
+        }
 
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand comando, CommandEventData datos, InterceptionResult<DbDataReader> resultado,
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _total);
+            Textos.Enqueue(comando.CommandText);
             return base.ReaderExecutingAsync(comando, datos, resultado, cancellationToken);
         }
     }

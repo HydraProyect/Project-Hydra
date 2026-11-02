@@ -49,12 +49,40 @@ public class SelloSeguridadCuentaBajoRuntimeTests
     }
 
     /// <summary>
-    /// La cuenta actual es otra para que no entre por la rama de «la propia cuenta» de la política. El filtro
-    /// global de EF ya no deja pasar la cuenta en otro Tenant, así que la última comprobación lo quita: lo que
-    /// queda es la RLS con la identidad de la aplicación.
+    /// La cuenta actual es otra y su Tenant de origen también, para no entrar por las ramas de «la propia
+    /// cuenta» ni de «el Tenant de origen» de <c>cuentas_lectura</c>. <c>AspNetUsers</c> no tiene filtro
+    /// global de EF, así que la última comprobación, sin el predicado de la clase, mide solo la RLS con la
+    /// identidad de la aplicación.
     /// </summary>
     [Fact]
     public async Task Fuera_de_su_Tenant_propietario_la_RLS_no_deja_ver_la_cuenta()
+    {
+        var cuenta = Guid.NewGuid();
+        var otraCuenta = Guid.NewGuid();
+        var otroTenant = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(otraCuenta, usuarioActual: otraCuenta, tenantActual: TenantA, tenantOrigen: Guid.NewGuid());
+        await CrearCuentaAsync(arnes, cuenta);
+        var sello = await SelloEnLaBaseAsync(arnes, cuenta);
+
+        using var ambito = arnes.Servicios.CreateScope();
+        var sellos = ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>();
+        (await sellos.EsVigenteAsync(cuenta, TenantA, sello)).Should().BeTrue("control: en su Tenant sí coincide");
+        (await sellos.EsVigenteAsync(cuenta, otroTenant, sello)).Should().BeFalse("la RLS no se abre por comparar un sello");
+
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+            (await contexto.Users.AsNoTracking().AnyAsync(u => u.Id == cuenta)).Should().BeTrue("control sin el predicado de la clase");
+        using (AmbitoTenantExplicito.Establecer(otroTenant))
+            (await contexto.Users.AsNoTracking().AnyAsync(u => u.Id == cuenta)).Should().BeFalse("sin el predicado de la clase, solo queda la RLS");
+    }
+
+    /// <summary>
+    /// Una sesión de la misma organización que declara otro Tenant: el Tenant explícito se aplica a la
+    /// conexión, pero la rama del Tenant de origen de <c>cuentas_lectura</c> sigue abriendo la fila. El
+    /// control lo demuestra; quien impide comparar fuera del Tenant declarado es el predicado de la clase.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_fila_abierta_por_el_Tenant_de_origen_no_compara_fuera_del_Tenant_declarado()
     {
         var cuenta = Guid.NewGuid();
         var otraCuenta = Guid.NewGuid();
@@ -66,13 +94,11 @@ public class SelloSeguridadCuentaBajoRuntimeTests
         using var ambito = arnes.Servicios.CreateScope();
         var sellos = ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>();
         (await sellos.EsVigenteAsync(cuenta, TenantA, sello)).Should().BeTrue("control: en su Tenant sí coincide");
-        (await sellos.EsVigenteAsync(cuenta, otroTenant, sello)).Should().BeFalse("la RLS no se abre por comparar un sello");
+        (await sellos.EsVigenteAsync(cuenta, otroTenant, sello)).Should().BeFalse("el sello se compara en el Tenant declarado");
 
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-        using (AmbitoTenantExplicito.Establecer(TenantA))
-            (await contexto.Users.IgnoreQueryFilters().AsNoTracking().AnyAsync(u => u.Id == cuenta)).Should().BeTrue("control sin el filtro de EF");
         using (AmbitoTenantExplicito.Establecer(otroTenant))
-            (await contexto.Users.IgnoreQueryFilters().AsNoTracking().AnyAsync(u => u.Id == cuenta)).Should().BeFalse("sin el filtro de EF, solo queda la RLS");
+            (await contexto.Users.AsNoTracking().AnyAsync(u => u.Id == cuenta)).Should().BeTrue("control: la rama del Tenant de origen abre la fila");
     }
 
     /// <summary>
@@ -120,11 +146,14 @@ public class SelloSeguridadCuentaBajoRuntimeTests
         CrearArnesAsync(cuenta, usuarioActual: cuenta, tenantActual: TenantA);
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid actor, Guid? usuarioActual, Guid? tenantActual) =>
+        CrearArnesAsync(actor, usuarioActual, tenantActual, tenantOrigen: tenantActual);
+
+    private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid actor, Guid? usuarioActual, Guid? tenantActual, Guid? tenantOrigen) =>
         ArnesDeArranqueRuntime.CrearAsync(
             datosDePruebaActivos: false,
             tenantActualPersonalizado: new TenantFijo(tenantActual),
             actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(actor)),
-            currentUserServicePersonalizado: new UsuarioFijo(usuarioActual, tenantActual),
+            currentUserServicePersonalizado: new UsuarioFijo(usuarioActual, tenantOrigen),
             serviciosAdicionales: s => s.AddScoped<ISelloSeguridadCuenta, SelloSeguridadCuenta>());
 
     private static async Task<string> SelloEnLaBaseAsync(ArnesDeArranqueRuntime arnes, Guid cuenta)

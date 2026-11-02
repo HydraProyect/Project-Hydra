@@ -14,7 +14,8 @@ public interface ISelloSeguridadCuenta
     /// <summary>
     /// ¿Es <paramref name="sello"/> el que hay ahora en la base? Se pregunta sin pasar por la entidad
     /// rastreada de la petición, que pudo cargarse antes de un cambio de credencial. Falla en cerrado: un
-    /// sello nulo o vacío, o una cuenta que no se encuentra, no son vigentes.
+    /// sello nulo o vacío, o una cuenta que no se encuentra en <paramref name="tenantPropietarioId"/>, no
+    /// son vigentes.
     /// </summary>
     Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default);
 
@@ -45,7 +46,10 @@ public interface ISelloSeguridadCuenta
 /// <b>Lectura.</b> En un ámbito propio bajo <see cref="AmbitoTenantExplicito"/> con el Tenant propietario
 /// de la cuenta, como <see cref="RegistroSesionesUsuario.RegistrarAsync"/>: se llama desde el inicio de
 /// sesión, sin Tenant en el contexto, y desde un refresco, que puede tener abierto otro Workspace
-/// operativo derivado. La respuesta es un booleano para que el sello no salga de aquí.
+/// operativo derivado. La respuesta es un booleano para que el sello no salga de aquí. El Tenant
+/// explícito no basta para acotar la comparación: <c>cuentas_lectura</c> es una unión de ramas, y la
+/// conexión sigue llevando la cuenta y el Tenant de origen de la sesión, que abren la fila aunque el
+/// Tenant explícito sea otro. Por eso el predicado nombra también el Tenant propietario.
 /// </para>
 /// </summary>
 public sealed class SelloSeguridadCuenta(IServiceScopeFactory ambitos) : ISelloSeguridadCuenta
@@ -62,7 +66,7 @@ public sealed class SelloSeguridadCuenta(IServiceScopeFactory ambitos) : ISelloS
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return await contexto.Users
             .AsNoTracking()
-            .AnyAsync(u => u.Id == usuarioId && u.SecurityStamp == sello, ct);
+            .AnyAsync(u => u.Id == usuarioId && u.TenantId == tenantPropietarioId && u.SecurityStamp == sello, ct);
     }
 
     // Se conserva el primero: una petición puede rotar el sello más de una vez, y el de la cookie es el
