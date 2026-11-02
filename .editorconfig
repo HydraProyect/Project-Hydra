@@ -1,0 +1,15 @@
+# MJ-07 (2026-11-02). No existía; el rigor de compilación sale de -warnaserror en ci.yml.
+# Solo reglas de edición que no cambian el comportamiento de la compilación. No fija
+# end_of_line: el repositorio mezcla CRLF y LF según core.autocrlf y .gitattributes manda.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+insert_final_newline = true
+
+[*.{cs,razor}]
+indent_size = 4
+
+[*.{csproj,props,targets,json,yml,yaml,resx,xml}]
+indent_size = 2
