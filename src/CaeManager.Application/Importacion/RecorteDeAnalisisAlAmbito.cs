@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Importacion;
 
 /// <summary>
-/// Recorta al ámbito del acto la vista previa de una carga masiva. Los analizadores marcan <c>YaExiste</c> contra el Tenant
+/// Recorta al ámbito del acto la vista previa de las plantillas de Importación, Clientes y Documentos (la combinada recibe lo
+/// existente en el ámbito, <see cref="ObtenerExistentesAsync"/>, y analiza ya con ello). Los analizadores marcan <c>YaExiste</c> contra el Tenant
 /// entero; con autoridad <see cref="AutoridadCargaMasiva.Acotada"/> eso sería un oráculo de existencia («este DNI, este CIF,
 /// este Centro ya existen») sobre datos que el Coordinador CAE no puede ver. Aquí una fila solo conserva <c>YaExiste</c> si
 /// lo existente está dentro de su ámbito; lo de fuera se presenta como nuevo, igual que lo que no existe, y la ejecución lo

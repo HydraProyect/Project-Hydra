@@ -111,7 +111,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
     }
 
     public async Task<PlanImportacionCombinadaDto> AnalizarAsync(
-        Stream archivo, ExistentesEnAmbito? ambito = null, CancellationToken cancellationToken = default)
+        Stream archivo, ExistentesEnAmbito? ambito, CancellationToken cancellationToken = default)
     {
         // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
         InspectorXlsxSeguro.Verificar(archivo, limites?.Value);

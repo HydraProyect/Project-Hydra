@@ -12,9 +12,9 @@ public interface IPlantillaCombinadaService
 
     /// <param name="archivo">El libro a analizar.</param>
     /// <param name="ambito">
-    /// Con autoridad acotada, lo existente que el acto puede ver: lo demás se trata como inexistente (mismos avisos, mismas
+    /// OBLIGATORIO a propósito (sin valor por defecto: omitirlo abriría la vista previa a todo el Tenant). Con autoridad acotada, lo existente que el acto puede ver: lo demás se trata como inexistente (mismos avisos, mismas
     /// asociaciones, mismas filas). Null (autoridad Total) analiza contra todo lo que existe en el Tenant.
     /// </param>
     Task<PlanImportacionCombinadaDto> AnalizarAsync(
-        Stream archivo, ExistentesEnAmbito? ambito = null, CancellationToken cancellationToken = default);
+        Stream archivo, ExistentesEnAmbito? ambito, CancellationToken cancellationToken = default);
 }

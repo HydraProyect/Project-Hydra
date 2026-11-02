@@ -288,7 +288,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);
         flujo.Position = 0;
-        return await servicio.AnalizarAsync(flujo);
+        return await servicio.AnalizarAsync(flujo, null);
     }
 
     private async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(PlanImportacionCombinadaDto plan, bool reemplazar = false)

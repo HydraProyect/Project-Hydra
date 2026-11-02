@@ -113,7 +113,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         var fuera = await DocumentosAsync(Mundo.ConLoExistente(), visible: false, tipo, fecha);
         var inexistente = await DocumentosAsync(new Mundo(), visible: false, tipo, fecha);
 
-        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId));
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
     }
 
     [Fact]
@@ -147,7 +147,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         var fuera = await ClientesAsync(m, visible: false, ClienteExistente);
         var inexistente = await ClientesAsync(new Mundo(), visible: false, ClienteExistente);
 
-        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId));
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         var fuera = await CombinadaAsync(Mundo.ConLoExistente(), visible: false);
         var inexistente = await CombinadaAsync(new Mundo(), visible: false);
 
-        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId));
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
     }
 
     [Fact]
@@ -212,10 +212,77 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
     }
 
     [Fact]
+    public async Task Combinada_el_CIF_de_un_Cliente_fuera_de_ambito_no_figura_como_existente()
+    {
+        var m = Mundo.ConLoExistente();
+        var libro = new XLWorkbook();
+        var clientes = libro.Worksheets.Add("Clientes");
+        clientes.Cell(2, 1).Value = "Cliente Con El Mismo CIF S.A.";
+        clientes.Cell(2, 2).Value = "B12345674"; // el CIF del Cliente existente
+        libro.Worksheets.Add("Empresas");
+        libro.Worksheets.Add("Centros");
+        libro.Worksheets.Add("Trabajadores");
+        var servicio = new ClosedXmlPlantillaCombinadaService(m.Centros, m.Empresas, m.Trabajadores);
+
+        using var flujoFuera = Flujo(libro);
+        var fuera = await servicio.AnalizarAsync(flujoFuera, await Recorte(m, visible: false).ObtenerExistentesAsync(default));
+        using var flujoVisible = Flujo(libro);
+        var visible = await servicio.AnalizarAsync(flujoVisible, await Recorte(m, visible: true).ObtenerExistentesAsync(default));
+
+        fuera.Clientes.Single().YaExiste.Should().BeFalse("el CIF existe, pero en un Cliente fuera del ámbito");
+        visible.Clientes.Single().YaExiste.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Combinada_el_DNI_y_la_Empresa_fuera_de_ambito_no_figuran_como_existentes_con_el_resto_visible()
+    {
+        // Mundo mixto: la Empresa y el Cliente están en el ámbito; el Trabajador con ese DNI y la Empresa homónima de la hoja no.
+        var m = Mundo.ConLoExistente();
+        var alcance = new AlcanceDatosServiceFalso(
+            clienteIds: [m.Cliente.Id], trabajadorIds: [], empresaIdsParaGestion: [m.Empresa.Id], centroIdsParaGestion: [m.Centro.Id]);
+        var recorte = new RecorteDeAnalisisAlAmbito(
+            new AutoridadAcotada(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
+        var libro = new XLWorkbook();
+        libro.Worksheets.Add("Clientes");
+        var empresas = libro.Worksheets.Add("Empresas");
+        empresas.Cell(2, 1).Value = EmpresaExistente;
+        libro.Worksheets.Add("Centros");
+        var trabajadores = libro.Worksheets.Add("Trabajadores");
+        trabajadores.Cell(2, 1).Value = "Marta";
+        trabajadores.Cell(2, 2).Value = "Ruiz";
+        trabajadores.Cell(2, 3).Value = Dni;
+        trabajadores.Cell(2, 4).Value = EmpresaExistente;
+        var servicio = new ClosedXmlPlantillaCombinadaService(m.Centros, m.Empresas, m.Trabajadores);
+        using var flujo = Flujo(libro);
+
+        var plan = await servicio.AnalizarAsync(flujo, await recorte.ObtenerExistentesAsync(default));
+
+        plan.Empresas.Single().YaExiste.Should().BeTrue("la Empresa está en el ámbito de gestión");
+        plan.Trabajadores.Single().YaExiste.Should().BeFalse("el Trabajador con ese DNI está fuera del ámbito");
+    }
+
+    [Fact]
+    public async Task Combinada_la_Empresa_existente_fuera_de_ambito_figura_como_nueva_en_la_hoja_Empresas()
+    {
+        var m = Mundo.ConLoExistente();
+        var libro = new XLWorkbook();
+        libro.Worksheets.Add("Clientes");
+        libro.Worksheets.Add("Empresas").Cell(2, 1).Value = EmpresaExistente;
+        libro.Worksheets.Add("Centros");
+        libro.Worksheets.Add("Trabajadores");
+        var servicio = new ClosedXmlPlantillaCombinadaService(m.Centros, m.Empresas, m.Trabajadores);
+        using var flujo = Flujo(libro);
+
+        var plan = await servicio.AnalizarAsync(flujo, await Recorte(m, visible: false).ObtenerExistentesAsync(default));
+
+        plan.Empresas.Single().YaExiste.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Combinada_un_Centro_homonimo_de_otro_Cliente_fuera_de_ambito_no_figura_como_existente()
     {
         var m = Mundo.ConLoExistente();
-        var otro = Empresa.CrearComoCliente("Otro Cliente S.A.", cif: "B76543210", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var otro = Empresa.CrearComoCliente("Otro Cliente S.A.", cif: "B76543214", esCritico: false, notas: null, ejecutivoUsuarioId: null);
         m.Empresas.ListaEmpresas.Add(otro);
         m.Centros.ListaCentros.Add(new Centro(otro.Id, m.Empresa.Id, "Norte"));
         m.Centros.ListaCentros.Add(new Centro(m.Cliente.Id, m.Empresa.Id, "Norte"));

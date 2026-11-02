@@ -2,7 +2,7 @@ namespace CaeManager.Application.Importacion;
 
 /// <summary>
 /// Textos y hojas de los omitidos de las plantillas de Clientes y de Documentos que <see cref="RecorteDeAnalisisAlAmbito"/>
-/// reconoce para que la vista previa de una carga masiva acotada no distinga «existe fuera de tu ámbito» de «no existe».
+/// reconoce (plantillas de Clientes y Documentos; la combinada analiza con lo existente en el ámbito) para que la vista previa de una carga masiva acotada no distinga «existe fuera de tu ámbito» de «no existe».
 /// Los analizadores de Infrastructure y el recorte los comparten para que un retoque del texto no reabra el oráculo.
 /// </summary>
 public static class MotivosDeOmision

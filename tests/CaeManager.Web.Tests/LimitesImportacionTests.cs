@@ -207,7 +207,7 @@ public class LimitesImportacionTests
         {
             ["cae"] = flujo => new ClosedXmlImportacionParser(null!, null!, null!, null!, null!, null!, Options.Create(new OpcionesPlantillaCaeCompleta()), opciones).AnalizarAsync(flujo),
             ["clientes"] = flujo => new ClosedXmlPlantillaClientesService(null!, null!, opciones).AnalizarAsync(flujo),
-            ["combinada"] = flujo => new ClosedXmlPlantillaCombinadaService(null!, null!, null!, opciones).AnalizarAsync(flujo),
+            ["combinada"] = flujo => new ClosedXmlPlantillaCombinadaService(null!, null!, null!, opciones).AnalizarAsync(flujo, null),
             ["documentos"] = flujo => new ClosedXmlPlantillaDocumentosService(null!, null!, null!, opciones).AnalizarAsync(flujo)
         };
 
