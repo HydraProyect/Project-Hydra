@@ -47,7 +47,7 @@ public class DividirAdjuntoPdfCommandHandler(
     IDisponibilidadHerramientasPdf disponibilidad, IComunicacionesQueryContext comunicacionesContext,
     IAdjuntoMensajeRepository repositorio, IEventoConversacionRepository eventoRepositorio, IAlcanceDatosService alcanceDatos,
     ICurrentUserService currentUserService, IRegistroAccesoDatoSensibleService registroAcceso, IFileStorageService almacen,
-    IMediator mediator, IUnitOfWork unitOfWork,
+    IMediator mediator, IUnitOfWork unitOfWork, IDescarteCambiosPendientes descarteCambios,
     ILogger<DividirAdjuntoPdfCommandHandler> logger)
     : IRequestHandler<DividirAdjuntoPdfCommand, Result<IReadOnlyList<ResultadoTramoCreado>>>
 {
@@ -163,6 +163,8 @@ public class DividirAdjuntoPdfCommandHandler(
         }
         catch (Exception ex)
         {
+            // El contexto sigue vivo en el circuito: el evento rechazado no puede colarse en el siguiente guardado.
+            descarteCambios.DescartarCambiosPendientes();
             logger.LogWarning("No se pudo registrar en el timeline la división del adjunto {AdjuntoId} ({TipoExcepcion}).",
                 adjuntoId, ex.GetType().Name);
         }

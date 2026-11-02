@@ -36,6 +36,7 @@ public class DividirAdjuntoPdfTests
     private readonly ComunicacionesQueryContextFalso _contexto = new();
     private readonly EventoConversacionRepositorioFalso _eventos = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly DescarteCambiosPendientesFalso _descarte = new();
     private readonly FileStorageServiceFalso _almacen = new();
     private readonly RegistroAccesoDatoSensibleFalso _registro = new();
     private readonly RepartoAdjuntosTests.AdjuntoRepositorioFalso _repositorio;
@@ -77,7 +78,7 @@ public class DividirAdjuntoPdfTests
     private DividirAdjuntoPdfCommandHandler Dividir(
         AlcanceDatosServiceFalso? alcance = null, string? rol = "GestorCae", Guid? usuarioId = null, bool sinUsuario = false, bool disponible = true) => new(
         new DisponibilidadFija(disponible), _contexto, _repositorio, _eventos, alcance ?? CarteraCompleta(),
-        new CurrentUserServiceFalso(sinUsuario ? null : usuarioId ?? Guid.NewGuid(), rol), _registro, _almacen, _mediador, _unitOfWork,
+        new CurrentUserServiceFalso(sinUsuario ? null : usuarioId ?? Guid.NewGuid(), rol), _registro, _almacen, _mediador, _unitOfWork, _descarte,
         NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
 
     private PrepararDivisionAdjuntoQueryHandler Preparar(
@@ -445,7 +446,7 @@ public class DividirAdjuntoPdfTests
         var adjunto = await Sembrar();
         var handler = new DividirAdjuntoPdfCommandHandler(
             new DisponibilidadFija(true), _contexto, _repositorio, _eventos, CarteraCompleta(), new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"),
-            new RegistroAccesoDatoSensibleFalso(falla: true), _almacen, _mediador, _unitOfWork, NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
+            new RegistroAccesoDatoSensibleFalso(falla: true), _almacen, _mediador, _unitOfWork, _descarte, NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
 
         await handler.Invoking(h => h.Handle(Orden(adjunto), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>();
 
@@ -477,6 +478,7 @@ public class DividirAdjuntoPdfTests
 
         resultado.Valor.Should().ContainSingle(t => t.DocumentoId == creado);
         adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
+        _descarte.VecesDescartado.Should().Be(1);
     }
 
     [Fact]
