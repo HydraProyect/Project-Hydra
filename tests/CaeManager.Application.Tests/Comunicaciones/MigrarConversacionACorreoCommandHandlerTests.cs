@@ -19,6 +19,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly Microsoft365GraphClientFalso _graphClient = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly RegistroExportacionFalso _registro = new();
 
     private MigrarConversacionACorreoCommandHandler CrearHandler()
     {
@@ -29,7 +30,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
         var accesoGraph = new AccesoGraphService(credencialRepositorio, _graphClient);
         return new MigrarConversacionACorreoCommandHandler(
             _conversaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient, accesoGraph,
-            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork);
+            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork, _registro);
     }
 
     private ConexionIntegracion AgregarBuzonHabilitado(Guid? clienteId = null)

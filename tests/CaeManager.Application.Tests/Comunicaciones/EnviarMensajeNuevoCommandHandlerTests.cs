@@ -27,7 +27,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         return (handler, conversaciones, graphClient);
     }
@@ -133,7 +133,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         // 1. Enviar mensaje saliente
         var resultadoEnvio = await handler.Handle(
@@ -265,7 +265,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso());
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), new RegistroExportacionFalso());
 
         var resultado = await handler.Handle(
             new EnviarMensajeNuevoCommand(conexionPersonal.Id, ["destinatario@cliente.com"], "Asunto", "<p>Cuerpo</p>"),

@@ -56,7 +56,8 @@ public class ResponderConversacionCommandHandler(
     IFileStorageService almacenamiento,
     IOptions<ComunicacionesRemitenteOptions> opcionesRemitente,
     IUnitOfWork unitOfWork,
-    ILogger<ResponderConversacionCommandHandler> logger)
+    ILogger<ResponderConversacionCommandHandler> logger,
+    IRegistroExportacionService registroSalida)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -139,6 +140,11 @@ public class ResponderConversacionCommandHandler(
         if (ultimoMensajeEntrante is null)
             return Result.Fallo<Mensaje>(Error.Crear(
                 "Conversacion.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
+
+        // Solo aquí: el remitente simulado de las demos no saca nada del sistema. El destinatario
+        // de un /reply es quien escribió el mensaje al que se responde.
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.Respuesta, conexion.Id, [ultimoMensajeEntrante.Remitente], copia: null, adjuntos, cancellationToken);
 
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (accessTokenResultado.EsFallido)

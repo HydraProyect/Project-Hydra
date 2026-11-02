@@ -1,6 +1,8 @@
 using System.Text.Json;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
+using CaeManager.Application.Integraciones;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -66,8 +68,30 @@ public class ExportacionCsvCuadroDireccionBajoRuntimeTests : IAsyncLifetime
         }
     }
 
-    private RegistroExportacionService Registro(CaeManagerDbContext contexto) => new(
-        new ActorFijo(ActorAuditoria.Normal(_usuario)),
+    [Fact]
+    public async Task El_rastro_de_un_correo_separa_Actor_real_y_Usuario_simulado_y_enmascara_el_destinatario()
+    {
+        var simulado = Guid.NewGuid();
+        using (AmbitoTenantExplicito.Establecer(_tenant))
+        {
+            await using var runtime = CrearContexto(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion), null, conRls: true);
+            await Registro(runtime, new ActorAuditoria(_usuario, simulado, TipoViaAcceso.Normal, null)).RegistrarSalidaAsync(
+                OrigenSalidaComunicacion.Informe, Guid.NewGuid(), ["contacto@cliente.com"], copia: null,
+                [new AdjuntoParaEnviarDto("informe.pdf", "application/pdf", new byte[3])]);
+        }
+
+        await using var lectura = CrearContexto(_cadenaConexion, _tenant);
+        var fila = (await lectura.RegistrosAuditoria.Where(r => r.Accion == RegistroAuditoria.AccionExportacion).ToListAsync())
+            .Should().ContainSingle().Subject;
+        fila.EntidadTipo.Should().Be("Mensaje");
+        fila.TenantId.Should().Be(_tenant);
+        fila.UsuarioId.Should().Be(simulado);
+        fila.ActorRealUsuarioId.Should().Be(_usuario);
+        fila.DatosDespues.Should().Contain("c***@cliente.com").And.NotContain("contacto@");
+    }
+
+    private RegistroExportacionService Registro(CaeManagerDbContext contexto, ActorAuditoria? actor = null) => new(
+        new ActorFijo(actor ?? ActorAuditoria.Normal(_usuario)),
         new RegistroAccesoDatoSensibleRepository(contexto, NullLogger<RegistroAccesoDatoSensibleRepository>.Instance));
 
     private static CaeManagerDbContext CrearContexto(string cadena, Guid? tenantId, bool conRls = false)

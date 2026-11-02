@@ -287,6 +287,7 @@ public class DocumentacionGestionadaVisitaTests
         resultado.Valor.Should().Be(escenario.Emisor.Respuesta.Valor, "devuelve la conversación del envío");
         escenario.Emisor.Enviados.Should().ContainSingle()
             .Which.Adjuntos.Should().ContainSingle().Which.NombreArchivo.Should().Be("paquete.zip");
+        escenario.Emisor.Enviados.Single().Origen.Should().Be(CaeManager.Application.Comunicaciones.OrigenSalidaComunicacion.PaqueteAcreditacion);
         escenario.Visita.DocumentacionGestionada.Should().BeTrue();
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
     }

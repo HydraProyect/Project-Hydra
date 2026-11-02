@@ -16,6 +16,10 @@ namespace CaeManager.Application.Common;
 /// Sesión Privilegiada de un Actor de Plataforma TALVEG, cuya conexión es de
 /// solo lectura, no puede exportar un listado que deje este rastro.
 /// </para>
+/// <para>
+/// También lo usa la salida de correo por buzón conectado, una fila por envío y antes de enviar
+/// (<c>RegistroSalidaComunicaciones</c>).
+/// </para>
 /// </summary>
 public interface IRegistroExportacionService
 {

@@ -49,7 +49,7 @@ public class RecordatorioConversacionCommandHandlerTests
             _conversaciones, new ConexionIntegracionRepositorioFalso(), alcance ?? new AlcanceDatosServiceFalso(), graphClient,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient), new FileStorageServiceFalso(),
             Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado }),
-            _unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
+            _unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance, new RegistroExportacionFalso());
         return new AprobarRecordatorioConversacionCommandHandler(
             _conversaciones, _propuestas, alcance ?? new AlcanceDatosServiceFalso(), responder, _unitOfWork, _descarte);
     }

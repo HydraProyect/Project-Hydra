@@ -67,6 +67,8 @@
     [Parameter] public string? AsuntoInicial { get; set; }
     [Parameter] public string? CuerpoInicial { get; set; }
     [Parameter] public AdjuntoParaEnviarDto? Adjunto { get; set; }
+    /// <summary>Camino del producto que envía, para el rastro de salida; por defecto, una redacción libre.</summary>
+    [Parameter] public CaeManager.Application.Comunicaciones.OrigenSalidaComunicacion Origen { get; set; }
     /// <summary>De dónde se baja <see cref="Adjunto"/> con una petición normal, para ofrecerlo cuando no hay buzón desde el que enviarlo.</summary>
     [Parameter] public string? RutaDescargaAdjunto { get; set; }
     [Parameter] public EventCallback OnEnviado { get; set; }
@@ -178,7 +180,7 @@
         {
             var adjuntos = Adjunto is null ? null : new List<AdjuntoParaEnviarDto> { Adjunto };
             var mensaje = new EnviarMensajeNuevoCommand(
-                _conexionId.Value, destinatarios, _asunto, TextoPlanoAHtml(_cuerpo), Adjuntos: adjuntos);
+                _conexionId.Value, destinatarios, _asunto, TextoPlanoAHtml(_cuerpo), Adjuntos: adjuntos, Origen: Origen);
             var resultado = EnviarCon is null ? await Mediator.Send(mensaje) : await EnviarCon(mensaje);
 
             if (resultado.EsFallido)
