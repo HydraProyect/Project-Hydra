@@ -84,7 +84,7 @@ public class InicioSesionMicrosoftTests
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var error = manipulada || caso is "invitada" or "suspendido" ? "fallo" : caso;
+        var error = manipulada || caso == "invitada" ? "fallo" : caso == "suspendido" ? "sin-cuenta" : caso;
         respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
         usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
         respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);

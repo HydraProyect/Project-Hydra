@@ -61,9 +61,11 @@ public class AccesoATenantSuspendidoTests : IAsyncLifetime
     {
         await CambiarEstadoAsync(t => t.Suspender(), _operador.Id);
         (await PorOperacionAsync()).Should().BeFalse();
+        (await PorViaHeredadaAsync()).Should().BeFalse();
 
         await CambiarEstadoAsync(t => t.Reactivar(), _operador.Id);
         (await PorOperacionAsync()).Should().BeTrue();
+        (await PorViaHeredadaAsync()).Should().BeTrue();
     }
 
     [Fact]

@@ -199,12 +199,14 @@ public static class IdentityEndpointsExtensions
             }
 
             // Tenant en suspensión operativa (decisión D-3): antes de vincular nada y
-            // de dejar en la vigilancia un acceso correcto que no emitiría sesión.
+            // de dejar en la vigilancia un acceso correcto que no emitiría sesión. Mismo
+            // mensaje que «sin cuenta»: no se confirma que la cuenta exista.
             if (await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId))
             {
+                logger.LogWarning("Login de Microsoft rechazado: el Tenant {TenantId} de la cuenta {UsuarioId} está suspendido.", usuario.TenantId, usuario.Id);
                 await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
                 await signInManager.SignOutAsync();
-                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
             }
 
             // Bloqueo por país del Tenant propietario de la cuenta (desactivado

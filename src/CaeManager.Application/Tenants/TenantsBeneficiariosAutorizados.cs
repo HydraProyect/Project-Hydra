@@ -155,7 +155,8 @@ public static class TenantsBeneficiariosAutorizados
         where asignacion.UsuarioId == usuarioId
               && delegacion.Activa
               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > ahora)
-              && !tenants.Tenants.Any(t => t.Id == delegacion.TenantClienteId && t.Estado == EstadoTenant.Suspendido)
+              && !tenants.Tenants.Any(t => t.Estado == EstadoTenant.Suspendido
+                                           && (t.Id == delegacion.TenantClienteId || t.Id == delegacion.TenantConsultoraId))
         select new AsignacionHeredadaVigente { Asignacion = asignacion, Concesion = delegacion };
 
     /// <summary>
