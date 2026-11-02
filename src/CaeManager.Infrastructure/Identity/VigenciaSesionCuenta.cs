@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +15,9 @@ namespace CaeManager.Infrastructure.Identity;
 public interface IVigenciaSesionCuenta
 {
     /// <summary>
-    /// <c>true</c> si el sello del principal sigue siendo el de su cuenta, la cuenta está activa y su
-    /// identificador de sesión no está revocado. Lo que no se pueda afirmar es <c>false</c>.
+    /// <c>true</c> si el sello del principal sigue siendo el de su cuenta, la cuenta está activa, su Tenant de
+    /// origen no está suspendido y su identificador de sesión no está revocado. Lo que no se pueda afirmar es
+    /// <c>false</c>.
     /// </summary>
     Task<bool> SigueVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default);
 
@@ -37,8 +39,9 @@ public interface IVigenciaSesionCuenta
 /// <item><b>Con Sesión Privilegiada seleccionada:</b> la conexión adopta <c>cae_app_soporte</c>
 /// (<c>TenantRlsConnectionInterceptor</c>), y ese rol no tiene por qué leer las credenciales de la cuenta
 /// (ASVS 4.0.3 V4.1.3). El sello y la desactivación los comprueba <c>app_cuenta_firmada_vigente</c>, que solo
-/// devuelve un booleano sobre la cuenta que firma el contexto, y la revocación
-/// <see cref="IRegistroSesionesUsuario.EstaVigenteAsync"/>. No se omite ninguna de las tres
+/// devuelve un booleano sobre la cuenta que firma el contexto; la suspensión del Tenant de origen,
+/// <see cref="IEstadoOperativoTenant"/> con el Tenant del claim del Actor real; y la revocación,
+/// <see cref="IRegistroSesionesUsuario.EstaVigenteAsync"/>. No se omite ninguna de las cuatro
 /// comprobaciones.</item>
 /// </list>
 ///
@@ -67,6 +70,7 @@ public sealed class VigenciaSesionCuenta(
     CaeManagerDbContext db,
     IRegistroSesionesUsuario sesiones,
     IOptions<IdentityOptions> opciones,
+    IEstadoOperativoTenant estadoOperativo,
     ILogger<VigenciaSesionCuenta> logger) : IVigenciaSesionCuenta
 {
     public async Task<ClaimsPrincipal?> PrincipalVigenteAsync(ClaimsPrincipal principal, CancellationToken ct = default)
@@ -93,6 +97,13 @@ public sealed class VigenciaSesionCuenta(
             || !Guid.TryParse(principal.FindFirst(claims.UserIdClaimType)?.Value, out var cuentaId))
         {
             logger.LogWarning("Sesión rechazada: el principal de la Sesión Privilegiada no lleva sello o cuenta legibles.");
+            return false;
+        }
+
+        if (!Guid.TryParse(principal.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value, out var tenantOrigen)
+            || await estadoOperativo.EstaSuspendidoAsync(tenantOrigen, ct))
+        {
+            logger.LogWarning("Sesión rechazada: el Tenant de origen de la cuenta {UsuarioId} está suspendido o no se puede leer.", cuentaId);
             return false;
         }
 

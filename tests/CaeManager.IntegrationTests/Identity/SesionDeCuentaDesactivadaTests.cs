@@ -85,6 +85,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El registro de inicios de sesión tiene su propio test
         // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
         servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
+        servicios.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, CaeManager.Infrastructure.Persistence.EstadoOperativoTenant>();
         // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
@@ -823,13 +824,14 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         salida.WriteLine($"CONSULTAS: revalidar circuito = {soloValidar}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
 
-        // Presupuesto, no una medida exacta: validar lee el usuario y pregunta
-        // si su sesión sigue sin revocar (app_sesion_vigente); reconstruir el
+        // Presupuesto, no una medida exacta: validar lee el usuario, mira si su
+        // Tenant está suspendido y pregunta si su sesión sigue sin revocar
+        // (app_sesion_vigente); reconstruir el
         // principal añade roles, claims y el ajuste del Tenant. El circuito y
         // la cookie hacen ambas cosas en cada ciclo. Si esto crece sin querer,
         // el coste por sesión activa y minuto deja de ser el medido.
-        soloValidar.Should().BeLessThanOrEqualTo(2);
-        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(8);
+        soloValidar.Should().BeLessThanOrEqualTo(3);
+        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(9);
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(string email)

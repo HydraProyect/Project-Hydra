@@ -17,6 +17,6 @@ public class ComandosQueReducenExposicionTests
         var marcados = typeof(IComandoQueReduceExposicion).Assembly.GetTypes()
             .Where(t => t.IsClass && t.IsAssignableTo(typeof(IComandoQueReduceExposicion)));
 
-        marcados.Should().BeEquivalentTo([typeof(RevocarClaveApiDeMiOrganizacionCommand)]);
+        marcados.Should().BeEquivalentTo([typeof(RevocarClaveApiDeMiOrganizacionCommand), typeof(CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPorSoporte.RevocarOperadorCaeExternoPorSoporteCommand)]);
     }
 }

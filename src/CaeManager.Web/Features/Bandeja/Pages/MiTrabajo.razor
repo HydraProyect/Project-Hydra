@@ -1,5 +1,6 @@
 @page "/mi-trabajo"
-@rendermode InteractiveServer
+@* Sin prerender (M-23): OnInitializedAsync carga la cartera entera y no persiste su estado; con prerender corría dos veces. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Bandeja.Components
@@ -29,6 +30,7 @@
    (FS-07): el resto se pinta y el aviso «Cartera incompleta» lo nombra. Rótulos de pantalla del contrato de terminología § 3.2 (rótulo del 2026-10-09): el Tenant propietario se
    rotula «Empresa» y el Cliente empresarial «Cliente»; nunca «tenant». *@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina mi-trabajo">
     <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["TodaMiCartera"]">

@@ -20,6 +20,79 @@ public class GateComercialTenantBehaviorTests
         public Guid? TenantId => tenantId;
     }
 
+    private sealed class UsuarioFalso(Guid? tenantOrigenId) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
+    }
+
+    private static Tenant AnadirTenantDeOrigen(TenantsQueryContextFalso dbContext, bool plataforma = false)
+    {
+        var origen = new Tenant("Operador CAE externo");
+        if (plataforma)
+            origen.MarcarComoPlataforma();
+        origen.Suspender();
+        dbContext.ListaTenants.Add(origen);
+        return origen;
+    }
+
+    // Gestor CAE, Sesión Privilegiada, vía heredada y extensión: el gate no distingue el actor, solo origen y objetivo.
+    [Fact]
+    public async Task Un_Actor_cuyo_Tenant_de_origen_esta_suspendido_no_escribe_en_un_objetivo_activo()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        var origen = AnadirTenantDeOrigen(dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task El_origen_suspendido_bloquea_aunque_el_objetivo_sea_el_Tenant_de_plataforma()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        objetivo.MarcarComoPlataforma();
+        var origen = AnadirTenantDeOrigen(dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task El_Tenant_de_plataforma_como_origen_sigue_exento()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        var origen = AnadirTenantDeOrigen(dbContext, plataforma: true);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_origen_suspendido_admite_el_comando_que_reduce_exposicion()
+    {
+        var (objetivo, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        var origen = AnadirTenantDeOrigen(dbContext);
+        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(
+            new TenantActualFalso(objetivo.Id), dbContext, new UsuarioFalso(origen.Id));
+
+        var resultado = await behavior.Handle(new ReduceExposicionCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
     private static (Tenant tenant, TenantsQueryContextFalso dbContext) CrearTenantConEstado(EstadoComercialTenant estado)
     {
         var tenant = new Tenant("Ibertec");
@@ -40,7 +113,7 @@ public class GateComercialTenantBehaviorTests
     {
         var (_, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
         var tenant = dbContext.ListaTenants[0];
-        var behavior = new GateComercialTenantBehavior<FalsaQuery, string>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsaQuery, string>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -54,7 +127,7 @@ public class GateComercialTenantBehaviorTests
     public async Task No_bloquea_el_comando_que_reduce_exposicion(EstadoComercialTenant estado)
     {
         var (tenant, dbContext) = CrearTenantConEstado(estado);
-        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(new ReduceExposicionCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -62,10 +135,53 @@ public class GateComercialTenantBehaviorTests
     }
 
     [Fact]
+    public async Task Un_Tenant_suspendido_no_escribe_aunque_su_suscripcion_este_al_dia()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_suspendido_admite_el_comando_que_reduce_exposicion()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new ReduceExposicionCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task La_suspension_operativa_precede_al_estado_comercial()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    // Soporte TALVEG corta al Operador CAE externo de un Tenant suspendido por compromiso.
+    [Fact]
+    public void Revocar_al_Operador_CAE_externo_reduce_exposicion() =>
+        typeof(CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPorSoporte.RevocarOperadorCaeExternoPorSoporteCommand)
+            .Should().Implement<IComandoQueReduceExposicion>();
+
+    [Fact]
     public async Task No_bloquea_si_no_hay_tenant_resuelto_trabajos_de_fondo_seeds()
     {
         var dbContext = new TenantsQueryContextFalso();
-        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(null), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(null), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -93,7 +209,21 @@ public class GateComercialTenantBehaviorTests
         var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
         tenant.MarcarComoPlataforma();
 
-        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task No_bloquea_al_tenant_de_plataforma_en_suspension_operativa()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.MarcarComoPlataforma();
+        tenant.Suspender();
+
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -107,7 +237,7 @@ public class GateComercialTenantBehaviorTests
     public async Task No_bloquea_las_etapas_anteriores_a_solo_lectura(EstadoComercialTenant estado)
     {
         var (tenant, dbContext) = CrearTenantConEstado(estado);
-        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
@@ -118,7 +248,7 @@ public class GateComercialTenantBehaviorTests
     public async Task Bloquea_un_command_con_resultado_simple_en_solo_lectura()
     {
         var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.SoloLectura);
-        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
         var siguienteFueLlamado = false;
 
         var resultado = await behavior.Handle(new FalsoCommand(), _ =>
@@ -136,7 +266,7 @@ public class GateComercialTenantBehaviorTests
     public async Task Bloquea_un_command_con_resultado_generico_en_suspendido()
     {
         var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
-        var behavior = new GateComercialTenantBehavior<FalsoConValorCommand, Result<Guid>>(new TenantActualFalso(tenant.Id), dbContext);
+        var behavior = new GateComercialTenantBehavior<FalsoConValorCommand, Result<Guid>>(new TenantActualFalso(tenant.Id), dbContext, new UsuarioFalso(null));
 
         var resultado = await behavior.Handle(
             new FalsoConValorCommand(), _ => Task.FromResult(Result.Exito(Guid.NewGuid())), CancellationToken.None);

@@ -763,7 +763,7 @@
     <value>¿Reactivar esta organización?</value>
   </data>
   <data name="EstadoComercialConfirmarSuspender" xml:space="preserve">
-    <value>Las claves de API de {0} dejarán de valer. Es la suspensión por incidente o seguridad, distinta del impago. Al reactivarlo, sus claves de API anteriores no volverán a valer.</value>
+    <value>Nadie de {0} podrá iniciar sesión, sus sesiones abiertas se cerrarán en hasta 60 segundos, la extensión y las claves de API dejarán de valer y no se podrá escribir. Es la suspensión por incidente o seguridad, distinta del impago. Al reactivarlo, sus claves de API anteriores no volverán a valer.</value>
   </data>
   <data name="EstadoComercialConfirmarReactivar" xml:space="preserve">
     <value>{0} recuperará el acceso. Sus claves de API anteriores no vuelven a valer: tendrá que usar claves nuevas.</value>

@@ -174,9 +174,10 @@ public class AlmacenUsuarios(
     // Las funciones SECURITY DEFINER sobre AspNetUsers. Estáticas e internas: las
     // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (estado de la cuenta que
     // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas
-    // líneas como los únicos sitios que las invocan. Exigen el contexto RLS firmado (migración
-    // OraculosTransversalesExigenContextoFirmado): el interceptor lo pone en toda conexión, y
-    // quien solo tiene la credencial de cae_app_runtime no puede firmarlo.
+    // líneas como los únicos sitios que las invocan. Exigen el contexto RLS firmado (migraciones
+    // OraculosTransversalesExigenContextoFirmado y ResolucionesRestantesExigenContextoFirmado): el
+    // interceptor lo pone en toda conexión, y quien solo tiene la credencial de cae_app_runtime no
+    // puede firmarlo.
 
     internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")

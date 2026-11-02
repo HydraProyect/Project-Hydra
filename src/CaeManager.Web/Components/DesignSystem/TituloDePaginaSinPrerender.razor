@@ -1,0 +1,72 @@
+@* Componente invisible: fija el título de la pestaña de una página con @rendermode sin prerender. Su
+   <PageTitle> solo llega al HeadOutlet estático cuando la página se prerenderiza; sin prerender la pestaña
+   quedaba sin título (WCAG 2.4.2). Se mantiene el <PageTitle> de la página además de este componente. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    private IJSObjectReference? _modulo;
+    private string? _fijado;
+    private readonly string _id = Guid.NewGuid().ToString("N");
+    private bool _desechado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var titulo = Titulo;
+        if (_desechado || string.IsNullOrWhiteSpace(titulo) || titulo == _fijado)
+            return;
+
+        try
+        {
+            _modulo ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/titulo-pagina.js");
+            if (_desechado)
+            {
+                // Se salió de la página mientras llegaba el módulo: DisposeAsync ya pasó sin nada que liberar.
+                await LiberarAsync();
+                return;
+            }
+
+            await _modulo.InvokeVoidAsync("fijarTitulo", titulo, _id);
+            _fijado = titulo;
+        }
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
+        {
+            // El título es secundario: si el circuito se cerró o el módulo no cargó, la página sigue sin él en
+            // lugar de ceder su contenido al aviso de error del límite.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        await LiberarAsync();
+    }
+
+    private async Task LiberarAsync()
+    {
+        if (_modulo is null)
+            return;
+
+        var modulo = _modulo;
+        _modulo = null;
+        try
+        {
+            await modulo.InvokeVoidAsync("liberar", _id);
+        }
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
+        {
+            // Circuito ya desconectado: no hay estado del título que liberar.
+        }
+
+        try
+        {
+            await modulo.DisposeAsync();
+        }
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
+        {
+            // Circuito ya desconectado: no hay módulo que liberar.
+        }
+    }
+}

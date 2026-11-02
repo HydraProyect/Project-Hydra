@@ -96,6 +96,7 @@ public static class IdentityEndpointsExtensions
             // vigilancia (arneses de Web.Tests) infiere el parámetro como cuerpo
             // y la construcción de TODOS los endpoints falla, no solo este.
             [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion vigilancia,
+            [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Application.Tenants.IEstadoOperativoTenant estadoOperativo,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -195,6 +196,17 @@ public static class IdentityEndpointsExtensions
                 // Inalcanzable con DecidirCuenta: toda decisión que no rechaza deja cuenta.
                 await signInManager.SignOutAsync();
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
+            // Tenant en suspensión operativa (decisión D-3): antes de vincular nada y
+            // de dejar en la vigilancia un acceso correcto que no emitiría sesión. Mismo
+            // mensaje que «sin cuenta»: no se confirma que la cuenta exista.
+            if (await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId))
+            {
+                logger.LogWarning("Login de Microsoft rechazado: el Tenant {TenantId} de la cuenta {UsuarioId} está suspendido.", usuario.TenantId, usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
             }
 
             // Bloqueo por país del Tenant propietario de la cuenta (desactivado
