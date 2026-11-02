@@ -239,6 +239,24 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
             .EsExitoso.Should().BeTrue();
     }
 
+    /// <summary>Traduce a SQL la subconsulta del último entrante, sin la que el buzón no distingue qué Descartada aplica.</summary>
+    [Fact]
+    public async Task Por_buzon_bloquea_la_descartada_del_ultimo_entrante_y_no_la_de_uno_anterior()
+    {
+        var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto descartado</p>", descartada: true);
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Texto descartado", CancellationToken.None))
+                .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        }
+
+        await SembrarEntranteAsync(_tenantSesion, await ConversacionDelBuzonAsync(conexion));
+
+        await using var despues = CrearRuntime();
+        (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Texto descartado", CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+    }
+
     /// <summary>Control positivo: el ciclo completo persiste bajo RLS.</summary>
     [Fact]
     public async Task Generar_insertar_y_confirmar_persisten()
@@ -368,7 +386,14 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         return mensaje.Id;
     }
 
-    private async Task<Guid> SembrarHiloDeBuzonConPropuestaAsync(string texto)
+    private async Task<Guid> ConversacionDelBuzonAsync(Guid conexionId)
+    {
+        await using var propietario = CrearPropietarioLimpio();
+        return await propietario.Conversaciones.IgnoreQueryFilters()
+            .Where(c => c.ConexionIntegracionId == conexionId).Select(c => c.Id).SingleAsync();
+    }
+
+    private async Task<Guid> SembrarHiloDeBuzonConPropuestaAsync(string texto, bool descartada = false)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
         var empresaId = await _propietario.Conversaciones.IgnoreQueryFilters().Where(c => c.Id == _conversacionPropia).Select(c => c.EmpresaId).SingleAsync();
@@ -380,7 +405,10 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         _propietario.Conversaciones.Add(conversacion);
         _propietario.Mensajes.Add(mensaje);
         await _propietario.SaveChangesAsync();
-        _propietario.RespuestasSugeridas.Add(RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, texto, Guid.NewGuid(), DateTime.UtcNow));
+        var sugerencia = RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, texto, Guid.NewGuid(), DateTime.UtcNow);
+        if (descartada)
+            sugerencia.Descartar();
+        _propietario.RespuestasSugeridas.Add(sugerencia);
         await _propietario.SaveChangesAsync();
         return conexion.Id;
     }

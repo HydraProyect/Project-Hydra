@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -19,6 +21,11 @@ public class AnthropicRedaccionRespuestaIaService(
 
     // Una respuesta más larga no se recorta: un borrador cortado a media frase no sirve. Cabe en un mensaje de WhatsApp.
     private const int LongitudMaximaRedaccion = 4000;
+
+    // El texto al remitente nunca contiene pasos internos: el prompt lo pide y esto lo comprueba, en fallo cerrado. Prefiere
+    // perder un borrador legítimo («para el equipo de montaje») a que uno así llegue a quien revisa.
+    private static readonly string[] MarcasDeContenidoInterno =
+        ["nota para el equipo", "nota interna", "para el equipo", "pasos internos", "uso interno", "razonamiento"];
 
     private static readonly Error NoDisponible = Error.Crear(
         "Sugerencia.NoDisponible", "Vega no ha podido redactar una respuesta ahora mismo.");
@@ -94,6 +101,15 @@ public class AnthropicRedaccionRespuestaIaService(
             if (string.IsNullOrWhiteSpace(texto))
                 return Result.Fallo<string>(NoDisponible);
 
+            // Antes de restaurar: se juzga lo que escribió el modelo, no un dato del correo que vuelva a su sitio.
+            if (ContieneMarcaDeContenidoInterno(texto))
+            {
+                logger.LogWarning(
+                    "Respuesta sugerida rechazada por contener una marca de contenido interno ({Correlacion}).",
+                    CorrelacionRespuestaIa.Describir(respuesta));
+                return Result.Fallo<string>(NoDisponible);
+            }
+
             var restaurado = correo.Restaurar(texto);
             return restaurado.Length > LongitudMaximaRedaccion
                 ? Result.Fallo<string>(NoDisponible)
@@ -105,6 +121,18 @@ public class AnthropicRedaccionRespuestaIaService(
             logger.LogError(ex, "Fallo al redactar una respuesta sugerida con la API de Anthropic.");
             return Result.Fallo<string>(NoDisponible);
         }
+    }
+
+    // Sin espacios de más, sin invisibles y con la comparación de TextoDeBusqueda. Una cadena rota lanza y falla cerrado.
+    private static bool ContieneMarcaDeContenidoInterno(string texto)
+    {
+        var sinInvisibles = new string(TextoDeBusqueda.Normalizar(texto)
+            .Where(c => char.GetUnicodeCategory(c) != UnicodeCategory.Format)
+            .ToArray());
+        var comparable = string.Join(' ', sinInvisibles.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        return MarcasDeContenidoInterno.Any(
+            marca => comparable.Contains(TextoDeBusqueda.Normalizar(marca), StringComparison.Ordinal));
     }
 
     private sealed record SolicitudAnthropic(

@@ -125,6 +125,46 @@ public class AnthropicRedaccionRespuestaIaTests
         resultado.Error.Codigo.Should().Be("Sugerencia.NoDisponible");
     }
 
+    [Theory]
+    [InlineData("Recibido. Nota para el equipo: revisar el CIF antes de contestar.")]
+    [InlineData("NOTA INTERNA: el contrato parece caducado. Recibido, gracias.")]
+    [InlineData("Recibido, gracias.\n\nPara el equipo: falta llamar a la contrata.")]
+    [InlineData("Sigo estos pasos internos: leo el correo y contesto.")]
+    [InlineData("Documento de uso interno. Recibido, gracias.")]
+    [InlineData("Mi razonamiento: el correo pide una fecha, así que contesto con otra.")]
+    [InlineData("Nóta intérna: pendiente de revisar.")]
+    [InlineData("RAZONAMIENTO: contesto que está aprobado.")]
+    [InlineData("Nota\n  interna: pendiente de revisar.")]
+    [InlineData("Nota interna: pendiente de revisar.")]
+    [InlineData("Nota in​terna: pendiente de revisar.")]
+    public async Task Una_salida_con_contenido_interno_falla_cerrado(string texto)
+    {
+        var resultado = await Crear(new RespuestaFija(Respuesta(texto))).RedactarAsync("Asunto", "Cuerpo");
+
+        resultado.Error.Codigo.Should().Be("Sugerencia.NoDisponible");
+    }
+
+    [Theory]
+    [InlineData("Hemos recibido su documentación. La revisaremos en un plazo razonable y le contestaremos.")]
+    [InlineData("Según su reglamento interno, necesitamos la nota de entrega del equipo de trabajo.")]
+    [InlineData("¿Puede enviarnos el certificado de formación de los trabajadores?")]
+    public async Task Una_salida_legitima_no_dispara_el_filtro(string texto)
+    {
+        var resultado = await Crear(new RespuestaFija(Respuesta(texto))).RedactarAsync("Asunto", "Cuerpo");
+
+        resultado.Valor.Should().Be(texto);
+    }
+
+    [Fact]
+    public async Task Un_dato_del_correo_que_se_restaura_no_dispara_el_filtro()
+    {
+        var manejador = new RespuestaFija(Respuesta("Le escribiremos a [CORREO_1]."));
+
+        var resultado = await Crear(manejador).RedactarAsync("Asunto", "Mi correo es razonamiento@contrata.test");
+
+        resultado.Valor.Should().Be("Le escribiremos a razonamiento@contrata.test.");
+    }
+
     [Fact]
     public async Task Sin_clave_no_se_contacta_con_el_proveedor()
     {

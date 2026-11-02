@@ -29,7 +29,8 @@ public enum EstadoRespuestaSugerida
 /// <summary>
 /// Texto propuesto para contestar al último entrante de una conversación: una macro rellenada o una redacción de Vega.
 /// Nunca se envía sola y no se puede enviar por error: una persona revisa y envía siempre. Quien impide el envío en
-/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/> y <see cref="TextoHash"/>.
+/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/>, <see cref="TextoHash"/> y, dentro de una
+/// conversación, <see cref="Texto"/>.
 ///
 /// <para>
 /// Vive en el Tenant propietario de la conversación. Sin navegación desde <see cref="Conversacion"/>, como

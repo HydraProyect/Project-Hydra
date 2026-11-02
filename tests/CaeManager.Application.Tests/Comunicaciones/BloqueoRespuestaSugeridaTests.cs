@@ -428,6 +428,140 @@ public class BloqueoRespuestaSugeridaTests
         viendolo.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
+    [Theory]
+    [InlineData(TextoSugerido + "<p>Un saludo, Marta</p>")]
+    [InlineData("<p>Buenos días.</p>" + TextoSugerido)]
+    [InlineData("Hola. Estimada Ana: Ya hemos recibido su documentación. Un saludo.")]
+    public async Task Anadir_firma_o_saludo_a_una_propuesta_no_elude_el_bloqueo(string cuerpo)
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta);
+
+        (await Responder(conversacion, cuerpo)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Anadir_firma_a_la_descartada_del_ultimo_entrante_no_elude_el_bloqueo()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
+
+        (await Responder(conversacion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task Anadir_firma_a_la_descartada_de_un_entrante_anterior_si_sale()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var anterior = EntranteDePersona(conversacion);
+        EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: anterior);
+
+        (await Responder(conversacion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(EstadoRespuestaSugerida.Propuesta)]
+    [InlineData(EstadoRespuestaSugerida.Descartada)]
+    public async Task Una_edicion_por_dentro_del_texto_si_sale(EstadoRespuestaSugerida estado)
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, estado, origen: EntranteDePersona(conversacion));
+
+        var resultado = await Responder(conversacion, "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>");
+
+        resultado.EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_una_persona_confirmo_ese_texto_para_ese_mensaje_tambien_sale_con_firma()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+
+        (await Responder(conversacion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido - 1, true)]
+    [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido, false)]
+    public async Task Un_texto_corto_solo_bloquea_por_igualdad(int longitud, bool sale)
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var texto = new string('a', longitud);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, texto);
+
+        (await Responder(conversacion, texto + " Un saludo")).EsExitoso.Should().Be(sale);
+        (await Responder(conversacion, texto)).EsExitoso.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Mensaje_nuevo_con_el_texto_de_la_descartada_del_ultimo_entrante_no_llama_al_canal()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
+
+        var resultado = await EnviarNuevo(conexion, TextoSugerido);
+
+        resultado.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Mensaje_nuevo_con_el_texto_descartado_para_un_entrante_anterior_si_sale()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var anterior = EntranteDePersona(conversacion);
+        EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: anterior);
+
+        (await EnviarNuevo(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(EstadoRespuestaSugerida.Descartada)]
+    [InlineData(EstadoRespuestaSugerida.Propuesta)]
+    public async Task Mensaje_nuevo_si_una_persona_confirmo_ese_texto_para_ese_mensaje_si_sale(EstadoRespuestaSugerida estado)
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, estado, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+
+        (await EnviarNuevo(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_descartada_de_un_hilo_que_quien_envia_no_ve_no_bloquea_ni_delata()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
+
+        var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), conexion.Id, TextoSugerido, CancellationToken.None);
+
+        sinVer.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Por_buzon_solo_se_compara_el_hash_y_un_texto_contenido_no_bloquea()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+
+        (await EnviarNuevo(conexion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Un_texto_con_menor_que_coincide_escrito_o_escapado()
     {
