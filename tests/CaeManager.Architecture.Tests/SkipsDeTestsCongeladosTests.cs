@@ -52,11 +52,13 @@ public class SkipsDeTestsCongeladosTests
     }
 
     [Fact]
-    public void El_escaner_ve_la_omision_conocida_de_la_retirada_de_demo()
+    public void El_escaner_ve_omisiones_en_tests()
     {
         // Control positivo independiente de la lista: si el recorrido no leyera tests/, «ningún Skip nuevo» valdría por vacío.
-        Medir(FuentesDeTests()).Keys.Should().Contain(u =>
-            u.Lugar == "tests/CaeManager.IntegrationTests/Retirada/RetiradaTenantDemoServiceTests.cs");
+        // No depende de ninguna entrada concreta: retirar una omisión no debe poner rojo este control (Skip.If lo cubre el test sintético).
+        var medido = Medir(FuentesDeTests());
+
+        medido.Keys.Should().Contain(u => u.Simbolo == "Skip (atributo)");
     }
 
     [Fact]

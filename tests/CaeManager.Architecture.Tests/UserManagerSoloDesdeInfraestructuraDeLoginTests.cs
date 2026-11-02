@@ -5,7 +5,9 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <b>Web no llama a los gestores de Identity fuera de la infraestructura de
-/// login</b> (P1-I2 del plan de madurez 09-24).
+/// login</b> (P1-I2 del plan de madurez 09-24). «Gestores de Identity» es el nombre técnico de
+/// <c>UserManager</c>, <c>SignInManager</c> y <c>RoleManager</c> (ASP.NET Core Identity); no son Gestores CAE
+/// (personas) ni Operadores CAE (organizaciones): deuda terminológica del código legacy, sin renombrar aquí.
 ///
 /// <para>
 /// Una página que llama a <c>UserManager</c> decide ella misma quién puede crear,
@@ -22,8 +24,8 @@ namespace CaeManager.Architecture.Tests;
 /// <c>SignInManager&lt;</c> o <c>RoleManager&lt;</c> fuera de un comentario
 /// (inyección, parámetro de constructor o de endpoint). Desde MJ-08 la lista es
 /// <c>Congelados/Gestores-de-Identity-en-Web.txt</c> (<see cref="ListaCongelada"/>, una línea
-/// por fichero con su recuento): la infraestructura de login y la deuda por migrar, separadas
-/// por comentarios <c>#</c>. Un fichero nuevo es <c>NUEVA</c>; <b>más menciones en uno ya
+/// por fichero y por tipo de gestor, con su recuento): la infraestructura de login y la deuda por
+/// migrar, separadas por comentarios <c>#</c>; el test no distingue una de otra, lo hace el comentario de la lista. Un fichero nuevo es <c>NUEVA</c>; <b>más menciones en uno ya
 /// listado es <c>CRECE</c></b> (antes la granularidad era el fichero y subir de 1 a 5 pasaba en
 /// verde); uno que se migre baja la lista (<c>BAJA</c>/<c>OBSOLETA</c>) en el mismo commit.
 /// </para>
@@ -54,9 +56,13 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
     private static readonly Regex NombraUnGestorDeIdentity = new(
         @"\b(?:UserManager|SignInManager|RoleManager)\s*<", RegexOptions.Compiled);
 
+    private static readonly string[] Gestores = ["UserManager", "SignInManager", "RoleManager"];
+
     private const string Lista = "Gestores-de-Identity-en-Web";
 
     private const string Guia =
+        "El comentario '#' de cada línea de la lista dice si es infraestructura de login (autenticación y credenciales de la " +
+        "propia cuenta; SignInManager necesita el contexto HTTP) o deuda por migrar. " +
         "Fuera del login, una página que llama a UserManager se autoriza a sí misma y otro camino hasta Identity no lo hereda: " +
         "la escritura va en un Command de Application (IGestionCuentasUsuario). NUEVA o CRECE: no añadas ni subas la línea; " +
         "migra la llamada. BAJA u OBSOLETA: has migrado un fichero; baja o borra su línea en tests/CaeManager.Architecture.Tests/" +
@@ -81,9 +87,13 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         var medido = new Dictionary<Ubicacion, int>();
         foreach (var fichero in FicherosDeWeb())
         {
-            var menciones = NombraUnGestorDeIdentity.Matches(SinComentarios(fichero)).Count;
-            if (menciones > 0)
-                medido[new Ubicacion(fichero, "UserManager/SignInManager/RoleManager")] = menciones;
+            var texto = SinComentarios(fichero);
+            foreach (var gestor in Gestores)
+            {
+                var menciones = Regex.Matches(texto, $@"\b{gestor}\s*<").Count;
+                if (menciones > 0)
+                    medido[new Ubicacion(fichero, gestor)] = menciones;
+            }
         }
 
         return medido;

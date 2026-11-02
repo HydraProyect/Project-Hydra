@@ -22,7 +22,10 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Lo que NO observa</b> (huecos declarados): (1) una <c>*Query</c> cuyo handler escriba —un lector que acaba
-/// escribiendo— queda fuera, porque la reflexión sobre tipos no ve el cuerpo del handler; (2) no mide que el
+/// escribiendo— queda fuera, porque la reflexión sobre tipos no ve el cuerpo del handler. Hay dos conocidos hoy:
+/// <c>ObtenerEstructuraBuzonQuery</c> y <c>ObtenerMensajesCarpetaQuery</c> llaman a <c>SaveChangesAsync</c>; el trinquete
+/// que los acote (handlers de requests no-Command con <c>IUnitOfWork</c>, lista inicial de esos dos) es un incremento
+/// aparte; (1b) <c>IStreamRequest&lt;&gt;</c> no es <c>IBaseRequest</c> y no se escanea; (2) no mide que el
 /// <c>ICommand</c> haga además su propia comprobación de alcance (eso es de <c>AlcanceDeCarteraEnEscrituraTests</c> y
 /// afines); (3) un <c>INotification</c> con handler que escriba no pasa por este pipeline.
 /// </para>
@@ -42,7 +45,7 @@ public class RequestsSinAutorizacionDeEscrituraCongeladosTests
     [Fact]
     public void Todo_IRequest_de_Application_es_Command_o_Query_salvo_la_lista_congelada()
     {
-        var fallo = ListaCongelada.Verificar(Lista, Medir(Application), Guia);
+        var fallo = ListaCongelada.Verificar(Lista, Medir(Application.GetTypes()), Guia);
 
         fallo.Should().BeNull();
     }
@@ -52,7 +55,7 @@ public class RequestsSinAutorizacionDeEscrituraCongeladosTests
     {
         // Control positivo independiente de la lista: si la reflexión no viera Commands y Queries, «ningún request
         // suelto» valdría por vacío.
-        var requests = RequestsConcretos(Application).ToList();
+        var requests = RequestsConcretos(Application.GetTypes()).ToList();
 
         requests.Count(t => typeof(ICommandBase).IsAssignableFrom(t)).Should().BeGreaterThan(100);
         requests.Count(t => t.Name.EndsWith("Query", StringComparison.Ordinal)).Should().BeGreaterThan(100);
@@ -67,13 +70,33 @@ public class RequestsSinAutorizacionDeEscrituraCongeladosTests
         EsRequestSuelto(typeof(OrdenSinteticaCommand)).Should().BeFalse();
     }
 
-    internal static IReadOnlyDictionary<Ubicacion, int> Medir(Assembly ensamblado) =>
-        RequestsConcretos(ensamblado)
+    [Fact]
+    public void Medir_devuelve_los_sueltos_incluidos_los_anidados_y_los_structs()
+    {
+        var medido = Medir([
+            typeof(RequestSueltoSintetico),
+            typeof(Contenedor.RequestAnidadoSintetico),
+            typeof(RequestStructSintetico),
+            typeof(ConsultaSinteticaQuery),
+            typeof(OrdenSinteticaCommand),
+            typeof(AbstractoSintetico),
+        ]);
+
+        var simbolos = medido.Keys.Select(u => u.Simbolo).ToList();
+
+        simbolos.Should().HaveCount(3);
+        simbolos.Should().Contain(x => x.EndsWith("+" + nameof(RequestSueltoSintetico), StringComparison.Ordinal));
+        simbolos.Should().Contain(x => x.EndsWith("Contenedor+" + nameof(Contenedor.RequestAnidadoSintetico), StringComparison.Ordinal));
+        simbolos.Should().Contain(x => x.EndsWith("+" + nameof(RequestStructSintetico), StringComparison.Ordinal));
+    }
+
+    internal static IReadOnlyDictionary<Ubicacion, int> Medir(IEnumerable<Type> tipos) =>
+        RequestsConcretos(tipos)
             .Where(EsRequestSuelto)
             .ToDictionary(t => new Ubicacion(t.Namespace ?? "(sin espacio de nombres)", NombreLegible(t)), _ => 1);
 
-    private static IEnumerable<Type> RequestsConcretos(Assembly ensamblado) =>
-        ensamblado.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false } && typeof(IBaseRequest).IsAssignableFrom(t));
+    private static IEnumerable<Type> RequestsConcretos(IEnumerable<Type> tipos) =>
+        tipos.Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IBaseRequest).IsAssignableFrom(t));
 
     private static bool EsRequestSuelto(Type t) =>
         !typeof(ICommandBase).IsAssignableFrom(t) && !t.Name.EndsWith("Query", StringComparison.Ordinal);
@@ -83,6 +106,15 @@ public class RequestsSinAutorizacionDeEscrituraCongeladosTests
     private sealed record RequestSueltoSintetico : IRequest<int>;
 
     private sealed record ConsultaSinteticaQuery : IRequest<int>;
+
+    private readonly record struct RequestStructSintetico : IRequest<int>;
+
+    private abstract record AbstractoSintetico : IRequest<int>;
+
+    private static class Contenedor
+    {
+        internal sealed record RequestAnidadoSintetico : IRequest<int>;
+    }
 
     private sealed record OrdenSinteticaCommand : ICommand;
 }
