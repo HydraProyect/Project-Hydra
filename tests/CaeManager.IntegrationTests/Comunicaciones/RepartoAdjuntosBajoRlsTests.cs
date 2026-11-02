@@ -2,7 +2,9 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
+using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
@@ -142,6 +144,29 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         fila.MotivoRechazo.Should().Be("Caducado");
         (await lectura.EventosConversacion.CountAsync(e => e.ConversacionId == _conversacionPropia && e.Tipo == TipoEventoConversacion.AdjuntoRechazado))
             .Should().Be(1);
+    }
+
+    /// <summary>El evento lo publica el alta tras su commit: aquí se mide que el marcado persista bajo RLS, y solo en lo propio.</summary>
+    [Fact]
+    public async Task El_marcado_de_asignado_persiste_en_lo_propio_y_no_alcanza_lo_ajeno()
+    {
+        var documentoId = Guid.NewGuid();
+        await using (var runtime = CrearRuntime())
+        {
+            var handler = new MarcarAdjuntoAsignadoHandler(new AdjuntoMensajeRepository(runtime),
+                new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), runtime,
+                NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
+
+            await handler.Handle(new DocumentoActualizadoEvent(_conversacionPropia, documentoId, _adjuntoPropio), CancellationToken.None);
+            await handler.Handle(new DocumentoActualizadoEvent(_conversacionAjena, documentoId, _adjuntoAjeno), CancellationToken.None);
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var propio = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
+        propio.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        propio.DocumentoId.Should().Be(documentoId);
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().Where(a => a.Id == _adjuntoAjeno).Select(a => a.EstadoReparto).SingleAsync())
+            .Should().Be(EstadoRepartoAdjunto.Pendiente);
     }
 
     private FijarDestinoAdjuntoCommandHandler Fijar(CaeManagerDbContext runtime) => new(

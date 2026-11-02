@@ -477,6 +477,10 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(e => new { e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc })
             .ToListAsync(cancellationToken);
 
+        // Cómo se reparte lo recibido es triaje interno, igual que ObtenerRepartoAdjuntosQuery.
+        if (await currentUserService.ObtenerRolEfectivoAsync() == RolCliente)
+            eventosCrudos.RemoveAll(e => e.Tipo is TipoEventoConversacion.AdjuntoRechazado or TipoEventoConversacion.AdjuntoDescartado or TipoEventoConversacion.AdjuntoReabierto);
+
         if (eventosCrudos.Count == 0) return [];
 
         var visitaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada).Select(e => e.ReferenciaId).ToList();

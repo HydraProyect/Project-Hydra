@@ -31,7 +31,7 @@ public class ObtenerRepartoAdjuntosQueryHandler(
             from a in comunicacionesContext.AdjuntosMensaje
             join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
             where m.ConversacionId == request.ConversacionId && m.Direccion == DireccionMensaje.Entrante
-            orderby m.FechaUtc, a.NombreArchivo
+            orderby m.FechaUtc, a.NombreArchivo, a.Id
             select new AdjuntoRepartoDto(
                 a.Id, a.MensajeId, a.NombreArchivo, a.TipoContenido, a.TamanoBytes, a.EstadoReparto,
                 a.DestinoTrabajadorId, a.DestinoEmpresaId, a.TipoDocumentoPropuestoId, a.MotivoRechazo,

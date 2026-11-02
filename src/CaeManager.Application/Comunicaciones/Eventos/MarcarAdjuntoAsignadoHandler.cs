@@ -17,9 +17,10 @@ public class MarcarAdjuntoAsignadoHandler(
 {
     public async Task Handle(DocumentoActualizadoEvent notification, CancellationToken cancellationToken)
     {
+        AdjuntoMensaje? adjunto = null;
         try
         {
-            var adjunto = await repositorio.ObtenerPorIdAsync(notification.AdjuntoId, cancellationToken);
+            adjunto = await repositorio.ObtenerPorIdAsync(notification.AdjuntoId, cancellationToken);
             if (adjunto is null || !adjunto.EstaPendiente)
             {
                 logger.LogWarning("El adjunto {AdjuntoId} no estaba pendiente al asignarse al documento {DocumentoId}.", notification.AdjuntoId, notification.DocumentoId);
@@ -31,7 +32,9 @@ public class MarcarAdjuntoAsignadoHandler(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "No se pudo marcar como asignado el adjunto {AdjuntoId}.", notification.AdjuntoId);
+            // Sin esto el cambio rechazado seguiría pendiente en el contexto del circuito y saldría en el guardado siguiente.
+            if (adjunto is not null) repositorio.OlvidarCambios(adjunto);
+            logger.LogWarning("No se pudo marcar como asignado el adjunto {AdjuntoId} ({Excepcion}).", notification.AdjuntoId, ex.GetType().Name);
         }
     }
 }

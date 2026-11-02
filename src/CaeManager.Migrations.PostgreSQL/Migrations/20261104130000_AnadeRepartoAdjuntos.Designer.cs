@@ -1010,6 +1010,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("TipoDocumentoPropuestoId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MensajeId");

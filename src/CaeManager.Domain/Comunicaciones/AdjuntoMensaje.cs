@@ -10,7 +10,7 @@ namespace CaeManager.Domain.Comunicaciones;
 /// storage paralelo") — <see cref="ArchivoUrl"/> es el identificador opaco
 /// que devuelve ese servicio, nunca la ruta real ni una URL pública.
 /// </summary>
-public class AdjuntoMensaje : EntidadConTenant
+public class AdjuntoMensaje : EntidadConTenant, IVersionable
 {
     public const int LongitudMaximaNombreArchivo = 260;
     public const int LongitudMaximaTipoContenido = 150;
@@ -22,6 +22,9 @@ public class AdjuntoMensaje : EntidadConTenant
     public string TipoContenido { get; private set; } = string.Empty;
     public long TamanoBytes { get; private set; }
     public string ArchivoUrl { get; private set; } = string.Empty;
+
+    /// <summary>Quien reparte y el marcado tras el alta pueden coincidir: la transición de estado no pisa a la otra.</summary>
+    public Guid Version { get; private set; } = Guid.NewGuid();
 
     public EstadoRepartoAdjunto EstadoReparto { get; private set; }
 

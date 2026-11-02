@@ -229,6 +229,36 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
             .Should().Be("Se reclamaron 2 documentos pendientes por esta conversación.");
     }
 
+    [Fact]
+    public async Task El_reparto_de_adjuntos_no_llega_al_timeline_del_rol_Cliente_de_portal()
+    {
+        Guid conversacionId, clienteId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline Reparto S.L.", "B10380202", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var conversacion = new Conversacion("Documentación recibida", cliente.Id);
+            contexto.Conversaciones.Add(conversacion);
+            contexto.EventosConversacion.Add(new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoRechazado, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+            conversacionId = conversacion.Id;
+            clienteId = cliente.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        ObtenerConversacionPorIdQueryHandler Handler(string rol) => new(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(clienteIds: [clienteId]),
+            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: rol),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+
+        var interna = await Handler("GestorCae").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+        var portal = await Handler("Cliente").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+
+        interna!.Eventos.Should().ContainSingle();
+        portal.Should().NotBeNull();
+        portal!.Eventos.Should().BeEmpty();
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

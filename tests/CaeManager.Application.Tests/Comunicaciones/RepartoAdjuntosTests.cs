@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
@@ -16,6 +17,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
@@ -29,6 +31,7 @@ public class RepartoAdjuntosTests
 {
     private readonly ComunicacionesQueryContextFalso _contexto = new();
     private readonly EmpresasQueryContextFalso _empresas = new();
+    private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly EventoConversacionRepositorioFalso _eventos = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
     private readonly Guid _empresaConversacionId = Guid.NewGuid();
@@ -49,10 +52,11 @@ public class RepartoAdjuntosTests
 
     private static AlcanceDatosServiceFalso Total() => new();
     private AlcanceDatosServiceFalso SoloLaConversacion() => new(tieneAccesoTotal: false, empresaIdsVisibles: [_empresaConversacionId], empresaIdsParaGestion: [_empresaConversacionId]);
+    private AlcanceDatosServiceFalso SinTrabajadores() => new(tieneAccesoTotal: false, trabajadorIdsVisibles: [], empresaIdsVisibles: [_empresaConversacionId], empresaIdsParaGestion: [_empresaConversacionId]);
     private static AlcanceDatosServiceFalso SinCartera() => new(tieneAccesoTotal: false);
 
     private FijarDestinoAdjuntoCommandHandler Fijar(AlcanceDatosServiceFalso alcance) => new(
-        _contexto, new TrabajadoresQueryContextFalso(), _empresas, new TiposDocumentoVacio(), new AdjuntoRepositorioFalso(_contexto), alcance, _unitOfWork);
+        _contexto, _trabajadores, _empresas, new TiposDocumentoVacio(), new AdjuntoRepositorioFalso(_contexto), alcance, _unitOfWork);
 
     private ResolverAdjuntoCommandHandler Resolver(AlcanceDatosServiceFalso alcance, Guid? usuarioId = null) => new(
         _contexto, new AdjuntoRepositorioFalso(_contexto), _eventos, alcance,
@@ -104,6 +108,22 @@ public class RepartoAdjuntosTests
 
         resultado.Error.Codigo.Should().Be("Adjunto.DestinoNoValido");
         adjunto.DestinoEmpresaId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_de_la_cartera_es_destino_y_uno_de_fuera_no()
+    {
+        var adjunto = Sembrar();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Marco", "Rivas", "11223344B");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+
+        var fuera = await Fijar(SinTrabajadores()).Handle(new FijarDestinoAdjuntoCommand(adjunto.Id, trabajador.Id, null, null), CancellationToken.None);
+        fuera.Error.Codigo.Should().Be("Adjunto.DestinoNoValido");
+        adjunto.DestinoTrabajadorId.Should().BeNull();
+
+        var dentro = await Fijar(Total()).Handle(new FijarDestinoAdjuntoCommand(adjunto.Id, trabajador.Id, null, null), CancellationToken.None);
+        dentro.EsExitoso.Should().BeTrue();
+        adjunto.DestinoTrabajadorId.Should().Be(trabajador.Id);
     }
 
     [Fact]
@@ -210,14 +230,16 @@ public class RepartoAdjuntosTests
         deOtroHilo.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
         var rechazadoPorElAlta = Sembrar();
         rechazadoPorElAlta.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
-        var mediador = new MediadorDelLote { RechazarAdjuntoId = rechazadoPorElAlta.Id };
+        var saliente = Sembrar(DireccionMensaje.Saliente);
+        saliente.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+        var mediador = new MediadorDelLote(_contexto) { RechazarAdjuntoId = rechazadoPorElAlta.Id };
 
         var resultado = await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id,
-            [Item(conDestino), Item(sinDestino), Item(sinTipo), Item(resuelto), Item(deOtroHilo), Item(rechazadoPorElAlta)]), CancellationToken.None);
+            [Item(conDestino), Item(sinDestino), Item(sinTipo), Item(resuelto), Item(deOtroHilo), Item(rechazadoPorElAlta), Item(saliente)]), CancellationToken.None);
 
         resultado.Valor.Select(r => r.Estado).Should().Equal(
             EstadoAsignacionAdjunto.Asignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado,
-            EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado);
+            EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado, EstadoAsignacionAdjunto.NoAsignado);
         resultado.Valor[1].Detalle.Should().Be("Este adjunto no tiene destino.");
         resultado.Valor[4].Detalle.Should().Be("Este adjunto no pertenece a la conversación.");
         resultado.Valor[5].Detalle.Should().Be("Sin hueco en el alta.");
@@ -231,7 +253,7 @@ public class RepartoAdjuntosTests
         var trabajadorId = Guid.NewGuid();
         var tipoId = Guid.NewGuid();
         adjunto.FijarDestino(trabajadorId, null, tipoId);
-        var mediador = new MediadorDelLote();
+        var mediador = new MediadorDelLote(_contexto);
 
         await Lote(Total(), mediador).Handle(new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None);
 
@@ -253,7 +275,7 @@ public class RepartoAdjuntosTests
         sinRespuesta.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
         var ultimo = Sembrar();
         ultimo.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
-        var mediador = new MediadorDelLote
+        var mediador = new MediadorDelLote(_contexto)
         {
             ExcepcionPorAdjunto =
             {
@@ -271,6 +293,20 @@ public class RepartoAdjuntosTests
     }
 
     [Fact]
+    public async Task Si_el_adjunto_no_quedo_asignado_el_lote_no_lo_da_por_bueno()
+    {
+        var adjunto = Sembrar();
+        adjunto.FijarDestino(Guid.NewGuid(), null, Guid.NewGuid());
+
+        var resultado = await Lote(Total(), new MediadorDelLote()).Handle(
+            new AsignarAdjuntosLoteCommand(_conversacion.Id, [Item(adjunto)]), CancellationToken.None);
+
+        var fila = resultado.Valor.Should().ContainSingle().Subject;
+        fila.Estado.Should().Be(EstadoAsignacionAdjunto.SinConfirmar);
+        fila.DocumentoId.Should().NotBeNull();
+    }
+
+    [Fact]
     public void El_lote_tiene_tope_y_no_admite_repetidos()
     {
         var validador = new AsignarAdjuntosLoteCommandValidator();
@@ -282,6 +318,7 @@ public class RepartoAdjuntosTests
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [repetido, repetido])).IsValid.Should().BeFalse();
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), demasiados)).IsValid.Should().BeFalse();
         validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), [repetido])).IsValid.Should().BeTrue();
+        validador.Validate(new AsignarAdjuntosLoteCommand(Guid.NewGuid(), null!)).IsValid.Should().BeFalse();
     }
 
     [Fact]
@@ -317,25 +354,56 @@ public class RepartoAdjuntosTests
     }
 
     [Fact]
+    public async Task Si_marcar_falla_el_cambio_no_queda_en_el_contexto()
+    {
+        var adjunto = Sembrar();
+        var repositorio = new AdjuntoRepositorioFalso(_contexto);
+        var handler = new MarcarAdjuntoAsignadoHandler(repositorio, new CurrentUserServiceFalso(Guid.NewGuid()), new UnitOfWorkQueFalla(),
+            NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
+
+        await handler.Handle(new DocumentoActualizadoEvent(_conversacion.Id, Guid.NewGuid(), adjunto.Id), CancellationToken.None);
+
+        repositorio.Olvidados.Should().ContainSingle().Which.Should().BeSameAs(adjunto);
+    }
+
+    [Fact]
+    public async Task Asignar_suelto_rechaza_un_adjunto_saliente()
+    {
+        var adjunto = Sembrar(DireccionMensaje.Saliente);
+
+        var resultado = await Suelta(adjunto);
+
+        resultado.Error.Codigo.Should().Be("Adjunto.NoEntrante");
+    }
+
+    [Fact]
     public async Task Asignar_suelto_no_repite_sobre_un_adjunto_resuelto()
     {
         var adjunto = Sembrar();
         adjunto.MarcarAsignado(Guid.NewGuid(), null, DateTime.UtcNow);
-        var almacen = new FileStorageServiceFalso();
-        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(_contexto, Total(), new DocumentosQueryContextFalso(),
-            new MediadorDelLote(), new MediadorDelLote(), almacen, NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
-
-        var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(), Guid.NewGuid(), null,
-            new DateOnly(2026, 10, 1), null, null), CancellationToken.None);
+        var resultado = await Suelta(adjunto);
 
         resultado.Error.Codigo.Should().Be("Adjunto.YaResuelto");
-        almacen.ArchivosGuardados.Should().Be(0);
     }
+
+    private Task<Result<Guid>> Suelta(AdjuntoMensaje adjunto) =>
+        new ActualizarDocumentoDesdeAdjuntoCommandHandler(_contexto, Total(), new DocumentosQueryContextFalso(),
+            new MediadorDelLote(), new MediadorDelLote(), new FileStorageServiceFalso(), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance)
+            .Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(), Guid.NewGuid(), null,
+                new DateOnly(2026, 10, 1), null, null), CancellationToken.None);
 
     private sealed class AdjuntoRepositorioFalso(ComunicacionesQueryContextFalso contexto) : IAdjuntoMensajeRepository
     {
         public Task<AdjuntoMensaje?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
             Task.FromResult(contexto.ListaAdjuntosMensaje.FirstOrDefault(a => a.Id == id));
+
+        public List<AdjuntoMensaje> Olvidados { get; } = [];
+        public void OlvidarCambios(AdjuntoMensaje adjunto) => Olvidados.Add(adjunto);
+    }
+
+    private sealed class UnitOfWorkQueFalla : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => throw new InvalidOperationException("Sin base de datos.");
     }
 
     private sealed class TiposDocumentoVacio : ITiposDocumentoQueryContext
@@ -349,7 +417,8 @@ public class RepartoAdjuntosTests
         private static IQueryable<T> Vacia<T>() => new TestAsyncQueryable<T>(new List<T>().AsQueryable());
     }
 
-    private sealed class MediadorDelLote : IMediator
+    /// <summary>Con <paramref name="contexto"/> hace como el alta real, que deja el adjunto asignado; sin él, ese marcado no llega.</summary>
+    private sealed class MediadorDelLote(ComunicacionesQueryContextFalso? contexto = null) : IMediator
     {
         public List<ActualizarDocumentoDesdeAdjuntoCommand> Enviados { get; } = [];
         public List<object> OtrasPeticiones { get; } = [];
@@ -370,6 +439,8 @@ public class RepartoAdjuntosTests
             var resultado = comando.AdjuntoId == RechazarAdjuntoId
                 ? Result.Fallo<Guid>(Error.Crear("Alta.Rechazada", "Sin hueco en el alta."))
                 : Result.Exito(Guid.NewGuid());
+            if (resultado.EsExitoso)
+                contexto?.ListaAdjuntosMensaje.Single(a => a.Id == comando.AdjuntoId).MarcarAsignado(resultado.Valor, null, DateTime.UtcNow);
             return Task.FromResult((TResponse)(object)resultado);
         }
 

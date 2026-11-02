@@ -19,7 +19,7 @@ public enum EstadoAsignacionAdjunto
     /// <summary><see cref="ResultadoAsignacionAdjunto.Detalle"/> dice por qué no se asignó.</summary>
     NoAsignado = 1,
 
-    /// <summary>La asignación falló sin respuesta: el Documento pudo quedar guardado, así que se pide comprobarlo.</summary>
+    /// <summary>El Documento pudo quedar guardado sin que el adjunto constara como asignado: se pide comprobarlo.</summary>
     SinConfirmar = 2
 }
 
@@ -30,15 +30,17 @@ public record AsignarAdjuntosLoteCommand(Guid ConversacionId, IReadOnlyList<Adju
 
 public class AsignarAdjuntosLoteCommandValidator : AbstractValidator<AsignarAdjuntosLoteCommand>
 {
-    public const int MaximoAdjuntos = 50;
+    public const int MaximoAdjuntos = 20;
 
     public AsignarAdjuntosLoteCommandValidator()
     {
         RuleFor(c => c.ConversacionId).NotEmpty();
         RuleFor(c => c.Adjuntos).NotEmpty().WithMessage("No hay adjuntos que asignar.");
-        RuleFor(c => c.Adjuntos.Count).LessThanOrEqualTo(MaximoAdjuntos).WithMessage($"No se pueden asignar más de {MaximoAdjuntos} adjuntos a la vez.");
         RuleFor(c => c.Adjuntos)
-            .Must(a => a.Select(x => x.AdjuntoId).Distinct().Count() == a.Count)
+            .Must(a => a is null || a.Count <= MaximoAdjuntos)
+            .WithMessage($"No se pueden asignar más de {MaximoAdjuntos} adjuntos a la vez.");
+        RuleFor(c => c.Adjuntos)
+            .Must(a => a is null || a.Select(x => x.AdjuntoId).Distinct().Count() == a.Count)
             .WithMessage("Un adjunto aparece dos veces en el lote.");
     }
 }
@@ -92,9 +94,17 @@ public class AsignarAdjuntosLoteCommandHandler(
         try
         {
             var asignado = await mediator.Send(comando, cancellationToken);
-            return asignado.EsExitoso
+            if (!asignado.EsExitoso) return NoAsignado(item, asignado.Error.Mensaje);
+
+            // El marcado corre tras el commit y puede no llegar (fallo o resolución a la vez): se cuenta lo que quedó, no lo que se pidió.
+            var estado = await comunicacionesContext.AdjuntosMensaje
+                .Where(a => a.Id == item.AdjuntoId)
+                .Select(a => a.EstadoReparto)
+                .FirstAsync(cancellationToken);
+            return estado == EstadoRepartoAdjunto.Asignado
                 ? new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Asignado, asignado.Valor, null)
-                : NoAsignado(item, asignado.Error.Mensaje);
+                : new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.SinConfirmar, asignado.Valor,
+                    "El Documento se guardó, pero el adjunto no quedó asignado.");
         }
         catch (ValidationException ex)
         {
