@@ -416,6 +416,34 @@ public class RespuestaSugeridaTests
     }
 
     [Fact]
+    public async Task Si_mientras_Vega_redacta_llega_otro_entrante_con_la_misma_fecha_no_se_guarda_nada()
+    {
+        var conversacion = Hilo();
+        var fecha = conversacion.Mensajes.Single().FechaUtc;
+        _redaccion.AlRedactar = () => Entrante(conversacion, fecha);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+        _comunicaciones.ListaRespuestasSugeridas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_la_misma_fecha_una_salida_cuenta_como_ultimo_mensaje()
+    {
+        var conversacion = Hilo();
+        var fecha = conversacion.Mensajes.Single().FechaUtc;
+        var salida = conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, conversacion.Canal, "cae@empresa.test", "<p>Recibido</p>", fecha);
+        _comunicaciones.ListaMensajes.Add(salida);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+        _redaccion.Llamadas.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Si_mientras_Vega_redacta_entra_un_automatico_la_sugerencia_se_guarda()
     {
         var conversacion = Hilo();

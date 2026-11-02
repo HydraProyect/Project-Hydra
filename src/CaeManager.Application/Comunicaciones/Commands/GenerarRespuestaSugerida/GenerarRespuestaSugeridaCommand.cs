@@ -81,12 +81,16 @@ public class GenerarRespuestaSugeridaCommandHandler(
         if (conversacion.Estado is EstadoConversacion.Resuelta or EstadoConversacion.Cerrada)
             return Result.Fallo<Guid>(NoProcede);
 
+        // Con la misma fecha, que Graph da al segundo, gana la salida: el hilo puede estar ya contestado.
         var ultimoMensaje = await comunicaciones.Mensajes
             .Where(m => m.ConversacionId == conversacion.Id && !m.EsAutomatico)
             .OrderByDescending(m => m.FechaUtc)
+            .ThenBy(m => m.Direccion == DireccionMensaje.Entrante)
             .FirstOrDefaultAsync(cancellationToken);
         if (ultimoMensaje is null || ultimoMensaje.Direccion != DireccionMensaje.Entrante)
             return Result.Fallo<Guid>(NoProcede);
+
+        var mensajesAlEmpezar = await ContarMensajesAsync(conversacion.Id, cancellationToken);
 
         var activa = await comunicaciones.RespuestasSugeridas
             .Where(r => r.ConversacionId == conversacion.Id &&
@@ -113,7 +117,7 @@ public class GenerarRespuestaSugeridaCommandHandler(
             var guardado = await transaccion.EjecutarAsync(async ct =>
             {
                 // Vega tarda: lo que se comprobó arriba puede haber cambiado mientras redactaba.
-                if (!await SigueProcediendoAsync(conversacion.Id, ultimoMensaje.Id, ct))
+                if (!await SigueProcediendoAsync(conversacion.Id, mensajesAlEmpezar, ct))
                     return Result.Fallo(NoProcede);
 
                 if (await respuestas.ObtenerActivaPorConversacionAsync(conversacion.Id, ct) is { } anterior)
@@ -148,8 +152,11 @@ public class GenerarRespuestaSugeridaCommandHandler(
         }
     }
 
-    // Proyecciones y no la entidad ya cargada: tienen que leer de la base lo que haya ahora.
-    private async Task<bool> SigueProcediendoAsync(Guid conversacionId, Guid mensajeOrigenId, CancellationToken cancellationToken)
+    // Proyecciones y no la entidad ya cargada: tienen que leer de la base lo que haya ahora. Se cuenta en vez de mirar el
+    // último porque un mensaje nuevo puede empatar en fecha con el de origen. Sin candado a propósito: un mensaje que entra
+    // justo después deja la propuesta igual de atrasada que cualquiera ya guardada, y una propuesta solo se envía si una
+    // persona la revisa.
+    private async Task<bool> SigueProcediendoAsync(Guid conversacionId, int mensajesAlEmpezar, CancellationToken cancellationToken)
     {
         var estado = await comunicaciones.Conversaciones
             .Where(c => c.Id == conversacionId)
@@ -158,13 +165,11 @@ public class GenerarRespuestaSugeridaCommandHandler(
         if (estado is null or EstadoConversacion.Resuelta or EstadoConversacion.Cerrada)
             return false;
 
-        var ultimoId = await comunicaciones.Mensajes
-            .Where(m => m.ConversacionId == conversacionId && !m.EsAutomatico)
-            .OrderByDescending(m => m.FechaUtc)
-            .Select(m => (Guid?)m.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        return ultimoId == mensajeOrigenId;
+        return await ContarMensajesAsync(conversacionId, cancellationToken) == mensajesAlEmpezar;
     }
+
+    private Task<int> ContarMensajesAsync(Guid conversacionId, CancellationToken cancellationToken) =>
+        comunicaciones.Mensajes.CountAsync(m => m.ConversacionId == conversacionId && !m.EsAutomatico, cancellationToken);
 
     // DbException y no PostgresException: Application no depende de Npgsql (FronterasDeCapaTests).
     private static bool EsConflictoConOtraGeneracion(DbUpdateException excepcion) =>
