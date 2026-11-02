@@ -15,6 +15,7 @@
 @inject CaeManager.Application.DocumentosIa.Common.IRasterizadorPaginasPdfService Rasterizador
 @inject CaeManager.Application.Common.IPresupuestoMemoriaDocumentos PresupuestoMemoria
 @inject NavigationManager Navigation
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosArchivo
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>

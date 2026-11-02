@@ -95,7 +95,13 @@ public class AnthropicDeteccionVisitaCorreoService(
         // propias y con los identificadores enmascarados (ver PromptCorreoEntrante).
         var correo = PromptCorreoEntrante.Preparar(
             cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuestaVisita, LongitudMaximaCuerpo);
-        var centrosJson = JsonSerializer.Serialize(centrosDisponibles.Select(c => new { id = c.Id, nombre = c.Nombre }));
+        // El nombre de un Centro también sale hacia el proveedor: pasa por el mismo enmascarado y la
+        // misma tabla que el correo, así un teléfono en su rótulo no sale en claro y sigue casando
+        // con el correo que lo nombra. El id no cambia.
+        var nombresCentros = EnmascaradorIdentificadores.EnmascararConTablaDe(
+            correo, centrosDisponibles.Select(c => c.Nombre).ToList());
+        var centrosJson = JsonSerializer.Serialize(
+            centrosDisponibles.Select((c, i) => new { id = c.Id, nombre = nombresCentros[i] }));
 
         var textoUsuario =
             $"""

@@ -26,7 +26,8 @@ public sealed record ContextoMenuLateral(
     PerfilVocabularioTenant Perfil,
     bool VariosTenants,
     bool ParticipaEnIncorporacionCartera = false,
-    bool RotulosPrimeraPersona = false)
+    bool RotulosPrimeraPersona = false,
+    bool HerramientasPdfDisponibles = true)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -276,6 +277,9 @@ public static class CatalogoMenuLateral
             Condicion: c => c.ComunicacionesActivo),
         new("gestiones", "operacion", "gestiones", "evaluaciones", "Gestiones"),
         new("visitas", "operacion", "visitas", "visitas", "Visitas"),
+        new("herramientas-pdf", "operacion", "herramientas-pdf", "tijeras", "MenuHerramientasPdf",
+            Condicion: c => c.HerramientasPdfDisponibles && c.TieneAlgunRol(RolesDeGestionDocumental),
+            ClaveRotulo: "MenuHerramientasPdf"),
         // Incidencias y Revisión IA ya no tienen enlace propio: son pestañas de sección de Documentos
         // (entrega de Design del 2026-10-17; ver CatalogoSeccionesMenu). /incidencias sigue siendo la
         // misma ruta y «g i» y la paleta siguen llevando allí.

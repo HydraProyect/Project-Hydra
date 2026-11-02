@@ -134,6 +134,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             _logger.LogWarning(
                 "{Request} falló con {CodigoError} en {DuracionMs} ms",
                 nombre, codigo, cronometro.ElapsedMilliseconds);
+            Observabilidad.RegistrarDuracionComando(nombre, cronometro.ElapsedMilliseconds, Observabilidad.ResultadoFallo);
             _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
             throw;
         }
@@ -149,6 +150,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             _logger.LogWarning(
                 "{Request} falló con {CodigoError} en {DuracionMs} ms",
                 nombre, codigo, cronometro.ElapsedMilliseconds);
+            Observabilidad.RegistrarDuracionComando(nombre, cronometro.ElapsedMilliseconds, Observabilidad.ResultadoFallo);
             _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
             throw;
         }
@@ -168,6 +170,7 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             // Alertas por tasa (Horizonte 2.4): una excepción es un fallo
             // igual que un Result fallido a efectos de la tasa de error —
             // ver RegistrarDesenlace para el otro punto de entrada.
+            Observabilidad.RegistrarDuracionComando(nombre, cronometro.ElapsedMilliseconds, Observabilidad.ResultadoExcepcion);
             _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
             throw;
         }
@@ -180,7 +183,8 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
         // en el span, no en la métrica, para no disparar la cardinalidad de
         // las series temporales de un histograma que sí se consulta agregado
         // (p95 por comando).
-        Observabilidad.DuracionComandoMs.Record(duracionMs, new KeyValuePair<string, object?>("Request", nombre));
+        Observabilidad.RegistrarDuracionComando(
+            nombre, duracionMs, respuesta is Result { EsFallido: true } ? Observabilidad.ResultadoFallo : Observabilidad.ResultadoExito);
 
         // Alertas por tasa (Horizonte 2.4): se alimenta aquí, antes de
         // cualquier "return" de abajo, para que todo desenlace (éxito,
