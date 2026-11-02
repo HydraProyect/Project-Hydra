@@ -35,6 +35,16 @@ public class ConexionIntegracion : EntidadBase
     public Guid? ClienteId { get; private set; }
     public Guid? GestorPropietarioId { get; private set; }
 
+    /// <summary>
+    /// Persona responsable de un buzón compartido: cada conversación nueva de correo nace asignada a ella
+    /// (decisión de 2026-11-01). Null en los buzones conectados antes de existir el campo, y siempre en el
+    /// buzón personal, cuya responsable es su <see cref="GestorPropietarioId"/>.
+    /// </summary>
+    public Guid? ResponsableUsuarioId { get; private set; }
+
+    /// <summary>A quién se asigna una conversación nueva de este buzón; null si nadie responde de él todavía.</summary>
+    public Guid? ResponsableEfectivoId => GestorPropietarioId ?? ResponsableUsuarioId;
+
     /// <summary>Identificador de display de la conexión: el buzón en Microsoft 365, el número E.164 en WhatsApp (deuda nominal documentada — la clave operativa WhatsApp es LineaWhatsApp.PhoneNumberId).</summary>
     public string BuzonEmail { get; private set; } = string.Empty;
 
@@ -67,6 +77,14 @@ public class ConexionIntegracion : EntidadBase
         Estado = EstadoConexionIntegracion.Habilitada;
         Proveedor = proveedor;
         FechaConectadaUtc = DateTime.UtcNow;
+    }
+
+    public void FijarResponsable(Guid? usuarioId)
+    {
+        if (GestorPropietarioId is not null)
+            throw new InvalidOperationException("El buzón personal de un gestor no tiene responsable aparte.");
+
+        ResponsableUsuarioId = usuarioId;
     }
 
     public void MarcarConError(string mensaje)

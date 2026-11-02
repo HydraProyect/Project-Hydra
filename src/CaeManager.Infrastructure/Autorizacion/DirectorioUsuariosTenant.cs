@@ -78,9 +78,9 @@ public class DirectorioUsuariosTenant(
     /// GUID sin cuenta: una Asignación de Cartera vigente, una Asignación de
     /// Operador Delegado (aunque su <see cref="Tenants.DelegacionTenant"/> esté
     /// desactivada hoy — <c>ReabrirCarterasDeOperadoresAsync</c> la reconstruye
-    /// al reactivarla, para un usuario que ya no existiría), o una
+    /// al reactivarla, para un usuario que ya no existiría), una
     /// configuración de <see cref="LineaWhatsApp"/> que lo nombra como gestor
-    /// fijo o miembro de su pool. Sin filtro de posición para cartera y
+    /// fijo o miembro de su pool, o un buzón que lo tiene como responsable. Sin filtro de posición para cartera y
     /// delegación —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
     /// pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
     /// no "¿qué carteras ve el tenant activo?".
@@ -291,6 +291,11 @@ public class DirectorioUsuariosTenant(
                 .AnyAsync(l => l.ComercialAsignadoId == usuarioId, cancellationToken);
 
             if (esGestorFijoDeWhatsApp) return true;
+
+            var esResponsableDeBuzon = await identidad.ConexionesIntegracion
+                .AnyAsync(c => c.ResponsableUsuarioId == usuarioId, cancellationToken);
+
+            if (esResponsableDeBuzon) return true;
 
             return await identidad.MiembrosPoolLinea
                 .AnyAsync(m => m.UsuarioId == usuarioId, cancellationToken);

@@ -173,6 +173,7 @@ src/CaeManager.Application/Integraciones/Commands/ConectarBuzonMicrosoft365/Cone
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: ClienteId = 3
 src/CaeManager.Application/Integraciones/Commands/CrearLineaWhatsApp/CrearLineaWhatsAppCommand.cs :: clienteId = 2
 src/CaeManager.Application/Integraciones/Commands/DesconectarBuzon/DesconectarBuzonCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Integraciones/Commands/FijarResponsableBuzon/FijarResponsableBuzonCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/Commands/ReactivarConexion/ReactivarConexionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Integraciones/IngestaWebhookService.cs :: ClienteId = 3
 src/CaeManager.Application/Integraciones/IngestaWebhookService.cs :: clienteId = 5

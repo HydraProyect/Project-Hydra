@@ -15,6 +15,8 @@ public class ConexionIntegracionConfiguration : IEntityTypeConfiguration<Conexio
         builder.Property(c => c.Nombre).IsRequired().HasMaxLength(ConexionIntegracion.LongitudMaximaNombre);
         builder.Property(c => c.UltimoError).HasMaxLength(ConexionIntegracion.LongitudMaximaUltimoError);
 
+        builder.Ignore(c => c.ResponsableEfectivoId);
+
         builder.HasIndex(c => new { c.TenantId, c.Nombre }).IsUnique();
         builder.HasIndex(c => new { c.TenantId, c.ClienteId });
 

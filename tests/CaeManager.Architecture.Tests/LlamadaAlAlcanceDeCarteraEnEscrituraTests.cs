@@ -191,6 +191,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.ConectarBuzonMicrosoft365CommandHandler",
         "Integraciones.CrearLineaWhatsAppCommandHandler",
         "Integraciones.DesconectarBuzonCommandHandler",
+        "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
 
         // Plantillas
