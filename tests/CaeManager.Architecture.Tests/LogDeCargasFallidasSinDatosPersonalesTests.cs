@@ -15,7 +15,8 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que NO observa</b> (huecos declarados): (1) solo mira las llamadas que usan la plantilla <c>{TipoExcepcion}</c>:
+/// <b>Lo que NO observa</b> (huecos declarados): (0) <c>SelectorClienteActivo.razor.cs:430</c> usa <c>{TipoExcepcion}</c> sin
+/// punto final y pasa <c>ex</c>: queda fuera de la plantilla que vigila este test y es deuda aparte; (1) solo mira las llamadas que usan la plantilla <c>{TipoExcepcion}</c>:
 /// un <c>Logger.LogError(ex, …)</c> escrito a mano en otro sitio no entra aquí (los hay legítimos, de errores sin datos
 /// personales); (2) comprueba el texto del código, no el contenido del log en ejecución; (3) un <c>catch</c> nuevo que
 /// siga siendo silencioso no lo detecta: eso es el trabajo pendiente de M-06, no esta propiedad.

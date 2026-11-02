@@ -87,6 +87,7 @@ public partial class Cliente360PaginaTests : BunitContext
         /// <summary>Los bloqueos de acceso visibles (la consulta sin Centro): la página se queda con los de su Cliente empresarial.</summary>
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
         public bool FallaLecturaBloqueos { get; set; }
+        public bool FallanLosRecuentos { get; set; }
         public bool FallaLecturaGestorCae { get; set; }
 
         /// <summary>Si tiene valor, la lectura de la fila «Gestor CAE» no responde hasta que se complete.</summary>
@@ -116,7 +117,7 @@ public partial class Cliente360PaginaTests : BunitContext
             ObtenerClientePorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerResumenClienteQuery q => Resumenes.GetValueOrDefault(q.ClienteId),
             // Documentación exigida: sin requisitos, la ficha no pinta contador (un fallo de lectura ahora avisa con un aviso).
-            ObtenerDocumentacionExigidaDeClienteQuery => null,
+            ObtenerDocumentacionExigidaDeClienteQuery => FallanLosRecuentos ? throw new InvalidOperationException("Fallo de recuento") : null,
             ObtenerCentrosQuery q when q.ClienteId is { } c && CentrosPorCliente.TryGetValue(c, out var propios) =>
                 new ResultadoPaginado<CentroListaDto>(propios, propios.Count, 1, MaximoCentros),
             ObtenerCentrosQuery => new ResultadoPaginado<CentroListaDto>(
@@ -124,7 +125,7 @@ public partial class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
-            ObtenerAgendaContactosQuery => (IReadOnlyList<ContactoAgendaDto>)Contactos.ToList(),
+            ObtenerAgendaContactosQuery => FallanLosRecuentos ? throw new InvalidOperationException("Fallo de recuento") : (IReadOnlyList<ContactoAgendaDto>)Contactos.ToList(),
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
@@ -625,6 +626,20 @@ public partial class Cliente360PaginaTests : BunitContext
             cut.Find(".anillo-cumplimiento-detalle").TextContent.Should().Be($"1 de 1 {singular}");
         }
         finally { System.Globalization.CultureInfo.CurrentUICulture = anterior; }
+    }
+
+    [Fact]
+    public void Si_fallan_varios_recuentos_de_la_ficha_se_avisa_una_sola_vez()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.FallanLosRecuentos = true;
+        Registrar(mediador);
+        var toasts = Services.GetRequiredService<ToastService>();
+
+        Renderizar(id);
+
+        toasts.Mensajes.Where(m => m.Tono == TonoToast.Error).Should().ContainSingle(
+            "documentación y agenda fallan a la vez y el aviso es el mismo: uno por ficha, no uno por consulta");
     }
 
     [Fact]
