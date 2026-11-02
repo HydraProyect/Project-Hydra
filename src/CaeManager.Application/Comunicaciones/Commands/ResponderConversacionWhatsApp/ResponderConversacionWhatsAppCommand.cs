@@ -51,7 +51,9 @@ public class ResponderConversacionWhatsAppCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IWhatsAppCloudApiClient whatsAppClient,
     IUnitOfWork unitOfWork,
-    ILogger<ResponderConversacionWhatsAppCommandHandler> logger)
+    ILogger<ResponderConversacionWhatsAppCommandHandler> logger,
+    IRegistroExportacionService registroSalida,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ResponderConversacionWhatsAppCommand, Result>
 {
     public async Task<Result> Handle(ResponderConversacionWhatsAppCommand request, CancellationToken cancellationToken)
@@ -84,6 +86,9 @@ public class ResponderConversacionWhatsAppCommandHandler(
             return Result.Fallo(Error.Crear(
                 "ConversacionWhatsApp.LineaNoDisponible", "La línea de WhatsApp de esta conversación no está disponible."));
 
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.RespuestaWhatsApp, conexion.Id, [conversacion.TelefonoContacto], copia: null, adjuntos: null, cancellationToken);
+
         var envio = await whatsAppClient.EnviarTextoAsync(
             linea.TokenAcceso, linea.PhoneNumberId, conversacion.TelefonoContacto, request.Texto, cancellationToken);
         if (envio.EsFallido)
@@ -102,6 +107,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
             logger.LogError(ex,
                 "El mensaje se envió por WhatsApp (wamid {Wamid}) pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
                 envio.Valor, request.ConversacionId);
+            descarteCambios.DescartarCambiosPendientes();
         }
 
         return Result.Exito();

@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Domain.Centros;
 using CaeManager.Application.Integraciones;
@@ -52,7 +53,8 @@ public class EnviarPaqueteAcreditacionVisitaCommandValidator : AbstractValidator
 public class EnviarPaqueteAcreditacionVisitaCommandHandler(
     IVisitaRepository repositorio, ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos,
     ISender mediator, IUnitOfWork unitOfWork,
-    ILogger<EnviarPaqueteAcreditacionVisitaCommandHandler> logger)
+    ILogger<EnviarPaqueteAcreditacionVisitaCommandHandler> logger,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<EnviarPaqueteAcreditacionVisitaCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(EnviarPaqueteAcreditacionVisitaCommand request, CancellationToken cancellationToken)
@@ -81,7 +83,8 @@ public class EnviarPaqueteAcreditacionVisitaCommandHandler(
 
         var envio = await mediator.Send(
             new EnviarMensajeNuevoCommand(
-                request.ConexionIntegracionId, request.Destinatarios, request.Asunto, request.CuerpoHtml, Adjuntos: request.Adjuntos),
+                request.ConexionIntegracionId, request.Destinatarios, request.Asunto, request.CuerpoHtml, Adjuntos: request.Adjuntos,
+                Origen: OrigenSalidaComunicacion.PaqueteAcreditacion),
             cancellationToken);
         if (envio.EsFallido)
             return envio;
@@ -99,6 +102,7 @@ public class EnviarPaqueteAcreditacionVisitaCommandHandler(
         catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "El paquete de la visita {VisitaId} se envió, pero no se pudo marcar su documentación como gestionada.", visita.Id);
+            descarteCambios.DescartarCambiosPendientes();
         }
 
         return envio;

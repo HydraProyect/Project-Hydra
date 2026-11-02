@@ -195,8 +195,8 @@ public class RegistroEnvioReclamacionService(
             // toda la gestión CAE (§ 12.4) — el alcance de cartera de la
             // reclamación se perdería en cuanto alguien abriera Comunicaciones.
             var mensaje = titular.Ambito == AmbitoAplicacion.Cliente
-                ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia)
-                : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia);
+                ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia, Origen: Comunicaciones.OrigenSalidaComunicacion.Reclamacion)
+                : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia, Origen: Comunicaciones.OrigenSalidaComunicacion.Reclamacion);
 
             // Si el comando del buzón falla después de que Graph aceptara el correo (hilo de otro titular, o su propio
             // guardado), deja el hilo rastreado sin guardar: se descarta para que no viaje en el guardado de otra

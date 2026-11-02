@@ -22,7 +22,8 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
 
     private ResponderConversacionWhatsAppCommandHandler CrearHandler(IUnitOfWork? unitOfWork = null) =>
         new(_conversaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? _unitOfWork,
-            NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance);
+            NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance,
+            new RegistroExportacionFalso(), new CaeManager.Application.Tests.Clientes.DescarteCambiosPendientesFalso());
 
     private Conversacion CrearConversacionConLinea(DateTime? ultimoEntranteUtc)
     {
