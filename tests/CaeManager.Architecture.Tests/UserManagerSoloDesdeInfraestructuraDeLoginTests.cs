@@ -5,7 +5,9 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <b>Web no llama a los gestores de Identity fuera de la infraestructura de
-/// login</b> (P1-I2 del plan de madurez 09-24).
+/// login</b> (P1-I2 del plan de madurez 09-24). «Gestores de Identity» es el nombre técnico de
+/// <c>UserManager</c>, <c>SignInManager</c> y <c>RoleManager</c> (ASP.NET Core Identity); no son Gestores CAE
+/// (personas) ni Operadores CAE (organizaciones): deuda terminológica del código legacy, sin renombrar aquí.
 ///
 /// <para>
 /// Una página que llama a <c>UserManager</c> decide ella misma quién puede crear,
@@ -20,18 +22,20 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Lo que SÍ observa:</b> todo fichero <c>.cs</c> o <c>.razor</c> de
 /// <c>src/CaeManager.Web</c> que nombre <c>UserManager&lt;</c>,
 /// <c>SignInManager&lt;</c> o <c>RoleManager&lt;</c> fuera de un comentario
-/// (inyección, parámetro de constructor o de endpoint). El conjunto tiene que ser
-/// exactamente <see cref="InfraestructuraDeLogin"/> más <see cref="DeudaCongelada"/>:
-/// un fichero nuevo lo hace crecer y pone esto en rojo; uno que se migre lo hace
-/// menguar y también, para que se retire de la lista en el mismo commit.
+/// (inyección, parámetro de constructor o de endpoint). Desde MJ-08 la lista es
+/// <c>Congelados/Gestores-de-Identity-en-Web.txt</c> (<see cref="ListaCongelada"/>, una línea
+/// por fichero y por tipo de gestor, con su recuento): la infraestructura de login y la deuda por
+/// migrar, separadas por comentarios <c>#</c>; el test no distingue una de otra, lo hace el comentario de la lista. Un fichero nuevo es <c>NUEVA</c>; <b>más menciones en uno ya
+/// listado es <c>CRECE</c></b> (antes la granularidad era el fichero y subir de 1 a 5 pasaba en
+/// verde); uno que se migre baja la lista (<c>BAJA</c>/<c>OBSOLETA</c>) en el mismo commit.
 /// </para>
 ///
 /// <para>
 /// <b>Lo que NO observa</b> (huecos declarados):
 /// </para>
 /// <list type="bullet">
-/// <item>La granularidad es el fichero: uno ya congelado que añada otra llamada a
-/// <c>UserManager</c> pasa en verde.</item>
+/// <item>El recuento es de menciones del tipo genérico, no de llamadas: reordenar el uso dentro
+/// de un fichero sin añadir menciones pasa en verde.</item>
 /// <item>Un gestor obtenido sin nombrar su tipo genérico (por
 /// <c>IServiceProvider.GetService(typeof(...))</c> o por un alias de
 /// <c>using</c>) queda fuera, igual que <c>IUserStore&lt;T&gt;</c> directo.</item>
@@ -40,40 +44,6 @@ namespace CaeManager.Architecture.Tests;
 /// </summary>
 public class UserManagerSoloDesdeInfraestructuraDeLoginTests
 {
-    /// <summary>
-    /// Autenticación y credenciales de la propia cuenta: iniciar sesión, 2FA,
-    /// restablecer y cambiar la contraseña, el callback externo y la resolución
-    /// de la identidad de la sesión. Aquí <c>SignInManager</c> necesita el
-    /// contexto HTTP y no tiene sentido fuera de Web.
-    /// </summary>
-    private static readonly string[] InfraestructuraDeLogin =
-    [
-        "src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",
-        "src/CaeManager.Web/Components/Account/InicioSesionMicrosoft.cs",
-        "src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor",
-        "src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor",
-        "src/CaeManager.Web/Components/Account/Pages/Login.razor",
-        "src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor",
-        "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs",
-        "src/CaeManager.Web/Program.cs",
-        "src/CaeManager.Web/Services/CurrentUserService.cs",
-        "src/CaeManager.Web/Services/RecuperacionContrasena.cs",
-    ];
-
-    /// <summary>
-    /// Lo que queda por migrar, con su motivo. Ninguno administra cuentas ajenas:
-    /// son lecturas (nombre o permiso de una cuenta, la propia sesión). Solo puede
-    /// menguar.
-    /// </summary>
-    private static readonly string[] DeudaCongelada =
-    [
-        // Lecturas de la propia sesión: permiso sensible.
-        "src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs",
-        "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
-        // Un rol para pintarlo: su nombre.
-        "src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs",
-    ];
-
     /// <summary>
     /// El puerto no autoriza nada (lo dice su propio contrato): inyectarlo desde Web
     /// sería el mismo atajo que <c>UserManager</c> con otro nombre, saltándose los
@@ -86,21 +56,47 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
     private static readonly Regex NombraUnGestorDeIdentity = new(
         @"\b(?:UserManager|SignInManager|RoleManager)\s*<", RegexOptions.Compiled);
 
+    private static readonly string[] Gestores = ["UserManager", "SignInManager", "RoleManager"];
+
+    private const string Lista = "Gestores-de-Identity-en-Web";
+
+    private const string Guia =
+        "El comentario '#' de cada línea de la lista dice si es infraestructura de login (autenticación y credenciales de la " +
+        "propia cuenta; SignInManager necesita el contexto HTTP) o deuda por migrar. " +
+        "Fuera del login, una página que llama a UserManager se autoriza a sí misma y otro camino hasta Identity no lo hereda: " +
+        "la escritura va en un Command de Application (IGestionCuentasUsuario). NUEVA o CRECE: no añadas ni subas la línea; " +
+        "migra la llamada. BAJA u OBSOLETA: has migrado un fichero; baja o borra su línea en tests/CaeManager.Architecture.Tests/" +
+        "Congelados/" + Lista + ".txt en el mismo commit.";
+
     [Fact]
     public void Web_solo_nombra_los_gestores_de_Identity_en_la_infraestructura_de_login_y_en_la_deuda_congelada()
     {
-        var conGestor = FicherosDeWebQueNombranUnGestor();
+        var medido = MedirMenciones();
 
-        // Control positivo: si el escaneo no ve los dos consumidores que seguro
-        // existen, ha dejado de observar y la igualdad de abajo no diría nada.
-        conGestor.Should().Contain(
+        // Control positivo: si el escaneo no ve los dos consumidores que seguro existen, ha dejado de observar y la
+        // comparación con la lista no diría nada.
+        medido.Keys.Select(u => u.Lugar).Should().Contain(
             ["src/CaeManager.Web/Program.cs", "src/CaeManager.Web/Services/CurrentUserService.cs"],
             "el escaneo tiene que ver a los consumidores que seguro existen");
 
-        conGestor.Should().BeEquivalentTo(InfraestructuraDeLogin.Concat(DeudaCongelada),
-            "fuera del login, una página que llama a UserManager se autoriza a sí misma y otro camino hasta " +
-            "Identity no lo hereda: la escritura va en un Command de Application (IGestionCuentasUsuario). " +
-            "Si migraste un fichero de DeudaCongelada, quítalo de la lista en el mismo commit");
+        ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
+    }
+
+    private static Dictionary<Ubicacion, int> MedirMenciones()
+    {
+        var medido = new Dictionary<Ubicacion, int>();
+        foreach (var fichero in FicherosDeWeb())
+        {
+            var texto = SinComentarios(fichero);
+            foreach (var gestor in Gestores)
+            {
+                var menciones = Regex.Matches(texto, $@"\b{gestor}\s*<").Count;
+                if (menciones > 0)
+                    medido[new Ubicacion(fichero, gestor)] = menciones;
+            }
+        }
+
+        return medido;
     }
 
     [Theory]
@@ -125,9 +121,6 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
             "IGestionCuentasUsuario ejecuta sobre la cuenta que le digan: fuera de los handlers de " +
             "Usuarios/Commands es UserManager con otro nombre");
     }
-
-    private static List<string> FicherosDeWebQueNombranUnGestor() =>
-        FicherosDeWeb().Where(r => NombraUnGestorDeIdentity.IsMatch(SinComentarios(r))).ToList();
 
     private static List<string> FicherosDeWeb()
     {

@@ -1,0 +1,29 @@
+# Menciones de UserManager<, SignInManager< y RoleManager< en src/CaeManager.Web, por fichero y por tipo de gestor
+# (UserManagerSoloDesdeInfraestructuraDeLoginTests, MJ-08, 2026-11-02). Solo baja: una llamada nueva a un gestor
+# de Identity desde Web se autoriza a sí misma; la escritura sobre cuentas va en un Command de Application.
+# Medida: menciones del tipo genérico fuera de comentarios. Control: el conjunto de ficheros es el de la antigua
+# lista InfraestructuraDeLogin (10) más DeudaCongelada (3).
+#
+# Infraestructura de login: autenticación y credenciales de la propia cuenta (iniciar sesión, 2FA, restablecer y
+# cambiar la contraseña, callback externo, identidad de la sesión). SignInManager necesita el contexto HTTP.
+src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs :: SignInManager = 4
+src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs :: UserManager = 1
+src/CaeManager.Web/Components/Account/InicioSesionMicrosoft.cs :: UserManager = 2
+src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor :: SignInManager = 1
+src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor :: UserManager = 1
+src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor :: SignInManager = 1
+src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor :: UserManager = 1
+src/CaeManager.Web/Components/Account/Pages/Login.razor :: SignInManager = 1
+src/CaeManager.Web/Components/Account/Pages/Login.razor :: UserManager = 1
+src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor :: SignInManager = 1
+src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs :: SignInManager = 1
+src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs :: UserManager = 2
+src/CaeManager.Web/Program.cs :: RoleManager = 1
+src/CaeManager.Web/Program.cs :: UserManager = 3
+src/CaeManager.Web/Services/CurrentUserService.cs :: UserManager = 1
+src/CaeManager.Web/Services/RecuperacionContrasena.cs :: UserManager = 1
+#
+# Deuda por migrar. Ninguno administra cuentas ajenas: son lecturas (nombre o permiso de una cuenta, la propia sesión).
+src/CaeManager.Web/Features/Auditoria/Pages/Auditoria.razor.cs :: RoleManager = 1
+src/CaeManager.Web/Features/Extension/ExtensionTokenEndpoints.cs :: UserManager = 1
+src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs :: UserManager = 1

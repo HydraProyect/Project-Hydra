@@ -1,0 +1,5 @@
+# IRequest de Application que no son Command (ICommandBase) ni Query (sufijo Query)
+# (RequestsSinAutorizacionDeEscrituraCongeladosTests, MJ-08, 2026-11-02). Medida el 2026-11-02: ninguno.
+# Por eso la lista nace vacía: no hay deuda, solo el trinquete. Un request nuevo de esa clase se salta
+# AutorizacionEscrituraBehavior; si hay una razón de verdad, la línea es 'espacio de nombres :: Tipo = 1' con un
+# comentario '#' encima que diga por qué es ni Command ni Query y cómo se autoriza.
