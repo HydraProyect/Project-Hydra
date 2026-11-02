@@ -1,5 +1,6 @@
 @page "/mi-trabajo"
-@rendermode InteractiveServer
+@* Sin prerender (M-23): OnInitializedAsync carga la cartera entera y no persiste su estado; con prerender corría dos veces. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Bandeja.Components
