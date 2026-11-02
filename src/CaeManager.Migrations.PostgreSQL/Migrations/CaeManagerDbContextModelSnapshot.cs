@@ -182,6 +182,40 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ClavesIntegracionTenant", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ApiKeys.UsoApiDiario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Dia")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("Peticiones")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TipoClave")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ApiKeyId", "TipoClave", "Dia", "Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("UsosApiDiarios", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
                 {
                     b.Property<Guid>("Id")
