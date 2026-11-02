@@ -130,6 +130,15 @@ const puente = await mandarExterno(
   "https://app.talveg.es/configuracion");
 comprobar("el puente rechaza otro destino", puente?.ok === false && almacen.token === undefined);
 
+// storage.local también es accesible desde un content script: el destino se valida
+// al leerlo, no solo al guardarlo.
+conexionInicial();
+almacen.hydraUrl = "https://atacante.example";
+const reescrito = await mandar({ accion: "obtenerConexion" }, PESTANA_PORTAL);
+await mandar({ accion: "listarPendientes", url: "https://app.nalandaglobal.com/documentos" }, PESTANA_PORTAL);
+comprobar("un destino reescrito en storage no cuenta como conexión", reescrito?.conectado === false && reescrito?.hydraUrl === null);
+comprobar("un destino reescrito en storage no recibe peticiones", !peticiones.some((url) => String(url).includes("atacante.example")), peticiones.join(" "));
+
 // --- Controles positivos --------------------------------------------------
 // Sin ellos, un arnés que no llegara a los manejadores daría todo verde.
 

@@ -78,11 +78,15 @@ public class LibreOfficeConversorWordPdfServiceTests
     /// <summary>
     /// Un .docx subido no puede hacer que el servidor pida una URL: la imagen enlazada
     /// con <c>TargetMode="External"</c> se descargaba durante la conversión (medido con
-    /// LibreOffice 26.2). La sonda cuenta las conexiones; el control es una conexión
-    /// hecha a mano, para que un cero no sea una sonda que no escucha.
+    /// LibreOffice 26.2 y en el runner de CI, 9 conexiones). La sonda cuenta las conexiones;
+    /// el control es una conexión hecha a mano, para que un cero no sea una sonda que no
+    /// escucha, y el total se lee después, para que una conexión tardía tampoco pase.
     /// </summary>
-    [Fact]
-    public async Task Un_docx_con_imagen_externa_no_hace_peticiones_durante_la_conversion()
+    [Theory]
+    [InlineData(VinculoExterno.ImagenDrawingMl)]
+    [InlineData(VinculoExterno.ImagenVml)]
+    [InlineData(VinculoExterno.DocumentoAltChunk)]
+    public async Task Un_docx_con_vinculo_externo_no_hace_peticiones_durante_la_conversion(VinculoExterno vinculo)
     {
         if (LocalizarLibreOffice() is not { } ejecutable) return;
 
@@ -101,20 +105,19 @@ public class LibreOfficeConversorWordPdfServiceTests
         }, CancellationToken.None);
 
         var pdf = await CrearServicio(ejecutable)
-            .ConvertirAPdfAsync(CrearDocxConImagenExterna($"http://127.0.0.1:{puerto}/imagen.png"));
+            .ConvertirAPdfAsync(CrearDocxConVinculoExterno(vinculo, $"http://127.0.0.1:{puerto}/vinculo"));
 
         pdf.Should().NotBeEmpty();
-        var duranteLaConversion = Volatile.Read(ref conexiones);
 
         using (var control = new TcpClient())
             await control.ConnectAsync(IPAddress.Loopback, puerto);
-        for (var intento = 0; intento < 50 && Volatile.Read(ref conexiones) == duranteLaConversion; intento++)
+        for (var intento = 0; intento < 50 && Volatile.Read(ref conexiones) == 0; intento++)
             await Task.Delay(100);
+        await Task.Delay(500);
 
-        Volatile.Read(ref conexiones).Should().Be(duranteLaConversion + 1, "la sonda tiene que ver una conexión de verdad");
         await fin.CancelAsync();
         await escucha.ContinueWith(_ => { }, TaskScheduler.Default);
-        duranteLaConversion.Should().Be(0);
+        Volatile.Read(ref conexiones).Should().Be(1, "la única conexión tiene que ser la del control");
     }
 
     /// <summary>
@@ -190,8 +193,23 @@ public class LibreOfficeConversorWordPdfServiceTests
         return memoria.ToArray();
     }
 
-    private static byte[] CrearDocxConImagenExterna(string url)
+    public enum VinculoExterno
     {
+        ImagenDrawingMl,
+        ImagenVml,
+        DocumentoAltChunk,
+    }
+
+    private static byte[] CrearDocxConVinculoExterno(VinculoExterno vinculo, string url)
+    {
+        var tipoRelacion = vinculo == VinculoExterno.DocumentoAltChunk ? "aFChunk" : "image";
+        var cuerpo = vinculo switch
+        {
+            VinculoExterno.ImagenDrawingMl => """<w:p><w:r><w:drawing><wp:inline><wp:extent cx="99999" cy="99999"/><wp:docPr id="1" name="i"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="i"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:link="rId9"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>""",
+            VinculoExterno.ImagenVml => """<w:p><w:r><w:pict><v:shape style="width:10pt;height:10pt"><v:imagedata r:id="rId9"/></v:shape></w:pict></w:r></w:p>""",
+            _ => """<w:p><w:r><w:t>INICIO</w:t></w:r></w:p><w:altChunk r:id="rId9"/>""",
+        };
+
         using var memoria = new MemoryStream();
         using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -214,14 +232,14 @@ public class LibreOfficeConversorWordPdfServiceTests
             EscribirEntrada(zip, "word/_rels/document.xml.rels", $"""
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="{url}" TargetMode="External"/>
+                <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/{tipoRelacion}" Target="{url}" TargetMode="External"/>
                 </Relationships>
                 """);
 
-            EscribirEntrada(zip, "word/document.xml", """
+            EscribirEntrada(zip, "word/document.xml", $"""
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                <w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="99999" cy="99999"/><wp:docPr id="1" name="i"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="i"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:link="rId9"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body>
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml">
+                <w:body>{cuerpo}</w:body>
                 </w:document>
                 """);
         }

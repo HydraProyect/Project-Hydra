@@ -37,10 +37,13 @@
 const ORIGENES_TALVEG_PERMITIDOS = ["https://app.talveg.es", "https://staging.talveg.es"];
 
 async function obtenerConexion() {
-  const { hydraUrl } = await chrome.storage.local.get("hydraUrl");
+  const { hydraUrl: guardada } = await chrome.storage.local.get("hydraUrl");
+  // storage.local también lo puede escribir un content script, y de esta URL depende a
+  // dónde viaja el token: se valida al leerla, no solo al guardarla en conectar().
+  const hydraUrl = ORIGENES_TALVEG_PERMITIDOS.includes(guardada) ? guardada : null;
   const { token, expiraEnUtc } = await chrome.storage.session.get(["token", "expiraEnUtc"]);
   const conectado = Boolean(hydraUrl && token && expiraEnUtc && new Date(expiraEnUtc) > new Date());
-  return { hydraUrl: hydraUrl ?? null, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
+  return { hydraUrl, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
 }
 
 // Lo único que sale por mensajería: el content script corre dentro de un portal ajeno,

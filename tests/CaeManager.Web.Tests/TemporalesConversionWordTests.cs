@@ -21,6 +21,43 @@ public class TemporalesConversionWordTests : IDisposable
         NullLogger<LimpiezaTemporalesConversionWordHostedService>.Instance);
 
     [Fact]
+    public void El_proceso_no_hereda_el_entorno_de_la_aplicacion()
+    {
+        const string variable = "ConnectionStrings__PruebaDeEntornoDeConversion";
+        Environment.SetEnvironmentVariable(variable, "secreto");
+        try
+        {
+            var inicio = new System.Diagnostics.ProcessStartInfo("soffice");
+            inicio.Environment.Should().ContainKey(variable, "el control: sin limitar, se hereda");
+
+            LibreOfficeConversorWordPdfService.LimitarEntorno(inicio, _raiz);
+
+            inicio.Environment.Should().NotContainKey(variable);
+            inicio.Environment["HOME"].Should().Be(_raiz);
+            inicio.Environment["TMPDIR"].Should().Be(_raiz);
+            inicio.Environment.Should().ContainKey("PATH");
+            inicio.Environment.Keys.Should().BeSubsetOf(
+                ["PATH", "LANG", "LC_ALL", "SystemRoot", "windir", "HOME", "TMPDIR", "TMP", "TEMP"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+    }
+
+    [Fact]
+    public async Task El_perfil_de_la_conversion_lleva_el_endurecimiento()
+    {
+        var rutaPerfil = Path.Combine(_raiz, "perfil");
+
+        await LibreOfficeConversorWordPdfService.EscribirPerfilEndurecidoAsync(rutaPerfil, CancellationToken.None);
+
+        var registro = await File.ReadAllTextAsync(Path.Combine(rutaPerfil, "user", "registrymodifications.xcu"));
+        System.Xml.Linq.XDocument.Parse(registro).Root!.Elements("item").Should().HaveCount(5);
+        registro.Should().Contain("BlockUntrustedRefererLinks").And.Contain("DisableMacrosExecution");
+    }
+
+    [Fact]
     public async Task Borra_el_directorio_al_fallar_la_conversion()
     {
         var servicio = CrearServicio();
