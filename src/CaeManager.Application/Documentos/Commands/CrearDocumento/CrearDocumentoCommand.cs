@@ -33,10 +33,12 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 /// que el documento no caduca; sin ella y sin fecha, el documento nace
 /// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
 /// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
+/// <paramref name="DocumentoIdReservado"/> lo pasa quien deja pendiente en el contexto un cambio que apunta a este
+/// Documento, para que se confirme en el mismo guardado (el reparto de adjuntos).
 /// </summary>
 public record CrearDocumentoCommand(
     Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
-    DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios, bool NoCaduca = false)
+    DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios, bool NoCaduca = false, Guid? DocumentoIdReservado = null)
     : ICommand<Guid>;
 
 public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCommand>
@@ -140,6 +142,9 @@ public class CrearDocumentoCommandHandler(
                 request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
                 request.ArchivoUrl, request.Comentarios)
         };
+
+        if (request.DocumentoIdReservado is { } idReservado)
+            documento.AdoptarIdReservado(idReservado);
 
         // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo
         // crea Documentos de propietarios dentro de su Asignación de Cartera —

@@ -23,7 +23,10 @@ public class AdjuntoMensaje : EntidadConTenant, IVersionable
     public long TamanoBytes { get; private set; }
     public string ArchivoUrl { get; private set; } = string.Empty;
 
-    /// <summary>Quien reparte y el marcado tras el alta pueden coincidir: la transición de estado no pisa a la otra.</summary>
+    /// <summary>
+    /// Quien reparte y quien da el alta pueden coincidir: la transición a Asignado se guarda con el Documento, y este
+    /// token decide ese guardado. Si el adjunto cambió desde que se leyó, no queda ni transición ni Documento.
+    /// </summary>
     public Guid Version { get; private set; } = Guid.NewGuid();
 
     public EstadoRepartoAdjunto EstadoReparto { get; private set; }

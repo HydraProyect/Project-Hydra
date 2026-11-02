@@ -305,6 +305,18 @@ public class Documento : EntidadBase
     }
 
     /// <summary>
+    /// Toma el Id que quien pide el alta ya reservó porque otra fila lo referencia en el mismo guardado. Solo vale para
+    /// un Documento aún sin guardar: después el Id es la clave de su fila.
+    /// </summary>
+    public void AdoptarIdReservado(Guid id)
+    {
+        if (id == Guid.Empty)
+            throw new ArgumentException("El Id reservado no puede estar vacío.", nameof(id));
+
+        Id = id;
+    }
+
+    /// <summary>
     /// Un documento nuevo del mismo titular y el mismo Tipo que este, para ocupar su lugar al renovarlo. No lo
     /// sustituye (eso lo hace <see cref="SustituirPor"/>, con el nuevo ya persistible) y no copia el archivo, la
     /// vigencia ni los comentarios: son los del documento que llega. Un sustituido no genera sustituto: la unidad

@@ -19,8 +19,13 @@ public enum EstadoAsignacionAdjunto
     /// <summary><see cref="ResultadoAsignacionAdjunto.Detalle"/> dice por qué no se asignó.</summary>
     NoAsignado = 1,
 
-    /// <summary>El Documento pudo quedar guardado sin que el adjunto constara como asignado: se pide comprobarlo.</summary>
-    SinConfirmar = 2
+    /// <summary>Otra sesión cambió el adjunto o su Documento durante el alta: no se guardó nada.</summary>
+    Conflicto = 2,
+
+    /// <summary>
+    /// Falló sin saber en qué punto. Documento y adjunto se guardan juntos, así que el estado del adjunto dice qué pasó.
+    /// </summary>
+    Error = 3
 }
 
 public record ResultadoAsignacionAdjunto(Guid AdjuntoId, EstadoAsignacionAdjunto Estado, Guid? DocumentoId, string? Detalle);
@@ -48,22 +53,21 @@ public class AsignarAdjuntosLoteCommandValidator : AbstractValidator<AsignarAdju
 /// <summary>
 /// Asigna de una vez los adjuntos de una conversación. <b>No envía nada</b>: cada adjunto pasa por
 /// <see cref="ActualizarDocumentoDesdeAdjuntoCommand"/>, que crea o renueva su Documento con la autorización, el
-/// alcance y las guardas del alta normal, y que marca el adjunto como asignado.
+/// alcance y las guardas del alta normal, y que deja el adjunto asignado en el mismo guardado.
 ///
 /// No es todo o nada: cada Documento confirma por separado, así que un adjunto rechazado no deshace los anteriores y
 /// el resultado dice qué pasó con cada uno.
 ///
-/// Destino y tipo se leen justo antes de cada alta. Entre esa lectura y el commit del Documento otra sesión aún puede
-/// cambiarlos: no se reserva el adjunto, pero el marcado lo detecta y aquí sale como <see cref="EstadoAsignacionAdjunto.SinConfirmar"/>.
+/// Destino y tipo se leen justo antes de cada alta y se mandan como propuesta vista: si otra sesión los cambia antes
+/// del guardado, ese adjunto sale como <see cref="EstadoAsignacionAdjunto.Conflicto"/>, sin Documento.
 /// </summary>
 public class AsignarAdjuntosLoteCommandHandler(
     IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos, IMediator mediator,
     ILogger<AsignarAdjuntosLoteCommandHandler> logger)
     : IRequestHandler<AsignarAdjuntosLoteCommand, Result<IReadOnlyList<ResultadoAsignacionAdjunto>>>
 {
-    private sealed record Destino(Guid? TrabajadorId, Guid? EmpresaId, Guid? TipoDocumentoId);
-
-    private sealed record Candidato(EstadoRepartoAdjunto Estado, DireccionMensaje Direccion, Destino Destino, Guid? DocumentoId);
+    private sealed record Candidato(
+        EstadoRepartoAdjunto Estado, DireccionMensaje Direccion, Guid? TrabajadorId, Guid? EmpresaId, Guid? TipoDocumentoId);
 
     public async Task<Result<IReadOnlyList<ResultadoAsignacionAdjunto>>> Handle(
         AsignarAdjuntosLoteCommand request, CancellationToken cancellationToken)
@@ -82,7 +86,7 @@ public class AsignarAdjuntosLoteCommandHandler(
         (from a in comunicacionesContext.AdjuntosMensaje
          join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
          where m.ConversacionId == conversacionId && a.Id == adjuntoId
-         select new Candidato(a.EstadoReparto, m.Direccion, new Destino(a.DestinoTrabajadorId, a.DestinoEmpresaId, a.TipoDocumentoPropuestoId), a.DocumentoId))
+         select new Candidato(a.EstadoReparto, m.Direccion, a.DestinoTrabajadorId, a.DestinoEmpresaId, a.TipoDocumentoPropuestoId))
         .FirstOrDefaultAsync(cancellationToken);
 
     private async Task<ResultadoAsignacionAdjunto> AsignarAsync(Guid conversacionId, AdjuntoAAsignar item, CancellationToken cancellationToken)
@@ -94,21 +98,15 @@ public class AsignarAdjuntosLoteCommandHandler(
                 return NoAsignado(item, motivo);
 
             var asignado = await mediator.Send(new ActualizarDocumentoDesdeAdjuntoCommand(
-                item.AdjuntoId, candidato!.Destino.TipoDocumentoId!.Value, candidato.Destino.TrabajadorId, candidato.Destino.EmpresaId,
+                item.AdjuntoId, candidato!.TipoDocumentoId!.Value, candidato.TrabajadorId, candidato.EmpresaId,
                 item.FechaEmision, item.FechaVencimientoManual, null, item.NoCaduca, AplicaPropuestaFijada: true), cancellationToken);
-            if (!asignado.EsExitoso) return NoAsignado(item, asignado.Error.Mensaje);
 
-            // El marcado corre tras el commit y puede no llegar (fallo o resolución a la vez): se cuenta lo que quedó, no lo que se pidió.
-            var actual = await LeerAsync(conversacionId, item.AdjuntoId, cancellationToken);
-            if (actual is { Estado: EstadoRepartoAdjunto.Asignado } && actual.DocumentoId == asignado.Valor)
+            if (asignado.EsExitoso)
                 return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Asignado, asignado.Valor, null);
 
-            return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.SinConfirmar, asignado.Valor, actual switch
-            {
-                { Estado: EstadoRepartoAdjunto.Asignado } => "El adjunto quedó asignado a otro Documento.",
-                { } cambiado when cambiado.Destino != candidato.Destino => "El destino o el tipo del adjunto cambiaron mientras se asignaba: revisa el Documento.",
-                _ => "El Documento se guardó, pero el adjunto no quedó asignado."
-            });
+            return asignado.Error.Codigo == ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto
+                ? new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Conflicto, null, asignado.Error.Mensaje)
+                : NoAsignado(item, asignado.Error.Mensaje);
         }
         catch (ValidationException ex)
         {
@@ -120,9 +118,9 @@ public class AsignarAdjuntosLoteCommandHandler(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Crear o renovar confirman antes de publicar sus eventos: el Documento pudo quedar guardado.
-            logger.LogWarning("La asignación por lote no pudo confirmar el adjunto {AdjuntoId} ({Excepcion}).", item.AdjuntoId, ex.GetType().Name);
-            return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.SinConfirmar, null, null);
+            // Crear o renovar confirman antes de publicar sus eventos: el fallo pudo llegar con todo ya guardado.
+            logger.LogWarning("La asignación por lote falló en el adjunto {AdjuntoId} ({Excepcion}).", item.AdjuntoId, ex.GetType().Name);
+            return new ResultadoAsignacionAdjunto(item.AdjuntoId, EstadoAsignacionAdjunto.Error, null, "No se pudo completar. Comprueba el estado del adjunto.");
         }
     }
 
@@ -131,8 +129,8 @@ public class AsignarAdjuntosLoteCommandHandler(
         if (candidato is null) return "Este adjunto no pertenece a la conversación.";
         if (candidato.Direccion != DireccionMensaje.Entrante) return "Solo se reparten los adjuntos recibidos.";
         if (candidato.Estado != EstadoRepartoAdjunto.Pendiente) return "Este adjunto ya está resuelto.";
-        if (candidato.Destino.TrabajadorId is null && candidato.Destino.EmpresaId is null) return "Este adjunto no tiene destino.";
-        if (candidato.Destino.TipoDocumentoId is null) return "Este adjunto no tiene tipo de documento.";
+        if (candidato.TrabajadorId is null && candidato.EmpresaId is null) return "Este adjunto no tiene destino.";
+        if (candidato.TipoDocumentoId is null) return "Este adjunto no tiene tipo de documento.";
         return null;
     }
 

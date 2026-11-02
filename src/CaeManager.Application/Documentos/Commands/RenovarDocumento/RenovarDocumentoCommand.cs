@@ -32,10 +32,14 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// renovado no caduca; sin ella y sin fecha, queda
 /// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
 /// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
+///
+/// <paramref name="DocumentoIdReservado"/> es el Id del Documento nuevo que nace al renovar con un archivo distinto, para
+/// quien deja pendiente en el contexto un cambio que apunta a él (el reparto de adjuntos, ver
+/// <see cref="CrearDocumento.CrearDocumentoCommand"/>). Sin archivo distinto no nace ninguno y no se usa.
 /// </summary>
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
-    Guid Version = default, bool NoCaduca = false) : ICommand<Guid>;
+    Guid Version = default, bool NoCaduca = false, Guid? DocumentoIdReservado = null) : ICommand<Guid>;
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -147,6 +151,8 @@ public class RenovarDocumentoCommandHandler(
         VigenciaDocumento vigencia, CancellationToken cancellationToken)
     {
         var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios);
+        if (request.DocumentoIdReservado is { } idReservado)
+            nuevo.AdoptarIdReservado(idReservado);
 
         repositorio.Agregar(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);

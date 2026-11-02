@@ -1,12 +1,15 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
-using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos;
-using CaeManager.Application.Documentos.Eventos;
+using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -28,7 +31,9 @@ namespace CaeManager.IntegrationTests.Comunicaciones;
 /// El reparto de adjuntos <b>como <c>cae_app_runtime</c></b>, con los interceptores de sellado y de sesión RLS y el
 /// <see cref="AlcanceDatosService"/> real (mismo arnés que <c>NotaInternaDeEmpresaBajoRlsTests</c>). Dos Tenants
 /// propietarios con una conversación y un adjunto cada uno; la sesión es de un Administrador del primero, con acceso
-/// total a su Tenant: lo que se mide es la frontera entre Tenants, no la cartera.
+/// total a su Tenant: lo que se mide es la frontera entre Tenants, no la cartera. Las carreras del alta usan dos
+/// contextos reales: el guardado del Documento y del adjunto es uno, y solo Postgres puede demostrar que el perdedor no
+/// deja nada.
 /// </summary>
 public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
 {
@@ -95,8 +100,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
                 .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
             (await Resolver(runtime).Handle(new ResolverAdjuntoCommand(_adjuntoAjeno, ResolucionAdjunto.Descartar), CancellationToken.None))
                 .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
-            (await new ObtenerRepartoAdjuntosQueryHandler(runtime, Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador))
-                .Handle(new ObtenerRepartoAdjuntosQuery(_conversacionAjena), CancellationToken.None)).Should().BeEmpty();
+            (await Consulta(runtime).Handle(new ObtenerRepartoAdjuntosQuery(_conversacionAjena), CancellationToken.None)).Should().BeEmpty();
             (await new AsignarAdjuntosLoteCommandHandler(runtime, Alcance(runtime), new MediadorSinEnvios(), NullLogger<AsignarAdjuntosLoteCommandHandler>.Instance)
                 .Handle(new AsignarAdjuntosLoteCommand(_conversacionAjena, [new AdjuntoAAsignar(_adjuntoAjeno, new DateOnly(2026, 10, 1), null, false)]), CancellationToken.None))
                 .Error.Codigo.Should().Be("Conversacion.NoEncontrada");
@@ -137,8 +141,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
                 .EsExitoso.Should().BeTrue();
 
         await using var lectura = CrearRuntime();
-        var fila = (await new ObtenerRepartoAdjuntosQueryHandler(lectura, Alcance(lectura), PoliticaNotaInternaPruebas.Con(Roles.Administrador))
-            .Handle(new ObtenerRepartoAdjuntosQuery(_conversacionPropia), CancellationToken.None)).Should().ContainSingle().Subject;
+        var fila = (await Consulta(lectura).Handle(new ObtenerRepartoAdjuntosQuery(_conversacionPropia), CancellationToken.None)).Should().ContainSingle().Subject;
         fila.Estado.Should().Be(EstadoRepartoAdjunto.Rechazado);
         fila.DestinoEmpresaId.Should().Be(_empresaPropia);
         fila.MotivoRechazo.Should().Be("Caducado");
@@ -146,30 +149,83 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
             .Should().Be(1);
     }
 
-    /// <summary>El evento lo publica el alta tras su commit: aquí se mide que el marcado persista bajo RLS, y solo en lo propio.</summary>
+    /// <summary>El Documento y la transición salen del mismo guardado: se ven juntos bajo RLS, y solo en lo propio.</summary>
     [Fact]
-    public async Task El_marcado_de_asignado_persiste_en_lo_propio_y_no_alcanza_lo_ajeno()
+    public async Task El_alta_deja_Documento_y_adjunto_asignado_en_lo_propio_y_no_alcanza_lo_ajeno()
     {
-        var documentoId = Guid.NewGuid();
-        var tipoDocumentoId = Guid.NewGuid();
+        var tipoDocumentoId = await SembrarTipoDeEmpresaAsync();
+        var almacen = AlmacenConElAdjunto();
+        Guid documentoId;
         await using (var runtime = CrearRuntime())
         {
-            var handler = new MarcarAdjuntoAsignadoHandler(new AdjuntoMensajeRepository(runtime),
-                new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), runtime,
-                NullLogger<MarcarAdjuntoAsignadoHandler>.Instance);
+            var propio = await Alta(runtime, almacen, new AltaGuardadaDeVerdad(runtime)).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None);
+            var ajeno = await Alta(runtime, almacen, new AltaGuardadaDeVerdad(runtime)).Handle(ComandoDeAlta(_adjuntoAjeno, tipoDocumentoId), CancellationToken.None);
 
-            await handler.Handle(new DocumentoActualizadoEvent(_conversacionPropia, documentoId, _adjuntoPropio, null, _empresaPropia, tipoDocumentoId), CancellationToken.None);
-            await handler.Handle(new DocumentoActualizadoEvent(_conversacionAjena, documentoId, _adjuntoAjeno, null, _empresaPropia, tipoDocumentoId), CancellationToken.None);
+            propio.EsExitoso.Should().BeTrue();
+            documentoId = propio.Valor;
+            ajeno.Error.Codigo.Should().Be("Adjunto.NoEncontrado");
         }
 
         await using var comprobacion = CrearPropietarioLimpio();
-        var propio = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
-        propio.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
-        propio.DocumentoId.Should().Be(documentoId);
-        propio.DestinoEmpresaId.Should().Be(_empresaPropia);
-        propio.TipoDocumentoPropuestoId.Should().Be(tipoDocumentoId);
+        var adjunto = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        adjunto.DocumentoId.Should().Be(documentoId);
+        adjunto.DestinoEmpresaId.Should().Be(_empresaPropia);
+        adjunto.TipoDocumentoPropuestoId.Should().Be(tipoDocumentoId);
+        (await comprobacion.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == documentoId)).Should().Be(1);
         (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().Where(a => a.Id == _adjuntoAjeno).Select(a => a.EstadoReparto).SingleAsync())
             .Should().Be(EstadoRepartoAdjunto.Pendiente);
+    }
+
+    [Fact]
+    public async Task De_dos_altas_simultaneas_gana_una_y_la_perdedora_no_deja_Documento()
+    {
+        var tipoDocumentoId = await SembrarTipoDeEmpresaAsync();
+        var almacen = AlmacenConElAdjunto();
+        await using var perdedora = CrearRuntime();
+        await using var ganadora = CrearRuntime();
+        Result<Guid>? alta = null;
+        var mediador = new AltaGuardadaDeVerdad(perdedora, async () =>
+            alta = await Alta(ganadora, almacen, new AltaGuardadaDeVerdad(ganadora)).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None));
+
+        var perdedor = await Alta(perdedora, almacen, mediador).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None);
+
+        alta!.EsExitoso.Should().BeTrue();
+        perdedor.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto);
+        perdedora.ChangeTracker.HasChanges().Should().BeFalse("nada del alta perdida puede salir en el siguiente guardado");
+        almacen.Identificadores.Should().HaveCount(2, "el original y la copia de quien ganó");
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.Documentos.IgnoreQueryFilters().Where(d => d.EmpresaId == _empresaPropia).Select(d => d.Id).ToListAsync())
+            .Should().Equal(alta.Valor);
+        var adjunto = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Asignado);
+        adjunto.DocumentoId.Should().Be(alta.Valor);
+    }
+
+    /// <summary>La propuesta cambia con el alta ya en marcha: el token tumba el Documento, y queda lo que fijó la otra sesión.</summary>
+    [Fact]
+    public async Task Si_otra_sesion_cambia_la_propuesta_durante_el_alta_no_queda_Documento()
+    {
+        var tipoDocumentoId = await SembrarTipoDeEmpresaAsync();
+        var almacen = AlmacenConElAdjunto();
+        await using var alta = CrearRuntime();
+        await using var otraSesion = CrearRuntime();
+        var mediador = new AltaGuardadaDeVerdad(alta, async () =>
+            (await Fijar(otraSesion).Handle(new FijarDestinoAdjuntoCommand(_adjuntoPropio, null, _empresaPropia, null), CancellationToken.None))
+                .EsExitoso.Should().BeTrue());
+
+        var resultado = await Alta(alta, almacen, mediador).Handle(ComandoDeAlta(_adjuntoPropio, tipoDocumentoId), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto);
+        almacen.Identificadores.Should().BeEquivalentTo([ArchivoDelAdjunto]);
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.Documentos.IgnoreQueryFilters().CountAsync(d => d.EmpresaId == _empresaPropia)).Should().Be(0);
+        var adjunto = await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio);
+        adjunto.EstaPendiente.Should().BeTrue();
+        adjunto.DocumentoId.Should().BeNull();
+        adjunto.TipoDocumentoPropuestoId.Should().BeNull();
     }
 
     [Fact]
@@ -204,6 +260,36 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         runtime.Entry(adjunto).State.Should().Be(EntityState.Detached);
         runtime.ChangeTracker.HasChanges().Should().BeFalse();
     }
+
+    private const string ArchivoDelAdjunto = "adjuntos/aptitud.pdf";
+
+    private static ActualizarDocumentoDesdeAdjuntoCommandTests.AlmacenamientoEnMemoriaFalso AlmacenConElAdjunto()
+    {
+        var almacen = new ActualizarDocumentoDesdeAdjuntoCommandTests.AlmacenamientoEnMemoriaFalso();
+        almacen.Sembrar(ArchivoDelAdjunto, "%PDF-aptitud"u8.ToArray());
+        return almacen;
+    }
+
+    private ActualizarDocumentoDesdeAdjuntoCommand ComandoDeAlta(Guid adjuntoId, Guid tipoDocumentoId) =>
+        new(adjuntoId, tipoDocumentoId, null, _empresaPropia, new DateOnly(2026, 10, 1), null, null);
+
+    private ActualizarDocumentoDesdeAdjuntoCommandHandler Alta(
+        CaeManagerDbContext runtime, IFileStorageService almacen, AltaGuardadaDeVerdad mediador) => new(
+        runtime, new AdjuntoMensajeRepository(runtime), Alcance(runtime), runtime, mediador, mediador, almacen,
+        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion),
+        NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+
+    private async Task<Guid> SembrarTipoDeEmpresaAsync()
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        var tipo = new TipoDocumento("Seguro de responsabilidad civil", 12, true, 1, AmbitoAplicacion.Empresa);
+        _propietario.TiposDocumento.Add(tipo);
+        await _propietario.SaveChangesAsync();
+        return tipo.Id;
+    }
+
+    private ObtenerRepartoAdjuntosQueryHandler Consulta(CaeManagerDbContext runtime) => new(
+        runtime, Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador), runtime, runtime);
 
     private FijarDestinoAdjuntoCommandHandler Fijar(CaeManagerDbContext runtime) => new(
         runtime, runtime, runtime, runtime, new AdjuntoMensajeRepository(runtime), Alcance(runtime), runtime);
@@ -251,6 +337,40 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
                 new ConcurrenciaOptimistaInterceptor())
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), _tenantDeLaPeticion);
+    }
+
+    /// <summary>
+    /// Lo que importa de <see cref="CrearDocumentoCommand"/> para la carrera: el Documento con el Id reservado, guardado
+    /// en el contexto del alta bajo <see cref="ConcurrenciaBehavior{TRequest,TResponse}"/>, como en el pipeline real.
+    /// <paramref name="antesDeGuardar"/> es la otra sesión colándose entre la lectura y el guardado.
+    /// </summary>
+    private sealed class AltaGuardadaDeVerdad(CaeManagerDbContext contexto, Func<Task>? antesDeGuardar = null) : IMediator
+    {
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            var crear = (CrearDocumentoCommand)request;
+            var documento = Documento.DeEmpresa(crear.EmpresaId!.Value, crear.TipoDocumentoId, crear.FechaEmision,
+                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), crear.ArchivoUrl);
+            documento.AdoptarIdReservado(crear.DocumentoIdReservado!.Value);
+            contexto.Documentos.Add(documento);
+
+            if (antesDeGuardar is not null)
+                await antesDeGuardar();
+
+            var resultado = await new ConcurrenciaBehavior<CrearDocumentoCommand, Result<Guid>>().Handle(crear, async _ =>
+            {
+                await contexto.SaveChangesAsync(cancellationToken);
+                return Result.Exito(documento.Id);
+            }, cancellationToken);
+            return (TResponse)(object)resultado;
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class MediadorSinEnvios : IMediator

@@ -359,6 +359,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerMacrosQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerMensajesBuzonPersonalQueryHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ObtenerMensajesBuzonPersonalQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IDocumentosQueryContext"),
+        ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IProyectosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "ICentrosQueryContext"),

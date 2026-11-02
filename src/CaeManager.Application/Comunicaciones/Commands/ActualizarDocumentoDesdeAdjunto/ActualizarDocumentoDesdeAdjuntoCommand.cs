@@ -33,8 +33,15 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// eliminado, sin aviso y sin vuelta atrás. Cada clave debe tener exactamente
 /// una fila propietaria con autoridad para borrarla.
 ///
-/// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta guardada en el adjunto en vez de
-/// con lo que eligió una persona: ver <see cref="DocumentoActualizadoEvent"/>.
+/// El adjunto queda asignado en el mismo guardado que el Documento: se carga aquí, se deja la transición pendiente en
+/// el contexto con un Id de Documento reservado y Crear/RenovarDocumento la confirman con su <c>SaveChangesAsync</c>.
+/// El token <c>Version</c> del adjunto rige ese guardado: si otra sesión lo cambió desde esta lectura (propuesta,
+/// estado u otra alta), la base rechaza el lote entero, no queda Documento y se responde
+/// <see cref="ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto"/>. El adjunto guarda el destino y el tipo
+/// del alta, haya o no propuesta previa: lo que elige una persona sustituye a la propuesta.
+///
+/// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta que leyó del adjunto en vez de con
+/// lo que eligió una persona: si la propuesta ya es otra, es un conflicto antes de guardar nada.
 /// </summary>
 public record ActualizarDocumentoDesdeAdjuntoCommand(
     Guid AdjuntoId, Guid TipoDocumentoId, Guid? TrabajadorId, Guid? EmpresaId,
@@ -73,29 +80,31 @@ public class ActualizarDocumentoDesdeAdjuntoCommandValidator : AbstractValidator
 }
 
 public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
-    IComunicacionesQueryContext comunicacionesContext, IAlcanceDatosService alcanceDatos,
+    IComunicacionesQueryContext comunicacionesContext, IAdjuntoMensajeRepository repositorio, IAlcanceDatosService alcanceDatos,
     IDocumentosQueryContext documentosContext, IMediator mediator, IPublisher publisher,
-    IFileStorageService almacenamiento,
+    IFileStorageService almacenamiento, ICurrentUserService currentUserService,
     ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler> logger)
     : IRequestHandler<ActualizarDocumentoDesdeAdjuntoCommand, Result<Guid>>
 {
+    public const string CodigoConflicto = "Adjunto.Conflicto";
+
     public async Task<Result<Guid>> Handle(ActualizarDocumentoDesdeAdjuntoCommand request, CancellationToken cancellationToken)
     {
-        var adjunto = await (
-            from a in comunicacionesContext.AdjuntosMensaje
-            join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
-            join c in comunicacionesContext.Conversaciones on m.ConversacionId equals c.Id
-            where a.Id == request.AdjuntoId
-            select new { a.ArchivoUrl, a.NombreArchivo, a.EstadoReparto, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId, ConversacionId = c.Id })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
+        var origen = await RepartoAdjuntos.ObtenerAsync(comunicacionesContext, request.AdjuntoId, cancellationToken);
+        if (origen is null || !await origen.VisibleAsync(alcanceDatos, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
+        // Esta lectura fija el token con el que se guardará: lo que cambie desde aquí tumba la operación entera.
+        var adjunto = await repositorio.ObtenerPorIdAsync(request.AdjuntoId, cancellationToken);
+        if (adjunto is null)
+            return Result.Fallo<Guid>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
 
         // Repetir sobre un adjunto ya asignado renovaría el Documento con el mismo archivo.
-        if (adjunto.EstadoReparto != EstadoRepartoAdjunto.Pendiente)
+        if (!adjunto.EstaPendiente)
             return Result.Fallo<Guid>(Error.Crear("Adjunto.YaResuelto", "Este adjunto ya está resuelto."));
+
+        if (request.AplicaPropuestaFijada && !EsLaPropuestaVigente(adjunto, request))
+            return Result.Fallo<Guid>(Conflicto());
 
         // Copia a una clave propia del Documento — nunca comparte
         // ArchivoUrl con el AdjuntoMensaje de origen (ver comentario de
@@ -145,48 +154,52 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             .Select(d => (Guid?)d.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        Guid documentoId;
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var documentoReservadoId = IdentificadorEntidad.Nuevo();
+
+        // Pendiente en el contexto: lo confirma el SaveChangesAsync de Crear/RenovarDocumento. Desde aquí, toda salida
+        // sin ese guardado debe olvidar el cambio, o saldría en el siguiente guardado del circuito.
+        adjunto.FijarDestino(request.TrabajadorId, request.EmpresaId, request.TipoDocumentoId);
+        adjunto.MarcarAsignado(documentoReservadoId, usuarioId, DateTime.UtcNow);
+
+        Result<Guid> alta;
         try
         {
-            if (documentoExistenteId is { } idExistente)
-            {
-                var renovado = await mediator.Send(new RenovarDocumentoCommand(
+            // Renovar con archivo crea un Documento nuevo (D8), y este siempre lo trae: la copia es una clave recién
+            // creada. El Id que queda en uso es el reservado, no el del operativo que se renovó y pasa al historial.
+            alta = documentoExistenteId is { } idExistente
+                ? await mediator.Send(new RenovarDocumentoCommand(
                     idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    NoCaduca: request.NoCaduca),
-                    cancellationToken);
-                if (renovado.EsFallido)
-                {
-                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
-                    return Result.Fallo<Guid>(renovado.Error);
-                }
-
-                // Renovar con archivo crea un Documento nuevo (D8): el Id que queda en uso es el que devuelve, no el del
-                // operativo que se renovó, que pasa al historial.
-                documentoId = renovado.Valor;
-            }
-            else
-            {
-                var creado = await mediator.Send(new CrearDocumentoCommand(
+                    NoCaduca: request.NoCaduca, DocumentoIdReservado: documentoReservadoId),
+                    cancellationToken)
+                : await mediator.Send(new CrearDocumentoCommand(
                     request.TrabajadorId, null, request.EmpresaId, null, null,
                     request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    request.NoCaduca),
+                    request.NoCaduca, documentoReservadoId),
                     cancellationToken);
-                if (creado.EsFallido)
-                {
-                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
-                    return Result.Fallo<Guid>(creado.Error);
-                }
-
-                documentoId = creado.Valor;
-            }
         }
-        catch (PresupuestoMemoriaAgotadoException)
+        catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or ValidationException)
         {
-            // Crear/RenovarDocumento verifican el archivo antes de guardar nada, y esa lectura reserva del
-            // presupuesto de memoria: sin hueco, la copia no la referencia nadie. Se borra y se propaga la
-            // saturación, que es transitoria; quien llama avisa de ella.
+            // Crear/RenovarDocumento validan y verifican el archivo antes de guardar nada, y esa lectura reserva del
+            // presupuesto de memoria: sin hueco, la copia no la referencia nadie. Se borra y se propaga, que quien
+            // llama avisa de ello.
+            repositorio.OlvidarCambios(adjunto);
             await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
             throw;
+        }
+        catch
+        {
+            // Pudo salir después del commit, de los eventos de Crear/RenovarDocumento: la copia se queda, porque ya
+            // puede ser el archivo del Documento. Una copia huérfana se puede limpiar; un Documento sin archivo, no.
+            repositorio.OlvidarCambios(adjunto);
+            throw;
+        }
+
+        if (alta.EsFallido)
+        {
+            repositorio.OlvidarCambios(adjunto);
+            await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+            return Result.Fallo<Guid>(alta.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? Conflicto() : alta.Error);
         }
 
         // Publicado DESPUÉS del commit de Crear/RenovarDocumentoCommand
@@ -194,17 +207,23 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // criterio que VisitaCreadaEvent.
         try
         {
-            await publisher.Publish(new DocumentoActualizadoEvent(
-                adjunto.ConversacionId, documentoId, request.AdjuntoId, request.TrabajadorId, request.EmpresaId,
-                request.TipoDocumentoId, request.AplicaPropuestaFijada), cancellationToken);
+            await publisher.Publish(new DocumentoActualizadoEvent(origen.ConversacionId, alta.Valor), cancellationToken);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "No se pudo registrar el evento de timeline para el documento {DocumentoId}.", documentoId);
+            logger.LogWarning(ex, "No se pudo registrar el evento de timeline para el documento {DocumentoId}.", alta.Valor);
         }
 
-        return Result.Exito(documentoId);
+        return Result.Exito(alta.Valor);
     }
+
+    private static bool EsLaPropuestaVigente(AdjuntoMensaje adjunto, ActualizarDocumentoDesdeAdjuntoCommand request) =>
+        adjunto.DestinoTrabajadorId == request.TrabajadorId
+        && adjunto.DestinoEmpresaId == request.EmpresaId
+        && adjunto.TipoDocumentoPropuestoId == request.TipoDocumentoId;
+
+    private static Error Conflicto() => Error.Crear(
+        CodigoConflicto, "Este adjunto o su Documento cambiaron mientras se asignaba, y no se ha guardado nada. Revísalo y vuelve a intentarlo.");
 
     private static Result<Guid> ArchivoNoValido() => Result.Fallo<Guid>(Error.Crear(
         "Adjunto.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));

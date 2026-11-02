@@ -26,8 +26,7 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         contexto.ListaAdjuntosMensaje.Add(adjunto);
         var mediador = new MediadorFalso();
         var almacen = new FileStorageServiceFalso();
-        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(contexto, new AlcanceDatosServiceFalso(),
-            new DocumentosQueryContextFalso(), mediador, mediador, almacen, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        var handler = Handler(contexto, mediador, almacen);
 
         var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(),
             Guid.NewGuid(), null, DateOnly.FromDateTime(DateTime.UtcNow), null, null), CancellationToken.None);
@@ -53,8 +52,7 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         contexto.ListaMensajes.Add(mensaje);
         contexto.ListaAdjuntosMensaje.Add(adjunto);
         var mediador = new MediadorFalso();
-        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(contexto, new AlcanceDatosServiceFalso(),
-            new DocumentosQueryContextFalso(), mediador, mediador, almacenamiento, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        var handler = Handler(contexto, mediador, almacenamiento);
 
         var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(),
             Guid.NewGuid(), null, DateOnly.FromDateTime(DateTime.UtcNow), null, null), CancellationToken.None);
@@ -64,10 +62,8 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         almacenamiento.ArchivosGuardados.Should().Be(valido ? 2 : 1);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task El_evento_lleva_el_destino_y_el_tipo_del_alta(bool aplicaPropuestaFijada)
+    [Fact]
+    public async Task El_timeline_recibe_la_conversacion_y_el_Documento_que_queda_en_uso()
     {
         var contexto = new ComunicacionesQueryContextFalso();
         var conversacion = new Conversacion("Documentación", empresaId: Guid.NewGuid());
@@ -79,17 +75,19 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
         contexto.ListaMensajes.Add(mensaje);
         contexto.ListaAdjuntosMensaje.Add(adjunto);
         var mediador = new MediadorFalso();
-        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(contexto, new AlcanceDatosServiceFalso(),
-            new DocumentosQueryContextFalso(), mediador, mediador, almacenamiento, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
-        var tipoId = Guid.NewGuid();
-        var trabajadorId = Guid.NewGuid();
+        var handler = Handler(contexto, mediador, almacenamiento);
 
-        var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, tipoId, trabajadorId, null,
-            DateOnly.FromDateTime(DateTime.UtcNow), null, null, AplicaPropuestaFijada: aplicaPropuestaFijada), CancellationToken.None);
+        var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(), Guid.NewGuid(), null,
+            DateOnly.FromDateTime(DateTime.UtcNow), null, null), CancellationToken.None);
 
-        mediador.Publicados.Should().ContainSingle().Which.Should().Be(new DocumentoActualizadoEvent(
-            conversacion.Id, resultado.Valor, adjunto.Id, trabajadorId, null, tipoId, aplicaPropuestaFijada));
+        mediador.Publicados.Should().ContainSingle().Which.Should().Be(new DocumentoActualizadoEvent(conversacion.Id, resultado.Valor));
     }
+
+    private static ActualizarDocumentoDesdeAdjuntoCommandHandler Handler(
+        ComunicacionesQueryContextFalso contexto, MediadorFalso mediador, FileStorageServiceFalso almacenamiento) =>
+        new(contexto, new RepartoAdjuntosTests.AdjuntoRepositorioFalso(contexto), new AlcanceDatosServiceFalso(), new DocumentosQueryContextFalso(),
+            mediador, mediador, almacenamiento, new CurrentUserServiceFalso(Guid.NewGuid()),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     private sealed class MediadorFalso : IMediator
     {
@@ -112,7 +110,7 @@ public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
     // La limpieza de la copia huérfana no usa ninguna otra dependencia del handler: se prueba directamente.
     private static ActualizarDocumentoDesdeAdjuntoCommandHandler CrearHandler(
         FileStorageServiceFalso almacenamiento, RegistroDeAvisos<ActualizarDocumentoDesdeAdjuntoCommandHandler> registro) =>
-        new(null!, null!, null!, null!, null!, almacenamiento, registro);
+        new(null!, null!, null!, null!, null!, null!, almacenamiento, null!, registro);
 
     [Fact]
     public async Task El_aviso_de_la_copia_huerfana_que_no_se_pudo_borrar_identifica_el_adjunto_sin_revelar_la_clave()

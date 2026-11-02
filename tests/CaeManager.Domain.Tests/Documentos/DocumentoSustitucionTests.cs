@@ -31,6 +31,19 @@ public class DocumentoSustitucionTests
     // ── Qué hace ───────────────────────────────────────────────────────────
 
     [Fact]
+    public void Un_documento_sin_guardar_adopta_el_Id_reservado_y_uno_vacio_se_rechaza()
+    {
+        var documento = DeTrabajador(Guid.NewGuid());
+        var reservado = IdentificadorEntidad.Nuevo();
+
+        documento.AdoptarIdReservado(reservado);
+
+        documento.Id.Should().Be(reservado);
+        documento.Invoking(d => d.AdoptarIdReservado(Guid.Empty)).Should().Throw<ArgumentException>();
+        documento.Id.Should().Be(reservado);
+    }
+
+    [Fact]
     public void Un_documento_nuevo_es_operativo_y_no_tiene_datos_de_sustitucion()
     {
         var documento = DeTrabajador(Guid.NewGuid());
