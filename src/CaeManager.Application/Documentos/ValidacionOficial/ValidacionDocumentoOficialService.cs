@@ -170,8 +170,7 @@ public class ValidacionDocumentoOficialService(
         {
             var motivo = nivel switch
             {
-                NivelConfianzaDocumental.Manipulado =>
-                    "La firma digital no cuadra con el contenido: el documento fue alterado después de firmarse.",
+                NivelConfianzaDocumental.Manipulado => MotivosRevisionIa.FirmaNoCuadraConElContenido,
                 NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable =>
                     "La firma es íntegra pero su emisor no es una CA reconocida de la Administración.",
                 _ => firmas.AparentaReimpresion

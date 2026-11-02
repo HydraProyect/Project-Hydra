@@ -27,6 +27,9 @@ public class RevisionIaDocumento : EntidadConTenant
     /// <summary>Explicación legible de por qué se generó esta revisión (p. ej. "Confianza baja (62%); la fecha de emisión introducida no coincide con la detectada"). Construida por VerificacionIaDocumentoService, no por la IA directamente.</summary>
     public string Motivo { get; private set; } = string.Empty;
 
+    /// <summary>El motivo incluye una alerta determinista (ver <see cref="MotivosRevisionIa"/>): no se acepta en bloque.</summary>
+    public bool TieneAlertaDeterminista => MotivosRevisionIa.ContieneAlerta(Motivo);
+
     public bool Resuelta { get; private set; }
     public DateTime CreadaEnUtc { get; private set; } = DateTime.UtcNow;
 

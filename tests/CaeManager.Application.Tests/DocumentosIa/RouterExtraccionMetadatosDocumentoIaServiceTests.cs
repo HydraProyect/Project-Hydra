@@ -33,6 +33,17 @@ public class RouterExtraccionMetadatosDocumentoIaServiceTests
     }
 
     [Fact]
+    public async Task Propaga_las_paginas_sin_leer_de_una_lectura_parcial()
+    {
+        var router = new DocumentAIRouterServiceFalso(Result.Exito(new ExtraccionEstructuradaDto(
+            "Certificado", new Dictionary<string, string?>(), 90, null, PaginasSinLeer: 26)));
+
+        var resultado = await new RouterExtraccionMetadatosDocumentoIaService(router).ExtraerAsync([1, 2, 3], "Certificado");
+
+        resultado.Valor.PaginasSinLeer.Should().Be(26);
+    }
+
+    [Fact]
     public async Task Devuelve_null_de_forma_tolerante_cuando_faltan_o_no_se_pueden_interpretar_los_campos()
     {
         var campos = new Dictionary<string, string?> { ["tieneFirma"] = "no-es-un-booleano" };

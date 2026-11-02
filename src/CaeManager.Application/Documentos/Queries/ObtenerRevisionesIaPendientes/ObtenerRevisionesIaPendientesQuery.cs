@@ -5,6 +5,7 @@ using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -49,7 +50,11 @@ public record RevisionIaDocumentoDto(
     DateOnly? FechaVencimientoIntroducida = null,
     int? NumeroPaginas = null,
     Guid? AuditoriaExtraccionIaId = null,
-    bool VigenciaLaFijaElTipo = false);
+    bool VigenciaLaFijaElTipo = false)
+{
+    /// <summary>Misma regla que <c>RevisionIaDocumento.TieneAlertaDeterminista</c>: la interfaz la refleja, el servidor la impone.</summary>
+    public bool TieneAlertaDeterminista => MotivosRevisionIa.ContieneAlerta(Motivo);
+}
 
 public class ObtenerRevisionesIaPendientesQueryHandler(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
