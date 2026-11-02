@@ -359,7 +359,7 @@ public class UltimoAdministradorBajoRuntimeTests
         var directorio = Directorio(sp);
         return await new FijarResponsableBuzonCommandHandler(
                 new ConexionIntegracionRepository(contexto), new AlcanceDatosServiceFalso(),
-                new ResponsableBuzonElegible(directorio, directorio, contexto, sp.GetRequiredService<ITenantActual>()),
+                new ResponsableBuzonElegible(directorio, directorio, contexto, contexto, sp.GetRequiredService<ITenantActual>()),
                 sp.GetRequiredService<ICurrentUserService>(), contexto, new TransaccionDeComando(contexto),
                 new BloqueoCarteraUsuario(contexto))
             .Handle(new FijarResponsableBuzonCommand(buzonId, usuarioId), default);

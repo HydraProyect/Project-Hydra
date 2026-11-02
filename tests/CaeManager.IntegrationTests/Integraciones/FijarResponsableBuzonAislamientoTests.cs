@@ -93,7 +93,7 @@ public class FijarResponsableBuzonAislamientoTests : IAsyncLifetime
 
     private static FijarResponsableBuzonCommandHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(new ConexionIntegracionRepository(contexto), new AlcanceDatosServiceFalso(),
-            new ResponsableBuzonElegible(new Directorio(), new Directorio(), contexto, new TenantActualAmbiental()),
+            new ResponsableBuzonElegible(new Directorio(), new Directorio(), contexto, contexto, new TenantActualAmbiental()),
             new CurrentUserServiceFalso(rol: "Administrador"), contexto,
             new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto));
 

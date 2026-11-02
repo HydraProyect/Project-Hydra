@@ -1,8 +1,11 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Configuracion;
+using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -14,20 +17,23 @@ public class FijarResponsableBuzonCommandHandlerTests
 {
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private static readonly Guid Tenant = Guid.NewGuid();
+    private static readonly Guid OperadorExterno = Guid.NewGuid();
     private readonly UnitOfWorkFalso _unitOfWork = new();
     private readonly TransaccionDeComandoFalsa _transaccion = new();
     private BloqueoCarteraUsuarioFalso _bloqueo = new();
 
     private FijarResponsableBuzonCommandHandler CrearHandler(
         string? rol = "Administrador", AlcanceDatosServiceFalso? alcance = null, bool responsableVisible = true,
-        bool responsableActivo = true, string? rolResponsable = "GestorCae", List<string>? eventos = null) =>
+        bool responsableActivo = true, string? rolResponsable = "GestorCae", List<string>? eventos = null,
+        bool delegado = false, IOperacionesQueryContext? operaciones = null, IEmpresasQueryContext? empresas = null) =>
         new(_conexiones, alcance ?? new AlcanceDatosServiceFalso(),
             new ResponsableBuzonElegible(
                 new DirectorioDestinosCarteraFalso(responsableVisible
-                    ? new DestinoCartera(responsableActivo, rolResponsable, null, false, Tenant)
+                    ? new DestinoCartera(responsableActivo, rolResponsable, null, delegado, delegado ? OperadorExterno : Tenant)
                     : null)
                 { Eventos = eventos },
-                new EquipoVacio(), new OperacionesEnMemoria([], []), new TenantActualFijo(Tenant)),
+                new EquipoVacio(), operaciones ?? new OperacionesEnMemoria([], []), empresas ?? new EmpresasQueryContextFalso(),
+                new TenantActualFijo(Tenant)),
             new CurrentUserServiceFalso(Guid.NewGuid(), rol), _unitOfWork, _transaccion, CrearBloqueo(eventos));
 
     private BloqueoCarteraUsuarioFalso CrearBloqueo(List<string>? eventos)
@@ -144,6 +150,88 @@ public class FijarResponsableBuzonCommandHandlerTests
         resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinCartera");
         conexion.ResponsableUsuarioId.Should().BeNull();
         _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_cartera_universal_se_fija_sobre_un_Cliente_empresarial()
+    {
+        var empresa = ResponsableBuzonElegibleDePrueba.ClienteEmpresarial();
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", empresa.Id));
+        var responsable = Guid.NewGuid();
+
+        var resultado = await CrearHandler(
+                operaciones: ResponsableBuzonElegibleDePrueba.CarteraUniversal(Tenant, responsable),
+                empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, responsable), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.ResponsableUsuarioId.Should().Be(responsable);
+    }
+
+    [Fact]
+    public async Task Con_cartera_universal_no_se_fija_sobre_una_Empresa_sin_discriminador()
+    {
+        var empresa = ResponsableBuzonElegibleDePrueba.SinDiscriminador();
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", empresa.Id));
+        var responsable = Guid.NewGuid();
+
+        var resultado = await CrearHandler(
+                operaciones: ResponsableBuzonElegibleDePrueba.CarteraUniversal(Tenant, responsable),
+                empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, responsable), default);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinCartera");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_operacion_universal_se_fija_al_Coordinador_CAE_delegado_sobre_un_Cliente_empresarial()
+    {
+        var empresa = ResponsableBuzonElegibleDePrueba.ClienteEmpresarial();
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", empresa.Id));
+        var responsable = Guid.NewGuid();
+
+        var resultado = await CrearHandler(
+                rolResponsable: "CoordinadorCae", delegado: true,
+                operaciones: ResponsableBuzonElegibleDePrueba.OperacionUniversal(Tenant, OperadorExterno),
+                empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, responsable), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.ResponsableUsuarioId.Should().Be(responsable);
+    }
+
+    [Fact]
+    public async Task Con_operacion_universal_no_se_fija_al_Coordinador_CAE_delegado_sobre_una_Empresa_sin_discriminador()
+    {
+        var empresa = ResponsableBuzonElegibleDePrueba.SinDiscriminador();
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", empresa.Id));
+
+        var resultado = await CrearHandler(
+                rolResponsable: "CoordinadorCae", delegado: true,
+                operaciones: ResponsableBuzonElegibleDePrueba.OperacionUniversal(Tenant, OperadorExterno),
+                empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinCartera");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_Administrador_se_fija_sobre_una_Empresa_sin_discriminador()
+    {
+        var empresa = ResponsableBuzonElegibleDePrueba.SinDiscriminador();
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", empresa.Id));
+        var responsable = Guid.NewGuid();
+
+        var resultado = await CrearHandler(
+                rolResponsable: "Administrador", empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, responsable), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.ResponsableUsuarioId.Should().Be(responsable);
     }
 
     [Fact]

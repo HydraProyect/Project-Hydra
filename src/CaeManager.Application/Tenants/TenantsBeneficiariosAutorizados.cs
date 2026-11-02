@@ -110,24 +110,26 @@ public static class TenantsBeneficiariosAutorizados
         select new CarteraBajoOperacionVigente { Cartera = cartera, Operacion = operacion };
 
     /// <summary>
-    /// ¿Alcanza <paramref name="clienteEmpresarialId"/> alguna Asignación de Cartera vigente de
-    /// <paramref name="usuarioIds"/>, en el Tenant propietario activo y bajo una Asignación de Operación
-    /// vigente de <paramref name="operadorTenantId"/>? Es el ámbito efectivo de <c>AlcanceDatosService</c>
-    /// visto desde la posición de propietario, para preguntar por una cuenta que no es quien mira: una
-    /// dimensión diferida no concede nada, una cartera vigente nunca se acota por Cliente empresarial (D-7 y su CHECK)
-    /// y bajo una operación acotada solo cuenta el Cliente empresarial de esa operación. Admite operaciones internas y raíz, a
-    /// diferencia de <see cref="CarterasPorOperacionDeLaOrganizacion"/>: la cartera de un Gestor CAE propio
-    /// del Tenant cuelga de ellas.
+    /// Los ámbitos efectivos de las Asignaciones de Cartera vigentes de <paramref name="usuarioIds"/>, en el
+    /// Tenant propietario activo y bajo una Asignación de Operación vigente de
+    /// <paramref name="operadorTenantId"/>: <c>null</c> es el Tenant entero y un valor, el Cliente empresarial
+    /// al que se acota la operación. Son los que calcula <c>AlcanceDatosService</c>, vistos desde la posición de
+    /// propietario para preguntar por una cuenta que no es quien mira: una dimensión diferida no concede nada y
+    /// una cartera vigente acotada por Cliente empresarial tampoco (D-7 y su CHECK la impiden). Sin ninguno,
+    /// alcance cero. Admite operaciones internas y raíz, a diferencia de
+    /// <see cref="CarterasPorOperacionDeLaOrganizacion"/>: la cartera de un Gestor CAE propio del Tenant cuelga
+    /// de ellas.
     /// </summary>
-    public static Task<bool> CarteraAlcanzaClienteEmpresarialAsync(
+    public static Task<List<Guid?>> AmbitosEfectivosDeCarteraAsync(
         IOperacionesQueryContext operaciones, IReadOnlyCollection<Guid> usuarioIds, Guid propietarioTenantId,
-        Guid operadorTenantId, Guid clienteEmpresarialId, DateTime ahora, CancellationToken cancellationToken) =>
+        Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
         (from cartera in operaciones.AsignacionesCartera
          join operacion in operaciones.AsignacionesOperacion
              on cartera.AsignacionOperacionId equals operacion.Id
          where usuarioIds.Contains(cartera.UsuarioId)
                && cartera.PropietarioTenantId == propietarioTenantId
                && cartera.Estado == EstadoAsignacion.Vigente
+               && cartera.AmbitoRelacionClienteId == null
                && cartera.AmbitoCentroId == null && cartera.AmbitoTrabajadorId == null && cartera.AmbitoProyectoId == null
                && cartera.VigenciaDesde <= ahora
                && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
@@ -137,9 +139,9 @@ public static class TenantsBeneficiariosAutorizados
                && operacion.AmbitoCentroId == null && operacion.AmbitoTrabajadorId == null && operacion.AmbitoProyectoId == null
                && operacion.VigenciaDesde <= ahora
                && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-               && (operacion.AmbitoRelacionClienteId == null || operacion.AmbitoRelacionClienteId == clienteEmpresarialId)
-         select cartera.Id)
-        .AnyAsync(cancellationToken);
+         select operacion.AmbitoRelacionClienteId)
+        .Distinct()
+        .ToListAsync(cancellationToken);
 
     /// <summary>
     /// Vía heredada: asignaciones de Operador Delegado del usuario sobre

@@ -1,9 +1,11 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Integraciones;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Integraciones;
 
@@ -25,9 +27,12 @@ public enum MotivoResponsableNoElegible
 /// <item>alcanzable desde el Tenant activo (propia o Operador CAE externo delegado vigente);</item>
 /// <item>activa;</item>
 /// <item>con un rol de gestión que escribe: ni el rol Cliente de portal ni Consulta responden un correo;</item>
-/// <item>con acceso al Cliente empresarial del buzón: Administrador y Dirección CAE lo tienen por su rol; Gestor
-/// CAE por su Asignación de Cartera; Coordinador CAE por la suya, la de su equipo o, si viene de un Operador CAE
-/// externo, por una Asignación de Operación del Tenant entero. Un buzón sin Cliente empresarial es triage compartido
+/// <item>con acceso al Cliente empresarial del buzón: Administrador y Dirección CAE lo tienen por su rol, sin más
+/// condición; Gestor CAE por su Asignación de Cartera; Coordinador CAE por la suya, la de su equipo o, si viene de un
+/// Operador CAE externo, por una Asignación de Operación del Tenant entero. Quien alcanza por el Tenant entero solo
+/// alcanza las Empresas que son Cliente empresarial (<c>EsCritico</c> informado), como
+/// <c>AlcanceDatosService.ObtenerClienteIdsVisiblesAsync</c>; bajo una operación acotada, solo la de esa operación.
+/// Un buzón sin Cliente empresarial es triage compartido
 /// (<see cref="AlcanceDatosServiceExtensions.ClienteOpcionalVisibleAsync"/>) y ahí decide solo el rol.</item>
 /// </list>
 ///
@@ -47,6 +52,7 @@ public class ResponsableBuzonElegible(
     IDirectorioDestinosCartera directorioDestinos,
     IDirectorioEquipoCoordinador equipoCoordinador,
     IOperacionesQueryContext operaciones,
+    IEmpresasQueryContext empresas,
     ITenantActual tenantActual)
 {
     // Application no puede referenciar Infrastructure.Identity.Roles: mismo motivo que en AutorizacionEscrituraBehavior.
@@ -95,7 +101,7 @@ public class ResponsableBuzonElegible(
         if (esCoordinador && destino.EsOperadorDelegado
             && await TenantsBeneficiariosAutorizados.OperaElTenantEnteroAsync(
                 operaciones, operadorTenantId, propietarioTenantId, ahora, cancellationToken))
-            return true;
+            return await EsClienteEmpresarialAsync(clienteEmpresarial, cancellationToken);
 
         // El equipo se lee desde su Tenant: el de un Coordinador CAE externo no es legible aquí, y sin él solo
         // cuenta su propia cartera. Las cuentas desactivadas del equipo también cuentan, como en
@@ -104,7 +110,18 @@ public class ResponsableBuzonElegible(
         if (esCoordinador && !destino.EsOperadorDelegado)
             personas = [usuarioId, .. (await equipoCoordinador.ObtenerEquipoAsync(usuarioId, cancellationToken)).Select(m => m.Id)];
 
-        return await TenantsBeneficiariosAutorizados.CarteraAlcanzaClienteEmpresarialAsync(
-            operaciones, personas, propietarioTenantId, operadorTenantId, clienteEmpresarial, ahora, cancellationToken);
+        var ambitos = await TenantsBeneficiariosAutorizados.AmbitosEfectivosDeCarteraAsync(
+            operaciones, personas, propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+
+        // Basta un ámbito del Tenant entero para que sea ese el alcance, también si otra cartera nombra esta Empresa:
+        // AlcanceDatosService.ObtenerCarteraAsync no suma las listas a una cartera universal.
+        return ambitos.Contains(null)
+            ? await EsClienteEmpresarialAsync(clienteEmpresarial, cancellationToken)
+            : ambitos.Contains(clienteEmpresarial);
     }
+
+    // El Tenant entero de AlcanceDatosService.ObtenerClienteIdsVisiblesAsync: una Empresa sin el discriminador no
+    // está en esa lista, aunque la Asignación cubra todo el Tenant.
+    private Task<bool> EsClienteEmpresarialAsync(Guid empresa, CancellationToken cancellationToken) =>
+        empresas.Empresas.AnyAsync(e => e.Id == empresa && e.EsCritico != null, cancellationToken);
 }

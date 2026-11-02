@@ -42,6 +42,7 @@ public class FijarResponsableBuzonBajoRlsTests : IAsyncLifetime
     private Guid _tenantSesion;
     private Guid _tenantAjeno;
     private Guid _buzonPropio;
+    private Guid _buzonSinDiscriminador;
     private Guid _buzonAjeno;
     private Guid _carteraPropia;
     private Guid _carteraAjena;
@@ -102,6 +103,15 @@ public class FijarResponsableBuzonBajoRlsTests : IAsyncLifetime
             _propietario.ConexionesIntegracion.Add(buzon);
             await _propietario.SaveChangesAsync();
             _buzonPropio = buzon.Id;
+
+            var sinDiscriminador = Empresa.CrearComoSubcontrata("Transportes Shelbyville", null, "Estandar");
+            _propietario.Empresas.Add(sinDiscriminador);
+            await _propietario.SaveChangesAsync();
+
+            var buzonSinDiscriminador = new ConexionIntegracion("contraparte@ejemplo.test", "Buzón de contraparte", sinDiscriminador.Id);
+            _propietario.ConexionesIntegracion.Add(buzonSinDiscriminador);
+            await _propietario.SaveChangesAsync();
+            _buzonSinDiscriminador = buzonSinDiscriminador.Id;
         }
 
         using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
@@ -224,6 +234,33 @@ public class FijarResponsableBuzonBajoRlsTests : IAsyncLifetime
             .Should().Be(MotivoResponsableNoElegible.NoAlcanzable);
     }
 
+    /// <summary>
+    /// El alcance del Tenant entero solo incluye las Empresas con discriminador: con cartera universal y sin él, la
+    /// ingesta deja la conversación sin asignar y fijarlo se rechaza. Administrador lo atiende por su rol.
+    /// </summary>
+    [Fact]
+    public async Task Una_Empresa_sin_discriminador_queda_fuera_de_la_cartera_universal_al_ingerir_y_al_fijar()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var tenant = new TenantActualPorAmbito();
+            await using var sinUsuario = CrearRuntime(tenant, new CurrentUserServiceFalso());
+            var buzon = await sinUsuario.ConexionesIntegracion.SingleAsync(c => c.Id == _buzonSinDiscriminador);
+            var elegibilidad = Elegibilidad(sinUsuario, tenant);
+
+            (await elegibilidad.EvaluarAsync(_gestorConCartera, buzon, CancellationToken.None))
+                .Should().Be(MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa);
+            (await elegibilidad.EvaluarAsync(_administrador, buzon, CancellationToken.None)).Should().BeNull();
+        }
+
+        await using var runtime = CrearRuntime(_tenantDeLaPeticion, ActorAdministrador());
+        var resultado = await Handler(runtime).Handle(
+            new FijarResponsableBuzonCommand(_buzonSinDiscriminador, _gestorConCartera), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinCartera");
+        (await LeerResponsableAsync(_buzonSinDiscriminador)).Should().BeNull();
+    }
+
     private async Task<Guid> SembrarCarteraAsync(Guid tenantId, Guid usuarioId)
     {
         var ahora = DateTime.UtcNow;
@@ -251,7 +288,7 @@ public class FijarResponsableBuzonBajoRlsTests : IAsyncLifetime
     private static ResponsableBuzonElegible Elegibilidad(CaeManagerDbContext runtime, ITenantActual tenant)
     {
         var directorio = new DirectorioUsuariosTenant(null!, runtime, tenant, new PuertaAccesoDatos(), runtime, null!);
-        return new ResponsableBuzonElegible(directorio, directorio, runtime, tenant);
+        return new ResponsableBuzonElegible(directorio, directorio, runtime, runtime, tenant);
     }
 
     private Task<Guid?> LeerResponsableAsync(Guid conexionId) =>

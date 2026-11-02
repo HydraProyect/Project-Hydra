@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
@@ -6,7 +7,6 @@ using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
-using CaeManager.Domain.Operaciones;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -78,7 +78,7 @@ public class IngestaWebhookServiceTests
         ResolucionProveedorPlataformaCaeServiceFalso? resolucionPlataforma = null,
         ClasificacionRuidoMensajeRepositorioFalso? clasificacionRuidoRepositorio = null,
         DestinoCartera? responsable = null, IOperacionesQueryContext? operaciones = null, Guid? tenantActual = null,
-        ILogger<IngestaWebhookService>? logger = null) =>
+        ILogger<IngestaWebhookService>? logger = null, IEmpresasQueryContext? empresas = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
             new FileStorageServiceFalso(),
@@ -91,7 +91,7 @@ public class IngestaWebhookServiceTests
             new RelevanciaCaeServiceFalso(),
             new AlertaCriticaServiceFalso(),
             logger ?? NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
-            ResponsableBuzonElegibleDePrueba.Con(responsable, operaciones, tenantActual));
+            ResponsableBuzonElegibleDePrueba.Con(responsable, operaciones, tenantActual, empresas: empresas));
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
@@ -104,7 +104,7 @@ public class IngestaWebhookServiceTests
     private static async Task<Conversacion> IngerirHiloNuevoAsync(
         ConexionIntegracion conexion, ConversacionRepositorioFalso conversaciones,
         DestinoCartera? responsable = null, IOperacionesQueryContext? operaciones = null, Guid? tenantActual = null,
-        ILogger<IngestaWebhookService>? logger = null)
+        ILogger<IngestaWebhookService>? logger = null, IEmpresasQueryContext? empresas = null)
     {
         var conexiones = new ConexionIntegracionRepositorioFalso();
         conexiones.Agregar(conexion);
@@ -119,7 +119,7 @@ public class IngestaWebhookServiceTests
 
         await CrearServicio(
                 conexiones, conversaciones, graph, credenciales, responsable: responsable, operaciones: operaciones,
-                tenantActual: tenantActual, logger: logger)
+                tenantActual: tenantActual, logger: logger, empresas: empresas)
             .ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
 
         return conversaciones.Conversaciones.Single();
@@ -209,19 +209,72 @@ public class IngestaWebhookServiceTests
     {
         var tenant = Guid.NewGuid();
         var responsable = Guid.NewGuid();
-        var ahora = DateTime.UtcNow;
-        var raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora.AddDays(-30), ahora);
-        var cartera = AsignacionCartera.Interna(raiz, responsable, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
-        typeof(AsignacionOperacion).GetProperty("Estado")!.SetValue(raiz, EstadoAsignacion.Vigente);
-        typeof(AsignacionCartera).GetProperty("Estado")!.SetValue(cartera, EstadoAsignacion.Vigente);
-        var conexion = ConexionHabilitada(Guid.NewGuid());
+        var empresa = ResponsableBuzonElegibleDePrueba.ClienteEmpresarial();
+        var conexion = ConexionHabilitada(empresa.Id);
         conexion.FijarResponsable(responsable);
 
         var conversacion = await IngerirHiloNuevoAsync(
             conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "GestorCae", null, false, tenant),
-            new OperacionesEnMemoria([raiz], [cartera]), tenant);
+            ResponsableBuzonElegibleDePrueba.CarteraUniversal(tenant, responsable), tenant,
+            empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
 
         conversacion.EjecutivoAsignadoId.Should().Be(responsable);
+    }
+
+    [Fact]
+    public async Task Una_cartera_universal_deja_sin_asignar_con_motivo_la_conversacion_de_una_Empresa_sin_discriminador()
+    {
+        var tenant = Guid.NewGuid();
+        var responsable = Guid.NewGuid();
+        var empresa = ResponsableBuzonElegibleDePrueba.SinDiscriminador();
+        var conexion = ConexionHabilitada(empresa.Id);
+        conexion.FijarResponsable(responsable);
+        var log = new LogDeAvisos();
+
+        var conversacion = await IngerirHiloNuevoAsync(
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "GestorCae", null, false, tenant),
+            ResponsableBuzonElegibleDePrueba.CarteraUniversal(tenant, responsable), tenant, log,
+            ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
+
+        conversacion.EjecutivoAsignadoId.Should().BeNull();
+        log.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning && e.Mensaje.Contains("SinCarteraSobreLaEmpresa"));
+    }
+
+    [Fact]
+    public async Task Una_operacion_universal_da_la_conversacion_de_un_Cliente_empresarial_al_Coordinador_CAE_delegado()
+    {
+        var tenant = Guid.NewGuid();
+        var operador = Guid.NewGuid();
+        var responsable = Guid.NewGuid();
+        var empresa = ResponsableBuzonElegibleDePrueba.ClienteEmpresarial();
+        var conexion = ConexionHabilitada(empresa.Id);
+        conexion.FijarResponsable(responsable);
+
+        var conversacion = await IngerirHiloNuevoAsync(
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador),
+            ResponsableBuzonElegibleDePrueba.OperacionUniversal(tenant, operador), tenant,
+            empresas: ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
+
+        conversacion.EjecutivoAsignadoId.Should().Be(responsable);
+    }
+
+    [Fact]
+    public async Task Una_operacion_universal_deja_sin_asignar_con_motivo_la_conversacion_de_una_Empresa_sin_discriminador()
+    {
+        var tenant = Guid.NewGuid();
+        var operador = Guid.NewGuid();
+        var empresa = ResponsableBuzonElegibleDePrueba.SinDiscriminador();
+        var conexion = ConexionHabilitada(empresa.Id);
+        conexion.FijarResponsable(Guid.NewGuid());
+        var log = new LogDeAvisos();
+
+        var conversacion = await IngerirHiloNuevoAsync(
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "CoordinadorCae", null, true, operador),
+            ResponsableBuzonElegibleDePrueba.OperacionUniversal(tenant, operador), tenant, log,
+            ResponsableBuzonElegibleDePrueba.EmpresasDelTenant(empresa));
+
+        conversacion.EjecutivoAsignadoId.Should().BeNull();
+        log.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning && e.Mensaje.Contains("SinCarteraSobreLaEmpresa"));
     }
 
     [Fact]
