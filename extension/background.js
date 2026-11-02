@@ -4,10 +4,12 @@
 // Hydra; el popup y el content script solo le mandan mensajes.
 //
 // Estado guardado:
-//   chrome.storage.local:   { hydraUrl }               -- sobrevive a reinicios
-//   chrome.storage.session: { token, expiraEnUtc }      -- se pierde al cerrar el navegador,
+//   chrome.storage.session: { hydraUrl, token, expiraEnUtc } -- se pierde al cerrar el navegador,
 //                                                           igual de corto que la vigencia real (8h)
 //                                                           que de todos modos impone el servidor.
+//                                                           El destino vive con el token: storage.local
+//                                                           lo puede escribir un content script, y
+//                                                           storage.session no.
 //   chrome.storage.session: { enviosPendientes, enviosConfirmados } -- «Lo he enviado» (E1): por
 //                                                           pestaña, la acreditación puesta en el formulario
 //                                                           y aún sin confirmar, y la última confirmada que
@@ -37,13 +39,9 @@
 const ORIGENES_TALVEG_PERMITIDOS = ["https://app.talveg.es", "https://staging.talveg.es"];
 
 async function obtenerConexion() {
-  const { hydraUrl: guardada } = await chrome.storage.local.get("hydraUrl");
-  // storage.local también lo puede escribir un content script, y de esta URL depende a
-  // dónde viaja el token: se valida al leerla, no solo al guardarla en conectar().
-  const hydraUrl = ORIGENES_TALVEG_PERMITIDOS.includes(guardada) ? guardada : null;
-  const { token, expiraEnUtc } = await chrome.storage.session.get(["token", "expiraEnUtc"]);
+  const { hydraUrl, token, expiraEnUtc } = await chrome.storage.session.get(["hydraUrl", "token", "expiraEnUtc"]);
   const conectado = Boolean(hydraUrl && token && expiraEnUtc && new Date(expiraEnUtc) > new Date());
-  return { hydraUrl, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
+  return { hydraUrl: hydraUrl ?? null, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
 }
 
 // Lo único que sale por mensajería: el content script corre dentro de un portal ajeno,
@@ -101,8 +99,7 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   // estática los dos orígenes de TALVEG (ver cabecera del fichero) — no hace
   // falta pedir nada en caliente, y por tanto tampoco depende de que esta
   // llamada conserve un gesto de usuario real a través de la mensajería.
-  await chrome.storage.local.set({ hydraUrl: origen });
-  await chrome.storage.session.set({ token, expiraEnUtc });
+  await chrome.storage.session.set({ hydraUrl: origen, token, expiraEnUtc });
   await avisarDeLaConexion(true, expiraEnUtc);
   return { ok: true };
 }
@@ -114,7 +111,7 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
 // reintentar al volver a conectar; caducan solos a los 30 min, y el servidor
 // vuelve a comprobar la cartera de quien confirme.
 async function desconectar({ borrarEnvios = false } = {}) {
-  const claves = ["token", "expiraEnUtc", CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA, CLAVE_TENANT_POR_PESTANA];
+  const claves = ["hydraUrl", "token", "expiraEnUtc", CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA, CLAVE_TENANT_POR_PESTANA];
   if (borrarEnvios) claves.push(CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS);
   await chrome.storage.session.remove(claves);
   await avisarDeLaConexion(false);

@@ -20,19 +20,23 @@ function comprobar(nombre, condicion, detalle = "") {
 
 // --- chrome simulado ------------------------------------------------------
 
+// Áreas separadas: storage.local lo puede escribir un content script y storage.session no.
 let almacen = {};
+let almacenLocal = {};
 let manejadorDeMensajes = null;
 let manejadorExterno = null;
 const peticiones = [];
+const opcionesDePeticion = [];
 
-const area = {
+const areaDe = (leerAlmacen) => ({
   get: async (claves) => {
-    if (typeof claves === "string") return { [claves]: almacen[claves] };
-    return Object.fromEntries((claves ?? Object.keys(almacen)).map((c) => [c, almacen[c]]));
+    const datos = leerAlmacen();
+    if (typeof claves === "string") return { [claves]: datos[claves] };
+    return Object.fromEntries((claves ?? Object.keys(datos)).map((c) => [c, datos[c]]));
   },
-  set: async (obj) => Object.assign(almacen, structuredClone(obj)),
-  remove: async (claves) => [].concat(claves).forEach((c) => delete almacen[c]),
-};
+  set: async (obj) => Object.assign(leerAlmacen(), structuredClone(obj)),
+  remove: async (claves) => [].concat(claves).forEach((c) => delete leerAlmacen()[c]),
+});
 
 globalThis.chrome = {
   runtime: {
@@ -41,12 +45,13 @@ globalThis.chrome = {
     getManifest: () => ({ version: "0.0.0" }),
     lastError: null,
   },
-  storage: { local: area, session: area },
+  storage: { local: areaDe(() => almacenLocal), session: areaDe(() => almacen) },
   tabs: { query: async () => [], sendMessage: async () => {} },
 };
 
-globalThis.fetch = async (url) => {
+globalThis.fetch = async (url, opciones = {}) => {
   peticiones.push(url);
+  opcionesDePeticion.push(opciones);
   return { status: 200, ok: true, type: "basic", json: async () => [], headers: { get: () => null } };
 };
 
@@ -81,7 +86,9 @@ function codigoDe(hydraUrl) {
 
 function conexionInicial() {
   almacen = { hydraUrl: "https://staging.talveg.es", token: TOKEN, expiraEnUtc: CADUCIDAD };
+  almacenLocal = {};
   peticiones.length = 0;
+  opcionesDePeticion.length = 0;
 }
 
 // --- El token no sale por mensajería --------------------------------------
@@ -130,14 +137,26 @@ const puente = await mandarExterno(
   "https://app.talveg.es/configuracion");
 comprobar("el puente rechaza otro destino", puente?.ok === false && almacen.token === undefined);
 
-// storage.local también es accesible desde un content script: el destino se valida
-// al leerlo, no solo al guardarlo.
+// Lo único que un content script alcanza es storage.local: ni otro origen ni el otro
+// entorno de TALVEG cambian el destino, y un valor inválido no tumba la conexión.
+for (const reescrito of ["https://atacante.example", "https://app.talveg.es", "no es una url"]) {
+  conexionInicial();
+  almacenLocal.hydraUrl = reescrito;
+  await mandar({ accion: "listarPendientes", url: "https://app.nalandaglobal.com/documentos" }, PESTANA_PORTAL);
+  comprobar(`escribir ${reescrito} en storage.local no cambia el destino`,
+    peticiones.length > 0 && peticiones.every((url) => String(url).startsWith("https://staging.talveg.es/")), peticiones.join(" "));
+  comprobar(`escribir ${reescrito} en storage.local no desconecta`, almacen.token === TOKEN);
+}
+
+// --- Cómo sale el token ---------------------------------------------------
+
 conexionInicial();
-almacen.hydraUrl = "https://atacante.example";
-const reescrito = await mandar({ accion: "obtenerConexion" }, PESTANA_PORTAL);
 await mandar({ accion: "listarPendientes", url: "https://app.nalandaglobal.com/documentos" }, PESTANA_PORTAL);
-comprobar("un destino reescrito en storage no cuenta como conexión", reescrito?.conectado === false && reescrito?.hydraUrl === null);
-comprobar("un destino reescrito en storage no recibe peticiones", !peticiones.some((url) => String(url).includes("atacante.example")), peticiones.join(" "));
+comprobar("el token va en la cabecera", opcionesDePeticion.length > 0
+  && opcionesDePeticion.every((o) => o.headers?.Authorization === `Extension ${TOKEN}`));
+comprobar("el token no va en la URL", !peticiones.some((url) => String(url).includes(TOKEN)));
+comprobar("una redirección no se sigue con el token", opcionesDePeticion.every((o) => o.redirect === "manual"));
+comprobar("no se mandan cookies", opcionesDePeticion.every((o) => o.credentials === "omit"));
 
 // --- Controles positivos --------------------------------------------------
 // Sin ellos, un arnés que no llegara a los manejadores daría todo verde.

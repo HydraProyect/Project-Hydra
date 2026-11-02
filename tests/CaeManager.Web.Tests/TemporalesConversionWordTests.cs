@@ -54,7 +54,11 @@ public class TemporalesConversionWordTests : IDisposable
 
         var registro = await File.ReadAllTextAsync(Path.Combine(rutaPerfil, "user", "registrymodifications.xcu"));
         System.Xml.Linq.XDocument.Parse(registro).Root!.Elements("item").Should().HaveCount(5);
-        registro.Should().Contain("BlockUntrustedRefererLinks").And.Contain("DisableMacrosExecution");
+        registro.Should().Contain("""BlockUntrustedRefererLinks" oor:op="fuse"><value>true""")
+            .And.Contain("""DisableMacrosExecution" oor:op="fuse"><value>true""")
+            .And.Contain("""DisableActiveContent" oor:op="fuse"><value>true""")
+            .And.Contain("""MacroSecurityLevel" oor:op="fuse"><value>3""")
+            .And.Contain("""Link" oor:op="fuse"><value>2""");
     }
 
     [Fact]
