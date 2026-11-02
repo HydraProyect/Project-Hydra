@@ -238,7 +238,10 @@ public class CaeManagerDbContext(
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     IQueryable<Vehiculo> IVehiculosQueryContext.Vehiculos => Vehiculos;
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
-    IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
+    // Sin seguimiento (MJ-05): el contexto de un circuito de Blazor vive todo el circuito, y con seguimiento EF devuelve
+    // la instancia ya rastreada sin refrescar sus valores, de modo que un cambio de umbrales hecho por otro usuario
+    // no se veía hasta recargar. Las escrituras pasan por IParametroSistemaRepository, no por este contrato.
+    IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema.AsNoTracking();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     IQueryable<RegistroAuditoria> IAuditoriaQueryContext.RegistrosAuditoria => RegistrosAuditoria;
     public DbSet<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible => Set<RegistroAccesoDocumentoSensible>();
@@ -438,7 +441,9 @@ public class CaeManagerDbContext(
     public DbSet<OrdenCajasFicha> OrdenesCajasFicha => Set<OrdenCajasFicha>();
     IQueryable<OrdenCajasFicha> IConfiguracionQueryContext.OrdenesCajasFicha => OrdenesCajasFicha;
     public DbSet<EstadoAutomatizacion> EstadosAutomatizacion => Set<EstadoAutomatizacion>();
-    IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion;
+    // Sin seguimiento, como ParametrosSistema: las filas las escriben trabajos en segundo plano de otro ámbito y el
+    // panel, en un circuito largo, no puede quedarse con la ejecución anterior.
+    IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion.AsNoTracking();
     public DbSet<HistorialImportacion> HistorialImportaciones => Set<HistorialImportacion>();
     IQueryable<HistorialImportacion> IImportacionQueryContext.HistorialImportaciones => HistorialImportaciones;
     public DbSet<OperacionImportacion> OperacionesImportacion => Set<OperacionImportacion>();
