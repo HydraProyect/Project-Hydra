@@ -4,7 +4,6 @@ using CaeManager.Application.Comunicaciones.Commands.DividirAdjuntoPdf;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
 using CaeManager.Application.Comunicaciones.Queries.PrepararDivisionAdjunto;
-using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.HerramientasPdf;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Clientes;
@@ -78,7 +77,7 @@ public class DividirAdjuntoPdfTests
     private DividirAdjuntoPdfCommandHandler Dividir(
         AlcanceDatosServiceFalso? alcance = null, string? rol = "GestorCae", Guid? usuarioId = null, bool sinUsuario = false, bool disponible = true) => new(
         new DisponibilidadFija(disponible), _contexto, _repositorio, _eventos, alcance ?? CarteraCompleta(),
-        new CurrentUserServiceFalso(sinUsuario ? null : usuarioId ?? Guid.NewGuid(), rol), _almacen, _mediador, _unitOfWork,
+        new CurrentUserServiceFalso(sinUsuario ? null : usuarioId ?? Guid.NewGuid(), rol), _registro, _almacen, _mediador, _unitOfWork,
         NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
 
     private PrepararDivisionAdjuntoQueryHandler Preparar(
@@ -123,8 +122,8 @@ public class DividirAdjuntoPdfTests
         adjunto.DocumentoId.Should().BeNull();
         adjunto.ResueltoPorUsuarioId.Should().Be(usuarioId);
         _eventos.Eventos.Should().ContainSingle(e => e.Tipo == TipoEventoConversacion.AdjuntoDividido && e.ReferenciaId == adjunto.Id && e.ConversacionId == _conversacion.Id);
-        _mediador.Publicados.Should().BeEquivalentTo([
-            new DocumentoActualizadoEvent(_conversacion.Id, primero), new DocumentoActualizadoEvent(_conversacion.Id, segundo)]);
+        _mediador.Publicados.Should().BeEmpty("las entradas por Documento se ven en el portal con el nombre del titular");
+        _registro.Registrados.Should().Equal([(nameof(AdjuntoMensaje), adjunto.Id)]);
     }
 
     /// <summary>El lote no sale del Tenant: lo único que manda es el alta de Documentos y sus entradas de timeline.</summary>
@@ -137,7 +136,7 @@ public class DividirAdjuntoPdfTests
         await Dividir().Handle(Orden(adjunto), CancellationToken.None);
 
         _mediador.Enviados.Should().OnlyContain(r => r is CrearDocumentosDesdeDivisionCommand);
-        _mediador.Publicados.Should().OnlyContain(n => n is DocumentoActualizadoEvent);
+        _mediador.Publicados.Should().BeEmpty();
     }
 
     [Fact]
@@ -394,15 +393,14 @@ public class DividirAdjuntoPdfTests
     public async Task Con_algun_Documento_creado_se_queda_dividido_aunque_otros_tramos_se_rechacen()
     {
         var adjunto = await Sembrar();
-        var creado = Guid.NewGuid();
         _mediador.ResultadoDivision = Result.Exito<IReadOnlyList<ResultadoTramoCreado>>(
-            [Tramo(EstadoTramoCreado.Rechazado), Tramo(EstadoTramoCreado.Creado, creado)]);
+            [Tramo(EstadoTramoCreado.Rechazado), Tramo(EstadoTramoCreado.Creado, Guid.NewGuid())]);
 
         var resultado = await Dividir().Handle(Orden(adjunto), CancellationToken.None);
 
         resultado.Valor.Should().HaveCount(2);
         adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
-        _mediador.Publicados.Should().BeEquivalentTo([new DocumentoActualizadoEvent(_conversacion.Id, creado)]);
+        _eventos.Eventos.Should().ContainSingle(e => e.Tipo == TipoEventoConversacion.AdjuntoDividido);
     }
 
     [Fact]
@@ -416,7 +414,6 @@ public class DividirAdjuntoPdfTests
 
         adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
         _eventos.Eventos.Should().ContainSingle(e => e.Tipo == TipoEventoConversacion.AdjuntoDividido);
-        _mediador.Publicados.Should().BeEmpty("no consta ningún Documento que nombrar");
     }
 
     [Fact]
@@ -428,6 +425,31 @@ public class DividirAdjuntoPdfTests
         await Dividir().Invoking(h => h.Handle(Orden(adjunto), CancellationToken.None)).Should().ThrowAsync<ValidationException>();
 
         adjunto.EstaPendiente.Should().BeTrue();
+    }
+
+    /// <summary>Una cancelación puede salir del lote con tramos ya creados: volver a pendiente permitiría duplicarlos.</summary>
+    [Fact]
+    public async Task Una_cancelacion_dentro_del_lote_no_devuelve_el_adjunto_a_pendiente()
+    {
+        var adjunto = await Sembrar();
+        _mediador.ExcepcionAlDividir = new OperationCanceledException();
+
+        await Dividir().Invoking(h => h.Handle(Orden(adjunto), CancellationToken.None)).Should().ThrowAsync<OperationCanceledException>();
+
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
+    }
+
+    [Fact]
+    public async Task Si_el_acceso_no_se_puede_registrar_no_se_abre_el_adjunto_para_dividirlo()
+    {
+        var adjunto = await Sembrar();
+        var handler = new DividirAdjuntoPdfCommandHandler(
+            new DisponibilidadFija(true), _contexto, _repositorio, _eventos, CarteraCompleta(), new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"),
+            new RegistroAccesoDatoSensibleFalso(falla: true), _almacen, _mediador, _unitOfWork, NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
+
+        await handler.Invoking(h => h.Handle(Orden(adjunto), CancellationToken.None)).Should().ThrowAsync<InvalidOperationException>();
+
+        SinEfectos(adjunto, _mediador, _unitOfWork);
     }
 
     [Fact]

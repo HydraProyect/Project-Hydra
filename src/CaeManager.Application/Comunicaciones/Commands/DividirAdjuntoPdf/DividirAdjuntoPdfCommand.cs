@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
-using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.HerramientasPdf;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -47,7 +46,8 @@ public class DividirAdjuntoPdfCommandValidator : AbstractValidator<DividirAdjunt
 public class DividirAdjuntoPdfCommandHandler(
     IDisponibilidadHerramientasPdf disponibilidad, IComunicacionesQueryContext comunicacionesContext,
     IAdjuntoMensajeRepository repositorio, IEventoConversacionRepository eventoRepositorio, IAlcanceDatosService alcanceDatos,
-    ICurrentUserService currentUserService, IFileStorageService almacen, IMediator mediator, IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService, IRegistroAccesoDatoSensibleService registroAcceso, IFileStorageService almacen,
+    IMediator mediator, IUnitOfWork unitOfWork,
     ILogger<DividirAdjuntoPdfCommandHandler> logger)
     : IRequestHandler<DividirAdjuntoPdfCommand, Result<IReadOnlyList<ResultadoTramoCreado>>>
 {
@@ -70,6 +70,9 @@ public class DividirAdjuntoPdfCommandHandler(
         if (!adjunto.EstaPendiente)
             return Fallo(Error.Crear("Adjunto.YaResuelto", "Este adjunto ya está resuelto."));
 
+        // Como en la consulta: sin fila de acceso no se abre el archivo, llegue o no por ella.
+        await registroAcceso.RegistrarAsync(nameof(AdjuntoMensaje), adjunto.Id, cancellationToken);
+
         var contenido = await DivisionDeAdjuntos.LeerPdfAsync(almacen, adjunto.ArchivoUrl, adjunto.NombreArchivo, cancellationToken);
         if (contenido is null)
             return Fallo(DivisionDeAdjuntos.ArchivoNoValido());
@@ -84,9 +87,10 @@ public class DividirAdjuntoPdfCommandHandler(
                 new CrearDocumentosDesdeDivisionCommand(contenido, adjunto.NombreArchivo, adjunto.TenantId, request.EmpresaGestionadaId, request.Tramos),
                 CancellationToken.None);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Cada tramo atrapa sus propios fallos: lo que llega aquí ocurrió antes del primero, sin Documentos.
+            // Cada tramo atrapa sus propios fallos salvo la cancelación: lo demás ocurrió antes del primero, sin Documentos.
+            // Con una cancelación no se sabe, y dividido sin Documentos es mejor que pendiente con ellos.
             await DeshacerReservaAsync(adjunto);
             throw;
         }
@@ -97,7 +101,7 @@ public class DividirAdjuntoPdfCommandHandler(
             return lote;
         }
 
-        await RegistrarEnTimelineAsync(origen!.ConversacionId, adjunto.Id, lote.Valor);
+        await RegistrarEnTimelineAsync(origen!.ConversacionId, adjunto.Id);
 
         return lote;
     }
@@ -148,15 +152,14 @@ public class DividirAdjuntoPdfCommandHandler(
     }
 
     // Tras los commits y a mejor esfuerzo, como el evento de la asignación: un fallo aquí no puede perder la lista de lo creado.
-    private async Task RegistrarEnTimelineAsync(Guid conversacionId, Guid adjuntoId, IReadOnlyList<ResultadoTramoCreado> resultados)
+    // Sin una entrada por Documento: esas se ven en el portal con el nombre del titular, y aquí pueden ser Trabajadores de
+    // la cartera de la Empresa gestionada, ajenos al hilo.
+    private async Task RegistrarEnTimelineAsync(Guid conversacionId, Guid adjuntoId)
     {
         try
         {
             eventoRepositorio.Agregar(new EventoConversacion(conversacionId, TipoEventoConversacion.AdjuntoDividido, adjuntoId, DateTime.UtcNow));
             await unitOfWork.SaveChangesAsync(CancellationToken.None);
-
-            foreach (var tramo in resultados.Where(t => t.Estado == EstadoTramoCreado.Creado))
-                await mediator.Publish(new DocumentoActualizadoEvent(conversacionId, tramo.DocumentoId!.Value), CancellationToken.None);
         }
         catch (Exception ex)
         {
