@@ -28,7 +28,7 @@ public enum OrigenSalidaComunicacion
 /// cerrado). Antes del token por una razón concreta: al refrescarlo la credencial queda
 /// modificada en el contexto, y el registro se niega a guardar con cambios pendientes ajenos.
 /// La fila atestigua la orden de salida autorizada, no la entrega: un fallo posterior de Graph
-/// deja la fila sin correo, nunca correo sin fila. Lo mismo la guarda de envío C-04 y un reintento:
+/// deja la fila sin correo, nunca correo sin fila. Lo mismo la guarda de envío C-04 del correo y un reintento:
 /// cada intento autorizado es una fila.
 /// </para>
 /// <para>

@@ -3,7 +3,9 @@ using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacionWhatsApp;
+using CaeManager.Application.Comunicaciones.Eventos;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Reclamaciones.Eventos;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Integraciones;
@@ -247,6 +249,18 @@ public class RastroSalidaComunicacionesTests
         var resultado = await handler.Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, "respuesta"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_el_evento_de_reclamacion_no_se_guarda_descarta_los_cambios()
+    {
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("Fallo simulado de guardado.") };
+        var handler = new RegistrarEventoReclamacionEnviadaHandler(
+            new EventoConversacionRepositorioFalso(), unitOfWork, NullLogger<RegistrarEventoReclamacionEnviadaHandler>.Instance, _descarte);
+
+        await handler.Handle(new ReclamacionEnviadaEvent(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None);
+
         _descarte.VecesDescartado.Should().Be(1);
     }
 
