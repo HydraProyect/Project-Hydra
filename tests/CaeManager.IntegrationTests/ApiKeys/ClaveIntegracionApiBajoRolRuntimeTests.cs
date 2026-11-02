@@ -152,6 +152,26 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
             .Should().NotBeNull("EF escribe el último uso bajo cae_app_runtime, que solo tiene permiso por columnas");
     }
 
+    [Fact]
+    public async Task Cada_lectura_autorizada_suma_a_la_fila_del_dia_por_patron_de_ruta_y_lo_denegado_no_suma()
+    {
+        await using var api = await Api.IniciarAsync(this);
+        var token = await api.TokenAsync(_claveId, Secreto);
+
+        (await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorA}")).Estado.Should().Be(HttpStatusCode.OK);
+        (await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorA}")).Estado.Should().Be(HttpStatusCode.OK);
+        (await api.GetAsync(token, "/api/v1/asignaciones")).Estado.Should().Be(HttpStatusCode.Forbidden, "control: esta clave no tiene ese alcance");
+
+        await using var contexto = CrearContextoPropietario();
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
+        var fila = (await contexto.UsosApiDiarios.ToListAsync()).Should().ContainSingle().Subject;
+        fila.ApiKeyId.Should().Be(_claveId);
+        fila.TipoClave.Should().Be(TipoClaveUsoApi.ClaveIntegracion);
+        fila.Dia.Should().Be(DiaDeNegocio.Hoy());
+        fila.Endpoint.Should().Be("/api/v1/trabajadores/{id:guid}", "el patrón, sin el identificador de la URL");
+        fila.Peticiones.Should().Be(2);
+    }
+
     [Theory]
     [InlineData("secreto de otra clave", HttpStatusCode.Unauthorized)]
     [InlineData("Id de otra clave", HttpStatusCode.Unauthorized)]
@@ -533,6 +553,7 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
                 .RequireAuthorization("ApiPublica")
                 .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
                 .AddEndpointFilter<AlcanceIntegracionEndpointFilter>()
+                .AddEndpointFilter<RastroUsoApiEndpointFilter>()
                 .MapRecursosApiV1();
             app.MapTokenIntegracionEndpoint();
 

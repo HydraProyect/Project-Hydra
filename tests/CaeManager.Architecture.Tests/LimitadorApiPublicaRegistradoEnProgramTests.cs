@@ -64,8 +64,8 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
     {
         var codigo = ProgramSinComentarios();
 
-        Regex.IsMatch(codigo, @"MapGroup\(""/api/v1""\)[^;]*\.AddEndpointFilter<AlcanceIntegracionEndpointFilter>\(\)\s*;\s*apiV1\.MapRecursosApiV1\(\)")
-            .Should().BeTrue("sin el filtro en el grupo, el metadato de alcance de cada ruta no lo mira nadie");
+        Regex.IsMatch(codigo, @"MapGroup\(""/api/v1""\)[^;]*\.AddEndpointFilter<AlcanceIntegracionEndpointFilter>\(\)\s*\.AddEndpointFilter<RastroUsoApiEndpointFilter>\(\)\s*;\s*apiV1\.MapRecursosApiV1\(\)")
+            .Should().BeTrue("sin el filtro en el grupo, el metadato de alcance de cada ruta no lo mira nadie, y el rastro va detrás: lo denegado no ha leído nada");
         Regex.Matches(codigo, @"apiV1\.Map\w+").Should().ContainSingle("un recurso mapeado fuera de MapRecursosApiV1 no lo recorre RutasApiV1DeclaranAlcanceTests");
         Regex.IsMatch(codigo, @"AddPolicy\(LimitadorApiPublica\.PoliticaToken,\s*httpContext\s*=>\s*LimitadorApiPublica\.ParticionToken\(")
             .Should().BeTrue();

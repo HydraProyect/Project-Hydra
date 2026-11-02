@@ -1494,7 +1494,8 @@ var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
     .RequireRateLimiting("ApiPublica")
     .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
-    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>();
+    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>()
+    .AddEndpointFilter<RastroUsoApiEndpointFilter>();
 apiV1.MapRecursosApiV1();
 
 // Fuera del grupo: quien pide el token aún no lo tiene.

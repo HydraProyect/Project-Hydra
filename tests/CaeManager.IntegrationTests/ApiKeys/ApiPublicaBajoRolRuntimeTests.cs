@@ -483,6 +483,7 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         app.MapGroup("/api/v1")
             .RequireAuthorization("ApiPublica")
             .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
+            .AddEndpointFilter<RastroUsoApiEndpointFilter>()
             .MapClientesApiEndpoints();
 
         await app.StartAsync();
