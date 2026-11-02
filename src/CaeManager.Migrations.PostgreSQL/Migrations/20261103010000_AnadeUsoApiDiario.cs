@@ -8,7 +8,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <summary>
     /// Rastro agregado de <c>/api/v1</c> (C-11, decisión D-5 opción a). <c>UsosApiDiarios</c> nace con RLS
     /// forzada y la política <c>aislamiento_tenant</c>. <c>cae_app_runtime</c> lee e inserta, y de lo ya escrito
-    /// solo puede sumar a <c>Peticiones</c>: no cambia de quién es una fila ni la borra. La migración retira
+    /// solo puede cambiar la columna <c>Peticiones</c>, con cualquier valor: no cambia de quién es una fila ni la borra. La migración retira
     /// antes lo que los privilegios por defecto de la línea base conceden a una tabla nueva. El código
     /// anterior de un relevo azul/verde no toca la tabla, así que no hay ventana rota.
     /// </summary>

@@ -148,9 +148,10 @@ public class ApiKeyAuthenticationHandler(
             // ningún endpoint. Era falso: Program.cs monta /api/v1 con ella (cinco
             // grupos de endpoints). La medición había excluido Program.cs, que es
             // justo donde está el uso. La conclusión práctica se mantiene —el grupo
-            // solo mapea GET y sus consultas no escriben, así que
-            // `ClaveApi.RegistrarUso` sigue siendo la única escritura auditable de
-            // una petición con clave—, pero la premisa era errónea.
+            // solo mapea GET y el contador de `UsosApiDiarios` no pasa por la
+            // auditoría, así que `ClaveApi.RegistrarUso` sigue siendo la única
+            // escritura auditable de una petición con clave—, pero la premisa era
+            // errónea.
             using var ambitoActor = AmbitoActorAuditoria.EstablecerIntegracionExterna();
             clave.RegistrarUso();
             await unitOfWork.SaveChangesAsync(Context.RequestAborted);

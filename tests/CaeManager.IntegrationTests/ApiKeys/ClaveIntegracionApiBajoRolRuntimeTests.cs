@@ -7,6 +7,7 @@ using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
@@ -255,6 +256,39 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         estado.Should().Be(HttpStatusCode.Forbidden);
         cuerpo.Should().NotContain("Perez");
         (await api.GetAsync(token, $"/api/v1/documentos/{_documentoGeneral}")).Estado.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Con_el_alcance_de_asignaciones_recibe_la_proyeccion_publica_y_queda_en_el_rastro()
+    {
+        await using (var contexto = CrearContextoPropietario())
+        using (AmbitoTenantExplicito.Establecer(_tenantA))
+        {
+            var empresa = await contexto.Empresas.SingleAsync();
+            var cliente = Empresa.CrearComoCliente("Cliente empresarial Alfa", "B12345674", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var centro = new Centro(cliente.Id, empresa.Id, "Planta Alfa");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+            contexto.Asignaciones.Add(new Asignacion(_trabajadorA, centro.Id, DiaDeNegocio.Hoy()));
+            await contexto.SaveChangesAsync();
+        }
+
+        const string secreto = $"{ClaveIntegracionTenant.PrefijoSecreto}solo-asignaciones0123456789";
+        var clave = await EmitirClaveAsync(_tenantA, secreto, [AlcancesIntegracion.AsignacionesLeer]);
+        await using var api = await Api.IniciarAsync(this);
+
+        var (estado, cuerpo) = await api.GetAsync(await api.TokenAsync(clave, secreto), "/api/v1/asignaciones");
+
+        estado.Should().Be(HttpStatusCode.OK);
+        using var json = JsonDocument.Parse(cuerpo);
+        var fila = json.RootElement.GetProperty("elementos").EnumerateArray().Should().ContainSingle().Subject;
+        fila.EnumerateObject().Select(p => p.Name).Should().Equal(
+            "id", "trabajadorId", "trabajadorNombre", "centroId", "centroNombre", "clienteId", "clienteNombre", "fechaAlta", "fechaBaja");
+
+        await using var lectura = CrearContextoPropietario();
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
+        (await lectura.UsosApiDiarios.SingleAsync(u => u.ApiKeyId == clave)).Endpoint.Should().Be("/api/v1/asignaciones");
     }
 
     [Fact]

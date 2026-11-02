@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using CaeManager.Application.Centros;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
@@ -35,6 +36,13 @@ public class OrdinalesDeEnumsPublicadosTests
 {
     public static TheoryData<string, Dictionary<string, int>> OrdinalesEsperados => new()
     {
+        {
+            nameof(TipoClaveUsoApi), new Dictionary<string, int>
+            {
+                [nameof(TipoClaveUsoApi.ClaveSoporte)] = 1,
+                [nameof(TipoClaveUsoApi.ClaveIntegracion)] = 2,
+            }
+        },
         {
             nameof(EstadoDocumento), new Dictionary<string, int>
             {

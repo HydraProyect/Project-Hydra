@@ -1487,9 +1487,10 @@ app.MapWebhookStripeEndpoints();
 // P41c: quien llama con una ClaveApi es una integración externa, no una persona,
 // y el handler de la clave mete el Id de la clave como NameIdentifier, así que
 // sin este filtro cualquier escritura futura de este grupo se auditaría como
-// `Persona`. Hoy el grupo solo mapea GET y sus consultas no escriben (medido
-// sobre este mismo bloque y sobre las cuatro queries por Id), de modo que el
-// filtro no corrige ninguna fila: cierra la puerta a la primera que llegue.
+// `Persona`. Hoy el grupo solo mapea GET, y su única escritura es el contador de
+// `UsosApiDiarios` (RastroUsoApiEndpointFilter), que no pasa por la auditoría,
+// de modo que el filtro no corrige ninguna fila: cierra la puerta a la primera
+// que llegue.
 var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
     .RequireRateLimiting("ApiPublica")

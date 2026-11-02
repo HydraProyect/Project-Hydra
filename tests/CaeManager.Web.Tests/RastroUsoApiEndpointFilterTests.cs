@@ -14,7 +14,7 @@ using Xunit;
 
 namespace CaeManager.Web.Tests;
 
-/// <summary>El rastro de <c>/api/v1</c> (C-11, D-5): fila antes de entregar datos, y sin fila no hay datos. Contra PostgreSQL, en Integration.</summary>
+/// <summary>El rastro de <c>/api/v1</c> (C-11, D-5): fila antes de entregar datos, y sin fila no hay datos. Aquí con dobles; contra PostgreSQL, en <c>UsoApiDiarioBajoRlsTests</c>.</summary>
 public class RastroUsoApiEndpointFilterTests
 {
     private const string Ruta = "/api/v1/trabajadores/{id:guid}";
