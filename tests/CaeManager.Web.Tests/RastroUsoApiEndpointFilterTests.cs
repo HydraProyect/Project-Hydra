@@ -81,6 +81,38 @@ public class RastroUsoApiEndpointFilterTests
         rastro.Filas.Should().ContainSingle().Which.Should().Be((tenantId, claveId, tipo, DiaDeNegocio.Hoy(), Ruta));
     }
 
+    // MapOpenApi devuelve un constructor genérico: esto comprueba que el filtro llega de verdad a su ruta. Sin
+    // AddOpenApi, que aquí activaría el generador del paquete, no hay documento que servir: basta con el filtro.
+    [Fact]
+    public async Task El_documento_OpenAPI_servido_a_una_clave_deja_rastro()
+    {
+        var rastro = new RastroFalso();
+        var (tenantId, claveId) = (Guid.NewGuid(), Guid.NewGuid());
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IRastroUsoApi>(rastro);
+        builder.Services.AddSingleton<ITenantActual>(new TenantActualFalso(tenantId));
+        await using var app = builder.Build();
+        app.MapOpenApi("/api/v1/openapi.json").AddEndpointFilter<IEndpointConventionBuilder, RastroUsoApiEndpointFilter>();
+        var ruta = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>().Single();
+        var http = new DefaultHttpContext
+        {
+            RequestServices = app.Services,
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim(ClaimTypes.NameIdentifier, claveId.ToString()),
+                    new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantId.ToString()),
+                ],
+                ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema)),
+        };
+        http.Response.Body = Stream.Null;
+        http.SetEndpoint(ruta);
+
+        await ruta.RequestDelegate!(http);
+
+        rastro.Filas.Should().ContainSingle().Which.Should().Be(
+            (tenantId, claveId, TipoClaveUsoApi.ClaveIntegracion, DiaDeNegocio.Hoy(), "/api/v1/openapi.json"));
+    }
+
     [Fact]
     public async Task Si_el_rastro_falla_no_se_entregan_datos()
     {

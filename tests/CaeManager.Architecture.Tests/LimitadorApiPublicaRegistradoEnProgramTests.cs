@@ -93,8 +93,8 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
     [Fact]
     public void El_documento_OpenAPI_exige_clave_salvo_en_el_entorno_del_escaneo()
     {
-        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\);")
-            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023)");
+        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\)\.AddEndpointFilter<IEndpointConventionBuilder, RastroUsoApiEndpointFilter>\(\);")
+            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023), y lo que se sirve a una clave deja rastro");
     }
 
     private static string ProgramSinComentarios()
