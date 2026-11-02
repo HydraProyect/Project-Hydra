@@ -93,8 +93,8 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1 })).ToBeVisibleAsync(EsperaEnFrio);
 
-        // Sin tapar el fallo: si esta cuenta no ofrece el alta en /empresas el test falla y se elige otro Drawer.
-        await page.GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^\\+ Nuev") }).First.ClickAsync();
+        // Sin localizador posicional: si esta cuenta no ofrece un único «+ Nueva empresa» el test falla y se elige otro Drawer.
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await Expect(page.GetByRole(AriaRole.Dialog)).ToBeVisibleAsync(EsperaEnFrio);
 
         ComprobarContraLineaBase(FicheroSuperficies, "drawer-abierto-empresas", await page.RunAxe());
