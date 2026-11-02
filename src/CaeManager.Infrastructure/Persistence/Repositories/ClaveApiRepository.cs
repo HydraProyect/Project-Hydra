@@ -22,7 +22,9 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
     ///
     /// <para>
     /// <c>app_tenant_de_clave_api</c> es <c>SECURITY DEFINER</c> y devuelve un
-    /// único <c>uuid</c>: ni la fila ni ninguna otra columna sale de RLS. El
+    /// único <c>uuid</c>: ni la fila ni ninguna otra columna sale de RLS. Exige
+    /// el contexto RLS firmado, también sin Tenant, que el interceptor pone en
+    /// toda conexión (migración ResolucionesRestantesExigenContextoFirmado). El
     /// valor va parametrizado por EF (<c>SqlQuery</c> interpolado), nunca
     /// concatenado. Ver la migración
     /// 20260921155801_ResolucionDeClaveApiBajoRls para qué se puede aprender

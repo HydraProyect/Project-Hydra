@@ -51,6 +51,30 @@ public class OraculosExigenContextoFirmadoTests
             .And.Contain("PERFORM public.app_exigir_contexto_firmado();");
     }
 
+    /// <summary>Las que se quedaron fuera de la primera migración: mismo contrato, y el Down deja el cuerpo anterior.</summary>
+    [Theory]
+    [InlineData("app_estado_cuenta_emisora(cuenta_id uuid)")]
+    [InlineData("app_tenant_de_clave_api(hash_clave text)")]
+    [InlineData("app_sesion_vigente(p_sid uuid, p_usuario uuid)")]
+    public void Las_resoluciones_restantes_exigen_el_contexto_firmado(string firma)
+    {
+        var migracion = new ResolucionesRestantesExigenContextoFirmado();
+        var up = migracion.UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
+        var down = migracion.DownOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
+
+        var inicio = up.IndexOf($"CREATE OR REPLACE FUNCTION public.{firma}", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(-1, firma);
+        up[inicio..up.IndexOf("$$;", inicio, StringComparison.Ordinal)]
+            .Should().Contain("SECURITY DEFINER")
+            .And.Contain("SET search_path TO 'pg_catalog', 'pg_temp'")
+            .And.Contain("PERFORM public.app_exigir_contexto_firmado();");
+
+        down.Should().Contain($"CREATE OR REPLACE FUNCTION public.{firma}")
+            .And.NotContain("app_exigir_contexto_firmado");
+        (up + down).Should().NotContain("GRANT ", "CREATE OR REPLACE conserva las ACL, también el EXECUTE de cae_app_soporte")
+            .And.NotContain("REVOKE ");
+    }
+
     [Fact]
     public void La_guardia_solo_exime_a_la_sesion_que_ya_evita_RLS()
     {
