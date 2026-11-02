@@ -446,6 +446,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IAdjuntoMensajeRepository, AdjuntoMensajeRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaRepository, AlertaCriticaRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaService>(sp => sp.GetRequiredService<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>());

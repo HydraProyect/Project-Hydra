@@ -79,6 +79,7 @@ src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoServi
 src/CaeManager.Application/Comunicaciones/Deteccion/SugerenciaGestionCorreoService.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/Matching/IMotorCoincidenciaConversacionesService.cs :: clienteId = 3
 src/CaeManager.Application/Comunicaciones/PlazosConversacionService.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/RepartoAdjuntos.cs :: ClienteId = 5
 src/CaeManager.Application/Comunicaciones/Queries/DetectarActualizacionDocumentoDesdeAdjunto/DetectarActualizacionDocumentoDesdeAdjuntoQuery.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerAdjuntoParaDescarga/ObtenerAdjuntoParaDescargaQuery.cs :: ClienteId = 2
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerBorradorPedirPrioridad/ObtenerBorradorPedirPrioridadQuery.cs :: ClienteId = 4

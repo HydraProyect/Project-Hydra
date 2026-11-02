@@ -67,7 +67,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
@@ -115,7 +115,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
@@ -168,7 +168,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
@@ -220,13 +220,46 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
         detalle.Should().NotBeNull();
         detalle!.Eventos.Should().ContainSingle().Which.Descripcion
             .Should().Be("Se reclamaron 2 documentos pendientes por esta conversación.");
+    }
+
+    [Fact]
+    public async Task El_reparto_de_adjuntos_no_llega_al_timeline_del_rol_Cliente_de_portal()
+    {
+        Guid conversacionId, clienteId;
+        await using (var contexto = CrearContexto())
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente Timeline Reparto S.L.", "B10380202", false, null, null);
+            contexto.Empresas.Add(cliente);
+            var conversacion = new Conversacion("Documentación recibida", cliente.Id);
+            contexto.Conversaciones.Add(conversacion);
+            contexto.EventosConversacion.AddRange(
+                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoRechazado, Guid.NewGuid(), DateTime.UtcNow),
+                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoDescartado, Guid.NewGuid(), DateTime.UtcNow),
+                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoReabierto, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+            conversacionId = conversacion.Id;
+            clienteId = cliente.Id;
+        }
+
+        await using var lectura = CrearContexto();
+        ObtenerConversacionPorIdQueryHandler Handler(string? rolSesion, string? rolPolitica) => new(
+            lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(clienteIds: [clienteId]),
+            new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: rolSesion),
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con(rolPolitica));
+
+        var interna = await Handler("GestorCae", "GestorCae").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+        var portal = await Handler("Cliente", "Cliente").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
+
+        interna!.Eventos.Should().HaveCount(3);
+        portal.Should().NotBeNull();
+        portal!.Eventos.Should().BeEmpty();
     }
 
     private CaeManagerDbContext CrearContexto()

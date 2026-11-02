@@ -963,13 +963,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("DestinoEmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DestinoTrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EstadoReparto")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("MotivoRechazo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("NombreArchivo")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
+
+                    b.Property<DateTime?>("ResueltoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltoPorUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("TamanoBytes")
                         .HasColumnType("bigint");
@@ -981,6 +1003,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("TipoDocumentoPropuestoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 

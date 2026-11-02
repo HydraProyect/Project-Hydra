@@ -71,6 +71,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
         // ConcurrencyStamp de Identity, renovado al guardar tema, idioma o actividad: token de concurrencia.
         ["src/CaeManager.Infrastructure/Identity/PreferenciasCuentaPropia.cs"] = 1,
         // Version de AlertaCriticaConversacion: token de concurrencia de la resolución.
+        // Version del adjunto: token de concurrencia del reparto.
+        ["src/CaeManager.Domain/Comunicaciones/AdjuntoMensaje.cs"] = 1,
         ["src/CaeManager.Domain/Comunicaciones/AlertaCriticaConversacion.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,

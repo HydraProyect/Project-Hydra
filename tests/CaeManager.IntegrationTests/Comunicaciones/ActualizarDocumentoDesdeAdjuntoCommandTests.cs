@@ -70,7 +70,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         almacenamiento.Leer(mediatorFalso.ComandoCrearRecibido.ArchivoUrl).Should().Equal(ContenidoAdjuntoDePrueba);
         mediatorFalso.ComandoRenovarRecibido.Should().BeNull();
         mediatorFalso.Publicados.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, nuevoDocumentoId));
+            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, nuevoDocumentoId, adjuntoId));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         almacenamiento.Leer(mediatorFalso.ComandoRenovarRecibido.ArchivoUrl).Should().Equal(ContenidoAdjuntoDePrueba);
         mediatorFalso.ComandoCrearRecibido.Should().BeNull();
         mediatorFalso.Publicados.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, documentoRenovadoId));
+            .Which.Should().BeEquivalentTo(new DocumentoActualizadoEvent(conversacionId, documentoRenovadoId, adjuntoId));
     }
 
     [Fact]

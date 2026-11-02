@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
 using MediatR;
@@ -81,11 +82,16 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             join m in comunicacionesContext.Mensajes on a.MensajeId equals m.Id
             join c in comunicacionesContext.Conversaciones on m.ConversacionId equals c.Id
             where a.Id == request.AdjuntoId
-            select new { a.ArchivoUrl, a.NombreArchivo, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId, ConversacionId = c.Id })
+            select new { a.ArchivoUrl, a.NombreArchivo, a.EstadoReparto, c.ClienteId, c.EmpresaId, c.ConexionIntegracionId, ConversacionId = c.Id })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (adjunto is null || !await alcanceDatos.ConversacionVisibleAsync(adjunto.ClienteId, adjunto.EmpresaId, adjunto.ConexionIntegracionId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Adjunto.NoEncontrado", "No encontramos este adjunto."));
+
+
+        // Repetir sobre un adjunto ya asignado renovaría el Documento con el mismo archivo.
+        if (adjunto.EstadoReparto != EstadoRepartoAdjunto.Pendiente)
+            return Result.Fallo<Guid>(Error.Crear("Adjunto.YaResuelto", "Este adjunto ya está resuelto."));
 
         // Copia a una clave propia del Documento — nunca comparte
         // ArchivoUrl con el AdjuntoMensaje de origen (ver comentario de
@@ -184,7 +190,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // criterio que VisitaCreadaEvent.
         try
         {
-            await publisher.Publish(new DocumentoActualizadoEvent(adjunto.ConversacionId, documentoId), cancellationToken);
+            await publisher.Publish(new DocumentoActualizadoEvent(adjunto.ConversacionId, documentoId, request.AdjuntoId), cancellationToken);
         }
         catch (Exception ex)
         {
