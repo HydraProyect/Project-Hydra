@@ -135,6 +135,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Contactos
         "Contactos.EliminarContactoAgendaCommandHandler",
+        "Contactos.FijarNotaContactoAgendaCommandHandler",
         "Contactos.GuardarContactoAgendaCommandHandler",
 
         // Documentos
