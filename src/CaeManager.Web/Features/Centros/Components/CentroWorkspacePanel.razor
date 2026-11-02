@@ -43,12 +43,14 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using CaeManager.Infrastructure.Comunicaciones
 @using Microsoft.Extensions.Options
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 @inject IStringLocalizer<TextosCentros> Textos
 @inject IFileStorageService AlmacenamientoArchivos
+@inject IServiceProvider Servicios
 @inject ILogger<CentroWorkspacePanel> Logger
 @inject ICurrentUserService CurrentUserService
 @inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
@@ -1263,12 +1265,15 @@ else
 
         try
         {
+            // Nada se lee hasta tener hueco en el presupuesto de memoria del proceso (OWASP API4:2023, ASVS 4.0.3
+            // V12.1.1). Se resuelve aquí y no al montar: el panel vive en muchas pantallas y solo este paso carga un
+            // archivo. La reserva se devuelve nada más leer, ANTES de guardar: el almacenamiento reserva por su cuenta el
+            // claro y el cifrado (DiskFileStorageService.GuardarAsync) y esperaría a esta reserva si siguiera retenida.
+            var presupuesto = Servicios.GetRequiredService<IPresupuestoMemoriaDocumentos>();
             byte[] contenido;
-            await using (var flujo = archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes))
-            using (var memoria = new MemoryStream())
+            using (var lectura = await ArchivoSubidoReservado.LeerAsync(archivo, presupuesto))
             {
-                await flujo.CopyToAsync(memoria);
-                contenido = memoria.ToArray();
+                contenido = lectura.Contenido;
             }
 
             if (!ValidadorFirmaArchivo.EsDocumentoValido(contenido, archivo.Name))
@@ -1282,6 +1287,11 @@ else
             using var flujoOriginal = new MemoryStream(contenido);
             _archivoUrlEdicion = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
             _nombreArchivoEdicion = archivo.Name;
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria del proceso, no un fallo del archivo: se avisa y se puede volver a elegir.
+            ToastService.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
         }
         catch (Exception ex)
         {

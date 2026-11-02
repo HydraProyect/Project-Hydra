@@ -17,6 +17,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Documentos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -79,6 +80,17 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private Guid? _tipoDocumentoId;
     private byte[]? _archivoSeleccionado;
     private string? _nombreArchivoSeleccionado;
+
+    /// <summary>
+    /// Lo que el PDF elegido en el alta descuenta del presupuesto de memoria del proceso mientras
+    /// <see cref="_archivoSeleccionado"/> lo retiene (no es transitorio: dura hasta que se pulse Crear). Se suelta al
+    /// sustituir el archivo, al crear la plantilla, al abrir una versión existente y al desmontar la página
+    /// (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+    /// </summary>
+    private ReservaMemoriaDocumentos? _reservaArchivoSeleccionado;
+
+    /// <summary>Generación de la selección: una lectura que termina con otra ya vigente (o con la página cerrada) se descarta.</summary>
+    private int _seleccionArchivo;
     private bool _creando;
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
@@ -291,6 +303,9 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _errorCarga = false;
         _noEncontrada = false;
 
+        // Se abre una versión existente: el PDF elegido en el alta, si lo hubo, ya no tiene a dónde ir.
+        SoltarArchivoSeleccionado();
+
         // Las páginas de la versión anterior se sueltan ANTES de leer la nueva: si se retuvieran mientras la lectura
         // espera hueco, recargar o reintentar esperaría a la memoria de esta misma instancia.
         SoltarReservasEditor();
@@ -379,11 +394,94 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
-        await using var flujo = e.File.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
-        using var memoria = new MemoryStream();
-        await flujo.CopyToAsync(memoria);
-        _archivoSeleccionado = memoria.ToArray();
-        _nombreArchivoSeleccionado = e.File.Name;
+        // El archivo anterior se suelta ANTES de leer el nuevo: si siguiera reservado mientras la lectura espera hueco,
+        // sustituirlo esperaría a la memoria de esta misma página.
+        SoltarArchivoSeleccionado();
+        _nombreArchivoSeleccionado = null;
+        var seleccion = _seleccionArchivo;
+        var archivo = e.File;
+
+        if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
+        {
+            Toasts.Mostrar($"\"{archivo.Name}\" supera los {LimitesArchivoSubido.TamanoMaximoMb} MB.", TonoToast.Error);
+            return;
+        }
+
+        ArchivoSubidoReservado lectura;
+        try
+        {
+            lectura = await ArchivoSubidoReservado.LeerAsync(archivo, PresupuestoMemoria, _ciclo.Token);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria del proceso: el archivo no se retiene y se puede volver a elegir.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+            return;
+        }
+        catch (OperationCanceledException) when (_desechado)
+        {
+            return;
+        }
+        catch (IOException)
+        {
+            Toasts.Mostrar("No pudimos leer el archivo. Vuelve a elegirlo.", TonoToast.Error);
+            return;
+        }
+
+        if (_desechado || seleccion != _seleccionArchivo)
+        {
+            lectura.Dispose();
+            return;
+        }
+
+        _archivoSeleccionado = lectura.Contenido;
+        _reservaArchivoSeleccionado = lectura.Reserva;
+        _nombreArchivoSeleccionado = archivo.Name;
+    }
+
+    /// <summary>Suelta el PDF elegido y su reserva, e invalida cualquier lectura en vuelo.</summary>
+    private void SoltarArchivoSeleccionado()
+    {
+        _seleccionArchivo++;
+        _archivoSeleccionado = null;
+        _reservaArchivoSeleccionado?.Dispose();
+        _reservaArchivoSeleccionado = null;
+    }
+
+    /// <summary>
+    /// Vuelve a retener el PDF tras un intento de creación que no llegó a crear la plantilla. Sin hueco, el archivo se
+    /// descarta con aviso (hay que volver a elegirlo) en vez de quedar retenido sin contar.
+    /// </summary>
+    private async Task RetenerArchivoSeleccionadoAsync(byte[] contenido, int seleccion)
+    {
+        ReservaMemoriaDocumentos reserva;
+        try
+        {
+            reserva = await PresupuestoMemoria.ReservarAsync(contenido.Length, _ciclo.Token);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            if (!_desechado && seleccion == _seleccionArchivo)
+            {
+                _nombreArchivoSeleccionado = null;
+                Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+            }
+
+            return;
+        }
+        catch (OperationCanceledException) when (_desechado)
+        {
+            return;
+        }
+
+        if (_desechado || seleccion != _seleccionArchivo)
+        {
+            reserva.Dispose();
+            return;
+        }
+
+        _archivoSeleccionado = contenido;
+        _reservaArchivoSeleccionado = reserva;
     }
 
     private bool PuedeCrear =>
@@ -397,10 +495,21 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         StateHasChanged();
         Guid? versionCreadaId = null;
 
+        // El almacenamiento reserva por su cuenta el claro y el cifrado del guardado (DiskFileStorageService.GuardarAsync):
+        // si la reserva del PDF elegido siguiera retenida, el guardado esperaría a esta misma página (y, con una petición
+        // mayor en cola entre las dos, se bloquearían hasta rechazarse). Se suelta antes de crear; mientras tanto el PDF
+        // solo vive en esta variable local, la misma ventana que el alta individual de documento. Si no se llega a crear,
+        // se vuelve a retener abajo.
+        var contenidoPdf = _archivoSeleccionado;
+        var seleccionAlCrear = _seleccionArchivo;
+        _archivoSeleccionado = null;
+        _reservaArchivoSeleccionado?.Dispose();
+        _reservaArchivoSeleccionado = null;
+
         try
         {
             var resultado = await Mediator.Send(new CrearPlantillaDocumentoCommand(
-                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, tipoDocumentoId, _archivoSeleccionado,
+                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, tipoDocumentoId, contenidoPdf,
                 _nombreArchivoSeleccionado ?? "plantilla.pdf", _descripcion, _centroId, _clienteId));
 
             if (resultado.EsFallido)
@@ -420,10 +529,10 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             // detectar derivan de él) se reserva del presupuesto del proceso. Después de crear, no durante: el guardado
             // reserva por su cuenta y esperaría a esta reserva (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
             using var reservaContenido = await PresupuestoMemoria.ReservarAsync(
-                _archivoSeleccionado.Length * (long)LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis);
+                contenidoPdf.Length * (long)LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis);
             await IniciarEditorAsync(
                 carga, resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre, _ambitoAplicacion,
-                _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, _archivoSeleccionado, []);
+                _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, contenidoPdf, []);
 
             Navigation.NavigateTo($"/plantillas/{resultado.Valor.PlantillaDocumentoVersionId}/editar", replace: true);
         }
@@ -442,6 +551,13 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         }
         finally
         {
+            // Creada la plantilla, el PDF vive en el servidor y el editor lo recarga de ahí: ya no se retiene. Si no se creó,
+            // el formulario sigue ofreciendo Crear y el archivo vuelve a contarse.
+            if (versionCreadaId is null)
+                await RetenerArchivoSeleccionadoAsync(contenidoPdf, seleccionAlCrear);
+            else
+                SoltarArchivoSeleccionado();
+
             _creando = false;
         }
     }
@@ -1119,6 +1235,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _ciclo.Cancel();
         _ciclo.Dispose();
         SoltarReservasEditor();
+        SoltarArchivoSeleccionado();
 
         await SoltarModuloAsync(_modulo);
 
