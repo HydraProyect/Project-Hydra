@@ -78,9 +78,9 @@ public class DirectorioUsuariosTenant(
     /// GUID sin cuenta: una Asignación de Cartera vigente, una Asignación de
     /// Operador Delegado (aunque su <see cref="Tenants.DelegacionTenant"/> esté
     /// desactivada hoy — <c>ReabrirCarterasDeOperadoresAsync</c> la reconstruye
-    /// al reactivarla, para un usuario que ya no existiría), o una
+    /// al reactivarla, para un usuario que ya no existiría), una
     /// configuración de <see cref="LineaWhatsApp"/> que lo nombra como gestor
-    /// fijo o miembro de su pool. Sin filtro de posición para cartera y
+    /// fijo o miembro de su pool, o un buzón que lo tiene como responsable. Sin filtro de posición para cartera y
     /// delegación —igual que <see cref="ObtenerTenantDeUsuarioAsync"/>—: la
     /// pregunta que responde es "¿es seguro borrar esta cuenta de Identity?",
     /// no "¿qué carteras ve el tenant activo?".
@@ -117,9 +117,11 @@ public class DirectorioUsuariosTenant(
     /// restricción de integridad a nivel de esquema (FK real, o un catálogo
     /// central de "qué referencia a un usuario"), que es un incremento propio
     /// sobre el modelo de datos, no una extensión de esta pantalla de UI.
-    /// Tampoco es atómica con el <c>DeleteAsync</c> que la sigue: no hay
-    /// transacción que abarque ambas, así que una fila creada por otro
-    /// circuito en esa ventana se cuela igual.
+    /// La baja la repite dentro de su transacción, con el candado exclusivo de
+    /// <see cref="CaeManager.Application.Clientes.IBloqueoCarteraUsuario"/>: solo
+    /// serializa con quien toma ese candado, que hoy son la reasignación de
+    /// cartera y el nombramiento del responsable de un buzón. Una fila creada
+    /// por otro circuito sin candado en esa ventana se cuela igual.
     /// </para>
     /// </summary>
     public Task<bool> EsCuentaActivaConRolAsync(
@@ -291,6 +293,11 @@ public class DirectorioUsuariosTenant(
                 .AnyAsync(l => l.ComercialAsignadoId == usuarioId, cancellationToken);
 
             if (esGestorFijoDeWhatsApp) return true;
+
+            var esResponsableDeBuzon = await identidad.ConexionesIntegracion
+                .AnyAsync(c => c.ResponsableUsuarioId == usuarioId, cancellationToken);
+
+            if (esResponsableDeBuzon) return true;
 
             return await identidad.MiembrosPoolLinea
                 .AnyAsync(m => m.UsuarioId == usuarioId, cancellationToken);
@@ -848,6 +855,14 @@ public class DirectorioUsuariosTenant(
     /// 2026-10-20): ese solo cambió la etiqueta; alinear aquí la validación del destino de una
     /// cartera sería un cambio de permisos y queda fuera.
     /// </para>
+    ///
+    /// <para>
+    /// Su perfil de origen viaja aparte (<c>PerfilDeOrigen</c>), leído de <c>AspNetUserRoles</c> en la misma
+    /// sentencia que sus delegaciones vigentes (<see cref="AccesosDelDestino"/>). El Soporte TALVEG no lo
+    /// lleva, por el mismo motivo que <c>RolEjercidoEnTenantBeneficiario</c>: nunca sube a su perfil de origen.
+    /// Que sea una sola sentencia cubre la revocación por construcción: una delegación de Soporte que se revoca
+    /// a la vez se ve entera, y no hay perfil, o no se ve, y no hay fila; no cabe leer el perfil tras dejar de verla.
+    /// </para>
     /// </summary>
     public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(
         Guid usuarioId, CancellationToken cancellationToken = default) =>
@@ -866,30 +881,42 @@ public class DirectorioUsuariosTenant(
             var activa = !ApplicationUser.BloqueoDesactivaLaCuenta(cuenta.LockoutEnd, DateTimeOffset.UtcNow);
 
             if (cuenta.TenantId == tenantId)
-            {
-                var roles = await (
-                    from usuarioRol in identidad.UserRoles
-                    where usuarioRol.UserId == usuarioId
-                    join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
-                    select rol.Name)
-                    .ToListAsync(cancellationToken);
-
-                return new(activa, roles.Count == 1 ? roles[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false);
-            }
-
-            var rolesDelegados = await OperadoresDelegadosVigentes(tenantId)
-                .Where(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId)
-                .Select(o => o.Rol)
-                .Distinct()
-                .Take(2)
-                .ToListAsync(cancellationToken);
+                return new(activa, await LeerRolUnicoAsync(usuarioId, cancellationToken), cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false, cuenta.TenantId);
 
             // Sin delegación vigente la cuenta no es alcanzable desde aquí: null, no
             // "inactiva" ni "sin rol", para no revelar nada de una cuenta ajena.
-            if (rolesDelegados.Count == 0) return null;
-
-            return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true);
+            return CaeManager.Application.Clientes.DestinoCartera.DeOperadorDelegado(
+                activa, cuenta.CoordinadorUsuarioId, cuenta.TenantId,
+                await AccesosDelDestino(identidad, tenantId, usuarioId).ToListAsync(cancellationToken));
         }, cancellationToken);
+
+    /// <summary>
+    /// Las delegaciones vigentes de la cuenta sobre el Tenant indicado, de cualquier Operador CAE externo, con su
+    /// perfil de origen en la misma sentencia y solo en las que no son de Soporte. Una fila por delegación y rol.
+    /// </summary>
+    public static IQueryable<CaeManager.Application.Clientes.AccesoDelDestino> AccesosDelDestino(
+        Persistence.CaeManagerDbContext contexto, Guid tenantId, Guid usuarioId) =>
+        from delegado in OperadoresDelegadosVigentes(contexto, tenantId)
+        where delegado.UsuarioId == usuarioId
+        from perfil in (
+            from usuarioRol in contexto.UserRoles
+            join rol in contexto.Roles on usuarioRol.RoleId equals rol.Id
+            where usuarioRol.UserId == usuarioId && !delegado.EsSoporte
+            select rol.Name).DefaultIfEmpty()
+        select new CaeManager.Application.Clientes.AccesoDelDestino(
+            delegado.OperadorTenantId, delegado.Rol, delegado.EsSoporte, perfil);
+
+    private async Task<string?> LeerRolUnicoAsync(Guid usuarioId, CancellationToken cancellationToken)
+    {
+        var roles = await (
+            from usuarioRol in identidad.UserRoles
+            where usuarioRol.UserId == usuarioId
+            join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+            select rol.Name)
+            .ToListAsync(cancellationToken);
+
+        return roles.Count == 1 ? roles[0] : null;
+    }
 
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>
         await OperadoresDelegadosVigentes(tenantId)
@@ -903,8 +930,11 @@ public class DirectorioUsuariosTenant(
     /// para la lista de <c>/usuarios</c> y para el destino de una cartera.
     /// </summary>
     private IQueryable<OperadorDelegadoVigente> OperadoresDelegadosVigentes(Guid tenantId) =>
-        from asignacion in dbContext.AsignacionesOperadorDelegado
-        join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+        OperadoresDelegadosVigentes(dbContext, tenantId);
+
+    private static IQueryable<OperadorDelegadoVigente> OperadoresDelegadosVigentes(ITenantsQueryContext contexto, Guid tenantId) =>
+        from asignacion in contexto.AsignacionesOperadorDelegado
+        join delegacion in contexto.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
         // Activa y no caducada — ver DelegacionTenant.EstaVigente.
         where delegacion.Activa && delegacion.TenantClienteId == tenantId
               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)

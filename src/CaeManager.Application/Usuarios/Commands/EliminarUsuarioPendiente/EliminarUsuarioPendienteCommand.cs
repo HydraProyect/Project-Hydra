@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Common;
+﻿using CaeManager.Application.Clientes;
+using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -15,7 +16,12 @@ namespace CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 /// <para>
 /// Tampoco se borra una cuenta pendiente con una Asignación de Cartera vigente
 /// (revisión de Codex): <c>AsignacionCartera.UsuarioId</c> no lleva FK hacia la
-/// cuenta, y la baja la dejaría apuntando a un Id sin cuenta resoluble.
+/// cuenta, y la baja la dejaría apuntando a un Id sin cuenta resoluble. Lo mismo vale para
+/// el responsable de un buzón. Se comprueba otra vez dentro de la transacción, tras el
+/// candado exclusivo de <see cref="IBloqueoCarteraUsuario"/>: quien nombra responsable
+/// retiene el compartido hasta confirmar, así que aquí se ve lo que haya confirmado y lo
+/// que llegue después ya no encuentra la cuenta. El lado de la Asignación de Cartera solo
+/// queda cubierto si su vía de alta toma ese candado.
 /// </para>
 ///
 /// <para>
@@ -32,6 +38,7 @@ public class EliminarUsuarioPendienteCommandHandler(
     ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
     IAdministradoresDelTenant administradores,
+    IBloqueoCarteraUsuario bloqueoCartera,
     IEncargoDeAdministracionActual? encargoActual = null)
     : IRequestHandler<EliminarUsuarioPendienteCommand, Result>
 {
@@ -73,13 +80,19 @@ public class EliminarUsuarioPendienteCommandHandler(
         {
             var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
                 request.UsuarioId, tenantActual.TenantId, administradores, ct);
-            return quedaAdministrador.EsFallido
-                ? quedaAdministrador
-                : await cuentas.EliminarAsync(request.UsuarioId, ct);
+            if (quedaAdministrador.EsFallido)
+                return quedaAdministrador;
+
+            await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
+            if (await cuentas.TieneVinculoOperativoAsync(request.UsuarioId, ct))
+                return Result.Fallo(CarteraVigente);
+
+            return await cuentas.EliminarAsync(request.UsuarioId, ct);
         }, cancellationToken);
         if (resultado.EsExitoso
             || resultado.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo
-            || resultado.Error.Codigo == AutoridadSobreCuentas.UltimoAdministrador.Codigo)
+            || resultado.Error.Codigo == AutoridadSobreCuentas.UltimoAdministrador.Codigo
+            || resultado.Error.Codigo == CarteraVigente.Codigo)
             return resultado;
 
         // Se activó entre la comprobación de arriba y la escritura: mismo desenlace.
