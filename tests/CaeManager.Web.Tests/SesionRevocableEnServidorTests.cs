@@ -900,7 +900,7 @@ public class SesionRevocableEnServidorTests
     {
         var estado = new EstadoOperativoFalso();
         var (gestor, autenticacion, _, cuenta) = Montar(estadoOperativo: estado);
-        autenticacion.Cookie = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], "dos-pasos"));
+        autenticacion.PasoDosFactores = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], "dos-pasos"));
         (await gestor.GetTwoFactorAuthenticationUserAsync()).Should().BeSameAs(cuenta, "control: sin suspender, la cookie de dos pasos vale");
 
         estado.Suspendido = cuenta.TenantId;
