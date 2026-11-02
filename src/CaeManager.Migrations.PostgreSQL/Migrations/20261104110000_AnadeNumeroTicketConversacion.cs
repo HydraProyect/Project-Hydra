@@ -27,7 +27,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 """);
 
             // ALTER TABLE deja la tabla en ACCESS EXCLUSIVE hasta el commit: entre el relleno y la creación del
-            // disparador no puede entrar ninguna inserción de la ranura anterior.
+            // disparador no puede entrar ninguna inserción de la ranura anterior. También espera cualquier lectura
+            // de la tabla mientras se reescriben las filas y se construye el índice.
             migrationBuilder.AddColumn<long>(
                 name: "NumeroTicket",
                 table: "Conversaciones",
@@ -57,13 +58,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 ALTER TABLE public."ContadoresTicketConversacion" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE public."ContadoresTicketConversacion" FORCE ROW LEVEL SECURITY;
                 CREATE POLICY aislamiento_tenant ON public."ContadoresTicketConversacion"
-                    USING ("TenantId" = public.app_ctx_tenant_id())
-                    WITH CHECK ("TenantId" = public.app_ctx_tenant_id());
+                    USING ("TenantId" = (SELECT public.app_ctx_tenant_id()))
+                    WITH CHECK ("TenantId" = (SELECT public.app_ctx_tenant_id()));
 
-                -- Los privilegios por defecto dan de más: el disparador corre como quien inserta, que solo necesita
-                -- leer, crear y avanzar el contador. Soporte TALVEG no inserta conversaciones.
-                REVOKE ALL ON TABLE public."ContadoresTicketConversacion" FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
-                REVOKE DELETE, TRUNCATE ON TABLE public."ContadoresTicketConversacion" FROM cae_app_runtime;
+                -- El disparador corre como quien inserta, que solo necesita leer, crear y avanzar el contador.
+                -- Soporte TALVEG no inserta conversaciones.
+                REVOKE ALL ON TABLE public."ContadoresTicketConversacion" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
+                GRANT SELECT, INSERT, UPDATE ON TABLE public."ContadoresTicketConversacion" TO cae_app_runtime;
 
                 CREATE FUNCTION public.asignar_numero_ticket_conversacion() RETURNS trigger
                 LANGUAGE plpgsql
@@ -83,6 +84,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 CREATE TRIGGER asignar_numero_ticket_conversacion
                     BEFORE INSERT ON public."Conversaciones"
                     FOR EACH ROW EXECUTE FUNCTION public.asignar_numero_ticket_conversacion();
+
+                -- Un número ya entregado no se renumera: rompería la referencia que el Gestor CAE dio por correo.
+                CREATE FUNCTION public.impedir_cambio_numero_ticket_conversacion() RETURNS trigger
+                LANGUAGE plpgsql
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+                BEGIN
+                    RAISE EXCEPTION 'El número de ticket de una conversación no cambia' USING ERRCODE = 'check_violation';
+                END
+                $$;
+                REVOKE ALL ON FUNCTION public.impedir_cambio_numero_ticket_conversacion() FROM PUBLIC;
+
+                CREATE TRIGGER impedir_cambio_numero_ticket_conversacion
+                    BEFORE UPDATE OF "NumeroTicket" ON public."Conversaciones"
+                    FOR EACH ROW WHEN (OLD."NumeroTicket" IS DISTINCT FROM NEW."NumeroTicket")
+                    EXECUTE FUNCTION public.impedir_cambio_numero_ticket_conversacion();
                 """);
 
             migrationBuilder.CreateIndex(
@@ -101,6 +118,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
+                DROP TRIGGER impedir_cambio_numero_ticket_conversacion ON public."Conversaciones";
+                DROP FUNCTION public.impedir_cambio_numero_ticket_conversacion();
                 DROP TRIGGER asignar_numero_ticket_conversacion ON public."Conversaciones";
                 DROP FUNCTION public.asignar_numero_ticket_conversacion();
                 DROP TABLE public."ContadoresTicketConversacion";

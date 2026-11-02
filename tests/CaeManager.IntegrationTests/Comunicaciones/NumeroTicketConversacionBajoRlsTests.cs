@@ -51,8 +51,10 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
     {
         await using var contextoA = CrearContexto(_tenantA);
         var primera = new Conversacion("Primera del Tenant A");
+        contextoA.Conversaciones.Add(primera);
+        await contextoA.SaveChangesAsync();
         var segunda = new Conversacion("Segunda del Tenant A");
-        contextoA.Conversaciones.AddRange(primera, segunda);
+        contextoA.Conversaciones.Add(segunda);
         await contextoA.SaveChangesAsync();
 
         await using var contextoB = CrearContexto(_tenantB);
@@ -60,7 +62,7 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
         contextoB.Conversaciones.Add(deOtroTenant);
         await contextoB.SaveChangesAsync();
 
-        new[] { primera.NumeroTicket, segunda.NumeroTicket }.Should().BeEquivalentTo(new long[] { 1, 2 },
+        new[] { primera.NumeroTicket, segunda.NumeroTicket }.Should().Equal([1, 2],
             "EF lee de RETURNING el número que asigna el disparador");
         deOtroTenant.NumeroTicket.Should().Be(1, "el correlativo es por Tenant propietario, no global");
     }
@@ -116,6 +118,75 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
         await using var delTenantB = await AbrirComoAsync("cae_app_runtime", _tenantB);
         (await InsertarConversacionAsync(delTenantB, _tenantB, numeroPedido: null)).Should().Be(2,
             "el intento desde el Tenant A no consumió ningún número del Tenant B");
+    }
+
+    [Fact]
+    public async Task Altas_simultaneas_del_mismo_Tenant_no_repiten_ni_saltan_numeros()
+    {
+        const int altas = 12;
+
+        var numeros = await Task.WhenAll(Enumerable.Range(0, altas).Select(async _ =>
+        {
+            await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+            return await InsertarConversacionAsync(conexion, _tenantA, numeroPedido: null);
+        }));
+
+        numeros.Should().BeEquivalentTo(Enumerable.Range(1, altas).Select(n => (long)n));
+    }
+
+    [Fact]
+    public async Task Borrar_la_ultima_conversacion_no_reutiliza_su_numero()
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        await InsertarConversacionAsync(conexion, _tenantA, numeroPedido: null);
+
+        await EjecutarEscalarAsync(conexion, """DELETE FROM "Conversaciones";""");
+
+        (await InsertarConversacionAsync(conexion, _tenantA, numeroPedido: null)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Un_numero_entregado_no_se_renumera()
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        await InsertarConversacionAsync(conexion, _tenantA, numeroPedido: null);
+
+        var excepcion = await Record.ExceptionAsync(() =>
+            EjecutarEscalarAsync(conexion, """UPDATE "Conversaciones" SET "NumeroTicket" = 50;"""));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+    }
+
+    [Fact]
+    public async Task Runtime_no_toca_el_contador_de_otro_Tenant_de_forma_directa()
+    {
+        await using (var delTenantB = await AbrirComoAsync("cae_app_runtime", _tenantB))
+        {
+            await InsertarConversacionAsync(delTenantB, _tenantB, numeroPedido: null);
+        }
+
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        var insercion = await Record.ExceptionAsync(() => EjecutarEscalarAsync(conexion,
+            $"""INSERT INTO "ContadoresTicketConversacion" ("TenantId", "UltimoNumero") VALUES ('{Guid.NewGuid()}', 1);"""));
+        insercion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PermisoDenegado,
+            "WITH CHECK del contador, sin pasar por la política de Conversaciones");
+
+        await EjecutarEscalarAsync(conexion, $"""UPDATE "ContadoresTicketConversacion" SET "UltimoNumero" = 90 WHERE "TenantId" = '{_tenantB}';""");
+
+        await using var comprobacion = await AbrirComoAsync("cae_app_runtime", _tenantB);
+        (await EjecutarEscalarAsync(comprobacion, """SELECT "UltimoNumero" FROM "ContadoresTicketConversacion";""")).Should().Be(1L);
+    }
+
+    [Fact]
+    public async Task Aprovisionamiento_no_tiene_acceso_al_contador()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await EjecutarEscalarAsync(conexion, "SET ROLE cae_app_aprovisionamiento;");
+
+        var excepcion = await Record.ExceptionAsync(() => EjecutarEscalarAsync(conexion, """SELECT count(*) FROM "ContadoresTicketConversacion";"""));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PermisoDenegado);
     }
 
     [Fact]
