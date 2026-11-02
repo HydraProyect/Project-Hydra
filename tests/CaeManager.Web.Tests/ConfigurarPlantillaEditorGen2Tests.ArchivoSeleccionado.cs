@@ -190,6 +190,38 @@ public partial class ConfigurarPlantillaEditorGen2Tests
     }
 
     [Fact]
+    public async Task Si_la_pagina_se_desecha_durante_el_guardado_y_este_falla_no_se_retiene_nada_ni_se_tapa_el_resultado()
+    {
+        var respuesta = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var mediador = new MediatorFalso { Retener = p => p is CrearPlantillaDocumentoCommand ? respuesta.Task : null };
+        var cut = RenderizarAlta(mediador);
+        await ElegirArchivoAsync(cut, Pdf());
+        CompletarAlta(cut);
+        var clic = Boton(cut, "Crear y configurar campos").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        mediador.Veces<CrearPlantillaDocumentoCommand>().Should().Be(1);
+
+        await cut.Instance.DisposeAsync();
+        respuesta.SetResult(Result.Fallo<CrearPlantillaDocumentoResultadoDto>(Error.Crear("Plantilla.Prueba", "Fallo de prueba.")));
+        await clic;
+
+        _presupuesto.Reservado.Should().Be(0, "una página desechada no vuelve a retener el PDF");
+        Campo<byte[]?>(cut, "_archivoSeleccionado").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Elegir_un_archivo_con_la_pagina_ya_desechada_no_lee_ni_reserva_nada()
+    {
+        var cut = RenderizarAlta(new MediatorFalso());
+        await cut.Instance.DisposeAsync();
+        var archivo = Pdf();
+
+        await ElegirArchivoAsync(cut, archivo);
+
+        archivo.Aperturas.Should().Be(0);
+        _presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Si_la_creacion_falla_el_PDF_vuelve_a_retenerse_y_se_puede_reintentar()
     {
         var longitud = PdfDeUnaPagina().Length;

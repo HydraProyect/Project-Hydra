@@ -86,6 +86,13 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     /// <see cref="_archivoSeleccionado"/> lo retiene (no es transitorio: dura hasta que se pulse Crear). Se suelta al
     /// sustituir el archivo, al crear la plantilla, al abrir una versión existente y al desmontar la página
     /// (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+    ///
+    /// <para>
+    /// Es una retención deliberada: se acepta que un PDF elegido y no creado ocupe presupuesto, y a cambio, si el
+    /// presupuesto no da, la selección falla con aviso en vez de agotar la memoria del proceso. Sigue sin haber un límite
+    /// por usuario: el tope es el presupuesto compartido entre todos los Tenants, y quien elige PDFs sin crear puede
+    /// ocuparlo hasta que se agote para los demás (seguimiento aparte).
+    /// </para>
     /// </summary>
     private ReservaMemoriaDocumentos? _reservaArchivoSeleccionado;
 
@@ -394,6 +401,9 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
+        if (_desechado)
+            return;
+
         // El archivo anterior se suelta ANTES de leer el nuevo: si siguiera reservado mientras la lectura espera hueco,
         // sustituirlo esperaría a la memoria de esta misma página.
         SoltarArchivoSeleccionado();
@@ -457,7 +467,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         ReservaMemoriaDocumentos reserva;
         try
         {
-            reserva = await PresupuestoMemoria.ReservarAsync(contenido.Length, _ciclo.Token);
+            // Sin token: _ciclo se cancela y se desecha con la página, y su Token ya no se puede leer entonces. La espera
+            // está acotada por el propio presupuesto y, si la página se desecha mientras tanto, abajo se devuelve.
+            if (_desechado)
+                return;
+
+            reserva = await PresupuestoMemoria.ReservarAsync(contenido.Length);
         }
         catch (PresupuestoMemoriaAgotadoException)
         {
@@ -467,10 +482,6 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
                 Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
             }
 
-            return;
-        }
-        catch (OperationCanceledException) when (_desechado)
-        {
             return;
         }
 
@@ -553,10 +564,16 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         {
             // Creada la plantilla, el PDF vive en el servidor y el editor lo recarga de ahí: ya no se retiene. Si no se creó,
             // el formulario sigue ofreciendo Crear y el archivo vuelve a contarse.
+            // Con la página ya desechada durante el Send no hay nada que retener (y _ciclo ya no se puede leer).
             if (versionCreadaId is null)
-                await RetenerArchivoSeleccionadoAsync(contenidoPdf, seleccionAlCrear);
+            {
+                if (!_desechado)
+                    await RetenerArchivoSeleccionadoAsync(contenidoPdf, seleccionAlCrear);
+            }
             else
+            {
                 SoltarArchivoSeleccionado();
+            }
 
             _creando = false;
         }
