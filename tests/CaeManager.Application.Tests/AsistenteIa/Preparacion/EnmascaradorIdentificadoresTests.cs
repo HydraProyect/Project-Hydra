@@ -62,12 +62,73 @@ public class EnmascaradorIdentificadoresTests
     [InlineData("+34 612 345 678")]
     [InlineData("0033 1 42 68 53 00")]
     [InlineData("+1 (202) 555-0123")]
+    [InlineData("(91) 234 56 78")]
+    [InlineData("(912) 345 678")]
+    [InlineData("(91) 2345678")]
+    [InlineData("(91)234-56-78")]
+    [InlineData("(912)345678")]
+    [InlineData("(912) 34 56 78")]
+    [InlineData("(612) 345-678")]
+    [InlineData("+34 (91) 234 56 78")]
     public void Telefonos_se_ocultan_y_restauran(string telefono)
     {
         var resultado = EnmascaradorIdentificadores.Enmascarar($"Llama al {telefono}");
         resultado.Texto.Should().Be("Llama al [TEL_1]");
         resultado.Restaurar(resultado.Texto).Should().Be($"Llama al {telefono}");
         resultado.Identificadores.Should().ContainSingle().Which.Tipo.Should().Be(TipoIdentificadorEnmascarado.Telefono);
+    }
+
+    [Theory]
+    [InlineData("Tel. (91) 234 56 78 de la nave", "Tel. [TEL_1] de la nave")]
+    [InlineData("tel(91) 234 56 78.", "tel[TEL_1].")]
+    [InlineData("Centro Norte ((912) 345 678)", "Centro Norte ([TEL_1])")]
+    [InlineData("Centro Norte (91) 234 56 78", "Centro Norte [TEL_1]")]
+    public void El_telefono_con_prefijo_entre_parentesis_sale_entero_como_marcador(string texto, string esperado)
+    {
+        // El texto saliente no conserva ni el paréntesis ni una sola cifra del número.
+        var r = EnmascaradorIdentificadores.Enmascarar(texto);
+
+        r.Texto.Should().Be(esperado);
+        r.Texto.Should().NotMatchRegex(@"\d{2}");
+    }
+
+    [Theory]
+    [InlineData("llamar a (91) y luego al 234 56 78")]
+    [InlineData("hay (10) 123 45 67 unidades")]
+    [InlineData("Almacén (nave 12) 345 678")]
+    [InlineData("vence (9.10.2026) 10:00")]
+    [InlineData("ver (91) 2345678901")]
+    [InlineData("plazo (30) 123 456 días")]
+    [InlineData("importe (91.234) 56 78")]
+    [InlineData("el 12 (91) 23 45 67 89 0")]
+    public void Un_parentesis_con_cifras_que_no_forman_un_telefono_no_se_toca(string texto)
+    {
+        var r = EnmascaradorIdentificadores.Enmascarar(texto);
+
+        r.Identificadores.Should().BeEmpty();
+        r.Texto.Should().Be(texto);
+    }
+
+    [Fact]
+    public void El_mismo_telefono_con_y_sin_parentesis_recibe_el_mismo_marcador()
+    {
+        var r = EnmascaradorIdentificadores.Enmascarar("(91) 234 56 78 y luego 913 345 678 y 91 234 56 78");
+
+        // Los dos primeros son números distintos (912345678 contra 913345678); el
+        // tercero repite el primero con otra grafía.
+        r.Texto.Should().Be("[TEL_1] y luego [TEL_2] y [TEL_1]");
+    }
+
+    [Fact]
+    public void EnmascararConTablaDe_reutiliza_marcadores_de_la_referencia_y_numera_los_nuevos()
+    {
+        var referencia = EnmascaradorIdentificadores.Enmascarar("Centro Norte (91) 234 56 78 con 12345678Z");
+
+        var textos = EnmascaradorIdentificadores.EnmascararConTablaDe(
+            referencia, ["Centro Norte 91 234 56 78", "Centro Sur (913) 345 678", "Nave 3", ""]);
+
+        textos.Should().Equal("Centro Norte [TEL_1]", "Centro Sur [TEL_2]", "Nave 3", "");
+        referencia.Identificadores.Should().HaveCount(2, "los nuevos pertenecen al candidato, no a la orden");
     }
 
     [Fact]
