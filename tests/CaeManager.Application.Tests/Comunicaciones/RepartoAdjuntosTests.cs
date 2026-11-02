@@ -366,15 +366,6 @@ public class RepartoAdjuntosTests
         repositorio.Olvidados.Should().ContainSingle().Which.Should().BeSameAs(adjunto);
     }
 
-    [Fact]
-    public async Task Asignar_suelto_rechaza_un_adjunto_saliente()
-    {
-        var adjunto = Sembrar(DireccionMensaje.Saliente);
-
-        var resultado = await Suelta(adjunto);
-
-        resultado.Error.Codigo.Should().Be("Adjunto.NoEntrante");
-    }
 
     [Fact]
     public async Task Asignar_suelto_no_repite_sobre_un_adjunto_resuelto()

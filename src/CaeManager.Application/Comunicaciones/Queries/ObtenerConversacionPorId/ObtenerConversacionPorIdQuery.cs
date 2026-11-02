@@ -125,7 +125,8 @@ public class ObtenerConversacionPorIdQueryHandler(
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
-    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia)
+    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
     // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
@@ -478,7 +479,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             .ToListAsync(cancellationToken);
 
         // Cómo se reparte lo recibido es triaje interno, igual que ObtenerRepartoAdjuntosQuery.
-        if (await currentUserService.ObtenerRolEfectivoAsync() == RolCliente)
+        if (!await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             eventosCrudos.RemoveAll(e => e.Tipo is TipoEventoConversacion.AdjuntoRechazado or TipoEventoConversacion.AdjuntoDescartado or TipoEventoConversacion.AdjuntoReabierto);
 
         if (eventosCrudos.Count == 0) return [];

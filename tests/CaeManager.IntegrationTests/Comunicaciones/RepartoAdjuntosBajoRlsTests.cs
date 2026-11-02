@@ -169,6 +169,39 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
             .Should().Be(EstadoRepartoAdjunto.Pendiente);
     }
 
+    [Fact]
+    public async Task Dos_transiciones_del_mismo_adjunto_no_se_pisan_y_un_contexto_rancio_se_refresca()
+    {
+        await using var primero = CrearRuntime();
+        await using var segundo = CrearRuntime();
+        var enElPrimero = await new AdjuntoMensajeRepository(primero).ObtenerPorIdAsync(_adjuntoPropio);
+        var enElSegundo = await new AdjuntoMensajeRepository(segundo).ObtenerPorIdAsync(_adjuntoPropio);
+
+        enElPrimero!.FijarDestino(null, _empresaPropia, null);
+        await primero.SaveChangesAsync();
+
+        enElSegundo!.Descartar(Guid.NewGuid(), DateTime.UtcNow);
+        await segundo.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateConcurrencyException>();
+
+        var refrescado = await new AdjuntoMensajeRepository(segundo).ObtenerPorIdAsync(_adjuntoPropio);
+        refrescado!.DestinoEmpresaId.Should().Be(_empresaPropia);
+        refrescado.EstaPendiente.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Olvidar_cambios_saca_el_adjunto_del_contexto()
+    {
+        await using var runtime = CrearRuntime();
+        var repositorio = new AdjuntoMensajeRepository(runtime);
+        var adjunto = await repositorio.ObtenerPorIdAsync(_adjuntoPropio);
+        adjunto!.Descartar(Guid.NewGuid(), DateTime.UtcNow);
+
+        repositorio.OlvidarCambios(adjunto);
+
+        runtime.Entry(adjunto).State.Should().Be(EntityState.Detached);
+        runtime.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
     private FijarDestinoAdjuntoCommandHandler Fijar(CaeManagerDbContext runtime) => new(
         runtime, runtime, runtime, runtime, new AdjuntoMensajeRepository(runtime), Alcance(runtime), runtime);
 
