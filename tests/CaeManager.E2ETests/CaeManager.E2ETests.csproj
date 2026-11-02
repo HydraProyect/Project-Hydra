@@ -25,6 +25,8 @@
 
   <ItemGroup>
     <None Include="Accesibilidad/axe-linea-base-outbound.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Accesibilidad/axe-linea-base-objetivos-24px-outbound.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Accesibilidad/axe-linea-base-superficies-outbound.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
