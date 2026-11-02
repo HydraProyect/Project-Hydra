@@ -87,6 +87,24 @@ public class GateComercialTenantBehaviorTests
     }
 
     [Fact]
+    public async Task La_suspension_operativa_precede_al_estado_comercial()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Suspendida);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    // Soporte TALVEG corta al Operador CAE externo de un Tenant suspendido por compromiso.
+    [Fact]
+    public void Revocar_al_Operador_CAE_externo_reduce_exposicion() =>
+        typeof(CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPorSoporte.RevocarOperadorCaeExternoPorSoporteCommand)
+            .Should().Implement<IComandoQueReduceExposicion>();
+
+    [Fact]
     public async Task No_bloquea_si_no_hay_tenant_resuelto_trabajos_de_fondo_seeds()
     {
         var dbContext = new TenantsQueryContextFalso();

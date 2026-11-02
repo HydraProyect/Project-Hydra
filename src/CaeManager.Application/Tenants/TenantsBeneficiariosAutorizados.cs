@@ -220,13 +220,15 @@ public static class TenantsBeneficiariosAutorizados
     /// Asignación de Cartera vigente.</item>
     /// <item>Cualquier otro perfil, o ninguno: ninguna (fallo cerrado).</item>
     /// </list>
-    /// Un Tenant propietario en suspensión operativa no se abre por ninguna (decisión D-3).
+    /// Un Tenant propietario en suspensión operativa no se abre por ninguna, ni ninguna se abre
+    /// desde un Operador CAE suspendido (decisión D-3).
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora) =>
         OperacionesPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
-            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId));
+            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId)
+                                && !operaciones.TenantsSuspendidosIds.Contains(tenantOrigenId));
 
     private static IQueryable<AsignacionOperacion> OperacionesPorPerfil(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,

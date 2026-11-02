@@ -55,9 +55,11 @@ public class SesionRevocableEnServidorTests
 
         (await Autenticar(token)).Succeeded.Should().BeTrue();
         sesiones.ConsultasPorCuenta.Should().Contain((cuenta.Id, sid));
-        estado.Suspendido = true;
+        estado.Suspendido = cuenta.TenantId;
         (await Autenticar(token)).Succeeded.Should().BeFalse("la suspensión del Tenant corta la extensión al instante");
-        estado.Suspendido = false;
+        estado.Suspendido = Guid.NewGuid();
+        (await Autenticar(token)).Succeeded.Should().BeTrue("la suspensión de otro Tenant no corta esta cuenta");
+        estado.Suspendido = null;
         await sesiones.RevocarAsync(cuenta.Id, sid);
         (await Autenticar(token)).Succeeded.Should().BeFalse();
         var otroToken = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, Guid.NewGuid());
@@ -440,8 +442,9 @@ public class SesionRevocableEnServidorTests
     [Fact]
     public async Task Un_Tenant_suspendido_no_inicia_sesion_ni_emite_ni_revalida()
     {
-        var estado = new EstadoOperativoFalso { Suspendido = true };
+        var estado = new EstadoOperativoFalso();
         var (gestor, autenticacion, _, cuenta) = Montar(estadoOperativo: estado);
+        estado.Suspendido = cuenta.TenantId;
 
         await gestor.SignInWithClaimsAsync(cuenta, null, []);
 
@@ -452,10 +455,10 @@ public class SesionRevocableEnServidorTests
 
     private sealed class EstadoOperativoFalso : IEstadoOperativoTenant
     {
-        public bool Suspendido { get; set; }
+        public Guid? Suspendido { get; set; }
 
         public Task<bool> EstaSuspendidoAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Suspendido);
+            Task.FromResult(tenantId == Suspendido);
     }
 
     private sealed class SesionesFalsas : IRegistroSesionesUsuario

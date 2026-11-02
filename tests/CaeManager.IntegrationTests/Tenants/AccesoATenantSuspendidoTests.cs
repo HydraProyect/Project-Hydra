@@ -57,6 +57,16 @@ public class AccesoATenantSuspendidoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_Operador_CAE_externo_suspendido_no_abre_el_Tenant_beneficiario_activo()
+    {
+        await CambiarEstadoAsync(t => t.Suspender(), _operador.Id);
+        (await PorOperacionAsync()).Should().BeFalse();
+
+        await CambiarEstadoAsync(t => t.Reactivar(), _operador.Id);
+        (await PorOperacionAsync()).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task El_estado_se_lee_de_la_base_aunque_el_contexto_siga_la_fila()
     {
         await using var circuito = CrearContexto();
@@ -84,10 +94,11 @@ public class AccesoATenantSuspendidoTests : IAsyncLifetime
             contexto, _administradorDelOperador, _beneficiario.Id, DateTime.UtcNow, CancellationToken.None);
     }
 
-    private async Task CambiarEstadoAsync(Action<Tenant> cambio)
+    private async Task CambiarEstadoAsync(Action<Tenant> cambio, Guid? tenantId = null)
     {
         await using var contexto = CrearContexto();
-        cambio(await contexto.Tenants.SingleAsync(t => t.Id == _beneficiario.Id));
+        var objetivo = tenantId ?? _beneficiario.Id;
+        cambio(await contexto.Tenants.SingleAsync(t => t.Id == objetivo));
         await contexto.SaveChangesAsync();
     }
 

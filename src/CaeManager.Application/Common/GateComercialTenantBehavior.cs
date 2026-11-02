@@ -33,8 +33,8 @@ namespace CaeManager.Application.Common;
 /// pasan por un tenant de sesión.
 ///
 /// También bloquea el Tenant en suspensión operativa (<see cref="EstadoTenant.Suspendido"/>,
-/// decisión D-3) y por delante del estado comercial: es lo que frena a una Sesión Privilegiada
-/// que siga dentro para investigar, que lee pero no escribe.
+/// decisión D-3) y por delante del estado comercial: una Sesión Privilegiada que siga dentro
+/// para investigar lee y, de sus comandos acotados, solo ejecuta los que reducen exposición.
 /// </summary>
 public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tenantActual, ITenantsQueryContext dbContext)
     : IPipelineBehavior<TRequest, TResponse>

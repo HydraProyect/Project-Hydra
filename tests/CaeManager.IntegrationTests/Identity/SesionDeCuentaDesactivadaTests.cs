@@ -85,6 +85,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El registro de inicios de sesión tiene su propio test
         // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
         servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
+        servicios.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, CaeManager.Infrastructure.Persistence.EstadoOperativoTenant>();
         // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);

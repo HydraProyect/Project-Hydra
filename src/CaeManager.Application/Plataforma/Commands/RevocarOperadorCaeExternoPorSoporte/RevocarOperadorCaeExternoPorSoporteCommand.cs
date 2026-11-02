@@ -47,7 +47,7 @@ namespace CaeManager.Application.Plataforma.Commands.RevocarOperadorCaeExternoPo
 /// <param name="Motivo">La referencia de la petición del Tenant propietario (ticket o
 /// descripción), obligatoria. Se guarda en la auditoría.</param>
 public record RevocarOperadorCaeExternoPorSoporteCommand(Guid DelegacionTenantId, string Motivo)
-    : ICommand, IComandoDeRevocacionOperadorCaeExterno;
+    : ICommand, IComandoDeRevocacionOperadorCaeExterno, IComandoQueReduceExposicion;
 
 public class RevocarOperadorCaeExternoPorSoporteCommandValidator
     : AbstractValidator<RevocarOperadorCaeExternoPorSoporteCommand>
