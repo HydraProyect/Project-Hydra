@@ -132,6 +132,31 @@ public class ClosedXmlPlantillaMaestraServiceTests
         plan.Omitidos.Should().Contain(o => o.Hoja == "Centros" && o.Motivo.Contains("Dirección"));
     }
 
+    [Fact]
+    public async Task Una_razon_social_que_empieza_por_Ejemplo_fuera_de_la_fila_2_es_un_dato_real_y_se_importa()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        hoja.Cell(4, 1).Value = "Ejemplares Metálicos, S.L.";
+        hoja.Cell(4, 2).Value = "A28017895";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Should().Contain(e => e.Fila == 4 && e.Cif == "A28017895");
+    }
+
+    [Fact]
+    public async Task Un_campo_de_Centro_mas_largo_que_el_limite_omite_la_fila_en_vez_de_tumbar_el_guardado()
+    {
+        var libro = LibroValido();
+        libro.Worksheets.Worksheet("Centros").Cell(3, 4).Value = new string('x', 301); // Dirección
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Centros.Should().BeEmpty();
+        plan.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Dirección");
+    }
+
     private static XLWorkbook LibroValido()
     {
         var libro = new XLWorkbook();

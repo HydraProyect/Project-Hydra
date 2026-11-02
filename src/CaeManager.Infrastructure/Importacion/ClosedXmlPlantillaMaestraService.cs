@@ -34,6 +34,7 @@ public class ClosedXmlPlantillaMaestraService(
 
     private const int PrimeraFilaDatos = 2;
     private const string MarcadorEjemplo = "EJEMPLO";
+    private const int MaxNotasCliente = 2000;
     private const string ModalidadConGestion = "Con gestión CAE";
     private const string ModalidadSinGestion = "Sin gestión CAE";
 
@@ -193,6 +194,12 @@ public class ClosedXmlPlantillaMaestraService(
                 continue;
             }
 
+            if (hoja.Texto(fila, "Nota interna")?.Length > MaxNotasCliente)
+            {
+                omitidos.Add(new(HojaClientes, fila, descripcion, $"«Nota interna» supera los {MaxNotasCliente} caracteres."));
+                continue;
+            }
+
             var dto = new ClienteEmpresarialMaestraDto(fila, razonSocial, cif, critico == "C", cifEmpresa, hoja.Texto(fila, "Nota interna"), yaExiste);
             if (primeraFilaPorCif.TryGetValue(cif, out var primera))
             {
@@ -257,6 +264,18 @@ public class ClosedXmlPlantillaMaestraService(
             if (!vistos.Add(clave))
             {
                 omitidos.Add(new(HojaCentros, fila, descripcion, "Este Cliente empresarial ya tiene un Centro con este nombre dentro del propio archivo."));
+                continue;
+            }
+
+            var campoLargo = new[]
+            {
+                ("Código del Centro", Domain.Centros.Centro.LongitudMaximaCodigo),
+                ("Dirección", Domain.Centros.Centro.LongitudMaximaDireccion),
+                ("Contacto", Domain.Centros.Centro.LongitudMaximaContacto),
+            }.FirstOrDefault(c => hoja.Texto(fila, c.Item1)?.Length > c.Item2).Item1;
+            if (campoLargo is not null)
+            {
+                omitidos.Add(new(HojaCentros, fila, descripcion, $"«{campoLargo}» supera la longitud máxima permitida."));
                 continue;
             }
 
@@ -334,6 +353,12 @@ public class ClosedXmlPlantillaMaestraService(
                 continue;
             }
 
+            if (hoja.Texto(fila, "Observaciones")?.Length > Trabajador.LongitudMaximaObservaciones)
+            {
+                omitidos.Add(new(HojaTrabajadores, fila, descripcion, "«Observaciones» supera la longitud máxima permitida."));
+                continue;
+            }
+
             var nacimiento = hoja.Fecha(fila, "Fecha de nacimiento", out var nacimientoIlegible);
             if (nacimiento is null)
             {
@@ -400,7 +425,10 @@ public class ClosedXmlPlantillaMaestraService(
             {
                 var primera = _columnas.Values.Select(c => TextoBruto(f, c)).FirstOrDefault(t => t is not null);
                 if (primera is null) continue;
-                if (primera.StartsWith(MarcadorEjemplo, StringComparison.OrdinalIgnoreCase)) continue;
+                // Solo la fila 2 con el marcador es el ejemplo de la plantilla; una razón social que empiece por «Ejemplares»
+                // u «Ejemplo» en otra fila es un dato real y se importa.
+                if (f == PrimeraFilaDatos && primera.StartsWith(MarcadorEjemplo, StringComparison.OrdinalIgnoreCase)
+                    && (primera.Length == MarcadorEjemplo.Length || !char.IsLetterOrDigit(primera[MarcadorEjemplo.Length]))) continue;
                 yield return f;
             }
         }

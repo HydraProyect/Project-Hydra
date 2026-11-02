@@ -34,12 +34,12 @@ public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, 
     : ICommand<ResultadoImportacionMaestraDto>;
 
 /// <summary>
-/// Vista previa SIN escribir: devuelve exactamente lo que confirmar haría con este plan y este modo (cuántos campos se
+/// Vista previa SIN escribir (es un comando para pasar por la misma tubería de autorización que confirmar): devuelve exactamente lo que confirmar haría con este plan y este modo (cuántos campos se
 /// rellenarían y qué valores previos se sobrescribirían), para el aviso de N14. Los valores previos pueden ser datos
 /// personales: pasa por la misma autorización que el comando.
 /// </summary>
-public record PrevisualizarImportacionMaestraQuery(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
-    : IRequest<Result<ResultadoImportacionMaestraDto>>;
+public record PrevisualizarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
+    : ICommand<ResultadoImportacionMaestraDto>;
 
 /// <param name="CamposRellenados">Campos que estaban vacíos y se rellenan (en cualquiera de los dos modos).</param>
 /// <param name="ValoresSobrescritos">Solo en Reemplazar: un elemento por cada valor no vacío que el archivo sustituye.</param>
@@ -75,7 +75,7 @@ public class EjecutarImportacionMaestraCommandHandler(
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
-      IRequestHandler<PrevisualizarImportacionMaestraQuery, Result<ResultadoImportacionMaestraDto>>
+      IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
     private const string HojaEmpresas = "Empresas";
     private const string HojaClientes = "Clientes empresariales";
@@ -87,7 +87,7 @@ public class EjecutarImportacionMaestraCommandHandler(
         EjecutarAsync(request.Plan, request.ReemplazarExistentes, escribir: true, cancellationToken);
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
-        PrevisualizarImportacionMaestraQuery request, CancellationToken cancellationToken) =>
+        PrevisualizarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
         EjecutarAsync(request.Plan, request.ReemplazarExistentes, escribir: false, cancellationToken);
 
     private async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(
@@ -150,6 +150,33 @@ public class EjecutarImportacionMaestraCommandHandler(
             return archivo;
         }
 
+        // Aplica una actualización del dominio, que muta campo a campo y valida sobre la marcha. Si una validación falla a
+        // mitad, o si es vista previa, se restaura el estado original (válido por construcción): así ni una fila omitida
+        // deja la entidad rastreada a medias para el guardado final, ni la vista previa muta nada, y ambas ven lo mismo.
+        bool IntentarActualizar(Action aplicar, Action revertir, out string? error)
+        {
+            error = null;
+            try
+            {
+                aplicar();
+                if (!escribir) revertir();
+                return true;
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                revertir();
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // Deshace lo contado por una fila que acaba omitida (rellenos y sobrescrituras de esa fila).
+        void DescartarFila(int rellenadosAntes, int sobrescritosAntes)
+        {
+            rellenados = rellenadosAntes;
+            if (sobrescritos.Count > sobrescritosAntes) sobrescritos.RemoveRange(sobrescritosAntes, sobrescritos.Count - sobrescritosAntes);
+        }
+
         // ---- Empresas gestionadas (CIF) ----
         var todas = await empresasContext.Empresas.ToListAsync(cancellationToken);
         var gestionadasPorCif = todas.Where(e => e.EsPropia && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
@@ -168,12 +195,12 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (gestionadasPorCif.TryGetValue(fila.Cif, out var existente))
             {
                 var rellenadosAntes = rellenados;
+                var sobrescritosAntes = sobrescritos.Count;
                 var razonSocial = Texto(HojaEmpresas, fila.Fila, "Razón social", existente.RazonSocial, fila.RazonSocial)!;
                 if (razonSocial != existente.RazonSocial && await RazonSocialOcupadaAsync(razonSocial, existente.Id) is { } ocupada)
                 {
                     omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, ocupada.Mensaje));
-                    sobrescritos.RemoveAll(v => v.Hoja == HojaEmpresas && v.Fila == fila.Fila);
-                    rellenados = rellenadosAntes;
+                    DescartarFila(rellenadosAntes, sobrescritosAntes);
                     continue;
                 }
                 var cnae = Texto(HojaEmpresas, fila.Fila, "CNAE", existente.Cnae, fila.Cnae);
@@ -188,15 +215,18 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (razonSocial != existente.RazonSocial || cnae != existente.Cnae || convenio != existente.ConvenioAplicable
                     || anexo != existente.EsActividadAnexoI)
                 {
-                    try
+                    var (rs0, cnae0, conv0, anexo0) = (existente.RazonSocial, existente.Cnae, existente.ConvenioAplicable, existente.EsActividadAnexoI);
+                    if (IntentarActualizar(
+                            () => existente.Actualizar(razonSocial, existente.Cif, cnae, convenio, anexo),
+                            () => existente.Actualizar(rs0, existente.Cif, cnae0, conv0, anexo0), out var error))
                     {
-                        if (escribir) existente.Actualizar(razonSocial, existente.Cif, cnae, convenio, anexo);
                         razonesEscritas.Add(razonSocial.Trim());
                         empresasActualizadas++;
                     }
-                    catch (ArgumentException ex)
+                    else
                     {
-                        omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, ex.Message));
+                        omitidos.Add(new(HojaEmpresas, fila.Fila, fila.RazonSocial, error!));
+                        DescartarFila(rellenadosAntes, sobrescritosAntes);
                     }
                 }
                 continue;
@@ -251,6 +281,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (clientesTratados.Add(fila.Cif))
                 {
                     var rellenadosAntes = rellenados;
+                    var sobrescritosAntes = sobrescritos.Count;
                     var razonSocial = Texto(HojaClientes, fila.Fila, "Razón social", existente.RazonSocial, fila.RazonSocial)!;
                     var notas = Texto(HojaClientes, fila.Fila, "Nota interna", existente.Notas, fila.Nota);
                     var critico = existente.EsCritico ?? false;
@@ -263,16 +294,26 @@ public class EjecutarImportacionMaestraCommandHandler(
                     if (razonSocial != existente.RazonSocial && await RazonSocialOcupadaAsync(razonSocial, existente.Id) is { } ocupada)
                     {
                         omitidos.Add(new(HojaClientes, fila.Fila, fila.RazonSocial, ocupada.Mensaje));
-                        sobrescritos.RemoveAll(v => v.Hoja == HojaClientes && v.Fila == fila.Fila);
-                        rellenados = rellenadosAntes;
+                        DescartarFila(rellenadosAntes, sobrescritosAntes);
                         continue;
                     }
 
                     if (razonSocial != existente.RazonSocial || notas != existente.Notas || critico != existente.EsCritico)
                     {
-                        if (escribir) existente.ActualizarComoCliente(razonSocial, existente.Cif!, critico, notas);
-                        razonesEscritas.Add(razonSocial.Trim());
-                        clientesActualizados++;
+                        var (rs0, notas0, critico0) = (existente.RazonSocial, existente.Notas, existente.EsCritico ?? false);
+                        if (IntentarActualizar(
+                                () => existente.ActualizarComoCliente(razonSocial, existente.Cif!, critico, notas),
+                                () => existente.ActualizarComoCliente(rs0, existente.Cif!, critico0, notas0), out var error))
+                        {
+                            razonesEscritas.Add(razonSocial.Trim());
+                            clientesActualizados++;
+                        }
+                        else
+                        {
+                            omitidos.Add(new(HojaClientes, fila.Fila, fila.RazonSocial, error!));
+                            DescartarFila(rellenadosAntes, sobrescritosAntes);
+                            continue;
+                        }
                     }
                 }
             }
@@ -335,6 +376,16 @@ public class EjecutarImportacionMaestraCommandHandler(
 
             if (busqueda == ResultadoBusquedaPorNombre.Unico && existente is not null)
             {
+                // El Centro ya existe bajo otra Empresa gestionada: el archivo no lo mueve ni lo pisa en silencio.
+                if (existente.EmpresaId != gestionada.Id)
+                {
+                    omitidos.Add(new(HojaCentros, fila.Fila, fila.Nombre,
+                        $"Este Centro ya existe y pertenece a otra Empresa gestionada distinta de la del CIF \"{fila.CifEmpresaGestionada}\"; no se modifica."));
+                    continue;
+                }
+
+                var rellenadosAntes = rellenados;
+                var sobrescritosAntes = sobrescritos.Count;
                 var codigo = Texto(HojaCentros, fila.Fila, "Código del Centro", existente.CodigoCentro, fila.CodigoCentro);
                 var direccion = Texto(HojaCentros, fila.Fila, "Dirección", existente.Direccion, fila.Direccion);
                 var contacto = Texto(HojaCentros, fila.Fila, "Contacto", existente.Contacto, fila.Contacto);
@@ -352,12 +403,27 @@ public class EjecutarImportacionMaestraCommandHandler(
                 if (codigo != existente.CodigoCentro || direccion != existente.Direccion || contacto != existente.Contacto
                     || contrato != existente.ContratoVigenteHasta || modalidadResultante != existente.GestionCae)
                 {
-                    if (escribir)
+                    var (codigo0, direccion0, contacto0, contrato0, modalidad0) =
+                        (existente.CodigoCentro, existente.Direccion, existente.Contacto, existente.ContratoVigenteHasta, existente.GestionCae);
+                    if (IntentarActualizar(
+                            () =>
+                            {
+                                existente.Actualizar(existente.Nombre, codigo, direccion, contacto, contrato);
+                                existente.EstablecerGestionCae(modalidadResultante);
+                            },
+                            () =>
+                            {
+                                existente.Actualizar(existente.Nombre, codigo0, direccion0, contacto0, contrato0);
+                                existente.EstablecerGestionCae(modalidad0);
+                            }, out var error))
                     {
-                        existente.Actualizar(existente.Nombre, codigo, direccion, contacto, contrato);
-                        existente.EstablecerGestionCae(modalidadResultante);
+                        centrosActualizados++;
                     }
-                    centrosActualizados++;
+                    else
+                    {
+                        omitidos.Add(new(HojaCentros, fila.Fila, fila.Nombre, error!));
+                        DescartarFila(rellenadosAntes, sobrescritosAntes);
+                    }
                 }
                 continue;
             }
@@ -403,6 +469,16 @@ public class EjecutarImportacionMaestraCommandHandler(
 
             if (trabajadoresPorIdentidad.TryGetValue(fila.Identidad, out var existente))
             {
+                // El Trabajador ya existe en otra Empresa gestionada: el archivo no lo pisa en silencio.
+                if (existente.EmpresaId != empresa.Id)
+                {
+                    omitidos.Add(new(HojaTrabajadores, fila.Fila, descripcion,
+                        $"Este Trabajador ya existe y pertenece a otra Empresa gestionada distinta de la del CIF \"{fila.CifEmpresa}\"; no se modifica."));
+                    continue;
+                }
+
+                var rellenadosAntes = rellenados;
+                var sobrescritosAntes = sobrescritos.Count;
                 var nombre = Texto(HojaTrabajadores, fila.Fila, "Nombre", existente.Nombre, fila.Nombre)!;
                 var apellidos = Texto(HojaTrabajadores, fila.Fila, "Apellidos", existente.Apellidos, fila.Apellidos)!;
                 var nacimiento = Fecha(HojaTrabajadores, fila.Fila, "Fecha de nacimiento", existente.FechaNacimiento, fila.FechaNacimiento);
@@ -415,14 +491,19 @@ public class EjecutarImportacionMaestraCommandHandler(
                     || email != existente.Email || telefono != existente.Telefono || puesto != existente.Puesto
                     || observaciones != existente.Observaciones)
                 {
-                    try
+                    var (nombre0, apellidos0, nacimiento0, email0, observaciones0, telefono0, puesto0) =
+                        (existente.Nombre, existente.Apellidos, existente.FechaNacimiento, existente.Email, existente.Observaciones, existente.Telefono, existente.Puesto);
+                    if (IntentarActualizar(
+                            () => existente.Actualizar(nombre, apellidos, nacimiento, email, observaciones, existente.Alias, telefono, puesto),
+                            () => existente.Actualizar(nombre0, apellidos0, nacimiento0, email0, observaciones0, existente.Alias, telefono0, puesto0),
+                            out var error))
                     {
-                        if (escribir) existente.Actualizar(nombre, apellidos, nacimiento, email, observaciones, existente.Alias, telefono, puesto);
                         trabajadoresActualizados++;
                     }
-                    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+                    else
                     {
-                        omitidos.Add(new(HojaTrabajadores, fila.Fila, descripcion, ex.Message));
+                        omitidos.Add(new(HojaTrabajadores, fila.Fila, descripcion, error!));
+                        DescartarFila(rellenadosAntes, sobrescritosAntes);
                     }
                 }
                 continue;

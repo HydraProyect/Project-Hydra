@@ -41,7 +41,7 @@ public class EjecutarImportacionMaestraTests
             await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
 
         public async Task<Result<ResultadoImportacionMaestraDto>> PrevisualizarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
-            await Handler().Handle(new PrevisualizarImportacionMaestraQuery(plan, reemplazar), CancellationToken.None);
+            await Handler().Handle(new PrevisualizarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
 
         private sealed class Autorizacion(bool administrador) : IAutorizacionEscrituraEfectiva
         {
@@ -196,5 +196,58 @@ public class EjecutarImportacionMaestraTests
         (await e.EjecutarAsync(plan)).EsExitoso.Should().BeFalse();
         (await e.PrevisualizarAsync(plan)).EsExitoso.Should().BeFalse("la vista previa revela valores previos que pueden ser datos personales");
         e.EmpresaRepositorio.Empresas.Should().BeEmpty();
+    }
+
+    private static (Escenario Escenario, CaeManager.Domain.Trabajadores.Trabajador Trabajador) EscenarioConTrabajadorExistente(Guid? empresaId = null)
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(
+            empresaId ?? gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid");
+        e.Trabajadores.ListaTrabajadores.Add(trabajador);
+        return (e, trabajador);
+    }
+
+    [Fact]
+    public async Task Una_fila_que_el_dominio_rechaza_a_mitad_no_deja_la_entidad_a_medias_ni_pierde_la_sobrescritura_en_el_informe()
+    {
+        var (e, trabajador) = EscenarioConTrabajadorExistente();
+        var puestoDemasiadoLargo = new string('x', 1000);
+        var fila = FilaTrabajador(correo: "nuevo@ejemplo.invalid", fila: 9) with { Puesto = puestoDemasiadoLargo, YaExiste = true };
+
+        var previa = (await e.PrevisualizarAsync(Plan(trabajadores: [fila]), reemplazar: true)).Valor;
+        var real = (await e.EjecutarAsync(Plan(trabajadores: [fila]), reemplazar: true)).Valor;
+
+        trabajador.Email.Should().Be("previo@ejemplo.invalid", "la fila se omitió: ningún campo suyo puede quedar cambiado");
+        real.TrabajadoresActualizados.Should().Be(0);
+        real.Omitidos.Should().ContainSingle(o => o.Hoja == "Trabajadores" && o.Fila == 9);
+        real.ValoresSobrescritos.Should().BeEmpty();
+        real.CamposRellenados.Should().Be(0);
+        real.Should().BeEquivalentTo(previa, "la vista previa también valida con el dominio, no solo al escribir");
+    }
+
+    [Fact]
+    public async Task La_vista_previa_de_una_actualizacion_valida_no_cambia_la_entidad()
+    {
+        var (e, trabajador) = EscenarioConTrabajadorExistente();
+
+        var previa = (await e.PrevisualizarAsync(
+            Plan(trabajadores: [FilaTrabajador(correo: "nuevo@ejemplo.invalid") with { YaExiste = true }]), reemplazar: true)).Valor;
+
+        previa.TrabajadoresActualizados.Should().Be(1);
+        trabajador.Email.Should().Be("previo@ejemplo.invalid");
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_existente_en_otra_Empresa_gestionada_no_se_modifica_y_se_informa()
+    {
+        var (e, trabajador) = EscenarioConTrabajadorExistente(empresaId: Guid.NewGuid());
+
+        var r = (await e.EjecutarAsync(
+            Plan(trabajadores: [FilaTrabajador(correo: "nuevo@ejemplo.invalid") with { YaExiste = true }]), reemplazar: true)).Valor;
+
+        trabajador.Email.Should().Be("previo@ejemplo.invalid");
+        r.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("otra Empresa gestionada");
     }
 }
