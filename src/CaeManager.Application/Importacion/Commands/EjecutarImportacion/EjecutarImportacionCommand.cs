@@ -279,10 +279,15 @@ public class EjecutarImportacionCommandHandler(
 
             if (busquedaEmpresa == ResultadoBusquedaPorNombre.Unico)
             {
+                empresasPorRazonSocial.Buscar(fila.RazonSocial, out var empresaExistenteId);
                 // Reutilización, no descarte: el análisis ya la marcó YaExiste y la
                 // vista previa no prometió crearla. Solo se registra si el plan sí
-                // la prometía y apareció entre analizar y confirmar.
-                if (!fila.YaExiste)
+                // la prometía y apareció entre analizar y confirmar. Una Empresa fuera del ámbito no se reutiliza
+                // ni se describe (decir «ya existía» a quien no la ve revelaría que existe): se omite y se cuenta.
+                if (!ambito.Empresa(empresaExistenteId))
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Esta empresa")));
+                else if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         fila.Hoja, fila.Fila, fila.RazonSocial,
                         $"La empresa «{fila.RazonSocial}» ya existía al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza la que ya había en vez de duplicarla."));
@@ -316,10 +321,15 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Trabajadores)
         {
-            if (trabajadoresPorDni.ContainsKey(fila.Dni))
+            if (trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorExistenteId))
             {
-                // Reutilización anunciada por el análisis (ver nota de la clase).
-                if (!fila.YaExiste)
+                // Reutilización anunciada por el análisis (ver nota de la clase). Fuera del ámbito se omite y se cuenta
+                // con el motivo uniforme, sin decir que ya existía.
+                if (!ambito.Trabajador(trabajadorExistenteId))
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                        AmbitoCargaMasiva.Motivo("Un trabajador con ese DNI")));
+                else if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
                         $"Ya existía un trabajador con el DNI {fila.Dni} al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza el que ya había en vez de duplicarlo."));

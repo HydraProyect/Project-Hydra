@@ -15,7 +15,11 @@ public static partial class MascaraDni
         usuario?.IsInRole(CaeManager.Infrastructure.Identity.Roles.Administrador) == true;
 
     public static string Aplicar(string? texto, bool completo) =>
-        completo || string.IsNullOrEmpty(texto) ? texto ?? string.Empty : PatronDni().Replace(texto, Reemplazar);
+        completo || string.IsNullOrEmpty(texto)
+            ? texto ?? string.Empty
+            : PatronPasaporteContexto().Replace(
+                PatronPasaporteInicio().Replace(PatronPasaporteEntreParentesis().Replace(PatronDni().Replace(texto, Reemplazar), Reemplazar), Reemplazar),
+                Reemplazar);
 
     /// <summary>
     /// Para un campo que se sabe que es el documento de identidad de un Trabajador: se enmascara el valor entero sea cual
@@ -33,6 +37,21 @@ public static partial class MascaraDni
         var valor = m.Value;
         return "****" + valor[^4..];
     }
+
+    /// <summary>
+    /// El Elemento de un aviso u omitido nombra el documento del Trabajador entre paréntesis («Nombre Apellidos (X1234567)») o
+    /// al principio («X1234567 — Tipo»); el sistema admite como Pasaporte cualquier valor que no sea DNI o NIE, así que se
+    /// enmascara el token de al menos 5 caracteres (la longitud mínima del documento) con algún dígito en esas dos posiciones.
+    /// </summary>
+    [GeneratedRegex(@"(?<=\()(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}(?=\))")]
+    private static partial Regex PatronPasaporteEntreParentesis();
+
+    /// <summary>El documento sin más texto (Elemento «pelado»), o tras «DNI » / «trabajador » en los motivos.</summary>
+    [GeneratedRegex(@"(?<=\bDNI )(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}|(?<=\btrabajador )(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}(?= ya\b)|^(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}$")]
+    private static partial Regex PatronPasaporteContexto();
+
+    [GeneratedRegex(@"^(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{5,}(?= (?:—|→))")]
+    private static partial Regex PatronPasaporteInicio();
 
     [GeneratedRegex(@"(?<![A-Za-z0-9])(?:[XYZxyz]?\d{7,8}[A-Za-z]|\d{8})(?![A-Za-z0-9])")]
     private static partial Regex PatronDni();

@@ -21,6 +21,16 @@ public class MascaraDniImportacionTests : BunitContext
     [InlineData("Marta Ruiz (12345678Z)", "Marta Ruiz (****678Z)")]
     [InlineData("12345678Z — Formación 20h", "****678Z — Formación 20h")]
     [InlineData("El trabajador con DNI 12345678z no existe.", "El trabajador con DNI ****678z no existe.")]
+    [InlineData("Marta Ruiz (AB1234567)", "Marta Ruiz (****4567)")]
+    [InlineData("Marta Ruiz (PA123456)", "Marta Ruiz (****3456)")]
+    [InlineData("AB1234567 — Formación 20h", "****4567 — Formación 20h")]
+    [InlineData("AB1234567 → Centro Norte", "****4567 → Centro Norte")]
+    [InlineData("Marta Ruiz (nacida en 2024)", "Marta Ruiz (nacida en 2024)")]
+    [InlineData("Plan (ver 2024)", "Plan (ver 2024)")]
+    [InlineData("Marta Ruiz (AB123)", "Marta Ruiz (****B123)")]
+    [InlineData("AB1234567", "****4567")]
+    [InlineData("Ya existía un trabajador con el DNI AB1234567 al confirmar la importación.", "Ya existía un trabajador con el DNI ****4567 al confirmar la importación.")]
+    [InlineData("El trabajador AB1234567 ya tenía un documento.", "El trabajador ****4567 ya tenía un documento.")]
     public void Sin_pedir_el_DNI_completo_sale_enmascarado(string original, string esperado) =>
         MascaraDni.Aplicar(original, completo: false).Should().Be(esperado);
 

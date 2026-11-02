@@ -151,6 +151,11 @@ internal sealed class EscenarioImportacion
             TiposDocumentoContexto, AcreditacionRepositorio),
         alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
 
+    public RecorteDeAnalisisAlAmbito Recorte(string? rol, IAlcanceDatosService alcance) => new(
+        new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new SesionPrivilegiadaAusente(), new TenantActualFalso()),
+        alcance, EmpresasContexto, CentrosContexto, TrabajadoresContexto, AsignacionesContexto);
+
     private sealed class TenantActualFalso : ITenantActual
     {
         public Guid? TenantId => null;
