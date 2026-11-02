@@ -74,10 +74,13 @@ public class AuditoriaDeIdentidadRestanteTests
 
         registro.Accion.Should().Be("Creado");
         registro.TenantId.Should().Be(TenantSeedData.IdPorDefecto, "la fila es del Tenant propietario de la cuenta");
-        registro.DatosDespues.Should().Contain("oid-de-entra-0001",
-            "sin el ProviderKey el registro no distingue qué identidad externa se vinculó, que es justo lo que " +
-            "esta auditoría existe para responder — no es un secreto: es un identificador opaco del directorio");
-        registro.DatosDespues.Should().Contain(ProveedorExterno);
+        registro.DatosDespues.Should().NotContain("oid-de-entra-0001",
+            "el ProviderKey identifica a la persona en el proveedor externo, cae_app_soporte no puede leerlo en " +
+            "AspNetUserLogins (SoporteSinLecturaDeUserLogins) y sí puede leer RegistrosAuditoria: copiarlo aquí " +
+            "reabriría la lectura que esa migración retiró");
+        registro.DatosDespues.Should().Contain("***", "el ProviderKey queda enmascarado, no omitido");
+        registro.DatosDespues.Should().Contain(ProveedorExterno,
+            "el LoginProvider sí queda: dice qué proveedor se vinculó a la cuenta");
     }
 
     /// <summary>
@@ -108,7 +111,10 @@ public class AuditoriaDeIdentidadRestanteTests
             arnes.CadenaPropietario, EntidadTipoAuditoria.LoginExterno, usuario.Id, accion: "Eliminado");
 
         registro.TenantId.Should().Be(TenantSeedData.IdPorDefecto);
-        registro.DatosAntes.Should().Contain("oid-de-entra-0002", "en una baja lo que queda es el valor anterior");
+        registro.DatosAntes.Should().NotContain("oid-de-entra-0002",
+            "en una baja el valor anterior tampoco copia el ProviderKey (mismo criterio que en el alta)");
+        registro.DatosAntes.Should().Contain("***");
+        registro.DatosAntes.Should().Contain(ProveedorExterno, "el LoginProvider sí queda en la baja");
     }
 
     /// <summary>

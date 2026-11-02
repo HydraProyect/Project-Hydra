@@ -54,14 +54,20 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    ni el remitente en una fila distinta ni un resumen generado a partir
 ///    del correo quedan exentos por ello. Ver el comentario de esas entradas.
 /// 4. Secretos de autenticación de <see cref="ApplicationUser"/>
-///    (PasswordHash, SecurityStamp) y de <see cref="IdentityUserToken{TKey}"/>
+///    (PasswordHash, SecurityStamp), de <see cref="IdentityUserToken{TKey}"/>
 ///    (Value — el secreto TOTP del segundo factor, y las claves de
-///    recuperación): Identity los guarda en la misma fila que los datos que
+///    recuperación) y de <see cref="IdentityUserLogin{TKey}"/> (ProviderKey —
+///    el identificador de la cuenta en el proveedor externo, que
+///    <c>cae_app_soporte</c> no puede leer en AspNetUserLogins desde la
+///    migración SoporteSinLecturaDeUserLogins y que RegistrosAuditoria sí le
+///    concede): Identity los guarda en la misma fila que los datos que
 ///    sí interesa auditar (rol, activación, nombre, qué proveedor y qué
 ///    token), así que no se puede excluir la entidad entera — solo estos
 ///    campos. Un registro de auditoría que copiara el secreto TOTP sería una
 ///    segunda vía de suplantar el segundo factor, legible por el rol
-///    Administrador desde /auditoria.
+///    Administrador desde /auditoria. Los registros anteriores a este
+///    enmascarado conservan el ProviderKey en claro: los datos históricos no
+///    se reparan.
 /// 5. Lo que el usuario tecleó en un listado (<see cref="FiltroGuardado"/>,
 ///    ValoresJson): los valores de un filtro guardado o de la vista recordada
 ///    pueden llevar la búsqueda libre — un nombre, un DNI. Ver el comentario
@@ -226,6 +232,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // de recuperación de dos factores comparten tabla y quedan
         // enmascaradas por el mismo camino.
         [typeof(IdentityUserToken<Guid>)] = [nameof(IdentityUserToken<Guid>.Value)],
+
+        // Mismo punto 4: ProviderKey es el identificador estable de la persona en el proveedor
+        // externo (el «oid»/«sub» de Entra ID o de Google). #1903 retiró su SELECT a
+        // cae_app_soporte en AspNetUserLogins; sin esta entrada, Soporte TALVEG lo leería igual
+        // en RegistrosAuditoria. Lo que SÍ queda es qué cuenta, qué LoginProvider y cuándo se
+        // vinculó o desvinculó, que es lo que el registro existe para responder; el
+        // identificador concreto sigue en la fila de AspNetUserLogins mientras exista.
+        [typeof(IdentityUserLogin<Guid>)] = [nameof(IdentityUserLogin<Guid>.ProviderKey)],
 
         // Punto 5 del comentario de clase (revisión del 2026-10-10): mismo
         // criterio que DEC-9 — es CONTENIDO, no un secreto. ValoresJson lleva
