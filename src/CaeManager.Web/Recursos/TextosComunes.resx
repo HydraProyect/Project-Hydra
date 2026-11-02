@@ -738,4 +738,10 @@
   <data name="ModalSuscripcionObligatoria" xml:space="preserve">
     <value>Completa el identificador de suscripción.</value>
   </data>
+  <data name="ArchivoSubidoSuperaMaximo" xml:space="preserve">
+    <value>"{0}" supera los {1} MB.</value>
+  </data>
+  <data name="ArchivoSubidoNoLeido" xml:space="preserve">
+    <value>No pudimos leer "{0}". Vuelve a elegirlo.</value>
+  </data>
 </root>
