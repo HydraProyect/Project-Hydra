@@ -20,6 +20,13 @@ También falla si un identificador de BASE desaparece de HEAD: renombrar una
 migración ya fusionada hace que las bases que la aplicaron la reejecuten, y si
 desaparecen todas es que la carpeta se ha movido y esta guarda se quedaría sin
 nada que comparar.
+
+Por último, el inventario de HEAD tiene que ser completo: el número de clases
+«: Migration» fuera de los *.Designer.cs (las que EF Core descubre) debe ser igual
+al de identificadores reconocidos. El atributo solo se reconoce en su forma
+canónica, la que escribe EF Core en el .Designer.cs; una migración escrita a mano
+con otra forma válida en C# (por ejemplo [Migration ("...")]) tiene clase pero no
+identificador, y sin este recuento quedaría fuera de la guarda sin avisar.
 """
 
 import re
@@ -30,9 +37,11 @@ import sys
 CARPETA = "src/CaeManager.Migrations.PostgreSQL/Migrations/"
 ATRIBUTO = r'\[Migration\("[^"]*"\)\]'
 MARCA = re.compile(r"[0-9]{14}(?=_)")
+# Misma detección que deploy/listar-migraciones-ef.sh y verificar-modelo-migracion.py.
+CLASE = re.compile(r"\bclass\s+\w+\s*:\s*(?:global::)?(?:\w+\.)*Migration\b")
 
 
-def identificadores(referencia):
+def lista_identificadores(referencia):
     resultado = subprocess.run(
         ["git", "grep", "-hoE", ATRIBUTO, referencia, "--", f"{CARPETA}*.cs"],
         stdout=subprocess.PIPE,
@@ -42,7 +51,27 @@ def identificadores(referencia):
     if resultado.returncode not in (0, 1):
         sys.exit(f"::error::No se pudo leer las migraciones de {referencia}.")
     prefijo, sufijo = len('[Migration("'), len('")]')
-    return {linea[prefijo:-sufijo] for linea in resultado.stdout.decode("utf-8").splitlines()}
+    return [linea[prefijo:-sufijo] for linea in resultado.stdout.decode("utf-8").splitlines()]
+
+
+def identificadores(referencia):
+    return set(lista_identificadores(referencia))
+
+
+def clases_migracion(referencia):
+    """Clases «: Migration» de los ficheros de la carpeta que no son *.Designer.cs."""
+    listado = subprocess.run(["git", "ls-tree", "-r", "-z", "--name-only", referencia, "--", CARPETA], stdout=subprocess.PIPE)
+    if listado.returncode:
+        sys.exit(f"::error::No se pudo leer las migraciones de {referencia}.")
+    total = 0
+    for ruta in listado.stdout.decode("utf-8").split("\0"):
+        if not ruta.endswith(".cs") or ruta.endswith(".Designer.cs"):
+            continue
+        contenido = subprocess.run(["git", "show", f"{referencia}:{ruta}"], stdout=subprocess.PIPE)
+        if contenido.returncode:
+            sys.exit(f"::error::No se pudo leer {ruta} de {referencia}.")
+        total += len(CLASE.findall(contenido.stdout.decode("utf-8", errors="replace")))
+    return total
 
 
 def marca(identificador):
@@ -54,8 +83,20 @@ def main():
     if len(sys.argv) != 3:
         sys.exit("Uso: verificar-orden-migraciones.py BASE HEAD")
     sys.stdout.reconfigure(encoding="utf-8")  # Hay identificadores con «ñ».
+    sys.stderr.reconfigure(encoding="utf-8")  # El mensaje del inventario lleva «».
     en_base = identificadores(sys.argv[1])
-    en_head = identificadores(sys.argv[2])
+    lista_head = lista_identificadores(sys.argv[2])
+    en_head = set(lista_head)
+    clases = clases_migracion(sys.argv[2])
+    if clases != len(lista_head):
+        sys.exit(
+            f"::error::El inventario de migraciones está incompleto: {clases} clases «: Migration» fuera de "
+            f"*.Designer.cs frente a {len(lista_head)} identificadores [Migration(\"...\")] reconocidos. Una "
+            "migración con el atributo escrito de otra forma (por ejemplo [Migration (\"...\")]), sin su "
+            ".Designer.cs o con el identificador repetido queda fuera de las guardas. Escribe el atributo "
+            "como [Migration(\"<identificador>\")] en su .Designer.cs, que es la forma que reconoce EF Core "
+            "al generarla."
+        )
     maximo = max(filter(None, map(marca, en_base)), default="")
     anadidas = sorted(en_head - en_base)
     incorrectas = [i for i in anadidas if marca(i) is None or marca(i) <= maximo]

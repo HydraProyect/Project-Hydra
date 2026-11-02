@@ -173,6 +173,46 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         almacen.Aperturas.Should().Be(0, "no se lee ningún archivo antes de comprobar el alcance de cartera");
     }
 
+    [Fact]
+    public async Task Crear_con_un_Id_reservado_hace_nacer_el_Documento_con_ese_Id()
+    {
+        var (handler, documentos, almacen, trabajador, tipo) = PrepararCrear();
+        var clave = await almacen.GuardarAsync(new MemoryStream(PdfValido), "documento.pdf");
+        var reservado = IdentificadorEntidad.Nuevo();
+
+        var resultado = await handler.Handle(NuevoCrear(trabajador.Id, tipo.Id, clave) with { DocumentoIdReservado = reservado }, CancellationToken.None);
+
+        resultado.Valor.Should().Be(reservado);
+        documentos.Documentos.Should().ContainSingle().Which.Id.Should().Be(reservado);
+    }
+
+    [Fact]
+    public async Task Renovar_con_un_Id_reservado_lo_da_al_que_nace_y_no_toca_el_del_anterior()
+    {
+        var (handler, documentos, almacen, documento) = PrepararRenovar();
+        var idAnterior = documento.Id;
+        var clave = await almacen.GuardarAsync(new MemoryStream(PdfValido), "documento.pdf");
+        var reservado = IdentificadorEntidad.Nuevo();
+
+        var resultado = await handler.Handle(NuevoRenovar(documento.Id, clave) with { DocumentoIdReservado = reservado }, CancellationToken.None);
+
+        resultado.Valor.Should().Be(reservado);
+        documento.Id.Should().Be(idAnterior);
+        documentos.Documentos.Select(d => d.Id).Should().BeEquivalentTo([idAnterior, reservado]);
+    }
+
+    [Fact]
+    public async Task Renovar_sin_archivo_nuevo_no_aplica_el_Id_reservado_al_Documento_existente()
+    {
+        var (handler, _, _, documento) = PrepararRenovar();
+        var idOriginal = documento.Id;
+
+        var resultado = await handler.Handle(NuevoRenovar(documento.Id, null) with { DocumentoIdReservado = IdentificadorEntidad.Nuevo() }, CancellationToken.None);
+
+        resultado.Valor.Should().Be(idOriginal);
+        documento.Id.Should().Be(idOriginal);
+    }
+
     private static CrearDocumentoCommand NuevoCrear(Guid trabajadorId, Guid tipoId, string clave) =>
         new(trabajadorId, null, null, null, null, tipoId, Hoy, null, clave, null);
 

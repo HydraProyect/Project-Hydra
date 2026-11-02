@@ -13,11 +13,13 @@
 @using Microsoft.Extensions.Options
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
+@inject IRegistroSesionesUsuario Sesiones
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IOptions<IdentityOptions> OpcionesIdentity
 @inject ILoggerFactory LoggerFactory
 @inject IEleccionLiderService CerrojoCredencial
+@inject Microsoft.Extensions.DependencyInjection.IServiceScopeFactory Ambitos
 @inject IClienteActivoSeleccionado Seleccion
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta> Textos
 
@@ -158,15 +160,58 @@
         // rechaza sin gastar ningún intento contra Identity.
         IdentityResult? resultadoObtenido = null;
         var verificacionFallida = false;
+        var cuentaCambiada = false;
         var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
             $"credencial:{usuario.Id}",
             async _ =>
             {
+                // Lo primero, antes de verificar nada: usuario se leyó antes del cerrojo, y un restablecimiento
+                // que termine en esa espera deja esta copia con la contraseña antigua. Compararla con la copia
+                // aceptaría esa contraseña y revocaría sesiones abiertas después del restablecimiento, aunque
+                // ChangePasswordAsync fallara luego por concurrencia. Con la cuenta cambiada no se verifica,
+                // no se revoca y no se cuenta ningún fallo (ver AmbitoDeCredencial).
+                await using (var credencial = AmbitoDeCredencial.Abrir(Ambitos))
+                {
+                    if (!await credencial.SigueComoSeLeyoAsync(usuario))
+                    {
+                        cuentaCambiada = true;
+                        return;
+                    }
+                }
+
                 if (await UserManager.IsLockedOutAsync(usuario))
                 {
                     verificacionFallida = true;
                     return;
                 }
+
+                // Antes de revocar nada: una contraseña actual errónea no cierra sesiones. Se verifica como
+                // ChangePasswordAsync, y el contador de fallos lo lleva la página en los dos casos: Identity
+                // no lo incrementa en ninguna de las dos operaciones.
+                if (!await UserManager.CheckPasswordAsync(usuario, Entrada.ContrasenaActual))
+                {
+                    verificacionFallida = true;
+                    await UserManager.AccessFailedAsync(usuario);
+                    return;
+                }
+
+                // Tampoco cierra sesiones una contraseña nueva que Identity va a rechazar.
+                var incumplidos = await ValidacionContrasena.IncumplidosAsync(UserManager, usuario, Entrada.ContrasenaNueva);
+                if (incumplidos.Count > 0)
+                {
+                    resultadoObtenido = IdentityResult.Failed([.. incumplidos]);
+                    return;
+                }
+
+                // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan, ANTES de cambiar la credencial,
+                // por lo mismo que en RestablecerContrasena: sin transacción común, al revés un fallo dejaría
+                // la contraseña cambiada con las demás sesiones vivas, y una cookie robada aún sin revalidar
+                // podría salir de RefreshSignInAsync con el sello nuevo. Si falla, se propaga sin haber
+                // cambiado nada, como en CierreSesionEnServidor. Todo dentro del cerrojo, para que un
+                // restablecimiento de la misma cuenta no se cruce.
+                var sidConservada = SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User);
+                await Sesiones.CerrarLasDemasAsync(usuario.Id, sidConservada);
+
                 // Se fija ANTES de ChangePasswordAsync, sobre la misma
                 // instancia de usuario que la operación va a actualizar: así
                 // Identity persiste el fin del cambio obligatorio en la MISMA
@@ -188,19 +233,25 @@
                         verificacionFallida = true;
                         await UserManager.AccessFailedAsync(usuario);
                     }
+                    return;
                 }
-                else if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
-                {
-                    // Como un login correcto: acertar la contraseña actual pone el contador a cero.
+
+                // Como un login correcto: acertar la contraseña actual pone el contador a cero. Antes de la
+                // revocación posterior, para que un fallo ahí no deje el contador sin limpiar.
+                if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
                     await UserManager.ResetAccessFailedCountAsync(usuario);
-                }
+
+                // Segunda pasada: se lleva lo abierto con la contraseña antigua desde la previa. Un fallo se
+                // propaga con la contraseña ya cambiada: sin refresco, esta cookie cae en la siguiente
+                // revalidación, y solo quedan sin revocar las sesiones de esa ventana.
+                await Sesiones.CerrarLasDemasAsync(usuario.Id, sidConservada);
             },
             CancellationToken.None);
 
-        if (!ejecutado)
+        if (!ejecutado || cuentaCambiada)
         {
             logger.LogWarning(
-                "Cambio de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}", usuario.Id);
+                "Cambio de contraseña rechazado, otra operación de credencial en curso o recién terminada: {UsuarioId}", usuario.Id);
             mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
             return;
         }

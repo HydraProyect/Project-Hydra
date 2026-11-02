@@ -56,16 +56,35 @@ public static class DocumentoAlcanceExtensions
     /// </summary>
     public static async Task<bool> DocumentoLegibleAsync(
         this IAlcanceDatosService alcance, Guid documentoId, IDocumentosQueryContext documentosContext,
+        IProyectosQueryContext proyectosContext, CancellationToken cancellationToken = default) =>
+        (await alcance.DocumentosLegiblesAsync([documentoId], documentosContext, proyectosContext, cancellationToken)).Contains(documentoId);
+
+    /// <summary>
+    /// La misma puerta para varios Documentos, con una sola lectura de sus coordenadas. Devuelve los legibles: el historial
+    /// cuenta, porque quien guarda un Id puede apuntar a un Documento ya sustituido.
+    /// </summary>
+    public static async Task<HashSet<Guid>> DocumentosLegiblesAsync(
+        this IAlcanceDatosService alcance, IReadOnlyCollection<Guid> documentoIds, IDocumentosQueryContext documentosContext,
         IProyectosQueryContext proyectosContext, CancellationToken cancellationToken = default)
     {
-        var documento = await documentosContext.Documentos
-            .Where(d => d.Id == documentoId)
-            .Select(d => new { d.TrabajadorId, d.ClienteId, d.VehiculoId, d.ProyectoId, d.EmpresaId })
-            .FirstOrDefaultAsync(cancellationToken);
+        var legibles = new HashSet<Guid>();
+        if (documentoIds.Count == 0)
+            return legibles;
 
-        return documento is not null && await alcance.DocumentoLegibleAsync(
-            documento.TrabajadorId, documento.ClienteId, documento.VehiculoId, documento.ProyectoId, documento.EmpresaId,
-            proyectosContext, cancellationToken);
+        var documentos = await documentosContext.Documentos
+            .Where(d => documentoIds.Contains(d.Id))
+            .Select(d => new { d.Id, d.TrabajadorId, d.ClienteId, d.VehiculoId, d.ProyectoId, d.EmpresaId })
+            .ToListAsync(cancellationToken);
+
+        foreach (var documento in documentos)
+        {
+            if (await alcance.DocumentoLegibleAsync(
+                documento.TrabajadorId, documento.ClienteId, documento.VehiculoId, documento.ProyectoId, documento.EmpresaId,
+                proyectosContext, cancellationToken))
+                legibles.Add(documento.Id);
+        }
+
+        return legibles;
     }
 
     /// <summary>La misma decisión sobre las coordenadas de un Documento ya leído, para quien las proyecta por su cuenta.</summary>

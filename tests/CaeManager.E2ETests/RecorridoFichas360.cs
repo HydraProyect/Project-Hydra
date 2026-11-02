@@ -53,7 +53,7 @@ internal static class RecorridoFichas360
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}"), new() { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         // Barrera de «la ficha cargó»: el contenedor de acciones de la tarjeta de cabecera, que se pinta con cualquier rol.
         // El «⋯» no sirve: sus tres acciones son escrituras y a un rol de solo lectura (el del recorrido delegado) no se le pinta.
         await Expect(page.Locator("[data-pieza=\"cabecera-identidad\"] .cabecera-identidad-acciones")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
@@ -61,7 +61,7 @@ internal static class RecorridoFichas360
 
         // Y la ficha sobrevive a recargarla.
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Trabajador 360 recargada");
     }
 
@@ -80,12 +80,12 @@ internal static class RecorridoFichas360
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex(@"/centros/[0-9a-f-]{36}"), new() { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(page.Locator("main h1")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Centro 360");
 
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Centro 360 recargada");
     }
 
@@ -100,11 +100,11 @@ internal static class RecorridoFichas360
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"), new() { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Empresa 360");
 
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Empresa 360 recargada");
     }
 

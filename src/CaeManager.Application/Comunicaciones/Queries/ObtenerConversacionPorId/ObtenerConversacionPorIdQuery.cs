@@ -78,7 +78,7 @@ public record EventoDetalleDto(Guid Id, TipoEventoConversacion Tipo, Guid Refere
 public record SugerenciaVinculacionDetalleDto(Guid ConversacionDestinoId, string AsuntoDestino, DesgloseCoincidenciaDto Desglose);
 
 /// <summary>
-/// No hay ninguna relación Mensaje/Adjunto↔Documento modelada en el dominio —
+/// <see cref="AdjuntoMensaje.DocumentoId"/> solo existe para los adjuntos repartidos —
 /// "Documentos citados" del panel de contexto se arma en tres niveles de
 /// certeza decreciente, todos calculados en cada lectura (ver
 /// ObtenerDocumentosCitadosAsync):
@@ -117,7 +117,9 @@ public record ConversacionDetalleDto(
     SugerenciaVinculacionDetalleDto? SugerenciaVinculacion = null,
     bool EsConversacionInformativaPreCae = false,
     string? ResumenRelevanciaCae = null,
-    PrioridadConversacion Prioridad = PrioridadConversacion.Normal);
+    PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
+    long NumeroTicket = 0,
+    Guid? ConexionEntradaId = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -125,7 +127,8 @@ public class ObtenerConversacionPorIdQueryHandler(
     IVisitasQueryContext visitasContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext,
     IReclamacionesQueryContext reclamacionesContext,
     IAlcanceDatosService alcanceDatos, ISanitizadorHtmlService sanitizadorHtml,
-    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia)
+    ICurrentUserService currentUserService, IMotorCoincidenciaConversacionesService motorCoincidencia,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerConversacionPorIdQuery, ConversacionDetalleDto?>
 {
     // Ver ObtenerConversacionesQueryHandler: mismo literal, mismo motivo.
@@ -149,6 +152,7 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.Asunto,
                 c.Estado,
                 c.Prioridad,
+                c.NumeroTicket,
                 c.EjecutivoAsignadoId,
                 c.Etiquetas,
                 c.FechaUltimoMensajeUtc,
@@ -325,7 +329,9 @@ public class ObtenerConversacionPorIdQueryHandler(
             conversacion.Estado, conversacion.EjecutivoAsignadoId, conversacion.Etiquetas, conversacion.FechaUltimoMensajeUtc,
             mensajes, participantes, eventos, documentosCitados, conversacion.Canal, conversacion.TelefonoContacto,
             conversacion.FechaUltimoMensajeEntranteUtc, sugerenciaVinculacion, esConversacionInformativaPreCae,
-            esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null, conversacion.Prioridad);
+            esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null, conversacion.Prioridad,
+            conversacion.NumeroTicket,
+            conversacion.ConexionIntegracionId);
     }
 
     /// <summary>
@@ -477,6 +483,10 @@ public class ObtenerConversacionPorIdQueryHandler(
             .Select(e => new { e.Id, e.Tipo, e.ReferenciaId, e.FechaUtc })
             .ToListAsync(cancellationToken);
 
+        // Cómo se reparte lo recibido es triaje interno, igual que ObtenerRepartoAdjuntosQuery.
+        if (!await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
+            eventosCrudos.RemoveAll(e => e.Tipo is TipoEventoConversacion.AdjuntoRechazado or TipoEventoConversacion.AdjuntoDescartado or TipoEventoConversacion.AdjuntoReabierto);
+
         if (eventosCrudos.Count == 0) return [];
 
         var visitaIds = eventosCrudos.Where(e => e.Tipo == TipoEventoConversacion.VisitaCreada).Select(e => e.ReferenciaId).ToList();
@@ -567,6 +577,10 @@ public class ObtenerConversacionPorIdQueryHandler(
                     ? "Se reclamó 1 documento pendiente por esta conversación."
                     : $"Se reclamaron {total} documentos pendientes por esta conversación.",
             TipoEventoConversacion.ReclamacionEnviada => "Se envió una reclamación documental por esta conversación.",
+
+            TipoEventoConversacion.AdjuntoRechazado => "Se rechazó un adjunto de esta conversación.",
+            TipoEventoConversacion.AdjuntoDescartado => "Se descartó un adjunto de esta conversación.",
+            TipoEventoConversacion.AdjuntoReabierto => "Un adjunto de esta conversación volvió a quedar pendiente.",
 
             _ => "Evento del sistema."
         };

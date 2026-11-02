@@ -11,7 +11,8 @@ namespace CaeManager.Domain.Seguridad;
 /// de la cookie de aplicación lleva ahora un identificador aleatorio propio (<see cref="Sid"/>,
 /// claim <c>talveg:sid</c>), y la revalidación periódica de la cookie y del circuito de Blazor
 /// (cada 60 s) exige que su fila exista y no esté revocada. Cerrar sesión revoca solo esa fila;
-/// las demás sesiones de la misma cuenta siguen vivas.
+/// las demás sesiones de la misma cuenta siguen vivas. Cambiar la contraseña revoca las demás, y
+/// restablecerla o confirmar «No he sido yo» las revoca todas (ASVS 4.0.3 V3.3.3).
 /// </para>
 ///
 /// <para>

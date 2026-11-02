@@ -112,6 +112,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.GenerarRespuestaSugeridaCommandHandler",
         "Comunicaciones.ResolverRespuestaSugeridaCommandHandler",
         "Comunicaciones.AprobarRecordatorioConversacionCommandHandler",
+        "Comunicaciones.AsignarAdjuntosLoteCommandHandler",
         "Comunicaciones.AsignarClienteConversacionCommandHandler",
         "Comunicaciones.AsignarEjecutivoConversacionCommandHandler",
         "Comunicaciones.CambiarEstadoConversacionCommandHandler",
@@ -127,8 +128,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.EditarMacroCommandHandler",
         "Comunicaciones.EliminarMacroCommandHandler",
         "Comunicaciones.EnviarMensajeNuevoCommandHandler",
+        "Comunicaciones.FijarDestinoAdjuntoCommandHandler",
         "Comunicaciones.MigrarConversacionACorreoCommandHandler",
         "Comunicaciones.PedirPrioridadValidacionCommandHandler",
+        "Comunicaciones.ResolverAdjuntoCommandHandler",
         "Comunicaciones.ResolverAlertaCriticaCommandHandler",
         "Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler",
         "Comunicaciones.ResponderConversacionCommandHandler",
@@ -137,6 +140,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Contactos
         "Contactos.EliminarContactoAgendaCommandHandler",
+        "Contactos.FijarNotaContactoAgendaCommandHandler",
         "Contactos.GuardarContactoAgendaCommandHandler",
 
         // Documentos
@@ -193,6 +197,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.ConectarBuzonMicrosoft365CommandHandler",
         "Integraciones.CrearLineaWhatsAppCommandHandler",
         "Integraciones.DesconectarBuzonCommandHandler",
+        "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
 
         // Plantillas

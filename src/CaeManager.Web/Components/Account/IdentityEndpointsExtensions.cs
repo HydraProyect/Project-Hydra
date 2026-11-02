@@ -96,6 +96,7 @@ public static class IdentityEndpointsExtensions
             // vigilancia (arneses de Web.Tests) infiere el parámetro como cuerpo
             // y la construcción de TODOS los endpoints falla, no solo este.
             [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion vigilancia,
+            [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Application.Tenants.IEstadoOperativoTenant estadoOperativo,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -197,6 +198,17 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
+            // Tenant en suspensión operativa (decisión D-3): antes de vincular nada y
+            // de dejar en la vigilancia un acceso correcto que no emitiría sesión. Mismo
+            // mensaje que «sin cuenta»: no se confirma que la cuenta exista.
+            if (await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId))
+            {
+                logger.LogWarning("Login de Microsoft rechazado: el Tenant {TenantId} de la cuenta {UsuarioId} está suspendido.", usuario.TenantId, usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
+            }
+
             // Bloqueo por país del Tenant propietario de la cuenta (desactivado
             // por defecto). Mismo mensaje genérico que el resto de rechazos.
             if (!await vigilancia.PermiteOrigenAsync(usuario.Id, usuario.TenantId))
@@ -276,6 +288,19 @@ public static class IdentityEndpointsExtensions
 
             await signInManager.SignInWithClaimsAsync(usuario, isPersistent: false,
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
+
+            // SignInWithClaimsAsync no devuelve nada: un cambio de credencial durante este inicio deja sin
+            // cookie, y seguir de largo lo daría por correcto. Otro tipo de SignInManager no sabría decirlo,
+            // y entonces tampoco se da por correcto.
+            if (signInManager is not SignInManagerCuentaDesactivada { InicioRechazadoPorSello: false })
+            {
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("Login de Microsoft rechazado: la credencial cambió durante el inicio de sesión: {UsuarioId}", usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                // Solo la cookie externa: no se emitió ninguna sesión que sustituya a la de quien ya la tuviera.
+                await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
 
             // La cookie externa temporal ya está consumida: se borra, como hace
             // ExternalLoginSignInAsync y no SignInWithClaimsAsync, para que no quede

@@ -115,7 +115,7 @@ public class AgendaYBlindaje42SoloLecturaTests : BunitContext
         var mediador = Registrar(new MediatorFalso());
         mediador.Contactos.Add(new ContactoAgendaDto(
             Guid.NewGuid(), "Nuria Salas Ortiz", "nuria@example.test", null, "PRL", nota,
-            EsPredeterminado: true, RecibeProgramacionVisitas: false, RecibeFacturacion: false, [], [], []));
+            EsPredeterminado: true, RecibeProgramacionVisitas: false, RecibeFacturacion: false, [], [], [], NotaVisible: true));
 
         var cut = Render<PestanaAgendaContactos>(p => p
             .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
@@ -123,6 +123,31 @@ public class AgendaYBlindaje42SoloLecturaTests : BunitContext
 
         cut.FindAll(".agenda-contacto-nota").Should().HaveCount(visible ? 1 : 0);
         if (visible) cut.Find(".agenda-contacto-nota").TextContent.Should().Contain(nota);
+    }
+
+    // Una Impersonación simula un rol con escritura: SoloConEscritura la dejaría pasar, y quien decide es NotaVisible (IPoliticaNotaInterna).
+    // El texto va a propósito con NotaVisible en false, aunque la consulta no lo produce, para que el test falle sin la barrera de la pantalla.
+    [Theory]
+    [InlineData("Responder por correo")]
+    [InlineData(null)]
+    public async Task La_nota_denegada_no_se_pinta_ni_se_ofrece_al_editar_aunque_el_rol_escriba(string? nota)
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Contactos.Add(new ContactoAgendaDto(
+            Guid.NewGuid(), "Nuria Salas Ortiz", "nuria@example.test", null, "PRL", nota,
+            EsPredeterminado: true, RecibeProgramacionVisitas: false, RecibeFacturacion: false, [], [], [], NotaVisible: false));
+
+        var cut = Render<PestanaAgendaContactos>(p => p
+            .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
+            .Add(x => x.PropietarioId, Guid.NewGuid()));
+
+        cut.FindAll(".agenda-contacto-nota").Should().BeEmpty();
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("control positivo: el formulario se ha abierto");
+        cut.FindComponents<CampoTextarea>().Should().BeEmpty();
     }
 
     [Fact]

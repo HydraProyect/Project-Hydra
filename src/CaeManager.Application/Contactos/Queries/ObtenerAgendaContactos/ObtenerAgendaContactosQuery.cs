@@ -21,6 +21,14 @@ public enum TipoPropietarioAgenda
 public record ObtenerAgendaContactosQuery(TipoPropietarioAgenda Tipo, Guid PropietarioId)
     : IRequest<IReadOnlyList<ContactoAgendaDto>>;
 
+/// <param name="Notas">
+/// Nota fija del contacto. Solo viaja a quien la lee según <see cref="IPoliticaNotaInterna"/>; null para el resto, y
+/// ese null no significa «sin nota»: lo distingue <paramref name="NotaVisible"/>.
+/// </param>
+/// <param name="NotaVisible">
+/// Si este lector tiene permitida la nota. Con false, la pantalla no la pinta ni ofrece editarla, porque guardaría sobre
+/// un texto que no ha visto. Por defecto false, para que un DTO construido sin decidirlo falle cerrado.
+/// </param>
 public record ContactoAgendaDto(
     Guid Id,
     string Nombre,
@@ -33,12 +41,14 @@ public record ContactoAgendaDto(
     bool RecibeFacturacion,
     IReadOnlyList<Guid> TipoDocumentoIds,
     IReadOnlyList<string> TipoDocumentoNombres,
-    IReadOnlyList<RolContacto> Roles);
+    IReadOnlyList<RolContacto> Roles,
+    bool NotaVisible = false);
 
 public class ObtenerAgendaContactosQueryHandler(
     IContactosAgendaQueryContext contactosContext,
     TiposDocumento.ITiposDocumentoQueryContext tiposDocumentoContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerAgendaContactosQuery, IReadOnlyList<ContactoAgendaDto>>
 {
     public async Task<IReadOnlyList<ContactoAgendaDto>> Handle(
@@ -55,13 +65,12 @@ public class ObtenerAgendaContactosQueryHandler(
         //
         // HALLAZGO SECUNDARIO, elevado y no corregido aquí (detectado en
         // revisión de Codex): el DTO no es solo nombre/email/teléfono/cargo
-        // — también viajan Notas (texto libre, puede llevar comentario
-        // interno sobre el contacto, no pensado para el Cliente),
-        // RecibeFacturacion, RecibeProgramacionVisitas, TipoDocumentoIds/
-        // Nombres y Roles, para las cuatro TipoPropietarioAgenda por igual.
-        // No separo el DTO por audiencia aquí porque redefinir qué campos ve
-        // el portal es una decisión de producto (§14 del handoff) — ver
-        // RETURN PACKAGE de HO-149-01.
+        // — también viajan RecibeFacturacion, RecibeProgramacionVisitas,
+        // TipoDocumentoIds/Nombres y Roles, para las cuatro
+        // TipoPropietarioAgenda por igual. No separo el DTO por audiencia
+        // aquí porque redefinir qué campos ve el portal es una decisión de
+        // producto (§14 del handoff) — ver RETURN PACKAGE de HO-149-01. Notas
+        // ya no entra en ese hallazgo: la decide IPoliticaNotaInterna, abajo.
         var visible = request.Tipo switch
         {
             TipoPropietarioAgenda.Cliente => await alcanceDatos.ClienteVisibleAsync(request.PropietarioId, cancellationToken),
@@ -73,6 +82,9 @@ public class ObtenerAgendaContactosQueryHandler(
 
         if (!visible) return [];
 
+        // Se decide antes de leer para que el texto ni siquiera se proyecte a quien no lo lee (rol Cliente, Impersonación).
+        var notaVisible = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+
         var contactos = await FiltrarPorPropietario(contactosContext.ContactosAgenda, request)
             .OrderByDescending(c => c.EsPredeterminado)
             .ThenBy(c => c.Nombre)
@@ -83,7 +95,7 @@ public class ObtenerAgendaContactosQueryHandler(
                 c.Email,
                 c.Telefono,
                 c.Cargo,
-                c.Notas,
+                Notas = notaVisible ? c.Notas : null,
                 c.EsPredeterminado,
                 c.RecibeProgramacionVisitas,
                 c.RecibeFacturacion
@@ -117,7 +129,8 @@ public class ObtenerAgendaContactosQueryHandler(
                 c.EsPredeterminado, c.RecibeProgramacionVisitas, c.RecibeFacturacion,
                 suyos.Select(v => v.TipoDocumentoId).ToList(),
                 suyos.OrderBy(v => v.Nombre).Select(v => v.Nombre).ToList(),
-                rolesPorContacto.GetValueOrDefault(c.Id, []));
+                rolesPorContacto.GetValueOrDefault(c.Id, []),
+                notaVisible);
         }).ToList();
     }
 

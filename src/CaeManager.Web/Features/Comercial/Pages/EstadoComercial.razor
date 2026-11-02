@@ -11,7 +11,7 @@
    La página no es el enforcement: ese vive en el comando. Que alguien vea
    la ruta y el comando la rechace no es una vulnerabilidad. *@
 @using CaeManager.Domain.Tenants
-@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosModal
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Textos
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -61,6 +61,7 @@
                     <tr>
                         <th>Tenant</th>
                         <th>Estado comercial</th>
+                        <th>@Textos["EstadoComercialColumnaAcceso"]</th>
                         <th>Suscripción de Stripe</th>
                         <th>Actualizado</th>
                         <th><span class="estado-comercial-oculto">Acciones</span></th>
@@ -73,6 +74,16 @@
                             data-tenant-id="@tenant.TenantId">
                             <td class="estado-comercial-nombre">@tenant.Nombre</td>
                             <td><Badge Tono="@TonoDe(tenant.EstadoComercial)">@TextoDe(tenant.EstadoComercial)</Badge></td>
+                            <td>
+                                @if (tenant.Estado is EstadoTenant.Suspendido)
+                                {
+                                    <Badge Tono="TonoBadge.Peligro">@Textos["EstadoComercialAccesoSuspendido"]</Badge>
+                                }
+                                else
+                                {
+                                    <Badge Tono="TonoBadge.Exito">@Textos["EstadoComercialAccesoActivo"]</Badge>
+                                }
+                            </td>
                             <td>
                                 @if (tenant.StripeSubscriptionId is { } idSuscripcion)
                                 {
@@ -98,6 +109,10 @@
                                         Actualizar desde Stripe
                                     </Boton>
                                 }
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Secundario"
+                                       OnClick="() => PedirConfirmacionAcceso(tenant)">
+                                    @Textos[tenant.Estado is EstadoTenant.Suspendido ? "EstadoComercialReactivar" : "EstadoComercialSuspender"]
+                                </Boton>
                             </td>
                         </tr>
                     }
@@ -111,13 +126,14 @@
         <p class="estado-comercial-nota">
             «Sin suscripción» es un estado neutro y, como «Activa» y «Aviso de impago», no restringe nada: el tenant
             sigue pudiendo escribir. Solo «Solo lectura» y «Suspendida» bloquean sus escrituras.
+            @Textos["EstadoComercialNotaAcceso"]
         </p>
     }
 </div>
 
 <ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="FormularioVincularVisible" VisibleChanged="CerrarFormularioVincular"
                  Titulo="Vincular suscripción de Stripe" Guardando="_vinculando" MensajeError="@_errorVincular"
-                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_stripeSubscriptionId) ? TextosModal["ModalSuscripcionObligatoria"].Value : null)"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_stripeSubscriptionId) ? Textos["ModalSuscripcionObligatoria"].Value : null)"
                  TextoCancelar="Cancelar" TextoGuardar="Vincular" OnGuardar="PedirConfirmacionVincular">
         @if (_tenantAVincular is not null)
         {
@@ -152,6 +168,13 @@
                      TextoBotonConfirmar="Actualizar desde Stripe"
                      EnProgreso="_actualizandoTenantId is not null"
                      OnConfirmar="ActualizarDesdeStripeAsync" />
+
+<DialogoConfirmacion Visible="_tenantACambiarAcceso is not null" VisibleChanged="CerrarConfirmacionAcceso"
+                     Titulo="@Textos[TenantASuspender ? "EstadoComercialTituloSuspender" : "EstadoComercialTituloReactivar"]"
+                     Mensaje="@MensajeConfirmacionAcceso"
+                     TextoBotonConfirmar="@Textos[TenantASuspender ? "EstadoComercialSuspender" : "EstadoComercialReactivar"]"
+                     EnProgreso="_cambiandoAcceso"
+                     OnConfirmar="CambiarAccesoAsync" />
 
 <AvisoCambiosSinGuardar HayCambios="() => ConfirmacionVincularVisible && HayCambiosSinGuardar" AlDescartar="CerrarVincularDescartando" />
 </LimiteDeErrores>

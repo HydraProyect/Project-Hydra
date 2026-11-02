@@ -248,6 +248,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Ni la marca de inicio de sesión, que el alta del TOTP lee como autenticación reciente.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        services.AddScoped<ISelloSeguridadCuenta, SelloSeguridadCuenta>();
         services.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
         services.AddScoped<ILecturaCuentaPropia, LecturaCuentaPropia>();
         services.AddScoped<IPreferenciasCuentaPropia, PreferenciasCuentaPropia>();
@@ -446,6 +447,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IAdjuntoMensajeRepository, AdjuntoMensajeRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaRepository, AlertaCriticaRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaService>(sp => sp.GetRequiredService<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>());
@@ -503,12 +505,15 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveIntegracionTenantRepository, ClaveIntegracionTenantRepository>();
+        services.AddScoped<CaeManager.Domain.ApiKeys.IRastroUsoApi, RastroUsoApi>();
         services.AddScoped<CaeManager.Infrastructure.Autenticacion.EmisorTokenClaveIntegracion>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -950,6 +955,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
         services.AddScoped<IPlantillaCombinadaService, ClosedXmlPlantillaCombinadaService>();
+        services.AddScoped<IPlantillaMaestraService, ClosedXmlPlantillaMaestraService>();
 
         return services;
     }

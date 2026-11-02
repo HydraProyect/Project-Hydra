@@ -115,6 +115,66 @@ public sealed class ModalContactoAgendaTests : BunitContext
         _visible.Should().BeFalse("guardado correctamente cierra");
     }
 
+    [Fact]
+    public async Task Guardar_envia_la_nota_que_el_formulario_cargo_al_abrir_aunque_el_contacto_se_refresque()
+    {
+        static ContactoAgendaDto Contacto(Guid id, string notas) =>
+            new(id, "Marta Ruiz", "marta@example.test", null, null, notas, false, false, false, [], [], [], NotaVisible: true);
+
+        var id = Guid.NewGuid();
+        var cut = Render<ModalContactoAgenda>(p => p
+            .Add(x => x.Visible, _visible)
+            .Add(x => x.VisibleChanged, v => _visible = v)
+            .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
+            .Add(x => x.PropietarioId, Guid.NewGuid())
+            .Add(x => x.Contacto, Contacto(id, "Nota vista al abrir")));
+
+        await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.Contacto, Contacto(id, "Nota fijada desde el panel"))));
+        await Pulsar(cut, "Guardar");
+
+        var comando = _mediador.Enviadas.OfType<GuardarContactoAgendaCommand>().Should().ContainSingle().Which;
+        comando.Notas.Should().Be("Nota vista al abrir");
+        comando.NotasAlCargar.Should().Be("Nota vista al abrir");
+    }
+
+    [Fact]
+    public void El_alta_y_la_edicion_con_la_nota_permitida_ofrecen_el_campo()
+    {
+        Renderizar().FindComponents<CampoTextarea>().Should().ContainSingle("control positivo: un alta no tiene nota que proteger");
+
+        var contacto = new ContactoAgendaDto(
+            Guid.NewGuid(), "Marta Ruiz", "marta@example.test", null, null, null, false, false, false, [], [], [], NotaVisible: true);
+        RenderizarEdicion(contacto).FindComponents<CampoTextarea>().Should().ContainSingle();
+    }
+
+    // Notas con texto y NotaVisible en false no lo produce la consulta: fija que la pantalla obedece a NotaVisible aunque le llegue el texto.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Nota que este lector no puede ver")]
+    public async Task Sin_la_nota_permitida_no_se_ofrece_el_campo_y_el_guardado_no_la_toca(string? notas)
+    {
+        var contacto = new ContactoAgendaDto(
+            Guid.NewGuid(), "Marta Ruiz", "marta@example.test", null, null, notas, false, false, false, [], [], []);
+        var cut = RenderizarEdicion(contacto);
+
+        cut.FindComponents<CampoTextarea>().Should().BeEmpty();
+        cut.Markup.Should().NotContain("Nota que este lector no puede ver");
+
+        await Pulsar(cut, "Guardar");
+
+        var comando = _mediador.Enviadas.OfType<GuardarContactoAgendaCommand>().Should().ContainSingle().Which;
+        comando.Notas.Should().BeNull();
+        comando.NotasAlCargar.Should().BeNull("Notas y NotasAlCargar iguales significan «no tocada»");
+    }
+
+    private IRenderedComponent<ModalContactoAgenda> RenderizarEdicion(ContactoAgendaDto contacto) =>
+        Render<ModalContactoAgenda>(p => p
+            .Add(x => x.Visible, _visible)
+            .Add(x => x.VisibleChanged, v => _visible = v)
+            .Add(x => x.Tipo, TipoPropietarioAgenda.Subcontrata)
+            .Add(x => x.PropietarioId, Guid.NewGuid())
+            .Add(x => x.Contacto, contacto));
+
     private sealed class Mediador : IMediator
     {
         public List<object> Enviadas { get; } = [];

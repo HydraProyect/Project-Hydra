@@ -346,6 +346,8 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
+    IQueryable<Guid> IOperacionesQueryContext.TenantsSuspendidosIds =>
+        Tenants.Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
@@ -436,6 +438,7 @@ public class CaeManagerDbContext(
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<ClaveIntegracionTenant> ClavesIntegracionTenant => Set<ClaveIntegracionTenant>();
+    public DbSet<UsoApiDiario> UsosApiDiarios => Set<UsoApiDiario>();
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();

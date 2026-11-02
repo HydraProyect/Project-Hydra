@@ -150,6 +150,12 @@
   <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
     <value>Hem tancat totes les teves sessions. El teu compte entra amb Microsoft: canvia la contrasenya del teu compte de Microsoft i avisa el teu Administrador.</value>
   </data>
+  <data name="NoHeSidoYoSesionesSinCerrarTitulo" xml:space="preserve">
+    <value>No hem pogut tancar les teves sessions</value>
+  </data>
+  <data name="NoHeSidoYoSesionesSinCerrarExplicacion" xml:space="preserve">
+    <value>Hem registrat el teu avís, però les teves sessions obertes poden continuar actives. Si entres amb contrasenya, l&apos;anterior ja no serveix: en crear-ne una de nova es tanquen totes; si no t&apos;arriba el correu, demana-ho des d&apos;aquí. Si entres amb Microsoft, avisa el teu Administrador.</value>
+  </data>
   <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
     <value>No has estat tu?</value>
   </data>
@@ -188,6 +194,8 @@
   <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Per seguretat, abans de configurar un segon factor has de tornar a iniciar la sessió amb Microsoft.</value></data>
   <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Torna a iniciar la sessió amb Microsoft</value></data>
   <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ja s’està verificant aquest compte. Espera un moment i torna-ho a provar.</value></data>
+  <data name="AltaDosFactoresSesionObsoleta" xml:space="preserve"><value>Les dades de seguretat del compte han canviat des que vas iniciar aquesta sessió. Tanca la sessió i torna a iniciar-la per activar l’autenticació en dos passos.</value></data>
+  <data name="VerificacionInicioRechazado" xml:space="preserve"><value>No s’ha pogut completar l’inici de sessió. Torna a iniciar sessió.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha passat massa temps des que vas confirmar la teva identitat. Torna a confirmar-la per activar l’autenticació en dos passos.</value></data>
   <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Per vincular el teu compte de Microsoft, configura abans la verificació en dos passos de {0}.</value></data>
   <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Codi QR per configurar l’aplicació autenticadora</value></data>

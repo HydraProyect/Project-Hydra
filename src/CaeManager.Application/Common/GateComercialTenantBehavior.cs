@@ -31,8 +31,16 @@ namespace CaeManager.Application.Common;
 /// en segundo plano, seeds, etc.) no bloquea: este gate es para operación
 /// interactiva de producto, no para tareas internas del sistema, que no
 /// pasan por un tenant de sesión.
+///
+/// También bloquea el Tenant en suspensión operativa (<see cref="EstadoTenant.Suspendido"/>,
+/// decisión D-3) y por delante del estado comercial: una Sesión Privilegiada que siga dentro
+/// para investigar lee y, de sus comandos acotados, solo ejecuta los que reducen exposición.
+/// Cuando el Tenant de origen del Actor real no es el Tenant actual (Gestor CAE de un Operador CAE
+/// externo, vía heredada, Sesión Privilegiada, extensión), su suspensión bloquea igual: la sesión
+/// aún no revalidada no escribe en un Tenant activo. Solo entonces hay una consulta más.
 /// </summary>
-public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tenantActual, ITenantsQueryContext dbContext)
+public class GateComercialTenantBehavior<TRequest, TResponse>(
+    ITenantActual tenantActual, ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -45,13 +53,26 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tena
         if (tenantActual.TenantId is not { } tenantId)
             return await next(cancellationToken);
 
+        if (await currentUserService.ObtenerTenantOrigenIdAsync() is { } tenantOrigenId
+            && tenantOrigenId != tenantId
+            && await dbContext.Tenants.AnyAsync(
+                t => t.Id == tenantOrigenId && t.Estado == EstadoTenant.Suspendido && !t.EsPlataforma, cancellationToken))
+            return CrearRespuestaFallo<TResponse>(Error.Crear(
+                "Tenant.Suspendido",
+                "Esta organización está suspendida. Contacta con nosotros."));
+
         var tenant = await dbContext.Tenants
             .Where(t => t.Id == tenantId)
-            .Select(t => new { t.EsPlataforma, t.EstadoComercial })
+            .Select(t => new { t.EsPlataforma, t.Estado, t.EstadoComercial })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (tenant is null || tenant.EsPlataforma)
             return await next(cancellationToken);
+
+        if (tenant.Estado is EstadoTenant.Suspendido)
+            return CrearRespuestaFallo<TResponse>(Error.Crear(
+                "Tenant.Suspendido",
+                "Esta organización está suspendida. Contacta con nosotros."));
 
         var error = tenant.EstadoComercial switch
         {

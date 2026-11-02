@@ -268,10 +268,12 @@ public class UsosDeEsPlataformaCongeladosTests
 
         // ── REGLA COMERCIAL ───────────────────────────────────────────────────────
         ["src/CaeManager.Application/Common/GateComercialTenantBehavior.cs"] =
-            new(2, CategoriaUso.ReglaComercial,
-                ":50 proyección y :53 exención — DOS apariciones en el mismo fichero, que es " +
-                "exactamente por lo que esta lista lleva conteo y no solo ruta. D-4 (d) retira la exención " +
-                "sin compensación: el tenant #1 nace en SinSuscripcion, que ya pasa el gate"),
+            new(3, CategoriaUso.ReglaComercial,
+                "Proyección, exención y exclusión en la comprobación del Tenant de origen suspendido — TRES " +
+                "apariciones en el mismo fichero, que es exactamente por lo que esta lista lleva conteo y no " +
+                "solo ruta. La tercera es de C-09 y no concede nada: solo evita que un origen de plataforma " +
+                "cuente como suspendido, igual que la exención. D-4 (d) retira las exenciones sin " +
+                "compensación: el tenant #1 nace en SinSuscripcion, que ya pasa el gate"),
         ["src/CaeManager.Application/Configuracion/AutoridadSeguridadAcceso.cs"] =
             new(1, CategoriaUso.Guarda,
                 ":35 impide cambiar la seguridad de acceso del Tenant de plataforma: no concede nada, solo " +

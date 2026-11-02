@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Plataforma;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -15,12 +16,13 @@ namespace CaeManager.IntegrationTests.Autenticacion;
 
 /// <summary>
 /// ASVS 4.0.3 V4.1.3 y V4.2.1: las resoluciones transversales que se usan antes de conocer el Tenant
-/// (cuenta por nombre, correo o Id, webhooks de Graph y WhatsApp) y la comprobación del Actor de Plataforma
-/// TALVEG no responden a quien solo tiene la credencial de <c>cae_app_runtime</c>: exigen el contexto RLS
-/// firmado, que la aplicación firma en cada conexión y que no se puede fabricar por SQL. Se mide con
-/// conexiones autenticadas como <c>cae_app_runtime</c>, sin <c>SET ROLE</c> desde el propietario, porque la
-/// excepción de la guardia mira el rol de la sesión. El contexto firmado sin Tenant ni usuario, el de una
-/// petición anónima, sigue resolviendo: es el control positivo de cada comprobación.
+/// (cuenta por nombre, correo o Id, estado de la cuenta emisora, Tenant de una clave de API o de integración,
+/// sesión vigente, webhooks de Graph y WhatsApp) y la comprobación del Actor de Plataforma TALVEG no responden a
+/// quien solo tiene la credencial de <c>cae_app_runtime</c>: exigen el contexto RLS firmado, que la aplicación
+/// firma en cada conexión y que no se puede fabricar por SQL. Se mide con conexiones autenticadas como
+/// <c>cae_app_runtime</c>, sin <c>SET ROLE</c> desde el propietario, porque la excepción de la guardia mira el
+/// rol de la sesión. El contexto firmado sin Tenant ni usuario, el de una petición anónima, sigue resolviendo:
+/// es el control positivo de cada comprobación.
 /// </summary>
 public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
 {
@@ -32,6 +34,7 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
     private Guid _cuentaA;
     private Guid _actor;
     private Guid _conexionGraph;
+    private Guid _sidA;
     private string _nombreA = null!;
     private string _correoA = null!;
     private string _correoActor = null!;
@@ -67,6 +70,8 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
             _propietario.ConexionesIntegracion.AddRange(buzon, linea);
             _propietario.SuscripcionesWebhook.Add(new SuscripcionWebhook(buzon.Id, "sub", "secreto", DateTime.UtcNow.AddDays(3)));
             _propietario.LineasWhatsApp.Add(new LineaWhatsApp(linea.Id, Telefono, "waba", "+34123456789", "token", ModoAsignacionLinea.PoolInbound));
+            _sidA = Guid.NewGuid();
+            _propietario.SesionesUsuario.Add(new SesionUsuario(_cuentaA, _sidA, DateTime.UtcNow));
             await _propietario.SaveChangesAsync();
         }
     }
@@ -83,6 +88,9 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
         ("app_cuenta_por_nombre_normalizado", $"SELECT EXISTS (SELECT 1 FROM app_cuenta_por_nombre_normalizado('{_nombreA}'))"),
         ("app_cuentas_por_email_normalizado", $"SELECT EXISTS (SELECT 1 FROM app_cuentas_por_email_normalizado('{_correoA}'))"),
         ("app_tenant_de_cuenta", $"SELECT app_tenant_de_cuenta('{_cuentaA}') IS NOT NULL"),
+        ("app_estado_cuenta_emisora", $"SELECT EXISTS (SELECT 1 FROM app_estado_cuenta_emisora('{_cuentaA}'))"),
+        ("app_sesion_vigente", $"SELECT app_sesion_vigente('{_sidA}', '{_cuentaA}')"),
+        ("app_tenant_de_clave_api", "SELECT app_tenant_de_clave_api('sin-clave') IS NULL"),
         ("app_tenant_de_clave_integracion", "SELECT app_tenant_de_clave_integracion('sin-clave') IS NULL"),
         ("app_tenant_de_webhook_graph", $"SELECT app_tenant_de_webhook_graph('{_conexionGraph}') IS NOT NULL"),
         ("app_tenant_de_webhook_whatsapp", $"SELECT app_tenant_de_webhook_whatsapp('{Telefono}') IS NOT NULL"),
@@ -129,6 +137,39 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
 
         foreach (var (funcion, sql) in Resoluciones)
             (await ConsultarAsync(conexion, sql)).Should().BeTrue(funcion);
+    }
+
+    /// <summary>
+    /// El respaldo de una clave corre bajo el ámbito del Tenant de la clave y pregunta por una cuenta de otra
+    /// organización, y el listado del Actor de Plataforma TALVEG evalúa lo mismo en Sesión Privilegiada, con
+    /// <c>SET ROLE cae_app_soporte</c>. Aquí la sesión es la real, <c>cae_app_runtime</c>: las pruebas de soporte que
+    /// conectan como propietario y adoptan el rol quedan eximidas por la guardia y no medirían nada.
+    /// </summary>
+    [Fact]
+    public async Task El_estado_de_la_cuenta_y_la_sesion_responden_firmados_con_Tenant_y_bajo_soporte_y_sin_firma_no()
+    {
+        var estado = $"SELECT EXISTS (SELECT 1 FROM app_estado_cuenta_emisora('{_cuentaA}'))";
+        var sesion = $"SELECT app_sesion_vigente('{_sidA}', '{_cuentaA}')";
+
+        await using (var conTenant = await AbrirComoRuntimeAsync())
+        {
+            await ContextoRlsDePruebas.FijarAsync(conTenant, tenantId: _tenantB);
+            (await ConsultarAsync(conTenant, estado)).Should().BeTrue("la cuenta emisora es de otro Tenant que la clave");
+            (await ConsultarAsync(conTenant, sesion)).Should().BeTrue();
+        }
+
+        await using (var soporteFirmado = await AbrirComoRuntimeAsync())
+        {
+            await ContextoRlsDePruebas.FijarAsync(soporteFirmado, tenantId: _tenantB);
+            await AdoptarSoporteAsync(soporteFirmado);
+            (await ConsultarAsync(soporteFirmado, estado)).Should().BeTrue("el listado del Actor en Sesión Privilegiada");
+            (await ConsultarAsync(soporteFirmado, sesion)).Should().BeTrue("la revalidación de una Sesión Privilegiada");
+        }
+
+        await using var soporteSinFirma = await AbrirComoRuntimeAsync();
+        await AdoptarSoporteAsync(soporteSinFirma);
+        await ExigeContextoFirmadoAsync(soporteSinFirma, estado, "app_estado_cuenta_emisora bajo cae_app_soporte");
+        await ExigeContextoFirmadoAsync(soporteSinFirma, sesion, "app_sesion_vigente bajo cae_app_soporte");
     }
 
     [Fact]
@@ -208,6 +249,7 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
         await using var propietario = new NpgsqlConnection(_cadenaConexion);
         await propietario.OpenAsync();
         var definidoras = Resoluciones.Select(r => r.Funcion).Append("app_actor_plataforma_que_exporta").ToArray();
+        string[] tambienSoporte = ["app_estado_cuenta_emisora", "app_sesion_vigente"];
 
         await using var orden = new NpgsqlCommand(
             """
@@ -235,7 +277,7 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
             lector.GetBoolean(1).Should().Be(!esGuardia, $"{nombre}: la guardia corre con la identidad de la definidora que la llama");
             lector.GetString(2).Should().Be("search_path=pg_catalog, pg_temp", nombre);
             lector.GetBoolean(3).Should().Be(!esGuardia, $"{nombre}: cae_app_runtime");
-            lector.GetBoolean(4).Should().BeFalse($"{nombre}: cae_app_soporte");
+            lector.GetBoolean(4).Should().Be(tambienSoporte.Contains(nombre), $"{nombre}: cae_app_soporte");
             lector.GetBoolean(5).Should().BeFalse($"{nombre}: cae_app_aprovisionamiento");
             lector.GetBoolean(6).Should().BeFalse($"{nombre}: REVOKE ALL ... FROM PUBLIC");
             lector.GetString(7).Should().Be("s", $"{nombre}: STABLE, solo lee");
@@ -276,6 +318,16 @@ public class OraculosTransversalesBajoRuntimeTests : IAsyncLifetime
         await using var identidad = new NpgsqlCommand("SELECT session_user::text", conexion);
         ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_runtime");
         return conexion;
+    }
+
+    /// <summary>Lo que hace el interceptor en una Sesión Privilegiada: <c>session_user</c> sigue siendo el runtime.</summary>
+    private static async Task AdoptarSoporteAsync(NpgsqlConnection conexion)
+    {
+        await using (var rol = new NpgsqlCommand("SET ROLE cae_app_soporte", conexion))
+            await rol.ExecuteNonQueryAsync();
+
+        await using var identidad = new NpgsqlCommand("SELECT session_user::text || '/' || current_user::text", conexion);
+        ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_runtime/cae_app_soporte");
     }
 
     private static async Task<bool> ConsultarAsync(NpgsqlConnection conexion, string sql)

@@ -32,28 +32,46 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     private static readonly Guid SesionPrivilegiada = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private readonly Almacen _almacen = new();
     private readonly Sesiones _sesiones = new();
+    private readonly SellosEspia _sellos = new();
     private readonly EphemeralDataProtectionProvider _protector = new();
     private readonly RegistroCapturado _registro = new();
 
-    [Fact]
-    public async Task Pantalla_deniega_antes_de_leer_cuenta_y_muestra_motivo()
+    private static readonly string TipoClaimSello = new IdentityOptions().ClaimsIdentity.SecurityStampClaimType;
+
+    private static Claim[] ClaimsDeLaCookie(string? sello) =>
+    [
+        new Claim(ClaimTypes.NameIdentifier, Usuario.ToString()),
+        new Claim(SignInManagerCuentaDesactivada.ClaimSid, Sid.ToString("N")),
+        .. sello is null ? Array.Empty<Claim>() : [new Claim(TipoClaimSello, sello)],
+    ];
+
+    private IRenderedComponent<ConectarExtension> RenderizarPantalla(bool sesionPrivilegiada, string? selloDeLaCookie)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura(Roles.GestorCae);
-        AddAuthorization().SetAuthorized("soporte").SetClaims(
-            new Claim(ClaimTypes.NameIdentifier, Usuario.ToString()),
-            new Claim(SignInManagerCuentaDesactivada.ClaimSid, Sid.ToString("N")));
+        AddAuthorization().SetAuthorized("soporte").SetClaims(ClaimsDeLaCookie(selloDeLaCookie));
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddSingleton<IClienteActivoSeleccionado>(new Seleccion(true));
+        Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
+        Services.AddSingleton<IClienteActivoSeleccionado>(new Seleccion(sesionPrivilegiada));
         Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
+        Services.AddSingleton<ISelloSeguridadCuenta>(_sellos);
         Services.AddSingleton<IDataProtectionProvider>(_protector);
         Services.AddSingleton(Gestor());
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
-        var pagina = Render<ConectarExtension>();
+        return Render<ConectarExtension>();
+    }
 
-        await pagina.FindAll("button").Single(b => b.TextContent.Contains("Generar token")).ClickAsync();
+    private static Task GenerarTokenAsync(IRenderedComponent<ConectarExtension> pagina) =>
+        pagina.FindAll("button").Single(b => b.TextContent.Contains("Generar token")).ClickAsync();
+
+    [Fact]
+    public async Task Pantalla_deniega_antes_de_leer_cuenta_y_muestra_motivo()
+    {
+        var pagina = RenderizarPantalla(sesionPrivilegiada: true, selloDeLaCookie: null);
+
+        await GenerarTokenAsync(pagina);
 
         pagina.Find(".aviso-error").TextContent.Should().Contain("Sesión Privilegiada");
         _almacen.Lecturas.Should().Be(0);
@@ -61,34 +79,36 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         _registro.DebeNombrarLaDenegacion();
     }
 
+    /// <summary>
+    /// El emisor compara lo que le pasen: si la pantalla le pasara algo leído de la base, y no el sello de su
+    /// cookie, una sesión que escapó a la revocación obtendría el token igual.
+    /// </summary>
+    [Fact]
+    public async Task Pantalla_compara_el_sello_de_la_cookie()
+    {
+        var pagina = RenderizarPantalla(sesionPrivilegiada: false, selloDeLaCookie: "sello-de-la-cookie");
+        _sellos.Vigente = "sello-de-la-cookie";
+
+        await GenerarTokenAsync(pagina);
+
+        _sellos.Recibidos.Should().Equal(["sello-de-la-cookie"]);
+        pagina.Markup.Should().NotContain("ya no está vigente");
+    }
+
+    [Fact]
+    public async Task Pantalla_con_el_sello_obsoleto_no_obtiene_token()
+    {
+        var pagina = RenderizarPantalla(sesionPrivilegiada: false, selloDeLaCookie: "sello-obsoleto");
+
+        await GenerarTokenAsync(pagina);
+
+        pagina.Find(".aviso-error").TextContent.Should().Contain("ya no está vigente");
+    }
+
     [Fact]
     public async Task Post_deniega_antes_de_leer_cuenta()
     {
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Logging.AddProvider(_registro);
-        builder.Services.AddSingleton<IClienteActivoSeleccionado>(new Seleccion(true));
-        builder.Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
-        builder.Services.AddSingleton<IDataProtectionProvider>(_protector);
-        builder.Services.AddSingleton(Gestor());
-        builder.Services.AddAntiforgery();
-        await using var app = builder.Build();
-        app.Use(async (contexto, siguiente) =>
-        {
-            contexto.User = new ClaimsPrincipal(new ClaimsIdentity([
-                new Claim(ClaimTypes.NameIdentifier, Usuario.ToString()),
-                new Claim(SignInManagerCuentaDesactivada.ClaimSid, Sid.ToString("N"))], "cookie"));
-            await siguiente();
-        });
-        app.UseAntiforgery();
-        app.MapGet("/test-antiforgery", (HttpContext contexto, IAntiforgery antiforgery) =>
-            antiforgery.GetAndStoreTokens(contexto).RequestToken);
-        app.MapExtensionTokenEndpoints();
-        await app.StartAsync();
-        using var cliente = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()) };
-        var antiforgery = await cliente.GetStringAsync("/test-antiforgery");
-        using var respuesta = await cliente.PostAsync("/cuenta/extension/token", new FormUrlEncodedContent(
-            [new KeyValuePair<string, string>("__RequestVerificationToken", antiforgery)]));
+        using var respuesta = await PostearTokenAsync(sesionPrivilegiada: true, selloDeLaCookie: null);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await respuesta.Content.ReadAsStringAsync()).Should().Contain("Sesión Privilegiada").And.NotContain("token\":");
@@ -98,12 +118,104 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     }
 
     [Fact]
+    public async Task Post_compara_el_sello_de_la_cookie_y_firma_con_el()
+    {
+        _sellos.Vigente = "sello-de-la-cookie";
+
+        using var respuesta = await PostearTokenAsync(sesionPrivilegiada: false, selloDeLaCookie: "sello-de-la-cookie");
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK);
+        _sellos.Recibidos.Should().Equal(["sello-de-la-cookie"]);
+        var cuerpo = await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<TokenExtensionRespuesta>(respuesta.Content);
+        TokenSesionExtension.Leer(_protector, cuerpo!.Token)!.SecurityStamp.Should().Be("sello-de-la-cookie");
+    }
+
+    [Theory]
+    [InlineData("sello-obsoleto")]
+    [InlineData(null)]
+    public async Task Post_con_el_sello_obsoleto_no_obtiene_token(string? selloDeLaCookie)
+    {
+        using var respuesta = await PostearTokenAsync(sesionPrivilegiada: false, selloDeLaCookie);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await respuesta.Content.ReadAsStringAsync()).Should().NotContain("token\":");
+    }
+
+    private async Task<HttpResponseMessage> PostearTokenAsync(bool sesionPrivilegiada, string? selloDeLaCookie)
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.AddProvider(_registro);
+        builder.Services.AddSingleton<IClienteActivoSeleccionado>(new Seleccion(sesionPrivilegiada));
+        builder.Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
+        builder.Services.AddSingleton<ISelloSeguridadCuenta>(_sellos);
+        builder.Services.AddSingleton<IDataProtectionProvider>(_protector);
+        builder.Services.AddSingleton(Gestor());
+        builder.Services.AddAntiforgery();
+        await using var app = builder.Build();
+        app.Use(async (contexto, siguiente) =>
+        {
+            contexto.User = new ClaimsPrincipal(new ClaimsIdentity(ClaimsDeLaCookie(selloDeLaCookie), "cookie"));
+            await siguiente();
+        });
+        app.UseAntiforgery();
+        app.MapGet("/test-antiforgery", (HttpContext contexto, IAntiforgery antiforgery) =>
+            antiforgery.GetAndStoreTokens(contexto).RequestToken);
+        app.MapExtensionTokenEndpoints();
+        await app.StartAsync();
+        using var cliente = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()) };
+        var antiforgery = await cliente.GetStringAsync("/test-antiforgery");
+        var respuesta = await cliente.PostAsync("/cuenta/extension/token", new FormUrlEncodedContent(
+            [new KeyValuePair<string, string>("__RequestVerificationToken", antiforgery)]));
+        await respuesta.Content.LoadIntoBufferAsync();
+        return respuesta;
+    }
+
+    [Fact]
     public async Task Sin_sesion_privilegiada_emite_token_legible()
     {
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, new Seleccion(false), new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
         DebeNombrarSoloALaCuentaAutenticada(resultado);
         TokenSesionExtension.Leer(_protector, resultado.Valor.Token)!.SecurityStamp.Should().Be("sello");
         _registro.Avisos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El token lleva el sello vigente: una sesión que no lo ha visto, porque escapó a la revocación de un
+    /// cambio de credencial, lo obtendría sin haberlo visto. El alcance de integración lo prueba contra la base.
+    /// </summary>
+    [Theory]
+    [InlineData("sello-anterior")]
+    [InlineData(null)]
+    public async Task Sesion_sin_el_sello_vigente_no_obtiene_token(string? selloDeLaSesion)
+    {
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, selloDeLaSesion, Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
+    }
+
+    /// <summary>La entidad y la cookie dicen lo mismo, y la lectura vigente manda sobre las dos.</summary>
+    [Fact]
+    public async Task La_lectura_vigente_manda_sobre_la_entidad_de_la_peticion()
+    {
+        _sellos.Vigente = "sello-del-restablecimiento";
+
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Extension.SesionNoVigente");
+    }
+
+    [Fact]
+    public async Task El_token_lleva_el_sello_de_la_cookie_aunque_la_entidad_se_quedara_atras()
+    {
+        _sellos.Vigente = "sello-del-restablecimiento";
+
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello-del-restablecimiento", Gestor(), _protector, _sesiones, _sellos, new Seleccion(false), new LoggerFactory([_registro]));
+
+        resultado.EsExitoso.Should().BeTrue();
+        TokenSesionExtension.Leer(_protector, resultado.Valor.Token)!.SecurityStamp.Should().Be("sello-del-restablecimiento");
     }
 
     /// <summary>
@@ -167,7 +279,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         seleccion.SesionPrivilegiadaIdSeleccionada.Should().Be(SesionPrivilegiada);
         seleccion.Invalidar();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, seleccion, new LoggerFactory([_registro]));
+        var resultado = await EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, seleccion, new LoggerFactory([_registro]));
 
         DebeNombrarSoloALaCuentaAutenticada(resultado);
     }
@@ -184,7 +296,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
     }
 
     private Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirConCookieAsync(string cookie) =>
-        EmisorTokenExtension.EmitirAsync(Usuario, Sid, Gestor(), _protector, _sesiones, SeleccionReal(cookie), new LoggerFactory([_registro]));
+        EmisorTokenExtension.EmitirAsync(Usuario, Sid, "sello", Gestor(), _protector, _sesiones, _sellos, SeleccionReal(cookie), new LoggerFactory([_registro]));
 
     private ClienteActivoSeleccionado SeleccionReal(string cookie)
     {
@@ -232,6 +344,27 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         public Guid? SesionPrivilegiadaIdSeleccionada => privilegiada ? SesionPrivilegiada : null;
     }
 
+    /// <summary>La lectura vigente de la cuenta, y lo que le llegó a comparar.</summary>
+    private sealed class SellosEspia : ISelloSeguridadCuenta
+    {
+        public string Vigente { get; set; } = "sello";
+        public List<string?> Recibidos { get; } = [];
+
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default)
+        {
+            Recibidos.Add(sello);
+            return Task.FromResult(sello == Vigente);
+        }
+
+        public void AnotarRotacion(Guid usuarioId, string? selloAnterior) { }
+
+        public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior)
+        {
+            selloAnterior = null;
+            return false;
+        }
+    }
+
     private sealed class Sesiones : IRegistroSesionesUsuario
     {
         public int Consultas { get; private set; }
@@ -239,6 +372,7 @@ public class EmisionExtensionSesionPrivilegiadaTests : BunitContext
         public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class Almacen : IUserStore<ApplicationUser>

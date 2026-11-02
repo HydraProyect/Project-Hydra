@@ -40,6 +40,7 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound",
         "CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador",
         "CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss",
+        "CaeManager.Domain.Comunicaciones.AdjuntoMensaje",
         "CaeManager.Domain.Comunicaciones.Conversacion",
         "CaeManager.Domain.Comunicaciones.DetalleSugerenciaGestionCorreo",
         "CaeManager.Domain.Comunicaciones.SolicitudPrioridadDocumento",
