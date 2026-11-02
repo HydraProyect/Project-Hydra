@@ -19,6 +19,11 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public string? UltimoMensajeExternoIdRespondido { get; private set; }
     public MensajeEnviadoGraphDto MensajeEnviadoADevolver { get; set; } = new("msg-ext-falso-123", "hilo-ext-falso-456");
     public MensajeGraphDto? MensajeADevolver { get; set; }
+
+    /// <summary>Para una notificación con varios mensajes; el que no está aquí cae en <see cref="MensajeADevolver"/>.</summary>
+    public Dictionary<string, MensajeGraphDto> MensajesPorId { get; } = [];
+
+    public string? UltimoCuerpoRespondido { get; private set; }
     public IReadOnlyList<string> MensajeIdsADevolver { get; set; } = [];
     public string? ClientStateADevolver { get; set; }
     public string? SubscriptionIdADevolver { get; set; }
@@ -50,6 +55,7 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     {
         VecesEnviado++;
         UltimoMensajeExternoIdRespondido = mensajeExternoIdOrigen;
+        UltimoCuerpoRespondido = cuerpoHtml;
         return Task.FromResult(FallaEnvio
             ? Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
             : Result.Exito());
@@ -72,9 +78,9 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
-        Task.FromResult(MensajeADevolver is null
+        Task.FromResult((MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
             ? Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "sin mensaje configurado"))
-            : Result.Exito(MensajeADevolver));
+            : Result.Exito(mensaje));
 
     public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>

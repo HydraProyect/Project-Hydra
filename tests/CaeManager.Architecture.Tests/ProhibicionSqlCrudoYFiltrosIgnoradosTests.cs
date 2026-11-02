@@ -163,6 +163,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Rastro agregado de la API v1: suma atómica con ON CONFLICT, bajo RLS.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/RastroUsoApi.cs",
             "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Reserva del acuse automático por buzón: ON CONFLICT atómico confirmado antes de enviar, bajo RLS.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ConversacionRepository.cs",
+            "return await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
 
         // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
         // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER

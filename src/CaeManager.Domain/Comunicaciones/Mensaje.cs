@@ -47,6 +47,11 @@ public class Mensaje : EntidadConTenant
 
     public string CuerpoHtml { get; private set; } = string.Empty;
     public DateTime FechaUtc { get; private set; }
+
+    /// <summary>
+    /// Entrante: respuesta automática, no reabre ni inicia un plazo. Saliente: acuse automático del buzón, que no cuenta
+    /// como respuesta de una persona.
+    /// </summary>
     public bool EsAutomatico { get; private set; }
     public string? MensajeExternoId { get; private set; }
 

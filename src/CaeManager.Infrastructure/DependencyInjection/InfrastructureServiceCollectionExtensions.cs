@@ -498,6 +498,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
+        services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();

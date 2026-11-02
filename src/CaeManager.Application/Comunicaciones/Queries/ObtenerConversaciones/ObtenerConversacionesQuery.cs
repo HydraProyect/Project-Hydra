@@ -180,7 +180,7 @@ public class ObtenerConversacionesQueryHandler(
             consulta = consulta.Where(c => c.Estado == EstadoConversacion.EsperandoRespuestaExterna ||
                 (c.Estado == EstadoConversacion.Abierta &&
                 comunicacionesContext.Mensajes
-                    .Where(m => m.ConversacionId == c.Id)
+                    .Where(m => m.ConversacionId == c.Id && !(m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico))
                     .OrderByDescending(m => m.FechaUtc)
                     .Select(m => m.Direccion)
                     .FirstOrDefault() == DireccionMensaje.Saliente));
@@ -239,7 +239,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
-            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion, m.Remitente })
+            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion, m.Remitente, m.EsAutomatico })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
@@ -255,7 +255,10 @@ public class ObtenerConversacionesQueryHandler(
         var elementos = conversaciones.Select(c =>
         {
             var mensajesDeConversacion = mensajesPorConversacion.GetValueOrDefault(c.Id, []);
-            var ultimoMensaje = mensajesDeConversacion.OrderByDescending(m => m.FechaUtc).FirstOrDefault();
+            // El acuse automático no dice en qué punto está la conversación: ni la vista previa ni «esperando» lo cuentan.
+            var ultimoMensaje = mensajesDeConversacion
+                .Where(m => !(m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico))
+                .OrderByDescending(m => m.FechaUtc).FirstOrDefault();
 
             return new ConversacionListaDto(
                 c.Id, c.ClienteId, c.ClienteRazonSocial, c.Asunto, c.Estado, c.EjecutivoAsignadoId,
@@ -288,7 +291,7 @@ public class ObtenerConversacionesQueryHandler(
         foreach (var conversacion in candidatas)
         {
             var mensajes = porConversacion[conversacion.Id];
-            var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente).Select(m => (DateTime?)m.FechaUtc).Max();
+            var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente && !m.EsAutomatico).Select(m => (DateTime?)m.FechaUtc).Max();
             var primero = mensajes.Where(m => m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico
                                               && (ultimoSaliente == null || m.FechaUtc > ultimoSaliente))
                 .Select(m => (DateTime?)m.FechaUtc).Min();

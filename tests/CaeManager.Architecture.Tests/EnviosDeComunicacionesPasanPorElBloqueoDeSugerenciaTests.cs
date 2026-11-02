@@ -19,6 +19,10 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
         // El acuse automático de la ingesta: lo escribe la configuración de la línea, y nunca lleva una sugerencia.
         ["CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
 
+        // El acuse automático por buzón: el texto es la constante PlantillaAcuseBuzon.CuerpoHtml, y sale al entrar el
+        // primer correo de la conversación, antes de que exista nada que sugerir.
+        ["CaeManager.Application/Integraciones/AcuseAutomaticoBuzonService.cs"] = 1,
+
         // El decorador que corta los envíos reales fuera de producción: delega en el cliente, no decide qué se envía.
         ["CaeManager.Infrastructure/Integraciones/GuardaEnvioMicrosoft365GraphClient.cs"] = 2,
     };

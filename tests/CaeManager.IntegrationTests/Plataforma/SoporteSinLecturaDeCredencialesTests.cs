@@ -89,8 +89,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             "EstaEliminado", "InvalidadaDefinitivamenteEnUtc", "MotivoSuspension", "Nombre", "PrefijoVisible", "RevocadaEnUtc",
             "SistemaConsumidor", "SucedeAClaveId", "SuspendidaEnUtc", "TenantId", "UltimoUsoUtc", "Version"] },
         { "ConexionesIntegracion", "UltimoError", [
-            "Id", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId", "EstaEliminado",
-            "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "ResponsableUsuarioId",
+            "Id", "AcuseAutomaticoActivo", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId",
+            "EstaEliminado", "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "ResponsableUsuarioId",
             "TenantId", "Version"] },
     };
 
