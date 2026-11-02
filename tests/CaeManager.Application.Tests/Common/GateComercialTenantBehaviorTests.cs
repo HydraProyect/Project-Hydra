@@ -143,6 +143,20 @@ public class GateComercialTenantBehaviorTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task No_bloquea_al_tenant_de_plataforma_en_suspension_operativa()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.MarcarComoPlataforma();
+        tenant.Suspender();
+
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(EstadoComercialTenant.SinSuscripcion)]
     [InlineData(EstadoComercialTenant.Activa)]
