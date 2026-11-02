@@ -79,6 +79,7 @@ public sealed class OperacionesEnMemoria(IEnumerable<AsignacionOperacion> operac
     public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
         new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
 
+    public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
     public IQueryable<AsignacionCartera> AsignacionesCartera =>
         new TestAsyncQueryable<AsignacionCartera>(carteras.AsQueryable());
 }

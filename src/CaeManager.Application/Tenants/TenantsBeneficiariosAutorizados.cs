@@ -155,6 +155,7 @@ public static class TenantsBeneficiariosAutorizados
         where asignacion.UsuarioId == usuarioId
               && delegacion.Activa
               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > ahora)
+              && !tenants.Tenants.Any(t => t.Id == delegacion.TenantClienteId && t.Estado == EstadoTenant.Suspendido)
         select new AsignacionHeredadaVigente { Asignacion = asignacion, Concesion = delegacion };
 
     /// <summary>
@@ -219,8 +220,15 @@ public static class TenantsBeneficiariosAutorizados
     /// Asignación de Cartera vigente.</item>
     /// <item>Cualquier otro perfil, o ninguno: ninguna (fallo cerrado).</item>
     /// </list>
+    /// Un Tenant propietario en suspensión operativa no se abre por ninguna (decisión D-3).
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesQueAutorizan(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
+        DateTime ahora) =>
+        OperacionesPorPerfil(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
+            .Where(operacion => !operaciones.TenantsSuspendidosIds.Contains(operacion.PropietarioTenantId));
+
+    private static IQueryable<AsignacionOperacion> OperacionesPorPerfil(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen,
         DateTime ahora)
     {
@@ -404,8 +412,8 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// Las tres vías juntas —origen, Operación y heredada—, las mismas y en el mismo orden que
     /// <c>ClienteActivoEndpoints.CambiarAsync</c>, para quien solo necesita el sí o el no (el
-    /// endpoint del logo del Tenant, invariante I2). No lee <c>Tenants</c>: se puede evaluar antes
-    /// de tocar la fila del Tenant pedido.
+    /// endpoint del logo del Tenant, invariante I2). De <c>Tenants</c> solo mira la suspensión
+    /// operativa: se puede evaluar antes de leer nada más de la fila del Tenant pedido.
     /// </summary>
     public static async Task<bool> EstaAutorizadoAsync(
         IOperacionesQueryContext operaciones, ITenantsQueryContext tenants, Guid usuarioId,

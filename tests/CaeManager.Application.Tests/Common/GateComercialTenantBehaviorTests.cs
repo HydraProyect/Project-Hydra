@@ -62,6 +62,31 @@ public class GateComercialTenantBehaviorTests
     }
 
     [Fact]
+    public async Task Un_Tenant_suspendido_no_escribe_aunque_su_suscripcion_este_al_dia()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<FalsoCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+
+        var resultado = await behavior.Handle(new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.Suspendido");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_suspendido_admite_el_comando_que_reduce_exposicion()
+    {
+        var (tenant, dbContext) = CrearTenantConEstado(EstadoComercialTenant.Activa);
+        tenant.Suspender();
+        var behavior = new GateComercialTenantBehavior<ReduceExposicionCommand, Result>(new TenantActualFalso(tenant.Id), dbContext);
+
+        var resultado = await behavior.Handle(new ReduceExposicionCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task No_bloquea_si_no_hay_tenant_resuelto_trabajos_de_fondo_seeds()
     {
         var dbContext = new TenantsQueryContextFalso();

@@ -31,6 +31,10 @@ namespace CaeManager.Application.Common;
 /// en segundo plano, seeds, etc.) no bloquea: este gate es para operación
 /// interactiva de producto, no para tareas internas del sistema, que no
 /// pasan por un tenant de sesión.
+///
+/// También bloquea el Tenant en suspensión operativa (<see cref="EstadoTenant.Suspendido"/>,
+/// decisión D-3) y por delante del estado comercial: es lo que frena a una Sesión Privilegiada
+/// que siga dentro para investigar, que lee pero no escribe.
 /// </summary>
 public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tenantActual, ITenantsQueryContext dbContext)
     : IPipelineBehavior<TRequest, TResponse>
@@ -47,11 +51,16 @@ public class GateComercialTenantBehavior<TRequest, TResponse>(ITenantActual tena
 
         var tenant = await dbContext.Tenants
             .Where(t => t.Id == tenantId)
-            .Select(t => new { t.EsPlataforma, t.EstadoComercial })
+            .Select(t => new { t.EsPlataforma, t.Estado, t.EstadoComercial })
             .SingleOrDefaultAsync(cancellationToken);
 
         if (tenant is null || tenant.EsPlataforma)
             return await next(cancellationToken);
+
+        if (tenant.Estado is EstadoTenant.Suspendido)
+            return CrearRespuestaFallo<TResponse>(Error.Crear(
+                "Tenant.Suspendido",
+                "Esta organización está suspendida. Contacta con nosotros."));
 
         var error = tenant.EstadoComercial switch
         {
