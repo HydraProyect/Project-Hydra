@@ -40,10 +40,25 @@ public class TituloDePaginaSinPrerenderTests : BunitContext
     }
 
     [Fact]
+    public void Cada_instancia_usa_su_propio_id_para_que_una_desechada_no_libere_el_titulo_de_otra()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("fijarTitulo", _ => true).SetVoidResult();
+        modulo.SetupVoid("liberar", _ => true).SetVoidResult();
+
+        Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
+        Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
+
+        var ids = modulo.Invocations["fijarTitulo"].Select(i => i.Arguments[1]).ToList();
+        ids.Should().HaveCount(2).And.OnlyHaveUniqueItems();
+    }
+
+    [Fact]
     public void Un_fallo_del_modulo_de_titulo_no_tumba_la_pagina()
     {
         var modulo = JSInterop.SetupModule(Modulo);
         modulo.SetupVoid("fijarTitulo", _ => true).SetException(new Microsoft.JSInterop.JSException("no cargó"));
+        modulo.SetupVoid("liberar", _ => true).SetVoidResult();
 
         var act = () => Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
 

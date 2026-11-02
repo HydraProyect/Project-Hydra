@@ -54,6 +54,14 @@
         try
         {
             await modulo.InvokeVoidAsync("liberar", _id);
+        }
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
+        {
+            // Circuito ya desconectado: no hay estado del título que liberar.
+        }
+
+        try
+        {
             await modulo.DisposeAsync();
         }
         catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
