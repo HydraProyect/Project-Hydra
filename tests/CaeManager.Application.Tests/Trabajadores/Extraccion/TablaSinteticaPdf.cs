@@ -88,5 +88,7 @@ internal static class TablaSinteticaPdf
     private sealed class ExtractorPalabrasFalso(Result<IReadOnlyList<PaginaPdf>> resultado) : IExtractorPalabrasPdf
     {
         public Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf) => resultado;
+
+        public Result<IReadOnlyList<PaginaPdf>> ExtraerPalabras(byte[] contenidoPdf, long tamanoMaximoBytes) => resultado;
     }
 }

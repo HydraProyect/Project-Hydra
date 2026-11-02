@@ -253,9 +253,11 @@ public class DocumentAIRouterService(
 
         var notasDelModelo = resultado.Valor.NotasValidacion;
 
-        // Lectura parcial: lo que el revisor ve (NotasValidacion viaja con la
-        // extracción) debe decir que hay páginas sin leer. El contraste
-        // determinista (p. ej. un «no apto») solo mira el texto leído.
+        // Lectura parcial: lo que el revisor ve debe decir que hay páginas sin
+        // leer, y quien decide debe poder saberlo sin interpretar una nota. El
+        // contraste determinista (p. ej. un «no apto») solo mira el texto leído:
+        // PaginasSinLeer acaba en un motivo de la revisión que impide aceptarla
+        // en bloque (VerificacionIaDocumentoService.ComputarMotivos).
         if (textoFinal.PaginasLeidas is { } leidas && leidas < clasificacion.Valor.TotalPaginas)
         {
             resultado = Result.Exito(resultado.Valor with
@@ -263,6 +265,7 @@ public class DocumentAIRouterService(
                 NotasValidacion = CombinarIncidencias(
                     notasDelModelo,
                     $"{textoFinal.NotaLocalizacion} Un «no apto», una restricción o un dato que figure solo en las páginas no leídas no se habrá detectado."),
+                PaginasSinLeer = clasificacion.Valor.TotalPaginas - leidas,
             });
         }
 
@@ -642,7 +645,8 @@ public class DocumentAIRouterService(
         // se tomarían sobre un texto al que le faltan páginas sin que nadie lo
         // sepa. (El escaneado puro largo sí se lee hasta el tope sin fallar, por
         // decisión de producto del 2026-10-29, pero lo declara en la nota de
-        // Incidencias y en NotasValidacion; ver ObtenerTextoEscaneadoLargoAsync.)
+        // Incidencias, en NotasValidacion y en PaginasSinLeer, que impide aceptar
+        // la revisión en bloque; ver ObtenerTextoEscaneadoLargoAsync.)
         if (indicesEscaneadas.Count > MaximoPaginasEscaneadasPorDocumento)
         {
             return Result.Fallo<TextoExtraidoDto>(Error.Crear(

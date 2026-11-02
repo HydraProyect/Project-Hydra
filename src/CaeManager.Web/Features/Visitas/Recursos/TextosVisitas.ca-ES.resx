@@ -48,6 +48,12 @@
   <data name="NotaUrgenciaCalculada" xml:space="preserve">
     <value>Urgència calculada en carregar la llista, sobre les dates de cada visita</value>
   </data>
+  <data name="ColumnaDesplegar" xml:space="preserve">
+    <value>Desplegar la preparació</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
   <data name="AriaSeleccionarPagina" xml:space="preserve">
     <value>Seleccionar les visites d'aquesta pàgina</value>
   </data>

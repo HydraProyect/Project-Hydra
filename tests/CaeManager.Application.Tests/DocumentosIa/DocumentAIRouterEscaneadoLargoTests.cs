@@ -277,6 +277,21 @@ public class DocumentAIRouterEscaneadoLargoTests
         resultado.Valor.NotasValidacion.Should()
             .Contain("se leyeron 4 páginas de 30")
             .And.Contain("no apto");
+        resultado.Valor.PaginasSinLeer.Should().Be(26, "el dato que llega a la revisión no sale de interpretar la nota");
+    }
+
+    [Fact]
+    public async Task La_lectura_parcial_lo_sigue_siendo_al_repetirse_desde_la_cache()
+    {
+        var proveedor = Proveedor(_ => Completa());
+        var (router, _, _) = CrearRouter(TipoContenidoDocumento.Escaneado, 30, proveedor);
+        await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+        var llamadas = proveedor.VecesLlamadoParaEstructurado;
+
+        var repetida = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(llamadas, "control positivo: la segunda viene de la caché");
+        repetida.Valor.PaginasSinLeer.Should().Be(26);
     }
 
     [Fact]
@@ -288,6 +303,7 @@ public class DocumentAIRouterEscaneadoLargoTests
         var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
 
         resultado.Valor.NotasValidacion.Should().BeNull();
+        resultado.Valor.PaginasSinLeer.Should().Be(0);
     }
 
     [Fact]

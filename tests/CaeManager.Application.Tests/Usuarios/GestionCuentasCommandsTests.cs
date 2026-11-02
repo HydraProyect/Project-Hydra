@@ -71,7 +71,7 @@ public class GestionCuentasCommandsTests
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
         (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -280,7 +280,7 @@ public class GestionCuentasCommandsTests
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
         (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
@@ -399,7 +399,7 @@ public class GestionCuentasCommandsTests
 
         (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), HayOtroAdministrador).Handle(new(Actor, false), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Actor), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Actor), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
 
         puerto.Escrituras.Should().BeEmpty();
@@ -550,18 +550,18 @@ public class GestionCuentasCommandsTests
     public async Task Solo_se_elimina_una_cuenta_pendiente_de_activacion_y_sin_cartera_vigente()
     {
         var activada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: false) };
-        (await new EliminarUsuarioPendienteCommandHandler(activada, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(activada, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(EliminarUsuarioPendienteCommandHandler.NoPendiente);
 
         var conCartera = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true), ConVinculoOperativo = true };
-        (await new EliminarUsuarioPendienteCommandHandler(conCartera, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(conCartera, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(EliminarUsuarioPendienteCommandHandler.CarteraVigente);
 
         activada.Escrituras.Should().BeEmpty();
         conCartera.Escrituras.Should().BeEmpty();
 
         var pendiente = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
-        (await new EliminarUsuarioPendienteCommandHandler(pendiente, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(pendiente, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .EsExitoso.Should().BeTrue("control positivo");
         pendiente.Escrituras.Should().Equal($"eliminar:{Cuenta}");
     }
@@ -942,7 +942,7 @@ public class GestionCuentasCommandsTests
             .Error.Should().Be(rolElevado == "Administrador" ? esperado : AutoridadSobreCuentas.SinAutoridad);
         (await NuevoCambioDeActivacion(puerto, actor).Handle(new(Cuenta, false), default)).Error.Should().Be(esperado);
         (await NuevoCambioDeActivacion(puerto, actor).Handle(new(Cuenta, true), default)).Error.Should().Be(esperado);
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .Error.Should().Be(esperado);
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(esperado);
@@ -992,7 +992,7 @@ public class GestionCuentasCommandsTests
             .Handle(new(Cuenta), default)).EsExitoso.Should().BeTrue();
         (await new CorregirCorreoCuentaPendienteCommandHandler(puerto, actor, EnSuTenant, encargoActual: pleno)
             .Handle(new(Cuenta, "nuevo@x.test"), default)).EsExitoso.Should().BeTrue();
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, encargoActual: pleno)
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso(), encargoActual: pleno)
             .Handle(new(Cuenta), default)).EsExitoso.Should().BeTrue();
     }
 
@@ -1073,7 +1073,7 @@ public class GestionCuentasCommandsTests
             .EsExitoso.Should().BeTrue();
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .EsExitoso.Should().BeTrue();
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, new BloqueoCarteraUsuarioFalso()).Handle(new(Cuenta), default))
             .EsExitoso.Should().BeTrue();
     }
 
@@ -1362,7 +1362,7 @@ public class GestionCuentasCommandsTests
 
         var eliminada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
         (await new EliminarUsuarioPendienteCommandHandler(eliminada, ActorCon("DireccionCae"), EnSuTenant,
-                new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(false))
+                new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(false), new BloqueoCarteraUsuarioFalso())
             .Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
         eliminada.Escrituras.Should().BeEmpty();
@@ -1426,7 +1426,7 @@ public class GestionCuentasCommandsTests
         var transaccion = new TransaccionDeComandoFalsa();
         var administradores = new AdministradoresDelTenantFalso(false);
 
-        var resultado = await new EliminarUsuarioPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, administradores)
+        var resultado = await new EliminarUsuarioPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, administradores, new BloqueoCarteraUsuarioFalso())
             .Handle(new(Cuenta), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
@@ -1435,9 +1435,31 @@ public class GestionCuentasCommandsTests
         transaccion.Ejecutadas.Should().Be(1);
 
         (await new EliminarUsuarioPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant,
-                new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(true))
+                new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(true), new BloqueoCarteraUsuarioFalso())
             .Handle(new(Cuenta), default)).EsExitoso.Should().BeTrue("control positivo: con otro Administrador sí");
         puerto.Escrituras.Should().Equal($"eliminar:{Cuenta}");
+    }
+
+    [Fact]
+    public async Task La_baja_revalida_el_vinculo_bajo_el_candado_exclusivo_y_no_borra_si_aparecio_mientras()
+    {
+        var eventos = new List<string>();
+        var puerto = new GestionCuentasFalsa
+        {
+            [Cuenta] = CuentaPropia("GestorCae", pendiente: true),
+            VinculosPorConsulta = new Queue<bool>([false, true]),
+            Eventos = eventos,
+        };
+        var bloqueo = new BloqueoCarteraUsuarioFalso { Eventos = eventos };
+
+        var resultado = await new EliminarUsuarioPendienteCommandHandler(
+                puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), HayOtroAdministrador, bloqueo)
+            .Handle(new(Cuenta), default);
+
+        resultado.Error.Should().Be(EliminarUsuarioPendienteCommandHandler.CarteraVigente);
+        eventos.Should().Equal("leer-vinculo", "exclusivo", "leer-vinculo");
+        bloqueo.Exclusivos.Should().Equal(Cuenta);
+        puerto.Escrituras.Should().BeEmpty();
     }
 
     [Fact]
@@ -1545,8 +1567,17 @@ public class GestionCuentasCommandsTests
         public Task<bool> EsPropiaDelTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(_cuentas.TryGetValue(usuarioId, out var c) && c.EsPropiaDelTenantActual);
 
-        public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(ConVinculoOperativo);
+        /// <summary>Lo que responde cada consulta de vínculo, en orden; tras la última, <see cref="ConVinculoOperativo"/>.</summary>
+        public Queue<bool> VinculosPorConsulta { get; init; } = new();
+
+        /// <summary>Si se indica, cada consulta de vínculo deja aquí su rastro.</summary>
+        public List<string>? Eventos { get; init; }
+
+        public Task<bool> TieneVinculoOperativoAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+        {
+            Eventos?.Add("leer-vinculo");
+            return Task.FromResult(VinculosPorConsulta.TryDequeue(out var vinculo) ? vinculo : ConVinculoOperativo);
+        }
 
         public Task<Result<Guid>> CrearAsync(NuevaCuentaUsuario cuenta, CancellationToken cancellationToken = default)
         {

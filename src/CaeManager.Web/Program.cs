@@ -126,10 +126,9 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         loggerConfiguration.WriteTo.Seq(urlSeq, apiKey: apiKeySeq);
 });
 
-// Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
-// todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
-// queda inerte por diseño propio: no envía nada, no lanza, no bloquea el
-// arranque. IMPORTANTE: hay que pasar explícitamente "" (no null) para que
+// Error tracking con Sentry — la cuenta existe; si "Sentry:Dsn" no está
+// configurado en un entorno, la SDK queda inerte por diseño propio: no envía
+// nada, no lanza, no bloquea el arranque. IMPORTANTE: hay que pasar explícitamente "" (no null) para que
 // quede inerte — un Dsn null hace que Sentry.SentrySdk.InitHub lance
 // ArgumentNullException en el arranque en vez de desactivarse en silencio
 // (comprobado en local, no es el comportamiento que sugiere la documentación
@@ -196,6 +195,11 @@ builder.WebHost.UseSentry(options =>
 // (LoggingBehavior y el resto los usan sin condición), pero sin listener
 // StartActivity devuelve null y las métricas no tienen a quién exportar: el
 // coste es marginal, no una llamada de red que reintentar en bucle.
+//
+// MJ-06: fracción de trazas que se exporta (Observabilidad:MuestreoTrazas, 0 a 1; sin valor, todas). Se valida siempre
+// al arrancar, haya o no Seq. Solo afecta a las trazas: las métricas, que alimentan los SLI, van siempre completas.
+var muestreoTrazas = MuestreoDeTrazas.Leer(builder.Configuration);
+
 if (!string.IsNullOrWhiteSpace(urlSeq))
 {
     var otlpTracesUrl = new Uri($"{urlSeq.TrimEnd('/')}/ingest/otlp/v1/traces");
@@ -213,6 +217,7 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
         .ConfigureResource(recurso => recurso.AddService(
             "CaeManager", serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString()))
         .WithTracing(tracing => tracing
+            .SetSampler(MuestreoDeTrazas.Crear(muestreoTrazas))
             // MediatR: ver Observabilidad.ActivitySource / LoggingBehavior.
             .AddSource(Observabilidad.NombreOrigen)
             // HTTP entrante (páginas Razor, endpoints, API v1) y saliente
@@ -226,6 +231,11 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
             .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpTracesUrl)))
         .WithMetrics(metrics => metrics
             .AddMeter(Observabilidad.NombreOrigen)
+            // MJ-06: SLI de base de datos (pool de conexiones y comandos de Npgsql) y de runtime (GC, hilos, pool de
+            // hilos). Ambos son Meters nativos —Npgsql desde su versión 8 y System.Runtime desde .NET 9—, así que
+            // no hay paquete nuevo que añadir.
+            .AddMeter("Npgsql")
+            .AddMeter("System.Runtime")
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpMetricsUrl)));

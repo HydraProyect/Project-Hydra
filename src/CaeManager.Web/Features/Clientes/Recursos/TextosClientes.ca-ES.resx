@@ -686,4 +686,7 @@
   <data name="NotaInternaGuardada" xml:space="preserve"><value>Nota interna desada</value></data>
   <data name="CifCopiado" xml:space="preserve"><value>CIF {0} copiat al porta-retalls</value></data>
   <data name="CodigoClienteCopiado" xml:space="preserve"><value>Codi de client copiat al porta-retalls</value></data>
+  <data name="ToastRecuentosNoCargados" xml:space="preserve">
+    <value>No hem pogut carregar alguns recomptes d'aquesta fitxa. El que veus pot estar incomplet; recarrega la pàgina.</value>
+  </data>
 </root>

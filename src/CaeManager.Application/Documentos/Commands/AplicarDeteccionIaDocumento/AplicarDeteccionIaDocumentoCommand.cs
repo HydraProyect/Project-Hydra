@@ -37,11 +37,18 @@ namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 /// tomaría el vencimiento que leyó la IA o dejaría «sin confirmar» una vigencia que el Gestor CAE pudo haber
 /// anotado a mano; eso se decide mirando el documento, una revisión cada vez.
 /// </param>
-public record AplicarDeteccionIaDocumentoCommand(Guid RevisionId, bool SoloSiLaVigenciaLaFijaElTipo = false) : ICommand;
+/// <param name="SoloSinAlertaDeterminista">
+/// También de la aceptación en bloque: una revisión con alerta determinista o lectura parcial
+/// (<see cref="RevisionIaDocumento.TieneAlertaDeterminista"/>) no se acepta sin que una persona la abra. La aceptación
+/// individual no lo activa: la única interfaz que la lanza enseña el motivo junto al botón (<c>RevisionIaTab</c>).
+/// </param>
+public record AplicarDeteccionIaDocumentoCommand(
+    Guid RevisionId, bool SoloSiLaVigenciaLaFijaElTipo = false, bool SoloSinAlertaDeterminista = false) : ICommand;
 
 public static class CodigosRevisionIa
 {
     public const string CodigoVigenciaARevisarIndividualmente = "RevisionIa.VigenciaARevisarIndividualmente";
+    public const string CodigoAlertaARevisarIndividualmente = "RevisionIa.AlertaARevisarIndividualmente";
 }
 
 public class AplicarDeteccionIaDocumentoCommandHandler(
@@ -76,6 +83,11 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
         // El historial es inmutable: la lectura de la IA sobre un documento que otro ya sustituyó no se aplica.
         if (!DocumentoOperativo.Es(documento))
             return Result.Fallo(DocumentoEnHistorial.NuevoError());
+
+        if (request.SoloSinAlertaDeterminista && revision.TieneAlertaDeterminista)
+            return Result.Fallo(Error.Crear(
+                CodigosRevisionIa.CodigoAlertaARevisarIndividualmente,
+                "Esta lectura tiene una alerta que debe ver una persona: ábrela y acéptala de una en una."));
 
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);

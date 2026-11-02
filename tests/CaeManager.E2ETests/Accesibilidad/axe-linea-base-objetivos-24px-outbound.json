@@ -1,0 +1,17 @@
+{
+  "/centros": {
+    "target-size": 5
+  },
+  "/documentos": {
+    "target-size": 2
+  },
+  "/empresas": {
+    "target-size": 1
+  },
+  "/trabajadores": {
+    "target-size": 1
+  },
+  "/visitas": {
+    "target-size": 4
+  }
+}
