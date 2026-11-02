@@ -36,8 +36,8 @@ public interface IRegistroSesionesUsuario
     /// cookies anteriores a los identificadores de sesión y el resto de lo que depende del sello)
     /// y revoca todas sus sesiones vivas. Devuelve cuántas revocó. No depende de quién firme el
     /// contexto: sirve también al restablecer la contraseña y en «No he sido yo», que llegan por un
-    /// enlace de correo, sin sesión de la cuenta. Lanza si no puede: quien llama no debe decir que
-    /// las sesiones están cerradas sin que lo estén.
+    /// enlace de correo, sin sesión de la cuenta. Lanza si no puede, también si no ve la cuenta: quien
+    /// llama no debe decir que las sesiones están cerradas sin que lo estén.
     /// </summary>
     Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default);
 
@@ -107,13 +107,13 @@ public sealed class RegistroSesionesUsuario(
                 .Where(s => s.UsuarioId == usuarioId && s.Sid == sid && s.RevocadaEnUtc == null)
                 .ExecuteUpdateAsync(cambios => cambios.SetProperty(s => s.RevocadaEnUtc, ahora), ct);
             return filas > 0;
-        }, valorSinCuenta: false);
+        }, sinCuenta: () => false);
 
     public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) =>
         EnElTenantDeLaCuentaAsync(usuarioId, async cuenta =>
         {
             // Primero el sello: aunque fallara lo siguiente, las cookies ya caen en la siguiente
-            // revalidación. Como «No he sido yo» (VigilanciaInicioSesionService).
+            // revalidación.
             var rotado = await userManager.UpdateSecurityStampAsync(cuenta);
             if (!rotado.Succeeded)
                 throw new InvalidOperationException($"No se pudo rotar el sello de seguridad de la cuenta {cuenta.Id}.");
@@ -122,7 +122,7 @@ public sealed class RegistroSesionesUsuario(
             logger.LogWarning("Cerradas todas las sesiones de la cuenta {UsuarioId}: sello rotado y {Sesiones} sesiones revocadas.",
                 usuarioId, revocadas);
             return revocadas;
-        }, valorSinCuenta: 0);
+        }, sinCuenta: () => throw CuentaNoVisible(usuarioId));
 
     public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) =>
         EnElTenantDeLaCuentaAsync(usuarioId, async _ =>
@@ -131,23 +131,27 @@ public sealed class RegistroSesionesUsuario(
             logger.LogWarning("Cerradas las demás sesiones de la cuenta {UsuarioId}: {Sesiones} sesiones revocadas.",
                 usuarioId, revocadas);
             return revocadas;
-        }, valorSinCuenta: 0);
+        }, sinCuenta: () => throw CuentaNoVisible(usuarioId));
 
     /// <summary>Ningún identificador de sesión es <see cref="Guid.Empty"/>: ver <c>LeerSid</c>.</summary>
     private static readonly Guid SinSesionConservada = Guid.Empty;
+
+    /// <summary>Devolver 0 se leería como «no tenía sesiones», y quien llama diría que están cerradas.</summary>
+    private static InvalidOperationException CuentaNoVisible(Guid usuarioId) =>
+        new($"No se ve la cuenta {usuarioId}: sus sesiones no se han revocado.");
 
     private async Task<int> RevocarVariasAsync(Guid usuarioId, Guid conservar, CancellationToken ct) =>
         await db.Database
             .SqlQuery<int>($"SELECT public.app_revocar_sesiones_de_cuenta({usuarioId}, {conservar}) AS \"Value\"")
             .SingleAsync(ct);
 
-    private async Task<T> EnElTenantDeLaCuentaAsync<T>(Guid usuarioId, Func<ApplicationUser, Task<T>> accion, T valorSinCuenta)
+    private async Task<T> EnElTenantDeLaCuentaAsync<T>(Guid usuarioId, Func<ApplicationUser, Task<T>> accion, Func<T> sinCuenta)
     {
         ApplicationUser? cuenta;
         using (AmbitoIdentificacionSinTenant.Abrir())
             cuenta = await userManager.FindByIdAsync(usuarioId.ToString());
         if (cuenta is null)
-            return valorSinCuenta;
+            return sinCuenta();
 
         // El Tenant propietario de la cuenta, no el del workspace que la petición tenga abierto.
         using var _ = AmbitoTenantExplicito.Establecer(cuenta.TenantId);

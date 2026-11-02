@@ -28,6 +28,11 @@
                         Explicacion="@Textos["NoHeSidoYoEnlaceNoValidoExplicacion"]" />
         <a class="acceso-entrar" href="/cuenta/olvide-contrasena">@Textos["NoHeSidoYoCambiarContrasena"]</a>
     }
+    else if (_resultado == ResultadoNoHeSidoYo.SesionesSinCerrar)
+    {
+        <CabeceraAcceso Titulo="@Textos["NoHeSidoYoSesionesSinCerrarTitulo"]"
+                        Explicacion="@Textos["NoHeSidoYoSesionesSinCerrarExplicacion"]" />
+    }
     else if (_resultado is { } resultado)
     {
         <CabeceraAcceso />

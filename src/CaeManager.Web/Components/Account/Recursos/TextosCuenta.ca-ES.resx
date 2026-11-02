@@ -150,6 +150,12 @@
   <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
     <value>Hem tancat totes les teves sessions. El teu compte entra amb Microsoft: canvia la contrasenya del teu compte de Microsoft i avisa el teu Administrador.</value>
   </data>
+  <data name="NoHeSidoYoSesionesSinCerrarTitulo" xml:space="preserve">
+    <value>No hem pogut tancar les teves sessions</value>
+  </data>
+  <data name="NoHeSidoYoSesionesSinCerrarExplicacion" xml:space="preserve">
+    <value>Hem registrat el teu avís, però les teves sessions obertes continuen actives. Si entres amb contrasenya, l'anterior ja no serveix: en crear-ne una de nova es tanquen totes; si no t'arriba el correu, demana'l des de «¿Olvidaste tu contraseña?». Si entres amb Microsoft, avisa el teu Administrador.</value>
+  </data>
   <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
     <value>No has estat tu?</value>
   </data>

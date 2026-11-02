@@ -46,7 +46,9 @@ public interface IVigilanciaInicioSesion
     /// cuenta, envía el enlace para crear una contraseña nueva y avisa al
     /// Administrador del Tenant. Una cuenta que solo entra con Microsoft no
     /// recibe enlace de contraseña: abrirle una credencial local sería una vía
-    /// de entrada nueva; tiene que asegurar su cuenta de Microsoft.
+    /// de entrada nueva; tiene que asegurar su cuenta de Microsoft. Si las
+    /// sesiones no se pueden cerrar, lo demás sale igualmente, sin decir que lo
+    /// estén (<see cref="ResultadoNoHeSidoYo.SesionesSinCerrar"/>).
     /// </summary>
     Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default);
 }
@@ -65,6 +67,12 @@ public enum ResultadoNoHeSidoYo
 
     /// <summary>Cuenta sin contraseña local (solo Microsoft): sesiones cerradas, sin enlace de contraseña.</summary>
     ProtegidaCuentaMicrosoft = 3,
+
+    /// <summary>
+    /// La contraseña, si había, ya no vale, pero las sesiones no se pudieron cerrar. La señal, el enlace
+    /// y el aviso al Administrador salieron igualmente; la página no dice que la cuenta esté protegida.
+    /// </summary>
+    SesionesSinCerrar = 4,
 }
 
 /// <summary>
@@ -251,10 +259,22 @@ public sealed class VigilanciaInicioSesionService(
 
         // 2. Todas las sesiones se revocan y el sello rota, lo que también invalida este enlace.
         //    Solo con el sello, durante el intervalo de revalidación una cookie robada podía llegar a
-        //    RefreshSignInAsync y salir con el sello nuevo. Un fallo se propaga: la página no dice
-        //    «protegida» con las sesiones abiertas.
-        await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarTodasAsync(usuario.Id, ct);
-        logger.LogWarning("«No he sido yo» confirmado: contraseña invalidada y sesiones cerradas para la cuenta {UsuarioId}.", usuario.Id);
+        //    RefreshSignInAsync y salir con el sello nuevo. Va en este mismo ámbito para que el enlace del
+        //    paso 3 nazca con el sello ya rotado. Un fallo no corta lo que sigue: la contraseña ya no
+        //    está y este enlace ya no sirve, así que perder la señal, el enlace o el aviso dejaría la
+        //    cuenta sin credencial y a nadie enterado. Se registra como error y ningún texto de después
+        //    dice que las sesiones estén cerradas.
+        var sesionesCerradas = true;
+        try
+        {
+            await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarTodasAsync(usuario.Id, ct);
+            logger.LogWarning("«No he sido yo» confirmado: contraseña invalidada y sesiones cerradas para la cuenta {UsuarioId}.", usuario.Id);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            sesionesCerradas = false;
+            logger.LogError(ex, "«No he sido yo» confirmado sin poder cerrar las sesiones de la cuenta {UsuarioId}: se sigue con la señal, el enlace y el aviso.", usuario.Id);
+        }
 
         // Señal de incidente de seguridad sospechado (plano de Plataforma): la persona titular
         // dice que alguien entró con su cuenta. No lanza ni espera a la alerta.
@@ -271,14 +291,18 @@ public sealed class VigilanciaInicioSesionService(
             {
                 var reset = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await userManager.GeneratePasswordResetTokenAsync(usuario)));
                 var enlace = $"{urlBase}/cuenta/restablecer-contrasena?userId={usuario.Id}&code={reset}";
+                var estadoCuenta = sesionesCerradas
+                    ? "Hemos cerrado todas tus sesiones abiertas y tu contraseña anterior ya no sirve."
+                    : "Tu contraseña anterior ya no sirve, pero no hemos podido cerrar todas tus sesiones abiertas: se cerrarán al crear la contraseña nueva.";
+                var asunto = sesionesCerradas ? "Tu cuenta está protegida" : "Crea una contraseña nueva cuanto antes";
                 var cuerpo = $"""
                     <p>Has indicado que un inicio de sesión en tu cuenta de {Marca.Nombre} no fuiste tú.</p>
-                    <p>Hemos cerrado todas tus sesiones abiertas y tu contraseña anterior ya no sirve.</p>
+                    <p>{estadoCuenta}</p>
                     <p><a href="{WebUtility.HtmlEncode(enlace)}">Crear una contraseña nueva</a></p>
                     <p>Este enlace caduca en 60 minutos. Si caduca, pide otro desde «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión.</p>
                     """;
                 var email = ambito.ServiceProvider.GetRequiredService<IEmailService>();
-                var envio = await email.EnviarAsync(usuario.Email, $"Tu cuenta está protegida — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
+                var envio = await email.EnviarAsync(usuario.Email, $"{asunto} — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
                 if (envio.EsFallido)
                     logger.LogWarning("No se pudo enviar el enlace de contraseña nueva tras «no he sido yo» a {UsuarioId}.", usuario.Id);
                 else
@@ -291,18 +315,20 @@ public sealed class VigilanciaInicioSesionService(
         {
             var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             var administradores = await AdministradoresAsync(db, userManager.NormalizeName(Roles.Administrador), usuario.TenantId, null, ct);
+            var sesiones = sesionesCerradas ? "Se han cerrado sus sesiones" : "No se han podido cerrar sus sesiones";
             var texto = teniaContrasena
-                ? $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones y debe crear una contraseña nueva."
-                : $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones; entra con Microsoft, así que tiene que asegurar su cuenta de Microsoft.";
+                ? $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. {sesiones} y debe crear una contraseña nueva."
+                : $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. {sesiones}; entra con Microsoft, así que tiene que asegurar su cuenta de Microsoft.";
+            var titulo = sesionesCerradas ? "Cuenta protegida por «no he sido yo»" : "«No he sido yo» con sesiones sin cerrar";
             await NotificarAdministradoresAsync(ambito.ServiceProvider, db, administradores,
-                "Cuenta protegida por «no he sido yo»", texto, $"<p>{WebUtility.HtmlEncode(texto)}</p>", ct);
+                titulo, texto, $"<p>{WebUtility.HtmlEncode(texto)}</p>", ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId}.", usuario.Id);
         }
 
-        return resultado;
+        return sesionesCerradas ? resultado : ResultadoNoHeSidoYo.SesionesSinCerrar;
     }
 
     private async Task AvisarAsync(
