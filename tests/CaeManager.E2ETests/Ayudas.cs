@@ -168,8 +168,8 @@ public static class Ayudas
             "no como 401/403, así que el status por sí solo no bastaba para confirmar que el servidor autorizó el " +
             "cambio.");
 
-        await page.WaitForLoadStateAsync(LoadState.Load);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await EsperarCargaAsync(page, LoadState.Load);
+        await EsperarCargaAsync(page, LoadState.NetworkIdle);
     }
 
     /// <summary>
@@ -350,8 +350,8 @@ public static class Ayudas
         var destino = respuesta.Headers.GetValueOrDefault("location") ?? string.Empty;
         Assert.False(destino.Contains("acceso-denegado") || destino.Contains("iniciar-sesion"),
             $"El POST a /cuenta/cliente-activo redirigió a «{destino}»: el servidor no aplicó el cambio a «{nombreTenant}».");
-        await page.WaitForLoadStateAsync(LoadState.Load);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await EsperarCargaAsync(page, LoadState.Load);
+        await EsperarCargaAsync(page, LoadState.NetworkIdle);
     }
 
     /// <summary>Token antiforgery de la página, leído del formulario de cerrar sesión (siempre presente al autenticarse).</summary>
@@ -901,7 +901,7 @@ public static class Ayudas
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
         await page.ClickAsync("button[type=\"submit\"]");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await EsperarCargaAsync(page, LoadState.NetworkIdle);
 
         // Solo el Administrador inicial tiene 2FA activo hoy (P1-13 de
         // Project-Hydra-Negocio/MATURITY_REVIEW.md) — el resto de cuentas de prueba
@@ -1020,7 +1020,7 @@ public static class Ayudas
     public static async Task NavegarYEsperarAsync(IPage page, string url)
     {
         await page.GotoAsync(url);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await EsperarCargaAsync(page, LoadState.NetworkIdle);
     }
 
     /// <summary>
@@ -1487,6 +1487,36 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// Espera un estado de carga del marco principal. Toda la suite pasa por aquí y nadie llama directamente a
+    /// <c>page.WaitForLoadStateAsync</c> (lo vigila <c>EsperasDeCargaPorElAyudanteTests</c>).
+    ///
+    /// <para><b>Por qué.</b> El cliente .NET de Playwright (<c>Frame.WaitForLoadStateAsync</c>, 1.63) mira su lista de
+    /// estados y después se suscribe al evento, y los mensajes del navegador los despacha otro hilo. Si el estado llega
+    /// entre esos dos pasos, el evento ya ha pasado y la llamada espera hasta agotar el plazo con la página entera
+    /// cargada; una llamada posterior lo encontraría en la lista al instante. Es lo que daba #1713: 90 s en
+    /// <c>DOMContentLoaded</c> con <c>readyState</c> en <c>complete</c>, ningún recurso pendiente y Blazor conectado desde
+    /// el segundo 3. No es lentitud, así que ningún plazo lo arregla. La ventana es mucho más ancha en las primeras
+    /// llamadas del proceso, con la suscripción aún sin compilar: por eso caía en el primer test de un bloque.</para>
+    ///
+    /// <para><b>Cómo.</b> Dos llamadas seguidas, ninguna de ellas un reintento: la primera vuelve con la suscripción ya
+    /// puesta (el método no cede el hilo antes de suscribirse) y la segunda mira la lista cuando esa suscripción ya
+    /// existe. Si el estado llegó antes de suscribirse, la segunda lo ve; si no, la primera recibe el evento. El plazo es
+    /// el mismo de siempre. La llamada que pierde se queda esperando hasta su plazo sin efecto alguno, y su excepción se
+    /// da por observada.</para>
+    /// </summary>
+    public static async Task EsperarCargaAsync(IPage page, LoadState estado)
+    {
+        var suscrita = page.WaitForLoadStateAsync(estado);
+        var comprobada = page.WaitForLoadStateAsync(estado);
+
+        var primera = await Task.WhenAny(suscrita, comprobada);
+        var perdedora = primera == suscrita ? comprobada : suscrita;
+        _ = perdedora.ContinueWith(t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+
+        await primera;
+    }
+
+    /// <summary>
     /// Abre el menú de usuario de la cabecera (avatar) si está cerrado: «Cerrar sesión» y el idioma
     /// viven en su panel, que cerrado es <c>visibility: hidden</c> y no admite clics. Lo abre
     /// <c>wwwroot/js/cabecera.js</c>, un script al final del <c>&lt;body&gt;</c>: se espera a
@@ -1495,7 +1525,7 @@ public static class Ayudas
     /// </summary>
     public static async Task AbrirMenuDeUsuarioAsync(IPage page)
     {
-        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await EsperarCargaAsync(page, LoadState.DOMContentLoaded);
         var boton = page.Locator("#menu-cuenta-boton");
         if (await boton.GetAttributeAsync("aria-expanded") == "true") return;
 

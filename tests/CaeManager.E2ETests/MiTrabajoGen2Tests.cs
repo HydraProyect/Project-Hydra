@@ -99,7 +99,7 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         // afirmar para que una redirección del destino dentro de ese reposo
         // de red no pase inadvertida.
         await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == destino);
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         Assert.Equal(destino, new Uri(page.Url).PathAndQuery);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantDexter!);
     }
