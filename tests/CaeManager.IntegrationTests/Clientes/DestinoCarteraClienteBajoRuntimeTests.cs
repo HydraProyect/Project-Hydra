@@ -59,6 +59,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _gestorAjeno = Guid.NewGuid();
     private readonly Guid _gestorOperadorSinAsignacion = Guid.NewGuid();
     private readonly Guid _cuentaSoporte = Guid.NewGuid();
+    private readonly Guid _cuentaMixta = Guid.NewGuid();
 
     private Guid _clienteId;
 
@@ -111,6 +112,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         Cuenta(_gestorAjeno, _ajeno.Id, "GestorCae");
         Cuenta(_gestorOperadorSinAsignacion, _operadorExterno.Id, "GestorCae");
         Cuenta(_cuentaSoporte, _ajeno.Id, "Administrador");
+        Cuenta(_cuentaMixta, _operadorExterno.Id, "Administrador");
 
         var raiz = AsignacionOperacion.Raiz(_propietario.Id, ServicioCae.Outbound, ahora.AddDays(-1), ahora);
         contexto.AsignacionesOperacion.Add(raiz);
@@ -130,6 +132,13 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
         soporte.ActivarParaSoporte("Prueba de integración", ahora.AddHours(1), ahora);
         contexto.DelegacionesTenant.Add(soporte);
         contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(soporte.Id, _cuentaSoporte, "Consulta"));
+
+        var soporteDelOperador = DelegacionTenant.ParaSoporte(_operadorExterno.Id, _propietario.Id);
+        soporteDelOperador.ActivarParaSoporte("Prueba de integración", ahora.AddHours(1), ahora);
+        contexto.DelegacionesTenant.Add(soporteDelOperador);
+        contexto.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+            new AsignacionOperadorDelegado(delegacion.Id, _cuentaMixta, "GestorCae"),
+            new AsignacionOperadorDelegado(soporteDelOperador.Id, _cuentaMixta, "GestorCae"));
 
         var cliente = Empresa.CrearComoCliente("Cadena Industrial Iberia", "B12345674", false, null, _gestorActual);
         contexto.Empresas.Add(cliente);
@@ -198,6 +207,17 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
 
         soporte!.EsOperadorDelegado.Should().BeTrue("control: es una cuenta de otro Tenant con delegación vigente");
         soporte.PerfilDeOrigen.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Bajo_RLS_una_cuenta_con_delegacion_ordinaria_y_de_Soporte_no_expone_perfil_de_origen()
+    {
+        await using var contexto = ContextoRuntime(_administrador, "Administrador");
+
+        var destino = await Directorio(contexto).ObtenerAsync(_cuentaMixta);
+
+        destino!.RolEfectivo.Should().Be("GestorCae", "control: la delegación ordinaria se lee");
+        destino.PerfilDeOrigen.Should().BeNull("una delegación de Soporte basta para fallar cerrado");
     }
 
     [Fact]

@@ -42,7 +42,32 @@ public interface IDirectorioDestinosCartera
 /// </param>
 public record DestinoCartera(
     bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado, Guid? TenantOrigenId = null,
-    string? PerfilDeOrigen = null);
+    string? PerfilDeOrigen = null)
+{
+    /// <summary>
+    /// El destino de una cuenta de un Operador CAE externo a partir de sus delegaciones vigentes sobre el Tenant
+    /// activo, o <c>null</c> si ninguna es de su organización: no es alcanzable. Cualquier delegación de Soporte
+    /// deja la cuenta sin perfil, aunque tenga otras o venga de otra organización (fallo cerrado).
+    /// </summary>
+    public static DestinoCartera? DeOperadorDelegado(
+        bool activa, Guid? coordinadorUsuarioId, Guid tenantOrigenId, IReadOnlyCollection<AccesoDelDestino> accesos)
+    {
+        var roles = accesos.Where(d => d.OperadorTenantId == tenantOrigenId).Select(d => d.Rol).Distinct().ToList();
+        if (roles.Count == 0) return null;
+
+        var perfiles = accesos.Select(d => d.Perfil).OfType<string>().Distinct().ToList();
+
+        return new(
+            activa, roles.Count == 1 ? roles[0] : null, coordinadorUsuarioId, EsOperadorDelegado: true, tenantOrigenId,
+            perfiles.Count == 1 && !accesos.Any(d => d.EsSoporte) ? perfiles[0] : null);
+    }
+}
+
+/// <summary>
+/// Una delegación vigente de una cuenta sobre el Tenant activo, con uno de sus roles de Identity:
+/// <paramref name="Perfil"/> es <c>null</c> en una de Soporte o si la cuenta no tiene rol.
+/// </summary>
+public record AccesoDelDestino(Guid OperadorTenantId, string Rol, bool EsSoporte, string? Perfil);
 
 /// <summary>
 /// Quién puede ser el Gestor CAE de referencia de un Cliente empresarial (FS-25, revisión Codex

@@ -857,10 +857,11 @@ public class DirectorioUsuariosTenant(
     /// </para>
     ///
     /// <para>
-    /// Su perfil de origen viaja aparte (<c>PerfilDeOrigen</c>), con la misma lectura de
-    /// <c>AspNetUserRoles</c> que <see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>,
-    /// y solo la cuenta ya alcanzable por su delegación vigente. El Soporte TALVEG no lo lleva, por el
-    /// mismo motivo que <c>RolEjercidoEnTenantBeneficiario</c>: nunca sube a su perfil de origen.
+    /// Su perfil de origen viaja aparte (<c>PerfilDeOrigen</c>), leído de <c>AspNetUserRoles</c> en la misma
+    /// sentencia que sus delegaciones vigentes (<see cref="AccesosDelDestino"/>). El Soporte TALVEG no lo
+    /// lleva, por el mismo motivo que <c>RolEjercidoEnTenantBeneficiario</c>: nunca sube a su perfil de origen.
+    /// Que sea una sola sentencia cubre la revocación por construcción: una delegación de Soporte que se revoca
+    /// a la vez se ve entera, y no hay perfil, o no se ve, y no hay fila; no cabe leer el perfil tras dejar de verla.
     /// </para>
     /// </summary>
     public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(
@@ -882,24 +883,28 @@ public class DirectorioUsuariosTenant(
             if (cuenta.TenantId == tenantId)
                 return new(activa, await LeerRolUnicoAsync(usuarioId, cancellationToken), cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false, cuenta.TenantId);
 
-            var rolesDelegados = await OperadoresDelegadosVigentes(tenantId)
-                .Where(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId)
-                .Select(o => o.Rol)
-                .Distinct()
-                .Take(2)
-                .ToListAsync(cancellationToken);
-
             // Sin delegación vigente la cuenta no es alcanzable desde aquí: null, no
             // "inactiva" ni "sin rol", para no revelar nada de una cuenta ajena.
-            if (rolesDelegados.Count == 0) return null;
-
-            var esSoporte = await OperadoresDelegadosVigentes(tenantId)
-                .AnyAsync(o => o.UsuarioId == usuarioId && o.OperadorTenantId == cuenta.TenantId && o.EsSoporte, cancellationToken);
-
-            return new(
-                activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true, cuenta.TenantId,
-                esSoporte ? null : await LeerRolUnicoAsync(usuarioId, cancellationToken));
+            return CaeManager.Application.Clientes.DestinoCartera.DeOperadorDelegado(
+                activa, cuenta.CoordinadorUsuarioId, cuenta.TenantId,
+                await AccesosDelDestino(identidad, tenantId, usuarioId).ToListAsync(cancellationToken));
         }, cancellationToken);
+
+    /// <summary>
+    /// Las delegaciones vigentes de la cuenta sobre el Tenant indicado, de cualquier Operador CAE externo, con su
+    /// perfil de origen en la misma sentencia y solo en las que no son de Soporte. Una fila por delegación y rol.
+    /// </summary>
+    public static IQueryable<CaeManager.Application.Clientes.AccesoDelDestino> AccesosDelDestino(
+        Persistence.CaeManagerDbContext contexto, Guid tenantId, Guid usuarioId) =>
+        from delegado in OperadoresDelegadosVigentes(contexto, tenantId)
+        where delegado.UsuarioId == usuarioId
+        from perfil in (
+            from usuarioRol in contexto.UserRoles
+            join rol in contexto.Roles on usuarioRol.RoleId equals rol.Id
+            where usuarioRol.UserId == usuarioId && !delegado.EsSoporte
+            select rol.Name).DefaultIfEmpty()
+        select new CaeManager.Application.Clientes.AccesoDelDestino(
+            delegado.OperadorTenantId, delegado.Rol, delegado.EsSoporte, perfil);
 
     private async Task<string?> LeerRolUnicoAsync(Guid usuarioId, CancellationToken cancellationToken)
     {
@@ -925,8 +930,11 @@ public class DirectorioUsuariosTenant(
     /// para la lista de <c>/usuarios</c> y para el destino de una cartera.
     /// </summary>
     private IQueryable<OperadorDelegadoVigente> OperadoresDelegadosVigentes(Guid tenantId) =>
-        from asignacion in dbContext.AsignacionesOperadorDelegado
-        join delegacion in dbContext.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
+        OperadoresDelegadosVigentes(dbContext, tenantId);
+
+    private static IQueryable<OperadorDelegadoVigente> OperadoresDelegadosVigentes(ITenantsQueryContext contexto, Guid tenantId) =>
+        from asignacion in contexto.AsignacionesOperadorDelegado
+        join delegacion in contexto.DelegacionesTenant on asignacion.DelegacionTenantId equals delegacion.Id
         // Activa y no caducada — ver DelegacionTenant.EstaVigente.
         where delegacion.Activa && delegacion.TenantClienteId == tenantId
               && (delegacion.ExpiraEnUtc == null || delegacion.ExpiraEnUtc > DateTime.UtcNow)
