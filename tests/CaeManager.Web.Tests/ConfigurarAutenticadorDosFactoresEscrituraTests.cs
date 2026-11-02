@@ -1,8 +1,11 @@
+using System.Globalization;
+using System.Resources;
 using System.Security.Claims;
 using Bunit;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
+using CaeManager.Web.Components.Account.Recursos;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
@@ -305,6 +308,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         _almacen.DosFactoresActivo.Should().BeFalse("el factor quedaría activo aunque no se le reemita la cookie");
         _signIn.SesionReemitida.Should().BeFalse();
+        ComprobarSalidaDeSesionObsoleta(cut);
         _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada, la sesión lleva un sello obsoleto"));
     }
 
@@ -339,9 +343,32 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         _almacen.Usuario.SecurityStamp.Should().Be(selloAntes, "generar la clave rotaría el sello");
         cut.FindAll("img.qr-2fa").Should().BeEmpty();
         cut.Markup.Should().NotContain("otpauth");
-        cut.Find("[role=alert]").TextContent.Should().Contain("Ha pasado demasiado tiempo");
+        ComprobarSalidaDeSesionObsoleta(cut);
         cut.FindAll("#prueba-reautenticacion").Should().BeEmpty("sin prueba de autenticación que la sesión pueda reenviar");
         _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada al cargar"));
+    }
+
+    /// <summary>
+    /// No hay nada que confirmar y /cuenta/iniciar-sesion devolvería al inicio a esta cookie, porque aún
+    /// autentica: lo que sirve es cerrar la sesión.
+    /// </summary>
+    private static void ComprobarSalidaDeSesionObsoleta(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut)
+    {
+        var alerta = cut.Find("[role=alert]").TextContent;
+        alerta.Should().Contain("Cierra la sesión y vuelve a iniciarla");
+        alerta.Should().NotContain("Vuelve a confirmarla");
+        cut.FindAll("form[action='/cuenta/cerrar-sesion']").Should().ContainSingle();
+    }
+
+    /// <summary>La frase que manda a cerrar la sesión tiene que decirlo también en catalán.</summary>
+    [Theory]
+    [InlineData("es", "Cierra la sesión y vuelve a iniciarla")]
+    [InlineData("ca-ES", "Tanca la sessió i torna a iniciar-la")]
+    public void El_texto_de_la_sesion_obsoleta_manda_a_cerrar_sesion_en_cada_idioma(string cultura, string esperado)
+    {
+        new ResourceManager(typeof(TextosCuenta))
+            .GetString("AltaDosFactoresSesionObsoleta", CultureInfo.GetCultureInfo(cultura))
+            .Should().Contain(esperado);
     }
 
     /// <summary>La entidad y la cookie coinciden, pero la entidad se cargó antes del cambio de credencial.</summary>
@@ -384,6 +411,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         _almacen.ClaveGuardada.Should().BeNull();
         cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        ComprobarSalidaDeSesionObsoleta(cut);
         _registro.Mensajes.Should().ContainSingle(m => m.Contains("Reautenticación para el alta de 2FA rechazada, la sesión lleva un sello obsoleto"));
     }
 

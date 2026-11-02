@@ -527,7 +527,8 @@ public class SignInManagerCuentaDesactivada(
     // (IdentityEndpointsExtensions). Bloqueo por país: CanSignInAsync, que
     // Identity consulta antes de comprobar la contraseña y otra vez en el
     // segundo factor; un rechazo sale como IsNotAllowed, con el mismo mensaje
-    // genérico que cualquier otro fallo.
+    // genérico que cualquier otro fallo en la contraseña. En el segundo factor
+    // cierra el paso, con un mensaje que tampoco dice el motivo (LoginCon2fa).
 
     private bool _cuentaEncontrada;
     private bool _paisNoPermitido;

@@ -341,7 +341,7 @@
             if (!await SesionLlevaElSelloVigenteAsync())
             {
                 RegistroAuditoria.LogWarning("Alta de 2FA rechazada al cargar, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
-                _errorCarga = Textos["ReautenticacionCaducada"];
+                _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
                 _cargando = false;
                 return;
             }
@@ -420,7 +420,7 @@
         if (!await SesionLlevaElSelloVigenteAsync())
         {
             RegistroAuditoria.LogWarning("Reautenticación para el alta de 2FA rechazada, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
-            mensajeError = Textos["ReautenticacionCaducada"];
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
             return;
         }
 
@@ -532,7 +532,7 @@
         if (!await SesionLlevaElSelloVigenteAsync())
         {
             RegistroAuditoria.LogWarning("Alta de 2FA rechazada, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
-            mensajeError = Textos["ReautenticacionCaducada"];
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
             return;
         }
 

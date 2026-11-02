@@ -278,13 +278,15 @@ public static class IdentityEndpointsExtensions
                 additionalClaims: [new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
 
             // SignInWithClaimsAsync no devuelve nada: un cambio de credencial durante este inicio deja sin
-            // cookie, y seguir de largo lo daría por correcto.
-            if (signInManager is SignInManagerCuentaDesactivada { InicioRechazadoPorSello: true })
+            // cookie, y seguir de largo lo daría por correcto. Otro tipo de SignInManager no sabría decirlo,
+            // y entonces tampoco se da por correcto.
+            if (signInManager is not SignInManagerCuentaDesactivada { InicioRechazadoPorSello: false })
             {
                 loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                     .LogWarning("Login de Microsoft rechazado: la credencial cambió durante el inicio de sesión: {UsuarioId}", usuario.Id);
                 await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
-                await signInManager.SignOutAsync();
+                // Solo la cookie externa: no se emitió ninguna sesión que sustituya a la de quien ya la tuviera.
+                await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 

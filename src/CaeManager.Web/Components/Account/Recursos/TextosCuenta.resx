@@ -193,6 +193,8 @@
   <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a iniciar sesión con Microsoft.</value></data>
   <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Volver a iniciar sesión con Microsoft</value></data>
   <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ya se está verificando esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="AltaDosFactoresSesionObsoleta" xml:space="preserve"><value>Los datos de seguridad de la cuenta han cambiado desde que iniciaste esta sesión. Cierra la sesión y vuelve a iniciarla para activar la autenticación en dos pasos.</value></data>
+  <data name="VerificacionInicioRechazado" xml:space="preserve"><value>No se ha podido completar el inicio de sesión. Vuelve a iniciar sesión.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
   <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Para vincular tu cuenta de Microsoft, configura antes la verificación en dos pasos de {0}.</value></data>
   <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Código QR para configurar la aplicación autenticadora</value></data>
