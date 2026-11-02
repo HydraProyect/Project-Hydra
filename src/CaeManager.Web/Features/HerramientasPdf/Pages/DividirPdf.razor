@@ -100,7 +100,13 @@
         <h1>@Textos["DividirTitulo"]</h1>
         @if (NombreEmpresaActiva is { } nombreEmpresa)
         {
-            <p>@Textos["EmpresaGestionadaDe"] <strong>@nombreEmpresa</strong> · @Textos["LaDelSelector"]</p>
+            <p>
+                @Textos["EmpresaGestionadaDe"] <strong>@nombreEmpresa</strong>
+                @if (_selectorVisible && !_elegirEmpresaAqui)
+                {
+                    <text> · @Textos["LaDelSelector"]</text>
+                }
+            </p>
         }
     </div>;
 

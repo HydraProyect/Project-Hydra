@@ -230,6 +230,7 @@ public sealed class DividirPdfPantallaTests : BunitContext
         cut.Find("select").Change(EmpresaId.ToString());
 
         cut.WaitForAssertion(() => cut.FindAll(".zona-soltar-archivo").Should().ContainSingle());
+        cut.Find(".cabecera-dividir").TextContent.Should().Contain("Montajes Norte S.L.").And.NotContain("barra lateral");
     }
 
     [Fact]
