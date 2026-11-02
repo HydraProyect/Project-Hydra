@@ -85,13 +85,13 @@ public sealed class PlanDecisionCerrada
     private const string PrefijoCampoTexto = "texto_de_la_orden_";
     private const string PrefijoCandidato = "candidato_";
 
-    private PlanDecisionCerrada(string campoTexto, string texto, IReadOnlyList<PreguntaCerrada> preguntas)
+    private PlanDecisionCerrada(string campoTexto, TextoEnmascarado enmascarado, IReadOnlyList<PreguntaCerrada> preguntas)
     {
-        // Todo texto entra al estado por aquí, y entra enmascarado: los DNI, NIE,
-        // pasaportes, CIF, correos y teléfonos no salen hacia el proveedor. El Centro, el
-        // Cliente empresarial y los nombres de persona sí, porque son lo que hay
-        // que casar con los candidatos.
-        var enmascarado = EnmascaradorIdentificadores.Enmascarar(texto);
+        // Todo texto entra al estado ya enmascarado: los DNI, NIE, pasaportes, CIF,
+        // correos y teléfonos no salen hacia el proveedor. El Centro, el Cliente
+        // empresarial y los nombres de persona sí, porque son lo que hay que casar con
+        // los candidatos; si el nombre de uno lleva un teléfono, ese tramo se enmascara
+        // igual en la orden y en la opción (misma tabla de marcadores).
         CampoTextoOrden = campoTexto;
         Estado = new Dictionary<string, string> { [campoTexto] = enmascarado.Texto };
         Identificadores = enmascarado.Identificadores;
@@ -142,7 +142,7 @@ public sealed class PlanDecisionCerrada
             "cambia qué pide.",
             opciones);
 
-        return Result.Exito(new PlanDecisionCerrada(campo, textoOrden, [pregunta]));
+        return Result.Exito(new PlanDecisionCerrada(campo, EnmascaradorIdentificadores.Enmascarar(textoOrden), [pregunta]));
     }
 
     /// <summary>Una pregunta por dato: cuál de sus candidatos nombra el texto.</summary>
@@ -171,6 +171,7 @@ public sealed class PlanDecisionCerrada
 
         var campo = PrefijoCampoTexto + sufijoCampo;
         var preguntas = new List<PreguntaCerrada>(selecciones.Count);
+        var enmascarado = EnmascaradorIdentificadores.Enmascarar(textoOrden);
 
         foreach (var seleccion in selecciones)
         {
@@ -181,8 +182,17 @@ public sealed class PlanDecisionCerrada
             // Claves opacas: ni el nombre del candidato ni nada del texto de la
             // orden viaja como clave. Así dos homónimos no chocan, y lo que el
             // modelo devuelve solo puede resolverse contra esta lista.
+            // La descripción de la opción sale hacia el proveedor: el nombre del
+            // candidato pasa por el mismo enmascarado y la misma tabla que la orden. Un
+            // teléfono en un Centro rotulado con su número no sale en claro, y sigue
+            // casando con la orden que lo nombra.
+            var nombres = EnmascaradorIdentificadores.EnmascararConTablaDe(
+                enmascarado, seleccion.Candidatos.Select(c => c.Nombre).ToList());
+            if (nombres.Select(n => n.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != nombres.Count)
+                return Invalido($"El dato «{seleccion.Campo.Nombre}» tiene candidatos que solo se distinguen por un teléfono.");
+
             var opciones = seleccion.Candidatos
-                .Select((c, i) => new OpcionCerrada($"{PrefijoCandidato}{i + 1}", c.Nombre, c.Id.ToString()))
+                .Select((c, i) => new OpcionCerrada($"{PrefijoCandidato}{i + 1}", nombres[i], c.Id.ToString()))
                 .Append(new OpcionCerrada(CatalogoOrdenesAsistente.Abstencion, CriterioAbstencionSeleccion, Valor: null))
                 .ToList();
 
@@ -196,7 +206,7 @@ public sealed class PlanDecisionCerrada
                 opciones));
         }
 
-        return Result.Exito(new PlanDecisionCerrada(campo, textoOrden, preguntas));
+        return Result.Exito(new PlanDecisionCerrada(campo, enmascarado, preguntas));
     }
 
     /// <summary>
@@ -301,7 +311,7 @@ public sealed class PlanDecisionCerrada
         // Un candidato descrito por su documento sacaría ese documento en claro, y
         // además no casaría con el texto, que viaja enmascarado. Un teléfono en el
         // nombre de un candidato (un Centro rotulado con su número) no invalida la
-        // decisión: es lo que ya ocurría antes de enmascarar teléfonos en el texto.
+        // decisión: la opción lo lleva enmascarado, con el mismo marcador que la orden.
         if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores
                 .Any(i => i.Tipo != TipoIdentificadorEnmascarado.Telefono)))
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene un candidato descrito por un documento o un correo.");

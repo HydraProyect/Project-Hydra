@@ -337,12 +337,68 @@ public class PlanDecisionCerradaTests
             .EsFallido.Should().BeTrue("el documento saldría en claro por las opciones");
     }
 
-    [Fact]
-    public void Un_candidato_con_un_telefono_en_el_nombre_se_sigue_preguntando()
+    [Theory]
+    [InlineData("Centro Norte (Getafe) 912 345 678")]
+    [InlineData("Centro Norte (Getafe) (91) 234 56 78")]
+    [InlineData("Centro Norte +34 612 345 678")]
+    public void Un_candidato_con_un_telefono_en_el_nombre_se_sigue_preguntando_pero_sale_enmascarado(string nombre)
     {
-        var conTelefono = new CandidatoDecisionDto(Guid.NewGuid(), "Centro Norte (Getafe) 912 345 678");
+        var conTelefono = new CandidatoDecisionDto(Guid.NewGuid(), nombre);
 
-        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Trabajadores, [conTelefono])], Sufijo)
-            .EsExitoso.Should().BeTrue("antes de enmascarar teléfonos ese nombre ya era válido");
+        var plan = PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Trabajadores, [conTelefono])], Sufijo);
+
+        plan.EsExitoso.Should().BeTrue("el nombre sigue siendo un candidato válido");
+        var enviado = plan.Valor.Preguntas.SelectMany(p => p.Opciones).Select(o => o.Descripcion);
+        enviado.Should().NotContain(d => d.Count(char.IsDigit) > 1, "ni una cifra del número sale");
+        plan.Valor.Preguntas.Single().Opciones[0].Descripcion.Should().StartWith("Centro Norte").And.Contain("[TEL_1]");
+        plan.Valor.Preguntas.Single().Opciones[0].Valor.Should().Be(conTelefono.Id.ToString(), "la correspondencia de selección no cambia");
+    }
+
+    [Fact]
+    public void El_telefono_del_candidato_y_el_de_la_orden_comparten_marcador_y_el_resto_se_distingue()
+    {
+        var uno = new CandidatoDecisionDto(Guid.NewGuid(), "Nave (91) 234 56 78");
+        var otro = new CandidatoDecisionDto(Guid.NewGuid(), "Nave (91) 234 56 79");
+
+        var plan = PlanDecisionCerrada.ParaSeleccionar(
+            "Entrar en Nave 91 234 56 79", [new SeleccionSolicitadaDto(Centro, [uno, otro])], Sufijo).Valor;
+
+        plan.Estado[CampoTexto].Should().Be("Entrar en Nave [TEL_1]");
+        var opciones = plan.Preguntas.Single().Opciones;
+        opciones[0].Descripcion.Should().Be("Nave [TEL_2]");
+        opciones[1].Descripcion.Should().Be("Nave [TEL_1]", "es el mismo número que el de la orden");
+        plan.Identificadores.Should().ContainSingle("solo lo que escribió quien da la orden");
+        opciones.Select(o => o.Descripcion).Concat(plan.Estado.Values).Should().NotContain(d => d.Contains("234"));
+    }
+
+    [Fact]
+    public void Dos_candidatos_que_solo_se_distinguen_por_la_grafia_del_mismo_telefono_se_rechazan()
+    {
+        var uno = new CandidatoDecisionDto(Guid.NewGuid(), "Nave 912 345 678");
+        var otro = new CandidatoDecisionDto(Guid.NewGuid(), "Nave (912) 345 678");
+
+        var resultado = PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Centro, [uno, otro])], Sufijo);
+
+        resultado.EsFallido.Should().BeTrue("enmascarados serían indistinguibles para el modelo");
+        resultado.Error.Codigo.Should().Be("DecisionCerrada.PeticionInvalida");
+        resultado.Error.Mensaje.Should().Contain("solo se distinguen por un teléfono",
+            "no puede confundirse con el rechazo por nombres idénticos ni por documento");
+    }
+
+    [Fact]
+    public void Un_candidato_llamado_como_un_marcador_no_se_confunde_con_el_marcador_de_la_orden()
+    {
+        var literal = new CandidatoDecisionDto(Guid.NewGuid(), "[TEL_1]");
+        var normal = new CandidatoDecisionDto(Guid.NewGuid(), "Centro Sur (Parla)");
+
+        var plan = PlanDecisionCerrada.ParaSeleccionar(
+            "Llama al 612 345 678", [new SeleccionSolicitadaDto(Centro, [literal, normal])], Sufijo).Valor;
+
+        plan.Estado[CampoTexto].Should().Be("Llama al [TEL_1]");
+        var opciones = plan.Preguntas.Single().Opciones;
+        opciones[0].Descripcion.Should().Be("(TEL_1)", "un marcador escrito a mano se desactiva, igual que en la orden");
+        opciones.Select(o => o.Descripcion).Should().NotContain("[TEL_1]");
+        opciones[0].Valor.Should().Be(literal.Id.ToString());
+        plan.Identificadores.Should().ContainSingle().Which.ValorOriginal.Should().Be("612 345 678");
     }
 }
