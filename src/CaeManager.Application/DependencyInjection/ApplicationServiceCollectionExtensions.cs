@@ -53,6 +53,7 @@ public static class ApplicationServiceCollectionExtensions
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        services.AddScoped<CaeManager.Application.Integraciones.ResponsableBuzonElegible>();
         services.AddScoped<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal,
             CaeManager.Application.Operaciones.AsignacionAutomaticaDePrincipal>();
         // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el

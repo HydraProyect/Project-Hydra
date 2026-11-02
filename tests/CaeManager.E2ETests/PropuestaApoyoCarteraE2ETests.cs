@@ -109,7 +109,7 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         var destino = respuesta.Headers.GetValueOrDefault("location") ?? string.Empty;
         Assert.False(destino.Contains("acceso-denegado") || destino.Contains("iniciar-sesion"),
             $"El POST a /cuenta/cliente-activo redirigió a «{destino}»: la cartera recién aceptada no autorizó abrir «{TenantPropuesto}».");
-        await pagina.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(pagina, LoadState.NetworkIdle);
 
         await Expect(Ayudas.DisparadorSelectorTenant(pagina)).ToHaveAttributeAsync("data-tenant-id", tenantPropuesto, new() { Timeout = 30_000 });
         await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorDelTenantPropuesto}");

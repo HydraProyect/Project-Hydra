@@ -11,7 +11,11 @@ modelo que no es el real. Por eso falla si:
   el snapshot de HEAD. Lo normal es que nazca de una migración sin snapshot, de un
   .Designer.cs escrito a mano o de dos PR cruzadas, y por eso CI compara también en
   la cola de fusión, contra lo que ya va delante;
-- HEAD no añade migraciones y aun así cambia el modelo del snapshot.
+- HEAD no añade migraciones y aun así cambia el modelo del snapshot;
+- el inventario de HEAD está incompleto: hay más clases «: Migration» fuera de los
+  *.Designer.cs que identificadores [Migration("...")] reconocidos (el atributo solo
+  se reconoce en su forma canónica, y una migración escrita a mano con otra, como
+  [Migration ("...")], quedaría fuera de la guarda sin avisar).
 
 Solo se comparan las migraciones nuevas: las ya fusionadas no se pueden corregir sin
 reescribirlas. ProductVersion no es modelo: `migrations add` lo sube en el .Designer.cs
@@ -28,6 +32,8 @@ ATRIBUTO = re.compile(r'\[Migration\("([^"\r\n]+)"\)\]')
 # Conserva los literales completos; la separación entre tokens sí es irrelevante.
 TOKEN = re.compile(r'\s+|//[^\n]*|/\*[\s\S]*?\*/|@"(?:""|[^"])*"|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|[A-Za-z_][A-Za-z_0-9]*|[0-9]+|.', re.DOTALL)
 VERSION = ['"ProductVersion"', ","]
+# Misma detección que verificar-orden-migraciones.py y deploy/listar-migraciones-ef.sh.
+CLASE = re.compile(r"\bclass\s+\w+\s*:\s*(?:global::)?(?:\w+\.)*Migration\b")
 
 
 def git(*args):
@@ -37,7 +43,17 @@ def git(*args):
     return resultado.stdout.decode("utf-8")
 
 
-def migraciones(ref):
+def clases_migracion(ref):
+    """Clases «: Migration» de los ficheros de la carpeta que no son *.Designer.cs."""
+    listado = git("ls-tree", "-r", "-z", "--name-only", ref, "--", CARPETA)
+    total = 0
+    for ruta in listado.split("\0"):
+        if ruta.endswith(".cs") and not ruta.endswith(".Designer.cs"):
+            total += len(CLASE.findall(git("show", f"{ref}:{ruta}")))
+    return total
+
+
+def migraciones(ref, exigir_inventario_completo=False):
     resultado = subprocess.run(["git", "grep", "-z", "-oE", r'\[Migration\("[^"]+"\)\]', ref, "--", f"{CARPETA}*.Designer.cs"], capture_output=True)
     if resultado.returncode not in (0, 1):
         raise ValueError(f"No se pudieron leer las migraciones de {ref}.")
@@ -49,6 +65,16 @@ def migraciones(ref):
         if not separador or len(ids) != 1 or ids[0] in encontrados or ruta in encontrados.values():
             raise ValueError(f"Atributo Migration ausente, duplicado o ambiguo en {ruta}. Deja un único identificador por migración.")
         encontrados[ids[0]] = ruta
+    if exigir_inventario_completo:
+        clases = clases_migracion(ref)
+        if clases != len(encontrados):
+            raise ValueError(
+                f"El inventario de migraciones está incompleto: {clases} clases «: Migration» fuera de *.Designer.cs "
+                f"frente a {len(encontrados)} identificadores [Migration(\"...\")] reconocidos. Una migración con el "
+                "atributo escrito de otra forma (por ejemplo [Migration (\"...\")]) o sin su .Designer.cs queda fuera "
+                "de las guardas. Escribe el atributo como [Migration(\"<identificador>\")] en su .Designer.cs, que es "
+                "la forma que reconoce EF Core al generarla."
+            )
     return encontrados
 
 
@@ -85,7 +111,7 @@ def primera_diferencia(a, b):
 
 def comprobar(base, head):
     anteriores = migraciones(base)
-    actuales = migraciones(head)
+    actuales = migraciones(head, exigir_inventario_completo=True)
     nuevas = sorted(actuales.keys() - anteriores.keys())
     if not nuevas:
         antes = cuerpo(git("show", f"{base}:{SNAPSHOT}"), "BuildModel")

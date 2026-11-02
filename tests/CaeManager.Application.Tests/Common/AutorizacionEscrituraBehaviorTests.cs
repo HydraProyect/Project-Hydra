@@ -10,6 +10,7 @@ using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
+using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -667,6 +668,7 @@ public class AutorizacionEscrituraBehaviorTests
         new GuardarContactoAgendaCommand(
             TipoPropietarioAgenda.Centro, Guid.NewGuid(), null, "Marta Ruiz", "marta@ejemplo.test", null, null, null, false, false, false, [], []),
         new EliminarContactoAgendaCommand(TipoPropietarioAgenda.Centro, Guid.NewGuid(), Guid.NewGuid()),
+        new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, Guid.NewGuid(), Guid.NewGuid(), "Llamar antes de las 11"),
     ];
 
     [Theory]

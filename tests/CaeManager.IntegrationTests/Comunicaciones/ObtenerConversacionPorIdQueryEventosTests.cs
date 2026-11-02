@@ -72,7 +72,8 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
         detalle.Should().NotBeNull();
-        detalle!.Eventos.Should().ContainSingle();
+        detalle!.NumeroTicket.Should().Be(1);
+        detalle.Eventos.Should().ContainSingle();
         var evento = detalle.Eventos[0];
         evento.Tipo.Should().Be(TipoEventoConversacion.VisitaCreada);
         evento.ReferenciaId.Should().Be(visitaId);

@@ -138,6 +138,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
 
         // Contactos
         "Contactos.EliminarContactoAgendaCommandHandler",
+        "Contactos.FijarNotaContactoAgendaCommandHandler",
         "Contactos.GuardarContactoAgendaCommandHandler",
 
         // Documentos
@@ -194,6 +195,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Integraciones.ConectarBuzonMicrosoft365CommandHandler",
         "Integraciones.CrearLineaWhatsAppCommandHandler",
         "Integraciones.DesconectarBuzonCommandHandler",
+        "Integraciones.FijarResponsableBuzonCommandHandler",
         "Integraciones.ReactivarConexionCommandHandler",
 
         // Plantillas

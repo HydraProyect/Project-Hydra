@@ -77,7 +77,7 @@ class GuardaTests(unittest.TestCase):
                 guarda.migraciones("inexistente")
 
     def test_migraciones_reales_se_pueden_leer(self):
-        actuales = guarda.migraciones("HEAD")
+        actuales = guarda.migraciones("HEAD", exigir_inventario_completo=True)
         self.assertTrue(actuales)
         ruta = actuales[max(actuales)]
         contenido = guarda.git("show", f"HEAD:{ruta}")
@@ -107,6 +107,13 @@ class RepositorioRealTests(unittest.TestCase):
     def anadir_migracion(self, identificador, contenido):
         cuerpo = modelo("BuildTargetModel", contenido)
         self.fichero(f"{guarda.CARPETA}{identificador}.Designer.cs", f'[Migration("{identificador}")] {cuerpo}')
+        self.fichero(f"{guarda.CARPETA}{identificador}.cs", "public partial class NombreGenerado : Migration { }")
+
+    def anadir_migracion_a_mano(self, identificador, atributo, contenido):
+        """La clase en su .cs y el atributo tal cual, como lo escribiría una persona."""
+        cuerpo = modelo("BuildTargetModel", contenido)
+        self.fichero(f"{guarda.CARPETA}{identificador}.Designer.cs", f"{atributo} {cuerpo}")
+        self.fichero(f"{guarda.CARPETA}{identificador}.cs", "public partial class NombreGenerado : Migration { }")
 
     def fichero(self, ruta, contenido):
         destino = self.repo / ruta
@@ -167,6 +174,41 @@ class RepositorioRealTests(unittest.TestCase):
         salida = self.guarda()
         self.assertEqual(salida.returncode, 1)
         self.assertIn("20270103000000_C.Designer.cs", salida.stderr)
+
+    def test_atributo_en_forma_no_canonica_deja_el_inventario_incompleto(self):
+        # Con el modelo alineado el resto de la guarda daría verde: solo el recuento lo ve.
+        for atributo in ('[Migration ("20270102000000_B")]', '[MigrationAttribute("20270102000000_B")]', '[Migration(\n"20270102000000_B")]'):
+            with self.subTest(atributo=atributo):
+                self.orden("reset", "-q", "--hard", self.base)
+                self.anadir_migracion_a_mano("20270102000000_B", atributo, 'modelBuilder.X("dos");')
+                self.escribir_snapshot('modelBuilder.X("dos");')
+                self.confirmar()
+                salida = self.guarda()
+                self.assertEqual(salida.returncode, 1)
+                self.assertTrue(salida.stderr.startswith("::error::"))
+                self.assertIn("El inventario de migraciones está incompleto: 2 clases", salida.stderr)
+
+    def test_atributo_canonico_escrito_a_mano_es_verde(self):
+        self.anadir_migracion_a_mano("20270102000000_B", '[Migration("20270102000000_B")]', 'modelBuilder.X("dos");')
+        self.escribir_snapshot('modelBuilder.X("dos");')
+        self.confirmar()
+        self.assertEqual(self.guarda().returncode, 0)
+
+    def test_clase_sin_designer_deja_el_inventario_incompleto(self):
+        self.fichero(f"{guarda.CARPETA}20270102000000_B.cs", "public partial class B\n    : Migration { }")
+        self.confirmar()
+        salida = self.guarda()
+        self.assertEqual(salida.returncode, 1)
+        self.assertIn("El inventario de migraciones está incompleto: 2 clases", salida.stderr)
+
+    def test_inventario_incompleto_de_la_base_no_bloquea(self):
+        self.fichero(f"{guarda.CARPETA}20270102000000_Vieja.cs", "public partial class V : Migration { }")
+        base = self.confirmar()
+        self.anadir_migracion("20270103000000_C", 'modelBuilder.X("dos");')
+        self.fichero(f"{guarda.CARPETA}20270102000000_Vieja.Designer.cs", '[Migration("20270102000000_Vieja")] ' + modelo("BuildTargetModel", 'modelBuilder.X("uno");'))
+        self.escribir_snapshot('modelBuilder.X("dos");')
+        self.confirmar()
+        self.assertEqual(self.guarda(base).returncode, 0)
 
     def test_historica_desalineada_no_cuenta(self):
         self.anadir_migracion("20270102000000_Historica", 'modelBuilder.X("desalineada");')

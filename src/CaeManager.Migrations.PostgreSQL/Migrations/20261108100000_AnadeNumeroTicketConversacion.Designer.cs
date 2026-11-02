@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261104130000_AnadeRepartoAdjuntos")]
-    partial class AnadeRepartoAdjuntos
+    [Migration("20261108100000_AnadeNumeroTicketConversacion")]
+    partial class AnadeNumeroTicketConversacion
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -183,6 +183,40 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"SucedeAClaveId\" IS NOT NULL");
 
                     b.ToTable("ClavesIntegracionTenant", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ApiKeys.UsoApiDiario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Dia")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("Peticiones")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TipoClave")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ApiKeyId", "TipoClave", "Dia", "Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("UsosApiDiarios", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
@@ -966,35 +1000,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<Guid?>("DestinoEmpresaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("DestinoTrabajadorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("DocumentoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("EstadoReparto")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("MotivoRechazo")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("NombreArchivo")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
-
-                    b.Property<DateTime?>("ResueltoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ResueltoPorUsuarioId")
-                        .HasColumnType("uuid");
 
                     b.Property<long>("TamanoBytes")
                         .HasColumnType("bigint");
@@ -1006,13 +1018,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<Guid?>("TipoDocumentoPropuestoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1306,6 +1311,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<long>("NumeroTicket")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValueSql("0");
+
                     b.Property<int>("Prioridad")
                         .HasColumnType("integer");
 
@@ -1330,6 +1340,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Estado");
 
+                    b.HasIndex("TenantId", "NumeroTicket")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "Canal", "Estado");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "HiloExternoId")
@@ -1341,6 +1354,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Conversaciones", null, t =>
                         {
                             t.HasCheckConstraint("CK_Conversaciones_AnclaUnica", "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1");
+
+                            t.HasCheckConstraint("CK_Conversaciones_NumeroTicketPositivo", "\"NumeroTicket\" > 0");
                         });
                 });
 
@@ -6986,6 +7001,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("ResponsableUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

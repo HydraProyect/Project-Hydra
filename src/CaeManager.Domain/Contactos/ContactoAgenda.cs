@@ -47,7 +47,15 @@ public class ContactoAgenda : EntidadBase
     public string Email { get; private set; } = string.Empty;
     public string? Telefono { get; private set; }
     public string? Cargo { get; private set; }
+    /// <summary>
+    /// Nota fija del contacto: lo que quien le atienda debe saber siempre. Se guarda por contacto, no por conversación.
+    /// </summary>
     public string? Notas { get; private set; }
+
+    /// <summary>Quién escribió la nota fija vigente. Null en una nota anterior a la autoría o en una alta de siembra.</summary>
+    public Guid? NotasAutorUsuarioId { get; private set; }
+
+    public DateTime? NotasActualizadasEnUtc { get; private set; }
 
     /// <summary>
     /// Destinatario de todo lo que no tenga dueño explícito. Sin ningún
@@ -130,18 +138,31 @@ public class ContactoAgenda : EntidadBase
     }
 
     public void Actualizar(
-        string nombre, string email, string? telefono, string? cargo, string? notas,
+        string nombre, string email, string? telefono, string? cargo,
         bool esPredeterminado, bool recibeProgramacionVisitas, bool recibeFacturacion)
     {
         EstablecerNombre(nombre);
         EstablecerEmail(email);
         EstablecerTelefono(telefono);
         EstablecerCargo(cargo);
-        EstablecerNotas(notas);
 
         EsPredeterminado = esPredeterminado;
         RecibeProgramacionVisitas = recibeProgramacionVisitas;
         RecibeFacturacion = recibeFacturacion;
+    }
+
+    /// <summary>
+    /// Fija la nota con su autoría. Guardar el mismo texto no cambia autor ni fecha: el formulario de la Agenda reenvía
+    /// la nota aunque solo se haya tocado el teléfono. Vaciarla retira también la autoría.
+    /// </summary>
+    public void FijarNotas(string? notas, Guid? autorUsuarioId, DateTime ahoraUtc)
+    {
+        var anteriores = Notas;
+        EstablecerNotas(notas);
+        if (Notas == anteriores) return;
+
+        NotasAutorUsuarioId = Notas is null ? null : autorUsuarioId;
+        NotasActualizadasEnUtc = Notas is null ? null : ahoraUtc;
     }
 
     /// <summary>

@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
@@ -341,6 +342,83 @@ public class RevisionIaGen2Tests : BunitContext
         cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Vigencia a mano")).TextContent
             .Should().Contain("Vigencia a confirmar a mano");
         Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull();
+    }
+
+    /// <summary>La confianza del modelo no compensa una alerta determinista: ni preselección, ni casilla, ni bloque.</summary>
+    [Theory]
+    [InlineData(MotivosRevisionIa.NoAptoORestriccion)]
+    [InlineData(MotivosRevisionIa.TextoDirigidoAlLector)]
+    [InlineData(MotivosRevisionIa.FechaEmisionNoEscrita)]
+    [InlineData(MotivosRevisionIa.SinContraste)]
+    public async Task Una_revision_con_alerta_no_entra_en_el_bloque_aunque_tenga_confianza_alta(string motivo)
+    {
+        var conAlerta = Revision("Con aviso", 99, new DateOnly(2026, 9, 1)) with { Motivo = motivo };
+        var aceptable = Revision("Aceptable", 99, new DateOnly(2026, 9, 1));
+        var mediador = new MediadorFalso { Revisiones = [conAlerta, aceptable] };
+        var cut = Renderizar(mediador);
+
+        Casilla(cut, "Aceptable").HasAttribute("checked").Should().BeTrue("control positivo: la de igual confianza sin alerta sí se preselecciona");
+        Casilla(cut, "Con aviso").HasAttribute("checked").Should().BeFalse();
+        Casilla(cut, "Con aviso").HasAttribute("disabled").Should().BeTrue("se acepta de una en una");
+        Casilla(cut, "Con aviso").GetAttribute("title").Should().Contain("Con alerta");
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Con aviso")).TextContent.Should().Contain("Con alerta");
+
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        await ConfirmarBloqueAsync(cut);
+
+        mediador.Enviadas.OfType<AceptarDeteccionesIaEnBloqueCommand>().Should().ContainSingle()
+            .Which.RevisionIds.Should().Equal(aceptable.Id);
+    }
+
+    [Fact]
+    public async Task Una_lectura_parcial_se_trata_como_alerta_y_queda_visible_con_su_motivo()
+    {
+        var parcial = Revision("Parcial", 99, new DateOnly(2026, 9, 1)) with { Motivo = MotivosRevisionIa.LecturaParcial(26) };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [parcial] });
+
+        await Boton(cut, "Aceptables").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("Ningún resultado con este filtro", "no se ofrece como aceptable en bloque");
+
+        await Boton(cut, "Quitar el filtro").ClickAsync(new MouseEventArgs());
+        Casilla(cut, "Parcial").HasAttribute("disabled").Should().BeTrue();
+        cut.Find(".revision-ia-motivo").TextContent.Should().Contain("26 página(s) sin leer").And.Contain("No entra en la aceptación en bloque");
+        cut.Find(".revision-ia-estado").ClassList.Should().Contain("revision-ia-estado-advertencia", "una alerta no se pinta en verde");
+    }
+
+    /// <summary>La aceptación individual sigue permitida porque el Gestor CAE tiene el motivo delante del botón.</summary>
+    [Fact]
+    public async Task De_una_en_una_se_acepta_con_el_motivo_a_la_vista_y_sin_el_filtro_de_alertas()
+    {
+        var conAlerta = Revision("Con aviso", 99, new DateOnly(2026, 9, 1)) with { Motivo = MotivosRevisionIa.NoAptoORestriccion };
+        var mediador = new MediadorFalso { Revisiones = [conAlerta] };
+        var cut = Renderizar(mediador);
+
+        cut.Find(".revision-ia-motivo").TextContent.Should().Contain(MotivosRevisionIa.NoAptoORestriccion);
+        await Boton(cut, "Aceptar detección").ClickAsync(new MouseEventArgs());
+
+        var enviada = mediador.Enviadas.OfType<AplicarDeteccionIaDocumentoCommand>().Should().ContainSingle().Subject;
+        enviada.RevisionId.Should().Be(conAlerta.Id);
+        enviada.SoloSinAlertaDeterminista.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Si_el_servidor_rechaza_una_alerta_el_motivo_del_rechazo_se_muestra_por_revision()
+    {
+        var revision = Revision("Rechazada", 99, new DateOnly(2026, 9, 1));
+        var mediador = new MediadorFalso
+        {
+            Revisiones = [revision],
+            AlAceptarEnBloque = _ => Result.Exito(new ResultadoAceptacionEnBloque(
+            [
+                new ResultadoAceptacionRevisionIa(revision.Id, false, CodigosRevisionIa.CodigoAlertaARevisarIndividualmente, "Esta lectura tiene una alerta."),
+            ])),
+        };
+        var cut = Renderizar(mediador);
+
+        await Boton(cut, "Aceptar seleccionadas (1)").ClickAsync(new MouseEventArgs());
+        await ConfirmarBloqueAsync(cut);
+
+        cut.Find(".revision-ia-resultado").TextContent.Should().Contain("Rechazada").And.Contain("Esta lectura tiene una alerta.");
     }
 
     /// <summary>Principio: la sugerencia nunca se acepta sola. Cargar, preseleccionar o abrir el diálogo no despacha nada.</summary>

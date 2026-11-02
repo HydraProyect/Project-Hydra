@@ -508,6 +508,16 @@ public class ReportesGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task El_envio_del_informe_se_etiqueta_como_informe_en_el_rastro_de_salida()
+    {
+        var (cut, _) = Renderizar(new Escenario(), $"reportes?clienteId={ClienteA}");
+        await Generar(cut);
+
+        cut.FindComponent<CaeManager.Web.Components.DesignSystem.RedactarMensajeDrawer>().Instance.Origen
+            .Should().Be(CaeManager.Application.Comunicaciones.OrigenSalidaComunicacion.Informe);
+    }
+
+    [Fact]
     public async Task Consulta_genera_y_descarga_el_informe_sin_que_se_le_ofrezca_enviarlo_por_comunicaciones()
     {
         // Enviar abre el redactor, que manda EnviarMensajeNuevoCommand: ICommand que
