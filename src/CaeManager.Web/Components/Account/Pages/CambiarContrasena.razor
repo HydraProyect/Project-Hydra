@@ -19,6 +19,7 @@
 @inject IOptions<IdentityOptions> OpcionesIdentity
 @inject ILoggerFactory LoggerFactory
 @inject IEleccionLiderService CerrojoCredencial
+@inject Microsoft.Extensions.DependencyInjection.IServiceScopeFactory Ambitos
 @inject IClienteActivoSeleccionado Seleccion
 @inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta> Textos
 
@@ -159,10 +160,25 @@
         // rechaza sin gastar ningún intento contra Identity.
         IdentityResult? resultadoObtenido = null;
         var verificacionFallida = false;
+        var cuentaCambiada = false;
         var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
             $"credencial:{usuario.Id}",
             async _ =>
             {
+                // Lo primero, antes de verificar nada: usuario se leyó antes del cerrojo, y un restablecimiento
+                // que termine en esa espera deja esta copia con la contraseña antigua. Compararla con la copia
+                // aceptaría esa contraseña y revocaría sesiones abiertas después del restablecimiento, aunque
+                // ChangePasswordAsync fallara luego por concurrencia. Con la cuenta cambiada no se verifica,
+                // no se revoca y no se cuenta ningún fallo (ver AmbitoDeCredencial).
+                await using (var credencial = AmbitoDeCredencial.Abrir(Ambitos))
+                {
+                    if (!await credencial.SigueComoSeLeyoAsync(usuario))
+                    {
+                        cuentaCambiada = true;
+                        return;
+                    }
+                }
+
                 if (await UserManager.IsLockedOutAsync(usuario))
                 {
                     verificacionFallida = true;
@@ -232,10 +248,10 @@
             },
             CancellationToken.None);
 
-        if (!ejecutado)
+        if (!ejecutado || cuentaCambiada)
         {
             logger.LogWarning(
-                "Cambio de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}", usuario.Id);
+                "Cambio de contraseña rechazado, otra operación de credencial en curso o recién terminada: {UsuarioId}", usuario.Id);
             mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
             return;
         }

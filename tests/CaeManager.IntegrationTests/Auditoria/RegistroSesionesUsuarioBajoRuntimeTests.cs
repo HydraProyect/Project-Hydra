@@ -224,6 +224,35 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
         fila.GetBoolean(3).Should().BeTrue();
     }
 
+    /// <summary>
+    /// La relectura del cerrojo de credencial, con la cuenta firmando el contexto y bajo la RLS de
+    /// <c>AspNetUsers</c>: si no viera la propia cuenta, nadie podría cambiar su contraseña.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_ve_la_propia_cuenta_y_nota_una_escritura_posterior()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(cuenta);
+        await CrearCuentaAsync(arnes, cuenta);
+
+        using var peticion = arnes.Servicios.CreateScope();
+        var leida = (await peticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))!;
+        var ambitos = arnes.Servicios.GetRequiredService<IServiceScopeFactory>();
+
+        await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
+            (await credencial.SigueComoSeLeyoAsync(leida)).Should().BeTrue("nadie ha escrito la cuenta");
+
+        using (var otraPeticion = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+        {
+            var usuarios = otraPeticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            (await usuarios.UpdateSecurityStampAsync((await usuarios.FindByIdAsync(cuenta.ToString()))!)).Succeeded.Should().BeTrue();
+        }
+
+        await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
+            (await credencial.SigueComoSeLeyoAsync(leida)).Should().BeFalse("la copia de la petición ya no es la de la base");
+    }
+
     // ---------- Arnés ----------
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid cuenta) =>

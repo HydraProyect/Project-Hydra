@@ -1036,6 +1036,109 @@ public class AccesoCuentaEscenaTests : BunitContext
         hashAlRevocar[1].Should().NotBe(hashAnterior, "la segunda se lleva lo abierto con la contraseña antigua");
     }
 
+    private const string MensajeOperacionEnCurso = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
+
+    /// <summary>
+    /// Un restablecimiento termina mientras la petición espera el cerrojo: la copia de la página conserva
+    /// el hash antiguo, así que compararla con ella aceptaría la contraseña antigua y revocaría sesiones
+    /// abiertas después del restablecimiento. Lo mismo con una escritura ajena a la credencial, con la que
+    /// <c>ChangePasswordAsync</c> fallaría ya revocadas las sesiones. Con la contraseña errónea, tampoco
+    /// cuenta un fallo contra una verificación que no se ha hecho.
+    /// </summary>
+    [Theory]
+    [InlineData("sello-rotado", "concurrencia", "Abcdefghijk1")]
+    [InlineData("sello", "concurrencia-nueva", "Abcdefghijk1")]
+    [InlineData("sello-rotado", "concurrencia-nueva", "Incorrecta1234")]
+    public async Task Cambiar_contrasena_si_la_cuenta_cambio_antes_del_cerrojo_no_verifica_ni_revoca_ni_cuenta_el_fallo(
+        string selloEnLaBase, string concurrenciaEnLaBase, string contrasenaActual)
+    {
+        var leida = CuentaLeidaAntesDelCerrojo();
+        var enLaBase = new ApplicationUser
+        {
+            Id = leida.Id,
+            Email = leida.Email,
+            SecurityStamp = selloEnLaBase,
+            ConcurrencyStamp = concurrenciaEnLaBase,
+        };
+
+        var (cut, hash, almacenDeLaPagina) = await EnviarCambioConCuentaTrasElCerrojoAsync(leida, enLaBase, contrasenaActual);
+
+        _sesiones.DemasCerradas.Should().BeEmpty("la cuenta cambió: esta petición no revoca nada");
+        leida.AccessFailedCount.Should().Be(0, "no se ha verificado la contraseña actual");
+        almacenDeLaPagina.HashContrasena.Should().Be(hash);
+        leida.DebeCambiarContrasena.Should().BeTrue();
+        cut.Find(".acceso-alerta").TextContent.Should().Be(MensajeOperacionEnCurso);
+    }
+
+    [Fact]
+    public async Task Cambiar_contrasena_si_la_cuenta_ya_no_existe_tras_el_cerrojo_no_revoca_nada()
+    {
+        var (cut, _, _) = await EnviarCambioConCuentaTrasElCerrojoAsync(CuentaLeidaAntesDelCerrojo(), null, "Abcdefghijk1");
+
+        _sesiones.DemasCerradas.Should().BeEmpty();
+        cut.Find(".acceso-alerta").TextContent.Should().Be(MensajeOperacionEnCurso);
+    }
+
+    /// <summary>Una relectura es otra instancia: lo que cuenta son los sellos, no que sea el mismo objeto.</summary>
+    [Fact]
+    public async Task Cambiar_contrasena_con_la_cuenta_igual_en_la_base_sigue_adelante()
+    {
+        var leida = CuentaLeidaAntesDelCerrojo();
+        var enLaBase = new ApplicationUser
+        {
+            Id = leida.Id,
+            Email = leida.Email,
+            SecurityStamp = leida.SecurityStamp,
+            ConcurrencyStamp = leida.ConcurrencyStamp,
+        };
+
+        var (_, hash, almacenDeLaPagina) = await EnviarCambioConCuentaTrasElCerrojoAsync(leida, enLaBase, "Abcdefghijk1");
+
+        _sesiones.DemasCerradas.Should().HaveCount(2);
+        almacenDeLaPagina.HashContrasena.Should().NotBe(hash);
+    }
+
+    private static ApplicationUser CuentaLeidaAntesDelCerrojo() => new()
+    {
+        Id = Guid.NewGuid(),
+        Email = "marta@example.test",
+        SecurityStamp = "sello",
+        ConcurrencyStamp = "concurrencia",
+        DebeCambiarContrasena = true,
+        LockoutEnabled = true,
+    };
+
+    /// <summary>
+    /// Cada ámbito de servicios tiene su almacén con la cuenta que había al abrirse, como el contexto de EF
+    /// con su entidad rastreada: la página conserva <paramref name="leida"/> aunque la base ya tenga
+    /// <paramref name="enLaBase"/>, y solo un ámbito propio ve lo nuevo.
+    /// </summary>
+    private async Task<(IRenderedComponent<CambiarContrasena> Pagina, string Hash, AlmacenFalso AlmacenDeLaPagina)> EnviarCambioConCuentaTrasElCerrojoAsync(
+        ApplicationUser leida, ApplicationUser? enLaBase, string contrasenaActual)
+    {
+        var hash = new PasswordHasher<ApplicationUser>().HashPassword(leida, "Abcdefghijk1");
+        var cuentaActual = leida;
+        AlmacenFalso? almacenDeLaPagina = null;
+        Services.AddScoped<UserManager<ApplicationUser>>(_ =>
+        {
+            var almacen = new AlmacenFalso { Usuario = cuentaActual, HashContrasena = hash };
+            almacenDeLaPagina ??= almacen;
+            return CrearUsuarios(almacen, PoliticaDeLaApp());
+        });
+        Services.AddSingleton<IEleccionLiderService>(new CerrojoQueAnotaSiEstaDentro { AntesDeConceder = () => cuentaActual = enLaBase });
+        _almacen.Usuario = leida;
+        AddAuthorization().SetAuthorized(leida.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, leida.Id.ToString()));
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(new AutenticacionCapturada(null)).BuildServiceProvider();
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+        return (cut, hash, almacenDeLaPagina!);
+    }
+
     /// <summary>Con la contraseña actual incorrecta no cambia nada: ninguna sesión se revoca.</summary>
     [Fact]
     public async Task Cambiar_contrasena_rechazado_no_revoca_ninguna_sesion()
