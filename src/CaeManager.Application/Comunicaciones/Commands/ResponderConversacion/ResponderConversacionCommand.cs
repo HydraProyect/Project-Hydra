@@ -49,6 +49,7 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// </summary>
 public class ResponderConversacionCommandHandler(
     IConversacionRepository repositorio,
+    IComunicacionesQueryContext comunicaciones,
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
@@ -68,6 +69,10 @@ public class ResponderConversacionCommandHandler(
         // esto se podía responder en el hilo de otro gestor.
         if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        if (bloqueo.EsFallido)
+            return bloqueo;
 
         Mensaje mensajeCreado;
         var huboEnvioReal = false;

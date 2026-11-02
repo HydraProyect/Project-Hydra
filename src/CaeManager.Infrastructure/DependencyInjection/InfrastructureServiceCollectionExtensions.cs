@@ -477,6 +477,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionIntencionCaeService, AnthropicDeteccionIntencionCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IRespuestaSugeridaRepository, RespuestaSugeridaRepository>();
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.IRedaccionRespuestaIa, AnthropicRedaccionRespuestaIaService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();

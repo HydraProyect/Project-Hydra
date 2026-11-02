@@ -446,6 +446,25 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
             async contexto => conversacionId = await SembrarConversacionAsync(contexto));
     }
 
+    [Fact]
+    public async Task Aislamiento_RespuestaSugerida()
+    {
+        var conversacionId = Guid.Empty;
+        var mensajeId = Guid.Empty;
+
+        await VerificarAislamientoAsync(
+            () => RespuestaSugerida.DeVega(conversacionId, mensajeId, "<p>Borrador</p>", Guid.NewGuid(),
+                new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)),
+            async contexto =>
+            {
+                conversacionId = await SembrarConversacionAsync(contexto);
+                var mensaje = new Mensaje(conversacionId, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@ejemplo.com", "Cuerpo", DateTime.UtcNow);
+                contexto.Mensajes.Add(mensaje);
+                await contexto.SaveChangesAsync();
+                mensajeId = mensaje.Id;
+            });
+    }
+
     /// <summary>
     /// El registro de actividad de soporte pertenece al tenant <b>visitado</b>,
     /// no al de Hydra: es el cliente quien debe poder consultar qué se hizo en

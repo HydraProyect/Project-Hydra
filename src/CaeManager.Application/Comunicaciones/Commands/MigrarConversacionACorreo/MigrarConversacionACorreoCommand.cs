@@ -44,6 +44,7 @@ public class MigrarConversacionACorreoCommandValidator : AbstractValidator<Migra
 
 public class MigrarConversacionACorreoCommandHandler(
     IConversacionRepository conversacionRepositorio,
+    IComunicacionesQueryContext comunicaciones,
     IIntegracionesQueryContext integracionesContext,
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
@@ -66,6 +67,10 @@ public class MigrarConversacionACorreoCommandHandler(
         if (conversacion.VentanaServicioAbierta(DateTime.UtcNow))
             return Result.Fallo(Error.Crear(
                 "Conversacion.VentanaAbierta", "La ventana de WhatsApp sigue abierta — responde por ese canal."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        if (bloqueo.EsFallido)
+            return bloqueo;
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también

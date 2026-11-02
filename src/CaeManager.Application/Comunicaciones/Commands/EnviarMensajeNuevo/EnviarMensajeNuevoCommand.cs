@@ -61,6 +61,7 @@ public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensaj
 public class EnviarMensajeNuevoCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     IConversacionRepository conversacionRepositorio,
+    IComunicacionesQueryContext comunicaciones,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
@@ -100,6 +101,10 @@ public class EnviarMensajeNuevoCommandHandler(
         // anclado a una Empresa que no tiene en cartera.
         if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(conexion.Id, request.CuerpoHtml, cancellationToken);
+        if (bloqueo.EsFallido)
+            return Result.Fallo<Guid>(bloqueo.Error);
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (tokenResultado.EsFallido)

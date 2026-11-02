@@ -57,9 +57,20 @@ public class AnthropicOptions
         Rutas.TryGetValue(ruta, out var propia);
 
         return (
-            string.IsNullOrWhiteSpace(propia?.Modelo) ? Modelo : propia.Modelo,
+            string.IsNullOrWhiteSpace(propia?.Modelo)
+                ? ModelosPorDefectoDeRuta.GetValueOrDefault(ruta, Modelo)
+                : propia.Modelo,
             string.IsNullOrWhiteSpace(propia?.Esfuerzo) ? Esfuerzo : propia.Esfuerzo);
     }
+
+    /// <summary>
+    /// Rutas cuyo modelo por defecto no es <see cref="Modelo"/>. La configuración de la ruta manda sobre esto, y este
+    /// valor sobre el modelo general.
+    /// </summary>
+    private static readonly Dictionary<string, string> ModelosPorDefectoDeRuta = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [RutasAnthropic.RespuestaSugerida] = "claude-haiku-5-5",
+    };
 
     /// <summary>
     /// Precio orientativo por millón de tokens de entrada/salida (USD),
@@ -93,4 +104,5 @@ public static class RutasAnthropic
     public const string Ocr = "Ocr";
     public const string ExtraccionEstructurada = "ExtraccionEstructurada";
     public const string AlertaCritica = "AlertaCritica";
+    public const string RespuestaSugerida = "RespuestaSugerida";
 }

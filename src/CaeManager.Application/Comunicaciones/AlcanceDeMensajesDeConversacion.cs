@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comunicaciones;
@@ -27,7 +28,16 @@ public static class AlcanceDeMensajesDeConversacion
             select c)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return conversacion is not null && await alcance.ConversacionVisibleAsync(
-            conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken);
+        return conversacion is not null && await alcance.ConversacionVisibleAsync(conversacion, cancellationToken);
     }
+
+    /// <summary><see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync"/> sobre una conversación ya cargada.</summary>
+    public static Task<bool> ConversacionVisibleAsync(
+        this IAlcanceDatosService alcance, Conversacion conversacion, CancellationToken cancellationToken = default) =>
+        alcance.ConversacionVisibleAsync(
+            conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken);
+
+    /// <summary>Sin Cliente empresarial ni Empresa, el hilo está en triage y ninguna cartera lo atiende todavía.</summary>
+    public static bool TieneAncla(this Conversacion conversacion) =>
+        conversacion.ClienteId is not null || conversacion.EmpresaId is not null;
 }

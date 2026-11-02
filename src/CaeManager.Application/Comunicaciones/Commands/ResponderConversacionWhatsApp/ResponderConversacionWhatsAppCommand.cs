@@ -46,6 +46,7 @@ public class ResponderConversacionWhatsAppCommandValidator : AbstractValidator<R
 /// </summary>
 public class ResponderConversacionWhatsAppCommandHandler(
     IConversacionRepository conversacionRepositorio,
+    IComunicacionesQueryContext comunicaciones,
     IConexionIntegracionRepository conexionRepositorio,
     ILineaWhatsAppRepository lineaRepositorio,
     IAlcanceDatosService alcanceDatos,
@@ -83,6 +84,10 @@ public class ResponderConversacionWhatsAppCommandHandler(
         if (linea is null)
             return Result.Fallo(Error.Crear(
                 "ConversacionWhatsApp.LineaNoDisponible", "La línea de WhatsApp de esta conversación no está disponible."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.Texto, cancellationToken);
+        if (bloqueo.EsFallido)
+            return bloqueo;
 
         var envio = await whatsAppClient.EnviarTextoAsync(
             linea.TokenAcceso, linea.PhoneNumberId, conversacion.TelefonoContacto, request.Texto, cancellationToken);

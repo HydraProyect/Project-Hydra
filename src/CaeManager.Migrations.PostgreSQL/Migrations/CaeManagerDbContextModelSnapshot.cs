@@ -1650,6 +1650,79 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("PropuestasRecordatorioConversacion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.RespuestaSugerida", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("GeneradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GeneradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MacroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MensajeOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Origen")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RevisadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevisadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(1048576)
+                        .HasColumnType("character varying(1048576)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId", "TenantId")
+                        .HasDatabaseName("IX_RespuestasSugeridas_ConversacionId_TenantId");
+
+                    b.HasIndex("MensajeOrigenId", "TenantId")
+                        .HasDatabaseName("IX_RespuestasSugeridas_MensajeOrigenId_TenantId");
+
+                    b.HasIndex("TenantId", "ConversacionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RespuestasSugeridas_Activa_Unica")
+                        .HasFilter("\"Estado\" IN (0, 1)");
+
+                    b.ToTable("RespuestasSugeridas", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SolicitudPrioridadDocumento", b =>
                 {
                     b.Property<Guid>("Id")

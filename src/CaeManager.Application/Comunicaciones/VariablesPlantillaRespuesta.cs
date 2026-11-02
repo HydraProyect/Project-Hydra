@@ -17,6 +17,11 @@ public static partial class VariablesPlantillaRespuesta
                 ? EscaparHtml(valor)
                 : m.Value);
 
+    // Texto que no es de confianza (lo redacta un modelo a partir de un correo ajeno): nada de él se interpreta como HTML.
+    public static string TextoPlanoAHtml(string texto) => string.Concat(
+        texto.Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(parrafo => $"<p>{EscaparHtml(parrafo).Replace("\n", "<br>")}</p>"));
+
     // Solo los caracteres con significado en HTML: «Pérez» se queda «Pérez» en el borrador.
     private static string EscaparHtml(string valor) => valor
         .Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")

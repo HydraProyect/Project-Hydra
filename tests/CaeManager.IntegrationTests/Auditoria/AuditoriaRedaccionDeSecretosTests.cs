@@ -394,6 +394,25 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         registro.DatosDespues.Should().Contain("\"CuerpoHtml\":\"***\"");
     }
 
+    /// <summary>La respuesta sugerida es contenido dirigido a un tercero, igual que el cuerpo del mensaje que responde.</summary>
+    [Fact]
+    public async Task El_texto_de_una_respuesta_sugerida_no_aparece_en_claro_en_la_auditoria()
+    {
+        var mensajeId = await SembrarMensajeConAdjuntoAsync();
+
+        await using (var contexto = CrearContexto())
+        {
+            var conversacionId = await contexto.Mensajes.Where(m => m.Id == mensajeId).Select(m => m.ConversacionId).SingleAsync();
+            contexto.RespuestasSugeridas.Add(RespuestaSugerida.DeVega(conversacionId, mensajeId, CuerpoHtmlSecreto, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(RespuestaSugerida));
+
+        registro.DatosDespues.Should().NotContain(TextoSecretoDelCuerpo);
+        registro.DatosDespues.Should().Contain("\"Texto\":\"***\"");
+    }
+
     /// <summary>
     /// G-16/DEC-9: el remitente. El propietario extendió aquí la
     /// recomendación —el argumento forense era débil en ambas direcciones—

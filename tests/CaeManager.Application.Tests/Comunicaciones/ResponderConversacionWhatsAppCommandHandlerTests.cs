@@ -21,7 +21,7 @@ public class ResponderConversacionWhatsAppCommandHandlerTests
     private readonly UnitOfWorkFalso _unitOfWork = new();
 
     private ResponderConversacionWhatsAppCommandHandler CrearHandler(IUnitOfWork? unitOfWork = null) =>
-        new(_conversaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? _unitOfWork,
+        new(_conversaciones, new ComunicacionesQueryContextFalso(), _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? _unitOfWork,
             NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance);
 
     private Conversacion CrearConversacionConLinea(DateTime? ultimoEntranteUtc)
