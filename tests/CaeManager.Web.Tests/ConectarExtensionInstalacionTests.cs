@@ -50,6 +50,7 @@ public class ConectarExtensionInstalacionTests : BunitContext
         public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class SellosQueNadieDebeTocar : ISelloSeguridadCuenta

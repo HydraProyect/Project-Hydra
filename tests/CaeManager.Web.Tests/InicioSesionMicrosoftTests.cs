@@ -358,6 +358,7 @@ public class InicioSesionMicrosoftTests
         public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => Task.FromResult(0);
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => Task.FromResult(0);
     }
 
     private sealed class VigilanciaDePrueba : CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion
