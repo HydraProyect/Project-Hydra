@@ -48,4 +48,20 @@ if [ -n "$repetidos" ]; then
     exit 1
 fi
 
+# El atributo solo se reconoce en su forma canónica (la que EF Core escribe en el
+# .Designer.cs). Una migración escrita a mano con otra forma válida, como
+# [Migration ("...")], tendría clase pero ningún identificador, y la imagen
+# saldría con una etiqueta incompleta. Se cuentan las clases «: Migration» fuera
+# de los *.Designer.cs, que son las que EF Core descubre, y tienen que coincidir.
+# -z: cada fichero es un solo registro, así que la declaración puede ir en varias líneas.
+clases="$(LC_ALL=C grep -rhzoE --include='*.cs' --exclude='*.Designer.cs' \
+    '\bclass[[:space:]]+[^[:space:]:<{(]+[[:space:]]*:[[:space:]]*(global::)?([A-Za-z0-9_]+\.)*Migration\b' "$dir" \
+    | tr -cd '\0' | wc -c || true)"
+clases=$((clases + 0))
+total="$(printf '%s\n' "$ids" | wc -l)"
+if [ "$clases" -ne "$total" ]; then
+    echo "listar-migraciones-ef: $clases clases ': Migration' fuera de *.Designer.cs frente a $total identificadores [Migration(\"...\")]; hay una migración con el atributo escrito de otra forma o sin su .Designer.cs" >&2
+    exit 1
+fi
+
 printf '%s\n' "$ids" | paste -sd, -

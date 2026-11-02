@@ -25,6 +25,14 @@ def migracion(identificador, fichero=None):
     }
 
 
+def a_mano(atributo, fichero="20270101000000_Nueva"):
+    """Migración con la clase en su .cs y el atributo escrito tal cual, sin pasar por EF Core."""
+    return {
+        f"{fichero}.cs": "public partial class M : Migration { }\n",
+        f"{fichero}.Designer.cs": f"[DbContext(typeof(C))]\n{atributo}\npartial class M {{ }}\n",
+    }
+
+
 BASE = {
     **migracion(MAXIMA),
     **migracion(INVERTIDA),
@@ -86,6 +94,68 @@ CASOS = [
         {**SIN_MAXIMA, **migracion("20270101000000_Movida")},
         1,
         "::error::Estas migraciones de la base desaparecen",
+    ),
+    # Inventario completo: clases «: Migration» fuera de *.Designer.cs = identificadores reconocidos.
+    # Todas llevan una marca posterior, así que sin el recuento pasarían (0 nuevas reconocidas).
+    *[
+        (
+            f"Atributo en forma no canónica: {titulo}",
+            {**BASE, **a_mano(atributo)},
+            1,
+            "::error::El inventario de migraciones está incompleto: 3 clases «: Migration",
+        )
+        for titulo, atributo in [
+            ("espacio antes del paréntesis", '[Migration ("20270101000000_Nueva")]'),
+            ("espacio tras el corchete", '[ Migration("20270101000000_Nueva") ]'),
+            ("nombre completo", '[Microsoft.EntityFrameworkCore.Migrations.Migration("20270101000000_Nueva")]'),
+            ("sufijo Attribute", '[MigrationAttribute("20270101000000_Nueva")]'),
+            ("argumento en otra línea", '[Migration(\n    "20270101000000_Nueva")]'),
+            ("literal verbatim", '[Migration(@"20270101000000_Nueva")]'),
+        ]
+    ],
+    (
+        "Clase Migration sin .Designer.cs",
+        {**BASE, "20270101000000_Nueva.cs": "public partial class Nueva : Migration { }\n"},
+        1,
+        "3 clases «: Migration",
+    ),
+    (
+        "Clase Migration solo con el Designer sin atributo",
+        {**BASE, **a_mano("")},
+        1,
+        "3 clases «: Migration",
+    ),
+    (
+        "Clase declarada en dos líneas y atributo canónico",
+        {
+            **BASE,
+            **migracion("20270101000000_Nueva"),
+            "20270101000000_Nueva.cs": "public partial class M\n    : Migration\n{ }\n",
+        },
+        0,
+        "1 nuevas",
+    ),
+    (
+        "Clase con el tipo base calificado y atributo canónico",
+        {
+            **BASE,
+            **migracion("20270101000000_Nueva"),
+            "20270101000000_Nueva.cs": "public partial class M : Microsoft.EntityFrameworkCore.Migrations.Migration { }\n",
+        },
+        0,
+        "1 nuevas",
+    ),
+    (
+        "Fichero auxiliar sin clase Migration",
+        {**BASE, "20260101000000_Maxima.Esquema.cs": "internal static class Esquema { }\n"},
+        0,
+        "0 nuevas",
+    ),
+    (
+        "Migración canónica y otra con atributo no canónico a la vez",
+        {**BASE, **migracion("20270101000000_Buena"), **a_mano('[Migration ("20270102000000_Mala")]', "20270102000000_Mala")},
+        1,
+        "4 clases «: Migration",
     ),
 ]
 
