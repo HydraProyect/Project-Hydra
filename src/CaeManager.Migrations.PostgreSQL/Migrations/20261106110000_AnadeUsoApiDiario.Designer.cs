@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261103010000_AnadeUsoApiDiario")]
+    [Migration("20261106110000_AnadeUsoApiDiario")]
     partial class AnadeUsoApiDiario
     {
         /// <inheritdoc />
@@ -6991,6 +6991,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("ResponsableUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
