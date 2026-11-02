@@ -345,7 +345,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
             var clientesQueSeCierran = reemplazar && !esNueva
                 ? asociacionesActuales.Where(par => par.EmpresaId == existente!.Id)
                     .Select(par => par.ClienteId)
-                    .Where(idCliente => !clientesDeLaFila.Contains(idCliente))
+                    // Solo se cierran las Relaciones con Clientes empresariales que el acto ve: una vigente con uno de fuera
+                    // del ámbito no se toca ni omite la fila (omitirla delataría esa Relación), como en EditarEmpresa.
+                    .Where(idCliente => !clientesDeLaFila.Contains(idCliente) && ambito.Cliente(idCliente))
                 : [];
             if ((!esNueva && !ambito.Empresa(existente!.Id))
                 || !clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente))
@@ -407,10 +409,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
             // índice único parcial.
             if (reemplazar)
             {
-                foreach (var ec in asociacionesDeLaEmpresa.Where(ec => !clienteIdsDeseados.Contains(ec.ClienteId)))
+                // Una Relación con un Cliente empresarial fuera del ámbito ni se cierra ni delata su existencia: se deja intacta.
+                foreach (var ec in asociacionesDeLaEmpresa)
                 {
+                    var (_, idCliente) = ec;
+                    if (clienteIdsDeseados.Contains(idCliente) || !ambito.Cliente(idCliente)) continue;
                     asociacionesActuales.Remove(ec);
-                    await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, ec.ClienteId, ahora, cancellationToken);
+                    await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, idCliente, ahora, cancellationToken);
                 }
             }
 

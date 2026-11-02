@@ -59,7 +59,7 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
     }
 
     [Fact]
-    public async Task Coordinador_con_Reemplazar_no_cierra_una_Relacion_Empresarial_con_un_Cliente_fuera_de_su_ambito()
+    public async Task Coordinador_con_Reemplazar_deja_intacta_una_Relacion_Empresarial_con_un_Cliente_fuera_de_su_ambito_sin_omitir_la_fila()
     {
         var (escenario, dentro, fuera, proveedora) = Escenario();
         escenario.RelacionesExistentes.Add(RelacionEmpresarial.Crear(proveedora.Id, fuera.Id, DateTime.UtcNow));
@@ -71,8 +71,8 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
             alcance: Cartera(clientes: [dentro.Id], empresas: [proveedora.Id]), autoridad: AutoridadCargaMasiva.Acotada);
 
         escenario.Relaciones.Cerradas.Should().BeEmpty("cerrar la Relación con un Cliente ajeno es una escritura fuera de ámbito");
-        escenario.Relaciones.Agregadas.Should().BeEmpty("la fila se omite entera, no a medias");
-        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        resultado.Omitidos.Should().BeEmpty("una Relación vigente con un Cliente de fuera no se toca ni omite la fila: omitirla delataría esa Relación");
+        resultado.EmpresasActualizadas.Should().Be(1);
     }
 
     [Fact]
