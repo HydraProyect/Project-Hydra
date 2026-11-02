@@ -163,10 +163,7 @@ public class AcuseAutomaticoBuzonServiceTests
     [InlineData(-25, true)]
     public async Task Un_remitente_recibe_como_mucho_un_acuse_por_buzon_en_el_intervalo(int horasDesdeElAnterior, bool sale)
     {
-        var anterior = Pendiente("msg-0", "hilo-0");
-        anterior.Conversacion.AgregarMensaje(
-            DireccionMensaje.Saliente, CanalConversacion.Correo, _conexion.BuzonEmail, PlantillaAcuseBuzon.CuerpoHtml,
-            DateTime.UtcNow.AddHours(horasDesdeElAnterior), esAutomatico: true);
+        _conversaciones.ReservasAcuse[(_conexion.Id, Destinatario)] = DateTime.UtcNow.AddHours(horasDesdeElAnterior);
 
         await Servicio().EnviarAsync([Pendiente()], CancellationToken.None);
 
@@ -185,6 +182,66 @@ public class AcuseAutomaticoBuzonServiceTests
 
         await Servicio().EnviarAsync([Pendiente("msg-2", "hilo-2", "PERSONA@ejemplo.test")], CancellationToken.None);
         _graph.VecesEnviado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_Graph_acepta_y_el_guardado_falla_un_autorrespondedor_que_abre_hilos_no_recibe_otro_acuse()
+    {
+        // Sin cabeceras que lo delaten y con un hilo nuevo por respuesta: solo el tope por remitente corta la vuelta.
+        await Servicio(unitOfWork: new UnitOfWorkQueFallaAlSegundoGuardado()).EnviarAsync([Pendiente()], CancellationToken.None);
+        _graph.VecesEnviado.Should().Be(1);
+        _descarte.VecesDescartado.Should().Be(1);
+
+        await Servicio().EnviarAsync([Pendiente("msg-2", "hilo-2")], CancellationToken.None);
+        await Servicio().EnviarAsync([Pendiente("msg-3", "hilo-3")], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(1, "la reserva se confirmó antes de enviar y no depende del guardado posterior");
+    }
+
+    [Fact]
+    public async Task La_reserva_va_antes_del_registro_de_salida_y_del_envio()
+    {
+        var reservasAlRegistrar = -1;
+        var enviadosAlRegistrar = -1;
+        var registro = new RegistroExportacionFalso
+        {
+            AlRegistrar = () =>
+            {
+                reservasAlRegistrar = _conversaciones.ReservasAcuse.Count;
+                enviadosAlRegistrar = _graph.VecesEnviado;
+            }
+        };
+
+        await Servicio(registro).EnviarAsync([Pendiente()], CancellationToken.None);
+
+        reservasAlRegistrar.Should().Be(1);
+        enviadosAlRegistrar.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_la_reserva_falla_no_sale_nada_y_el_fallo_no_vuelve_a_la_ingesta()
+    {
+        _conversaciones.FallaReservaAcuse = true;
+        var registro = new RegistroExportacionFalso();
+
+        var envio = () => Servicio(registro).EnviarAsync([Pendiente()], CancellationToken.None);
+
+        await envio.Should().NotThrowAsync();
+        _graph.VecesEnviado.Should().Be(0);
+        registro.Filas.Should().BeEmpty();
+        _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_envio_fallido_gasta_la_reserva_porque_Graph_pudo_aceptarlo()
+    {
+        _graph.FallaEnvio = true;
+        await Servicio().EnviarAsync([Pendiente()], CancellationToken.None);
+
+        _graph.FallaEnvio = false;
+        await Servicio().EnviarAsync([Pendiente("msg-2", "hilo-2")], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(1, "cuenta los intentos: solo el fallido llegó a Graph");
     }
 
     [Fact]

@@ -24,11 +24,41 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.Sql("""
                 GRANT SELECT ("AcuseAutomaticoActivo") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 """);
+
+            // Reserva del tope por remitente: se confirma antes de enviar, así que corta el siguiente acuse aunque el
+            // guardado posterior al envío falle. Sin entidad de EF, como ContadoresTicketConversacion: solo la toca la
+            // sentencia atómica del repositorio. Guarda una huella y no la dirección, que aquí no hace falta leer.
+            // Sin DELETE para el runtime: borrar una reserva reabriría el bucle que corta. Soporte TALVEG no la necesita.
+            migrationBuilder.Sql("""
+                CREATE TABLE public."ReservasAcuseBuzon" (
+                    "TenantId" uuid NOT NULL,
+                    "ConexionIntegracionId" uuid NOT NULL,
+                    "HuellaRemitente" text NOT NULL,
+                    "ReservadaEnUtc" timestamp with time zone NOT NULL,
+                    CONSTRAINT "PK_ReservasAcuseBuzon" PRIMARY KEY ("TenantId", "ConexionIntegracionId", "HuellaRemitente"),
+                    CONSTRAINT "FK_ReservasAcuseBuzon_ConexionesIntegracion_TenantId_Conexion~"
+                        FOREIGN KEY ("TenantId", "ConexionIntegracionId")
+                        REFERENCES public."ConexionesIntegracion" ("TenantId", "Id") ON DELETE CASCADE,
+                    CONSTRAINT "CK_ReservasAcuseBuzon_HuellaSha256" CHECK (char_length("HuellaRemitente") = 64)
+                );
+
+                ALTER TABLE public."ReservasAcuseBuzon" ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE public."ReservasAcuseBuzon" FORCE ROW LEVEL SECURITY;
+                CREATE POLICY aislamiento_tenant ON public."ReservasAcuseBuzon"
+                    USING ("TenantId" = (SELECT public.app_ctx_tenant_id()))
+                    WITH CHECK ("TenantId" = (SELECT public.app_ctx_tenant_id()));
+
+                REVOKE ALL ON TABLE public."ReservasAcuseBuzon" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
+                GRANT SELECT, INSERT ON TABLE public."ReservasAcuseBuzon" TO cae_app_runtime;
+                GRANT UPDATE ("ReservadaEnUtc") ON TABLE public."ReservasAcuseBuzon" TO cae_app_runtime;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""DROP TABLE public."ReservasAcuseBuzon";""");
+
             // DROP COLUMN se lleva también el grant de la columna.
             migrationBuilder.DropColumn(
                 name: "AcuseAutomaticoActivo",

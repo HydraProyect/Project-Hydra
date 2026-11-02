@@ -28,13 +28,25 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
                  && c.Estado != EstadoConversacion.Cerrada && !_sinConfirmar.Contains(c.Id)));
 
-    public Task<bool> ExisteAcuseRecienteAsync(
-        Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Conversaciones
-            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
-            .Any(c => c.Mensajes.Any(m => m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico && m.FechaUtc >= desdeUtc)
-                      && c.Mensajes.Any(m => m.Direccion == DireccionMensaje.Entrante
-                                             && m.Remitente.Equals(remitente.Trim(), StringComparison.OrdinalIgnoreCase))));
+    /// <summary>Como la tabla real, confirmada al momento: sobrevive a un guardado fallido de la unidad de trabajo.</summary>
+    public Dictionary<(Guid ConexionId, string Remitente), DateTime> ReservasAcuse { get; } = [];
+
+    public bool FallaReservaAcuse { get; set; }
+
+    public Task<bool> ReservarAcuseAsync(
+        Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
+        CancellationToken cancellationToken = default)
+    {
+        if (FallaReservaAcuse)
+            throw new InvalidOperationException("Reserva no disponible.");
+
+        var clave = (conexionIntegracionId, remitente.Trim().ToLowerInvariant());
+        if (ReservasAcuse.TryGetValue(clave, out var anterior) && anterior >= ahoraUtc - intervalo)
+            return Task.FromResult(false);
+
+        ReservasAcuse[clave] = ahoraUtc;
+        return Task.FromResult(true);
+    }
 
     public Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones

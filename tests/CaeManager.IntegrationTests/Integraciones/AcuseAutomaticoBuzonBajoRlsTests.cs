@@ -20,6 +20,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Integraciones;
@@ -42,6 +43,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
     private CaeManagerDbContext _propietario = null!;
     private TenantActualDeLaPeticion _tenantDeLaPeticion = null!;
     private Guid _tenantSesion;
+    private Guid _tenantAjeno;
     private Guid _buzonPropio;
     private Guid _buzonAjeno;
 
@@ -60,6 +62,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         _propietario.Tenants.AddRange(tenantSesion, tenantAjeno);
         await _propietario.SaveChangesAsync();
         _tenantSesion = tenantSesion.Id;
+        _tenantAjeno = tenantAjeno.Id;
         _tenantDeLaPeticion = new TenantActualDeLaPeticion(_tenantSesion);
 
         using (AmbitoTenantExplicito.Establecer(_tenantSesion))
@@ -136,28 +139,96 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(-1, true)]
-    [InlineData(-25, false)]
-    public async Task El_tope_por_remitente_caduca_y_no_cuenta_otro_remitente(int horasDesdeElAcuse, bool esperado)
+    [InlineData(-1, false)]
+    [InlineData(-25, true)]
+    public async Task El_tope_por_remitente_caduca_y_no_cuenta_otro_remitente(int horasDesdeLaReserva, bool esperado)
     {
-        var fecha = DateTime.UtcNow.AddHours(horasDesdeElAcuse);
-        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
-        {
-            var conversacion = new Conversacion("Asunto");
-            conversacion.AsociarConexion(_buzonPropio, "hilo-anterior");
-            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Remitente, "Texto", fecha.AddMinutes(-1));
-            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", fecha, esAutomatico: true);
-            _propietario.Conversaciones.Add(conversacion);
-            await _propietario.SaveChangesAsync();
-        }
-
+        var ahora = DateTime.UtcNow;
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantSesion);
         await using var runtime = CrearRuntime(new TenantActualPorAmbito(), new CurrentUserServiceFalso(), ActorAuditoria.SinResolver);
         var repositorio = new ConversacionRepository(runtime);
-        var desde = DateTime.UtcNow - AcuseAutomaticoBuzonService.IntervaloMinimoPorRemitente;
 
-        (await repositorio.ExisteAcuseRecienteAsync(_buzonPropio, "PERSONA@ejemplo.test", desde)).Should().Be(esperado);
-        (await repositorio.ExisteAcuseRecienteAsync(_buzonPropio, "otra@ejemplo.test", desde)).Should().BeFalse();
+        (await ReservarAsync(repositorio, Remitente, ahora.AddHours(horasDesdeLaReserva))).Should().BeTrue();
+
+        (await ReservarAsync(repositorio, "PERSONA@ejemplo.test", ahora)).Should().Be(esperado);
+        (await ReservarAsync(repositorio, "otra@ejemplo.test", ahora)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task De_varias_reservas_simultaneas_del_mismo_remitente_solo_una_gana()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        var ahora = DateTime.UtcNow;
+
+        var resultados = await Task.WhenAll(Enumerable.Range(0, 8).Select(async _ =>
+        {
+            await using var runtime = CrearRuntime(new TenantActualPorAmbito(), new CurrentUserServiceFalso(), ActorAuditoria.SinResolver);
+            return await ReservarAsync(new ConversacionRepository(runtime), Remitente, ahora);
+        }));
+
+        resultados.Count(r => r).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_reserva_tiene_RLS_forzada_guarda_una_huella_y_el_runtime_no_la_borra()
+    {
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            await using var runtime = CrearRuntime(new TenantActualPorAmbito(), new CurrentUserServiceFalso(), ActorAuditoria.SinResolver);
+            (await ReservarAsync(new ConversacionRepository(runtime), Remitente, DateTime.UtcNow)).Should().BeTrue();
+        }
+
+        await using var propietario = new NpgsqlConnection(_cadenaConexion);
+        await propietario.OpenAsync();
+        (await EscalarAsync(propietario, """
+            SELECT c.relrowsecurity AND c.relforcerowsecurity
+                   AND EXISTS (SELECT 1 FROM pg_policies p
+                               WHERE p.tablename = c.relname AND p.policyname = 'aislamiento_tenant' AND p.with_check IS NOT NULL)
+            FROM pg_class c WHERE c.oid = 'public."ReservasAcuseBuzon"'::regclass;
+            """)).Should().Be(true);
+        (await EscalarAsync(propietario, """SELECT count(*) FROM "ReservasAcuseBuzon" WHERE "HuellaRemitente" LIKE '%@%';""")).Should().Be(0L);
+
+        foreach (var (rol, sentencia) in new[]
+        {
+            ("cae_app_runtime", """DELETE FROM "ReservasAcuseBuzon";"""),
+            ("cae_app_soporte", """SELECT count(*) FROM "ReservasAcuseBuzon";"""),
+            ("cae_app_aprovisionamiento", """SELECT count(*) FROM "ReservasAcuseBuzon";"""),
+        })
+        {
+            await EscalarAsync(propietario, $"SET ROLE {rol};");
+            var excepcion = await Record.ExceptionAsync(() => EscalarAsync(propietario, sentencia));
+            await EscalarAsync(propietario, "RESET ROLE;");
+
+            excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, rol);
+        }
+    }
+
+    [Fact]
+    public async Task Un_Tenant_no_reserva_en_nombre_de_otro_ni_sobre_el_buzon_de_otro()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        await using var runtime = CrearRuntime(new TenantActualPorAmbito(), new CurrentUserServiceFalso(), ActorAuditoria.SinResolver);
+        var repositorio = new ConversacionRepository(runtime);
+        var intervalo = AcuseAutomaticoBuzonService.IntervaloMinimoPorRemitente;
+
+        var otroTenant = await Record.ExceptionAsync(() =>
+            repositorio.ReservarAcuseAsync(_tenantAjeno, _buzonAjeno, Remitente, DateTime.UtcNow, intervalo));
+        var buzonAjeno = await Record.ExceptionAsync(() =>
+            repositorio.ReservarAcuseAsync(_tenantSesion, _buzonAjeno, Remitente, DateTime.UtcNow, intervalo));
+
+        otroTenant.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "WITH CHECK de la política");
+        buzonAjeno.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation, "la clave compuesta con el Tenant");
+    }
+
+    private Task<bool> ReservarAsync(ConversacionRepository repositorio, string remitente, DateTime ahoraUtc) =>
+        repositorio.ReservarAcuseAsync(
+            _tenantSesion, _buzonPropio, remitente, ahoraUtc, AcuseAutomaticoBuzonService.IntervaloMinimoPorRemitente);
+
+    private static async Task<object?> EscalarAsync(NpgsqlConnection conexion, string sentencia)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sentencia;
+        return await comando.ExecuteScalarAsync();
     }
 
     private async Task<Guid> SembrarConversacionAsync(string hilo, string remitente)

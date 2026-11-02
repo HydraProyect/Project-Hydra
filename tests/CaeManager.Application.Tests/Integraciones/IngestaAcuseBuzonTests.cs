@@ -139,6 +139,54 @@ public class IngestaAcuseBuzonTests
         ingesta.AcusesPendientes.Should().ContainSingle().Which.MensajeExternoId.Should().Be("msg-1");
     }
 
+    [Theory]
+    [InlineData("List-Id", "<cae.ejemplo.test>")]
+    [InlineData("List-Unsubscribe", "<mailto:baja@ejemplo.test>")]
+    [InlineData("List-Post", "<mailto:lista@ejemplo.test>")]
+    [InlineData("List-Help", "<mailto:ayuda@ejemplo.test>")]
+    public async Task Un_correo_de_lista_que_abre_conversacion_no_lleva_acuse_pero_no_cuenta_como_automatico(string cabecera, string valor)
+    {
+        var conexion = Buzon();
+
+        (await IngerirAsync(conexion, Mensaje(cabeceras: [new(cabecera, valor)]))).Should().BeEmpty();
+
+        // La respuesta sugerida solo excluye los mensajes marcados como automáticos.
+        _conversaciones.Conversaciones.Single().Mensajes.Single().EsAutomatico.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("List-Id", "<cae.ejemplo.test>")]
+    [InlineData("List-Unsubscribe", "<mailto:baja@ejemplo.test>")]
+    public async Task Una_respuesta_humana_por_una_lista_reabre_el_hilo(string cabecera, string valor)
+    {
+        var conexion = Buzon();
+        var resuelta = new Conversacion("Hilo");
+        resuelta.AsociarConexion(conexion.Id, "hilo-1");
+        resuelta.CambiarEstado(EstadoConversacion.Resuelta, DateTime.UtcNow.AddDays(-1));
+        _conversaciones.Agregar(resuelta);
+
+        (await IngerirAsync(conexion, Mensaje(cabeceras: [new(cabecera, valor)]))).Should().BeEmpty();
+
+        resuelta.Estado.Should().Be(EstadoConversacion.Abierta);
+        resuelta.Mensajes.Single().EsAutomatico.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("List-Id", "<cae.ejemplo.test>")]
+    [InlineData("List-Unsubscribe", "<mailto:baja@ejemplo.test>")]
+    public async Task Una_respuesta_humana_por_una_lista_a_un_hilo_cerrado_abre_la_continuacion(string cabecera, string valor)
+    {
+        var conexion = Buzon();
+        var cerrada = new Conversacion("Hilo");
+        cerrada.AsociarConexion(conexion.Id, "hilo-1");
+        cerrada.CambiarEstado(EstadoConversacion.Cerrada, DateTime.UtcNow.AddDays(-1));
+        _conversaciones.Agregar(cerrada);
+
+        (await IngerirAsync(conexion, Mensaje(cabeceras: [new(cabecera, valor)]))).Should().BeEmpty();
+
+        _conversaciones.Conversaciones.Should().ContainSingle(c => c.ConversacionAnteriorId == cerrada.Id);
+    }
+
     public static TheoryData<string, MensajeGraphDto> CorreosSinAcuse => new()
     {
         { "respuesta automática", Mensaje(cabeceras: [new("Auto-Submitted", "auto-replied")]) },
@@ -146,6 +194,10 @@ public class IngestaAcuseBuzonTests
         { "fuera de oficina por asunto", Mensaje(asunto: "Automatic reply: Documentación") },
         { "lista por List-Id", Mensaje(cabeceras: [new("List-Id", "<cae.ejemplo.test>")]) },
         { "lista por List-Unsubscribe", Mensaje(cabeceras: [new("List-Unsubscribe", "<mailto:baja@ejemplo.test>")]) },
+        { "lista por List-Post", Mensaje(cabeceras: [new("List-Post", "<mailto:lista@ejemplo.test>")]) },
+        { "lista por List-Help", Mensaje(cabeceras: [new("List-Help", "<mailto:ayuda@ejemplo.test>")]) },
+        { "lista por List-Archive", Mensaje(cabeceras: [new("List-Archive", "<https://ejemplo.test/archivo>")]) },
+        { "lista por X-Mailing-List", Mensaje(cabeceras: [new("X-Mailing-List", "lista@ejemplo.test")]) },
         { "lista por Precedence", Mensaje(cabeceras: [new("Precedence", "list")]) },
         { "no-reply", Mensaje(remitente: "no-reply@ejemplo.test") },
         { "rebote", Mensaje(remitente: "mailer-daemon@ejemplo.test") },

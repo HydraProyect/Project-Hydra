@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,17 +36,23 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
          where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
          select m).AnyAsync(cancellationToken);
 
-    public Task<bool> ExisteAcuseRecienteAsync(
-        Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default)
+    public async Task<bool> ReservarAcuseAsync(
+        Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
+        CancellationToken cancellationToken = default)
     {
-        var normalizado = remitente.Trim().ToLowerInvariant();
+        var huella = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(remitente.Trim().ToLowerInvariant())));
+        var vigenteDesdeUtc = ahoraUtc - intervalo;
 
-        return dbContext.Conversaciones
-            .Where(c => c.ConexionIntegracionId == conexionIntegracionId && c.FechaUltimoMensajeUtc >= desdeUtc)
-            .Where(c => dbContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.Direccion == DireccionMensaje.Saliente
-                                                    && m.EsAutomatico && m.FechaUtc >= desdeUtc))
-            .AnyAsync(c => dbContext.Mensajes.Any(m => m.ConversacionId == c.Id && m.Direccion == DireccionMensaje.Entrante
-                                                       && m.Remitente.ToLower() == normalizado), cancellationToken);
+        // ON CONFLICT … DO UPDATE … WHERE bloquea la fila y evalúa la condición sobre su última versión confirmada: de
+        // dos sentencias simultáneas, la segunda no actualiza nada (0 filas). Va en su propia sentencia, sin SaveChanges,
+        // para quedar confirmada antes de enviar. La política de RLS comprueba el Tenant de la fila.
+        return await dbContext.Database.ExecuteSqlAsync($"""
+            INSERT INTO "ReservasAcuseBuzon" ("TenantId", "ConexionIntegracionId", "HuellaRemitente", "ReservadaEnUtc")
+            VALUES ({tenantId}, {conexionIntegracionId}, {huella}, {ahoraUtc})
+            ON CONFLICT ("TenantId", "ConexionIntegracionId", "HuellaRemitente")
+            DO UPDATE SET "ReservadaEnUtc" = EXCLUDED."ReservadaEnUtc"
+            WHERE "ReservasAcuseBuzon"."ReservadaEnUtc" < {vigenteDesdeUtc}
+            """, cancellationToken) == 1;
     }
 
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(

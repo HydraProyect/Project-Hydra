@@ -29,16 +29,42 @@ public class DeteccionCorreoAutomaticoTests
             DateTime.UtcNow, [], [])).Should().Be(esperado);
 
     [Theory]
-    [InlineData("List-Id", "<cae.ejemplo.test>", true)]
-    [InlineData("list-id", "<cae.ejemplo.test>", true)]
-    [InlineData("List-Unsubscribe", "<mailto:baja@ejemplo.test>", true)]
     [InlineData("X-Autorespond", "1", true)]
     [InlineData("Return-Path", "<>", true)]
     [InlineData("Return-Path", " <> ", true)]
     [InlineData("Return-Path", "<persona@ejemplo.test>", false)]
-    public void Detecta_listas_de_correo_y_rebotes(string nombre, string valor, bool esperado) =>
+    public void Detecta_autorrespuestas_y_rebotes(string nombre, string valor, bool esperado) =>
         DeteccionCorreoAutomatico.EsAutomatico(new("id", "hilo", "Asunto", "persona@ejemplo.test", "Texto",
             DateTime.UtcNow, [], [], [new(nombre, valor)])).Should().Be(esperado);
+
+    [Theory]
+    [InlineData("List-Id", "<cae.ejemplo.test>")]
+    [InlineData("list-id", "<cae.ejemplo.test>")]
+    [InlineData("List-Unsubscribe", "<mailto:baja@ejemplo.test>")]
+    [InlineData("List-Unsubscribe-Post", "List-Unsubscribe=One-Click")]
+    [InlineData("List-Subscribe", "<mailto:alta@ejemplo.test>")]
+    [InlineData("List-Post", "<mailto:lista@ejemplo.test>")]
+    [InlineData("List-Post", "NO")]
+    [InlineData("List-Help", "<mailto:ayuda@ejemplo.test>")]
+    [InlineData("List-Owner", "<mailto:dueno@ejemplo.test>")]
+    [InlineData("List-Archive", "<https://ejemplo.test/archivo>")]
+    [InlineData("Mailing-List", "contact lista@ejemplo.test")]
+    [InlineData("X-Mailing-List", "lista@ejemplo.test")]
+    [InlineData("X-Mailman-Version", "3.3.9")]
+    [InlineData("X-BeenThere", "lista@ejemplo.test")]
+    public void Una_cabecera_de_lista_excluye_el_acuse_sin_clasificar_el_correo_como_automatico(string nombre, string valor)
+    {
+        var mensaje = new MensajeGraphDto(
+            "id", "hilo", "Asunto", "persona@ejemplo.test", "Texto", DateTime.UtcNow, [], [], [new(nombre, valor)]);
+
+        DeteccionCorreoAutomatico.NoAdmiteAcuse(mensaje).Should().BeTrue();
+        DeteccionCorreoAutomatico.EsAutomatico(mensaje).Should().BeFalse("una persona también escribe a través de una lista");
+    }
+
+    [Fact]
+    public void Una_cabecera_de_lista_vacia_no_excluye_el_acuse() =>
+        DeteccionCorreoAutomatico.NoAdmiteAcuse(new("id", "hilo", "Asunto", "persona@ejemplo.test", "Texto",
+            DateTime.UtcNow, [], [], [new("List-Id", " ")])).Should().BeFalse();
 
     [Theory]
     [InlineData("mailer-daemon@ejemplo.test", true)]

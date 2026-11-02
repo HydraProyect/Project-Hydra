@@ -12,6 +12,12 @@ namespace CaeManager.Application.Integraciones;
 /// La consecuencia es que un acuse sale como mucho una vez: si el proceso cae justo después de confirmar, no sale.
 ///
 /// <para>
+/// El tope por remitente se reserva y se confirma antes de enviar, y la reserva no se devuelve: Graph puede dar un fallo
+/// después de aceptar el correo, y una reserva devuelta abriría otro acuse. Un envío fallido gasta el intervalo de ese
+/// remitente. Se prefiere perder un acuse a contestar dos veces.
+/// </para>
+///
+/// <para>
 /// Nada de lo que falle aquí vuelve a la ingesta, ya confirmada. Los registros llevan solo Ids, el código del error
 /// y el tipo de la excepción, nunca su mensaje: no es seguro que no repita una dirección.
 /// </para>
@@ -61,11 +67,12 @@ public class AcuseAutomaticoBuzonService(
     {
         var (conexion, conversacion, mensajeExternoId, destinatario) = acuse;
 
-        var desde = DateTime.UtcNow - IntervaloMinimoPorRemitente;
-        if (await conversacionRepositorio.ExisteAcuseRecienteAsync(conexion.Id, destinatario, desde, cancellationToken))
+        var reservado = await conversacionRepositorio.ReservarAcuseAsync(
+            conexion.TenantId, conexion.Id, destinatario, DateTime.UtcNow, IntervaloMinimoPorRemitente, cancellationToken);
+        if (!reservado)
         {
             logger.LogInformation(
-                "La conversación {ConversacionId} no lleva acuse: su remitente ya recibió uno de este buzón en el intervalo.",
+                "La conversación {ConversacionId} no lleva acuse: su remitente ya tiene uno de este buzón en el intervalo.",
                 conversacion.Id);
             return;
         }
@@ -102,7 +109,7 @@ public class AcuseAutomaticoBuzonService(
         conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, PlantillaAcuseBuzon.CuerpoHtml, esAutomatico: true);
 
-        // Sin el token de parada porque el correo ya salió: es este registro el que corta el siguiente acuse al mismo remitente.
+        // Sin el token de parada porque el correo ya salió y este registro es el que lo muestra en la conversación.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
     }
 }
