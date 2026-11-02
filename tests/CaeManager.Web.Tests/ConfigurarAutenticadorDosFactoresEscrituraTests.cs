@@ -360,15 +360,74 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         cut.FindAll("form[action='/cuenta/cerrar-sesion']").Should().ContainSingle();
     }
 
-    /// <summary>La frase que manda a cerrar la sesión tiene que decirlo también en catalán.</summary>
+    /// <summary>
+    /// Sin la traducción, ResourceManager caería al español en silencio: se compara la frase de cada idioma.
+    /// </summary>
     [Theory]
-    [InlineData("es", "Cierra la sesión y vuelve a iniciarla")]
-    [InlineData("ca-ES", "Tanca la sessió i torna a iniciar-la")]
-    public void El_texto_de_la_sesion_obsoleta_manda_a_cerrar_sesion_en_cada_idioma(string cultura, string esperado)
+    [InlineData("AltaDosFactoresSesionObsoleta", "es", "Cierra la sesión y vuelve a iniciarla")]
+    [InlineData("AltaDosFactoresSesionObsoleta", "ca-ES", "Tanca la sessió i torna a iniciar-la")]
+    [InlineData("VerificacionInicioRechazado", "es", "No se ha podido completar el inicio de sesión")]
+    [InlineData("VerificacionInicioRechazado", "ca-ES", "No s’ha pogut completar l’inici de sessió")]
+    public void Los_textos_de_cierre_existen_en_cada_idioma(string clave, string cultura, string esperado)
     {
         new ResourceManager(typeof(TextosCuenta))
-            .GetString("AltaDosFactoresSesionObsoleta", CultureInfo.GetCultureInfo(cultura))
+            .GetString(clave, CultureInfo.GetCultureInfo(cultura))
             .Should().Contain(esperado);
+    }
+
+    /// <summary>
+    /// El cambio de credencial ajeno llega después de la guarda y antes de la lectura de la clave. Sin clave
+    /// previa es además una instancia desfasada que reinicia la clave: tampoco refresca la cookie.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Un_cambio_de_credencial_entre_la_guarda_y_la_lectura_no_enseña_la_clave(bool claveYaGenerada)
+    {
+        if (claveYaGenerada)
+            Render<ConfigurarAutenticadorDosFactores>();
+        _gestor.RotaElSelloAlGenerarLaClave = true;
+        _sellos.TrasLaSiguienteLectura = () => _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        ComprobarQueNoSeEnsenaLaClave(cut);
+        ComprobarSalidaDeSesionObsoleta(cut);
+        _signIn.SesionReemitida.Should().BeFalse();
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada tras leer la clave"));
+    }
+
+    [Fact]
+    public async Task Un_cambio_de_credencial_tras_la_guarda_de_la_reautenticacion_no_enseña_la_clave()
+    {
+        SinAutenticacionReciente();
+        _gestor.RotaElSelloAlGenerarLaClave = true;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        _sellos.TrasLaSiguienteLectura = () => _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
+        await EnviarContrasenaAsync(cut, ContrasenaCorrecta);
+
+        ComprobarQueNoSeEnsenaLaClave(cut);
+        ComprobarSalidaDeSesionObsoleta(cut);
+        _signIn.SesionReemitida.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Una_cuenta_que_se_queda_sin_sello_al_generar_la_clave_no_la_enseña()
+    {
+        _gestor.VaciaElSelloAlGenerarLaClave = true;
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        ComprobarQueNoSeEnsenaLaClave(cut);
+        ComprobarSalidaDeSesionObsoleta(cut);
+        _signIn.SesionReemitida.Should().BeFalse();
+    }
+
+    private static void ComprobarQueNoSeEnsenaLaClave(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut)
+    {
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        cut.Markup.Should().NotContain("otpauth");
     }
 
     /// <summary>La entidad y la cookie coinciden, pero la entidad se cargó antes del cambio de credencial.</summary>
@@ -734,9 +793,15 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
         public Func<string?> DeLaCuenta { get; set; } = () => null;
 
+        /// <summary>Lo que cambia en la base justo después de responder a la próxima lectura.</summary>
+        public Action? TrasLaSiguienteLectura { get; set; }
+
         public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default)
         {
             var vigente = _fijado ? _enBase : DeLaCuenta();
+            var pendiente = TrasLaSiguienteLectura;
+            TrasLaSiguienteLectura = null;
+            pendiente?.Invoke();
             return Task.FromResult(!string.IsNullOrEmpty(sello) && sello == vigente);
         }
 
@@ -794,10 +859,14 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         // El almacén falso no implementa IUserSecurityStampStore: esto hace lo que Identity con uno que sí.
         public bool RotaElSelloAlGenerarLaClave { get; set; }
 
+        public bool VaciaElSelloAlGenerarLaClave { get; set; }
+
         public override Task<IdentityResult> ResetAuthenticatorKeyAsync(ApplicationUser user)
         {
             if (RotaElSelloAlGenerarLaClave)
                 user.SecurityStamp = Guid.NewGuid().ToString();
+            if (VaciaElSelloAlGenerarLaClave)
+                user.SecurityStamp = null;
             return base.ResetAuthenticatorKeyAsync(user);
         }
 

@@ -32,6 +32,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     private readonly ApplicationUser _usuario = new()
     {
         Id = Guid.NewGuid(),
+        SecurityStamp = "sello",
         Email = "marta.reyes@consultoravega.es"
     };
 

@@ -499,6 +499,17 @@
             claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         }
 
+        // Comprobar el sello y leer la clave no son atómicos: un cambio de credencial ajeno pudo llegar entre
+        // medias. Se relee después de tener la clave y antes de enseñarla o de refrescar la cookie. El sello
+        // que vale aquí es el de la cuenta tras lo que rotó esta petición, no el de la cookie, que ya no
+        // coincide en quien acaba de generar la clave. Vacío o desfasado no es vigente.
+        if (!await Sellos.EsVigenteAsync(usuario.Id, usuario.TenantId, usuario.SecurityStamp))
+        {
+            RegistroAuditoria.LogWarning("Alta de 2FA rechazada tras leer la clave, el sello de la cuenta ya no es el vigente: {UsuarioId}", usuario.Id);
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
+            return;
+        }
+
         // Generar la clave rota el sello, y también puede hacerlo verificar la contraseña al renovar su
         // hash. Se reemite en esta misma petición: en la del código, la cookie ya llevaría un sello que
         // nadie sustituye ahí y SignInManagerCuentaDesactivada no la refrescaría.
