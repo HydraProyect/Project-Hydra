@@ -11,7 +11,7 @@ public enum TipoClaveUsoApi
 
 /// <summary>
 /// Rastro agregado de <c>/api/v1</c> (C-11, decisión D-5 opción a): una fila por
-/// (<c>TenantId</c>, <c>ApiKeyId</c>, <see cref="Dia"/>, <see cref="Endpoint"/>), no una por petición.
+/// (<c>TenantId</c>, <c>ApiKeyId</c>, <see cref="TipoClave"/>, <see cref="Dia"/>, <see cref="Endpoint"/>), no una por petición.
 /// Responde a qué clave leyó qué recurso y cuántas veces; no guarda parámetros ni identificadores de
 /// la URL, porque <see cref="Endpoint"/> es el patrón de la ruta.
 /// <para>

@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autenticacion;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Api.V1;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
@@ -39,9 +40,12 @@ public class RastroUsoApiEndpointFilterTests
     }
 
     private static async Task<bool> EjecutarAsync(
-        RastroFalso rastro, Guid? tenantId, string? claveId, string esquema = ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema)
+        RastroFalso rastro, Guid? tenantId, string? claveId, string esquema = ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema,
+        Guid? tenantDeLaClave = null, bool claveSinTenant = false)
     {
         var claims = claveId is null ? new List<Claim>() : [new Claim(ClaimTypes.NameIdentifier, claveId)];
+        if (!claveSinTenant && (tenantDeLaClave ?? tenantId) is { } tenantDelClaim)
+            claims.Add(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantDelClaim.ToString()));
         var contexto = new DefaultHttpContext
         {
             RequestServices = new ServiceCollection()
@@ -96,6 +100,31 @@ public class RastroUsoApiEndpointFilterTests
         var acto = () => EjecutarAsync(rastro, conTenant ? Guid.NewGuid() : null, claveId);
 
         await acto.Should().ThrowAsync<InvalidOperationException>();
+        rastro.Filas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Si_el_Tenant_resuelto_no_es_el_de_la_clave_no_se_entregan_datos(bool claveSinTenant)
+    {
+        var rastro = new RastroFalso();
+
+        var acto = () => EjecutarAsync(
+            rastro, Guid.NewGuid(), Guid.NewGuid().ToString(), tenantDeLaClave: Guid.NewGuid(), claveSinTenant: claveSinTenant);
+
+        await acto.Should().ThrowAsync<InvalidOperationException>().WithMessage("*no es el de la clave*");
+        rastro.Filas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_esquema_que_no_es_de_clave_no_se_atribuye_a_ninguna_de_las_dos()
+    {
+        var rastro = new RastroFalso();
+
+        var acto = () => EjecutarAsync(rastro, Guid.NewGuid(), Guid.NewGuid().ToString(), esquema: "Cookies");
+
+        await acto.Should().ThrowAsync<InvalidOperationException>().WithMessage("*esquema*");
         rastro.Filas.Should().BeEmpty();
     }
 }

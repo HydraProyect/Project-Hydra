@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// SQL y no el seguimiento de EF: leer y sumar perdería peticiones simultáneas, y este contador se
-/// escribe fuera del <c>SaveChanges</c> de la petición, que en esta API solo lee. La política de RLS
-/// comprueba el Tenant de la fila.
+/// SQL y no el seguimiento de EF: leer y sumar perdería peticiones simultáneas, y este contador va en
+/// su propia sentencia, sin esperar a ningún <c>SaveChanges</c>. La política de RLS comprueba el Tenant
+/// de la fila, y un trigger de la tabla impide rebajar lo ya contado.
 /// </summary>
 public class RastroUsoApi(CaeManagerDbContext dbContext) : IRastroUsoApi
 {

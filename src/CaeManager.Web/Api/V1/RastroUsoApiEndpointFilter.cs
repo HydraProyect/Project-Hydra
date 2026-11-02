@@ -2,6 +2,8 @@ using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Autenticacion;
+using CaeManager.Infrastructure.Identity;
 
 namespace CaeManager.Web.Api.V1;
 
@@ -10,6 +12,10 @@ namespace CaeManager.Web.Api.V1;
 /// denegado no ha leído nada. Y va antes de entregar datos, con fallo cerrado: si la fila no se puede
 /// escribir la excepción sube y no sale nada. Por eso cuenta la lectura autorizada, no la respuesta
 /// correcta: un 404 o un error posterior también suman.
+/// <para>
+/// El Tenant resuelto tiene que ser el de la clave. La política de RLS no puede comprobarlo, porque compara
+/// con ese mismo Tenant, y una fila en otro Tenant dejaría a la clave sin rastro donde se la busca.
+/// </para>
 /// <para>
 /// Los servicios salen de <c>RequestServices</c>: <c>AddEndpointFilter</c> crea el filtro una vez, con el
 /// proveedor raíz, y el contador usa el contexto de base de datos de la petición.
@@ -24,15 +30,22 @@ public sealed class RastroUsoApiEndpointFilter : IEndpointFilter
 
         var tenantId = servicios.GetRequiredService<ITenantActual>().TenantId
             ?? throw new InvalidOperationException("Una petición de la API v1 llegó sin Tenant resuelto.");
+        if (!Guid.TryParse(http.User.FindFirstValue(TenantClaimsPrincipalFactory.TipoClaimTenantId), out var tenantDeLaClave)
+            || tenantDeLaClave != tenantId)
+            throw new InvalidOperationException("El Tenant resuelto en una petición de la API v1 no es el de la clave.");
         if (!Guid.TryParse(http.User.FindFirstValue(ClaimTypes.NameIdentifier), out var apiKeyId))
             throw new InvalidOperationException("Una petición de la API v1 llegó sin identificador de clave.");
         var endpoint = (http.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText
             ?? throw new InvalidOperationException("Una petición de la API v1 llegó sin patrón de ruta.");
+        var tipoClave = http.User.Identity?.AuthenticationType switch
+        {
+            ApiKeyAuthenticationSchemeOptions.NombreEsquema => TipoClaveUsoApi.ClaveSoporte,
+            ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema => TipoClaveUsoApi.ClaveIntegracion,
+            _ => throw new InvalidOperationException("Una petición de la API v1 llegó con un esquema que no es de clave."),
+        };
 
         await servicios.GetRequiredService<IRastroUsoApi>().RegistrarPeticionAsync(
-            tenantId, apiKeyId,
-            ApiV1.EsClaveDeSoporte(http.User) ? TipoClaveUsoApi.ClaveSoporte : TipoClaveUsoApi.ClaveIntegracion,
-            DiaDeNegocio.Hoy(), endpoint, http.RequestAborted);
+            tenantId, apiKeyId, tipoClave, DiaDeNegocio.Hoy(), endpoint, http.RequestAborted);
 
         return await next(context);
     }

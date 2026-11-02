@@ -85,6 +85,16 @@ public class UsoApiDiarioBajoRlsTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("0")]
+    [InlineData("\"Peticiones\" - 1")]
+    public async Task Runtime_no_rebaja_lo_contado(string valor)
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+
+        await DebeDenegarseAsync(conexion, $"UPDATE \"UsosApiDiarios\" SET \"Peticiones\" = {valor};");
+    }
+
+    [Theory]
     [InlineData("\"TenantId\" = gen_random_uuid()")]
     [InlineData("\"ApiKeyId\" = gen_random_uuid()")]
     [InlineData("\"TipoClave\" = 1")]
