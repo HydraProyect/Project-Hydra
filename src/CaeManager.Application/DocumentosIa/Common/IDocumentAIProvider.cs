@@ -70,11 +70,16 @@ public interface IDocumentAIProvider
 /// y se guarda con la extracción en la caché documental. Null en una entrada
 /// de caché anterior a que existiera — quien decide con él lo trata como «no
 /// se pudo contrastar», nunca como «limpio».
+///
+/// <paramref name="PaginasSinLeer"/> tampoco lo rellena ningún proveedor: el
+/// router lo fija cuando un escaneado largo no se leyó entero, y 0 significa
+/// que no quedó ninguna. Se guarda en la caché, de modo que una lectura parcial
+/// lo sigue siendo al repetirse desde ella.
 /// </summary>
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion,
     decimal? CosteEstimado = null, string? ModeloExacto = null, string? RequestId = null,
-    ContrasteTextoDocumentoDto? Contraste = null);
+    ContrasteTextoDocumentoDto? Contraste = null, int PaginasSinLeer = 0);
 
 /// <summary>
 /// Resultado del paso de OCR/lectura nativa de <see cref="IDocumentAIProvider.ExtraerTextoAsync"/>:

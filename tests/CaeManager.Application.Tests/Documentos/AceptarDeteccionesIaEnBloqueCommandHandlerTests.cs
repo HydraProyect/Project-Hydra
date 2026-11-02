@@ -60,6 +60,8 @@ public class AceptarDeteccionesIaEnBloqueCommandHandlerTests
         mediador.Aplicadas.Should().HaveCount(3);
         mediador.Aplicadas.Should().OnlyContain(x => x.SoloSiLaVigenciaLaFijaElTipo,
             "en bloque solo se acepta lo que el tipo calcula; la vigencia a mano se acepta de una en una");
+        mediador.Aplicadas.Should().OnlyContain(x => x.SoloSinAlertaDeterminista,
+            "en bloque nadie ve el motivo: una alerta se acepta de una en una");
         resultado.Valor.Aceptadas.Should().Be(2);
         resultado.Valor.Fallidas.Should().Be(1);
         var fallida = resultado.Valor.Resultados.Single(r => !r.Aceptada);

@@ -203,7 +203,13 @@
     <value>Aceptar seleccionadas ({0})</value>
   </data>
   <data name="RevIaAyudaSeleccion" xml:space="preserve">
-    <value>La confianza solo preselecciona. Revisa la selección y pulsa «Aceptar seleccionadas»: nada se acepta solo. Si la vigencia del tipo la confirmas tú a mano, o la IA no leyó fecha, la lectura se acepta de una en una.</value>
+    <value>La confianza solo preselecciona. Revisa la selección y pulsa «Aceptar seleccionadas»: nada se acepta solo. Si la vigencia del tipo la confirmas tú a mano, la IA no leyó fecha o hay una alerta, la lectura se acepta de una en una.</value>
+  </data>
+  <data name="RevIaConAlerta" xml:space="preserve">
+    <value>Con alerta</value>
+  </data>
+  <data name="RevIaAlertaDeUnaEnUna" xml:space="preserve">
+    <value>Esta lectura tiene una alerta: compruébala en el documento antes de aceptarla. No entra en la aceptación en bloque.</value>
   </data>
   <data name="RevIaCasillaIncluir" xml:space="preserve">
     <value>Incluir en «Aceptar seleccionadas»</value>

@@ -152,7 +152,7 @@
                             <h2>@seleccionada.PropietarioNombre</h2>
                             <p>@seleccionada.TipoDocumentoNombre</p>
                         </div>
-                        <span class="@("revision-ia-estado revision-ia-estado-" + TonoConfianza(seleccionada.ConfianzaGeneral).ToString().ToLowerInvariant())">
+                        <span class="@("revision-ia-estado revision-ia-estado-" + TonoTratamiento(seleccionada).ToString().ToLowerInvariant())">
                             @EtiquetaTratamiento(seleccionada)
                         </span>
                     </header>
@@ -177,6 +177,10 @@
                             <div class="revision-ia-motivo">
                                 <h3>Por qué requiere revisión</h3>
                                 <p>@seleccionada.Motivo</p>
+                                @if (seleccionada.TieneAlertaDeterminista)
+                                {
+                                    <p class="revision-ia-consecuencia">@Textos["RevIaAlertaDeUnaEnUna"]</p>
+                                }
                             </div>
                             <dl>
                                 <div>

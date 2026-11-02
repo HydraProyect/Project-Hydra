@@ -434,9 +434,12 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _ => true
     };
 
-    // Aceptable en bloque = hay fecha de emisión leída y el tipo calcula el vencimiento desde ella. La confianza no
-    // decide esto, solo la preselección; la vigencia que confirma el Gestor CAE a mano no se acepta en bloque.
-    private static bool EsAceptableEnBloque(RevisionIaDocumentoDto revision) => revision.FechaEmisionDetectada is not null && revision.VigenciaLaFijaElTipo;
+    // Aceptable en bloque = hay fecha de emisión leída, el tipo calcula el vencimiento desde ella y no hay alerta
+    // determinista ni lectura parcial. La confianza no decide esto, solo la preselección; la vigencia que confirma el
+    // Gestor CAE a mano y las alertas se aceptan de una en una, con el motivo a la vista. El servidor lo impone igual
+    // (AplicarDeteccionIaDocumentoCommand): este predicado solo evita ofrecer lo que rechazaría.
+    private static bool EsAceptableEnBloque(RevisionIaDocumentoDto revision) =>
+        revision.FechaEmisionDetectada is not null && revision.VigenciaLaFijaElTipo && !revision.TieneAlertaDeterminista;
 
     private static string TextoFiltro(FiltroRevision f) => f switch
     {
@@ -449,9 +452,11 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private string ClaseFiltro(FiltroRevision f) => _filtro == f ? "revision-ia-filtro activo" : "revision-ia-filtro";
     private string ClaseRevision(RevisionIaDocumentoDto r) => RevisionSeleccionada?.Id == r.Id ? "revision-ia-fila activa" : "revision-ia-fila";
     private static string Ambito(RevisionIaDocumentoDto r) => r.TrabajadorId is null ? "Empresa" : "Trabajador";
-    private string EtiquetaTratamiento(RevisionIaDocumentoDto r) => EsAceptableEnBloque(r)
-        ? Textos["RevIaAceptable"]
-        : r.FechaEmisionDetectada is null ? "Sin fecha" : Textos["RevIaVigenciaAMano"];
+    private string EtiquetaTratamiento(RevisionIaDocumentoDto r) => r.TieneAlertaDeterminista
+        ? Textos["RevIaConAlerta"]
+        : EsAceptableEnBloque(r)
+            ? Textos["RevIaAceptable"]
+            : r.FechaEmisionDetectada is null ? "Sin fecha" : Textos["RevIaVigenciaAMano"];
 
     private string ResumenBloque(int aceptadas, int solicitadas, int fallidas) => aceptadas == solicitadas
         ? Textos["RevIaResumenTodas", aceptadas]
@@ -464,6 +469,11 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         false => "No detectada",
         _ => "No determinada"
     };
+
+    // Una alerta no se pinta en verde aunque la IA declare confianza alta.
+    private static TonoBadge TonoTratamiento(RevisionIaDocumentoDto r) => r.TieneAlertaDeterminista && r.ConfianzaGeneral >= 70
+        ? TonoBadge.Advertencia
+        : TonoConfianza(r.ConfianzaGeneral);
 
     private static TonoBadge TonoConfianza(int confianza) => confianza switch
     {

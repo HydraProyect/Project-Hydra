@@ -193,6 +193,10 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
         verificacion.Motivos.Should().Contain("NEGATIVO");
         (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+
+        var revision = await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id);
+        revision.Motivo.Should().StartWith(MotivosRevisionIa.CertificadoEnNegativo);
+        revision.TieneAlertaDeterminista.Should().BeTrue();
     }
 
     [Fact]
@@ -209,6 +213,27 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
         verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Discrepancia);
         verificacion.Motivos.Should().Contain("B99999999");
+
+        var revision = await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id);
+        revision.Motivo.Should().StartWith("El CIF del documento (B99999999)");
+        revision.TieneAlertaDeterminista.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Las_alertas_del_cotejo_oficial_van_delante_de_los_demas_motivos()
+    {
+        var documento = await CrearDocumentoAsync(fechaEmision: new DateOnly(2020, 1, 2));
+        var texto = TextoTgssValido
+            .Replace("tiene carácter POSITIVO", "tiene carácter NEGATIVO")
+            .Replace("B12345674", "B99999999");
+        var servicio = CrearServicio(
+            Result.Exito(FirmaSelloDeOrgano()), Result.Exito<IReadOnlyList<string>>([texto]));
+
+        await servicio.ProcesarDocumentoAsync(documento.Id);
+
+        var motivo = (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id)).Motivo;
+        motivo.Should().StartWith($"{MotivosRevisionIa.CertificadoEnNegativo} El CIF del documento (B99999999)");
+        motivo.Should().EndWith("La fecha de emisión introducida no coincide con la del documento.", "control positivo: hay un motivo que no es alerta");
     }
 
     /// <summary>

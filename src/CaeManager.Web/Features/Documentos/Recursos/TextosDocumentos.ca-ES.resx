@@ -203,7 +203,13 @@
     <value>Accepta les seleccionades ({0})</value>
   </data>
   <data name="RevIaAyudaSeleccion" xml:space="preserve">
-    <value>La confiança només preselecciona. Revisa la selecció i prem «Accepta les seleccionades»: res s'accepta sol. Si la vigència del tipus la confirmes tu a mà, o la IA no ha llegit data, la lectura s'accepta d'una en una.</value>
+    <value>La confiança només preselecciona. Revisa la selecció i prem «Accepta les seleccionades»: res s'accepta sol. Si la vigència del tipus la confirmes tu a mà, la IA no ha llegit data o hi ha una alerta, la lectura s'accepta d'una en una.</value>
+  </data>
+  <data name="RevIaConAlerta" xml:space="preserve">
+    <value>Amb alerta</value>
+  </data>
+  <data name="RevIaAlertaDeUnaEnUna" xml:space="preserve">
+    <value>Aquesta lectura té una alerta: comprova-la al document abans d'acceptar-la. No entra a l'acceptació en bloc.</value>
   </data>
   <data name="RevIaCasillaIncluir" xml:space="preserve">
     <value>Inclou a «Accepta les seleccionades»</value>
