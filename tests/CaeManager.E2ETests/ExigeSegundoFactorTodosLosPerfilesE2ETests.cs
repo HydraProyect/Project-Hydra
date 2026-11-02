@@ -189,6 +189,6 @@ public class ExigeSegundoFactorTodosLosPerfilesE2ETests(WebAppFixtureCuentaAMedi
         await pagina.FillAsync("#email", email);
         await pagina.FillAsync("#password", Ayudas.ContrasenaUsuariosPrueba);
         await pagina.ClickAsync("button[type=\"submit\"]");
-        await pagina.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(pagina, LoadState.NetworkIdle);
     }
 }

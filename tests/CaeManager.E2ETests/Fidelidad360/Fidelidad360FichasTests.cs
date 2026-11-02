@@ -138,7 +138,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
             """);
         await page.GotoAsync(fixture.BaseUrl + ruta + id);
         await page.WaitForSelectorAsync("[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]", new PageWaitForSelectorOptions { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         // El HTML puede ser aún el prerender: se espera a que el circuito haya aplicado el tema de la cuenta.
         await page.WaitForFunctionAsync("() => window.__temaDeLaCuentaAplicado === true");
         // ReducedMotion no elimina todas las transiciones de las piezas compartidas.
