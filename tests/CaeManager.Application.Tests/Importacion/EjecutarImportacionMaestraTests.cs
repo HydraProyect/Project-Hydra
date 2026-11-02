@@ -250,4 +250,59 @@ public class EjecutarImportacionMaestraTests
         trabajador.Email.Should().Be("previo@ejemplo.invalid");
         r.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("otra Empresa gestionada");
     }
+
+    [Fact]
+    public async Task Un_Centro_existente_en_otra_Empresa_gestionada_no_se_modifica_y_se_informa()
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, Guid.NewGuid(), "Planta Norte", direccion: "Dirección previa");
+        e.Centros.ListaCentros.Add(centro);
+
+        var r = (await e.EjecutarAsync(
+            Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+                [FilaCentro() with { YaExiste = true }]), reemplazar: true)).Valor;
+
+        centro.Direccion.Should().Be("Dirección previa");
+        r.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros").Which.Motivo.Should().Contain("otra Empresa gestionada");
+    }
+
+    [Fact]
+    public async Task El_telefono_normalizado_por_el_dominio_al_mismo_valor_no_cuenta_como_sobrescritura()
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(
+            gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid", telefono: "+34600111222");
+        e.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var fila = FilaTrabajador(correo: "previo@ejemplo.invalid") with { Telefono = "0034 600 111 222", YaExiste = true };
+
+        var previa = (await e.PrevisualizarAsync(Plan(trabajadores: [fila]), reemplazar: true)).Valor;
+        var real = (await e.EjecutarAsync(Plan(trabajadores: [fila]), reemplazar: true)).Valor;
+
+        trabajador.Telefono.Should().Be("+34600111222");
+        real.ValoresSobrescritos.Should().NotContain(v => v.Campo == "Teléfono", "el valor persistido no cambió");
+        real.Should().BeEquivalentTo(previa);
+    }
+
+    [Fact]
+    public async Task Un_cambio_real_de_telefono_informa_el_valor_persistido_no_el_de_la_celda()
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(
+            gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid", telefono: "+34600111222");
+        e.Trabajadores.ListaTrabajadores.Add(trabajador);
+        var fila = FilaTrabajador(correo: "previo@ejemplo.invalid") with { Telefono = "0034 611 222 333", YaExiste = true };
+
+        var real = (await e.EjecutarAsync(Plan(trabajadores: [fila]), reemplazar: true)).Valor;
+
+        real.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Teléfono")
+            .Which.ValorNuevo.Should().Be(trabajador.Telefono).And.Be("+34611222333");
+    }
 }

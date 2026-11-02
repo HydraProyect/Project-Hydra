@@ -31,6 +31,10 @@ public class ClosedXmlPlantillaMaestraService(
     internal const string HojaCentros = "Centros";
     internal const string HojaTrabajadores = "Trabajadores";
     private static readonly string[] HojasSinImportar = ["Subcontratas", "Accesos por Centro", "Asignaciones", "Vehículos", "Tipos de documento"];
+    // Hojas de apoyo de la plantilla: no llevan datos del usuario.
+    private static readonly string[] HojasDeApoyo = ["Instrucciones", "Listas", "Columnas"];
+    // Tope de columnas distintas por hoja: acota el recorrido fila a fila (la plantilla trae menos de 40).
+    private const int MaxColumnasPorHoja = 100;
 
     private const int PrimeraFilaDatos = 2;
     private const string MarcadorEjemplo = "EJEMPLO";
@@ -78,10 +82,23 @@ public class ClosedXmlPlantillaMaestraService(
         foreach (var nombre in HojasSinImportar)
         {
             if (!libro.Worksheets.TryGetWorksheet(nombre, out var hoja)) continue;
-            var filas = new HojaLeida(hoja).Filas().Count();
+            var leida = new HojaLeida(hoja);
+            if (leida.ExcedeColumnas)
+            {
+                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas distintas; no se lee."));
+                continue;
+            }
+            var filas = leida.Filas().Count;
             if (filas > 0)
                 pendientes.Add(new HojaPendienteDto(nombre, filas));
         }
+
+        // Una hoja con otro nombre (p. ej. «Trabajadores 2») no se importa: se anuncia en vez de perderse en silencio.
+        var conocidas = new HashSet<string>(
+            [HojaEmpresas, HojaClientes, HojaCentros, HojaTrabajadores, .. HojasSinImportar, .. HojasDeApoyo], StringComparer.OrdinalIgnoreCase);
+        foreach (var hoja in libro.Worksheets.Where(h => !conocidas.Contains(h.Name) && h.LastCellUsed() is not null))
+            advertencias.Add(new(hoja.Name, 0, "Hoja no reconocida",
+                $"La hoja \"{hoja.Name}\" no forma parte de la plantilla maestra y no se importa."));
 
         // Cada análisis es su propia operación: el Id viaja en el plan hasta confirmar.
         return new PlanImportacionMaestraDto(Guid.NewGuid(), empresas, clientes, centros, trabajadores, pendientes, advertencias, omitidos);
@@ -203,9 +220,9 @@ public class ClosedXmlPlantillaMaestraService(
             var dto = new ClienteEmpresarialMaestraDto(fila, razonSocial, cif, critico == "C", cifEmpresa, hoja.Texto(fila, "Nota interna"), yaExiste);
             if (primeraFilaPorCif.TryGetValue(cif, out var primera))
             {
-                if (primera.RazonSocial != razonSocial || primera.EsCritico != dto.EsCritico)
+                if (primera.RazonSocial != razonSocial || primera.EsCritico != dto.EsCritico || primera.Nota != dto.Nota)
                     advertencias.Add(new(HojaClientes, fila, descripcion,
-                        $"El mismo CIF aparece en la fila {primera.Fila} con otra razón social o criticidad; se usan los de esa fila."));
+                        $"El mismo CIF aparece en la fila {primera.Fila} con otra razón social, criticidad o nota interna; se usan los de esa fila."));
             }
             else
             {
@@ -388,6 +405,11 @@ public class ClosedXmlPlantillaMaestraService(
     {
         private readonly IXLWorksheet _hoja;
         private readonly Dictionary<string, int> _columnas = new(StringComparer.OrdinalIgnoreCase);
+        // Columnas que no se leen: cabecera repetida (solo se lee la primera) o sin cabecera. Si traen datos se anuncian.
+        private readonly List<(string Descripcion, int Columna)> _noLeidas = [];
+        private List<int>? _filas;
+
+        public bool ExcedeColumnas { get; }
 
         public HojaLeida(IXLWorksheet hoja)
         {
@@ -396,9 +418,11 @@ public class ClosedXmlPlantillaMaestraService(
             for (var c = 1; c <= ultima; c++)
             {
                 var nombre = NombreCabecera(hoja.Cell(1, c).GetString());
-                if (nombre.Length > 0 && !nombre.StartsWith("Control (no rellenar)", StringComparison.OrdinalIgnoreCase))
-                    _columnas.TryAdd(nombre, c);
+                if (nombre.StartsWith("Control (no rellenar)", StringComparison.OrdinalIgnoreCase)) continue;
+                if (nombre.Length == 0) { _noLeidas.Add(($"(sin cabecera, columna {c})", c)); continue; }
+                if (!_columnas.TryAdd(nombre, c)) _noLeidas.Add(($"{nombre} (columna repetida {c})", c));
             }
+            ExcedeColumnas = _columnas.Count > MaxColumnasPorHoja;
         }
 
         private static string NombreCabecera(string texto) => texto.Trim().TrimEnd('*').Trim();
@@ -411,6 +435,11 @@ public class ClosedXmlPlantillaMaestraService(
                 return null;
             }
             var leida = new HojaLeida(hoja);
+            if (leida.ExcedeColumnas)
+            {
+                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas distintas; no se lee."));
+                return null;
+            }
             var faltan = obligatorias.Where(c => !leida._columnas.ContainsKey(c)).ToList();
             if (faltan.Count == 0) return leida;
             omitidos.Add(new(nombre, 1, "Cabecera", $"Faltan columnas en la hoja \"{nombre}\": {string.Join(", ", faltan)}."));
@@ -418,8 +447,11 @@ public class ClosedXmlPlantillaMaestraService(
         }
 
         /// <summary>Filas con datos (desde la 2), sin las de ejemplo y sin las completamente vacías.</summary>
-        public IEnumerable<int> Filas()
+        public List<int> Filas() => _filas ??= LeerFilas().ToList();
+
+        private IEnumerable<int> LeerFilas()
         {
+            if (ExcedeColumnas) yield break;
             var ultima = _hoja.LastRowUsed()?.RowNumber() ?? 0;
             for (var f = PrimeraFilaDatos; f <= ultima; f++)
             {
@@ -469,9 +501,10 @@ public class ClosedXmlPlantillaMaestraService(
         public void AdvertirColumnasSinImportar(List<ItemImportacionDto> advertencias, string hoja, IEnumerable<string> importadas)
         {
             var conocidas = new HashSet<string>(importadas, StringComparer.OrdinalIgnoreCase);
-            var filas = Filas().ToList();
+            var filas = Filas();
             var conDatos = _columnas.Where(k => !conocidas.Contains(k.Key) && filas.Any(f => TextoBruto(f, k.Value) is not null))
-                .Select(k => k.Key).ToList();
+                .Select(k => k.Key)
+                .Concat(_noLeidas.Where(k => filas.Any(f => TextoBruto(f, k.Columna) is not null)).Select(k => k.Descripcion)).ToList();
             if (conDatos.Count > 0)
                 advertencias.Add(new(hoja, 0, "Columnas con datos aún no importadas",
                     $"Estas columnas traen datos que esta versión del Importador todavía no guarda: {string.Join(", ", conDatos)}."));

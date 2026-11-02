@@ -157,6 +157,66 @@ public class ClosedXmlPlantillaMaestraServiceTests
         plan.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Dirección");
     }
 
+    [Fact]
+    public async Task Una_hoja_con_otro_nombre_y_datos_se_anuncia_y_las_de_apoyo_no()
+    {
+        var libro = LibroValido();
+        libro.Worksheets.Add("Instrucciones").Cell(1, 1).Value = "Texto de ayuda";
+        var extra = libro.Worksheets.Add("Trabajadores 2");
+        extra.Cell(1, 1).Value = "Nombre *";
+        extra.Cell(3, 1).Value = "Nombre Ficticio";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Advertencias.Should().ContainSingle(a => a.Motivo.Contains("no forma parte de la plantilla"))
+            .Which.Hoja.Should().Be("Trabajadores 2");
+    }
+
+    [Fact]
+    public async Task Una_cabecera_repetida_o_vacia_con_datos_se_anuncia_en_vez_de_ignorarse()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        hoja.Cell(1, 5).Value = "CNAE"; // repetida: solo se lee la primera
+        hoja.Cell(3, 5).Value = "9999";
+        hoja.Cell(3, 7).Value = "dato sin cabecera";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Advertencias.Should().ContainSingle(a => a.Hoja == "Empresas" && a.Motivo.Contains("CNAE (columna repetida 5)")
+            && a.Motivo.Contains("sin cabecera, columna 7"));
+    }
+
+    [Fact]
+    public async Task Una_hoja_con_demasiadas_columnas_distintas_no_se_lee()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        for (var c = 5; c < 5 + 101; c++) hoja.Cell(1, c).Value = $"Extra {c}";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Should().BeEmpty();
+        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("columnas distintas"));
+    }
+
+    [Fact]
+    public async Task El_mismo_Cliente_empresarial_con_otra_nota_en_una_segunda_fila_se_advierte()
+    {
+        var libro = LibroValido();
+        var clientes = libro.Worksheets.Worksheet("Clientes empresariales");
+        clientes.Cell(1, 5).Value = "Nota interna";
+        clientes.Cell(3, 5).Value = "Nota A";
+        Fila(clientes, 4, "Distribuciones Ficticias, S.A.", CifCliente, "N", CifGestionada, "Nota B");
+        var empresas = libro.Worksheets.Worksheet("Empresas");
+        Fila(empresas, 4, "Otra Gestionada, S.L.", "A28017895", "", "");
+        clientes.Cell(4, 4).Value = "A28017895";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Advertencias.Should().Contain(a => a.Hoja == "Clientes empresariales" && a.Fila == 4 && a.Motivo.Contains("nota interna"));
+    }
+
     private static XLWorkbook LibroValido()
     {
         var libro = new XLWorkbook();

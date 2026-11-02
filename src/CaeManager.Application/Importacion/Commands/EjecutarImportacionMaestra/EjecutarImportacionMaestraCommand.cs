@@ -153,12 +153,13 @@ public class EjecutarImportacionMaestraCommandHandler(
         // Aplica una actualización del dominio, que muta campo a campo y valida sobre la marcha. Si una validación falla a
         // mitad, o si es vista previa, se restaura el estado original (válido por construcción): así ni una fila omitida
         // deja la entidad rastreada a medias para el guardado final, ni la vista previa muta nada, y ambas ven lo mismo.
-        bool IntentarActualizar(Action aplicar, Action revertir, out string? error)
+        bool IntentarActualizar(Action aplicar, Action revertir, out string? error, Action? trasAplicar = null)
         {
             error = null;
             try
             {
                 aplicar();
+                trasAplicar?.Invoke();
                 if (!escribir) revertir();
                 return true;
             }
@@ -167,6 +168,20 @@ public class EjecutarImportacionMaestraCommandHandler(
                 revertir();
                 error = ex.Message;
                 return false;
+            }
+        }
+
+        // Si el dominio normalizó el teléfono al valor que ya había, no hubo sobrescritura; si lo cambió, el valor nuevo
+        // informado es el persistido.
+        void AjustarTelefonoSobrescrito(int fila, int sobrescritosAntes, string? previo, string? persistido)
+        {
+            for (var i = sobrescritosAntes; i < sobrescritos.Count; i++)
+            {
+                var v = sobrescritos[i];
+                if (v.Hoja != HojaTrabajadores || v.Fila != fila || v.Campo != "Teléfono") continue;
+                if (persistido == previo) sobrescritos.RemoveAt(i);
+                else sobrescritos[i] = v with { ValorNuevo = persistido ?? v.ValorNuevo };
+                return;
             }
         }
 
@@ -491,13 +506,17 @@ public class EjecutarImportacionMaestraCommandHandler(
                     || email != existente.Email || telefono != existente.Telefono || puesto != existente.Puesto
                     || observaciones != existente.Observaciones)
                 {
+                    string? telefonoPersistido = null;
                     var (nombre0, apellidos0, nacimiento0, email0, observaciones0, telefono0, puesto0) =
                         (existente.Nombre, existente.Apellidos, existente.FechaNacimiento, existente.Email, existente.Observaciones, existente.Telefono, existente.Puesto);
                     if (IntentarActualizar(
                             () => existente.Actualizar(nombre, apellidos, nacimiento, email, observaciones, existente.Alias, telefono, puesto),
                             () => existente.Actualizar(nombre0, apellidos0, nacimiento0, email0, observaciones0, existente.Alias, telefono0, puesto0),
-                            out var error))
+                            out var error,
+                            // El dominio normaliza el teléfono: N14 informa el valor realmente persistido, no el de la celda.
+                            trasAplicar: () => telefonoPersistido = existente.Telefono))
                     {
+                        AjustarTelefonoSobrescrito(fila.Fila, sobrescritosAntes, telefono0, telefonoPersistido);
                         trabajadoresActualizados++;
                     }
                     else
