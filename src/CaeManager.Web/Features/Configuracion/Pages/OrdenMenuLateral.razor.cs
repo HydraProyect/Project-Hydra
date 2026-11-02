@@ -96,6 +96,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     private bool _confirmarRestablecer;
     private ElementReference _dialogoRestablecer;
     private IJSObjectReference? _trampaFoco;
+    private bool _activandoTrampa;
     private Aviso _aviso;
     private Func<Task>? _ultimaAccion;
     private string _anuncio = string.Empty;
@@ -138,7 +139,7 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // El diálogo de confirmación declara aria-modal: el foco no puede salir de él hacia la lista de debajo (WCAG 2.4.3).
-        if (_confirmarRestablecer && _trampaFoco is null)
+        if (_confirmarRestablecer && _trampaFoco is null && !_activandoTrampa)
             await ActivarTrampaFocoAsync();
         else if (!_confirmarRestablecer && _trampaFoco is not null)
             await LiberarTrampaFocoAsync();
@@ -165,14 +166,29 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     private async Task ActivarTrampaFocoAsync()
     {
+        _activandoTrampa = true;
         try
         {
             await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
-            _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _dialogoRestablecer);
+            var trampa = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _dialogoRestablecer);
+
+            // Se cerró el diálogo durante los await: la trampa nacería sobre un nodo retirado.
+            if (!_confirmarRestablecer)
+            {
+                await trampa.InvokeVoidAsync("dispose");
+                await trampa.DisposeAsync();
+                return;
+            }
+
+            _trampaFoco = trampa;
         }
         catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException or InvalidOperationException)
         {
             // Mejor esfuerzo: sin JS el diálogo sigue siendo usable con Escape y los botones.
+        }
+        finally
+        {
+            _activandoTrampa = false;
         }
     }
 

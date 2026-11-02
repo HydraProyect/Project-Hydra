@@ -963,6 +963,10 @@ public partial class BuscadorGlobal
 
             if (token.Value.IsCancellationRequested) return;
 
+            // Antes de enfocar el campo: la trampa recuerda quién tenía el foco al abrir y se lo devuelve al cerrar.
+            await ActivarTrampaFocoAsync(token.Value);
+            if (token.Value.IsCancellationRequested) return;
+
             await modulo.InvokeVoidAsync("enfocarElemento", _inputElemento);
 
             // Se re-registra en cada apertura: el <input> es un elemento del
@@ -976,8 +980,6 @@ public partial class BuscadorGlobal
             if (token.Value.IsCancellationRequested) return;
 
             _suscripcionTab = await modulo.InvokeAsync<IJSObjectReference>("registrarSaltoDeGrupo", _inputElemento, _referenciaDotNet);
-
-            await ActivarTrampaFocoAsync(token.Value);
         }
 
         // Después del foco: la resolución consulta la sesión y no debe retrasar el campo de texto. Hasta que llega,
@@ -1071,7 +1073,17 @@ public partial class BuscadorGlobal
             if (token.IsCancellationRequested || !_visible) return;
 
             await using var moduloFoco = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
-            _trampaFoco = await moduloFoco.InvokeAsync<IJSObjectReference>("atraparFoco", _panelElemento);
+            var trampa = await moduloFoco.InvokeAsync<IJSObjectReference>("atraparFoco", _panelElemento);
+
+            // Se cerró (o se retiró el componente) durante los await: la trampa nacería sobre un panel muerto.
+            if (!_visible || token.IsCancellationRequested)
+            {
+                await trampa.InvokeVoidAsync("dispose");
+                await trampa.DisposeAsync();
+                return;
+            }
+
+            _trampaFoco = trampa;
         }
         catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException or InvalidOperationException)
         {
@@ -1343,8 +1355,14 @@ public partial class BuscadorGlobal
 
             if (trampaFoco is not null)
             {
-                await trampaFoco.InvokeVoidAsync("dispose");
-                await trampaFoco.DisposeAsync();
+                try
+                {
+                    await trampaFoco.InvokeVoidAsync("dispose");
+                    await trampaFoco.DisposeAsync();
+                }
+                catch (JSException)
+                {
+                }
             }
 
             if (modulo is not null)
