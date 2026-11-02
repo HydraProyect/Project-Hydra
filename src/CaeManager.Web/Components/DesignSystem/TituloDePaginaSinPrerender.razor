@@ -1,0 +1,49 @@
+@* Componente invisible: fija el título de la pestaña de una página con @rendermode sin prerender. Su
+   <PageTitle> solo llega al HeadOutlet estático cuando la página se prerenderiza; sin prerender la pestaña
+   quedaba sin título (WCAG 2.4.2). Se mantiene el <PageTitle> de la página además de este componente. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    private IJSObjectReference? _modulo;
+    private string? _fijado;
+    private bool _desechado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_desechado || string.IsNullOrWhiteSpace(Titulo) || Titulo == _fijado)
+            return;
+
+        try
+        {
+            _modulo ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/titulo-pagina.js");
+            if (_desechado)
+                return;
+
+            await _modulo.InvokeVoidAsync("fijarTitulo", Titulo);
+            _fijado = Titulo;
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito se cerró mientras llegaba el módulo: no hay pestaña a la que fijar nada.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        if (_modulo is null)
+            return;
+
+        try
+        {
+            await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuito ya desconectado: no hay módulo que liberar.
+        }
+    }
+}
