@@ -28,6 +28,8 @@ public class RegistroAuditoria : EntidadConTenant
     /// Trabajador. <see cref="EntidadId"/> va vacío —no hay una fila concreta— y
     /// <see cref="DatosDespues"/> lleva cuántas filas salieron y con qué criterios,
     /// nunca los datos exportados. La escribe <c>IRegistroExportacionService</c>.
+    /// Con <see cref="EntidadTipo"/> <c>Mensaje</c> es la salida de un correo: una fila por
+    /// envío, con los adjuntos como filas y los destinatarios enmascarados.
     /// </summary>
     public const string AccionExportacion = "Exportacion";
 

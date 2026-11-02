@@ -118,7 +118,8 @@ public record ConversacionDetalleDto(
     bool EsConversacionInformativaPreCae = false,
     string? ResumenRelevanciaCae = null,
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
-    long NumeroTicket = 0);
+    long NumeroTicket = 0,
+    Guid? ConexionEntradaId = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
@@ -328,7 +329,8 @@ public class ObtenerConversacionPorIdQueryHandler(
             mensajes, participantes, eventos, documentosCitados, conversacion.Canal, conversacion.TelefonoContacto,
             conversacion.FechaUltimoMensajeEntranteUtc, sugerenciaVinculacion, esConversacionInformativaPreCae,
             esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null, conversacion.Prioridad,
-            conversacion.NumeroTicket);
+            conversacion.NumeroTicket,
+            conversacion.ConexionIntegracionId);
     }
 
     /// <summary>

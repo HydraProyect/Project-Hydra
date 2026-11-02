@@ -38,8 +38,9 @@ namespace CaeManager.Application.Tests.Tenants;
 /// </para>
 ///
 /// <para>
-/// Retirar a una persona concreta (<c>RevocarAsignacionOperadorDelegadoCommand</c>) no entra
-/// en la decisión y conserva su criterio: las dos partes. Tampoco la de Soporte TALVEG.
+/// Retirar a una persona concreta (<c>RevocarAsignacionOperadorDelegadoCommand</c>) no es de ese
+/// equipo: en una de Operador CAE externo es solo del Administrador del Tenant propietario, con
+/// el mismo predicado que reactivar. La de Soporte TALVEG conserva su criterio: las dos partes.
 /// </para>
 /// </summary>
 public class RevocacionDelegacionTests
@@ -772,10 +773,10 @@ public class RevocacionDelegacionTests
         asignacionRepositorio.Agregar(asignacion);
 
         var writer = new AsignacionesOperativasWriterFalso();
-        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+        var handler = RetirarPersona(
             asignacionRepositorio, delegacionRepositorio,
             new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), writer, unitOfWork,
-            new TenantActualFijo(OperadorCae));
+            OperadorCae);
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -802,10 +803,11 @@ public class RevocacionDelegacionTests
         var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
         asignacionRepositorio.Agregar(asignacion);
 
-        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+        // Sin rol ni autoridad de Administrador: la de Soporte no pasa por ese predicado.
+        var handler = RetirarPersona(
             asignacionRepositorio, delegacionRepositorio,
             new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(),
-            new UnitOfWorkFalso(), new TenantActualFijo(OperadorCae));
+            new UnitOfWorkFalso(), OperadorCae, new AutorizacionDelegacionFalsa(autoriza: false));
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -822,10 +824,10 @@ public class RevocacionDelegacionTests
         var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
         asignacionRepositorio.Agregar(asignacion);
 
-        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+        var handler = RetirarPersona(
             asignacionRepositorio, delegacionRepositorio,
             new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantActualFijo(TenantPropietario));
+            TenantPropietario, new AutorizacionDelegacionFalsa(autoriza: true));
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -849,10 +851,10 @@ public class RevocacionDelegacionTests
         var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
         asignacionRepositorio.Agregar(asignacion);
 
-        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
+        var handler = RetirarPersona(
             asignacionRepositorio, delegacionRepositorio,
             new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantActualFijo(sinTenantActivo ? null : Guid.NewGuid()));
+            sinTenantActivo ? null : Guid.NewGuid());
 
         var resultado = await handler.Handle(
             new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
@@ -864,27 +866,100 @@ public class RevocacionDelegacionTests
     }
 
     [Fact]
-    public async Task Desde_el_workspace_del_Tenant_propietario_se_retira_un_operador()
+    public async Task El_Administrador_del_Tenant_propietario_retira_a_una_persona_y_cierra_su_cartera()
     {
         var (delegacion, delegacionRepositorio, unitOfWork) = Preparar();
         var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "GestorCae");
         var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
         asignacionRepositorio.Agregar(asignacion);
+        var writer = new AsignacionesOperativasWriterFalso();
 
-        var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
-            asignacionRepositorio, delegacionRepositorio,
-            new CurrentUserServiceFalso(tenantOrigenId: OperadorCae), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantActualFijo(TenantPropietario));
-
-        var resultado = await handler.Handle(
-            new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+        var resultado = await RetirarPersona(
+                asignacionRepositorio, delegacionRepositorio, ElAdministrador(), writer, unitOfWork,
+                TenantPropietario, new AutorizacionDelegacionFalsa(autoriza: true))
+            .Handle(new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         asignacionRepositorio.Asignaciones.Should().BeEmpty();
+        writer.CarterasCerradas.Should().ContainSingle();
+        unitOfWork.VecesGuardado.Should().Be(1);
         delegacion.Activa.Should().BeTrue("retirar a una persona no corta el acceso de todo el equipo");
     }
 
+    /// <summary>
+    /// Cada caso falla por una sola condición del predicado: el rol de la sesión (Gestor CAE,
+    /// Dirección CAE, Coordinador CAE y Consulta del Tenant propietario, o una Sesión Privilegiada sin
+    /// rol de negocio), la cuenta leída en base (Administrador degradado o desactivado) o el Tenant de
+    /// origen (una persona del Operador CAE externo dentro del Workspace operativo derivado, con el
+    /// Tenant activo correcto).
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", true, true)]
+    [InlineData("DireccionCae", true, true)]
+    [InlineData("CoordinadorCae", true, true)]
+    [InlineData("Consulta", true, true)]
+    [InlineData(null, true, true)]
+    [InlineData("Administrador", false, true)]
+    [InlineData("Administrador", true, false)]
+    public async Task Sin_ser_Administrador_del_Tenant_propietario_no_se_retira_a_una_persona(
+        string? rol, bool cuentaEsAdministrador, bool origenEsElPropietario)
+    {
+        var (delegacion, delegacionRepositorio, unitOfWork) = Preparar();
+        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "GestorCae");
+        var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
+        asignacionRepositorio.Agregar(asignacion);
+        var writer = new AsignacionesOperativasWriterFalso();
+        var quien = new CurrentUserServiceFalso(
+            Guid.NewGuid(), rol, origenEsElPropietario ? TenantPropietario : OperadorCae);
+
+        var resultado = await RetirarPersona(
+                asignacionRepositorio, delegacionRepositorio, quien, writer, unitOfWork,
+                TenantPropietario, new AutorizacionDelegacionFalsa(autoriza: cuentaEsAdministrador))
+            .Handle(new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.NoAutorizado");
+        resultado.Error.Mensaje.Should().Be(
+            "Solo un Administrador de la organización propietaria de los datos puede retirar a esta persona.");
+        asignacionRepositorio.Asignaciones.Should().ContainSingle();
+        writer.CarterasCerradas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// La ruta de Soporte TALVEG sigue siendo de las dos partes y no mira el rol: un Gestor CAE del
+    /// Tenant propietario retira a la persona de Soporte igual que antes. El extremo consultora lo
+    /// prueba <see cref="Desde_el_otro_extremo_se_retira_una_persona_de_una_delegacion_de_Soporte"/>.
+    /// </summary>
+    [Fact]
+    public async Task La_retirada_de_Soporte_desde_el_Tenant_propietario_no_exige_Administrador()
+    {
+        var delegacion = DelegacionTenant.ParaSoporte(OperadorCae, TenantPropietario);
+        var delegacionRepositorio = new DelegacionTenantRepositorioFalso();
+        delegacionRepositorio.Agregar(delegacion);
+        var asignacion = new AsignacionOperadorDelegado(delegacion.Id, Guid.NewGuid(), "Consulta");
+        var asignacionRepositorio = new AsignacionOperadorDelegadoRepositorioFalso();
+        asignacionRepositorio.Agregar(asignacion);
+        var writer = new AsignacionesOperativasWriterFalso();
+
+        var resultado = await RetirarPersona(
+                asignacionRepositorio, delegacionRepositorio,
+                new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", TenantPropietario), writer,
+                new UnitOfWorkFalso(), TenantPropietario, new AutorizacionDelegacionFalsa(autoriza: false))
+            .Handle(new RevocarAsignacionOperadorDelegadoCommand(asignacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        asignacionRepositorio.Asignaciones.Should().BeEmpty();
+        writer.CarterasCerradas.Should().BeEmpty("el plano 3 no tiene cartera que cerrar");
+    }
+
     // ── Arnés ─────────────────────────────────────────────────────────────
+
+    private static RevocarAsignacionOperadorDelegadoCommandHandler RetirarPersona(
+        AsignacionOperadorDelegadoRepositorioFalso asignaciones, DelegacionTenantRepositorioFalso delegaciones,
+        CurrentUserServiceFalso quien, AsignacionesOperativasWriterFalso writer, IUnitOfWork unitOfWork,
+        Guid? tenantActivo, IAutorizacionDelegacionTenant? autorizacion = null) =>
+        new(asignaciones, delegaciones, quien, writer, unitOfWork, new TenantActualFijo(tenantActivo),
+            autorizacion ?? new AutorizacionDelegacionFalsa(autoriza: false));
 
     private DesactivarDelegacionTenantCommandHandler Desactivar(
         DelegacionTenantRepositorioFalso repositorio, CurrentUserServiceFalso quien, Guid? tenantActivo,
