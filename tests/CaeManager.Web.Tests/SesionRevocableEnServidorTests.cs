@@ -447,6 +447,27 @@ public class SesionRevocableEnServidorTests
         gestor.InicioRechazadoPorSello.Should().BeTrue();
     }
 
+    /// <summary>La sesión de la cookie solo se sustituye cuando ya está decidido que habrá una sesión nueva.</summary>
+    [Fact]
+    public async Task Si_el_sello_rota_mientras_se_registra_la_sesion_no_revoca_la_de_la_cookie_que_iba_a_sustituir()
+    {
+        var sellos = new SellosFalsos();
+        var (gestor, autenticacion, sesiones, cuenta) = Montar(sellos: sellos);
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+        autenticacion.Cookie = autenticacion.Emitido;
+        var sesionDeLaCookie = sesiones.Registradas.Single().Sid;
+        var lecturas = 0;
+        sellos.AlLeer = () =>
+        {
+            if (++lecturas == 2) sellos.EnBase = "sello-del-restablecimiento";
+        };
+
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        lecturas.Should().Be(2);
+        sesiones.Revocadas.Should().NotContain(sesionDeLaCookie);
+    }
+
     [Fact]
     public async Task Un_inicio_que_no_cae_por_el_sello_no_arrastra_el_rechazo_del_anterior()
     {
