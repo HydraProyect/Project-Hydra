@@ -506,6 +506,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
