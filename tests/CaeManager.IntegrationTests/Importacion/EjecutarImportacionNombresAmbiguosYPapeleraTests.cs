@@ -166,7 +166,7 @@ public class EjecutarImportacionNombresAmbiguosYPapeleraTests : IAsyncLifetime
             new EmpresaRepository(contexto), new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
-            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto));
+            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso());
 
     private CaeManagerDbContext CrearContexto(TenantActualAmbiental? tenant = null)
     {
