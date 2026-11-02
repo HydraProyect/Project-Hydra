@@ -33,7 +33,11 @@ public class AccesibilidadAxeOutboundE2ETests(WebAppFixtureGestorCaeCarteraMulti
 
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
-    private static readonly string[] Rutas = ["/mi-trabajo", "/trabajadores", "/centros", "/documentos", "/visitas"];
+    internal static readonly string[] Rutas =
+    [
+        "/mi-trabajo", "/trabajadores", "/centros", "/documentos", "/visitas",
+        "/bandeja", "/gestiones", "/incidencias", "/empresas", "/subcontratas", "/vehiculos",
+    ];
 
     public static TheoryData<string> RutasAnalizadas() => [.. Rutas];
 
