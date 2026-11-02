@@ -55,6 +55,7 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Components/Account/Pages/Login.razor",
         "src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor",
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs",
+        "src/CaeManager.Web/Components/Account/ValidacionContrasena.cs",
         "src/CaeManager.Web/Program.cs",
         "src/CaeManager.Web/Services/CurrentUserService.cs",
         "src/CaeManager.Web/Services/RecuperacionContrasena.cs",
