@@ -185,12 +185,14 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             alta = documentoExistenteId is { } idExistente
                 ? await mediator.Send(new RenovarDocumentoCommand(
                     idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    NoCaduca: request.NoCaduca) { DocumentoIdReservado = documentoReservadoId },
+                    NoCaduca: request.NoCaduca)
+                { DocumentoIdReservado = documentoReservadoId },
                     cancellationToken)
                 : await mediator.Send(new CrearDocumentoCommand(
                     request.TrabajadorId, null, request.EmpresaId, null, null,
                     request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    request.NoCaduca) { DocumentoIdReservado = documentoReservadoId },
+                    request.NoCaduca)
+                { DocumentoIdReservado = documentoReservadoId },
                     cancellationToken);
         }
         catch (OperationCanceledException)
