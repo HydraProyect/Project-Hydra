@@ -208,6 +208,88 @@ public class InicioSesionMicrosoftTests
         await app.StopAsync();
     }
 
+    /// <summary>
+    /// Sesión directa con la identidad ya vinculada: un cambio de credencial durante el inicio deja sin cookie
+    /// y SignInWithClaimsAsync no devuelve nada, así que el callback seguía de largo y anotaba un inicio correcto.
+    /// </summary>
+    [Fact]
+    public async Task El_callback_no_da_por_correcto_un_inicio_rechazado_por_el_sello()
+    {
+        var cuenta = new ApplicationUser { TenantId = TenantDestino, SecurityStamp = "sello-cargado-antes-del-cambio" };
+        var usuarios = new UsuariosConVinculos { DuenaDeLaIdentidad = cuenta };
+        var vigilancia = new VigilanciaDePrueba();
+        var sesiones = new SesionesDePrueba();
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ExternalScheme)
+            .AddCookie(IdentityConstants.TwoFactorUserIdScheme);
+        builder.Services.AddIdentityCore<ApplicationUser>().AddSignInManager<SignInManagerCuentaDesactivada>();
+        builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
+        builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
+        builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
+        builder.Services.AddSingleton<IRegistroSesionesUsuario>(sesiones);
+        builder.Services.AddSingleton<ISelloSeguridadCuenta>(new SellosConOtroVigente());
+        builder.Services.AddSingleton<VerificacionContrasenaFicticia>();
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.MapIdentityEndpoints();
+        app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
+        {
+            var propiedades = new AuthenticationProperties();
+            propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
+            await contexto.SignInAsync(IdentityConstants.ExternalScheme, Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
+                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")), propiedades);
+        });
+        await app.StartAsync();
+        using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
+        using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(app.Urls.Single()) };
+        using var emision = await cliente.GetAsync("/externa-de-prueba");
+        using var peticion = new HttpRequestMessage(HttpMethod.Get, "/cuenta/microsoft-callback?returnUrl=%2Fdocumentos");
+        peticion.Headers.Add("Cookie", emision.Headers.GetValues("Set-Cookie").Single().Split(';')[0]);
+
+        using var respuesta = await cliente.SendAsync(peticion);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        respuesta.Headers.Location!.OriginalString.Should().Be("/cuenta/iniciar-sesion?errorSso=fallo");
+        respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
+        (cookies ?? []).Should().NotContain(c =>
+            c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0);
+        vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado]);
+        sesiones.Registradas.Should().Be(0, "rechazado antes de registrar, no queda fila viva");
+        await app.StopAsync();
+    }
+
+    private sealed class SellosConOtroVigente : ISelloSeguridadCuenta
+    {
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default) => Task.FromResult(false);
+        public void AnotarRotacion(Guid usuarioId, string? selloAnterior) { }
+
+        public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior)
+        {
+            selloAnterior = null;
+            return false;
+        }
+    }
+
+    private sealed class SesionesDePrueba : IRegistroSesionesUsuario
+    {
+        public int Registradas { get; private set; }
+
+        public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default)
+        {
+            Registradas++;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => Task.FromResult(0);
+    }
+
     private sealed class VigilanciaDePrueba : CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion
     {
         public List<CaeManager.Domain.Seguridad.ResultadoInicioSesion> Resultados { get; } = [];

@@ -12,10 +12,11 @@ namespace CaeManager.Infrastructure.Identity;
 public interface ISelloSeguridadCuenta
 {
     /// <summary>
-    /// El sello que hay ahora en la base, leído sin pasar por la entidad rastreada de la petición, que
-    /// pudo cargarse antes de un cambio de credencial. Nulo si la cuenta no se encuentra.
+    /// ¿Es <paramref name="sello"/> el que hay ahora en la base? Se pregunta sin pasar por la entidad
+    /// rastreada de la petición, que pudo cargarse antes de un cambio de credencial. Falla en cerrado: un
+    /// sello nulo o vacío, o una cuenta que no se encuentra, no son vigentes.
     /// </summary>
-    Task<string?> VigenteAsync(Guid usuarioId, Guid tenantPropietarioId, CancellationToken ct = default);
+    Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default);
 
     /// <summary>Anota que esta petición rota el sello de la cuenta, que hasta ahora era <paramref name="selloAnterior"/>.</summary>
     void AnotarRotacion(Guid usuarioId, string? selloAnterior);
@@ -43,23 +44,25 @@ public interface ISelloSeguridadCuenta
 /// <para>
 /// <b>Lectura.</b> En un ámbito propio bajo <see cref="AmbitoTenantExplicito"/> con el Tenant propietario
 /// de la cuenta, como <see cref="RegistroSesionesUsuario.RegistrarAsync"/>: se llama desde el inicio de
-/// sesión, sin Tenant en el contexto, y desde un refresco, que puede tener abierto otro workspace.
+/// sesión, sin Tenant en el contexto, y desde un refresco, que puede tener abierto otro Workspace
+/// operativo derivado. La respuesta es un booleano para que el sello no salga de aquí.
 /// </para>
 /// </summary>
 public sealed class SelloSeguridadCuenta(IServiceScopeFactory ambitos) : ISelloSeguridadCuenta
 {
     private readonly Dictionary<Guid, string?> _anteriores = [];
 
-    public async Task<string?> VigenteAsync(Guid usuarioId, Guid tenantPropietarioId, CancellationToken ct = default)
+    public async Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default)
     {
+        if (string.IsNullOrEmpty(sello))
+            return false;
+
         using var ambito = ambitos.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantPropietarioId);
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         return await contexto.Users
             .AsNoTracking()
-            .Where(u => u.Id == usuarioId)
-            .Select(u => u.SecurityStamp)
-            .SingleOrDefaultAsync(ct);
+            .AnyAsync(u => u.Id == usuarioId && u.SecurityStamp == sello, ct);
     }
 
     // Se conserva el primero: una petición puede rotar el sello más de una vez, y el de la cookie es el

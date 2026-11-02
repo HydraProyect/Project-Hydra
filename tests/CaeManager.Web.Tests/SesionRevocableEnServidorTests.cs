@@ -64,13 +64,14 @@ public class SesionRevocableEnServidorTests
     [Fact]
     public async Task Emision_rechaza_sesion_ausente_o_revocada()
     {
-        var (gestor, _, sesiones, cuenta) = Montar();
+        var sellos = new SellosFalsos();
+        var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
         var protector = new EphemeralDataProtectionProvider();
         var sid = Guid.NewGuid();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsExitoso.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsExitoso.Should().BeTrue();
         await sesiones.RevocarAsync(cuenta.Id, sid);
-        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, cuenta.SecurityStamp, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance)).EsFallido.Should().BeTrue();
     }
 
     [Theory]
@@ -78,13 +79,48 @@ public class SesionRevocableEnServidorTests
     [InlineData(null)]
     public async Task Emision_rechaza_la_sesion_con_sello_obsoleto_aunque_su_fila_siga_viva(string? selloDeLaCookie)
     {
-        var (gestor, _, sesiones, cuenta) = Montar();
+        var sellos = new SellosFalsos();
+        var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
         var protector = new EphemeralDataProtectionProvider();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloDeLaCookie, gestor.UserManager, protector, sesiones, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloDeLaCookie, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
 
         resultado.EsFallido.Should().BeTrue("el token saldría con el sello nuevo para una sesión que no lo ha visto");
         resultado.Error.Codigo.Should().Be("Extension.SesionNoVigente");
+    }
+
+    /// <summary>
+    /// En el circuito de «Conectar extensión» la entidad puede seguir rastreada desde antes del cambio de
+    /// credencial: coincide con la cookie y ninguna de las dos es ya el sello de la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Emision_compara_con_la_lectura_vigente_y_no_con_la_entidad_rastreada()
+    {
+        var sellos = new SellosFalsos();
+        var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
+        var selloEnLaCookie = cuenta.SecurityStamp;
+        sellos.EnBase = "sello-del-restablecimiento";
+
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloEnLaCookie, gestor.UserManager, new EphemeralDataProtectionProvider(), sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Extension.SesionNoVigente");
+    }
+
+    /// <summary>A la inversa: la cookie lleva el sello vigente y la entidad se quedó atrás. El token lleva el de la cookie.</summary>
+    [Fact]
+    public async Task Emision_firma_el_token_con_el_sello_verificado_y_no_con_el_de_la_entidad()
+    {
+        var sellos = new SellosFalsos();
+        var (gestor, _, sesiones, cuenta) = Montar(sellos: sellos);
+        var protector = new EphemeralDataProtectionProvider();
+        const string selloVigente = "sello-del-restablecimiento";
+        sellos.EnBase = selloVigente;
+
+        var resultado = await EmisorTokenExtension.EmitirAsync(cuenta.Id, Guid.NewGuid(), selloVigente, gestor.UserManager, protector, sesiones, sellos, new SeleccionFalsa(null), NullLoggerFactory.Instance);
+
+        resultado.EsExitoso.Should().BeTrue();
+        TokenSesionExtension.Leer(protector, resultado.Valor.Token)!.SecurityStamp.Should().Be(selloVigente);
     }
 
     [Fact]
@@ -369,22 +405,149 @@ public class SesionRevocableEnServidorTests
     }
 
     /// <summary>
-    /// C4 H3: el inicio verificó la contraseña antigua y se quedó parado antes de registrar la sesión
-    /// mientras un cambio de credencial terminaba. La fila se registra antes de leer el sello: si se
-    /// leyera antes, el cambio podría colarse entre medias y sus revocaciones no verían la fila.
+    /// C4 H3: el inicio verificó la contraseña antigua y se quedó parado mientras un cambio de credencial
+    /// terminaba. Se rechaza antes de registrar: quien inicia sesión no tiene aún su contexto firmado, y
+    /// la política <c>solo_la_propia_cuenta_revoca</c> le impediría retirar después la fila.
     /// </summary>
     [Fact]
-    public async Task Iniciar_sesion_con_un_sello_que_ya_no_es_el_vigente_no_emite_la_cookie()
+    public async Task Iniciar_sesion_con_un_sello_que_ya_no_es_el_vigente_no_emite_la_cookie_ni_deja_fila()
     {
         var sellos = new SellosFalsos { EnBase = "sello-del-restablecimiento" };
         var (gestor, autenticacion, sesiones, cuenta) = Montar(sellos: sellos);
-        var registradasAlLeer = -1;
-        sellos.AlLeer = () => registradasAlLeer = sesiones.Registradas.Count;
 
         await gestor.SignInAsync(cuenta, isPersistent: false);
 
         autenticacion.Emitido.Should().BeNull();
-        registradasAlLeer.Should().Be(1, "el sello se lee con la fila ya registrada");
+        sesiones.Registradas.Should().BeEmpty();
+        gestor.InicioRechazadoPorSello.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El cambio de credencial se cuela entre la primera lectura y el registro: sus revocaciones no vieron la
+    /// fila. Por eso se vuelve a leer con la fila ya dentro, y la fila no se queda viva.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_sello_rota_mientras_se_registra_la_sesion_retira_la_fila_y_no_emite_la_cookie()
+    {
+        var sellos = new SellosFalsos();
+        var (gestor, autenticacion, sesiones, cuenta) = Montar(sellos: sellos);
+        var registradasAlLeer = new List<int>();
+        sellos.AlLeer = () =>
+        {
+            registradasAlLeer.Add(sesiones.Registradas.Count);
+            if (registradasAlLeer.Count == 2) sellos.EnBase = "sello-del-restablecimiento";
+        };
+
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        registradasAlLeer.Should().Equal([0, 1], "se lee antes de registrar y otra vez con la fila ya registrada");
+        autenticacion.Emitido.Should().BeNull();
+        var fila = sesiones.Registradas.Should().ContainSingle().Subject;
+        sesiones.RevocadasPorCuenta.Should().Equal([(cuenta.Id, fila.Sid)]);
+        gestor.InicioRechazadoPorSello.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_inicio_que_no_cae_por_el_sello_no_arrastra_el_rechazo_del_anterior()
+    {
+        var sellos = new SellosFalsos { EnBase = "sello-del-restablecimiento" };
+        var (gestor, autenticacion, _, cuenta) = Montar(sellos: sellos);
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        sellos.EnBase = cuenta.SecurityStamp;
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        gestor.InicioRechazadoPorSello.Should().BeFalse();
+        autenticacion.Emitido.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Punto de la revisión: sin cookie, el inicio devolvía Succeeded y constaba como Correcto en
+    /// RegistroInicioSesion y como «Login correcto» en el log de la página.
+    /// </summary>
+    [Fact]
+    public async Task Una_contrasena_correcta_con_el_sello_obsoleto_no_es_un_inicio_correcto()
+    {
+        var vigilancia = new VigilanciaAnotada();
+        var sellos = new SellosFalsos { EnBase = "sello-del-restablecimiento" };
+        var (gestor, autenticacion, _, cuenta) = Montar(sellos: sellos, vigilancia: vigilancia);
+        cuenta.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(cuenta, "clave-introducida");
+
+        var resultado = await gestor.PasswordSignInAsync(cuenta, "clave-introducida", isPersistent: false, lockoutOnFailure: false);
+
+        resultado.Succeeded.Should().BeFalse();
+        resultado.IsNotAllowed.Should().BeTrue();
+        autenticacion.Emitido.Should().BeNull();
+        vigilancia.Resultados.Should().NotContain(ResultadoInicioSesion.Correcto).And.Contain(ResultadoInicioSesion.Rechazado);
+    }
+
+    [Fact]
+    public async Task Una_contrasena_correcta_con_el_sello_vigente_sigue_siendo_un_inicio_correcto()
+    {
+        var vigilancia = new VigilanciaAnotada();
+        var (gestor, autenticacion, _, cuenta) = Montar(vigilancia: vigilancia);
+        cuenta.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(cuenta, "clave-introducida");
+
+        var resultado = await gestor.PasswordSignInAsync(cuenta, "clave-introducida", isPersistent: false, lockoutOnFailure: false);
+
+        resultado.Succeeded.Should().BeTrue();
+        autenticacion.Emitido.Should().NotBeNull();
+        vigilancia.Resultados.Should().Contain(ResultadoInicioSesion.Correcto);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_segundo_factor_correcto_con_el_sello_obsoleto_no_es_un_inicio_correcto(bool conTotp)
+    {
+        var vigilancia = new VigilanciaAnotada();
+        var sellos = new SellosFalsos { EnBase = "sello-del-restablecimiento" };
+        var (gestor, autenticacion, _, cuenta) = Montar(sellos: sellos, vigilancia: vigilancia, segundoFactorValido: true);
+        autenticacion.PasoDosFactores = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], IdentityConstants.TwoFactorUserIdScheme));
+
+        var resultado = conTotp
+            ? await gestor.TwoFactorAuthenticatorSignInAsync("123456", isPersistent: false, rememberClient: false)
+            : await gestor.TwoFactorRecoveryCodeSignInAsync("codigo-de-recuperacion");
+
+        resultado.Succeeded.Should().BeFalse();
+        resultado.IsNotAllowed.Should().BeTrue();
+        autenticacion.Emitido.Should().BeNull();
+        vigilancia.Resultados.Should().NotContain(ResultadoInicioSesion.Correcto).And.Contain(ResultadoInicioSesion.Rechazado);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Un_segundo_factor_correcto_con_el_sello_vigente_sigue_siendo_un_inicio_correcto(bool conTotp)
+    {
+        var vigilancia = new VigilanciaAnotada();
+        var (gestor, autenticacion, _, cuenta) = Montar(vigilancia: vigilancia, segundoFactorValido: true);
+        autenticacion.PasoDosFactores = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], IdentityConstants.TwoFactorUserIdScheme));
+
+        var resultado = conTotp
+            ? await gestor.TwoFactorAuthenticatorSignInAsync("123456", isPersistent: false, rememberClient: false)
+            : await gestor.TwoFactorRecoveryCodeSignInAsync("codigo-de-recuperacion");
+
+        resultado.Succeeded.Should().BeTrue();
+        autenticacion.Emitido.Should().NotBeNull();
+        vigilancia.Resultados.Should().Contain(ResultadoInicioSesion.Correcto);
+    }
+
+    /// <summary>
+    /// Punto de la revisión C5: nulo contra nulo no puede contar como coincidencia, y la cuenta sin sello
+    /// no es motivo para ir a la base.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Un_sello_vacio_nunca_es_vigente_y_no_consulta_la_base(string? sello)
+    {
+        var ambitos = new AmbitosQueNoSeUsan();
+        var lectura = new SelloSeguridadCuenta(ambitos);
+
+        (await lectura.EsVigenteAsync(Guid.NewGuid(), TenantPropietario, sello)).Should().BeFalse();
+
+        ambitos.Creados.Should().Be(0);
     }
 
     [Fact]
@@ -603,7 +766,7 @@ public class SesionRevocableEnServidorTests
 
     private const string ClaimSello = "AspNet.Identity.SecurityStamp";
 
-    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null, IPasswordHasher<ApplicationUser>? hasher = null, IVigilanciaInicioSesion? vigilancia = null, SellosFalsos? sellos = null)
+    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null, IPasswordHasher<ApplicationUser>? hasher = null, IVigilanciaInicioSesion? vigilancia = null, SellosFalsos? sellos = null, bool segundoFactorValido = false)
     {
         var cuenta = new ApplicationUser
         {
@@ -616,9 +779,11 @@ public class SesionRevocableEnServidorTests
         sellos.EnBase ??= cuenta.SecurityStamp;
         var almacen = new AlmacenDeUnaCuenta(cuenta, sellos);
         var opciones = Opciones.Create(new IdentityOptions());
-        var usuarios = new UserManager<ApplicationUser>(almacen, opciones, hasher ?? new PasswordHasher<ApplicationUser>(),
-            [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
-            NullLogger<UserManager<ApplicationUser>>.Instance);
+        var usuarios = segundoFactorValido
+            ? new UsuariosConSegundoFactorValido(almacen, opciones)
+            : new UserManager<ApplicationUser>(almacen, opciones, hasher ?? new PasswordHasher<ApplicationUser>(),
+                [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
         var autenticacion = new AutenticacionFalsa();
         var http = new DefaultHttpContext
         {
@@ -641,16 +806,51 @@ public class SesionRevocableEnServidorTests
         public bool CuentaAusente { get; set; }
         public Action? AlLeer { get; set; }
 
-        public Task<string?> VigenteAsync(Guid usuarioId, Guid tenantPropietarioId, CancellationToken ct = default)
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default)
         {
+            if (string.IsNullOrEmpty(sello)) return Task.FromResult(false);
             AlLeer?.Invoke();
-            return Task.FromResult(CuentaAusente ? null : EnBase);
+            return Task.FromResult(!CuentaAusente && sello == EnBase);
         }
 
         public void AnotarRotacion(Guid usuarioId, string? selloAnterior) => _anteriores.TryAdd(usuarioId, selloAnterior);
 
         public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior) =>
             _anteriores.TryGetValue(usuarioId, out selloAnterior);
+    }
+
+    /// <summary>TOTP y código de recuperación aciertan; lo que se prueba es lo que pasa después.</summary>
+    private sealed class UsuariosConSegundoFactorValido(IUserStore<ApplicationUser> almacen, IOptions<IdentityOptions> opciones)
+        : UserManager<ApplicationUser>(almacen, opciones, new PasswordHasher<ApplicationUser>(), [], [],
+            new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!, NullLogger<UserManager<ApplicationUser>>.Instance)
+    {
+        public override Task<bool> VerifyTwoFactorTokenAsync(ApplicationUser user, string tokenProvider, string token) => Task.FromResult(true);
+        public override Task<IdentityResult> RedeemTwoFactorRecoveryCodeAsync(ApplicationUser user, string code) => Task.FromResult(IdentityResult.Success);
+    }
+
+    /// <summary>Para comprobar que el camino no llega a la base: abrir un ámbito ya es un fallo.</summary>
+    private sealed class AmbitosQueNoSeUsan : IServiceScopeFactory
+    {
+        public int Creados { get; private set; }
+
+        public IServiceScope CreateScope()
+        {
+            Creados++;
+            throw new InvalidOperationException("un sello vacío no se consulta");
+        }
+    }
+
+    private sealed class VigilanciaAnotada : IVigilanciaInicioSesion
+    {
+        public List<ResultadoInicioSesion> Resultados { get; } = [];
+        public Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RegistrarAsync(Guid? usuarioId, Guid? tenantId, MetodoInicioSesion metodo, ResultadoInicioSesion resultado,
+            SenalesInicioSesion senalesConocidas = SenalesInicioSesion.Ninguna, CancellationToken ct = default)
+        {
+            Resultados.Add(resultado);
+            return Task.CompletedTask;
+        }
+        public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class SesionesFalsas : IRegistroSesionesUsuario
@@ -730,11 +930,15 @@ public class SesionRevocableEnServidorTests
     {
         public ClaimsPrincipal? Emitido { get; private set; }
         public ClaimsPrincipal? Cookie { get; set; }
+        public ClaimsPrincipal? PasoDosFactores { get; set; }
 
-        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
-            Task.FromResult(Cookie is null
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme)
+        {
+            var principal = scheme == IdentityConstants.TwoFactorUserIdScheme ? PasoDosFactores : Cookie;
+            return Task.FromResult(principal is null
                 ? AuthenticateResult.NoResult()
-                : AuthenticateResult.Success(new AuthenticationTicket(Cookie, new AuthenticationProperties(), scheme ?? "Identity.Application")));
+                : AuthenticateResult.Success(new AuthenticationTicket(principal, new AuthenticationProperties(), scheme ?? "Identity.Application")));
+        }
 
         public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties)
         {

@@ -43,10 +43,12 @@ namespace CaeManager.Infrastructure.Identity;
 /// <b>Sello de la cookie.</b> Entre dos revalidaciones la cookie no se compara con la base, y una que
 /// escapó a la revocación de un cambio de credencial sigue autenticando. Reemitirla con el sello nuevo
 /// la dejaría viva, así que ninguna cookie nueva sale con un sello distinto del de la base: una sesión
-/// nueva lo comprueba tras registrar su fila, y un refresco exige además que la cookie llevara el sello
-/// vigente o el que esta misma petición acaba de sustituir (<see cref="SelloSeguridadCuenta"/>). Quien
-/// rota el sello fuera de un refresco (generar la clave del autenticador) debe refrescar en esa misma
-/// petición: en otra posterior su cookie ya estaría obsoleta y dejaría de poder refrescarse.
+/// nueva lo comprueba antes y después de registrar su fila, y un refresco exige además que la cookie
+/// llevara el sello vigente o el que esta misma petición acaba de sustituir
+/// (<see cref="SelloSeguridadCuenta"/>). Quien rota el sello fuera de un refresco (generar la clave del
+/// autenticador) debe refrescar en esa misma petición: en otra posterior su cookie ya estaría obsoleta y
+/// dejaría de poder refrescarse. Un inicio rechazado así no es un inicio correcto: sale como
+/// <see cref="SignInResult.NotAllowed"/> y consta como rechazado (<see cref="InicioRechazadoPorSello"/>).
 /// </para>
 ///
 /// <para>
@@ -254,9 +256,8 @@ public class SignInManagerCuentaDesactivada(
     /// ¿Es el sello que va a llevar la cookie nueva el que hay en la base? La entidad de la petición pudo
     /// cargarse antes de un cambio de credencial, y no vale compararla consigo misma.
     /// </summary>
-    private async Task<bool> SelloDeLaCuentaEsElVigenteAsync(ApplicationUser user) =>
-        await sellos.VigenteAsync(user.Id, user.TenantId) is { } vigente
-        && string.Equals(user.SecurityStamp, vigente, StringComparison.Ordinal);
+    private Task<bool> SelloDeLaCuentaEsElVigenteAsync(ApplicationUser user) =>
+        sellos.EsVigenteAsync(user.Id, user.TenantId, user.SecurityStamp);
 
     /// <summary>
     /// ¿Puede esta cookie heredar el sello de la cuenta? Solo si llevaba el vigente o el que esta misma
@@ -378,9 +379,50 @@ public class SignInManagerCuentaDesactivada(
         }
     }
 
+    /// <summary>
+    /// Una fila registrada para una sesión que no llegó a emitirse. Su identificador no ha salido de aquí, así
+    /// que no hay cookie que la use, y se revoca para que no conste como viva. Sin una cookie anterior de
+    /// esta cuenta nadie firma el contexto y <c>solo_la_propia_cuenta_revoca</c> no deja revocarla: queda
+    /// registrado, y un fallo no cambia nada, porque el inicio ya está rechazado.
+    /// </summary>
+    private async Task RevocarFilaSinCookieAsync(Guid usuarioId, Guid sid)
+    {
+        try
+        {
+            if (!await sesiones.RevocarAsync(usuarioId, sid))
+                Logger.LogWarning("La sesión sin cookie de la cuenta {UsuarioId} no se pudo revocar sin su firma en el contexto.", usuarioId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo revocar la sesión sin cookie de la cuenta {UsuarioId} ({TipoError}).",
+                usuarioId, ex.GetType().Name);
+        }
+    }
+
+    /// <summary>
+    /// La última emisión fue un inicio de sesión rechazado por el sello: no hay cookie. Los pasos con
+    /// credencial de Identity ya lo traducen a <see cref="SignInResult.NotAllowed"/>; quien llama a
+    /// <see cref="SignInWithClaimsAsync"/> directamente, como el callback de Microsoft, tiene que mirarlo,
+    /// porque ese método no devuelve nada.
+    /// </summary>
+    public bool InicioRechazadoPorSello { get; private set; }
+
+    private void RechazarInicioPorSello(ApplicationUser user)
+    {
+        InicioRechazadoPorSello = true;
+        Logger.LogWarning("No se emite sesión: la credencial de la cuenta {UsuarioId} cambió durante el inicio de sesión.", user.Id);
+    }
+
+    // Identity responde Succeeded en cuanto vuelve la emisión, sin saber que no hubo cookie. Un resultado
+    // correcto implica que esta petición pasó por SignInWithClaimsAsync, que pone la marca a cero al entrar.
+    private SignInResult ConRechazoPorSello(SignInResult resultado) =>
+        resultado.Succeeded && InicioRechazadoPorSello ? SignInResult.NotAllowed : resultado;
+
     public override async Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
+        InicioRechazadoPorSello = false;
+
         // Las marcas y el identificador de sesión solo los escribe este tipo: se descarta cualquier otro que llegue.
         additionalClaims = additionalClaims.Where(c =>
             c.Type != ClaimTotpSesion && c.Type != ClaimSid && c.Type != ClaimAutenticacionSesion);
@@ -429,16 +471,23 @@ public class SignInManagerCuentaDesactivada(
         }
         if (sid is null)
         {
+            // Antes de registrar, para que un inicio que verificó la contraseña antigua no deje fila.
+            if (!await SelloDeLaCuentaEsElVigenteAsync(user))
+            {
+                RechazarInicioPorSello(user);
+                return;
+            }
+
             sid = Guid.NewGuid();
             await sesiones.RegistrarAsync(user.Id, user.TenantId, sid.Value);
 
-            // Tras registrar la fila y no antes: un inicio que verificó la contraseña antigua y se queda
-            // aquí mientras un cambio de credencial termina. Si lee el sello antiguo, su fila ya estaba
-            // cuando se escribió el nuevo y la revocación posterior la alcanza; si lee el nuevo, no se
-            // emite. Su fila queda sin cookie que la use.
+            // Y otra vez tras registrar: si el cambio de credencial termina ahora, la lectura anterior
+            // vio el sello antiguo. Si esta también lo ve, la fila ya estaba cuando se escribió el nuevo y
+            // la revocación posterior la alcanza; si ve el nuevo, no se emite.
             if (!await SelloDeLaCuentaEsElVigenteAsync(user))
             {
-                Logger.LogWarning("No se emite sesión: la credencial de la cuenta {UsuarioId} cambió durante el inicio de sesión.", user.Id);
+                RechazarInicioPorSello(user);
+                await RevocarFilaSinCookieAsync(user.Id, sid.Value);
                 return;
             }
             await RevocarSesionQueSustituyeAsync();
@@ -514,7 +563,7 @@ public class SignInManagerCuentaDesactivada(
         _contrasenaSinVerificar = password;
         try
         {
-            var resultado = await base.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure);
+            var resultado = ConRechazoPorSello(await base.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure));
             await RegistrarAsync(user, MetodoInicioSesion.Contrasena, resultado);
             return resultado;
         }
@@ -554,7 +603,7 @@ public class SignInManagerCuentaDesactivada(
         _verificandoTotp = true;
         try
         {
-            resultado = await base.TwoFactorAuthenticatorSignInAsync(code, isPersistent, rememberClient);
+            resultado = ConRechazoPorSello(await base.TwoFactorAuthenticatorSignInAsync(code, isPersistent, rememberClient));
         }
         finally
         {
@@ -569,7 +618,7 @@ public class SignInManagerCuentaDesactivada(
     {
         var usuario = await GetTwoFactorAuthenticationUserAsync();
         _paisNoPermitido = false;
-        var resultado = await base.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
+        var resultado = ConRechazoPorSello(await base.TwoFactorRecoveryCodeSignInAsync(recoveryCode));
         if (usuario is not null)
             await RegistrarAsync(usuario, MetodoInicioSesion.CodigoRecuperacion, resultado);
         return resultado;

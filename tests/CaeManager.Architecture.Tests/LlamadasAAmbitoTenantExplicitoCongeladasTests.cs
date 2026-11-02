@@ -476,7 +476,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant propietario de la cuenta: user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para insertar su SesionUsuario; y cuenta.TenantId leída con AmbitoIdentificacionSinTenant para revocar una o todas sus sesiones, nunca el Tenant del workspace abierto; la RLS (solo_la_propia_cuenta_revoca) exige además que la cuenta sea quien firma el contexto"),
         ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "1 llamada — user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para leer el sello vigente de esa misma cuenta en su Tenant propietario, nunca el del workspace abierto"),
+            new(Categoria.IdentificacionDeCuentaSinSesion, "1 llamada — user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para comprobar el sello vigente de esa misma cuenta en su Tenant propietario, nunca en el del Workspace operativo derivado abierto"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 

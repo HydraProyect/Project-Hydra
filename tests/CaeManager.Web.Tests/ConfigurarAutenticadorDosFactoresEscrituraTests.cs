@@ -34,8 +34,10 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
 
     private readonly AlmacenAutenticadorFalso _almacen = new()
     {
-        Usuario = new ApplicationUser { Id = UsuarioId, Email = "marta@arcospa.es", UserName = "marta@arcospa.es" },
+        Usuario = new ApplicationUser { Id = UsuarioId, Email = "marta@arcospa.es", UserName = "marta@arcospa.es", SecurityStamp = SelloVigente },
     };
+
+    private const string SelloVigente = "sello-vigente";
 
     private readonly GestorUsuariosFallaAVoluntad _gestor;
     private readonly SignInManagerFalso _signIn = new();
@@ -45,6 +47,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     public ConfigurarAutenticadorDosFactoresEscrituraTests()
     {
         _gestor = new GestorUsuariosFallaAVoluntad(_almacen);
+        _sellos.DeLaCuenta = () => _almacen.Usuario?.SecurityStamp;
         Services.AddSingleton<CaeManager.Application.Common.IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<UserManager<ApplicationUser>>(_gestor);
         Services.AddSingleton<SignInManager<ApplicationUser>>(_signIn);
@@ -52,13 +55,15 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
         Services.AddSingleton<AuthenticationStateProvider>(_autenticacion);
+        Services.AddSingleton<ISelloSeguridadCuenta>(_sellos);
         Services.AddSingleton<CaeManager.Infrastructure.Coordinacion.IEleccionLiderService>(_cerrojo);
         Services.AddSingleton<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(
             new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
     }
 
     private readonly CerrojoVerificacionFalso _cerrojo = new();
-    private readonly AutenticacionFalsa _autenticacion = new(UsuarioId);
+    private readonly AutenticacionFalsa _autenticacion = new(UsuarioId) { Sello = SelloVigente };
+    private readonly SellosFalsos _sellos = new();
 
     private const string ContrasenaCorrecta = "Contrasena-De-Prueba-1";
 
@@ -287,33 +292,99 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     /// <summary>
-    /// Generar la clave rota el sello en la carga. Sin reemitir ahí, la cookie llegaría al envío del código
-    /// con un sello que ya nadie sustituye en esa petición, y SignInManagerCuentaDesactivada la dejaría caer.
+    /// La sesión pasó la carga y el cambio de credencial llega antes del código: la lectura vigente manda sobre
+    /// la entidad de esta petición, que sigue llevando el sello de la cookie.
     /// </summary>
     [Fact]
     public async Task Una_sesion_con_sello_obsoleto_no_da_de_alta_el_factor()
     {
-        _almacen.Usuario!.SecurityStamp = "sello-vigente";
-        _autenticacion.Sello = "sello-obsoleto";
-
         var cut = Render<ConfigurarAutenticadorDosFactores>();
+        _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
         await EnviarCodigoAsync(cut);
 
         _almacen.DosFactoresActivo.Should().BeFalse("el factor quedaría activo aunque no se le reemita la cookie");
         _signIn.SesionReemitida.Should().BeFalse();
-        _registro.Mensajes.Should().ContainSingle(m => m.Contains("sello obsoleto"));
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada, la sesión lleva un sello obsoleto"));
     }
 
     [Fact]
     public async Task Una_sesion_con_el_sello_vigente_da_de_alta_el_factor()
     {
-        _almacen.Usuario!.SecurityStamp = "sello-vigente";
-        _autenticacion.Sello = "sello-vigente";
-
         var cut = Render<ConfigurarAutenticadorDosFactores>();
         await EnviarCodigoAsync(cut);
 
         _almacen.DosFactoresActivo.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// C4 H3: la cookie obsoleta generaba la clave, la veía, y la persona legítima daba de alta esa misma clave
+    /// sin saberlo. Vale también para una clave ya generada y sin activar.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Una_sesion_con_sello_obsoleto_ni_genera_ni_ve_la_clave(bool claveYaGenerada)
+    {
+        if (claveYaGenerada)
+            Render<ConfigurarAutenticadorDosFactores>();
+        var claveAntes = _almacen.ClaveGuardada;
+        var selloAntes = _almacen.Usuario!.SecurityStamp;
+        _gestor.RotaElSelloAlGenerarLaClave = true;
+        _autenticacion.Sello = "sello-obsoleto";
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        _almacen.ClaveGuardada.Should().Be(claveAntes);
+        _almacen.Usuario.SecurityStamp.Should().Be(selloAntes, "generar la clave rotaría el sello");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        cut.Markup.Should().NotContain("otpauth");
+        cut.Find("[role=alert]").TextContent.Should().Contain("Ha pasado demasiado tiempo");
+        cut.FindAll("#prueba-reautenticacion").Should().BeEmpty("sin prueba de autenticación que la sesión pueda reenviar");
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Alta de 2FA rechazada al cargar"));
+    }
+
+    /// <summary>La entidad y la cookie coinciden, pero la entidad se cargó antes del cambio de credencial.</summary>
+    [Fact]
+    public void La_sesion_se_compara_con_la_lectura_vigente_y_no_con_la_entidad_de_la_peticion()
+    {
+        _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        _almacen.ClaveGuardada.Should().BeNull();
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Dos_ausencias_de_sello_no_abren_el_alta()
+    {
+        _autenticacion.Sello = null;
+        _almacen.Usuario!.SecurityStamp = null;
+        _sellos.EnBase = null;
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        _almacen.ClaveGuardada.Should().BeNull();
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El cambio de credencial llega entre la carga y la contraseña: acertarla no da la clave a una sesión que
+    /// se quedó atrás, y no llega a comprobarse.
+    /// </summary>
+    [Fact]
+    public async Task Una_sesion_con_sello_obsoleto_no_obtiene_la_clave_reautenticandose()
+    {
+        SinAutenticacionReciente();
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        _sellos.EnBase = "sello-de-otro-cambio-de-credencial";
+
+        await EnviarContrasenaAsync(cut, ContrasenaCorrecta);
+
+        _almacen.ClaveGuardada.Should().BeNull();
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Reautenticación para el alta de 2FA rechazada, la sesión lleva un sello obsoleto"));
     }
 
     [Fact]
@@ -619,6 +690,35 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     {
         await cut.Find("#codigo").ChangeAsync(new ChangeEventArgs { Value = GestorUsuariosFallaAVoluntad.CodigoValido });
         await cut.Find("form").SubmitAsync();
+    }
+
+    /// <summary>La base de la que lee la página: lo que tenga la cuenta salvo que el test diga otra cosa.</summary>
+    private sealed class SellosFalsos : ISelloSeguridadCuenta
+    {
+        private string? _enBase;
+        private bool _fijado;
+
+        public string? EnBase
+        {
+            get => _enBase;
+            set { _enBase = value; _fijado = true; }
+        }
+
+        public Func<string?> DeLaCuenta { get; set; } = () => null;
+
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default)
+        {
+            var vigente = _fijado ? _enBase : DeLaCuenta();
+            return Task.FromResult(!string.IsNullOrEmpty(sello) && sello == vigente);
+        }
+
+        public void AnotarRotacion(Guid usuarioId, string? selloAnterior) { }
+
+        public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior)
+        {
+            selloAnterior = null;
+            return false;
+        }
     }
 
     /// <summary>

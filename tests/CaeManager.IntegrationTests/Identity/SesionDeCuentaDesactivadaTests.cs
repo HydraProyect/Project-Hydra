@@ -328,8 +328,8 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         var principal = PrincipalDeLaCookie(refrescada)!;
         SignInManagerCuentaDesactivada.LeerSid(principal).Should().Be(SignInManagerCuentaDesactivada.LeerSid(PrincipalDeLaCookie(cookie)));
         using var ambito = _servicios.CreateScope();
-        var vigente = await ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>().VigenteAsync(usuario.Id, _tenant);
-        principal.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(vigente);
+        var sello = principal.FindFirstValue("AspNet.Identity.SecurityStamp");
+        (await ambito.ServiceProvider.GetRequiredService<ISelloSeguridadCuenta>().EsVigenteAsync(usuario.Id, _tenant, sello)).Should().BeTrue();
     }
 
     [Fact]
