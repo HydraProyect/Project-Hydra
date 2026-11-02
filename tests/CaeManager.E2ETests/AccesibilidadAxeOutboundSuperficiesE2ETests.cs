@@ -29,6 +29,8 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
 
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
+    private static readonly string[] Superficies = ["inicio-de-sesion", "buscador-global-abierto", "drawer-abierto-empresas"];
+
     public static TheoryData<string> RutasAnalizadas() => [.. AccesibilidadAxeOutboundE2ETests.Rutas];
 
     [Fact]
@@ -36,6 +38,7 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
     {
         var rutas = LeerTodo(FicheroObjetivos).Keys;
         Assert.Empty(rutas.Except(AccesibilidadAxeOutboundE2ETests.Rutas));
+        Assert.Empty(LeerTodo(FicheroSuperficies).Keys.Except(Superficies));
     }
 
     [Theory]
@@ -55,7 +58,7 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
             RunOnly = new RunOnlyOptions { Type = "rule", Values = ["target-size"] },
         });
 
-        ComprobarContraLineaBase(FicheroObjetivos, ruta, resultado);
+        ComprobarContraLineaBase(FicheroObjetivos, ruta, resultado, exigirPasses: false);
     }
 
     [Fact]
@@ -64,6 +67,7 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await using var contexto = await NuevoContextoAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/cuenta/iniciar-sesion");
+        Assert.Equal("/cuenta/iniciar-sesion", new Uri(page.Url).AbsolutePath);
         await Expect(page.Locator("#email")).ToBeVisibleAsync(EsperaEnFrio);
 
         ComprobarContraLineaBase(FicheroSuperficies, "inicio-de-sesion", await page.RunAxe());
@@ -78,8 +82,27 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
         await Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1 })).ToBeVisibleAsync(EsperaEnFrio);
 
-        await page.Keyboard.PressAsync("Control+k");
+        // El atajo lo registra buscador-global.js desde OnAfterRenderAsync: NetworkIdle no garantiza que ya escuche
+        // y una tecla anterior se pierde sin aviso (mismo bucle que DeepLinksTests).
+        var buscador = page.Locator(".buscador-input");
+        for (var intento = 1; !await buscador.IsVisibleAsync(); intento++)
+        {
+            await page.Keyboard.PressAsync("Control+k");
+            try { await buscador.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 }); }
+            catch (TimeoutException) when (intento < 5) { }
+        }
         await Expect(page.GetByRole(AriaRole.Dialog, new() { Name = "Buscar o ejecutar" })).ToBeVisibleAsync(EsperaEnFrio);
+
+        // Los recientes llegan de forma asíncrona tras abrir: se mide con la lista asentada, no a medias.
+        var items = page.Locator("a.buscador-item");
+        var anterior = -1;
+        for (var estables = 0; estables < 3;)
+        {
+            await Task.Delay(400);
+            var ahora = await items.CountAsync();
+            estables = ahora == anterior ? estables + 1 : 0;
+            anterior = ahora;
+        }
 
         ComprobarContraLineaBase(FicheroSuperficies, "buscador-global-abierto", await page.RunAxe());
     }
@@ -94,8 +117,16 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1 })).ToBeVisibleAsync(EsperaEnFrio);
 
         // Sin localizador posicional: si esta cuenta no ofrece un único «+ Nueva empresa» el test falla y se elige otro Drawer.
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
-        await Expect(page.GetByRole(AriaRole.Dialog)).ToBeVisibleAsync(EsperaEnFrio);
+        // El botón se pinta en el prerenderizado estático y su @onclick no existe hasta que conecta el circuito:
+        // un clic anterior se pierde sin aviso. Se repite solo mientras el Drawer no esté abierto.
+        var drawer = page.GetByRole(AriaRole.Dialog, new() { Name = "Nueva empresa", Exact = true });
+        for (var intento = 1; !await drawer.IsVisibleAsync(); intento++)
+        {
+            await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
+            try { await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 3_000 }); }
+            catch (TimeoutException) when (intento < 5) { }
+        }
+        await Expect(drawer).ToBeVisibleAsync(EsperaEnFrio);
 
         ComprobarContraLineaBase(FicheroSuperficies, "drawer-abierto-empresas", await page.RunAxe());
     }
@@ -109,10 +140,12 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
     }
 
-    private static void ComprobarContraLineaBase(string fichero, string clave, AxeResult resultado)
+    private static void ComprobarContraLineaBase(string fichero, string clave, AxeResult resultado, bool exigirPasses = true)
     {
         // axe tiene que haber evaluado algo (pasa, falla o queda incompleto); de lo contrario el ratchet no observa nada.
-        Assert.True(resultado.Passes.Length + resultado.Violations.Length + resultado.Incomplete.Length > 0,
+        // Con todas las reglas (como en el ratchet de rutas) tiene que haber reglas que pasan; con una sola regla
+        // basta con que haya evaluado algo (pasa, falla o queda incompleta).
+        Assert.True(exigirPasses ? resultado.Passes.Length > 0 : resultado.Passes.Length + resultado.Violations.Length + resultado.Incomplete.Length > 0,
             $"{clave}: axe no evaluó ningún nodo; el ratchet no observa nada.");
         var actual = resultado.Violations.ToDictionary(v => v.Id, v => v.Nodes.Length);
         var baseline = LeerTodo(fichero).GetValueOrDefault(clave) ?? [];
