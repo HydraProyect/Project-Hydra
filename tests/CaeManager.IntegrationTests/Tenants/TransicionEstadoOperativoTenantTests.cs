@@ -1,13 +1,16 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.ReactivarTenant;
 using CaeManager.Application.Tenants.Commands.SuspenderTenant;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Plataforma;
 using CaeManager.IntegrationTests.ApiKeys;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Tenants;
@@ -61,19 +64,15 @@ public class TransicionEstadoOperativoTenantTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_transicion_espera_a_quien_tiene_el_candado_de_ese_Tenant()
+    public async Task Suspender_espera_a_quien_tiene_el_candado_de_ese_Tenant()
     {
-        await using var otraTransicion = CrearContexto();
-        await using var transaccion = await otraTransicion.Database.BeginTransactionAsync();
-        await new BloqueoEstadoOperativoTenant(otraTransicion).BloquearAsync(_tenant.Id);
         await using var circuito = CrearContexto();
+        await using var otraTransicion = CrearContexto();
+        await using var transaccion = await SujetarCandadoAsync(otraTransicion);
 
         var suspension = Suspender(circuito);
-        var enEspera = EsperarCandadoSinConcederAsync();
 
-        (await Task.WhenAny(suspension, enEspera)).Should().BeSameAs(enEspera,
-            "la transición no puede decidir mientras otra tiene el candado");
-        (await enEspera).Should().BeTrue("PostgreSQL tiene que ver la transición esperando el candado");
+        (await EsperaElCandadoAsync(suspension)).Should().BeTrue("no puede decidir mientras otra transición tiene el candado");
         (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Activo);
 
         await transaccion.CommitAsync();
@@ -82,20 +81,85 @@ public class TransicionEstadoOperativoTenantTests : IAsyncLifetime
         (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Suspendido);
     }
 
+    [Fact]
+    public async Task Reactivar_espera_a_quien_tiene_el_candado_de_ese_Tenant()
+    {
+        await using var circuito = CrearContexto();
+        await using var otraTransicion = CrearContexto();
+        (await Suspender(circuito)).EsExitoso.Should().BeTrue();
+        await using var transaccion = await SujetarCandadoAsync(otraTransicion);
+
+        var reactivacion = Reactivar(circuito);
+
+        (await EsperaElCandadoAsync(reactivacion)).Should().BeTrue("no puede decidir mientras otra transición tiene el candado");
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Suspendido);
+
+        await transaccion.CommitAsync();
+
+        (await reactivacion).EsExitoso.Should().BeTrue();
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task Una_concesion_revocada_durante_la_espera_del_candado_no_suspende()
+    {
+        var actor = Guid.NewGuid();
+        await using (var alta = CrearContexto())
+        {
+            alta.ConcesionesPrivilegio.Add(ConcesionPrivilegio.SobreTenants(
+                actor, CapacidadPrivilegio.AdminPlataforma, [_tenant.Id],
+                vigenciaDesde: DateTime.UtcNow.AddMinutes(-5), vigenciaHasta: null));
+            await alta.SaveChangesAsync();
+        }
+
+        await using var circuito = CrearContexto();
+        await using var otraTransicion = CrearContexto();
+        await using var transaccion = await SujetarCandadoAsync(otraTransicion);
+
+        var suspension = new SuspenderTenantCommandHandler(circuito, new AutorizacionAdminPlataformaPorConcesion(circuito),
+                new ActorFijo(actor), new TransaccionDeComando(circuito), new BloqueoEstadoOperativoTenant(circuito), circuito, circuito)
+            .Handle(new SuspenderTenantCommand(_tenant.Id), CancellationToken.None);
+
+        (await EsperaElCandadoAsync(suspension)).Should().BeTrue("la concesión era vigente al entrar");
+
+        await using (var otraSesion = CrearContexto())
+        {
+            var concesion = await otraSesion.ConcesionesPrivilegio.SingleAsync(c => c.UsuarioPlataformaId == actor);
+            concesion.Revocar(DateTime.UtcNow);
+            await otraSesion.SaveChangesAsync();
+        }
+
+        await transaccion.CommitAsync();
+
+        var resultado = await suspension;
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.NoAutorizado");
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Activo);
+    }
+
+    private async Task<IDbContextTransaction> SujetarCandadoAsync(CaeManagerDbContext contexto)
+    {
+        var transaccion = await contexto.Database.BeginTransactionAsync();
+        await new BloqueoEstadoOperativoTenant(contexto).BloquearAsync(_tenant.Id);
+        return transaccion;
+    }
+
     /// <summary>
     /// Lo que discrimina es el catálogo y no un plazo: sin candado la transición termina sin que
     /// aparezca ninguna espera, y un plazo pasaría igual en una máquina lenta.
     /// </summary>
-    private async Task<bool> EsperarCandadoSinConcederAsync()
+    private async Task<bool> EsperaElCandadoAsync(Task transicion)
     {
+        var clave = "app.estado_operativo_tenant:" + _tenant.Id;
         await using var lectura = CrearContexto();
-        for (var intento = 0; intento < 300; intento++)
+        for (var intento = 0; intento < 300 && !transicion.IsCompleted; intento++)
         {
             var esperando = await lectura.Database.SqlQuery<int>($"""
                 SELECT count(*)::int AS "Value"
                 FROM pg_locks l
                 JOIN pg_database d ON d.oid = l.database
                 WHERE l.locktype = 'advisory' AND NOT l.granted AND d.datname = current_database()
+                  AND ((l.classid::bigint << 32) | l.objid::bigint) = hashtextextended({clave}, 0)
                 """).SingleAsync();
             if (esperando > 0) return true;
 
@@ -132,9 +196,9 @@ public class TransicionEstadoOperativoTenantTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
-    private sealed class ActorFijo : ICurrentUserService
+    private sealed class ActorFijo(Guid? usuarioId = null) : ICurrentUserService
     {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId ?? Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
         public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);

@@ -92,6 +92,7 @@ public class SuspenderTenantCommandTests
         resultado.EsExitoso.Should().BeTrue();
         actual.Estado.Should().Be(EstadoTenant.Activo);
         _bloqueo.Pasos.Should().Equal("bloquear", "descartar");
+        _unitOfWork.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
