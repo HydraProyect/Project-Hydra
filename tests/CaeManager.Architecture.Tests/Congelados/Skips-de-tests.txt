@@ -1,0 +1,17 @@
+# Tests omitidos (Skip) en tests/ (SkipsDeTestsCongeladosTests, MJ-08, 2026-11-02): 8 omisiones en 6 ficheros.
+# Solo baja. Una nueva lleva aquí su línea con un comentario '#' que diga qué condición la dispara y quién es su dueño.
+# Medida: 'Skip =' (atributo o inicializador) y 'Skip.If/IfNot' fuera de comentarios. Excluidos los dos ficheros de
+# esta carpeta que traen ejemplos sintéticos (hueco declarado en el test).
+#
+# Necesita los mockups de Project-Hydra-Negocio (variable de entorno); sin ellos se omite.
+tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: Skip (atributo) = 1
+# Requiere una clave real de IA en la variable de entorno; en CI sin clave se omite.
+tests/CaeManager.IntegrationTests/RegresionPromptsIa/TheorySiHayClaveIaAttribute.cs :: Skip (atributo) = 1
+# PERMANENTE SIN DUEÑO (MJ-09): CryptographicException de causa no aislada. Ver el issue de MJ-09.
+tests/CaeManager.IntegrationTests/Retirada/RetiradaTenantDemoServiceTests.cs :: Skip (atributo) = 1
+# Banco de modelos de IA: requiere clave y variable de petición.
+tests/CaeManager.Web.Tests/BancoModelosIa/BancoModelosIaTests.cs :: Skip (atributo) = 2
+# Requiere clave de Stripe en modo prueba.
+tests/CaeManager.Web.Tests/Comercial/StripeModoPruebaTests.cs :: Skip (atributo) = 1
+# Windows no tiene bits de modo Unix (solo se ejerce en Linux/CI) y root ignora los bits de modo.
+tests/CaeManager.Web.Tests/Integraciones/Microsoft365LegibilidadDelCertificadoTests.cs :: Skip (atributo) = 2
