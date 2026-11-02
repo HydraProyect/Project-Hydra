@@ -34,7 +34,7 @@ public class IngestaWebhookService(
     IAlertaCriticaService alertaCritica,
     ILogger<IngestaWebhookService> logger,
     IIntencionConversacionService intenciones,
-    CaeManager.Application.Clientes.IDirectorioDestinosCartera directorioDestinos)
+    ResponsableBuzonElegible elegibilidadResponsable)
 {
     private readonly List<string> _archivosGuardados = [];
 
@@ -227,8 +227,10 @@ public class IngestaWebhookService(
 
     /// <summary>
     /// Toda conversación nace asignada al responsable de su buzón. La continuación de un hilo cerrado conserva
-    /// a quien ya la llevaba. Un responsable que ya no es alcanzable en el Tenant no se asigna: una conversación
-    /// en manos de alguien sin acceso quedaría oculta para el resto, y sin asignar sigue visible en la bandeja.
+    /// a quien ya la llevaba. Quien ya no puede atenderla (<see cref="ResponsableBuzonElegible"/>: rol, cuenta y
+    /// cartera pueden haber cambiado desde que se le nombró, y un Id sin cuenta es lo mismo que no alcanzable) no
+    /// se asigna: una conversación en manos de alguien sin acceso quedaría oculta para el resto, y sin asignar
+    /// sigue visible en la bandeja.
     /// </summary>
     private async Task AsignarAlResponsableDelBuzonAsync(
         Conversacion conversacion, ConexionIntegracion conexion, CancellationToken cancellationToken)
@@ -236,13 +238,13 @@ public class IngestaWebhookService(
         if (conexion.ResponsableEfectivoId is not { } responsableId)
             return;
 
-        // Una cuenta desactivada no entra a atenderla, y asignada a ella tampoco saldría entre las sin asignar.
-        if (await directorioDestinos.ObtenerAsync(responsableId, cancellationToken) is { Activa: true })
+        var motivo = await elegibilidadResponsable.EvaluarAsync(responsableId, conexion, cancellationToken);
+        if (motivo is null)
             conversacion.Asignar(responsableId);
         else
             logger.LogWarning(
-                "La conversación nueva de la conexión {ConexionId} queda sin asignar: su responsable {UsuarioId} está desactivado o ya no es alcanzable en el Tenant.",
-                conexion.Id, responsableId);
+                "La conversación nueva de la conexión {ConexionId} queda sin asignar: su responsable {UsuarioId} no puede atenderla ({Motivo}).",
+                conexion.Id, responsableId, motivo);
     }
 
     /// <summary>

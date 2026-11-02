@@ -1,6 +1,9 @@
 using CaeManager.Application.Clientes;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Configuracion;
+using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
 using Xunit;
@@ -10,14 +13,35 @@ namespace CaeManager.Application.Tests.Integraciones;
 public class FijarResponsableBuzonCommandHandlerTests
 {
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
+    private static readonly Guid Tenant = Guid.NewGuid();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly TransaccionDeComandoFalsa _transaccion = new();
+    private BloqueoCarteraUsuarioFalso _bloqueo = new();
 
     private FijarResponsableBuzonCommandHandler CrearHandler(
         string? rol = "Administrador", AlcanceDatosServiceFalso? alcance = null, bool responsableVisible = true,
-        bool responsableActivo = true) =>
+        bool responsableActivo = true, string? rolResponsable = "GestorCae", List<string>? eventos = null) =>
         new(_conexiones, alcance ?? new AlcanceDatosServiceFalso(),
-            new DirectorioDestinosCarteraFalso(responsableVisible ? new DestinoCartera(responsableActivo, "GestorCae", null, false) : null),
-            new CurrentUserServiceFalso(Guid.NewGuid(), rol), _unitOfWork);
+            new ResponsableBuzonElegible(
+                new DirectorioDestinosCarteraFalso(responsableVisible
+                    ? new DestinoCartera(responsableActivo, rolResponsable, null, false, Tenant)
+                    : null)
+                { Eventos = eventos },
+                new EquipoVacio(), new OperacionesEnMemoria([], []), new TenantActualFijo(Tenant)),
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), _unitOfWork, _transaccion, CrearBloqueo(eventos));
+
+    private BloqueoCarteraUsuarioFalso CrearBloqueo(List<string>? eventos)
+    {
+        _bloqueo = new BloqueoCarteraUsuarioFalso { Eventos = eventos };
+        return _bloqueo;
+    }
+
+    private sealed class EquipoVacio : IDirectorioEquipoCoordinador
+    {
+        public Task<IReadOnlyList<MiembroDeEquipo>> ObtenerEquipoAsync(
+            Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<MiembroDeEquipo>>([]);
+    }
 
     private ConexionIntegracion Buzon(ConexionIntegracion? conexion = null)
     {
@@ -91,6 +115,60 @@ public class FijarResponsableBuzonCommandHandlerTests
 
         resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableNoValido");
         conexion.ResponsableUsuarioId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("Cliente")]
+    [InlineData("Consulta")]
+    [InlineData(null)]
+    public async Task Un_rol_sin_gestion_se_rechaza(string? rol)
+    {
+        var conexion = Buzon();
+
+        var resultado = await CrearHandler(rolResponsable: rol)
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinGestion");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_sin_cartera_sobre_la_Empresa_del_buzon_se_rechaza()
+    {
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", Guid.NewGuid()));
+
+        var resultado = await CrearHandler()
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableSinCartera");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_candado_compartido_se_toma_antes_de_leer_la_cuenta_y_dentro_de_la_transaccion()
+    {
+        var conexion = Buzon();
+        var responsable = Guid.NewGuid();
+        var eventos = new List<string>();
+
+        await CrearHandler(eventos: eventos).Handle(new FijarResponsableBuzonCommand(conexion.Id, responsable), default);
+
+        eventos.Should().Equal("compartido", "leer-destino");
+        _bloqueo.Compartidos.Should().Equal(responsable);
+        _bloqueo.Exclusivos.Should().BeEmpty();
+        _transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Retirar_el_responsable_no_toma_el_candado()
+    {
+        var conexion = Buzon();
+
+        await CrearHandler().Handle(new FijarResponsableBuzonCommand(conexion.Id, null), default);
+
+        _bloqueo.Compartidos.Should().BeEmpty();
     }
 
     [Fact]

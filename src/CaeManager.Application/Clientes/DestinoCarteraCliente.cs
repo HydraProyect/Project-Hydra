@@ -29,7 +29,12 @@ public interface IDirectorioDestinosCartera
 /// </param>
 /// <param name="CoordinadorUsuarioId">El Coordinador CAE al que reporta, si lo tiene.</param>
 /// <param name="EsOperadorDelegado">Pertenece al Tenant de un Operador CAE externo, no al Tenant activo.</param>
-public record DestinoCartera(bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado);
+/// <param name="TenantOrigenId">
+/// El Tenant de la cuenta: el que debe operar la Asignación de Operación que ampara su cartera.
+/// <c>null</c> si quien construye el destino no lo sabe (fallo cerrado: sin él no hay cartera que comprobar).
+/// </param>
+public record DestinoCartera(
+    bool Activa, string? RolEfectivo, Guid? CoordinadorUsuarioId, bool EsOperadorDelegado, Guid? TenantOrigenId = null);
 
 /// <summary>
 /// Quién puede ser el Gestor CAE de referencia de un Cliente empresarial (FS-25, revisión Codex

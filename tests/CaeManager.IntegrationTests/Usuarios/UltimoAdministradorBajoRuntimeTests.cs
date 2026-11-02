@@ -1,16 +1,21 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -238,6 +243,128 @@ public class UltimoAdministradorBajoRuntimeTests
         (await LeerRolesAsync(arnes.CadenaPropietario, cuentaId)).Should().Equal(Roles.GestorCae);
     }
 
+    /// <summary>
+    /// El entrelazado que describe la revisión de Codex: el nombramiento va delante, sin confirmar, cuando la baja hace
+    /// su primera comprobación de vínculos. La baja se queda en el candado exclusivo y, al seguir, ve al responsable.
+    /// </summary>
+    [Fact]
+    public async Task La_baja_espera_al_nombramiento_en_curso_y_no_deja_un_responsable_huerfano()
+    {
+        var actorId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(actorId);
+        await CrearCuentaAsync(arnes, pendienteId, "pendiente@caemanager.local", null, Roles.GestorCae);
+        var buzonId = await CrearBuzonAsync(arnes);
+
+        var dentro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nombramiento = Task.Run(async () =>
+        {
+            using var ambito = arnes.Servicios.CreateScope();
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            return await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                await new BloqueoCarteraUsuario(contexto).BloquearCompartidoAsync([pendienteId], ct);
+                (await contexto.ConexionesIntegracion.SingleAsync(c => c.Id == buzonId, ct)).FijarResponsable(pendienteId);
+                await contexto.SaveChangesAsync(ct);
+                dentro.TrySetResult();
+                await soltar.Task;
+                return Result.Exito();
+            });
+        });
+        await dentro.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        var baja = Task.Run(() => EliminarAsync(arnes, pendienteId));
+        try
+        {
+            await EsperarEsperasDeCandadoAsync(arnes.CadenaPropietario, 1);
+        }
+        finally
+        {
+            soltar.TrySetResult();
+        }
+
+        (await nombramiento).EsExitoso.Should().BeTrue();
+        (await baja).Error.Codigo.Should().Be(EliminarUsuarioPendienteCommandHandler.CarteraVigente.Codigo);
+        (await ExisteAsync(arnes.CadenaPropietario, pendienteId)).Should().BeTrue();
+        (await LeerResponsableAsync(arnes, buzonId)).Should().Be(pendienteId);
+    }
+
+    /// <summary>El orden inverso: la baja ya borró y no ha confirmado; el nombramiento espera y no encuentra la cuenta.</summary>
+    [Fact]
+    public async Task El_nombramiento_espera_a_la_baja_en_curso_y_ya_no_encuentra_la_cuenta()
+    {
+        var actorId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(actorId);
+        await CrearCuentaAsync(arnes, pendienteId, "pendiente@caemanager.local", null, Roles.GestorCae);
+        var buzonId = await CrearBuzonAsync(arnes);
+
+        var dentro = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var baja = Task.Run(async () =>
+        {
+            using var ambito = arnes.Servicios.CreateScope();
+            var sp = ambito.ServiceProvider;
+            var contexto = sp.GetRequiredService<CaeManagerDbContext>();
+            return await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                await new BloqueoCarteraUsuario(contexto).BloquearExclusivoAsync(pendienteId, ct);
+                var eliminada = await Puerto(sp).EliminarAsync(pendienteId, ct);
+                dentro.TrySetResult();
+                await soltar.Task;
+                return eliminada;
+            });
+        });
+        await dentro.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        var nombramiento = Task.Run(() => FijarResponsableAsync(arnes, buzonId, pendienteId));
+        try
+        {
+            await EsperarEsperasDeCandadoAsync(arnes.CadenaPropietario, 1);
+        }
+        finally
+        {
+            soltar.TrySetResult();
+        }
+
+        (await baja).EsExitoso.Should().BeTrue();
+        (await nombramiento).Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableNoValido");
+        (await LeerResponsableAsync(arnes, buzonId)).Should().BeNull();
+    }
+
+    private static async Task<Guid> CrearBuzonAsync(ArnesDeArranqueRuntime arnes)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var buzon = new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE");
+        contexto.ConexionesIntegracion.Add(buzon);
+        await contexto.SaveChangesAsync();
+        return buzon.Id;
+    }
+
+    private static async Task<Guid?> LeerResponsableAsync(ArnesDeArranqueRuntime arnes, Guid buzonId)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        return await ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>().ConexionesIntegracion.AsNoTracking()
+            .Where(c => c.Id == buzonId).Select(c => c.ResponsableUsuarioId).SingleAsync();
+    }
+
+    /// <summary>Por el Command real. El alcance no es lo que se mide aquí; el directorio y el candado, sí.</summary>
+    private static async Task<Result> FijarResponsableAsync(ArnesDeArranqueRuntime arnes, Guid buzonId, Guid usuarioId)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        var contexto = sp.GetRequiredService<CaeManagerDbContext>();
+        var directorio = Directorio(sp);
+        return await new FijarResponsableBuzonCommandHandler(
+                new ConexionIntegracionRepository(contexto), new AlcanceDatosServiceFalso(),
+                new ResponsableBuzonElegible(directorio, directorio, contexto, sp.GetRequiredService<ITenantActual>()),
+                sp.GetRequiredService<ICurrentUserService>(), contexto, new TransaccionDeComando(contexto),
+                new BloqueoCarteraUsuario(contexto))
+            .Handle(new FijarResponsableBuzonCommand(buzonId, usuarioId), default);
+    }
+
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid actorId) =>
         ArnesDeArranqueRuntime.CrearAsync(
             datosDePruebaActivos: false,
@@ -277,7 +404,7 @@ public class UltimoAdministradorBajoRuntimeTests
         var sp = ambito.ServiceProvider;
         return await new EliminarUsuarioPendienteCommandHandler(
                 Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>(),
-                new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()), Administradores(sp))
+                new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()), Administradores(sp), new BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()))
             .Handle(new EliminarUsuarioPendienteCommand(usuarioId), default);
     }
 
@@ -368,7 +495,7 @@ public class UltimoAdministradorBajoRuntimeTests
             await Task.Delay(50);
         }
 
-        esperando.Should().BeGreaterThanOrEqualTo(cuantas, "las dos retiradas tienen que chocar con el candado");
+        esperando.Should().BeGreaterThanOrEqualTo(cuantas, "las operaciones en curso tienen que chocar con el candado");
     }
 
     private static async Task<string> LeerNombreAsync(string cadena, Guid usuarioId)

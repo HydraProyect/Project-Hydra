@@ -117,9 +117,11 @@ public class DirectorioUsuariosTenant(
     /// restricción de integridad a nivel de esquema (FK real, o un catálogo
     /// central de "qué referencia a un usuario"), que es un incremento propio
     /// sobre el modelo de datos, no una extensión de esta pantalla de UI.
-    /// Tampoco es atómica con el <c>DeleteAsync</c> que la sigue: no hay
-    /// transacción que abarque ambas, así que una fila creada por otro
-    /// circuito en esa ventana se cuela igual.
+    /// La baja la repite dentro de su transacción, con el candado exclusivo de
+    /// <see cref="CaeManager.Application.Clientes.IBloqueoCarteraUsuario"/>: solo
+    /// serializa con quien toma ese candado, que hoy son la reasignación de
+    /// cartera y el nombramiento del responsable de un buzón. Una fila creada
+    /// por otro circuito sin candado en esa ventana se cuela igual.
     /// </para>
     /// </summary>
     public Task<bool> EsCuentaActivaConRolAsync(
@@ -879,7 +881,7 @@ public class DirectorioUsuariosTenant(
                     select rol.Name)
                     .ToListAsync(cancellationToken);
 
-                return new(activa, roles.Count == 1 ? roles[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false);
+                return new(activa, roles.Count == 1 ? roles[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false, cuenta.TenantId);
             }
 
             var rolesDelegados = await OperadoresDelegadosVigentes(tenantId)
@@ -893,7 +895,7 @@ public class DirectorioUsuariosTenant(
             // "inactiva" ni "sin rol", para no revelar nada de una cuenta ajena.
             if (rolesDelegados.Count == 0) return null;
 
-            return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true);
+            return new(activa, rolesDelegados.Count == 1 ? rolesDelegados[0] : null, cuenta.CoordinadorUsuarioId, EsOperadorDelegado: true, cuenta.TenantId);
         }, cancellationToken);
 
     private async Task<Dictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(Guid tenantId, CancellationToken cancellationToken) =>

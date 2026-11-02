@@ -1,6 +1,8 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
+using CaeManager.Application.Usuarios;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -91,12 +93,18 @@ public class FijarResponsableBuzonAislamientoTests : IAsyncLifetime
 
     private static FijarResponsableBuzonCommandHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(new ConexionIntegracionRepository(contexto), new AlcanceDatosServiceFalso(),
-            new Directorio(), new CurrentUserServiceFalso(rol: "Administrador"), contexto);
+            new ResponsableBuzonElegible(new Directorio(), new Directorio(), contexto, new TenantActualAmbiental()),
+            new CurrentUserServiceFalso(rol: "Administrador"), contexto,
+            new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto));
 
-    private sealed class Directorio : IDirectorioDestinosCartera
+    private sealed class Directorio : IDirectorioDestinosCartera, IDirectorioEquipoCoordinador
     {
         public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<DestinoCartera?>(new(Activa: true, "GestorCae", null, false));
+
+        public Task<IReadOnlyList<MiembroDeEquipo>> ObtenerEquipoAsync(
+            Guid coordinadorUsuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<MiembroDeEquipo>>([]);
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)

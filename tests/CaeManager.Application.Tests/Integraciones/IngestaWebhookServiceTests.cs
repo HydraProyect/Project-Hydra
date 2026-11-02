@@ -1,11 +1,14 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Operaciones;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -74,7 +77,8 @@ public class IngestaWebhookServiceTests
         CredencialIntegracionRepositorioFalso? credencialRepositorio = null,
         ResolucionProveedorPlataformaCaeServiceFalso? resolucionPlataforma = null,
         ClasificacionRuidoMensajeRepositorioFalso? clasificacionRuidoRepositorio = null,
-        DestinoCartera? responsable = null) =>
+        DestinoCartera? responsable = null, IOperacionesQueryContext? operaciones = null, Guid? tenantActual = null,
+        ILogger<IngestaWebhookService>? logger = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
             new FileStorageServiceFalso(),
@@ -86,8 +90,8 @@ public class IngestaWebhookServiceTests
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
             new AlertaCriticaServiceFalso(),
-            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
-            new DirectorioDestinosCarteraFalso(responsable));
+            logger ?? NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
+            ResponsableBuzonElegibleDePrueba.Con(responsable, operaciones, tenantActual));
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
@@ -99,7 +103,8 @@ public class IngestaWebhookServiceTests
 
     private static async Task<Conversacion> IngerirHiloNuevoAsync(
         ConexionIntegracion conexion, ConversacionRepositorioFalso conversaciones,
-        DestinoCartera? responsable = null)
+        DestinoCartera? responsable = null, IOperacionesQueryContext? operaciones = null, Guid? tenantActual = null,
+        ILogger<IngestaWebhookService>? logger = null)
     {
         var conexiones = new ConexionIntegracionRepositorioFalso();
         conexiones.Agregar(conexion);
@@ -112,7 +117,9 @@ public class IngestaWebhookServiceTests
         var credenciales = new CredencialIntegracionRepositorioFalso();
         credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
 
-        await CrearServicio(conexiones, conversaciones, graph, credenciales, responsable: responsable)
+        await CrearServicio(
+                conexiones, conversaciones, graph, credenciales, responsable: responsable, operaciones: operaciones,
+                tenantActual: tenantActual, logger: logger)
             .ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
 
         return conversaciones.Conversaciones.Single();
@@ -161,6 +168,60 @@ public class IngestaWebhookServiceTests
             conexion, new ConversacionRepositorioFalso(), alcanzable ? DestinoActivo with { Activa = false } : null);
 
         conversacion.EjecutivoAsignadoId.Should().BeNull();
+    }
+
+    private sealed class LogDeAvisos : ILogger<IngestaWebhookService>
+    {
+        public List<(LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception)));
+    }
+
+    [Theory]
+    [InlineData("Cliente", "RolSinGestion")]
+    [InlineData("GestorCae", "SinCarteraSobreLaEmpresa")]
+    public async Task Quien_ya_no_puede_atender_la_Empresa_deja_la_conversacion_sin_asignar_con_motivo_en_el_log(
+        string rol, string motivo)
+    {
+        var tenant = Guid.NewGuid();
+        var responsable = Guid.NewGuid();
+        var conexion = ConexionHabilitada(Guid.NewGuid());
+        conexion.FijarResponsable(responsable);
+        var log = new LogDeAvisos();
+
+        var conversacion = await IngerirHiloNuevoAsync(
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, rol, null, false, tenant),
+            tenantActual: tenant, logger: log);
+
+        conversacion.EjecutivoAsignadoId.Should().BeNull();
+        log.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Warning && e.Mensaje.Contains(motivo)
+            && e.Mensaje.Contains(responsable.ToString()) && e.Mensaje.Contains(conexion.Id.ToString()));
+    }
+
+    [Fact]
+    public async Task Un_Gestor_CAE_con_cartera_vigente_recibe_la_conversacion_de_la_Empresa_del_buzon()
+    {
+        var tenant = Guid.NewGuid();
+        var responsable = Guid.NewGuid();
+        var ahora = DateTime.UtcNow;
+        var raiz = AsignacionOperacion.Raiz(tenant, ServicioCae.Outbound, ahora.AddDays(-30), ahora);
+        var cartera = AsignacionCartera.Interna(raiz, responsable, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+        typeof(AsignacionOperacion).GetProperty("Estado")!.SetValue(raiz, EstadoAsignacion.Vigente);
+        typeof(AsignacionCartera).GetProperty("Estado")!.SetValue(cartera, EstadoAsignacion.Vigente);
+        var conexion = ConexionHabilitada(Guid.NewGuid());
+        conexion.FijarResponsable(responsable);
+
+        var conversacion = await IngerirHiloNuevoAsync(
+            conexion, new ConversacionRepositorioFalso(), new DestinoCartera(true, "GestorCae", null, false, tenant),
+            new OperacionesEnMemoria([raiz], [cartera]), tenant);
+
+        conversacion.EjecutivoAsignadoId.Should().Be(responsable);
     }
 
     [Fact]

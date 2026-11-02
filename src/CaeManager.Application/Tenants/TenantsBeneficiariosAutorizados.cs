@@ -110,6 +110,38 @@ public static class TenantsBeneficiariosAutorizados
         select new CarteraBajoOperacionVigente { Cartera = cartera, Operacion = operacion };
 
     /// <summary>
+    /// ¿Alcanza <paramref name="clienteEmpresarialId"/> alguna Asignación de Cartera vigente de
+    /// <paramref name="usuarioIds"/>, en el Tenant propietario activo y bajo una Asignación de Operación
+    /// vigente de <paramref name="operadorTenantId"/>? Es el ámbito efectivo de <c>AlcanceDatosService</c>
+    /// visto desde la posición de propietario, para preguntar por una cuenta que no es quien mira: una
+    /// dimensión diferida no concede nada, una cartera vigente nunca se acota por Cliente empresarial (D-7 y su CHECK)
+    /// y bajo una operación acotada solo cuenta el Cliente empresarial de esa operación. Admite operaciones internas y raíz, a
+    /// diferencia de <see cref="CarterasPorOperacionDeLaOrganizacion"/>: la cartera de un Gestor CAE propio
+    /// del Tenant cuelga de ellas.
+    /// </summary>
+    public static Task<bool> CarteraAlcanzaClienteEmpresarialAsync(
+        IOperacionesQueryContext operaciones, IReadOnlyCollection<Guid> usuarioIds, Guid propietarioTenantId,
+        Guid operadorTenantId, Guid clienteEmpresarialId, DateTime ahora, CancellationToken cancellationToken) =>
+        (from cartera in operaciones.AsignacionesCartera
+         join operacion in operaciones.AsignacionesOperacion
+             on cartera.AsignacionOperacionId equals operacion.Id
+         where usuarioIds.Contains(cartera.UsuarioId)
+               && cartera.PropietarioTenantId == propietarioTenantId
+               && cartera.Estado == EstadoAsignacion.Vigente
+               && cartera.AmbitoCentroId == null && cartera.AmbitoTrabajadorId == null && cartera.AmbitoProyectoId == null
+               && cartera.VigenciaDesde <= ahora
+               && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
+               && operacion.PropietarioTenantId == propietarioTenantId
+               && operacion.OperadorTenantId == operadorTenantId
+               && operacion.Estado == EstadoAsignacion.Vigente
+               && operacion.AmbitoCentroId == null && operacion.AmbitoTrabajadorId == null && operacion.AmbitoProyectoId == null
+               && operacion.VigenciaDesde <= ahora
+               && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+               && (operacion.AmbitoRelacionClienteId == null || operacion.AmbitoRelacionClienteId == clienteEmpresarialId)
+         select cartera.Id)
+        .AnyAsync(cancellationToken);
+
+    /// <summary>
     /// Vía heredada: asignaciones de Operador Delegado del usuario sobre
     /// delegaciones activas y no caducadas (ver <c>DelegacionTenant.EstaVigente</c>,
     /// escrito aquí a mano porque el método de dominio no se traduce a SQL).
@@ -145,6 +177,13 @@ public static class TenantsBeneficiariosAutorizados
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEnteroDeLaOrganizacion(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
         OperacionesDelTenantEntero(operaciones, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
+
+    /// <summary>¿Opera <paramref name="tenantOrigenId"/> entero, y vigente, el Tenant propietario indicado?</summary>
+    public static Task<bool> OperaElTenantEnteroAsync(
+        IOperacionesQueryContext operaciones, Guid tenantOrigenId, Guid propietarioTenantId, DateTime ahora,
+        CancellationToken cancellationToken) =>
+        OperacionesDelTenantEnteroDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
+            .AnyAsync(operacion => operacion.PropietarioTenantId == propietarioTenantId, cancellationToken);
 
     /// <summary>
     /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la

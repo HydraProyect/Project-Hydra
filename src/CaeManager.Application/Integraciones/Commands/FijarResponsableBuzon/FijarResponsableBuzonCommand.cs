@@ -21,15 +21,24 @@ public class FijarResponsableBuzonCommandValidator : AbstractValidator<FijarResp
 
 /// <summary>
 /// Cambiar el responsable solo afecta a las conversaciones nuevas. El rol se mira en el handler y no solo en la
-/// página: la pantalla no es una frontera de autorización. El responsable se revalida contra el directorio por
-/// el mismo motivo que en <c>AsignarEjecutivoConversacionCommandHandler</c> (hallazgo N-10).
+/// página: la pantalla no es una frontera de autorización. El responsable se valida con
+/// <see cref="ResponsableBuzonElegible"/>, la misma regla que aplica la ingesta a cada conversación nueva.
+///
+/// <para>
+/// El vínculo con la cuenta no tiene FK: el usuario vive en Identity. Por eso el nombramiento toma el candado
+/// compartido de <see cref="IBloqueoCarteraUsuario"/> antes de leer la cuenta y lo retiene hasta confirmar, y la
+/// baja de una cuenta pendiente toma el exclusivo antes de buscar vínculos: o la baja ve al responsable ya
+/// fijado, o aquí ya no se encuentra la cuenta. El candado solo existe dentro de la transacción.
+/// </para>
 /// </summary>
 public class FijarResponsableBuzonCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
-    IDirectorioDestinosCartera directorioDestinos,
+    ResponsableBuzonElegible elegibilidad,
     ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITransaccionDeComando transaccion,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<FijarResponsableBuzonCommand, Result>
 {
     private const string RolAdministrador = "Administrador";
@@ -40,24 +49,42 @@ public class FijarResponsableBuzonCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Integraciones.Buzon.SoloAdministrador", "Solo el Administrador puede cambiar el responsable del buzón."));
 
-        var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
-        if (conexion is null
-            || conexion.Proveedor != ProveedorIntegracion.Microsoft365
-            || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken)
-            || !await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+        return await transaccion.EjecutarAsync(async ct =>
+        {
+            var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, ct);
+            if (conexion is null
+                || conexion.Proveedor != ProveedorIntegracion.Microsoft365
+                || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, ct)
+                || !await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, ct))
+                return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
-        if (conexion.GestorPropietarioId is not null)
-            return Result.Fallo(Error.Crear(
-                "Integraciones.Buzon.PersonalSinResponsable", "Un buzón personal responde siempre a su propietario."));
+            if (conexion.GestorPropietarioId is not null)
+                return Result.Fallo(Error.Crear(
+                    "Integraciones.Buzon.PersonalSinResponsable", "Un buzón personal responde siempre a su propietario."));
 
-        if (request.ResponsableUsuarioId is { } responsableId
-            && await directorioDestinos.ObtenerAsync(responsableId, cancellationToken) is not { Activa: true })
-            return Result.Fallo(Error.Crear(
-                "Integraciones.Buzon.ResponsableNoValido", "No encontramos a ese usuario activo en tu organización."));
+            if (request.ResponsableUsuarioId is { } responsableId)
+            {
+                await bloqueoCartera.BloquearCompartidoAsync([responsableId], ct);
+                var motivo = await elegibilidad.EvaluarAsync(responsableId, conexion, ct);
+                if (motivo is not null)
+                    return Result.Fallo(ErrorDe(motivo.Value));
+            }
 
-        conexion.FijarResponsable(request.ResponsableUsuarioId);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-        return Result.Exito();
+            conexion.FijarResponsable(request.ResponsableUsuarioId);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
     }
+
+    private static Error ErrorDe(MotivoResponsableNoElegible motivo) => motivo switch
+    {
+        MotivoResponsableNoElegible.RolSinGestion => Error.Crear(
+            "Integraciones.Buzon.ResponsableSinGestion",
+            "Ese usuario no tiene un rol de gestión: no podría responder a este buzón."),
+        MotivoResponsableNoElegible.SinCarteraSobreLaEmpresa => Error.Crear(
+            "Integraciones.Buzon.ResponsableSinCartera",
+            "Esa persona no tiene una Asignación de Cartera sobre la Empresa de este buzón."),
+        _ => Error.Crear(
+            "Integraciones.Buzon.ResponsableNoValido", "No encontramos a ese usuario activo en tu organización."),
+    };
 }
