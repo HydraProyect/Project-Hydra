@@ -403,7 +403,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
         {
-            Toasts.Mostrar($"\"{archivo.Name}\" supera los {LimitesArchivoSubido.TamanoMaximoMb} MB.", TonoToast.Error);
+            Toasts.Mostrar(TextosArchivo["ArchivoSubidoSuperaMaximo", archivo.Name, LimitesArchivoSubido.TamanoMaximoMb].Value, TonoToast.Error);
             return;
         }
 
@@ -424,7 +424,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         }
         catch (IOException)
         {
-            Toasts.Mostrar("No pudimos leer el archivo. Vuelve a elegirlo.", TonoToast.Error);
+            Toasts.Mostrar(TextosArchivo["ArchivoSubidoNoLeido", archivo.Name].Value, TonoToast.Error);
             return;
         }
 

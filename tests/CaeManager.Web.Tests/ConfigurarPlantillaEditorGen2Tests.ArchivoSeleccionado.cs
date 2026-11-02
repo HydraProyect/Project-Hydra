@@ -104,6 +104,19 @@ public partial class ConfigurarPlantillaEditorGen2Tests
     }
 
     [Fact]
+    public async Task Un_flujo_que_no_cuadra_con_lo_declarado_avisa_sin_retener_ni_dejar_reservado_nada()
+    {
+        var cut = RenderizarAlta(new MediatorFalso());
+
+        await ElegirArchivoAsync(cut, new ArchivoNavegadorFalso("raro.pdf", PdfDeUnaPagina()) { TamanoDeclarado = 50 });
+
+        Toasts.Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("No pudimos leer \"raro.pdf\""));
+        Campo<byte[]?>(cut, "_archivoSeleccionado").Should().BeNull();
+        _presupuesto.Reservado.Should().Be(0);
+        await cut.Instance.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Un_PDF_por_encima_del_maximo_avisa_y_no_reserva_ni_abre_el_flujo()
     {
         var cut = RenderizarAlta(new MediatorFalso());
