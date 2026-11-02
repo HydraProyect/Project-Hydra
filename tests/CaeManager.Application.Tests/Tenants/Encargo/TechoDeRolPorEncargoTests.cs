@@ -287,6 +287,7 @@ public class TechoDeRolPorEncargoTests
         public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
             new TestAsyncQueryable<AsignacionOperacion>(_operaciones.AsQueryable());
 
+        public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera =>
             new TestAsyncQueryable<AsignacionCartera>(_carteras.AsQueryable());
 

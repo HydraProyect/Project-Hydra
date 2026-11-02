@@ -16,7 +16,10 @@ namespace CaeManager.Application.Documentos.Commands.AceptarDeteccionesIaEnBloqu
 /// transacción propia: uno que falla no deshace los demás ni los bloquea. Se envía con
 /// <see cref="AplicarDeteccionIaDocumentoCommand.SoloSiLaVigenciaLaFijaElTipo"/>: en bloque solo entran las revisiones
 /// cuyo tipo calcula la vigencia desde la emisión; las demás (la vigencia la confirma el Gestor CAE a mano) fallan con
-/// <see cref="CodigosRevisionIa.CodigoVigenciaARevisarIndividualmente"/> y se aceptan de una en una.
+/// <see cref="CodigosRevisionIa.CodigoVigenciaARevisarIndividualmente"/> y se aceptan de una en una. También con
+/// <see cref="AplicarDeteccionIaDocumentoCommand.SoloSinAlertaDeterminista"/>: una revisión con alerta determinista o
+/// lectura parcial falla con <see cref="CodigosRevisionIa.CodigoAlertaARevisarIndividualmente"/>, aunque se envíe a mano
+/// y sea cual sea su confianza, porque aquí nadie llega a ver su motivo.
 /// </summary>
 public record AceptarDeteccionesIaEnBloqueCommand(IReadOnlyList<Guid> RevisionIds) : ICommand<ResultadoAceptacionEnBloque>;
 
@@ -55,7 +58,8 @@ public class AceptarDeteccionesIaEnBloqueCommandHandler(
             try
             {
                 var resultado = await mediator.Send(
-                    new AplicarDeteccionIaDocumentoCommand(id, SoloSiLaVigenciaLaFijaElTipo: true), cancellationToken);
+                    new AplicarDeteccionIaDocumentoCommand(id, SoloSiLaVigenciaLaFijaElTipo: true, SoloSinAlertaDeterminista: true),
+                    cancellationToken);
                 if (resultado.EsExitoso)
                 {
                     resultados.Add(new ResultadoAceptacionRevisionIa(id, true, null, null));

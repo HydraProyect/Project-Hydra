@@ -63,7 +63,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(pastilla).ToBeVisibleAsync();
         await pastilla.ClickAsync();
         await Expect(page).ToHaveURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}/deteccion-trabajadores$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(page).ToHaveURLAsync(new Regex(@"/deteccion-trabajadores$"));
         await Expect(panel).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");

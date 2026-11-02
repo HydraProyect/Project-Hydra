@@ -1497,14 +1497,17 @@ app.MapWebhookStripeEndpoints();
 // P41c: quien llama con una ClaveApi es una integración externa, no una persona,
 // y el handler de la clave mete el Id de la clave como NameIdentifier, así que
 // sin este filtro cualquier escritura futura de este grupo se auditaría como
-// `Persona`. Hoy el grupo solo mapea GET y sus consultas no escriben (medido
-// sobre este mismo bloque y sobre las cuatro queries por Id), de modo que el
-// filtro no corrige ninguna fila: cierra la puerta a la primera que llegue.
+// `Persona`. Hoy el grupo solo mapea GET, y lo único que escribe dentro del grupo
+// es el contador de `UsosApiDiarios` (RastroUsoApiEndpointFilter), que no pasa por
+// la auditoría, de modo que el filtro no corrige ninguna fila: cierra la puerta a
+// la primera que llegue. `ClaveApi.RegistrarUso` se escribe antes, en el handler
+// de autenticación, con su propio ámbito de actor.
 var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
     .RequireRateLimiting("ApiPublica")
     .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
-    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>();
+    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>()
+    .AddEndpointFilter<RastroUsoApiEndpointFilter>();
 apiV1.MapRecursosApiV1();
 
 // Fuera del grupo: quien pide el token aún no lo tiene.
@@ -1513,11 +1516,13 @@ app.MapTokenIntegracionEndpoint();
 // El documento OpenAPI describe una API sin anunciar (OWASP API9:2023): exige
 // clave mientras no se decida publicarlo. Solo el entorno del escaneo ZAP de CI
 // lo abre, y por entorno: una variable suelta podría reabrirlo en producción.
+// Con clave deja rastro como el resto de la API v1; el escaneo anónimo no tiene
+// clave a la que atribuirlo.
 var documentoOpenApi = app.MapOpenApi("/api/v1/openapi.json");
 if (app.Environment.IsEnvironment("Escaneo"))
     documentoOpenApi.AllowAnonymous();
 else
-    documentoOpenApi.RequireAuthorization("ApiPublica");
+    documentoOpenApi.RequireAuthorization("ApiPublica").AddEndpointFilter<IEndpointConventionBuilder, RastroUsoApiEndpointFilter>();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

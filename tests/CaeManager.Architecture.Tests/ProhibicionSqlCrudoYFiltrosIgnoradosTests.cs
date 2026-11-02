@@ -157,6 +157,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveIntegracionTenantRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_integracion({hashClave}) AS \"Value\"")""")] = 1,
 
+        // Rastro agregado de la API v1: suma atómica con ON CONFLICT, bajo RLS.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RastroUsoApi.cs",
+            "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+
         // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
         // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER
         // app_tenant_tiene_administrador_propio (migración 20261015180535), que devuelve solo un
@@ -399,6 +403,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de que haya Tenant en el contexto. Parámetros interpolados de
         // FormattableString: EF los envía como parámetros, no como texto.
         [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
+        // Revocar varias sesiones tras un cambio de credencial o en «cerrar en todos los
+        // dispositivos»: app_revocar_sesiones_de_cuenta (SECURITY DEFINER, contexto firmado y
+        // Tenant de la cuenta), porque quien llega por un enlace de correo no firma el contexto
+        // como esa cuenta y el UPDATE bajo solo_la_propia_cuenta_revoca devolvería 0 sin error.
+        [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<int>($\"SELECT public.app_revocar_sesiones_de_cuenta({usuarioId}, {conservar}) AS \\\"Value\\\"\")")] = 1,
         // Revalidación del circuito en una Sesión Privilegiada: app_cuenta_firmada_vigente
         // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
         // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.
@@ -489,6 +498,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,

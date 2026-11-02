@@ -68,7 +68,7 @@ public class ExtraccionIaCache : EntidadConTenant
     /// fuera permitiría invalidar (o peor, no invalidar) la caché sin dejar
     /// rastro en el historial.
     /// </summary>
-    public const string VersionPipelineActual = "2026-10-24";
+    public const string VersionPipelineActual = "2026-11-02";
 
     public string HashSha256 { get; private set; } = string.Empty;
 

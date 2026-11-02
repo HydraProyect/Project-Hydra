@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
@@ -113,6 +113,7 @@ public class ObtenerDelegacionesQueryTests
         public IQueryable<AsignacionOperacion> AsignacionesOperacion =>
             new TestAsyncQueryable<AsignacionOperacion>(operaciones.AsQueryable());
 
+        public IQueryable<Guid> TenantsSuspendidosIds => new List<Guid>().AsQueryable();
         public IQueryable<AsignacionCartera> AsignacionesCartera =>
             new TestAsyncQueryable<AsignacionCartera>(new List<AsignacionCartera>().AsQueryable());
     }

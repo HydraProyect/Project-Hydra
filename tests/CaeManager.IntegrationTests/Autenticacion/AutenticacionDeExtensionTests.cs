@@ -244,7 +244,8 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
             _protector,
             proveedor.GetRequiredService<UserManager<ApplicationUser>>(),
             proveedor.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>(),
-            new SesionesExtensionFalsas());
+            new SesionesExtensionFalsas(),
+            new EstadoOperativoActivo());
 
         var contexto = new DefaultHttpContext { RequestServices = proveedor };
         if (token is not null)
@@ -273,4 +274,9 @@ public class AutenticacionDeExtensionTests : IAsyncLifetime
     {
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
+}
+
+file sealed class EstadoOperativoActivo : CaeManager.Application.Tenants.IEstadoOperativoTenant
+{
+    public Task<bool> EstaSuspendidoAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

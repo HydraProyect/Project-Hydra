@@ -27,7 +27,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         return (handler, conversaciones, graphClient);
     }
@@ -133,7 +133,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork);
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         // 1. Enviar mensaje saliente
         var resultadoEnvio = await handler.Handle(
@@ -162,7 +162,8 @@ public class EnviarMensajeNuevoCommandHandlerTests
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
             new AlertaCriticaServiceFalso(),
-            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
+            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
+            CaeManager.Application.Tests.Integraciones.ResponsableBuzonElegibleDePrueba.Con(null));
 
         var eventoWebhook = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
         await servicioIngesta.ProcesarAsync(eventoWebhook, CancellationToken.None);
@@ -265,7 +266,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         var handler = new EnviarMensajeNuevoCommandHandler(
             conexionRepositorio, conversaciones, new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso());
+            new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), new RegistroExportacionFalso());
 
         var resultado = await handler.Handle(
             new EnviarMensajeNuevoCommand(conexionPersonal.Id, ["destinatario@cliente.com"], "Asunto", "<p>Cuerpo</p>"),

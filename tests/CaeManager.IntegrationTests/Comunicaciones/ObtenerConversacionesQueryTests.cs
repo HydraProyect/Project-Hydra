@@ -82,6 +82,22 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         var encontrada = await repositorio.ObtenerPorHiloExternoAsync(conexion.Id, "hilo-cerrado");
         encontrada!.Id.Should().Be(nueva.Id);
         encontrada.ConversacionAnteriorId.Should().Be(anterior.Id);
+        encontrada.NumeroTicket.Should().Be(anterior.NumeroTicket + 1, "la continuación tras el cierre es un ticket nuevo");
+    }
+
+    [Fact]
+    public async Task La_bandeja_devuelve_el_numero_de_ticket_de_cada_conversacion()
+    {
+        await using var contexto = CrearContexto();
+        var conversacion = new Conversacion("Con número");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+        var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: "GestorCae"));
+
+        var resultado = await handler.Handle(new(), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.NumeroTicket.Should().Be(1);
     }
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();

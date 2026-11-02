@@ -62,6 +62,7 @@ public class ColumnasSensiblesDeSoporteClasificadasTests
         ["CierresMensualesTenantBeneficiario.FotoJson"] = new(Decision.ConcedidaPorRevisar, "SELECT vigente; necesidad por revisar."),
         ["ClavesApi.HashClave"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["ClavesIntegracionTenant.HashClave"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla."),
+        ["UsosApiDiarios.TipoClave"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG desde la migración que crea la tabla; no es un secreto, es un discriminador."),
         ["ClavesIntegracionTenant.SucedeAClaveId"] = new(Decision.ConcedidaJustificada, "Identificador de la clave antecesora, no un secreto: Soporte TALVEG diagnostica con él una rotación."),
         ["CredencialesAccesoEmpresa.Contrasena"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),
         ["CredencialesAccesoSubcontrata.Contrasena"] = new(Decision.Retirada, "Sin SELECT para Soporte TALVEG tras las migraciones vigentes."),

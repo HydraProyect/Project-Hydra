@@ -147,14 +147,16 @@ public class ClienteActivoEndpointsAutorizacionTests
     // Solo las tablas que consulta el predicado; este instrumento no sustituye los tests PostgreSQL/RLS de CI.
     private sealed class ContextoPrueba(DbContextOptions<ContextoPrueba> opciones) : DbContext(opciones), ITenantsQueryContext, IOperacionesQueryContext
     {
-        public IQueryable<Tenant> Tenants => throw new NotSupportedException();
+        public IQueryable<Tenant> Tenants => Set<Tenant>();
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw new NotSupportedException();
         public IQueryable<DelegacionTenant> DelegacionesTenant => Set<DelegacionTenant>();
         public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Set<AsignacionOperadorDelegado>().Where(a => a.RevocadaEnUtc == null);
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => Set<AsignacionOperacion>();
+        public IQueryable<Guid> TenantsSuspendidosIds => Set<Tenant>().Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
         public IQueryable<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
         protected override void OnModelCreating(ModelBuilder model)
         {
+            model.Entity<Tenant>();
             model.Entity<DelegacionTenant>();
             model.Entity<AsignacionOperadorDelegado>();
             model.Entity<AsignacionOperacion>().HasBaseType((Type?)null);

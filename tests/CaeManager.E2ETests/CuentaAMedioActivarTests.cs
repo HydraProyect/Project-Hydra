@@ -170,7 +170,7 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
             pagina.FrameNavigated -= AlNavegar;
         }
 
-        await pagina.WaitForLoadStateAsync(LoadState.Load);
+        await Ayudas.EsperarCargaAsync(pagina, LoadState.Load);
     }
 
     private async Task EntrarSinEsperarElMenuAsync(IPage pagina, string email)
@@ -179,7 +179,7 @@ public class CuentaAMedioActivarTests(WebAppFixtureCuentaAMedioActivar fixture, 
         await pagina.FillAsync("#email", email);
         await pagina.FillAsync("#password", Ayudas.ContrasenaUsuariosPrueba);
         await pagina.ClickAsync("button[type=\"submit\"]");
-        await pagina.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(pagina, LoadState.NetworkIdle);
     }
 
     /// <summary>
