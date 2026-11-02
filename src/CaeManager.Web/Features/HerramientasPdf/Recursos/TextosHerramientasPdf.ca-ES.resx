@@ -391,13 +391,13 @@
     <value>Matrícula a la pàg. {0}</value>
   </data>
   <data name="LaDelSelector" xml:space="preserve">
-    <value>la del selector de la barra lateral</value>
+    <value>la del selector de la barra lateral esquerra</value>
   </data>
   <data name="EmpresaGestionadaDe" xml:space="preserve">
-    <value>Empresa gestionada:</value>
+    <value>Empresa que gestiones:</value>
   </data>
   <data name="SinEmpresaAvisoNegrita" xml:space="preserve">
-    <value>Elige primero una Empresa gestionada</value>
+    <value>Tria primer una Empresa gestionada</value>
   </data>
   <data name="DocumentosUno" xml:space="preserve">
     <value>1 documento</value>
@@ -406,10 +406,10 @@
     <value>Páginas</value>
   </data>
   <data name="SinEmpresaAvisoResto" xml:space="preserve">
-    <value>en el selector de la barra lateral. Los documentos se crean en ella.</value>
+    <value>al selector de la barra lateral. Els documents es creen en aquesta.</value>
   </data>
   <data name="DividirTitulo" xml:space="preserve">
-    <value>Dividir un PDF</value>
+    <value>Divideix un PDF</value>
   </data>
   <data name="RotuloDocumento" xml:space="preserve">
     <value>Documento {0}</value>
