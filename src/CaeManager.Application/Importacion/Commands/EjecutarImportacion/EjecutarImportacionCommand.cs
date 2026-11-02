@@ -112,20 +112,23 @@ public class EjecutarImportacionCommandHandler(
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
-    // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = Administrador)]):
-    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
+    // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
+    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como GestorCae, Consulta o Cliente.
+    // Ejecutan el Administrador (rol, o Sesión Privilegiada de Aprovisionamiento sobre este Tenant, sin recorte de ámbito), la Dirección CAE y el
+    // Coordinador CAE (cada fila contrastada con su ámbito efectivo, AmbitoCargaMasiva; lo que cae fuera se omite y se cuenta).
     // IAutorizacionEscrituraEfectiva, no el literal "Administrador": bajo una
     // sesión de Aprovisionamiento (PD-A3) el rol de negocio es null, así que
     // la comparación literal bloquearía también el alta de tenant que PD-A3
     // acaba de abrir. Ver IAutorizacionEscrituraEfectiva para las dos ramas.
     public async Task<Result<ResultadoImportacionDto>> Handle(EjecutarImportacionCommand request, CancellationToken cancellationToken)
     {
-        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
-            return Result.Fallo<ResultadoImportacionDto>(Error.Crear(
-                "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación."));
+        var autoridad = await autorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync(cancellationToken);
+        if (autoridad == AutoridadCargaMasiva.Ninguna)
+            return Result.Fallo<ResultadoImportacionDto>(ErroresCargaMasiva.SinAutoridad);
 
         var plan = request.Plan;
 
@@ -139,7 +142,7 @@ public class EjecutarImportacionCommandHandler(
 
         try
         {
-            return await ConstruirYConfirmarAsync(plan, cancellationToken);
+            return await ConstruirYConfirmarAsync(plan, autoridad, cancellationToken);
         }
         catch
         {
@@ -157,8 +160,9 @@ public class EjecutarImportacionCommandHandler(
     }
 
     private async Task<Result<ResultadoImportacionDto>> ConstruirYConfirmarAsync(
-        PlanImportacionDto plan, CancellationToken cancellationToken)
+        PlanImportacionDto plan, AutoridadCargaMasiva autoridad, CancellationToken cancellationToken)
     {
+        var ambito = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
         operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
 
         var hoy = DiaDeNegocio.Hoy();
@@ -325,7 +329,7 @@ public class EjecutarImportacionCommandHandler(
             if (EstaEnPapelera(fila.Dni))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
+                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ambito.MotivoPapelera(fila.Dni)));
                 continue;
             }
 
@@ -347,10 +351,19 @@ public class EjecutarImportacionCommandHandler(
                 continue;
             }
 
+            if (!ambito.Empresa(empresaId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                    AmbitoCargaMasiva.Motivo("La empresa de este trabajador")));
+                continue;
+            }
+
             try
             {
                 var trabajador = Trabajador.DeEmpresa(empresaId, fila.Nombre, fila.Apellidos, fila.Dni, fila.FechaNacimiento, fila.Email);
                 trabajadorRepositorio.Agregar(trabajador);
+                ambito.RegistrarTrabajadorCreado(trabajador.Id);
                 trabajadoresNuevos.Add(trabajador);
                 trabajadoresPorDni[fila.Dni] = trabajador.Id;
                 trabajadoresCreados++;
@@ -378,8 +391,16 @@ public class EjecutarImportacionCommandHandler(
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     EstaEnPapelera(fila.Dni)
-                        ? DnisEnPapelera.Motivo(fila.Dni)
+                        ? ambito.MotivoPapelera(fila.Dni)
                         : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
+                continue;
+            }
+
+            if (!ambito.Trabajador(trabajadorId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    AmbitoCargaMasiva.Motivo("El trabajador de este documento")));
                 continue;
             }
 
@@ -468,7 +489,7 @@ public class EjecutarImportacionCommandHandler(
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                     EstaEnPapelera(fila.Dni)
-                        ? DnisEnPapelera.Motivo(fila.Dni)
+                        ? ambito.MotivoPapelera(fila.Dni)
                         : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
                 continue;
             }
@@ -501,6 +522,14 @@ public class EjecutarImportacionCommandHandler(
 
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
+                continue;
+            }
+
+            if (!ambito.Trabajador(trabajadorId) || !ambito.Centro(centroId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                    AmbitoCargaMasiva.Motivo("El trabajador o el centro de esta asignación")));
                 continue;
             }
 

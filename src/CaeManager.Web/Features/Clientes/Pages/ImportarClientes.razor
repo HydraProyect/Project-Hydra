@@ -1,7 +1,7 @@
 @page "/clientes/importar"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.ConCargaMasivaCsv)]
 @inject NavigationManager Navigation
 
 <LimiteDeErrores Pagina="this" />

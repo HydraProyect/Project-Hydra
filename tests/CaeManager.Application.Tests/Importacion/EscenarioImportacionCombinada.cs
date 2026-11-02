@@ -21,6 +21,7 @@ internal sealed class EscenarioImportacionCombinada
     public CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso TrabajadorRepositorio { get; } = new();
     public CaeManager.Application.Tests.Centros.CentroRepositorioFalso CentroRepositorio { get; } = new();
     public PlantillasFalsas.CentrosQueryContextFalso CentrosContexto { get; } = new();
+    public PlantillasFalsas.TrabajadoresQueryContextFalso TrabajadoresContexto { get; } = new();
 
     /// <summary>Relaciones Empresariales que "ya están en la base" (la consulta de asociaciones actuales las lee).</summary>
     public List<RelacionEmpresarial> RelacionesExistentes { get; } = [];
@@ -28,7 +29,8 @@ internal sealed class EscenarioImportacionCombinada
     /// <summary>Doble de relaciones: por defecto cualquier llamada de escritura es un error del test; con <c>Permitir</c> las registra.</summary>
     public RelacionesRegistradas Relaciones { get; } = new();
 
-    public EjecutarImportacionCombinadaCommandHandler Handler()
+    public EjecutarImportacionCombinadaCommandHandler Handler(
+        IAlcanceDatosService? alcance = null, AutoridadCargaMasiva autoridad = AutoridadCargaMasiva.Total)
     {
         // Lo que "ya está en la base" en cada ejecución: se relee del repositorio, como haría una segunda lectura real.
         var empresas = new DocumentosFalsos.EmpresasQueryContextFalso();
@@ -40,13 +42,15 @@ internal sealed class EscenarioImportacionCombinada
             EmpresaRepositorio, Relaciones,
             CentroRepositorio,
             TrabajadorRepositorio,
-            CentrosContexto, empresas, new PlantillasFalsas.TrabajadoresQueryContextFalso(),
-            OperacionImportacionRepositorio, new AdministracionPermitida());
+            CentrosContexto, empresas, TrabajadoresContexto,
+            OperacionImportacionRepositorio, new AdministracionPermitida(autoridad), alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
     }
 
-    public async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(PlanImportacionCombinadaDto plan, bool reemplazar = false)
+    public async Task<ResultadoImportacionCombinadaDto> EjecutarAsync(
+        PlanImportacionCombinadaDto plan, bool reemplazar = false, IAlcanceDatosService? alcance = null,
+        AutoridadCargaMasiva autoridad = AutoridadCargaMasiva.Total)
     {
-        var resultado = await Handler().Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), CancellationToken.None);
+        var resultado = await Handler(alcance, autoridad).Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), CancellationToken.None);
         return resultado.Valor;
     }
 
@@ -70,9 +74,10 @@ internal sealed class EscenarioImportacionCombinada
         }
     }
 
-    private sealed class AdministracionPermitida : IAutorizacionEscrituraEfectiva
+    private sealed class AdministracionPermitida(AutoridadCargaMasiva autoridad = AutoridadCargaMasiva.Total) : IAutorizacionEscrituraEfectiva
     {
         public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) => Task.FromResult(autoridad);
     }
 
     /// <summary>

@@ -11,6 +11,18 @@ public class AutorizacionEscrituraEfectiva(
     : IAutorizacionEscrituraEfectiva
 {
     private const string RolAdministrador = "Administrador";
+    private const string RolDireccionCae = "DireccionCae";
+    private const string RolCoordinadorCae = "CoordinadorCae";
+
+    public async Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default)
+    {
+        if (await EsActoDeAdministradorAsync(cancellationToken))
+            return AutoridadCargaMasiva.Total;
+
+        return await currentUserService.ObtenerRolEfectivoAsync() is RolDireccionCae or RolCoordinadorCae
+            ? AutoridadCargaMasiva.Acotada
+            : AutoridadCargaMasiva.Ninguna;
+    }
 
     public async Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default)
     {

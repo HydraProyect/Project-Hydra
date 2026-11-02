@@ -34,7 +34,7 @@ public static class DocumentosEndpoints
         endpoints.MapGet("/documentos/{id:guid}/archivo", ServirArchivoAsync)
             .RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = IdentityConstants.ApplicationScheme });
 
-        // Solo se enlaza desde /importacion (Importacion.razor: Roles = Administrador)
+        // Solo se enlaza desde /importacion (Importacion.razor: Roles = ConCargaMasivaCsv: Administrador, Dirección CAE y Coordinador CAE)
         // — mismo motivo que el RequireAuthorization de /clientes/plantilla.xlsx,
         // aunque aquí el archivo es una plantilla en blanco sin datos de tenant.
         endpoints.MapGet("/documentos/plantilla.xlsx", (IPlantillaDocumentosService servicio) =>
@@ -42,7 +42,7 @@ public static class DocumentosEndpoints
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-documentos.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae))
         .ExcluidoDelEncargoDeAdministracion();
 
         // Mismo patrón de referencia que ClientesEndpoints. Sin columna de

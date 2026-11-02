@@ -203,7 +203,7 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             new EmpresaRepository(contexto), trabajadorRepositorio ?? new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
-            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto));
+            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso());
 
     private CaeManagerDbContext CrearContexto()
     {

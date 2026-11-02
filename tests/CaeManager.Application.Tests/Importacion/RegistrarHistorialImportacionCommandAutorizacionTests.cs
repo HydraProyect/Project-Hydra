@@ -97,8 +97,8 @@ public class RegistrarHistorialImportacionCommandAutorizacionTests
 
     [Theory]
     [InlineData("GestorCae")]
-    [InlineData("CoordinadorCae")]
-    [InlineData("DireccionCae")]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
     [InlineData(null)]
     public async Task Otros_roles_no_pueden_registrar_el_historial_de_una_importacion(string? rol)
     {
@@ -108,7 +108,7 @@ public class RegistrarHistorialImportacionCommandAutorizacionTests
         var resultado = await Handler(rol, repositorio, unitOfWork).Handle(Comando(), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Importacion.SoloAdministrador");
+        resultado.Error.Codigo.Should().Be("Importacion.SinAutoridadCargaMasiva");
         repositorio.Registros.Should().BeEmpty();
     }
 }

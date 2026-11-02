@@ -189,14 +189,14 @@ public partial class ImportarClientesGen2Tests
     // ---------------------------------------------------------------- Importar Combinado: ruta y cabecera
 
     [Fact]
-    public void La_ruta_de_la_Combinada_sigue_siendo_solo_una_redireccion_y_exige_Administrador()
+    public void La_ruta_de_la_Combinada_sigue_siendo_solo_una_redireccion_y_exige_carga_masiva()
     {
         Render<ImportarCombinado>();
 
         Services.GetRequiredService<NavigationManager>().Uri
             .Should().EndWith("/importacion?plantilla=combinada", "el mockup declara que /clientes/importar-combinado solo redirige (H-1)");
         typeof(ImportarCombinado).GetCustomAttributes<AuthorizeAttribute>(inherit: true)
-            .Should().ContainSingle().Which.Roles.Should().Be(Roles.Administrador);
+            .Should().ContainSingle().Which.Roles.Should().Be(Roles.ConCargaMasivaCsv);
     }
 
     [Fact]
@@ -302,22 +302,22 @@ public partial class ImportarClientesGen2Tests
             "Instalaciones Vidal S.L. CIF B98765432 Se creará",
             "  Vidal Montajes S.L. Se creará",
             "    Planta Sagunto Código VS-01 · contrato hasta 31/12/2026 Se creará",
-            "    Iker Mena Ruíz 12345678Z Se creará",
+            "    Iker Mena Ruíz ****678Z Se creará",
             "  Montajes Ebro S.A. Ya existe · se reutiliza",
-            "    Laura Ortiz Gil 87654321X Ya existe · se reutiliza",
+            "    Laura Ortiz Gil ****321X Ya existe · se reutiliza",
             "Refrielectric S.L. CIF B12345674 Ya existe · se reutiliza",
             "  Aislamientos Nervión S.L. Se creará",
             "  Montajes Ebro S.A. Ya existe · se reutiliza",
             "    Centro Logístico Sur Sin código Ya existe · se reutiliza",
-            "    Laura Ortiz Gil 87654321X Ya existe · se reutiliza",
+            "    Laura Ortiz Gil ****321X Ya existe · se reutiliza",
             "Grupo Previo S.A. No viene en la hoja Clientes Ya existe · se reutiliza",
             "  Empresa Previa S.L. Ya existe · se reutiliza",
             "    Nave Previa Sin código Se creará",
             "Sin Cliente asociado",
             "  Talleres Sueltos S.L. Se creará",
-            "    Marco Vila Sanz 11223344A Se creará",
+            "    Marco Vila Sanz ****344A Se creará",
             "  Contratas Previas S.L. Ya existe · se reutiliza",
-            "    Ana Cid Puente 55667788B Se creará");
+            "    Ana Cid Puente ****788B Se creará");
 
         cut.Find("[data-nodo-cliente='Instalaciones Vidal S.L.']").ClassList.Should().Contain("arbol-plan-rama-nueva");
         cut.Find("[data-nodo-cliente='Refrielectric S.L.']").ClassList.Should().NotContain("arbol-plan-rama-nueva");

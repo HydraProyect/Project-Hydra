@@ -229,7 +229,8 @@ public class DuplicadosRazonSocialEmpresaTests
             new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(),
-            new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida());
+            new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida(),
+            new CaeManager.Application.Tests.Clientes.AlcanceDatosServiceFalso());
         return handler.Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), default);
     }
 
@@ -331,6 +332,7 @@ public class DuplicadosRazonSocialEmpresaTests
     private sealed class AdministracionPermitida : IAutorizacionEscrituraEfectiva
     {
         public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) => Task.FromResult(AutoridadCargaMasiva.Total);
     }
 
     private sealed class RelacionesVacias : IRelacionEmpresarialRepository

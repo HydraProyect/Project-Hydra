@@ -33,4 +33,28 @@ public interface IAutorizacionEscrituraEfectiva
     /// tenant?"— desde dos vías de acceso distintas.
     /// </summary>
     Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Autoridad del acto actual para ejecutar una carga masiva del Importador. Es una pregunta distinta de
+    /// <see cref="EsActoDeAdministradorAsync"/>: el Coordinador CAE (y la Dirección CAE, por estar por encima) cargan
+    /// dentro de su ámbito efectivo sin ser actos de Administrador, y el Gestor CAE no carga nunca.
+    /// </summary>
+    Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Qué puede hacer el acto actual en una carga masiva. «Total» y «Acotada» operan ambas dentro del Tenant actual (no
+/// son privilegio de plataforma): la diferencia es solo si cada fila se contrasta con el ámbito efectivo
+/// (Asignación de Cartera) o no.
+/// </summary>
+public enum AutoridadCargaMasiva
+{
+    /// <summary>Gestor CAE, Consulta, Usuario de Cliente, o sin rol ni Sesión Privilegiada de Aprovisionamiento: no carga.</summary>
+    Ninguna = 0,
+
+    /// <summary>Acto de Administrador (rol o Sesión Privilegiada de Aprovisionamiento sobre este Tenant): sin recorte de ámbito.</summary>
+    Total = 1,
+
+    /// <summary>Coordinador CAE o Dirección CAE: cada fila se contrasta con su ámbito efectivo; lo que cae fuera se omite y se cuenta.</summary>
+    Acotada = 2,
 }
