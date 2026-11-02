@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Commands.CrearCentro;
@@ -495,14 +496,18 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private async Task CargarOpcionesDeFiltroAsync()
     {
+        var fallo = false;
         try
         {
             var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
             _opcionesCliente = clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Sin aviso, el filtro vacío se leería como «no hay Clientes empresariales».
             _opcionesCliente = [];
+            fallo = true;
+            Logger.LogWarning("No se pudieron cargar las opciones del filtro de Cliente empresarial: {TipoExcepcion}.", ex.GetType().Name);
         }
 
         try
@@ -510,10 +515,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             var empresas = await Mediator.Send(new ObtenerEmpresasDeCentrosVisiblesQuery());
             _opcionesEmpresa = empresas.Select(e => new OpcionEstado(e.Id.ToString(), e.RazonSocial)).ToList();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _opcionesEmpresa = [];
+            fallo = true;
+            Logger.LogWarning("No se pudieron cargar las opciones del filtro de Empresa: {TipoExcepcion}.", ex.GetType().Name);
         }
+
+        if (fallo)
+            ToastService.Mostrar(Textos["ToastFiltrosNoCargados"].Value, TonoToast.Error);
 
         _opcionesFiltroCargadas = true;
     }
@@ -696,6 +706,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool _puedeEscribir;
 
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
 
     private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
 

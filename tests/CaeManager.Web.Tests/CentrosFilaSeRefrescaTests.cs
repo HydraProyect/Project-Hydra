@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerEmpresasDeCentrosVisibles;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -57,6 +58,7 @@ public class CentrosFilaSeRefrescaTests : BunitContext
             return Task.FromResult((TResponse)(request switch
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
+                ObtenerEmpresasDeCentrosVisiblesQuery => (IReadOnlyList<EmpresaDeCentroDto>)[],
                 ObtenerProximaVisitaPorCentroQuery =>
                     (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],

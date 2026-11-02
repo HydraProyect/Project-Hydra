@@ -1,3 +1,4 @@
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Web.Components.Layout;
@@ -114,6 +115,8 @@ public partial class Cliente360PaginaTests : BunitContext
             RestaurarClienteCommand => LanzarAlRestaurar ? throw new InvalidOperationException("Fallo simulado") : ResultadoRestaurar,
             ObtenerClientePorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerResumenClienteQuery q => Resumenes.GetValueOrDefault(q.ClienteId),
+            // Documentación exigida: sin requisitos, la ficha no pinta contador (un fallo de lectura ahora avisa con un aviso).
+            ObtenerDocumentacionExigidaDeClienteQuery => null,
             ObtenerCentrosQuery q when q.ClienteId is { } c && CentrosPorCliente.TryGetValue(c, out var propios) =>
                 new ResultadoPaginado<CentroListaDto>(propios, propios.Count, 1, MaximoCentros),
             ObtenerCentrosQuery => new ResultadoPaginado<CentroListaDto>(

@@ -893,4 +893,7 @@
   <data name="ToastGestionesPendientesNoCargadas" xml:space="preserve">
     <value>No hem pogut carregar les gestions pendents d'aquest treballador. Que no n'aparegui cap no vol dir que no n'hi hagi; recarrega la pàgina.</value>
   </data>
+  <data name="ToastFiltrosNoCargados" xml:space="preserve">
+    <value>No hem pogut carregar les opcions dels filtres. Les llistes poden estar incompletes; recarrega la pàgina.</value>
+  </data>
 </root>
