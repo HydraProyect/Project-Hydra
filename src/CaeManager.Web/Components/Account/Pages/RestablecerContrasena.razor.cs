@@ -222,6 +222,20 @@ public partial class RestablecerContrasena : ComponentBase
                 // — porque Identity no llega a guardar.
                 cuenta.DebeCambiarContrasena = false;
                 resultadoObtenido = await credencial.RestablecerAsync(cuenta, _token, Entrada.ContrasenaNueva);
+                if (!resultadoObtenido.Succeeded)
+                    return;
+
+                logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", cuenta.Id);
+
+                // ASVS 4.0.3 V3.3.3. Segunda pasada, tras la previa y aún dentro del cerrojo: rota el sello, y
+                // fuera de él esa escritura se cruzaría con un cambio de contraseña concurrente. Se lleva lo que
+                // se haya abierto con la contraseña antigua entre las dos. Rotar el sello no basta: durante el
+                // intervalo de revalidación, una cookie de esa sesión podría llegar a RefreshSignInAsync (alta de
+                // TOTP) y salir con el sello nuevo. Un fallo se propaga, como en CierreSesionEnServidor: la página
+                // no dice «actualizada» con sesiones abiertas. La contraseña ya cambió y este enlace ya no vuelve
+                // a servir, pero solo quedan sin revocar las de esa ventana, hasta otro restablecimiento con un
+                // enlace nuevo.
+                await credencial.Sesiones.CerrarTodasAsync(cuenta.Id);
             },
             CancellationToken.None);
 
@@ -261,16 +275,6 @@ public partial class RestablecerContrasena : ComponentBase
             _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
-
-        logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
-
-        // ASVS 4.0.3 V3.3.3. Segunda pasada, tras la previa del cerrojo: se lleva lo que se haya abierto con
-        // la contraseña antigua entre las dos. Rotar el sello no basta: durante el intervalo de revalidación,
-        // una cookie de esa sesión podría llegar a RefreshSignInAsync (alta de TOTP) y salir con el sello
-        // nuevo. Un fallo se propaga, como en CierreSesionEnServidor: la página no dice «actualizada» con
-        // sesiones abiertas. La contraseña ya cambió y este enlace ya no vuelve a servir, pero solo quedan
-        // sin revocar las de esa ventana, hasta otro restablecimiento con un enlace nuevo.
-        await credencial.Sesiones.CerrarTodasAsync(_usuario.Id);
 
         await SignInManager.SignOutAsync();
         _completado = true;

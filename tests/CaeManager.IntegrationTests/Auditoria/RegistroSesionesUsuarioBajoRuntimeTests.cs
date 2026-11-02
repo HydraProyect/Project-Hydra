@@ -235,8 +235,62 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
         await using var arnes = await CrearArnesAsync(cuenta);
         await CrearCuentaAsync(arnes, cuenta);
 
-        using var peticion = arnes.Servicios.CreateScope();
-        var leida = (await peticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))!;
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
+    /// <summary>
+    /// Sin firma de cuenta y sin Tenant en el contexto, la fila solo se ve con
+    /// <see cref="AmbitoIdentificacionSinTenant"/>, que resuelve el Tenant de la cuenta. El control negativo
+    /// es la misma búsqueda fuera de ese ámbito: si <c>SigueComoSeLeyoAsync</c> dejara de abrirlo, no vería
+    /// la cuenta y rechazaría todo cambio de contraseña como si estuviera cambiada.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_sin_firma_ni_Tenant_ve_la_cuenta_por_su_ambito_de_identificacion()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: new SinUsuario(),
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+
+        using (var ambito = arnes.Servicios.CreateScope())
+            (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))
+                .Should().BeNull("control negativo: sin firma ni Tenant, la RLS oculta la fila");
+
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
+    /// <summary>
+    /// Con otro Tenant activo (Delegated Workspace) el ámbito de identificación no actúa, porque ya hay
+    /// Tenant en el contexto: la cuenta se ve por la firma, con la rama <c>"Id" = app.usuario_id</c> de
+    /// <c>cuentas_lectura</c>.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_con_otro_Tenant_activo_ve_la_propia_cuenta_firmada()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            tenantActualPersonalizado: new TenantFijo(Guid.NewGuid()),
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: new UsuarioFijo(cuenta, TenantA),
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
+    // ---------- Arnés ----------
+
+    /// <summary>La cuenta sin escrituras sigue igual, y tras rotar su sello la copia anterior ya no vale.</summary>
+    private static async Task ComprobarRelecturaAsync(ArnesDeArranqueRuntime arnes, Guid cuenta)
+    {
+        ApplicationUser leida;
+        using (var peticion = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+            leida = (await peticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))!;
         var ambitos = arnes.Servicios.GetRequiredService<IServiceScopeFactory>();
 
         await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
@@ -252,8 +306,6 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
         await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
             (await credencial.SigueComoSeLeyoAsync(leida)).Should().BeFalse("la copia de la petición ya no es la de la base");
     }
-
-    // ---------- Arnés ----------
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid cuenta) =>
         ArnesDeArranqueRuntime.CrearAsync(

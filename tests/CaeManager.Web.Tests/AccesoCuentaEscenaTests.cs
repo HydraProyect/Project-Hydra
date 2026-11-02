@@ -469,6 +469,7 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         cut.FindAll("h2.acceso-titulo").Should().NotContain(h => h.TextContent == "Contraseña actualizada");
         cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
+        _sesiones.CerradasTodas.Should().BeEmpty("sin credencial cambiada no se rota el sello: gastaría el enlace para reintentar");
     }
 
     /// <summary>
@@ -1217,13 +1218,19 @@ public class AccesoCuentaEscenaTests : BunitContext
         };
         // Como la implementación real, que rota el sello: revocar con este método antes de cambiar la
         // credencial gastaría el enlace y la contraseña ya no cambiaría.
-        _sesiones.AlCerrarTodas = () => _usuarios.UpdateSecurityStampAsync(usuario).GetAwaiter().GetResult();
+        var rotaEnElCerrojo = false;
+        _sesiones.AlCerrarTodas = () =>
+        {
+            rotaEnElCerrojo = cerrojo.Dentro;
+            _usuarios.UpdateSecurityStampAsync(usuario).GetAwaiter().GetResult();
+        };
         await PrepararEnlaceDeRestablecerAsync(usuario, new AutenticacionCapturada(null));
 
         await EnviarRestablecerAsync("Abcdefghijk1");
 
         _almacen.HashContrasena.Should().NotBe("hash-anterior", "el token sigue valiendo tras la revocación previa");
         enElCerrojo.Should().BeTrue("fuera del cerrojo se cruzaría con otra operación de credencial");
+        rotaEnElCerrojo.Should().BeTrue("fuera del cerrojo, rotar el sello se cruzaría con un cambio de contraseña concurrente");
         hashAlRevocar.Should().Be("hash-anterior", "si la revocación falla, la credencial no ha cambiado");
         cerradasTodasAlRevocar.Should().Be(0, "la revocación con rotación de sello va después");
         _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)null)], "el enlace no conserva ninguna sesión");
