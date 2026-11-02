@@ -45,6 +45,14 @@ public class Conversacion : EntidadBase
     private readonly List<ParticipanteConversacion> _participantes = [];
     private readonly List<CambioEstadoConversacion> _cambiosEstado = [];
 
+    /// <summary>
+    /// Número de ticket: entero correlativo por Tenant propietario, sin huecos. Lo asigna la base de datos al
+    /// insertar (disparador <c>asignar_numero_ticket_conversacion</c>), nunca el código: así vale para todas las
+    /// rutas de creación y para la ranura anterior durante un relevo. Una continuación tras el cierre es una fila
+    /// nueva y lleva número propio. El formato visible es cosa de la interfaz.
+    /// </summary>
+    public long NumeroTicket { get; private set; }
+
     public Guid? ClienteId { get; private set; }
 
     /// <summary>
