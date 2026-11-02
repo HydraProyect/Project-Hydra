@@ -6955,6 +6955,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ResponsableUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 

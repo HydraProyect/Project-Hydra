@@ -162,7 +162,8 @@ public class EnviarMensajeNuevoCommandHandlerTests
             new ClasificacionRuidoMensajeServiceFalso(),
             new RelevanciaCaeServiceFalso(),
             new AlertaCriticaServiceFalso(),
-            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso());
+            NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
+            new DirectorioUsuariosServiceFalso());
 
         var eventoWebhook = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
         await servicioIngesta.ProcesarAsync(eventoWebhook, CancellationToken.None);

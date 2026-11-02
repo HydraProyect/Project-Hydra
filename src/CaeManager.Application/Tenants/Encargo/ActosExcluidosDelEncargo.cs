@@ -6,6 +6,7 @@ using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
@@ -107,6 +108,7 @@ public static class ActosExcluidosDelEncargo
         typeof(ConectarBuzonMicrosoft365Command),
         typeof(DesconectarBuzonCommand),
         typeof(ReactivarConexionCommand),
+        typeof(FijarResponsableBuzonCommand),
         typeof(CrearLineaWhatsAppCommand),
         typeof(ActualizarLineaWhatsAppCommand),
         typeof(GuardarConexionPlataformaCaeCommand),
