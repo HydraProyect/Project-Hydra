@@ -1,3 +1,4 @@
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -28,10 +29,13 @@ public class AplicarMacroCommandTests
     private readonly VisitasVacias _visitas = new();
     private readonly PendientesFalsos _pendientes = new();
 
-    private AplicarMacroCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null) => new(
-        _comunicaciones, _empresas, _centros, _trabajadores,
-        _visitas, _pendientes,
-        alcance ?? new AlcanceDatosServiceFalso(), _eventos, _unidad);
+    private AplicarMacroCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null)
+    {
+        alcance ??= new AlcanceDatosServiceFalso();
+        return new(
+            _comunicaciones, new RellenoMacroRespuesta(_comunicaciones, _empresas, _centros, _trabajadores, _visitas, _pendientes, alcance),
+            alcance, _eventos, _unidad);
+    }
 
     [Fact]
     public async Task Sin_pendientes_en_la_regla_documental_la_variable_queda_por_rellenar()
@@ -136,7 +140,8 @@ public class AplicarMacroCommandTests
         var pendientes = PendientesDeReclamacionPruebas.Crear(
             new DocumentosQueryContextFalso(), tipos, _trabajadores, asignaciones, _centros, _empresas, alcance);
         var handler = new AplicarMacroCommandHandler(
-            _comunicaciones, _empresas, _centros, _trabajadores, _visitas, pendientes, alcance, _eventos, _unidad);
+            _comunicaciones, new RellenoMacroRespuesta(_comunicaciones, _empresas, _centros, _trabajadores, _visitas, pendientes, alcance),
+            alcance, _eventos, _unidad);
 
         var resultado = await handler.Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
 

@@ -394,6 +394,63 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         registro.DatosDespues.Should().Contain("\"CuerpoHtml\":\"***\"");
     }
 
+    /// <summary>La respuesta sugerida es contenido dirigido a un tercero, igual que el cuerpo del mensaje que responde.</summary>
+    [Fact]
+    public async Task El_texto_de_una_respuesta_sugerida_no_aparece_en_claro_en_la_auditoria()
+    {
+        var mensajeId = await SembrarMensajeConAdjuntoAsync();
+
+        await using (var contexto = CrearContexto())
+        {
+            var conversacionId = await contexto.Mensajes.Where(m => m.Id == mensajeId).Select(m => m.ConversacionId).SingleAsync();
+            contexto.RespuestasSugeridas.Add(RespuestaSugerida.DeVega(conversacionId, mensajeId, CuerpoHtmlSecreto, Guid.NewGuid(), DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroAsync(nameof(RespuestaSugerida));
+
+        registro.DatosDespues.Should().NotContain(TextoSecretoDelCuerpo);
+        registro.DatosDespues.Should().Contain("\"Texto\":\"***\"");
+        registro.DatosDespues.Should().Contain("\"TextoHash\":\"***\"");
+    }
+
+    /// <summary>
+    /// Mismo motivo que el resto de tests hermanos de <c>DatosAntes</c>: la aplicación no reescribe el texto, y la columna
+    /// ni lo admite para <c>cae_app_runtime</c>; se fuerza por el ChangeTracker para medir la redacción de un <c>Modified</c>.
+    /// </summary>
+    [Fact]
+    public async Task El_texto_de_una_respuesta_sugerida_tampoco_aparece_en_claro_al_modificarla()
+    {
+        const string TextoCorregido = "TEXTO-CORREGIDO-no-debe-aparecer-en-claro";
+        var mensajeId = await SembrarMensajeConAdjuntoAsync();
+
+        Guid sugerenciaId;
+        await using (var contexto = CrearContexto())
+        {
+            var conversacionId = await contexto.Mensajes.Where(m => m.Id == mensajeId).Select(m => m.ConversacionId).SingleAsync();
+            var sugerencia = RespuestaSugerida.DeVega(conversacionId, mensajeId, CuerpoHtmlSecreto, Guid.NewGuid(), DateTime.UtcNow);
+            sugerenciaId = sugerencia.Id;
+            contexto.RespuestasSugeridas.Add(sugerencia);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var sugerencia = await contexto.RespuestasSugeridas.SingleAsync(r => r.Id == sugerenciaId);
+            contexto.Entry(sugerencia).Property(r => r.Texto).CurrentValue = TextoCorregido;
+            contexto.Entry(sugerencia).Property(r => r.TextoHash).CurrentValue = RespuestaSugerida.CalcularTextoHash(TextoCorregido);
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroDeModificacionAsync(nameof(RespuestaSugerida));
+
+        registro.DatosAntes.Should().NotContain(TextoSecretoDelCuerpo);
+        registro.DatosAntes.Should().Contain("\"Texto\":\"***\"");
+        registro.DatosAntes.Should().Contain("\"TextoHash\":\"***\"");
+        registro.DatosDespues.Should().NotContain(TextoCorregido);
+        registro.DatosDespues.Should().Contain("\"Texto\":\"***\"");
+    }
+
     /// <summary>
     /// G-16/DEC-9: el remitente. El propietario extendió aquí la
     /// recomendación —el argumento forense era débil en ambas direcciones—

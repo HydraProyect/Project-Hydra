@@ -109,6 +109,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         // Comunicaciones
         "Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler",
         "Comunicaciones.AplicarMacroCommandHandler",
+        "Comunicaciones.GenerarRespuestaSugeridaCommandHandler",
+        "Comunicaciones.ResolverRespuestaSugeridaCommandHandler",
         "Comunicaciones.AprobarRecordatorioConversacionCommandHandler",
         "Comunicaciones.AsignarAdjuntosLoteCommandHandler",
         "Comunicaciones.AsignarClienteConversacionCommandHandler",

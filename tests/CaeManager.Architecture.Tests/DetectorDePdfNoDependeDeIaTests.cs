@@ -53,6 +53,7 @@ public class DetectorDePdfNoDependeDeIaTests
         "IDeteccionGestionCorreoService",
         "IDeteccionRelevanciaCaeService",
         "IDeteccionIntencionCaeService",
+        "IRedaccionRespuestaIa",
         "IDocumentAIProviderFactory",
         "IDocumentAIProvider",
         "IDecisionesCerradasAsistenteService",

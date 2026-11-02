@@ -27,6 +27,7 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
     private Guid _participanteId;
     private Guid _adjuntoId;
     private Guid _notaId;
+    private Guid _sugerenciaId;
 
     public async Task InitializeAsync()
     {
@@ -49,6 +50,11 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
         contexto.NotasInternasConversacion.Add(nota);
         await contexto.SaveChangesAsync();
         _notaId = nota.Id;
+
+        var sugerencia = RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, "<p>Borrador</p>", Guid.NewGuid(), DateTime.UtcNow);
+        contexto.RespuestasSugeridas.Add(sugerencia);
+        await contexto.SaveChangesAsync();
+        _sugerenciaId = sugerencia.Id;
 
         // La conversación de otro tenant existe para que el UPDATE no falle
         // por un simple NOT NULL/tenant inexistente, sino específicamente
@@ -111,6 +117,20 @@ public class FkCompuestaTenantComunicacionesTests : IAsyncLifetime
         excepcion.Should().BeOfType<Npgsql.PostgresException>()
             .Which.SqlState.Should().Be("23503",
                 "la FK compuesta (ConversacionId, TenantId) debe rechazar un TenantId que no case con el de la Conversacion");
+    }
+
+    /// <summary>La sugerencia cuelga de dos FK compuestas creadas en SQL; basta con que una rechace el Tenant cambiado.</summary>
+    [Fact]
+    public async Task No_se_puede_reasignar_una_respuesta_sugerida_al_tenant_de_otra_conversacion()
+    {
+        await using var contexto = CrearContexto(_tenantA);
+
+        var excepcion = await Record.ExceptionAsync(() => contexto.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"RespuestasSugeridas\" SET \"TenantId\" = {_tenantB} WHERE \"Id\" = {_sugerenciaId}"));
+
+        excepcion.Should().BeOfType<Npgsql.PostgresException>()
+            .Which.SqlState.Should().Be("23503",
+                "las FK compuestas con el Tenant deben rechazar un TenantId que no case con el de la Conversacion y el Mensaje");
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenant)

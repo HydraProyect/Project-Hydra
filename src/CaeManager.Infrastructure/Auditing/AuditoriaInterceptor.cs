@@ -196,6 +196,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // (Mensaje.LongitudMaximaCuerpoHtml) en cada alta de mensaje.
         [typeof(Mensaje)] = [nameof(Mensaje.CuerpoHtml), nameof(Mensaje.Remitente)],
         [typeof(AdjuntoMensaje)] = [nameof(AdjuntoMensaje.NombreArchivo), nameof(AdjuntoMensaje.MotivoRechazo)],
+        [typeof(RespuestaSugerida)] = [nameof(RespuestaSugerida.Texto), nameof(RespuestaSugerida.TextoHash)],
 
         // DEC-37/DEC-38 (propietario, 2026-09-02): extienden DEC-9 a las
         // entidades hermanas del mensaje y a su contenido derivado por IA.

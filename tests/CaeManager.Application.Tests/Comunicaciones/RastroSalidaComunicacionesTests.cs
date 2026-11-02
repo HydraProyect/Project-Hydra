@@ -40,7 +40,7 @@ public class RastroSalidaComunicacionesTests
     {
         var (conexiones, acceso) = Dependencias();
         return new EnviarMensajeNuevoCommandHandler(
-            conexiones, _conversaciones, new AlcanceDatosServiceFalso(), _graph, acceso,
+            conexiones, _conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), _graph, acceso,
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), registro);
     }
 
@@ -49,7 +49,7 @@ public class RastroSalidaComunicacionesTests
     {
         var (conexiones, acceso) = Dependencias();
         return new ResponderConversacionCommandHandler(
-            _conversaciones, conexiones, new AlcanceDatosServiceFalso(), _graph, acceso, new FileStorageServiceFalso(),
+            _conversaciones, new ComunicacionesQueryContextFalso(), conexiones, new AlcanceDatosServiceFalso(), _graph, acceso, new FileStorageServiceFalso(),
             Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = remitenteSimulado }),
             unitOfWork ?? new UnitOfWorkFalso(), NullLogger<ResponderConversacionCommandHandler>.Instance, registro, _descarte);
     }
@@ -206,7 +206,7 @@ public class RastroSalidaComunicacionesTests
         var lineas = new LineaWhatsAppRepositorioFalso();
         lineas.Agregar(new LineaWhatsApp(_conexion.Id, "111222333", "waba", "+34900000000", "token", ModoAsignacionLinea.GestorFijo, Guid.NewGuid()));
         var handler = new ResponderConversacionWhatsAppCommandHandler(
-            _conversaciones, conexiones, lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? new UnitOfWorkFalso(),
+            _conversaciones, new ComunicacionesQueryContextFalso(), conexiones, lineas, new AlcanceDatosServiceFalso(), _whatsApp, unitOfWork ?? new UnitOfWorkFalso(),
             NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance, registro, _descarte);
         return (handler, conversacion);
     }
