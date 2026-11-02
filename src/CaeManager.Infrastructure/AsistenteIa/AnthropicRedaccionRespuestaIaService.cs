@@ -25,7 +25,10 @@ public class AnthropicRedaccionRespuestaIaService(
     // El texto al remitente nunca contiene pasos internos: el prompt lo pide y esto lo comprueba, en fallo cerrado. Prefiere
     // perder un borrador legítimo («para el equipo de montaje») a que uno así llegue a quien revisa.
     private static readonly string[] MarcasDeContenidoInterno =
-        ["nota para el equipo", "nota interna", "para el equipo", "pasos internos", "uso interno", "razonamiento"];
+    [
+        "nota para el equipo", "nota al equipo", "nota interna", "notas internas", "para el equipo", "paso interno",
+        "pasos internos", "uso interno", "razonamiento"
+    ];
 
     private static readonly Error NoDisponible = Error.Crear(
         "Sugerencia.NoDisponible", "Vega no ha podido redactar una respuesta ahora mismo.");
@@ -131,8 +134,22 @@ public class AnthropicRedaccionRespuestaIaService(
             .ToArray());
         var comparable = string.Join(' ', sinInvisibles.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-        return MarcasDeContenidoInterno.Any(
-            marca => comparable.Contains(TextoDeBusqueda.Normalizar(marca), StringComparison.Ordinal));
+        return MarcasDeContenidoInterno.Any(marca => ContienePalabras(comparable, TextoDeBusqueda.Normalizar(marca)));
+    }
+
+    // Con límite de palabra: «nota internacional» no es «nota interna».
+    private static bool ContienePalabras(string texto, string palabras)
+    {
+        for (var inicio = texto.IndexOf(palabras, StringComparison.Ordinal);
+             inicio >= 0;
+             inicio = texto.IndexOf(palabras, inicio + 1, StringComparison.Ordinal))
+        {
+            var fin = inicio + palabras.Length;
+            if ((inicio == 0 || !char.IsLetterOrDigit(texto[inicio - 1])) && (fin == texto.Length || !char.IsLetterOrDigit(texto[fin])))
+                return true;
+        }
+
+        return false;
     }
 
     private sealed record SolicitudAnthropic(

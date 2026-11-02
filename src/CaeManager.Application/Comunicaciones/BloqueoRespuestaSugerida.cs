@@ -17,7 +17,7 @@ public static class BloqueoRespuestaSugerida
     /// Por debajo de esta longitud, ya normalizada, una sugerencia solo se compara por igualdad: un texto tan corto puede
     /// aparecer dentro de cualquier mensaje escrito a mano.
     /// </summary>
-    public const int LongitudMinimaTextoContenido = 40;
+    public const int LongitudMinimaTextoContenido = 12;
 
     public static readonly Error SugerenciaSinRevisar = Error.Crear(
         "Respuesta.SugerenciaSinRevisar", "Revisa la respuesta sugerida antes de enviar: confírmala, edítala o descártala.");

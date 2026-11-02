@@ -500,6 +500,37 @@ public class BloqueoRespuestaSugeridaTests
     }
 
     [Fact]
+    public async Task Una_firma_corta_sobre_un_acuse_breve_no_elude_el_bloqueo()
+    {
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, "Recibido, muchas gracias.");
+
+        (await ResponderPorWhatsApp(conversacion, "Recibido, muchas gracias. Marta")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _whatsApp.EnviosRealizados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_debajo_del_umbral_un_acuse_con_firma_si_sale()
+    {
+        var conversacion = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, "Ok, gracias");
+
+        (await ResponderPorWhatsApp(conversacion, "Ok, gracias. Marta")).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Marcar_una_negrita_dentro_de_una_palabra_no_elude_el_bloqueo()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta);
+
+        var resultado = await Responder(conversacion, "<p>Estimada Ana:</p><p>Ya hemos reci<b>bi</b>do su documentación.</p>");
+
+        resultado.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Mensaje_nuevo_con_el_texto_de_la_descartada_del_ultimo_entrante_no_llama_al_canal()
     {
         var conexion = Buzon();

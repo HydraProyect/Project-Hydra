@@ -167,6 +167,52 @@ public class RespuestaSugeridaTests
     public void Normaliza_sin_html_y_con_los_espacios_colapsados(string texto, string esperado) =>
         RespuestaSugerida.NormalizarTexto(texto).Should().Be(esperado);
 
+    [Theory]
+    [InlineData("re<b>ci</b>bido")]
+    [InlineData("re<B>ci</B>bido")]
+    [InlineData("re<i>ci</i>bido")]
+    [InlineData("re<em>ci</em>bido")]
+    [InlineData("re<strong>ci</strong>bido")]
+    [InlineData("re<u>ci</u>bido")]
+    [InlineData("re<span style=\"color:red\">ci</span>bido")]
+    [InlineData("re<a href=\"https://example.test\">ci</a>bido")]
+    [InlineData("re<font color=\"red\">ci</font>bido")]
+    [InlineData("re<mark>ci</mark>bido")]
+    [InlineData("re<small>ci</small>bido")]
+    [InlineData("re<sub>ci</sub>bido")]
+    [InlineData("re<sup>ci</sup>bido")]
+    public void Una_etiqueta_en_linea_no_parte_la_palabra(string texto) =>
+        RespuestaSugerida.NormalizarTexto(texto).Should().Be("recibido");
+
+    [Theory]
+    [InlineData("uno<p>dos", "uno dos")]
+    [InlineData("uno<br>dos", "uno dos")]
+    [InlineData("uno<div>dos</div>", "uno dos")]
+    [InlineData("uno<strike>dos", "uno dos")]
+    [InlineData("uno<b1>dos", "uno dos")]
+    [InlineData("uno<!-- b -->dos", "uno dos")]
+    public void Cualquier_otra_etiqueta_sigue_separando(string texto, string esperado) =>
+        RespuestaSugerida.NormalizarTexto(texto).Should().Be(esperado);
+
+    [Fact]
+    public void El_hash_de_lo_generado_y_de_lo_enviado_coinciden_con_una_negrita_dentro_de_una_palabra()
+    {
+        var sugerencia = RespuestaSugerida.DeVega(Guid.NewGuid(), Guid.NewGuid(), "<p>Recibido</p>", Guid.NewGuid(), DateTime.UtcNow);
+
+        RespuestaSugerida.CalcularTextoHash("<p>Reci<b>bi</b>do</p>").Should().Be(sugerencia.TextoHash);
+    }
+
+    [Fact]
+    public void Muchas_etiquetas_sin_cerrar_se_normalizan_en_tiempo_lineal()
+    {
+        var texto = string.Concat(Enumerable.Repeat("<b", 200_000)) + ">";
+
+        RespuestaSugerida.NormalizarTexto(texto).Should().BeEmpty();
+
+        var sinCierre = string.Concat(Enumerable.Repeat("<b", 200_000));
+        RespuestaSugerida.NormalizarTexto(sinCierre).Should().Be(sinCierre);
+    }
+
     [Fact]
     public void El_hash_es_el_sha256_del_texto_normalizado_y_se_fija_al_generar()
     {

@@ -45,6 +45,9 @@ public class RespuestaSugerida : EntidadBase
     public const int LongitudMaximaTexto = Mensaje.LongitudMaximaCuerpoHtml;
     public const int LongitudTextoHash = 64;
 
+    private static readonly HashSet<string> EtiquetasEnLinea = new(
+        ["b", "i", "em", "strong", "u", "span", "a", "font", "mark", "small", "sub", "sup"], StringComparer.OrdinalIgnoreCase);
+
     public static readonly Error ErrorTransicionNoPermitida = Error.Crear(
         "Sugerencia.TransicionNoPermitida", "Esta respuesta sugerida ya no admite esa acción.");
 
@@ -147,7 +150,11 @@ public class RespuestaSugerida : EntidadBase
     public static string CalcularTextoHash(string texto) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(NormalizarTexto(texto))));
 
-    /// <summary>Sin HTML, con las entidades decodificadas y los espacios colapsados.</summary>
+    /// <summary>
+    /// Sin HTML, con las entidades decodificadas y los espacios colapsados. Una etiqueta en línea desaparece, porque no
+    /// separa palabras («re<b>ci</b>bido» es «recibido»); cualquier otra deja un espacio. Tiempo lineal: el nombre que se
+    /// lee para decidirlo es parte de la etiqueta que se salta después.
+    /// </summary>
     public static string NormalizarTexto(string texto)
     {
         var ultimoCierre = texto.LastIndexOf('>');
@@ -156,7 +163,9 @@ public class RespuestaSugerida : EntidadBase
         {
             if (AbreEtiqueta(texto, posicion, ultimoCierre))
             {
-                sinEtiquetas.Append(' ');
+                if (!EsEtiquetaEnLinea(texto, posicion))
+                    sinEtiquetas.Append(' ');
+
                 posicion = texto.IndexOf('>', posicion);
             }
             else
@@ -173,4 +182,14 @@ public class RespuestaSugerida : EntidadBase
     private static bool AbreEtiqueta(string texto, int posicion, int ultimoCierre) =>
         texto[posicion] == '<' && posicion < ultimoCierre
         && (char.IsAsciiLetter(texto[posicion + 1]) || texto[posicion + 1] is '/' or '!');
+
+    private static bool EsEtiquetaEnLinea(string texto, int posicion)
+    {
+        var inicio = texto[posicion + 1] == '/' ? posicion + 2 : posicion + 1;
+        var fin = inicio;
+        while (fin < texto.Length && char.IsAsciiLetterOrDigit(texto[fin]))
+            fin++;
+
+        return EtiquetasEnLinea.Contains(texto[inicio..fin]);
+    }
 }

@@ -137,6 +137,12 @@ public class AnthropicRedaccionRespuestaIaTests
     [InlineData("Nota\n  interna: pendiente de revisar.")]
     [InlineData("Nota interna: pendiente de revisar.")]
     [InlineData("Nota in​terna: pendiente de revisar.")]
+    [InlineData("Nota al equipo: falta el CIF.")]
+    [InlineData("Notas internas: pendiente de revisar.")]
+    [InlineData("Paso interno: comprobar el contrato.")]
+    [InlineData("Recibido, gracias. (nota interna)")]
+    [InlineData("**Nota interna**: pendiente de revisar.")]
+    [InlineData("Razonamiento")]
     public async Task Una_salida_con_contenido_interno_falla_cerrado(string texto)
     {
         var resultado = await Crear(new RespuestaFija(Respuesta(texto))).RedactarAsync("Asunto", "Cuerpo");
@@ -148,6 +154,8 @@ public class AnthropicRedaccionRespuestaIaTests
     [InlineData("Hemos recibido su documentación. La revisaremos en un plazo razonable y le contestaremos.")]
     [InlineData("Según su reglamento interno, necesitamos la nota de entrega del equipo de trabajo.")]
     [InlineData("¿Puede enviarnos el certificado de formación de los trabajadores?")]
+    [InlineData("Adjuntamos la nota internacional de transporte.")]
+    [InlineData("Necesitamos la denota interna del seguro.")]
     public async Task Una_salida_legitima_no_dispara_el_filtro(string texto)
     {
         var resultado = await Crear(new RespuestaFija(Respuesta(texto))).RedactarAsync("Asunto", "Cuerpo");
