@@ -16,6 +16,6 @@ public class BloqueoEstadoOperativoTenant(CaeManagerDbContext dbContext) : IBloq
 
         var clave = Espacio + tenantId;
         return dbContext.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock_shared(hashtextextended({clave}, 0))", cancellationToken);
+            $"SELECT pg_advisory_xact_lock(hashtextextended({clave}, 0))", cancellationToken);
     }
 }
