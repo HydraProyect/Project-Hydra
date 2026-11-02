@@ -74,9 +74,9 @@ internal sealed class EscenarioImportacion
     }
 
     /// <summary>Siembra un Centro ya dado de alta, para que su nombre sí se resuelva.</summary>
-    public EscenarioImportacion ConCentroExistente(string nombre = CentroConocido)
+    public EscenarioImportacion ConCentroExistente(string nombre = CentroConocido, Guid? clienteId = null)
     {
-        CentroExistente = new Centro(Guid.NewGuid(), Guid.NewGuid(), nombre);
+        CentroExistente = new Centro(clienteId ?? Guid.NewGuid(), Guid.NewGuid(), nombre);
         CentrosContexto.ListaCentros.Add(CentroExistente);
         return this;
     }

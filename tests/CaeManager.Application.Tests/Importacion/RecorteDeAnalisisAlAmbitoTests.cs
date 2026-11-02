@@ -158,6 +158,89 @@ public class RecorteDeAnalisisAlAmbitoTests
         recortado.Omitidos.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData("No existe este tipo de documento en el catálogo del sistema.")]
+    [InlineData("La fecha de emisión (01/01/2099) es futura; no se puede importar.")]
+    [InlineData("Fila duplicada dentro del propio archivo.")]
+    public async Task Plantilla_de_documentos_no_distingue_por_el_motivo_posterior_un_DNI_fuera_de_ambito(string motivoPosterior)
+    {
+        var escenario = Existente();
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []);
+        var plan = EscenarioImportacion.Plan() with
+        {
+            Omitidos = [new ItemImportacionDto("Documentos", 5, $"{EscenarioImportacion.DniConocido} — Tipo", motivoPosterior)],
+        };
+
+        var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
+
+        var omitido = recortado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Fila.Should().Be(5);
+        omitido.Descripcion.Should().Be(EscenarioImportacion.DniConocido);
+        omitido.Motivo.Should().StartWith("No existe ningún trabajador con este DNI.");
+    }
+
+    [Fact]
+    public async Task Plantilla_de_documentos_conserva_el_motivo_posterior_de_un_DNI_dentro_de_ambito()
+    {
+        var escenario = Existente();
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [escenario.TrabajadorExistente!.Id]);
+        var original = new ItemImportacionDto("Documentos", 5, $"{EscenarioImportacion.DniConocido} — Tipo", "No existe este tipo de documento en el catálogo del sistema.");
+        var plan = EscenarioImportacion.Plan() with { Omitidos = [original] };
+
+        var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
+
+        recortado.Omitidos.Should().ContainSingle().Which.Should().Be(original);
+    }
+
+    [Fact]
+    public async Task Plantilla_de_clientes_no_distingue_un_Cliente_fuera_de_ambito_sin_centro_de_uno_inexistente()
+    {
+        var escenario = Existente();
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsParaGestion: [], empresaIdsParaGestion: []);
+        var plan = EscenarioImportacion.Plan() with
+        {
+            Omitidos = [new ItemImportacionDto("Clientes", 3, EscenarioImportacion.EmpresaConocida, "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros.")],
+        };
+
+        var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
+
+        var omitido = recortado.Omitidos.Should().ContainSingle().Subject;
+        omitido.Fila.Should().Be(3);
+        omitido.Motivo.Should().StartWith("Este Cliente no existe todavía.");
+    }
+
+    [Fact]
+    public async Task Plantilla_de_clientes_conserva_el_motivo_del_centro_si_el_Cliente_esta_en_ambito()
+    {
+        var escenario = Existente();
+        var cliente = escenario.EmpresasContexto.ListaEmpresas.Single();
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsParaGestion: [], clienteIdsVisibles: [cliente.Id]);
+        var original = new ItemImportacionDto("Clientes", 3, EscenarioImportacion.EmpresaConocida, "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros.");
+        var plan = EscenarioImportacion.Plan() with { Omitidos = [original] };
+
+        var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
+
+        recortado.Omitidos.Should().ContainSingle().Which.Should().Be(original);
+    }
+
+    [Fact]
+    public async Task Combinada_un_Centro_homonimo_de_otro_Cliente_fuera_de_ambito_no_figura_como_existente()
+    {
+        var clienteA = new CaeManager.Domain.Empresas.Empresa("Cliente A");
+        var escenario = new EscenarioImportacion().ConCentroExistente(clienteId: clienteA.Id);
+        escenario.EmpresasContexto.ListaEmpresas.Add(clienteA);
+        escenario.EmpresasContexto.ListaEmpresas.Add(new CaeManager.Domain.Empresas.Empresa("Cliente B"));
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsParaGestion: [escenario.CentroExistente!.Id], empresaIdsParaGestion: [clienteA.Id]);
+        CentroImportadoDto Fila(string cliente) => new(EscenarioImportacion.CentroConocido, cliente, "E", null, null, null, null, YaExiste: true);
+        var combinada = new PlanImportacionCombinadaDto(Guid.NewGuid(), [], [], [Fila("Cliente A"), Fila("Cliente B")], [], [], []);
+
+        var plan = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(combinada, default);
+
+        plan.Centros[0].YaExiste.Should().BeTrue("el Centro del Cliente A está en su ámbito");
+        plan.Centros[1].YaExiste.Should().BeFalse("el homónimo del Cliente B no se ve");
+    }
+
     [Fact]
     public async Task Plantilla_de_clientes_trata_un_Cliente_o_Centro_fuera_de_ambito_igual_que_uno_inexistente()
     {
