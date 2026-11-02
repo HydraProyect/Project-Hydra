@@ -1,3 +1,4 @@
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
@@ -5,11 +6,13 @@ using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Contactos;
+using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 using Xunit;
 
@@ -114,7 +117,7 @@ public class NotaContactoAgendaTests
         _contactos.Agregar(contacto);
         var soloLectura = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []);
 
-        var resultado = await new FijarNotaContactoAgendaCommandHandler(_contactos, soloLectura, new CurrentUserServiceFalso(_autor), _unitOfWork).Handle(
+        var resultado = await new FijarNotaContactoAgendaCommandHandler(_contactos, soloLectura, new PoliticaNotaInternaFalsa(true), new CurrentUserServiceFalso(_autor), _unitOfWork).Handle(
             new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Empresa, empresaId, contacto.Id, "Llamar antes de las 11"),
             CancellationToken.None);
 
@@ -203,15 +206,118 @@ public class NotaContactoAgendaTests
         (await Leer(_alcance, _centroId, "luis@ejemplo.test")).Should().BeNull();
     }
 
-    private Task<Domain.Common.Result> Fijar(CurrentUserServiceFalso usuario, Guid propietarioId, Guid contactoId) =>
-        new FijarNotaContactoAgendaCommandHandler(_contactos, _alcance, usuario, _unitOfWork).Handle(
-            new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, propietarioId, contactoId, "Llamar antes de las 11"),
+    [Fact]
+    public async Task La_agenda_lleva_la_nota_al_equipo_de_gestion()
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        var contacto = (await LeerAgenda(Audiencia("Equipo de gestión"))).Should().ContainSingle().Which;
+
+        contacto.Notas.Should().Be("Llamar antes de las 11");
+        contacto.NotaVisible.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("Cliente de portal")]
+    [InlineData("Impersonación")]
+    public async Task La_agenda_no_lleva_la_nota_a_quien_la_politica_deniega(string audiencia)
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        var contacto = (await LeerAgenda(Audiencia(audiencia))).Should().ContainSingle("la agenda sigue siendo legible").Which;
+
+        contacto.Nombre.Should().Be("Marta Ruiz");
+        contacto.Notas.Should().BeNull();
+        contacto.NotaVisible.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("Cliente de portal")]
+    [InlineData("Impersonación")]
+    public async Task Abrir_y_guardar_lo_que_devuelve_la_agenda_sin_leer_la_nota_no_la_pierde(string audiencia)
+    {
+        var fijadaEn = DateTime.UtcNow.AddDays(-1);
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, fijadaEn);
+        var cargado = (await LeerAgenda(Audiencia(audiencia))).Single();
+
+        var resultado = await GuardarAsync(
+            cargado.Id, cargado.Notas, new CurrentUserServiceFalso(Guid.NewGuid()), cargado.Notas, Audiencia(audiencia), telefono: "+34600000000");
+
+        resultado.EsExitoso.Should().BeTrue();
+        _contacto.Telefono.Should().Be("+34600000000", "el resto de la ficha sí se guarda");
+        _contacto.Notas.Should().Be("Llamar antes de las 11");
+        _contacto.NotasAutorUsuarioId.Should().Be(_autor);
+        _contacto.NotasActualizadasEnUtc.Should().Be(fijadaEn);
+    }
+
+    [Theory]
+    [InlineData(null, "Llamar antes de las 11")]
+    [InlineData("Otra nota", null)]
+    [InlineData("Otra nota", "Llamar antes de las 11")]
+    public async Task Quien_no_lee_la_nota_no_la_borra_ni_la_pisa_aunque_el_comando_lo_pida(string? notas, string? notasAlCargar)
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        var resultado = await GuardarAsync(
+            _contacto.Id, notas, new CurrentUserServiceFalso(Guid.NewGuid()), notasAlCargar, Audiencia("Impersonación"), telefono: "+34600000000");
+
+        resultado.EsExitoso.Should().BeTrue();
+        _contacto.Telefono.Should().Be("+34600000000");
+        _contacto.Notas.Should().Be("Llamar antes de las 11");
+        _contacto.NotasAutorUsuarioId.Should().Be(_autor);
+    }
+
+    [Fact]
+    public async Task Un_alta_de_quien_no_lee_la_nota_no_la_escribe()
+    {
+        var resultado = await GuardarAsync(null, "Solo por correo", new CurrentUserServiceFalso(_autor), politica: Audiencia("Impersonación"));
+
+        var alta = await _contactos.ObtenerPorIdAsync(resultado.Valor);
+        alta!.Notas.Should().BeNull();
+        alta.NotasAutorUsuarioId.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("Cliente de portal", null)]
+    [InlineData("Cliente de portal", "Otra nota")]
+    [InlineData("Impersonación", null)]
+    [InlineData("Impersonación", "Otra nota")]
+    public async Task Quien_no_lee_la_nota_no_la_fija_ni_la_retira_desde_el_panel(string audiencia, string? texto)
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        var resultado = await Fijar(new CurrentUserServiceFalso(Guid.NewGuid()), _centroId, _contacto.Id, texto, Audiencia(audiencia));
+
+        resultado.Error.Codigo.Should().Be("ContactoAgenda.NotaNoPermitida");
+        _contacto.Notas.Should().Be("Llamar antes de las 11");
+        _contacto.NotasAutorUsuarioId.Should().Be(_autor);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    private static IPoliticaNotaInterna Audiencia(string audiencia) => audiencia switch
+    {
+        "Equipo de gestión" => PoliticaNotaInternaPruebas.Con("GestorCae"),
+        "Cliente de portal" => PoliticaNotaInternaPruebas.Con("Cliente"),
+        // El rol del simulado se resuelve a propósito: la política debe denegar por la Sesión Privilegiada, no por el rol.
+        "Impersonación" => PoliticaNotaInternaPruebas.Con("GestorCae", PoliticaNotaInternaPruebas.Sesion(CapacidadPrivilegio.Impersonacion)),
+        _ => throw new ArgumentOutOfRangeException(nameof(audiencia), audiencia, "Audiencia sin caso en este test."),
+    };
+
+    private Task<IReadOnlyList<ContactoAgendaDto>> LeerAgenda(IPoliticaNotaInterna politica) =>
+        new ObtenerAgendaContactosQueryHandler(_lectura, new TiposDocumentoQueryContextFalso(), _alcance, politica).Handle(
+            new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Centro, _centroId), CancellationToken.None);
+
+    private Task<Domain.Common.Result> Fijar(
+        CurrentUserServiceFalso usuario, Guid propietarioId, Guid contactoId, string? texto = "Llamar antes de las 11", IPoliticaNotaInterna? politica = null) =>
+        new FijarNotaContactoAgendaCommandHandler(_contactos, _alcance, politica ?? new PoliticaNotaInternaFalsa(true), usuario, _unitOfWork).Handle(
+            new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, propietarioId, contactoId, texto),
             CancellationToken.None);
 
-    private Task<Domain.Common.Result<Guid>> GuardarAsync(Guid? contactoId, string? notas, CurrentUserServiceFalso usuario, string? notasAlCargar = null) =>
-        new GuardarContactoAgendaCommandHandler(_contactos, new TiposDocumentoQueryContextFalso(), _alcance, usuario, _unitOfWork).Handle(
+    private Task<Domain.Common.Result<Guid>> GuardarAsync(
+        Guid? contactoId, string? notas, CurrentUserServiceFalso usuario, string? notasAlCargar = null, IPoliticaNotaInterna? politica = null, string? telefono = null) =>
+        new GuardarContactoAgendaCommandHandler(_contactos, new TiposDocumentoQueryContextFalso(), _alcance, politica ?? new PoliticaNotaInternaFalsa(true), usuario, _unitOfWork).Handle(
             new GuardarContactoAgendaCommand(
-                TipoPropietarioAgenda.Centro, _centroId, contactoId, "Marta Ruiz", "marta@ejemplo.test", null, null, notas,
+                TipoPropietarioAgenda.Centro, _centroId, contactoId, "Marta Ruiz", "marta@ejemplo.test", telefono, null, notas,
                 false, false, false, [], [], notasAlCargar),
             CancellationToken.None);
 

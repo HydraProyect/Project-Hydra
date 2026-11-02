@@ -12,6 +12,7 @@ using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.ContratosAcceso;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -184,7 +185,7 @@ public class EscriturasDeCentroAlcanceGestionTests
             .Handle(new MarcarCanalGestionPrincipalCommand(_canal.Id), CancellationToken.None),
 
         GuardarContactoAgenda => await new GuardarContactoAgendaCommandHandler(
-                _contactos, new TiposDocumentoQueryContextFalso(), alcance, _usuario, _unitOfWork)
+                _contactos, new TiposDocumentoQueryContextFalso(), alcance, new PoliticaNotaInternaFalsa(true), _usuario, _unitOfWork)
             .Handle(
                 new GuardarContactoAgendaCommand(
                     TipoPropietarioAgenda.Centro, _centro.Id, null, "Luis Ortega", "luis@ejemplo.test", null, null, null,
@@ -195,7 +196,7 @@ public class EscriturasDeCentroAlcanceGestionTests
             .Handle(
                 new EliminarContactoAgendaCommand(TipoPropietarioAgenda.Centro, _centro.Id, _contacto.Id), CancellationToken.None),
 
-        FijarNotaContactoAgenda => await new FijarNotaContactoAgendaCommandHandler(_contactos, alcance, _usuario, _unitOfWork)
+        FijarNotaContactoAgenda => await new FijarNotaContactoAgendaCommandHandler(_contactos, alcance, new PoliticaNotaInternaFalsa(true), _usuario, _unitOfWork)
             .Handle(
                 new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, _centro.Id, _contacto.Id, "Llamar antes de las 11"), CancellationToken.None),
 

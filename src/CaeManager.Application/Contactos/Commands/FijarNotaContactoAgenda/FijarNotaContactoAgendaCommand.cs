@@ -11,7 +11,8 @@ namespace CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 /// <summary>
 /// Fija la nota del contacto desde el panel de la conversación, sin reenviar el formulario entero de la Agenda. Texto
 /// vacío la retira. Lleva el propietario por lo mismo que <c>EliminarContactoAgendaCommand</c>: conocer el Guid de un
-/// contacto no basta para escribir en la agenda de otra entidad.
+/// contacto no basta para escribir en la agenda de otra entidad. Quien no lee la nota según
+/// <see cref="IPoliticaNotaInterna"/> no la fija: el comando no hace otra cosa, así que se rechaza en vez de ignorarse.
 /// </summary>
 public record FijarNotaContactoAgendaCommand(TipoPropietarioAgenda Tipo, Guid PropietarioId, Guid ContactoId, string? Texto) : ICommand;
 
@@ -28,6 +29,7 @@ public class FijarNotaContactoAgendaCommandValidator : AbstractValidator<FijarNo
 public class FijarNotaContactoAgendaCommandHandler(
     IContactoAgendaRepository repositorio,
     IAlcanceDatosService alcanceDatos,
+    IPoliticaNotaInterna politicaNotaInterna,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<FijarNotaContactoAgendaCommand, Result>
@@ -46,6 +48,9 @@ public class FijarNotaContactoAgendaCommandHandler(
 
         if (!visible)
             return Result.Fallo(Error.Crear("ContactoAgenda.SinAcceso", "No encontramos esta entidad."));
+
+        if (!await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
+            return Result.Fallo(Error.Crear("ContactoAgenda.NotaNoPermitida", "No puedes cambiar una nota que no puedes leer."));
 
         var contacto = await repositorio.ObtenerPorIdAsync(request.ContactoId, cancellationToken);
         if (contacto is null || !GuardarContactoAgendaCommandHandler.PerteneceA(contacto, request.Tipo, request.PropietarioId))

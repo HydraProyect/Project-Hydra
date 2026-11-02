@@ -30,9 +30,13 @@
                 Placeholder="+34 600 00 00 00" />
     <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
                 Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
-    <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
-                   Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
-    <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
+    @* Solo con la nota permitida (ContactoAgendaDto.NotaVisible): un campo vacío diría «sin nota» a quien no puede verla. *@
+    @if (_notaEditable)
+    {
+        <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
+                       Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
+        <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
+    }
 
     <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
         <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"
@@ -120,6 +124,7 @@
     private string _cargo = string.Empty;
     private string _notas = string.Empty;
     private string? _notasAlCargar;
+    private bool _notaEditable = true;
     private bool _esPredeterminado;
     private bool _recibeProgramacionVisitas;
     private bool _recibeFacturacion;
@@ -163,8 +168,10 @@
         _email = Contacto?.Email ?? string.Empty;
         _telefono = Contacto?.Telefono ?? string.Empty;
         _cargo = Contacto?.Cargo ?? string.Empty;
-        _notas = Contacto?.Notas ?? string.Empty;
-        _notasAlCargar = Contacto?.Notas;
+        // Un alta no tiene nota que proteger; en una edición sin permiso, Notas y NotasAlCargar salen vacías e iguales.
+        _notaEditable = Contacto is null || Contacto.NotaVisible;
+        _notas = _notaEditable ? Contacto?.Notas ?? string.Empty : string.Empty;
+        _notasAlCargar = _notaEditable ? Contacto?.Notas : null;
         _esPredeterminado = Contacto?.EsPredeterminado ?? PredeterminadoPorDefecto;
         _recibeProgramacionVisitas = Contacto?.RecibeProgramacionVisitas ?? false;
         _recibeFacturacion = Contacto?.RecibeFacturacion ?? false;

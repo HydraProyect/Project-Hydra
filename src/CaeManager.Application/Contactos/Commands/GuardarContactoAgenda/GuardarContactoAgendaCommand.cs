@@ -13,6 +13,12 @@ namespace CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 /// la diferencia es un Id nulo o no. <paramref name="TipoDocumentoIds"/> llega
 /// siempre completo (el conjunto entero de casillas marcadas), nunca como
 /// "añade este" — ver <c>ContactoAgenda.EstablecerTiposDocumento</c>.
+///
+/// <para>
+/// <paramref name="Notas"/> solo cuenta si difiere de <paramref name="NotasAlCargar"/> y quien guarda lee la nota según
+/// <see cref="IPoliticaNotaInterna"/>. Quien no la lee guarda el resto de la ficha, y la nota queda intacta: ni la borra
+/// lo que no vio ni la pisa a ciegas.
+/// </para>
 /// </summary>
 public record GuardarContactoAgendaCommand(
     TipoPropietarioAgenda Tipo,
@@ -50,6 +56,7 @@ public class GuardarContactoAgendaCommandHandler(
     IContactoAgendaRepository repositorio,
     TiposDocumento.ITiposDocumentoQueryContext tiposDocumentoContext,
     IAlcanceDatosService alcanceDatos,
+    IPoliticaNotaInterna politicaNotaInterna,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarContactoAgendaCommand, Result<Guid>>
@@ -119,7 +126,9 @@ public class GuardarContactoAgendaCommandHandler(
         }
 
         // El formulario reenvía la nota que cargó al abrir: si no la tocó, no pisa la que se fijó entre medias desde el panel.
-        if ((request.Notas?.Trim() ?? string.Empty) != (request.NotasAlCargar?.Trim() ?? string.Empty))
+        // Y quien no puede leerla tampoco la cambia: se ignora, como el contacto de emergencia en EditarFichaTrabajadorCommand.
+        if ((request.Notas?.Trim() ?? string.Empty) != (request.NotasAlCargar?.Trim() ?? string.Empty)
+            && await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
             contacto.FijarNotas(request.Notas, await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
 
         contacto.EstablecerTiposDocumento(tipoDocumentoIdsValidos);

@@ -131,7 +131,7 @@ public class NotaContactoAgendaBajoRlsTests : IAsyncLifetime
     }
 
     private FijarNotaContactoAgendaCommandHandler Handler(CaeManagerDbContext runtime) => new(
-        new ContactoAgendaRepository(runtime), Alcance(runtime), Usuario(), runtime);
+        new ContactoAgendaRepository(runtime), Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador), Usuario(), runtime);
 
     private CurrentUserServiceFalso Usuario() => new(_autor, Roles.Administrador, tenantOrigenId: _tenantSesion);
 
