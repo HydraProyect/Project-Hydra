@@ -913,7 +913,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         (await signIn.ValidateSecurityStampAsync(principal)).Should().BeNull();
         autenticacion.Emitido.Should().NotBeNull();
         autenticacion.Emitido!.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(selloNuevo);
-        _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)sid)], "se conserva solo la sesi\u00f3n de quien cambia su contrase\u00f1a");
+        _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)sid), (usuario.Id, (Guid?)sid)], "se conserva solo la sesi\u00f3n de quien cambia su contrase\u00f1a");
         _sesiones.CerradasTodas.Should().BeEmpty();
     }
 
@@ -941,14 +941,71 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
         autenticacion.Emitido.Should().BeNull();
+        _sesiones.DemasCerradas.Should().ContainSingle("es la revocación previa la que falla");
+        (await _usuarios.CheckPasswordAsync(usuario, "Abcdefghijk1")).Should().BeTrue("si la previa falla, la contraseña no cambia");
     }
 
     /// <summary>
-    /// Dentro del cerrojo de credencial, para que un restablecimiento de la misma cuenta no se cruce
-    /// entre el cambio y la revocación; y después de cambiar la contraseña, nunca antes.
+    /// Si la revocación posterior falla, el cambio ya está hecho y el contador de fallos ya está a cero:
+    /// no se reemite la cookie.
     /// </summary>
     [Fact]
-    public async Task Cambiar_contrasena_revoca_las_demas_dentro_del_cerrojo_y_tras_el_cambio()
+    public async Task Cambiar_contrasena_si_falla_la_revocacion_posterior_el_contador_ya_esta_a_cero_y_no_reemite()
+    {
+        _sesiones.LanzaEnDemasNumero = 2;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test", AccessFailedCount = 3 };
+        _almacen.Usuario = usuario;
+        var hashAnterior = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _almacen.HashContrasena = hashAnterior;
+        var autenticacion = new AutenticacionCapturada(null);
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        var enviar = () => cut.Find("form").SubmitAsync();
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        usuario.AccessFailedCount.Should().Be(0);
+        _almacen.HashContrasena.Should().NotBe(hashAnterior);
+        _sesiones.DemasCerradas.Should().HaveCount(2);
+        autenticacion.Emitido.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Una contraseña nueva que un validador rechaza, aunque pase las reglas anunciadas, no cierra
+    /// ninguna sesión, y la persona ve el motivo del validador.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_rechazada_por_la_politica_no_revoca_ninguna_sesion()
+    {
+        _usuarios.PasswordValidators.Add(new ValidadorQueRechaza());
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var hashAnterior = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _almacen.HashContrasena = hashAnterior;
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+
+        _sesiones.DemasCerradas.Should().BeEmpty();
+        _almacen.HashContrasena.Should().Be(hashAnterior);
+        cut.Find(".acceso-alerta").TextContent.Should().Be("Rechazada por el validador.");
+    }
+
+    /// <summary>
+    /// Dentro del cerrojo de credencial, para que un restablecimiento de la misma cuenta no se cruce;
+    /// una vez antes de cambiar la contraseña y otra después, conservando la sesión de quien la cambia.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_revoca_las_demas_dentro_del_cerrojo_antes_y_despues_del_cambio()
     {
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
         _almacen.Usuario = usuario;
@@ -956,12 +1013,12 @@ public class AccesoCuentaEscenaTests : BunitContext
         _almacen.HashContrasena = hashAnterior;
         var cerrojo = new CerrojoQueAnotaSiEstaDentro();
         Services.AddSingleton<IEleccionLiderService>(cerrojo);
-        var enElCerrojo = false;
-        var hashAlRevocar = "";
+        var enElCerrojo = new List<bool>();
+        var hashAlRevocar = new List<string>();
         _sesiones.AlCerrarLasDemas = () =>
         {
-            enElCerrojo = cerrojo.Dentro;
-            hashAlRevocar = _almacen.HashContrasena!;
+            enElCerrojo.Add(cerrojo.Dentro);
+            hashAlRevocar.Add(_almacen.HashContrasena!);
         };
         AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
         Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
@@ -973,9 +1030,10 @@ public class AccesoCuentaEscenaTests : BunitContext
         await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
         await cut.Find("form").SubmitAsync();
 
-        _sesiones.DemasCerradas.Should().ContainSingle();
-        enElCerrojo.Should().BeTrue("el cerrojo acababa antes de revocar y un restablecimiento podía cruzarse");
-        hashAlRevocar.Should().NotBe(hashAnterior, "revocar antes cerraría sesiones con una contraseña actual errónea");
+        enElCerrojo.Should().Equal([true, true], "fuera del cerrojo un restablecimiento podría cruzarse");
+        hashAlRevocar.Should().HaveCount(2);
+        hashAlRevocar[0].Should().Be(hashAnterior, "si la primera revocación falla, la credencial no ha cambiado");
+        hashAlRevocar[1].Should().NotBe(hashAnterior, "la segunda se lleva lo abierto con la contraseña antigua");
     }
 
     /// <summary>Con la contraseña actual incorrecta no cambia nada: ninguna sesión se revoca.</summary>
@@ -1043,31 +1101,83 @@ public class AccesoCuentaEscenaTests : BunitContext
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = "hash-anterior";
-        var selloAnterior = await _usuarios.GetSecurityStampAsync(usuario);
         var cerrojo = new CerrojoQueAnotaSiEstaDentro();
         Services.AddSingleton<IEleccionLiderService>(cerrojo);
         var enElCerrojo = false;
         var hashAlRevocar = "";
-        var selloAlRevocar = "";
         var cerradasTodasAlRevocar = -1;
         _sesiones.AlCerrarLasDemas = () =>
         {
             enElCerrojo = cerrojo.Dentro;
             hashAlRevocar = _almacen.HashContrasena!;
-            selloAlRevocar = _usuarios.GetSecurityStampAsync(usuario).GetAwaiter().GetResult();
             cerradasTodasAlRevocar = _sesiones.CerradasTodas.Count;
         };
+        // Como la implementación real, que rota el sello: revocar con este método antes de cambiar la
+        // credencial gastaría el enlace y la contraseña ya no cambiaría.
+        _sesiones.AlCerrarTodas = () => _usuarios.UpdateSecurityStampAsync(usuario).GetAwaiter().GetResult();
         await PrepararEnlaceDeRestablecerAsync(usuario, new AutenticacionCapturada(null));
 
         await EnviarRestablecerAsync("Abcdefghijk1");
 
+        _almacen.HashContrasena.Should().NotBe("hash-anterior", "el token sigue valiendo tras la revocación previa");
         enElCerrojo.Should().BeTrue("fuera del cerrojo se cruzaría con otra operación de credencial");
         hashAlRevocar.Should().Be("hash-anterior", "si la revocación falla, la credencial no ha cambiado");
-        selloAlRevocar.Should().Be(selloAnterior, "rotar el sello antes invalidaría el token del enlace");
         cerradasTodasAlRevocar.Should().Be(0, "la revocación con rotación de sello va después");
         _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)null)], "el enlace no conserva ninguna sesión");
         _sesiones.CerradasTodas.Should().Equal([usuario.Id], "la segunda pasada, para lo abierto en la ventana intermedia");
-        _almacen.HashContrasena.Should().NotBe("hash-anterior");
+    }
+
+    /// <summary>
+    /// Otra petición gasta el enlace entre la prevalidación y el cerrojo, y esta tiene la cuenta leída
+    /// con el sello antiguo: dentro del cerrojo se relee, el token ya no vale, no se revoca nada y la
+    /// persona ve el enlace inválido.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_con_el_enlace_gastado_entre_la_prevalidacion_y_el_cerrojo_no_revoca_nada()
+    {
+        var leidaAntes = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test", SecurityStamp = "sello-antiguo" };
+        _almacen.SelloEnLaEntidad = true;
+        _almacen.Usuario = leidaAntes;
+        _almacen.HashContrasena = "hash-de-la-otra-peticion";
+        var cerrojo = new CerrojoQueAnotaSiEstaDentro
+        {
+            AntesDeConceder = () => _almacen.Usuario = new ApplicationUser { Id = leidaAntes.Id, Email = leidaAntes.Email, SecurityStamp = "sello-rotado" },
+        };
+        Services.AddSingleton<IEleccionLiderService>(cerrojo);
+        var autenticacion = new AutenticacionCapturada(null);
+        await PrepararEnlaceDeRestablecerAsync(leidaAntes, autenticacion);
+
+        var cut = await EnviarRestablecerAsync("Abcdefghijk1");
+
+        cerrojo.Entradas.Should().Be(1, "la prevalidación dio el enlace por bueno");
+        _sesiones.DemasCerradas.Should().BeEmpty("con el enlace gastado no se revoca nada");
+        _sesiones.CerradasTodas.Should().BeEmpty();
+        _almacen.HashContrasena.Should().Be("hash-de-la-otra-peticion");
+        cut.Markup.Should().NotContain("Contraseña actualizada");
+        cut.FindAll("#password-nueva").Should().BeEmpty("el enlace inválido no vuelve a ofrecer el formulario");
+    }
+
+    /// <summary>
+    /// La contraseña se cambia sobre la cuenta releída, no sobre la leída antes del cerrojo: lo que se
+    /// guarda sale de la instancia que está al día.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_cambia_la_contrasena_sobre_la_cuenta_releida()
+    {
+        var leidaAntes = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test", SecurityStamp = "sello", DebeCambiarContrasena = true };
+        var releida = new ApplicationUser { Id = leidaAntes.Id, Email = leidaAntes.Email, SecurityStamp = "sello", DebeCambiarContrasena = true };
+        _almacen.SelloEnLaEntidad = true;
+        _almacen.Usuario = leidaAntes;
+        var cerrojo = new CerrojoQueAnotaSiEstaDentro { AntesDeConceder = () => _almacen.Usuario = releida };
+        Services.AddSingleton<IEleccionLiderService>(cerrojo);
+        await PrepararEnlaceDeRestablecerAsync(leidaAntes, new AutenticacionCapturada(null));
+
+        var cut = await EnviarRestablecerAsync("Abcdefghijk1");
+
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Contraseña actualizada");
+        releida.DebeCambiarContrasena.Should().BeFalse();
+        releida.SecurityStamp.Should().NotBe("sello", "ResetPasswordAsync rota el sello de la instancia que recibe");
+        leidaAntes.SecurityStamp.Should().Be("sello");
     }
 
     /// <summary>
@@ -1501,8 +1611,14 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// <summary>Solo la pasada que rota el sello, con la previa correcta.</summary>
         public bool LanzaCerrarTodas { get; set; }
 
+        /// <summary>Solo esa llamada a <see cref="CerrarLasDemasAsync"/>, contando desde 1.</summary>
+        public int? LanzaEnDemasNumero { get; set; }
+
         /// <summary>Para mirar en qué estado está lo demás en el instante de revocar.</summary>
         public Action? AlCerrarLasDemas { get; set; }
+
+        /// <summary>Lo que la implementación real hace además de anotar: rotar el sello.</summary>
+        public Action? AlCerrarTodas { get; set; }
 
         public List<Guid> CerradasTodas { get; } = [];
         public List<(Guid UsuarioId, Guid? SidConservada)> DemasCerradas { get; } = [];
@@ -1510,6 +1626,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default)
         {
             CerradasTodas.Add(usuarioId);
+            AlCerrarTodas?.Invoke();
             return Lanza || LanzaCerrarTodas ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
         }
 
@@ -1517,7 +1634,9 @@ public class AccesoCuentaEscenaTests : BunitContext
         {
             DemasCerradas.Add((usuarioId, sidConservada));
             AlCerrarLasDemas?.Invoke();
-            return Lanza ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
+            return Lanza || LanzaEnDemasNumero == DemasCerradas.Count
+                ? throw new InvalidOperationException("fallo simulado")
+                : Task.FromResult(1);
         }
 
         public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
@@ -1586,15 +1705,25 @@ public class AccesoCuentaEscenaTests : BunitContext
         }
     }
 
+    private sealed class ValidadorQueRechaza : IPasswordValidator<ApplicationUser>
+    {
+        public Task<IdentityResult> ValidateAsync(UserManager<ApplicationUser> manager, ApplicationUser user, string? password) =>
+            Task.FromResult(IdentityResult.Failed(new IdentityError { Code = "DePrueba", Description = "Rechazada por el validador." }));
+    }
+
     private sealed class CerrojoQueAnotaSiEstaDentro : IEleccionLiderService
     {
         public bool Dentro { get; private set; }
         public int Entradas { get; private set; }
 
+        /// <summary>Lo que ocurre entre la prevalidación de la página y que obtenga el cerrojo.</summary>
+        public Action? AntesDeConceder { get; init; }
+
         public async Task<bool> IntentarEjecutarComoLiderAsync(
             string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
         {
             Entradas++;
+            AntesDeConceder?.Invoke();
             Dentro = true;
             try
             {
@@ -1719,6 +1848,12 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// </summary>
         public ContextoSinServidor? ComoEf { get; set; }
 
+        /// <summary>
+        /// El sello se lee de la instancia recibida, como en el <c>UserStore</c> de EF, para que una cuenta
+        /// leída antes de otra escritura conserve el suyo aunque el almacén ya devuelva otra.
+        /// </summary>
+        public bool SelloEnLaEntidad { get; set; }
+
         /// <summary>Guardados que salen bien antes de que el siguiente falle y deje el cambio pendiente.</summary>
         public int? GuardadosCorrectos { get; set; }
 
@@ -1819,6 +1954,6 @@ public class AccesoCuentaEscenaTests : BunitContext
         }
 
         public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) =>
-            Task.FromResult<string?>(ComoEf is null ? _securityStamp : user.SecurityStamp);
+            Task.FromResult<string?>(ComoEf is null && !SelloEnLaEntidad ? _securityStamp : user.SecurityStamp);
     }
 }

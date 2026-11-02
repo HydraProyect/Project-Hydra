@@ -43,11 +43,11 @@ public interface IRegistroSesionesUsuario
 
     /// <summary>
     /// Revoca todas las sesiones vivas de la cuenta salvo <paramref name="sidConservada"/>, la de quien
-    /// acaba de cambiar su contraseña; sin ella, todas. No rota el sello: lo rota el propio cambio de
-    /// credencial, y esa sesión lo recoge con <c>RefreshSignInAsync</c>. Por eso también sirve antes de
-    /// restablecer la contraseña, sin sesión conservada: el token del enlace depende del sello y rotarlo
-    /// lo invalidaría antes de usarlo. Devuelve cuántas revocó. Lanza si no puede, como
-    /// <see cref="CerrarTodasAsync"/>.
+    /// está cambiando su contraseña; sin ella, todas. No rota el sello: lo rota el propio cambio de
+    /// credencial, y esa sesión lo recoge con <c>RefreshSignInAsync</c>. Por eso sirve antes de cambiar la
+    /// credencial, además de después; en el restablecimiento, sin sesión conservada, porque el token del
+    /// enlace depende del sello y rotarlo lo invalidaría antes de usarlo. Devuelve cuántas revocó. Lanza
+    /// si no puede, como <see cref="CerrarTodasAsync"/>.
     /// </summary>
     Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default);
 }

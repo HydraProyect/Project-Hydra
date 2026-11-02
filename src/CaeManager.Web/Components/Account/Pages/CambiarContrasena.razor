@@ -168,6 +168,34 @@
                     verificacionFallida = true;
                     return;
                 }
+
+                // Antes de revocar nada: una contraseña actual errónea no cierra sesiones. Se verifica como
+                // ChangePasswordAsync, y el contador de fallos lo lleva la página en los dos casos: Identity
+                // no lo incrementa en ninguna de las dos operaciones.
+                if (!await UserManager.CheckPasswordAsync(usuario, Entrada.ContrasenaActual))
+                {
+                    verificacionFallida = true;
+                    await UserManager.AccessFailedAsync(usuario);
+                    return;
+                }
+
+                // Tampoco cierra sesiones una contraseña nueva que Identity va a rechazar.
+                var incumplidos = await ValidacionContrasena.IncumplidosAsync(UserManager, usuario, Entrada.ContrasenaNueva);
+                if (incumplidos.Count > 0)
+                {
+                    resultadoObtenido = IdentityResult.Failed([.. incumplidos]);
+                    return;
+                }
+
+                // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan, ANTES de cambiar la credencial,
+                // por lo mismo que en RestablecerContrasena: sin transacción común, al revés un fallo dejaría
+                // la contraseña cambiada con las demás sesiones vivas, y una cookie robada aún sin revalidar
+                // podría salir de RefreshSignInAsync con el sello nuevo. Si falla, se propaga sin haber
+                // cambiado nada, como en CierreSesionEnServidor. Todo dentro del cerrojo, para que un
+                // restablecimiento de la misma cuenta no se cruce.
+                var sidConservada = SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User);
+                await Sesiones.CerrarLasDemasAsync(usuario.Id, sidConservada);
+
                 // Se fija ANTES de ChangePasswordAsync, sobre la misma
                 // instancia de usuario que la operación va a actualizar: así
                 // Identity persiste el fin del cambio obligatorio en la MISMA
@@ -189,22 +217,18 @@
                         verificacionFallida = true;
                         await UserManager.AccessFailedAsync(usuario);
                     }
+                    return;
                 }
-                else
-                {
-                    // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan. El sello rotado no basta:
-                    // durante el intervalo de revalidación, una cookie robada de una sesión sin revocar puede
-                    // llegar a RefreshSignInAsync y salir con el sello nuevo. Dentro del cerrojo, para que un
-                    // restablecimiento de la misma cuenta no se cruce entre el cambio y la revocación, y solo
-                    // tras acertar: revocar antes cerraría sesiones con una contraseña actual errónea. Un
-                    // fallo se propaga, como en CierreSesionEnServidor, y sin refresco esta cookie cae en la
-                    // siguiente revalidación.
-                    await Sesiones.CerrarLasDemasAsync(usuario.Id, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User));
 
-                    // Como un login correcto: acertar la contraseña actual pone el contador a cero.
-                    if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
-                        await UserManager.ResetAccessFailedCountAsync(usuario);
-                }
+                // Como un login correcto: acertar la contraseña actual pone el contador a cero. Antes de la
+                // revocación posterior, para que un fallo ahí no deje el contador sin limpiar.
+                if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
+                    await UserManager.ResetAccessFailedCountAsync(usuario);
+
+                // Segunda pasada: se lleva lo abierto con la contraseña antigua desde la previa. Un fallo se
+                // propaga con la contraseña ya cambiada: sin refresco, esta cookie cae en la siguiente
+                // revalidación, y solo quedan sin revocar las sesiones de esa ventana.
+                await Sesiones.CerrarLasDemasAsync(usuario.Id, sidConservada);
             },
             CancellationToken.None);
 

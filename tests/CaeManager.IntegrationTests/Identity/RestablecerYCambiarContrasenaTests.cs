@@ -93,6 +93,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             .AddInterceptors(_interceptorUpdates, _interceptorSql));
 
         servicios.AddScoped<PuertaAccesoDatos>();
+        servicios.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
 
         servicios.AddIdentityCore<ApplicationUser>()
             .AddEntityFrameworkStores<CaeManagerDbContext>()
@@ -192,7 +193,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
                 "ResetPasswordAsync tuvo éxito: la contraseña nueva tiene que verificar contra Identity real, releída desde una BD nueva");
             usuarioTrasExito!.DebeCambiarContrasena.Should().BeFalse(
                 "CONSOLIDACIÓN: la bandera se fija ANTES de ResetPasswordAsync sobre la misma instancia de " +
-                "_usuario, así que Identity la persiste en la MISMA actualización que la contraseña, sin un " +
+                "la cuenta releída, así que Identity la persiste en la MISMA actualización que la contraseña, sin un " +
                 "UpdateAsync separado. Sensible a la regresión que quita ese adelanto: ver el comentario de la clase.");
             securityStampTrasExito = usuarioTrasExito.SecurityStamp!;
         }
@@ -294,8 +295,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con RestablecerContrasena — y explícitamente NO con verificar-2fa:{userId}");
-        _sesiones.DemasCerradas.Should().Equal([usuario.Id],
-            "cambiar la contraseña con éxito revoca las demás sesiones de la cuenta (ASVS 4.0.3 V3.3.3)");
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id, usuario.Id],
+            "cambiar la contraseña con éxito revoca las demás sesiones de la cuenta, antes y después (ASVS 4.0.3 V3.3.3)");
 
         // HUECO B (revisión de #657): mismo razonamiento que en Restablecer —
         // una sola escritura de AspNetUsers por éxito.
@@ -336,7 +337,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             LeerCampo<string?>(pagina2, "mensajeError").Should().NotBeNull(
                 "la \"contraseña actual\" del segundo intento ya no es la contraseña real de la cuenta");
         }
-        _sesiones.DemasCerradas.Should().Equal([usuario.Id], "un cambio rechazado no vuelve a revocar nada");
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id, usuario.Id], "un cambio rechazado no vuelve a revocar nada");
 
         // Prueba directa del código EXACTO de Identity, sin pasar por la
         // página (que no expone el código, solo la descripción).
@@ -412,6 +413,91 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         _sesiones.DemasCerradas.Should().BeEmpty("la revocación previa exige el token ya prevalidado");
     }
 
+    /// <summary>
+    /// Intercalado real entre la prevalidación y el cerrojo: otra petición gasta el enlace mientras el
+    /// contexto de esta tiene rastreada la cuenta con el sello antiguo. Solo la relectura en un ámbito
+    /// propio lo ve; con la instancia rastreada el token seguiría verificando y se revocarían sesiones.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_con_el_enlace_gastado_entre_la_prevalidacion_y_el_cerrojo_no_revoca_nada()
+    {
+        const string ContrasenaDeLaOtraPeticion = "Passw0rd!Primera1";
+
+        using var ambitoSiembra = _servicios.CreateScope();
+        var usuario = await CrearUsuarioAsync(ambitoSiembra.ServiceProvider);
+        var token = await ambitoSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+        var cerrojo = new CerrojoSiempreConcedidoFalso
+        {
+            AntesDeConceder = async () =>
+            {
+                using var otraPeticion = _servicios.CreateScope();
+                var usuarios = otraPeticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var cuenta = await usuarios.FindByIdAsync(usuario.Id.ToString());
+                (await usuarios.ResetPasswordAsync(cuenta!, token, ContrasenaDeLaOtraPeticion)).Succeeded.Should().BeTrue();
+            },
+        };
+        using var ambito = _servicios.CreateScope();
+        var pagina = CrearRestablecer(ambito.ServiceProvider, usuario.Id, codigo, cerrojo);
+        InvocarSync(pagina, "OnInitialized");
+        await InvocarAsync(pagina, "OnInitializedAsync");
+        RellenarEntrada(pagina, "Passw0rd!Segunda2");
+        await InvocarAsync(pagina, "GuardarAsync");
+
+        LeerCampo<bool>(pagina, "_enlaceInvalido").Should().BeTrue();
+        LeerCampo<bool>(pagina, "_completado").Should().BeFalse();
+        _sesiones.DemasCerradas.Should().BeEmpty("con el enlace gastado no se revoca nada");
+        _sesiones.CerradasTodas.Should().BeEmpty();
+
+        using var ambitoVerificacion = _servicios.CreateScope();
+        var verificacion = ambitoVerificacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await verificacion.CheckPasswordAsync((await verificacion.FindByIdAsync(usuario.Id.ToString()))!, ContrasenaDeLaOtraPeticion))
+            .Should().BeTrue("la contraseña es la de la petición que gastó el enlace");
+    }
+
+    /// <summary>
+    /// <c>ResetPasswordAsync</c> usa la instancia releída: una escritura ajena a la credencial entre la
+    /// prevalidación y el cerrojo cambia el sello de concurrencia, y con la instancia rastreada de la
+    /// petición el guardado fallaría tras haber revocado las sesiones.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_con_una_escritura_ajena_antes_del_cerrojo_cambia_la_contrasena_con_la_cuenta_releida()
+    {
+        const string ContrasenaNueva = "Passw0rd!Nueva1";
+
+        using var ambitoSiembra = _servicios.CreateScope();
+        var usuario = await CrearUsuarioAsync(ambitoSiembra.ServiceProvider);
+        var token = await ambitoSiembra.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+        var cerrojo = new CerrojoSiempreConcedidoFalso
+        {
+            AntesDeConceder = async () =>
+            {
+                using var otraPeticion = _servicios.CreateScope();
+                var usuarios = otraPeticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var cuenta = await usuarios.FindByIdAsync(usuario.Id.ToString());
+                cuenta!.NombreCompleto = "Nombre cambiado por otra petición";
+                (await usuarios.UpdateAsync(cuenta)).Succeeded.Should().BeTrue();
+            },
+        };
+        using var ambito = _servicios.CreateScope();
+        var pagina = CrearRestablecer(ambito.ServiceProvider, usuario.Id, codigo, cerrojo);
+        InvocarSync(pagina, "OnInitialized");
+        await InvocarAsync(pagina, "OnInitializedAsync");
+        RellenarEntrada(pagina, ContrasenaNueva);
+        await InvocarAsync(pagina, "GuardarAsync");
+
+        LeerCampo<bool>(pagina, "_completado").Should().BeTrue();
+        using var ambitoVerificacion = _servicios.CreateScope();
+        var verificacion = ambitoVerificacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        (await verificacion.CheckPasswordAsync((await verificacion.FindByIdAsync(usuario.Id.ToString()))!, ContrasenaNueva))
+            .Should().BeTrue();
+    }
+
     private static async Task<ApplicationUser> CrearUsuarioAsync(IServiceProvider servicios)
     {
         var userManager = servicios.GetRequiredService<UserManager<ApplicationUser>>();
@@ -434,7 +520,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         var pagina = new RestablecerContrasena();
         EscribirPropiedad(pagina, "UserManager", usuarios);
         EscribirPropiedad(pagina, "SignInManager", new SignInManagerFalso(usuarios));
-        EscribirPropiedad(pagina, "Sesiones", _sesiones);
+        EscribirPropiedad(pagina, "Ambitos", _servicios.GetRequiredService<IServiceScopeFactory>());
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
@@ -588,11 +674,16 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         /// <summary>Cuántas veces se intentó adquirir el cerrojo — HUECO A: debe quedarse en 0 ante un token inválido.</summary>
         public int Invocaciones { get; private set; }
 
+        /// <summary>Lo que ocurre entre la prevalidación de la página y que obtenga el cerrojo.</summary>
+        public Func<Task>? AntesDeConceder { get; init; }
+
         public async Task<bool> IntentarEjecutarComoLiderAsync(
             string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
         {
             ClaveRecibida = clave;
             Invocaciones++;
+            if (AntesDeConceder is not null)
+                await AntesDeConceder();
             await trabajo(cancellationToken);
             return true;
         }
