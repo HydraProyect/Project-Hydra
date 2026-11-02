@@ -204,6 +204,7 @@ public partial class ConfigurarPlantillaEditorGen2Tests
         respuesta.SetResult(Result.Fallo<CrearPlantillaDocumentoResultadoDto>(Error.Crear("Plantilla.Prueba", "Fallo de prueba.")));
         await clic;
 
+        Campo<bool>(cut, "_creando").Should().BeFalse("el finally llega hasta el final: no lo corta una excepción al retener");
         _presupuesto.Reservado.Should().Be(0, "una página desechada no vuelve a retener el PDF");
         Campo<byte[]?>(cut, "_archivoSeleccionado").Should().BeNull();
     }
