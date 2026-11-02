@@ -64,8 +64,8 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
     {
         var codigo = ProgramSinComentarios();
 
-        Regex.IsMatch(codigo, @"MapGroup\(""/api/v1""\)[^;]*\.AddEndpointFilter<AlcanceIntegracionEndpointFilter>\(\)\s*;\s*apiV1\.MapRecursosApiV1\(\)")
-            .Should().BeTrue("sin el filtro en el grupo, el metadato de alcance de cada ruta no lo mira nadie");
+        Regex.IsMatch(codigo, @"MapGroup\(""/api/v1""\)[^;]*\.AddEndpointFilter<AlcanceIntegracionEndpointFilter>\(\)\s*\.AddEndpointFilter<RastroUsoApiEndpointFilter>\(\)\s*;\s*apiV1\.MapRecursosApiV1\(\)")
+            .Should().BeTrue("sin el filtro en el grupo, el metadato de alcance de cada ruta no lo mira nadie, y el rastro va detrás: lo denegado no ha leído nada");
         Regex.Matches(codigo, @"apiV1\.Map\w+").Should().ContainSingle("un recurso mapeado fuera de MapRecursosApiV1 no lo recorre RutasApiV1DeclaranAlcanceTests");
         Regex.IsMatch(codigo, @"AddPolicy\(LimitadorApiPublica\.PoliticaToken,\s*httpContext\s*=>\s*LimitadorApiPublica\.ParticionToken\(")
             .Should().BeTrue();
@@ -93,8 +93,8 @@ public class LimitadorApiPublicaRegistradoEnProgramTests
     [Fact]
     public void El_documento_OpenAPI_exige_clave_salvo_en_el_entorno_del_escaneo()
     {
-        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\);")
-            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023)");
+        Regex.IsMatch(ProgramSinComentarios(), @"if\s*\(app\.Environment\.IsEnvironment\(""Escaneo""\)\)\s*documentoOpenApi\.AllowAnonymous\(\);\s*else\s*documentoOpenApi\.RequireAuthorization\(""ApiPublica""\)\.AddEndpointFilter<IEndpointConventionBuilder, RastroUsoApiEndpointFilter>\(\);")
+            .Should().BeTrue("sin anunciar la API, su descripción no se sirve a un anónimo (OWASP API9:2023), y lo que se sirve a una clave deja rastro");
     }
 
     private static string ProgramSinComentarios()

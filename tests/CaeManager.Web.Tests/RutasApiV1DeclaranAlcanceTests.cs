@@ -39,6 +39,22 @@ public class RutasApiV1DeclaranAlcanceTests
         }
     }
 
+    // El patrón de ruta es la columna Endpoint del rastro: uno que no cupiera daría 500 en cada petición de esa ruta.
+    [Fact]
+    public async Task Cada_ruta_de_la_API_v1_cabe_en_el_rastro_de_uso()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IMediator, Mediator>();
+        await using var app = builder.Build();
+        app.MapGroup("/api/v1").MapRecursosApiV1();
+
+        var rutas = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>().ToList();
+
+        rutas.Should().HaveCount(9, "control positivo: las mismas rutas que recorre el test de alcances");
+        rutas.Should().OnlyContain(ruta =>
+            ruta.RoutePattern.RawText!.StartsWith("/api/v1/") && ruta.RoutePattern.RawText.Length <= UsoApiDiario.LongitudMaximaEndpoint);
+    }
+
     // El estado, el cumplimiento y las incidencias salen de todos los documentos, también de los de salud.
     [Theory]
     [InlineData(typeof(ClienteApiListaDto))]

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Seguridad;
 using CaeManager.Domain.Seguridad;
@@ -36,7 +37,8 @@ public class SesionRevocableEnServidorTests
     [Fact]
     public async Task El_token_de_extension_deja_de_autenticar_al_revocar_su_sesion()
     {
-        var (gestor, _, sesiones, cuenta) = Montar();
+        var estado = new EstadoOperativoFalso();
+        var (gestor, _, sesiones, cuenta) = Montar(estadoOperativo: estado);
         var protector = new EphemeralDataProtectionProvider();
         var sid = Guid.NewGuid();
         var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid);
@@ -44,7 +46,7 @@ public class SesionRevocableEnServidorTests
         {
             var handler = new ExtensionAuthenticationHandler(
                 new MonitorExtension(), NullLoggerFactory.Instance, UrlEncoder.Default, protector,
-                gestor.UserManager, new UserClaimsPrincipalFactory<ApplicationUser>(gestor.UserManager, Opciones.Create(new IdentityOptions())), sesiones);
+                gestor.UserManager, new UserClaimsPrincipalFactory<ApplicationUser>(gestor.UserManager, Opciones.Create(new IdentityOptions())), sesiones, estado);
             var http = new DefaultHttpContext();
             http.Request.Headers.Authorization = $"Extension {valor}";
             await handler.InitializeAsync(new AuthenticationScheme("Extension", null, typeof(ExtensionAuthenticationHandler)), http);
@@ -53,6 +55,11 @@ public class SesionRevocableEnServidorTests
 
         (await Autenticar(token)).Succeeded.Should().BeTrue();
         sesiones.ConsultasPorCuenta.Should().Contain((cuenta.Id, sid));
+        estado.Suspendido = cuenta.TenantId;
+        (await Autenticar(token)).Succeeded.Should().BeFalse("la suspensión del Tenant corta la extensión al instante");
+        estado.Suspendido = Guid.NewGuid();
+        (await Autenticar(token)).Succeeded.Should().BeTrue("la suspensión de otro Tenant no corta esta cuenta");
+        estado.Suspendido = null;
         await sesiones.RevocarAsync(cuenta.Id, sid);
         (await Autenticar(token)).Succeeded.Should().BeFalse();
         var otroToken = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, Guid.NewGuid());
@@ -404,7 +411,7 @@ public class SesionRevocableEnServidorTests
         return (http, mediador);
     }
 
-    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null, IPasswordHasher<ApplicationUser>? hasher = null, IVigilanciaInicioSesion? vigilancia = null)
+    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null, IPasswordHasher<ApplicationUser>? hasher = null, IVigilanciaInicioSesion? vigilancia = null, IEstadoOperativoTenant? estadoOperativo = null)
     {
         var cuenta = new ApplicationUser
         {
@@ -428,8 +435,82 @@ public class SesionRevocableEnServidorTests
             new UserClaimsPrincipalFactory<ApplicationUser>(usuarios, opciones), opciones,
             NullLogger<SignInManager<ApplicationUser>>.Instance,
             new AuthenticationSchemeProvider(Opciones.Create(new AuthenticationOptions())),
-            new DefaultUserConfirmation<ApplicationUser>(), vigilancia!, sesiones, new VerificacionContrasenaFicticia(usuarios.PasswordHasher));
+            new DefaultUserConfirmation<ApplicationUser>(), vigilancia!, sesiones, new VerificacionContrasenaFicticia(usuarios.PasswordHasher), estadoOperativo ?? new EstadoOperativoFalso());
         return (gestor, autenticacion, sesiones, cuenta);
+    }
+
+    [Fact]
+    public async Task Un_Tenant_suspendido_no_inicia_sesion_ni_emite_ni_revalida()
+    {
+        var estado = new EstadoOperativoFalso();
+        var (gestor, autenticacion, _, cuenta) = Montar(estadoOperativo: estado);
+        estado.Suspendido = cuenta.TenantId;
+
+        await gestor.SignInWithClaimsAsync(cuenta, null, []);
+
+        autenticacion.Emitido.Should().BeNull();
+        (await gestor.ValidateSecurityStampAsync(cuenta, cuenta.SecurityStamp)).Should().BeFalse();
+        (await gestor.CanSignInAsync(cuenta)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_Tenant_suspendido_no_continua_un_inicio_de_sesion_de_dos_pasos()
+    {
+        var estado = new EstadoOperativoFalso();
+        var (gestor, autenticacion, _, cuenta) = Montar(estadoOperativo: estado);
+        autenticacion.Cookie = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], "dos-pasos"));
+        (await gestor.GetTwoFactorAuthenticationUserAsync()).Should().BeSameAs(cuenta, "control: sin suspender, la cookie de dos pasos vale");
+
+        estado.Suspendido = cuenta.TenantId;
+
+        (await gestor.GetTwoFactorAuthenticationUserAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_circuito_de_una_Sesion_Privilegiada_cae_si_se_suspende_el_Tenant_de_origen()
+    {
+        var origen = Guid.NewGuid();
+        var estado = new EstadoOperativoFalso { Suspendido = origen };
+        var principal = PrincipalDeActorReal(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, origen.ToString()));
+
+        (await VigenciaEnSesionPrivilegiada(estado).SigueVigenteAsync(principal)).Should().BeFalse();
+        (await VigenciaEnSesionPrivilegiada(estado).PrincipalVigenteAsync(principal)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_circuito_de_una_Sesion_Privilegiada_cae_si_no_puede_leer_el_Tenant_de_origen()
+    {
+        var principal = PrincipalDeActorReal();
+
+        (await VigenciaEnSesionPrivilegiada(new EstadoOperativoFalso()).SigueVigenteAsync(principal)).Should().BeFalse();
+    }
+
+    // Con sello y cuenta legibles: sin el corte, la vigencia llegaría a la base, que aquí es nula.
+    private static ClaimsPrincipal PrincipalDeActorReal(params Claim[] extra)
+    {
+        var claims = new IdentityOptions().ClaimsIdentity;
+        return new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(claims.SecurityStampClaimType, "SELLO"), new Claim(claims.UserIdClaimType, Guid.NewGuid().ToString()), .. extra], "cookie"));
+    }
+
+    // Sin base ni gestor: ambos cortes deben ocurrir antes de consultar el sello.
+    private static VigenciaSesionCuenta VigenciaEnSesionPrivilegiada(IEstadoOperativoTenant estado) => new(
+        new SeleccionPrivilegiada(), null!, null!, null!, Opciones.Create(new IdentityOptions()), estado,
+        NullLogger<VigenciaSesionCuenta>.Instance);
+
+    private sealed class SeleccionPrivilegiada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada { get; } = Guid.NewGuid();
+    }
+
+    private sealed class EstadoOperativoFalso : IEstadoOperativoTenant
+    {
+        public Guid? Suspendido { get; set; }
+
+        public Task<bool> EstaSuspendidoAsync(Guid tenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tenantId == Suspendido);
     }
 
     private sealed class SesionesFalsas : IRegistroSesionesUsuario
@@ -470,6 +551,9 @@ public class SesionRevocableEnServidorTests
             CerradasTodas.Add(usuarioId);
             return Task.FromResult(1);
         }
+
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class SeleccionFalsa(Guid? sesionPrivilegiada) : IClienteActivoSeleccionado

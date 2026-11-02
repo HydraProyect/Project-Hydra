@@ -17,6 +17,7 @@ public partial class RestablecerContrasena : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
+    [Inject] private IServiceScopeFactory Ambitos { get; set; } = default!;
     [Inject] private IOptions<IdentityOptions> OpcionesIdentity { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
@@ -50,8 +51,9 @@ public partial class RestablecerContrasena : ComponentBase
     // cablearla al botón y reintroducir el mismo bloqueo.
     //
     // Lo que sí comprobaba —que las dos contraseñas coincidan— está ahora en
-    // GuardarAsync, que es donde corre de verdad. Y la política la sigue
-    // aplicando ResetPasswordAsync, que devuelve sus errores al usuario.
+    // GuardarAsync, que es donde corre de verdad. Y la política la aplica el
+    // propio GuardarAsync antes de revocar sesiones, y otra vez
+    // ResetPasswordAsync al cambiar la contraseña.
     //
     // Los requisitos se anuncian con RequisitosContrasena, que los marca en
     // vivo desde el navegador; la coincidencia también se anuncia en vivo.
@@ -142,9 +144,10 @@ public partial class RestablecerContrasena : ComponentBase
         // no debe poder ocupar el cerrojo, ni siquiera brevemente, mientras el
         // titular real de la cuenta intenta restablecer su propia contraseña.
         // Mismo criterio de verificación que usa ResetPasswordAsync por
-        // dentro — se duplica aquí solo para decidir ANTES del cerrojo, no en
-        // vez de la comprobación de dentro: ResetPasswordAsync la repite y
-        // sigue siendo la que de verdad autoriza el cambio.
+        // dentro — se duplica aquí para decidir ANTES del cerrojo, no en vez
+        // de la comprobación de dentro: se repite con la cuenta releída ya
+        // dentro del cerrojo, que es lo que autoriza la revocación previa, y
+        // ResetPasswordAsync sigue siendo lo que autoriza el cambio.
         var tokenValido = await UserManager.VerifyUserTokenAsync(
             _usuario, UserManager.Options.Tokens.PasswordResetTokenProvider,
             UserManager<ApplicationUser>.ResetPasswordTokenPurpose, _token);
@@ -152,6 +155,17 @@ public partial class RestablecerContrasena : ComponentBase
         {
             logger.LogWarning("Restablecimiento de contraseña rechazado (token inválido o caducado, prevalidación): {UsuarioId}", _usuario.Id);
             _enlaceInvalido = true;
+            return;
+        }
+
+        // Prevalidación de la política, por lo mismo que la del token: una
+        // contraseña que Identity va a rechazar no cierra ninguna sesión. Son
+        // los validadores que ResetPasswordAsync aplica por dentro, en el mismo
+        // orden respecto al token, con el mismo mensaje.
+        var incumplidos = await ValidacionContrasena.IncumplidosAsync(UserManager, _usuario, Entrada.ContrasenaNueva);
+        if (incumplidos.Count > 0)
+        {
+            _mensajeError = string.Join(" ", incumplidos.Select(e => e.Description));
             return;
         }
 
@@ -167,13 +181,37 @@ public partial class RestablecerContrasena : ComponentBase
         // Se adquiere DESPUÉS de resolver el usuario y el token (arriba, en
         // OnInitializedAsync) y ANTES de tocar ResetPasswordAsync: el
         // competidor se rechaza sin gastar ningún intento contra Identity.
+        //
+        // En un ámbito de servicios propio: _usuario se leyó antes del cerrojo y el contexto de la petición
+        // lo tiene rastreado (ver AmbitoDeCredencial).
         IdentityResult? resultadoObtenido = null;
+        var enlaceGastado = false;
+        await using var credencial = AmbitoDeCredencial.Abrir(Ambitos);
         var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
             $"credencial:{_usuario.Id}",
             async _ =>
             {
+                // Lo primero, antes de revocar: otro restablecimiento pudo gastar el enlace entre la
+                // prevalidación y el cerrojo, y con un enlace gastado no se revoca nada.
+                var cuenta = await credencial.ReleerSiElEnlaceValeAsync(_usuario.Id, _token);
+                if (cuenta is null)
+                {
+                    enlaceGastado = true;
+                    return;
+                }
+
+                // ASVS 4.0.3 V3.3.3. Las filas de sesión se revocan ANTES de cambiar la credencial: la
+                // revocación y Identity van por caminos distintos, sin transacción común, y al revés un
+                // fallo aquí dejaría la contraseña cambiada, el enlace gastado y las sesiones vivas; una
+                // cookie aún sin revalidar podría salir de RefreshSignInAsync con el sello nuevo. Así, si
+                // falla, se propaga sin haber cambiado nada y este enlace sigue valiendo para reintentar.
+                // Si lo que falla es ResetPasswordAsync, la cuenta queda sin sesiones y con su contraseña,
+                // el lado seguro. CerrarLasDemasAsync porque no rota el sello: el token depende de él, y
+                // CerrarTodasAsync lo invalidaría antes de usarlo. Sin sesión conservada, revoca todas.
+                await credencial.Sesiones.CerrarLasDemasAsync(cuenta.Id, null);
+
                 // Se fija ANTES de ResetPasswordAsync, sobre la misma
-                // instancia de _usuario que la operación va a actualizar:
+                // instancia de la cuenta que la operación va a actualizar:
                 // así Identity persiste el fin del cambio obligatorio en la
                 // MISMA actualización que la contraseña, sin un UpdateAsync
                 // posterior separado. Ese segundo UpdateAsync era el estado
@@ -182,8 +220,22 @@ public partial class RestablecerContrasena : ComponentBase
                 // falla (token inválido, política de contraseña), no se
                 // persiste en base de datos ni la contraseña ni esta bandera
                 // — porque Identity no llega a guardar.
-                _usuario.DebeCambiarContrasena = false;
-                resultadoObtenido = await UserManager.ResetPasswordAsync(_usuario, _token, Entrada.ContrasenaNueva);
+                cuenta.DebeCambiarContrasena = false;
+                resultadoObtenido = await credencial.RestablecerAsync(cuenta, _token, Entrada.ContrasenaNueva);
+                if (!resultadoObtenido.Succeeded)
+                    return;
+
+                logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", cuenta.Id);
+
+                // ASVS 4.0.3 V3.3.3. Segunda pasada, tras la previa y aún dentro del cerrojo: rota el sello, y
+                // fuera de él esa escritura se cruzaría con un cambio de contraseña concurrente. Se lleva lo que
+                // se haya abierto con la contraseña antigua entre las dos. Rotar el sello no basta: durante el
+                // intervalo de revalidación, una cookie de esa sesión podría llegar a RefreshSignInAsync (alta de
+                // TOTP) y salir con el sello nuevo. Un fallo se propaga, como en CierreSesionEnServidor: la página
+                // no dice «actualizada» con sesiones abiertas. La contraseña ya cambió y este enlace ya no vuelve
+                // a servir, pero solo quedan sin revocar las de esa ventana, hasta otro restablecimiento con un
+                // enlace nuevo.
+                await credencial.Sesiones.CerrarTodasAsync(cuenta.Id);
             },
             CancellationToken.None);
 
@@ -193,6 +245,13 @@ public partial class RestablecerContrasena : ComponentBase
                 "Restablecimiento de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}",
                 _usuario.Id);
             _mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
+            return;
+        }
+
+        if (enlaceGastado)
+        {
+            logger.LogWarning("Restablecimiento de contraseña rechazado (enlace gastado antes del cerrojo): {UsuarioId}", _usuario.Id);
+            _enlaceInvalido = true;
             return;
         }
 
@@ -216,8 +275,6 @@ public partial class RestablecerContrasena : ComponentBase
             _mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
-
-        logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
 
         await SignInManager.SignOutAsync();
         _completado = true;

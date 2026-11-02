@@ -183,6 +183,8 @@ public class EscriturasSobreEntidadesConCarteraTests
             "alta masiva desde una plantilla por entidad; solo Administrador (Importacion.SoloAdministrador)",
         ["EjecutarImportacionCombinadaCommandHandler"] =
             "alta masiva combinada (Clientes empresariales, Centros, Empresas, Trabajadores); solo Administrador",
+        ["EjecutarImportacionMaestraCommandHandler"] =
+            "alta masiva de la plantilla maestra (Empresas, Clientes empresariales, Centros, Trabajadores por CIF/identidad), con vista previa; solo Administrador",
         ["RegistrarHistorialImportacionCommandHandler"] =
             "anota la operación de importación ya ejecutada; solo Administrador",
     };

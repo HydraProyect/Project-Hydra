@@ -11,7 +11,7 @@ namespace CaeManager.IntegrationTests.Auditoria;
 /// <summary>
 /// <c>SesionesUsuario</c> (revocación de sesión en servidor) bajo la identidad real de la aplicación
 /// (<c>cae_app_runtime</c>): RLS del Tenant propietario de la cuenta, solo la propia cuenta revoca,
-/// una revocación no se deshace, sin DELETE, <c>app_sesion_vigente</c> sin Tenant en el contexto y
+/// una revocación no se deshace, sin DELETE, <c>app_sesion_vigente</c> con contexto firmado sin Tenant y
 /// purga a 12 meses.
 /// </summary>
 public class SesionesUsuarioBajoRuntimeTests
@@ -39,10 +39,12 @@ public class SesionesUsuarioBajoRuntimeTests
         await using (var propia = await ConexionRuntimeAsync(arnes, TenantSeedData.IdPorDefecto, cuenta))
             (await RevocarAsync(propia, esta)).Should().Be(1);
 
-        await using var sinContexto = await ConexionRuntimeAsync(arnes, tenantId: null, usuarioId: null);
-        (await VigenteAsync(sinContexto, esta, cuenta)).Should().BeFalse("la sesión revocada deja de valer");
-        (await VigenteAsync(sinContexto, otra, cuenta)).Should().BeTrue("la otra sesión de la misma cuenta sigue viva");
-        (await VigenteAsync(sinContexto, otra, Guid.NewGuid())).Should().BeFalse("el sid solo vale con su cuenta");
+        // Como el validador de la cookie: contexto firmado, sin Tenant ni usuario.
+        await using var sinTenant = await ConexionRuntimeAsync(arnes, tenantId: null, usuarioId: null);
+        await ContextoRlsDePruebas.FijarAsync(sinTenant);
+        (await VigenteAsync(sinTenant, esta, cuenta)).Should().BeFalse("la sesión revocada deja de valer");
+        (await VigenteAsync(sinTenant, otra, cuenta)).Should().BeTrue("la otra sesión de la misma cuenta sigue viva");
+        (await VigenteAsync(sinTenant, otra, Guid.NewGuid())).Should().BeFalse("el sid solo vale con su cuenta");
     }
 
     [Fact]
