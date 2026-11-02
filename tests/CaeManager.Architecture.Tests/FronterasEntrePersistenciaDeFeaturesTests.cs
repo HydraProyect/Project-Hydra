@@ -619,6 +619,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadorRepository"),
         // F4.2c — mismo destino final que el bloque de Empresas de arriba.
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IRelacionEmpresarialRepository"),
+        // Plantilla maestra del Importador (Paso 1): mismo destino y justificación que el bloque de la Combinada de arriba.
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ICentroRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ICentrosQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresaRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresasQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IRelacionEmpresarialRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadoresQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadorRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "ICentrosQueryContext"),

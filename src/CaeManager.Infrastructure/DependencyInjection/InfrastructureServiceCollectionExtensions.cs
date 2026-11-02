@@ -945,6 +945,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
         services.AddScoped<IPlantillaCombinadaService, ClosedXmlPlantillaCombinadaService>();
+        services.AddScoped<IPlantillaMaestraService, ClosedXmlPlantillaMaestraService>();
 
         return services;
     }
