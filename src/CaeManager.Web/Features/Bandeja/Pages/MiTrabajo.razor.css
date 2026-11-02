@@ -70,6 +70,11 @@
     opacity: 0.75;
 }
 
+.mi-trabajo-chip-activo .mi-trabajo-chip-cuenta {
+    /* WCAG 1.4.3: con opacidad 0.75 sobre el fondo del chip activo el recuento no llegaba a 4,5:1 (axe color-contrast). */
+    opacity: 1;
+}
+
 .mi-trabajo-chip-activo {
     background: var(--color-primario-fondo);
     border-color: var(--color-primario-fondo);
