@@ -1,7 +1,10 @@
 using CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTenant;
 using CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 using CaeManager.Application.Comercial.Queries.ObtenerEstadoComercialTenants;
+using CaeManager.Application.Tenants.Commands.ReactivarTenant;
+using CaeManager.Application.Tenants.Commands.SuspenderTenant;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -28,10 +31,11 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// </para>
 ///
 /// <para>
-/// <b>Escrituras.</b> Las dos que ya existían —vincular y resincronizar— y
-/// ninguna más. Las dos pasan por <see cref="DialogoConfirmacion"/> con su
-/// efecto real (el estado resultante puede dejar al tenant sin escritura) y
-/// llevan guarda propia contra el doble clic, además de la del diálogo.
+/// <b>Escrituras.</b> Vincular, resincronizar y, desde la decisión D-3, suspender
+/// y reactivar, que es el plano de plataforma y no el comercial: la suspensión
+/// operativa corta todo el acceso, y su columna va aparte de la del estado
+/// comercial. Todas pasan por <see cref="DialogoConfirmacion"/> con su efecto
+/// real y llevan guarda propia contra el doble clic, además de la del diálogo.
 /// </para>
 ///
 /// <para>
@@ -77,6 +81,17 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
 
     private EstadoComercialTenantDto? _tenantAActualizar;
     private Guid? _actualizandoTenantId;
+
+    private EstadoComercialTenantDto? _tenantACambiarAcceso;
+    private bool _cambiandoAcceso;
+
+    private bool TenantASuspender => _tenantACambiarAcceso?.Estado is EstadoTenant.Activo;
+
+    private string MensajeConfirmacionAcceso => _tenantACambiarAcceso is not { } tenant
+        ? string.Empty
+        : tenant.Estado is EstadoTenant.Activo
+            ? Textos["EstadoComercialConfirmarSuspender", tenant.Nombre]
+            : Textos["EstadoComercialConfirmarReactivar", tenant.Nombre];
 
     private bool FormularioVincularVisible => _tenantAVincular is not null && !_confirmandoVincular;
 
@@ -389,6 +404,62 @@ public partial class EstadoComercial : CaeManager.Web.Components.PaginaIntegrabl
         {
             _actualizandoTenantId = null;
             _tenantAActualizar = null;
+        }
+
+        await CargarAsync();
+    }
+
+    // ---------------------------------------------------------------- suspender y reactivar
+
+    private void PedirConfirmacionAcceso(EstadoComercialTenantDto tenant)
+    {
+        if (_cambiandoAcceso) return;
+
+        _tenantACambiarAcceso = tenant;
+    }
+
+    private void CerrarConfirmacionAcceso(bool visible)
+    {
+        if (visible || _cambiandoAcceso) return;
+
+        _tenantACambiarAcceso = null;
+    }
+
+    private async Task CambiarAccesoAsync()
+    {
+        if (_tenantACambiarAcceso is not { } tenant || _cambiandoAcceso) return;
+
+        _cambiandoAcceso = true;
+
+        try
+        {
+            var suspender = tenant.Estado is EstadoTenant.Activo;
+            var resultado = suspender
+                ? await Mediator.Send(new SuspenderTenantCommand(tenant.TenantId))
+                : await Mediator.Send(new ReactivarTenantCommand(tenant.TenantId));
+
+            if (_desechado) return;
+
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(MensajeDeError(resultado.Error), TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos[suspender ? "EstadoComercialTenantSuspendido" : "EstadoComercialTenantReactivado"], TonoToast.Exito);
+        }
+        catch (Exception ex)
+        {
+            if (_desechado) return;
+
+            Logger.LogError(ex, "Error al cambiar la suspensión del tenant {TenantId}.", tenant.TenantId);
+            ToastService.Mostrar(Textos["EstadoComercialErrorCambiarAcceso"], TonoToast.Error);
+            return;
+        }
+        finally
+        {
+            _cambiandoAcceso = false;
+            _tenantACambiarAcceso = null;
         }
 
         await CargarAsync();

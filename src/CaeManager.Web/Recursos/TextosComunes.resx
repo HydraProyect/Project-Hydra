@@ -735,4 +735,43 @@
   <data name="ModalSuscripcionObligatoria" xml:space="preserve">
     <value>Completa el identificador de suscripción.</value>
   </data>
+  <data name="EstadoComercialColumnaAcceso" xml:space="preserve">
+    <value>Acceso</value>
+  </data>
+  <data name="EstadoComercialAccesoActivo" xml:space="preserve">
+    <value>Activo</value>
+  </data>
+  <data name="EstadoComercialAccesoSuspendido" xml:space="preserve">
+    <value>Suspendido</value>
+  </data>
+  <data name="EstadoComercialSuspender" xml:space="preserve">
+    <value>Suspender</value>
+  </data>
+  <data name="EstadoComercialReactivar" xml:space="preserve">
+    <value>Reactivar</value>
+  </data>
+  <data name="EstadoComercialNotaAcceso" xml:space="preserve">
+    <value>La columna «Acceso» es otra cosa: «Suspendido» es la suspensión por incidente o seguridad y corta todo el acceso.</value>
+  </data>
+  <data name="EstadoComercialTituloSuspender" xml:space="preserve">
+    <value>¿Suspender esta organización?</value>
+  </data>
+  <data name="EstadoComercialTituloReactivar" xml:space="preserve">
+    <value>¿Reactivar esta organización?</value>
+  </data>
+  <data name="EstadoComercialConfirmarSuspender" xml:space="preserve">
+    <value>{0} perderá todo su acceso: inicio de sesión, sesiones abiertas, extensión y claves de API. Es la suspensión por incidente o seguridad, distinta del impago: tampoco podrá leer ni exportar sus datos. Al reactivarlo, sus claves de API anteriores no volverán a valer.</value>
+  </data>
+  <data name="EstadoComercialConfirmarReactivar" xml:space="preserve">
+    <value>{0} recuperará el acceso. Sus claves de API anteriores no vuelven a valer: tendrá que usar claves nuevas.</value>
+  </data>
+  <data name="EstadoComercialTenantSuspendido" xml:space="preserve">
+    <value>Organización suspendida.</value>
+  </data>
+  <data name="EstadoComercialTenantReactivado" xml:space="preserve">
+    <value>Organización reactivada.</value>
+  </data>
+  <data name="EstadoComercialErrorCambiarAcceso" xml:space="preserve">
+    <value>No pudimos cambiar la suspensión. Vuelve a cargar la lista para ver en qué estado quedó.</value>
+  </data>
 </root>
