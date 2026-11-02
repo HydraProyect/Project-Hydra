@@ -31,7 +31,7 @@ public record EstadoComercialTenantDto(
     string? StripeCustomerId,
     string? StripeSubscriptionId,
     DateTime? EstadoComercialActualizadoEnUtc,
-    EstadoTenant Estado = EstadoTenant.Activo);
+    EstadoTenant Estado);
 
 public class ObtenerEstadoComercialTenantsQueryHandler(ITenantsQueryContext dbContext, IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService)

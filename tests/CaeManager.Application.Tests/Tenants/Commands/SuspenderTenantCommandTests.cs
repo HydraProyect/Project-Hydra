@@ -83,16 +83,28 @@ public class SuspenderTenantCommandTests
     public async Task Reactivar_devuelve_el_acceso_pero_no_las_claves_anteriores()
     {
         var tenant = new Tenant("Tenant A");
-        var emitida = DateTime.UtcNow.AddMinutes(-1);
         tenant.Suspender();
+        var emitidaDuranteLaSuspension = tenant.ClavesApiValidasDesdeUtc!.Value.AddTicks(1);
 
         var resultado = await Reactivar(tenant, AutorizacionAdminPlataformaFalsa.AcotadaA(tenant.Id))
             .Handle(new(tenant.Id), default);
 
         resultado.EsExitoso.Should().BeTrue();
         tenant.Estado.Should().Be(EstadoTenant.Activo);
-        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitida)
+        Tenant.AdmiteClaveEmitidaEn(tenant.Estado, tenant.EstadoComercial, tenant.ClavesApiValidasDesdeUtc, emitidaDuranteLaSuspension)
             .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Reactivar_un_Tenant_activo_no_mueve_el_sello_de_las_claves()
+    {
+        var tenant = new Tenant("Tenant A");
+
+        var resultado = await Reactivar(tenant, AutorizacionAdminPlataformaFalsa.Global()).Handle(new(tenant.Id), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        tenant.ClavesApiValidasDesdeUtc.Should().BeNull();
+        _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]

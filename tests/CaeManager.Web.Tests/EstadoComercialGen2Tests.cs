@@ -568,7 +568,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         await BotonAccesoDeFila(cut, TenantArbeko).ClickAsync(new MouseEventArgs());
 
         var confirmacion = Dialogo(cut, "¿Suspender esta organización?")!;
-        confirmacion.TextContent.Should().Contain("Grupo Arbeko").And.Contain("perderá todo su acceso");
+        confirmacion.TextContent.Should().Contain("Grupo Arbeko").And.Contain("dejarán de valer");
         Enviados<SuspenderTenantCommand>(mediador).Should().BeEmpty();
 
         await BotonDe(confirmacion, "Suspender").ClickAsync(new MouseEventArgs());

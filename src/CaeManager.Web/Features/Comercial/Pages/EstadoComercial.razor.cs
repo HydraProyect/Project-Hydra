@@ -33,7 +33,7 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// <para>
 /// <b>Escrituras.</b> Vincular, resincronizar y, desde la decisión D-3, suspender
 /// y reactivar, que es el plano de plataforma y no el comercial: la suspensión
-/// operativa corta todo el acceso, y su columna va aparte de la del estado
+/// operativa por incidente o seguridad, y su columna va aparte de la del estado
 /// comercial. Todas pasan por <see cref="DialogoConfirmacion"/> con su efecto
 /// real y llevan guarda propia contra el doble clic, además de la del diálogo.
 /// </para>

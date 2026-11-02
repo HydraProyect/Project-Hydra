@@ -737,7 +737,7 @@
     <value>Reactivar</value>
   </data>
   <data name="EstadoComercialNotaAcceso" xml:space="preserve">
-    <value>La columna «Accés» és una altra cosa: «Suspès» és la suspensió per incident o seguretat i talla tot l’accés.</value>
+    <value>La columna «Accés» és una altra cosa: «Suspès» és la suspensió per incident o seguretat.</value>
   </data>
   <data name="EstadoComercialTituloSuspender" xml:space="preserve">
     <value>Vols suspendre aquesta organització?</value>
@@ -746,7 +746,7 @@
     <value>Vols reactivar aquesta organització?</value>
   </data>
   <data name="EstadoComercialConfirmarSuspender" xml:space="preserve">
-    <value>{0} perdrà tot l’accés: inici de sessió, sessions obertes, extensió i claus d’API. És la suspensió per incident o seguretat, diferent de l’impagament: tampoc no podrà llegir ni exportar les seves dades. En reactivar-lo, les claus d’API anteriors no tornaran a ser vàlides.</value>
+    <value>Les claus d’API de {0} deixaran de ser vàlides. És la suspensió per incident o seguretat, diferent de l’impagament. En reactivar-lo, les claus d’API anteriors no tornaran a ser vàlides.</value>
   </data>
   <data name="EstadoComercialConfirmarReactivar" xml:space="preserve">
     <value>{0} recuperarà l’accés. Les claus d’API anteriors no tornen a ser vàlides: haurà de fer servir claus noves.</value>
