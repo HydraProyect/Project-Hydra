@@ -13,8 +13,11 @@ public class PdfToPngRasterizadorPaginasPdfService(
 
     /// <summary>
     /// Tope del bitmap BGRA (4 bytes por píxel) que se pide a la librería nativa
-    /// para una página: 64 MiB. Una página A4 a 150 ppp ocupa ~9 MiB y un A2
-    /// ~33 MiB; un A1 ya queda fuera. El PDF no limita el tamaño de su propia
+    /// para una página: 192 MiB. Una página A4 a 150 ppp ocupa ~9 MiB, un A1
+    /// ~67 MiB y un A0 (2384 x 3370 pt) ~133 MiB: un plano A0 es un documento
+    /// legítimo y debe seguir leyéndose. El tope corresponde a una página
+    /// cuadrada de ~3.400 pt (47 pulgadas); medido, 3.600 pt dejaban un pico de
+    /// 246 MiB. El PDF no limita el tamaño de su propia
     /// página: medido con PDFtoImage 5.2.1, un PDF de 333 bytes con una página
     /// de 139 pulgadas reservaba 1,7 GiB y tardaba ~30 s de CPU en el mismo
     /// proceso que sirve Blazor (ASVS 4.0.3 V12.1.1, API4). Hay que leer las
@@ -22,7 +25,7 @@ public class PdfToPngRasterizadorPaginasPdfService(
     /// cuando ya no puede reservar (a las 200 pulgadas), y mucho después de
     /// haber dañado al resto de sesiones.
     /// </summary>
-    internal const long MaximoBytesBitmapPagina = 64L * 1024 * 1024;
+    internal const long MaximoBytesBitmapPagina = 192L * 1024 * 1024;
 
     private const int BytesPorPixel = 4;
 
