@@ -224,13 +224,49 @@ public class InicioSesionMicrosoftTests
     public Task El_callback_no_da_por_correcto_un_inicio_de_un_SignInManager_de_otro_tipo() =>
         ComprobarCallbackRechazadoAsync<SignInManagerDeOtroTipo>();
 
+    /// <summary>Control: con el sello vigente el mismo callback entra, y la guarda no lo confunde con un rechazo.</summary>
+    [Fact]
+    public async Task El_callback_con_el_sello_vigente_emite_la_sesion_y_la_da_por_correcta()
+    {
+        var vigilancia = new VigilanciaDePrueba();
+        var sesiones = new SesionesDePrueba();
+
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(selloVigente: true, vigilancia, sesiones);
+
+        destino.Should().Be("/documentos");
+        cookies.Should().ContainSingle(c => c.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0);
+        vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.Correcto]);
+        sesiones.Registradas.Should().Be(1);
+    }
+
     private static async Task ComprobarCallbackRechazadoAsync<TSignInManager>()
+        where TSignInManager : SignInManager<ApplicationUser>
+    {
+        var vigilancia = new VigilanciaDePrueba();
+        var sesiones = new SesionesDePrueba();
+
+        var (destino, cookies) = await PedirCallbackDirectoAsync<TSignInManager>(selloVigente: false, vigilancia, sesiones);
+
+        destino.Should().Be("/cuenta/iniciar-sesion?errorSso=fallo");
+        cookies.Should().NotContain(c => c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal),
+            "ni una sesión nueva ni el borrado de la que ya tenía el navegador");
+        cookies.Should().ContainSingle(c => c.StartsWith(".AspNetCore.Identity.External=;", StringComparison.Ordinal),
+            "el principal de Microsoft no queda reutilizable en este callback");
+        vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado]);
+        sesiones.Registradas.Should().Be(0, "rechazado antes de registrar, no queda fila viva");
+    }
+
+    /// <summary>
+    /// Callback de una identidad ya vinculada, desde un navegador con la cookie externa y la de una sesión
+    /// anterior. Devuelve a dónde redirige y las Set-Cookie de esa respuesta.
+    /// </summary>
+    private static async Task<(string Destino, List<string> Cookies)> PedirCallbackDirectoAsync<TSignInManager>(
+        bool selloVigente, VigilanciaDePrueba vigilancia, SesionesDePrueba sesiones)
         where TSignInManager : SignInManager<ApplicationUser>
     {
         var cuenta = new ApplicationUser { TenantId = TenantDestino, SecurityStamp = "sello-cargado-antes-del-cambio" };
         var usuarios = new UsuariosConVinculos { DuenaDeLaIdentidad = cuenta };
-        var vigilancia = new VigilanciaDePrueba();
-        var sesiones = new SesionesDePrueba();
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
@@ -240,10 +276,11 @@ public class InicioSesionMicrosoftTests
             .AddCookie(IdentityConstants.TwoFactorUserIdScheme);
         builder.Services.AddIdentityCore<ApplicationUser>().AddSignInManager<TSignInManager>();
         builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
+        builder.Services.AddSingleton<IUserClaimsPrincipalFactory<ApplicationUser>>(new PrincipalesDePrueba());
         builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
         builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
         builder.Services.AddSingleton<IRegistroSesionesUsuario>(sesiones);
-        builder.Services.AddSingleton<ISelloSeguridadCuenta>(new SellosConOtroVigente());
+        builder.Services.AddSingleton<ISelloSeguridadCuenta>(new SellosDePrueba(selloVigente));
         builder.Services.AddSingleton<VerificacionContrasenaFicticia>();
         await using var app = builder.Build();
         app.UseAuthentication();
@@ -269,15 +306,9 @@ public class InicioSesionMicrosoftTests
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        respuesta.Headers.Location!.OriginalString.Should().Be("/cuenta/iniciar-sesion?errorSso=fallo");
-        var cookies = respuesta.Headers.GetValues("Set-Cookie").ToList();
-        cookies.Should().NotContain(c => c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal),
-            "ni una sesión nueva ni el borrado de la que ya tenía el navegador");
-        cookies.Should().ContainSingle(c => c.StartsWith(".AspNetCore.Identity.External=;", StringComparison.Ordinal),
-            "el principal de Microsoft no queda reutilizable en este callback");
-        vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado]);
-        sesiones.Registradas.Should().Be(0, "rechazado antes de registrar, no queda fila viva");
+        var resultado = (respuesta.Headers.Location!.OriginalString, respuesta.Headers.GetValues("Set-Cookie").ToList());
         await app.StopAsync();
+        return resultado;
     }
 
     private sealed class SignInManagerDeOtroTipo(
@@ -295,9 +326,16 @@ public class InicioSesionMicrosoftTests
             Task.CompletedTask;
     }
 
-    private sealed class SellosConOtroVigente : ISelloSeguridadCuenta
+    /// <summary>Sin tocar el almacén de la cuenta, que en este arnés no existe.</summary>
+    private sealed class PrincipalesDePrueba : IUserClaimsPrincipalFactory<ApplicationUser>
     {
-        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default) => Task.FromResult(false);
+        public Task<ClaimsPrincipal> CreateAsync(ApplicationUser user) =>
+            Task.FromResult(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())], "prueba")));
+    }
+
+    private sealed class SellosDePrueba(bool vigente) : ISelloSeguridadCuenta
+    {
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default) => Task.FromResult(vigente);
         public void AnotarRotacion(Guid usuarioId, string? selloAnterior) { }
 
         public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior)
@@ -852,6 +890,8 @@ public class InicioSesionMicrosoftTests
         public bool TotpActivado { get; init; }
 
         public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(TotpActivado);
+
+        public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult<IList<string>>(["Rol de prueba"]);
 
         public override Task<IdentityResult> AddLoginAsync(ApplicationUser user, UserLoginInfo login)
         {
