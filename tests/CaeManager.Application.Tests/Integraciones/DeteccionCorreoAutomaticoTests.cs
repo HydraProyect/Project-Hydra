@@ -57,6 +57,11 @@ public class DeteccionCorreoAutomaticoTests
     [InlineData("Fuera de la oficina: vuelvo el lunes")]
     [InlineData("Undeliverable: Documentación")]
     [InlineData("No se puede entregar: Documentación")]
+    [InlineData("Resposta automàtica: Documentació")]
+    [InlineData("Accepted: Reunión de coordinación")]
+    [InlineData("Rechazado: Reunión de coordinación")]
+    [InlineData("Read: Documentación")]
+    [InlineData("Leído: Documentación")]
     public void Un_asunto_de_autorrespuesta_no_admite_acuse_aunque_no_se_clasifique_como_automatico(string asunto)
     {
         var mensaje = new MensajeGraphDto(
@@ -68,11 +73,26 @@ public class DeteccionCorreoAutomaticoTests
 
     [Theory]
     [InlineData("X-Auto-Response-Suppress", "All")]
-    [InlineData("Authentication-Results", "mx.ejemplo.test; dmarc=fail header.from=ejemplo.test")]
-    public void Una_cabecera_que_pide_silencio_o_falla_la_autenticacion_no_admite_acuse(string nombre, string valor)
+    [InlineData("In-Reply-To", "<anterior@ejemplo.test>")]
+    [InlineData("References", "<anterior@ejemplo.test>")]
+    public void Una_cabecera_que_pide_silencio_o_responde_a_un_correo_anterior_no_admite_acuse(string nombre, string valor)
     {
         var mensaje = new MensajeGraphDto(
             "id", "hilo", "Asunto", "persona@ejemplo.test", "Texto", DateTime.UtcNow, [], [], [new(nombre, valor)]);
+
+        DeteccionCorreoAutomatico.EsAutomatico(mensaje).Should().BeFalse();
+        DeteccionCorreoAutomatico.NoAdmiteAcuse(mensaje).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("noresponder@ejemplo.test")]
+    [InlineData("no-responda@ejemplo.test")]
+    [InlineData("no.contestar@ejemplo.test")]
+    [InlineData("bounces@ejemplo.test")]
+    [InlineData("notifications@ejemplo.test")]
+    public void Un_remitente_que_no_lee_respuestas_no_admite_acuse_sin_clasificarse_como_automatico(string remitente)
+    {
+        var mensaje = new MensajeGraphDto("id", "hilo", "Asunto", remitente, "Texto", DateTime.UtcNow, [], []);
 
         DeteccionCorreoAutomatico.EsAutomatico(mensaje).Should().BeFalse();
         DeteccionCorreoAutomatico.NoAdmiteAcuse(mensaje).Should().BeTrue();

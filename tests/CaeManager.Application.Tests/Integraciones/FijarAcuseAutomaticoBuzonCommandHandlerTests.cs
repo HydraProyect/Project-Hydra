@@ -1,4 +1,5 @@
 using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -66,6 +67,14 @@ public class FijarAcuseAutomaticoBuzonCommandHandlerTests
 
         resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
         conexion.AcuseAutomaticoActivo.Should().BeFalse();
+    }
+
+    /// <summary>Administrar por encargo eleva el rol efectivo: sin esta exclusión, el handler dejaría pasar a quien solo opera.</summary>
+    [Fact]
+    public void Un_Encargo_de_administracion_no_cambia_el_acuse_igual_que_no_fija_el_responsable()
+    {
+        ActosExcluidosDelEncargo.PeticionesExcluidas.Should().Contain(typeof(FijarAcuseAutomaticoBuzonCommand));
+        ActosExcluidosDelEncargo.Excluye(new FijarAcuseAutomaticoBuzonCommand(Guid.NewGuid(), true)).Should().BeTrue();
     }
 
     [Fact]

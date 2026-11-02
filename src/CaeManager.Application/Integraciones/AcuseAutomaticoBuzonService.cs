@@ -83,6 +83,10 @@ public class AcuseAutomaticoBuzonService(
             return;
         }
 
+        // Antes de enviar: el token puede haberse renovado, Graph invalida el refresh token anterior, y una excepción del
+        // envío descarta todo lo pendiente. Sin el token de parada, por lo mismo: la renovación ya ocurrió.
+        await unitOfWork.SaveChangesAsync(CancellationToken.None);
+
         // Por el cliente del contenedor: lo envuelve la guarda de envío C-04, que aquí decide igual que para una respuesta.
         var envio = await graphClient.EnviarRespuestaAsync(
             token.Valor, conexion.BuzonEmail, mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
@@ -91,16 +95,14 @@ public class AcuseAutomaticoBuzonService(
         {
             logger.LogWarning(
                 "No se envió el acuse de la conversación {ConversacionId} ({CodigoError}).", conversacion.Id, envio.Error.Codigo);
-        }
-        else
-        {
-            // Automático: no cuenta como respuesta de una persona ni para el plazo ni para la respuesta sugerida.
-            conversacion.AgregarMensaje(
-                DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, PlantillaAcuseBuzon.CuerpoHtml, esAutomatico: true);
+            return;
         }
 
-        // También si falló: el token puede haberse renovado, y Graph invalida el refresh token anterior. Sin el token de
-        // parada porque el correo ya salió: es este registro el que corta el siguiente acuse al mismo remitente.
+        // Automático: no cuenta como respuesta de una persona ni para el plazo ni para la respuesta sugerida.
+        conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, PlantillaAcuseBuzon.CuerpoHtml, esAutomatico: true);
+
+        // Sin el token de parada porque el correo ya salió: es este registro el que corta el siguiente acuse al mismo remitente.
         await unitOfWork.SaveChangesAsync(CancellationToken.None);
     }
 }

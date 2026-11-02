@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
@@ -28,7 +29,7 @@ public class AcuseAutomaticoBuzonServiceTests
         _credenciales.Agregar(new CredencialIntegracion(_conexion.Id, "refresh"));
     }
 
-    private AcuseAutomaticoBuzonService Servicio(RegistroExportacionFalso? registro = null, UnitOfWorkFalso? unitOfWork = null) =>
+    private AcuseAutomaticoBuzonService Servicio(RegistroExportacionFalso? registro = null, IUnitOfWork? unitOfWork = null) =>
         new(_conversaciones, _graph, new AccesoGraphService(_credenciales, _graph), registro ?? new RegistroExportacionFalso(),
             unitOfWork ?? _unitOfWork, _descarte, _log);
 
@@ -58,7 +59,7 @@ public class AcuseAutomaticoBuzonServiceTests
         mensaje.EsAutomatico.Should().BeTrue();
         mensaje.Remitente.Should().Be("cae@ejemplo.test");
         mensaje.Canal.Should().Be(CanalConversacion.Correo);
-        _unitOfWork.VecesGuardado.Should().Be(1);
+        _unitOfWork.VecesGuardado.Should().Be(2, "uno por el token renovado y otro por el mensaje");
     }
 
     [Fact]
@@ -101,7 +102,7 @@ public class AcuseAutomaticoBuzonServiceTests
     }
 
     [Fact]
-    public async Task Un_envio_fallido_no_deja_mensaje_y_guarda_el_token_renovado()
+    public async Task Un_envio_fallido_no_deja_mensaje_y_el_token_renovado_ya_esta_guardado()
     {
         _graph.FallaEnvio = true;
         var acuse = Pendiente();
@@ -109,20 +110,38 @@ public class AcuseAutomaticoBuzonServiceTests
         await Servicio().EnviarAsync([acuse], CancellationToken.None);
 
         acuse.Conversacion.Mensajes.Should().ContainSingle();
-        _unitOfWork.VecesGuardado.Should().Be(1);
+        _unitOfWork.VecesGuardado.Should().Be(1, "el token se guarda antes de enviar, y un envío fallido no añade nada");
     }
 
     [Fact]
-    public async Task Un_guardado_fallido_no_vuelve_a_la_ingesta_y_abandona_el_resto_del_lote()
+    public async Task Si_el_token_renovado_no_se_puede_guardar_no_sale_nada()
     {
         var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base no disponible") };
 
-        var envio = () => Servicio(unitOfWork: unitOfWork).EnviarAsync(
+        var envio = () => Servicio(unitOfWork: unitOfWork).EnviarAsync([Pendiente()], CancellationToken.None);
+
+        await envio.Should().NotThrowAsync();
+        _graph.VecesEnviado.Should().Be(0);
+        _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_guardado_fallido_tras_enviar_no_vuelve_a_la_ingesta_y_abandona_el_resto_del_lote()
+    {
+        var envio = () => Servicio(unitOfWork: new UnitOfWorkQueFallaAlSegundoGuardado()).EnviarAsync(
             [Pendiente(), Pendiente("msg-2", "hilo-2", "otra@ejemplo.test")], CancellationToken.None);
 
         await envio.Should().NotThrowAsync();
         _graph.VecesEnviado.Should().Be(1);
         _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    private sealed class UnitOfWorkQueFallaAlSegundoGuardado : IUnitOfWork
+    {
+        private int _guardados;
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            ++_guardados == 2 ? throw new InvalidOperationException("base no disponible") : Task.FromResult(0);
     }
 
     [Fact]

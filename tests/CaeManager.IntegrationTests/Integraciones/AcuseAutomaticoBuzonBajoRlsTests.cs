@@ -135,6 +135,31 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         fila.DatosDespues.Should().Contain("AcuseAutomatico").And.NotContain(Remitente);
     }
 
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(-25, false)]
+    public async Task El_tope_por_remitente_caduca_y_no_cuenta_otro_remitente(int horasDesdeElAcuse, bool esperado)
+    {
+        var fecha = DateTime.UtcNow.AddHours(horasDesdeElAcuse);
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var conversacion = new Conversacion("Asunto");
+            conversacion.AsociarConexion(_buzonPropio, "hilo-anterior");
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Remitente, "Texto", fecha.AddMinutes(-1));
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", fecha, esAutomatico: true);
+            _propietario.Conversaciones.Add(conversacion);
+            await _propietario.SaveChangesAsync();
+        }
+
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        await using var runtime = CrearRuntime(new TenantActualPorAmbito(), new CurrentUserServiceFalso(), ActorAuditoria.SinResolver);
+        var repositorio = new ConversacionRepository(runtime);
+        var desde = DateTime.UtcNow - AcuseAutomaticoBuzonService.IntervaloMinimoPorRemitente;
+
+        (await repositorio.ExisteAcuseRecienteAsync(_buzonPropio, "PERSONA@ejemplo.test", desde)).Should().Be(esperado);
+        (await repositorio.ExisteAcuseRecienteAsync(_buzonPropio, "otra@ejemplo.test", desde)).Should().BeFalse();
+    }
+
     private async Task<Guid> SembrarConversacionAsync(string hilo, string remitente)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);

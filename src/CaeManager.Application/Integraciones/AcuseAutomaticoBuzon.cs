@@ -25,6 +25,12 @@ public sealed record AcusePendiente(
 /// <summary>Qué correos admiten acuse, salvo la cadencia por remitente, que necesita mirar la base.</summary>
 public static class ReglaAcuseBuzon
 {
+    /// <summary>
+    /// Un acuse solo tiene sentido al momento. Sin este límite, un evento reintentado durante horas o un correo antiguo
+    /// devuelto a la Bandeja de entrada acusarían recibo de algo que una persona pudo contestar ya.
+    /// </summary>
+    public static readonly TimeSpan AntiguedadMaxima = TimeSpan.FromHours(1);
+
     /// <param name="conexion">Buzón por el que entró el correo.</param>
     /// <param name="mensaje">Primer correo de una conversación nueva.</param>
     /// <param name="dominioDePlataformaCae">
@@ -33,11 +39,16 @@ public static class ReglaAcuseBuzon
     /// </param>
     public static bool Procede(ConexionIntegracion conexion, MensajeGraphDto mensaje, bool dominioDePlataformaCae) =>
         conexion.AcuseAutomaticoActivo
+        && conexion.GestorPropietarioId is null
         && !dominioDePlataformaCae
         && !DeteccionCorreoAutomatico.NoAdmiteAcuse(mensaje)
+        && DateTime.UtcNow - mensaje.FechaUtc <= AntiguedadMaxima
         && EsDireccionUtil(mensaje.Remitente)
         && !MismaDireccion(mensaje.Remitente, conexion.BuzonEmail)
-        && RespondeAlRemitente(mensaje);
+        && RespondeAlRemitente(mensaje)
+        // Prueba positiva, no ausencia de un fallo: sin ella, cualquiera dispararía acuses hacia una dirección ajena
+        // escribiéndola de remitente, y el correo saldría con el dominio del buzón.
+        && AutenticacionCorreoPlataforma.EsValida(mensaje);
 
     private static bool EsDireccionUtil(string remitente) =>
         MailAddress.TryCreate(remitente.Trim(), out var direccion) && direccion.Address == remitente.Trim();

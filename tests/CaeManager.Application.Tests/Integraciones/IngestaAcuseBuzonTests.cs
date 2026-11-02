@@ -23,10 +23,15 @@ public class IngestaAcuseBuzonTests
         return conexion;
     }
 
+    private const string Autenticado = "mx.ejemplo.test; spf=pass smtp.mailfrom=ejemplo.test";
+
     private static MensajeGraphDto Mensaje(
         string remitente = Persona, string asunto = "Documentación de julio", string id = "msg-1", string hilo = "hilo-1",
-        IReadOnlyList<CabeceraCorreoDto>? cabeceras = null, IReadOnlyList<string>? responderA = null) =>
-        new(id, hilo, asunto, remitente, "<p>Texto</p>", DateTime.UtcNow, [], [], cabeceras ?? [], responderA);
+        IReadOnlyList<CabeceraCorreoDto>? cabeceras = null, IReadOnlyList<string>? responderA = null,
+        string? autenticacion = Autenticado, DateTime? fechaUtc = null) =>
+        new(id, hilo, asunto, remitente, "<p>Texto</p>", fechaUtc ?? DateTime.UtcNow, [], [],
+            [.. cabeceras ?? [], .. autenticacion is null ? Array.Empty<CabeceraCorreoDto>() : [new("Authentication-Results", autenticacion)]],
+            responderA);
 
     private async Task<IReadOnlyList<AcusePendiente>> IngerirAsync(
         ConexionIntegracion conexion, MensajeGraphDto mensaje, ResolucionProveedorPlataformaCaeServiceFalso? plataforma = null)
@@ -105,10 +110,13 @@ public class IngestaAcuseBuzonTests
         graph.MensajesPorId["msg-2"] = Mensaje(id: "msg-2");
         var credenciales = new CredencialIntegracionRepositorioFalso();
         credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
-        var ingesta = IngestaWebhookServiceTests.CrearServicio(_conexiones, _conversaciones, graph, credenciales);
+        // Como en la base real, el segundo correo no ve la conversación del primero hasta confirmar.
+        var conversaciones = new ConversacionRepositorioFalso { NoVeLoSinConfirmar = true };
+        var ingesta = IngestaWebhookServiceTests.CrearServicio(_conexiones, conversaciones, graph, credenciales);
 
         await ingesta.ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
 
+        conversaciones.Conversaciones.Should().HaveCount(2);
         ingesta.AcusesPendientes.Should().ContainSingle().Which.MensajeExternoId.Should().Be("msg-1");
     }
 
@@ -143,7 +151,12 @@ public class IngestaAcuseBuzonTests
         { "rebote", Mensaje(remitente: "mailer-daemon@ejemplo.test") },
         { "rebote sin remite", Mensaje(cabeceras: [new("Return-Path", "<>")]) },
         { "pide silencio", Mensaje(cabeceras: [new("X-Auto-Response-Suppress", "All")]) },
-        { "dmarc fallido", Mensaje(cabeceras: [new("Authentication-Results", "mx.ejemplo.test; dmarc=fail")]) },
+        { "responde a un correo anterior", Mensaje(cabeceras: [new("In-Reply-To", "<anterior@ejemplo.test>")]) },
+        { "sin autenticar", Mensaje(autenticacion: null) },
+        { "dmarc fallido", Mensaje(autenticacion: "mx.ejemplo.test; dmarc=fail header.from=ejemplo.test") },
+        { "spf de otro dominio", Mensaje(autenticacion: "mx.ejemplo.test; spf=pass smtp.mailfrom=otro.test") },
+        { "dos resultados de autenticación", Mensaje(cabeceras: [new("Authentication-Results", "spf=pass smtp.mailfrom=ejemplo.test")]) },
+        { "demasiado antiguo", Mensaje(fechaUtc: DateTime.UtcNow.AddHours(-2)) },
         { "el propio buzón", Mensaje(remitente: "CAE@ejemplo.test") },
         { "dirección inservible", Mensaje(remitente: "sin arroba") },
         { "nombre con dirección", Mensaje(remitente: "Persona <persona@ejemplo.test>") },
@@ -161,16 +174,31 @@ public class IngestaAcuseBuzonTests
         (await IngerirAsync(Buzon(), Mensaje(responderA: ["PERSONA@ejemplo.test"]))).Should().ContainSingle();
 
     [Theory]
-    [InlineData("persona@dokify.net")]
-    [InlineData("noreply@dokify.net")]
-    public async Task Un_remitente_con_dominio_de_Plataforma_CAE_no_lleva_acuse_aunque_suplante_el_dominio(string remitente)
+    [InlineData("persona@dokify.net", "mx.ejemplo.test; spf=pass smtp.mailfrom=dokify.net")]
+    [InlineData("persona@dokify.net", "mx.ejemplo.test; dmarc=pass header.from=dokify.net")]
+    [InlineData("noreply@dokify.net", null)]
+    public async Task Un_remitente_con_dominio_de_Plataforma_CAE_no_lleva_acuse(string remitente, string? autenticacion)
     {
         var plataforma = new ResolucionProveedorPlataformaCaeServiceFalso();
         plataforma.RegistrarPlataformaPorDominioCorreo(new ProveedorPlataformaCaeCandidatoDto(Guid.NewGuid(), "Dokify", true));
 
-        // Sin cabecera de autenticación: la ingesta lo trata como suplantado y, por tanto, como correo externo.
-        (await IngerirAsync(Buzon(), Mensaje(remitente: remitente), plataforma)).Should().BeEmpty();
+        (await IngerirAsync(Buzon(), Mensaje(remitente: remitente, autenticacion: autenticacion), plataforma)).Should().BeEmpty();
 
         _conversaciones.Conversaciones.Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData("mx.ejemplo.test; dmarc=pass header.from=ejemplo.test")]
+    [InlineData("mx.ejemplo.test; dmarc=none; dkim=pass header.d=ejemplo.test")]
+    public async Task Un_remitente_autenticado_con_DMARC_o_DKIM_lleva_acuse(string autenticacion) =>
+        (await IngerirAsync(Buzon(), Mensaje(autenticacion: autenticacion))).Should().ContainSingle();
+
+    [Fact]
+    public void Un_buzon_personal_no_lleva_acuse_aunque_la_columna_diga_lo_contrario()
+    {
+        var personal = new ConexionIntegracion("gestora@ejemplo.test", "Personal", gestorPropietarioId: Guid.NewGuid());
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.AcuseAutomaticoActivo))!.SetValue(personal, true);
+
+        ReglaAcuseBuzon.Procede(personal, Mensaje(), dominioDePlataformaCae: false).Should().BeFalse();
     }
 }

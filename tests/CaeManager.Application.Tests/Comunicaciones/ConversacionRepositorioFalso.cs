@@ -17,11 +17,16 @@ public class ConversacionRepositorioFalso : IConversacionRepository
     public Task<Conversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(c => c.Id == id));
 
+    /// <summary>Como la base real, que no ve lo agregado hasta confirmar; por defecto se ve al momento.</summary>
+    public bool NoVeLoSinConfirmar { get; init; }
+
+    private readonly HashSet<Guid> _sinConfirmar = [];
+
     public Task<Conversacion?> ObtenerPorHiloExternoAsync(
         Guid conexionIntegracionId, string hiloExternoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones.FirstOrDefault(
             c => c.ConexionIntegracionId == conexionIntegracionId && c.HiloExternoId == hiloExternoId
-                 && c.Estado != EstadoConversacion.Cerrada));
+                 && c.Estado != EstadoConversacion.Cerrada && !_sinConfirmar.Contains(c.Id)));
 
     public Task<bool> ExisteAcuseRecienteAsync(
         Guid conexionIntegracionId, string remitente, DateTime desdeUtc, CancellationToken cancellationToken = default) =>
@@ -70,5 +75,10 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             .OrderByDescending(c => c.FechaUltimoMensajeUtc)
             .ToList());
 
-    public void Agregar(Conversacion conversacion) => Conversaciones.Add(conversacion);
+    public void Agregar(Conversacion conversacion)
+    {
+        Conversaciones.Add(conversacion);
+        if (NoVeLoSinConfirmar)
+            _sinConfirmar.Add(conversacion.Id);
+    }
 }
