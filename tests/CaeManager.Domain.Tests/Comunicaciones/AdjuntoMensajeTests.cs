@@ -136,4 +136,47 @@ public class AdjuntoMensajeTests
         adjunto.DocumentoId.Should().Be(documentoId);
         adjunto.Invoking(a => a.Reabrir()).Should().Throw<InvalidOperationException>();
     }
+
+    [Fact]
+    public void Dividir_lo_resuelve_sin_apuntar_a_un_Documento_y_cierra_las_demas_salidas()
+    {
+        var adjunto = Adjunto();
+        var usuarioId = Guid.NewGuid();
+        var ahora = new DateTime(2026, 11, 2, 9, 0, 0, DateTimeKind.Utc);
+
+        adjunto.MarcarDividido(usuarioId, ahora);
+
+        adjunto.EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
+        adjunto.EstaPendiente.Should().BeFalse();
+        adjunto.DocumentoId.Should().BeNull();
+        adjunto.ResueltoPorUsuarioId.Should().Be(usuarioId);
+        adjunto.ResueltoEnUtc.Should().Be(ahora);
+        adjunto.Invoking(a => a.MarcarDividido(usuarioId, ahora)).Should().Throw<InvalidOperationException>("dos divisiones duplicarían los Documentos");
+        adjunto.Invoking(a => a.MarcarAsignado(Guid.NewGuid(), null, ahora)).Should().Throw<InvalidOperationException>();
+        adjunto.Invoking(a => a.Reabrir()).Should().Throw<InvalidOperationException>("sus Documentos ya existen");
+    }
+
+    [Fact]
+    public void Deshacer_una_division_lo_devuelve_a_pendiente_sin_rastro_de_la_resolucion()
+    {
+        var adjunto = Adjunto();
+        adjunto.MarcarDividido(Guid.NewGuid(), DateTime.UtcNow);
+
+        adjunto.DeshacerDivision();
+
+        adjunto.EstaPendiente.Should().BeTrue();
+        adjunto.ResueltoPorUsuarioId.Should().BeNull();
+        adjunto.ResueltoEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void Solo_se_deshace_la_division_de_un_adjunto_dividido()
+    {
+        var pendiente = Adjunto();
+        var asignado = Adjunto();
+        asignado.MarcarAsignado(Guid.NewGuid(), null, DateTime.UtcNow);
+
+        pendiente.Invoking(a => a.DeshacerDivision()).Should().Throw<InvalidOperationException>();
+        asignado.Invoking(a => a.DeshacerDivision()).Should().Throw<InvalidOperationException>();
+    }
 }

@@ -243,7 +243,8 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
             contexto.EventosConversacion.AddRange(
                 new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoRechazado, Guid.NewGuid(), DateTime.UtcNow),
                 new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoDescartado, Guid.NewGuid(), DateTime.UtcNow),
-                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoReabierto, Guid.NewGuid(), DateTime.UtcNow));
+                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoReabierto, Guid.NewGuid(), DateTime.UtcNow),
+                new EventoConversacion(conversacion.Id, TipoEventoConversacion.AdjuntoDividido, Guid.NewGuid(), DateTime.UtcNow));
             await contexto.SaveChangesAsync();
             conversacionId = conversacion.Id;
             clienteId = cliente.Id;
@@ -258,7 +259,7 @@ public class ObtenerConversacionPorIdQueryEventosTests : IAsyncLifetime
         var interna = await Handler("GestorCae", "GestorCae").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
         var portal = await Handler("Cliente", "Cliente").Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
 
-        interna!.Eventos.Should().HaveCount(3);
+        interna!.Eventos.Should().HaveCount(4);
         portal.Should().NotBeNull();
         portal!.Eventos.Should().BeEmpty();
     }

@@ -117,7 +117,29 @@ public class AdjuntoMensaje : EntidadConTenant, IVersionable
         RegistrarResolucion(usuarioId, ahoraUtc);
     }
 
-    /// <summary>Deshace un rechazo o un descarte. Un adjunto asignado no se reabre: su Documento ya existe.</summary>
+    /// <summary>
+    /// Reserva el adjunto para dividirlo. Se guarda antes de crear el primer Documento: el token <see cref="Version"/>
+    /// deja pasar una sola división, porque los Documentos de los tramos confirman por separado y no pueden deshacerse.
+    /// </summary>
+    public void MarcarDividido(Guid usuarioId, DateTime ahoraUtc)
+    {
+        ExigirPendiente();
+        EstadoReparto = EstadoRepartoAdjunto.Dividido;
+        RegistrarResolucion(usuarioId, ahoraUtc);
+    }
+
+    /// <summary>Devuelve a pendiente una división de la que no salió ningún Documento. No es una decisión de una persona.</summary>
+    public void DeshacerDivision()
+    {
+        if (EstadoReparto != EstadoRepartoAdjunto.Dividido)
+            throw new InvalidOperationException("Solo se deshace la división de un adjunto dividido.");
+
+        EstadoReparto = EstadoRepartoAdjunto.Pendiente;
+        ResueltoPorUsuarioId = null;
+        ResueltoEnUtc = null;
+    }
+
+    /// <summary>Deshace un rechazo o un descarte. Un adjunto asignado o dividido no se reabre: sus Documentos ya existen.</summary>
     public void Reabrir()
     {
         if (EstadoReparto is not (EstadoRepartoAdjunto.Rechazado or EstadoRepartoAdjunto.Descartado))

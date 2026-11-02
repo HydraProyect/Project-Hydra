@@ -34,6 +34,7 @@ public class DetectorDePdfNoDependeDeIaTests
     [
         "CaeManager.Application.HerramientasPdf.PrepararDivisionPdfQueryHandler",
         "CaeManager.Application.HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler",
+        "CaeManager.Application.Comunicaciones.Queries.PrepararDivisionAdjunto.PrepararDivisionAdjuntoQueryHandler",
     ];
 
     private static readonly string[] ImplementacionesDeLaDeteccion =

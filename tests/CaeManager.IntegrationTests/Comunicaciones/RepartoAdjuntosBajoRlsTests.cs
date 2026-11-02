@@ -1,10 +1,13 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesdeAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
+using CaeManager.Application.Comunicaciones.Commands.DividirAdjuntoPdf;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos;
+using CaeManager.Application.Comunicaciones.Queries.PrepararDivisionAdjunto;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.HerramientasPdf;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -317,6 +320,151 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         runtime.ChangeTracker.HasChanges().Should().BeFalse();
     }
 
+    /// <summary>
+    /// Con acceso total el alcance responde sí: lo que frena el Id ajeno es la lectura bajo RLS. Si llegara a leerse, el
+    /// archivo sembrado se abriría y el alta crearía Documentos; por eso se mide también que no quede ninguno.
+    /// </summary>
+    [Fact]
+    public async Task Un_adjunto_de_otro_Tenant_no_se_divide_ni_se_prepara_por_Id()
+    {
+        var empresaGestionada = await SembrarEmpresaGestionadaAsync(_tenantSesion, "Montajes Springfield Gestionada");
+        var tipo = await SembrarTipoDeEmpresaAsync();
+
+        await using (var runtime = CrearRuntime())
+        {
+            var almacen = AlmacenConElAdjunto();
+            var mediador = new DivisionConCatalogoReal(runtime, Alcance(runtime), _tenantDeLaPeticion, almacen);
+
+            (await Dividir(runtime, almacen, mediador).Handle(new DividirAdjuntoPdfCommand(_adjuntoAjeno, empresaGestionada, DosTramos(empresaGestionada, tipo)), CancellationToken.None))
+                .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+            (await Preparar(runtime, almacen, mediador).Handle(new PrepararDivisionAdjuntoQuery(_adjuntoAjeno, empresaGestionada), CancellationToken.None))
+                .Error.Codigo.Should().Be("Adjunto.NoEncontrado");
+
+            mediador.Peticiones.Should().BeEmpty("el adjunto ajeno no llega a abrirse");
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoAjeno)).EstadoReparto.Should().Be(EstadoRepartoAdjunto.Pendiente);
+        (await comprobacion.Documentos.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+    }
+
+    /// <summary>Control positivo de la prueba anterior: la misma orden sobre lo propio llega hasta el final bajo RLS.</summary>
+    [Fact]
+    public async Task Dividir_un_adjunto_propio_crea_los_Documentos_en_el_Tenant_de_la_sesion_y_lo_deja_dividido()
+    {
+        var empresaGestionada = await SembrarEmpresaGestionadaAsync(_tenantSesion, "Montajes Springfield Gestionada");
+        var tipo = await SembrarTipoDeEmpresaAsync();
+
+        await using (var runtime = CrearRuntime())
+        {
+            var almacen = AlmacenConElAdjunto();
+            var mediador = new DivisionConCatalogoReal(runtime, Alcance(runtime), _tenantDeLaPeticion, almacen);
+
+            var preparacion = await Preparar(runtime, almacen, mediador).Handle(new PrepararDivisionAdjuntoQuery(_adjuntoPropio, empresaGestionada), CancellationToken.None);
+            preparacion.Valor.Catalogo.EmpresaGestionada.Id.Should().Be(empresaGestionada);
+
+            var resultado = await Dividir(runtime, almacen, mediador)
+                .Handle(new DividirAdjuntoPdfCommand(_adjuntoPropio, empresaGestionada, DosTramos(empresaGestionada, tipo)), CancellationToken.None);
+
+            resultado.Valor.Should().HaveCount(2).And.OnlyContain(t => t.Estado == EstadoTramoCreado.Creado);
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var documentos = await comprobacion.Documentos.IgnoreQueryFilters().Where(d => d.EmpresaId == empresaGestionada).ToListAsync();
+        documentos.Should().HaveCount(2).And.OnlyContain(d => d.TenantId == _tenantSesion);
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio)).EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoAjeno)).EstadoReparto.Should().Be(EstadoRepartoAdjunto.Pendiente);
+        (await comprobacion.EventosConversacion.IgnoreQueryFilters()
+                .CountAsync(e => e.ConversacionId == _conversacionPropia && e.Tipo == TipoEventoConversacion.AdjuntoDividido && e.ReferenciaId == _adjuntoPropio))
+            .Should().Be(1);
+    }
+
+    /// <summary>
+    /// El acceso total deja pasar cualquier Id por el alcance: una Empresa propia de otro Tenant la frena el catálogo, que
+    /// no la ve bajo RLS. Por eso el adjunto se reserva y vuelve a pendiente.
+    /// </summary>
+    [Fact]
+    public async Task Una_Empresa_propia_de_otro_Tenant_no_se_gestiona_desde_un_adjunto_propio()
+    {
+        var tenantAjeno = await _propietario.Empresas.IgnoreQueryFilters().Where(e => e.Id == _empresaAjena).Select(e => e.TenantId).SingleAsync();
+        var empresaDeOtroTenant = await SembrarEmpresaGestionadaAsync(tenantAjeno, "Montajes Shelbyville Gestionada");
+        var tipo = await SembrarTipoDeEmpresaAsync();
+
+        await using (var runtime = CrearRuntime())
+        {
+            var almacen = AlmacenConElAdjunto();
+            var mediador = new DivisionConCatalogoReal(runtime, Alcance(runtime), _tenantDeLaPeticion, almacen);
+
+            (await Preparar(runtime, almacen, mediador).Handle(new PrepararDivisionAdjuntoQuery(_adjuntoPropio, empresaDeOtroTenant), CancellationToken.None))
+                .Error.Codigo.Should().Be(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable);
+            (await Dividir(runtime, almacen, mediador)
+                    .Handle(new DividirAdjuntoPdfCommand(_adjuntoPropio, empresaDeOtroTenant, DosTramos(empresaDeOtroTenant, tipo)), CancellationToken.None))
+                .Error.Codigo.Should().Be(ObtenerCatalogoDivisionPdfQueryHandler.ErrorEmpresaNoGestionable);
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio)).EstadoReparto.Should().Be(EstadoRepartoAdjunto.Pendiente);
+        (await comprobacion.Documentos.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+    }
+
+    /// <summary>
+    /// Dos sesiones sobre el mismo adjunto: la perdedora ya lo ha leído cuando la otra termina, y es el token de Postgres
+    /// el que la frena antes de crear nada. Solo quedan los Documentos de la ganadora.
+    /// </summary>
+    [Fact]
+    public async Task Dos_divisiones_a_la_vez_solo_crean_los_Documentos_de_una()
+    {
+        var empresaGestionada = await SembrarEmpresaGestionadaAsync(_tenantSesion, "Montajes Springfield Gestionada");
+        var tipo = await SembrarTipoDeEmpresaAsync();
+        var orden = new DividirAdjuntoPdfCommand(_adjuntoPropio, empresaGestionada, DosTramos(empresaGestionada, tipo));
+
+        await using (var perdedora = CrearRuntime())
+        {
+            var almacen = new AlmacenConOtraSesion(AlmacenConElAdjunto(), async almacenReal =>
+            {
+                await using var ganadora = CrearRuntime();
+                var mediadorGanadora = new DivisionConCatalogoReal(ganadora, Alcance(ganadora), _tenantDeLaPeticion, almacenReal);
+                var ganada = await Dividir(ganadora, almacenReal, mediadorGanadora).Handle(orden, CancellationToken.None);
+                ganada.EsExitoso.Should().BeTrue();
+            });
+            var mediador = new DivisionConCatalogoReal(perdedora, Alcance(perdedora), _tenantDeLaPeticion, almacen);
+
+            var perdida = await Dividir(perdedora, almacen, mediador).Handle(orden, CancellationToken.None);
+
+            perdida.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto);
+            mediador.Peticiones.Should().BeEmpty();
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.Documentos.IgnoreQueryFilters().CountAsync(d => d.EmpresaId == empresaGestionada)).Should().Be(2);
+        (await comprobacion.AdjuntosMensaje.IgnoreQueryFilters().SingleAsync(a => a.Id == _adjuntoPropio)).EstadoReparto.Should().Be(EstadoRepartoAdjunto.Dividido);
+    }
+
+    private static IReadOnlyList<TramoACrear> DosTramos(Guid empresaGestionada, Guid tipoDocumentoId) =>
+    [
+        new(1, 1, ClaseTitular.EmpresaGestionada, empresaGestionada, tipoDocumentoId, new DateOnly(2020, 1, 1), null, false),
+        new(2, 2, ClaseTitular.EmpresaGestionada, empresaGestionada, tipoDocumentoId, new DateOnly(2020, 1, 1), null, false)
+    ];
+
+    private DividirAdjuntoPdfCommandHandler Dividir(CaeManagerDbContext runtime, IFileStorageService almacen, IMediator mediador) => new(
+        new DisponibilidadHerramientasPdf(), runtime, new AdjuntoMensajeRepository(runtime), new EventoConversacionRepository(runtime), Alcance(runtime),
+        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), new RegistroAccesoDatoSensibleFalso(), almacen, mediador, runtime, runtime,
+        NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
+
+    private PrepararDivisionAdjuntoQueryHandler Preparar(CaeManagerDbContext runtime, IFileStorageService almacen, IMediator mediador) => new(
+        new DisponibilidadHerramientasPdf(), runtime, Alcance(runtime), new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion),
+        PoliticaNotaInternaPruebas.Con(Roles.Administrador), new RegistroAccesoDatoSensibleFalso(), almacen, mediador);
+
+    /// <summary>Una Empresa que el Tenant gestiona, no una contraparte: <c>EsPropia</c> es lo que exige el catálogo.</summary>
+    private async Task<Guid> SembrarEmpresaGestionadaAsync(Guid tenantId, string razonSocial)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var empresa = new Empresa(razonSocial);
+        _propietario.Empresas.Add(empresa);
+        await _propietario.SaveChangesAsync();
+        return empresa.Id;
+    }
+
     private const string ArchivoDelAdjunto = "adjuntos/aptitud.pdf";
 
     private static ActualizarDocumentoDesdeAdjuntoCommandTests.AlmacenamientoEnMemoriaFalso AlmacenConElAdjunto()
@@ -437,6 +585,88 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// <see cref="CrearDocumentosDesdeDivisionCommandHandler"/> y el catálogo reales sobre el contexto bajo RLS. El divisor
+    /// y el alta se sustituyen: el primero porque aquí el PDF no importa, y el segundo guarda el Documento de verdad con
+    /// el sellado de Tenant del contexto, que es lo que se mide.
+    /// </summary>
+    private sealed class DivisionConCatalogoReal(
+        CaeManagerDbContext contexto, AlcanceDatosService alcance, ITenantActual tenantActual, IFileStorageService almacen) : IMediator
+    {
+        public List<object> Peticiones { get; } = [];
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Peticiones.Add(request);
+
+            switch (request)
+            {
+                case CrearDocumentosDesdeDivisionCommand dividir:
+                    return (TResponse)(object)await new CrearDocumentosDesdeDivisionCommandHandler(
+                            new DisponibilidadHerramientasPdf(), tenantActual, this, new DivisorSinPdf(), almacen, alcance,
+                            NullLogger<CrearDocumentosDesdeDivisionCommandHandler>.Instance)
+                        .Handle(dividir, cancellationToken);
+                case ObtenerCatalogoDivisionPdfQuery catalogo:
+                    return (TResponse)(object)await Catalogo(catalogo, cancellationToken);
+                case PrepararDivisionPdfQuery preparar:
+                    var leido = await Catalogo(new ObtenerCatalogoDivisionPdfQuery(preparar.EmpresaGestionadaId), cancellationToken);
+                    return (TResponse)(object)(leido.EsExitoso
+                        ? Result.Exito(new PreparacionDivisionPdf(2, false, true, [], leido.Valor))
+                        : Result.Fallo<PreparacionDivisionPdf>(leido.Error));
+                case CrearDocumentoCommand crear:
+                    var documento = Documento.DeEmpresa(crear.EmpresaId!.Value, crear.TipoDocumentoId, crear.FechaEmision,
+                        VigenciaDocumento.VenceEl(new DateOnly(2030, 1, 1)), crear.ArchivoUrl);
+                    contexto.Documentos.Add(documento);
+                    await contexto.SaveChangesAsync(cancellationToken);
+                    return (TResponse)(object)Result.Exito(documento.Id);
+                default:
+                    throw new NotSupportedException(request.GetType().Name);
+            }
+        }
+
+        private Task<Result<CatalogoDivisionPdf>> Catalogo(ObtenerCatalogoDivisionPdfQuery consulta, CancellationToken cancellationToken) =>
+            new ObtenerCatalogoDivisionPdfQueryHandler(contexto, contexto, contexto, contexto, alcance).Handle(consulta, cancellationToken);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class DivisorSinPdf : IDivisorPdf, IPdfParaDividir
+    {
+        public int NumeroPaginas => 2;
+        public bool EstaFirmado => false;
+        public Result<IPdfParaDividir> Abrir(byte[] contenidoPdf) => Result.Exito<IPdfParaDividir>(this);
+        public Result<byte[]> ExtraerPaginas(int paginaInicial, int paginaFinal) => Result.Exito("%PDF-tramo"u8.ToArray());
+        public void Dispose() { }
+    }
+
+    /// <summary>La primera apertura deja pasar a otra sesión: es el momento entre leer el adjunto y reservarlo.</summary>
+    private sealed class AlmacenConOtraSesion(IFileStorageService almacen, Func<IFileStorageService, Task> otraSesion) : IFileStorageService
+    {
+        private bool _yaEntro;
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
+            almacen.GuardarAsync(contenido, nombreArchivoOriginal, cancellationToken);
+
+        public async Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)
+        {
+            if (!_yaEntro)
+            {
+                _yaEntro = true;
+                await otraSesion(almacen);
+            }
+
+            return await almacen.AbrirAsync(identificador, cancellationToken);
+        }
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
+            almacen.EliminarAsync(identificador, cancellationToken);
     }
 
     private sealed class MediadorSinEnvios : IMediator

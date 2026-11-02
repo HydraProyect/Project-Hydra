@@ -485,7 +485,8 @@ public class ObtenerConversacionPorIdQueryHandler(
 
         // Cómo se reparte lo recibido es triaje interno, igual que ObtenerRepartoAdjuntosQuery.
         if (!await politicaNotaInterna.PuedeLeerAsync(cancellationToken))
-            eventosCrudos.RemoveAll(e => e.Tipo is TipoEventoConversacion.AdjuntoRechazado or TipoEventoConversacion.AdjuntoDescartado or TipoEventoConversacion.AdjuntoReabierto);
+            eventosCrudos.RemoveAll(e => e.Tipo is TipoEventoConversacion.AdjuntoRechazado or TipoEventoConversacion.AdjuntoDescartado
+                or TipoEventoConversacion.AdjuntoReabierto or TipoEventoConversacion.AdjuntoDividido);
 
         if (eventosCrudos.Count == 0) return [];
 
@@ -581,6 +582,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             TipoEventoConversacion.AdjuntoRechazado => "Se rechazó un adjunto de esta conversación.",
             TipoEventoConversacion.AdjuntoDescartado => "Se descartó un adjunto de esta conversación.",
             TipoEventoConversacion.AdjuntoReabierto => "Un adjunto de esta conversación volvió a quedar pendiente.",
+            TipoEventoConversacion.AdjuntoDividido => "Se dividió un adjunto PDF de esta conversación.",
 
             _ => "Evento del sistema."
         };

@@ -37,5 +37,8 @@ public enum TipoEventoConversacion
     AdjuntoDescartado = 6,
 
     /// <summary>ReferenciaId identifica el AdjuntoMensaje que vuelve a estar pendiente.</summary>
-    AdjuntoReabierto = 7
+    AdjuntoReabierto = 7,
+
+    /// <summary>ReferenciaId identifica el AdjuntoMensaje dividido; cada Documento resultante deja su propio DocumentoActualizado.</summary>
+    AdjuntoDividido = 8
 }

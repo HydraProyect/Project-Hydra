@@ -126,6 +126,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.DescartarSugerenciaGestionCorreoCommandHandler",
         "Comunicaciones.DescartarSugerenciaVisitaCorreoCommandHandler",
         "Comunicaciones.EditarMacroCommandHandler",
+        "Comunicaciones.DividirAdjuntoPdfCommandHandler",
         "Comunicaciones.EliminarMacroCommandHandler",
         "Comunicaciones.EnviarMensajeNuevoCommandHandler",
         "Comunicaciones.FijarDestinoAdjuntoCommandHandler",
