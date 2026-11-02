@@ -933,7 +933,7 @@ public class RepartoAdjuntosTests
         public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
-    private sealed class TiposDocumentoVacio : ITiposDocumentoQueryContext
+    internal sealed class TiposDocumentoVacio : ITiposDocumentoQueryContext
     {
         public IQueryable<TipoDocumento> TiposDocumento => Vacia<TipoDocumento>();
         public IQueryable<TipoDocumentoCentro> TiposDocumentoCentros => Vacia<TipoDocumentoCentro>();
