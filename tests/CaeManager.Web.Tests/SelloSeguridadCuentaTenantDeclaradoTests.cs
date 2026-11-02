@@ -69,6 +69,14 @@ public sealed class SelloSeguridadCuentaTenantDeclaradoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_sello_de_una_cuenta_no_vale_para_otra_del_mismo_Tenant()
+    {
+        var sellos = new SelloSeguridadCuenta(_servicios.GetRequiredService<IServiceScopeFactory>());
+
+        (await sellos.EsVigenteAsync(Guid.NewGuid(), _tenantPropietario, Sello)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Con_otro_Tenant_declarado_no_es_vigente_aunque_la_fila_se_vea()
     {
         using var ambito = _servicios.CreateScope();
