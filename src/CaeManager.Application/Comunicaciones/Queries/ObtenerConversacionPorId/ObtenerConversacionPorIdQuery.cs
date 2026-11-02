@@ -118,6 +118,7 @@ public record ConversacionDetalleDto(
     bool EsConversacionInformativaPreCae = false,
     string? ResumenRelevanciaCae = null,
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
+    long NumeroTicket = 0,
     Guid? ConexionEntradaId = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
@@ -150,6 +151,7 @@ public class ObtenerConversacionPorIdQueryHandler(
                 c.Asunto,
                 c.Estado,
                 c.Prioridad,
+                c.NumeroTicket,
                 c.EjecutivoAsignadoId,
                 c.Etiquetas,
                 c.FechaUltimoMensajeUtc,
@@ -327,6 +329,7 @@ public class ObtenerConversacionPorIdQueryHandler(
             mensajes, participantes, eventos, documentosCitados, conversacion.Canal, conversacion.TelefonoContacto,
             conversacion.FechaUltimoMensajeEntranteUtc, sugerenciaVinculacion, esConversacionInformativaPreCae,
             esConversacionInformativaPreCae ? clasificacionRelevancia!.Resumen : null, conversacion.Prioridad,
+            conversacion.NumeroTicket,
             conversacion.ConexionIntegracionId);
     }
 
