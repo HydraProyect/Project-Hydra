@@ -8,4 +8,5 @@ internal sealed class SesionesExtensionFalsas : IRegistroSesionesUsuario
     public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotImplementedException();
     public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotImplementedException();
     public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => throw new NotImplementedException();
 }

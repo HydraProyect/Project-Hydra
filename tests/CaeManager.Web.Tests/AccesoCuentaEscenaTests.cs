@@ -1,10 +1,16 @@
+using System.Data;
+using System.Data.Common;
 using System.Security.Claims;
 using System.Text;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Seguridad;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
 using CaeManager.Web.Components.Layout;
@@ -16,6 +22,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -36,6 +44,7 @@ public class AccesoCuentaEscenaTests : BunitContext
 {
     private readonly AlmacenFalso _almacen = new();
     private readonly UserManager<ApplicationUser> _usuarios;
+    private readonly SesionesCapturadas _sesiones = new();
 
     public AccesoCuentaEscenaTests()
     {
@@ -48,6 +57,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddSingleton<IEmailService>(new EmailQueNoDebeUsarse());
         Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
+        Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
         Services.AddLocalization();
         AddAuthorization();
     }
@@ -869,12 +879,14 @@ public class AccesoCuentaEscenaTests : BunitContext
 
     /// <summary>
     /// V3.3.3 en el cambio voluntario: ChangePasswordAsync rota el sello (las demás sesiones
-    /// dejan de validar) y RefreshSignInAsync reemite la cookie de esta con el sello nuevo.
+    /// dejan de validar), las demás sesiones se revocan, esta se conserva, y RefreshSignInAsync
+    /// reemite su cookie con el sello nuevo.
     /// La contraseña actual tiene 10 caracteres: las anteriores a la política de 12 siguen valiendo.
     /// </summary>
     [Fact]
-    public async Task Cambiar_contrasena_rota_el_sello_y_reemite_la_sesion_actual()
+    public async Task Cambiar_contrasena_rota_el_sello_revoca_las_demas_y_reemite_la_sesion_actual()
     {
+        var sid = Guid.NewGuid();
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
@@ -883,7 +895,9 @@ public class AccesoCuentaEscenaTests : BunitContext
             [new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
              new Claim("AspNet.Identity.SecurityStamp", selloAnterior!)], "test"));
         var autenticacion = new AutenticacionCapturada(principal);
-        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(
+            new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+            new Claim(SignInManagerCuentaDesactivada.ClaimSid, sid.ToString("N")));
         var signIn = Services.GetRequiredService<SignInManager<ApplicationUser>>();
         signIn.Context.RequestServices = new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
 
@@ -898,12 +912,59 @@ public class AccesoCuentaEscenaTests : BunitContext
         (await signIn.ValidateSecurityStampAsync(principal)).Should().BeNull();
         autenticacion.Emitido.Should().NotBeNull();
         autenticacion.Emitido!.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(selloNuevo);
+        _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)sid)], "se conserva solo la sesi\u00f3n de quien cambia su contrase\u00f1a");
+        _sesiones.CerradasTodas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Fallo en cerrado, como <see cref="CierreSesionEnServidor"/>: sin revocar las demás sesiones
+    /// no se reemite la cookie ni se sigue como si hubiera ido bien.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_si_no_se_revocan_las_demas_falla_y_no_reemite_la_sesion()
+    {
+        _sesiones.Lanza = true;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        var autenticacion = new AutenticacionCapturada(null);
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        var enviar = () => cut.Find("form").SubmitAsync();
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        autenticacion.Emitido.Should().BeNull();
+    }
+
+    /// <summary>Con la contraseña actual incorrecta no cambia nada: ninguna sesión se revoca.</summary>
+    [Fact]
+    public async Task Cambiar_contrasena_rechazado_no_revoca_ninguna_sesion()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Incorrecta123" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+
+        _sesiones.DemasCerradas.Should().BeEmpty();
     }
 
     /// <summary>
     /// V3.3.3 en el restablecimiento por enlace: ResetPasswordAsync rota el sello (las
-    /// sesiones abiertas en otros navegadores dejan de validar) y la página cierra además
-    /// la del navegador donde se usó el enlace, sin reemitir ninguna cookie.
+    /// sesiones abiertas en otros navegadores dejan de validar), todas las sesiones de la
+    /// cuenta se revocan y la página cierra además la del navegador donde se usó el enlace,
+    /// sin reemitir ninguna cookie.
     /// </summary>
     [Fact]
     public async Task Restablecer_rota_el_sello_y_cierra_la_sesion_del_navegador_sin_reemitirla()
@@ -932,6 +993,376 @@ public class AccesoCuentaEscenaTests : BunitContext
             .Should().BeNull("la sesi\u00f3n con el sello anterior cae en la siguiente revalidaci\u00f3n");
         autenticacion.Emitido.Should().BeNull("el enlace no abre ni conserva sesi\u00f3n");
         autenticacion.Cierres.Should().BeGreaterThan(0, "la p\u00e1gina cierra la sesi\u00f3n del navegador");
+        _sesiones.CerradasTodas.Should().Equal([usuario.Id], "sin revocar, una cookie robada se refresca dentro del intervalo de revalidaci\u00f3n");
+    }
+
+    /// <summary>
+    /// Fallo en cerrado, como <see cref="CierreSesionEnServidor"/>: la página no dice «actualizada»
+    /// con las sesiones sin revocar. La contraseña ya cambió y este enlace no vuelve a servir: las
+    /// sesiones se revocan con otro restablecimiento, desde un enlace nuevo.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_si_no_se_revocan_las_sesiones_falla_y_no_lo_da_por_hecho()
+    {
+        _sesiones.Lanza = true;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+        var autenticacion = new AutenticacionCapturada(null);
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        var enviar = () => cut.Find("form").SubmitAsync();
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        cut.Markup.Should().NotContain("Contrase\u00f1a actualizada");
+        autenticacion.Cierres.Should().Be(0);
+    }
+
+    /// <summary>Un enlace rechazado no cambia la credencial: no revoca las sesiones de nadie.</summary>
+    [Fact]
+    public async Task Restablecer_con_token_invalido_no_revoca_ninguna_sesion()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token-inventado"));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("form").SubmitAsync();
+
+        _sesiones.CerradasTodas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «No he sido yo» quita la contraseña y revoca las sesiones, no solo rota el sello; después salen
+    /// la señal de incidente, el enlace de contraseña nueva y el aviso al Administrador.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_revoca_las_sesiones_y_da_senal_correo_y_aviso()
+    {
+        var escena = new EscenaNoHeSidoYo(this);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.Protegida);
+        _sesiones.CerradasTodas.Should().Equal([escena.Usuario.Id]);
+        escena.Senales.NoReconocidos.Should().Equal([(escena.Usuario.Id, escena.Usuario.TenantId, true)]);
+        var correoPersona = escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == escena.Usuario.Email).Subject;
+        correoPersona.Asunto.Should().StartWith("Tu cuenta está protegida");
+        correoPersona.Cuerpo.Should().Contain("/cuenta/restablecer-contrasena").And.Contain("Hemos cerrado todas tus sesiones");
+        escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == EscenaNoHeSidoYo.CorreoAdministrador)
+            .Which.Cuerpo.Should().Contain("Se han cerrado sus sesiones");
+        var aviso = escena.Contexto.Guardadas.Should().ContainSingle().Subject;
+        aviso.UsuarioDestinatarioId.Should().Be(EscenaNoHeSidoYo.Administrador);
+        aviso.Titulo.Should().Be("Cuenta protegida por «no he sido yo»");
+        escena.Registro.Errores.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La contraseña ya no está y el enlace ya no sirve cuando falla la revocación: la señal de seguridad,
+    /// el enlace y el aviso salen igualmente, el fallo queda como error y nadie lee que las sesiones
+    /// estén cerradas.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_no_se_revocan_las_sesiones_da_senal_correo_y_aviso_sin_decir_que_estan_cerradas()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        _sesiones.CerradasTodas.Should().Equal([escena.Usuario.Id]);
+        escena.Registro.Errores.Should().ContainSingle().Which.Should().Contain("sin poder cerrar las sesiones");
+        escena.Senales.NoReconocidos.Should().Equal([(escena.Usuario.Id, escena.Usuario.TenantId, true)]);
+        var correoPersona = escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == escena.Usuario.Email).Subject;
+        correoPersona.Asunto.Should().NotContain("protegida");
+        correoPersona.Cuerpo.Should().Contain("/cuenta/restablecer-contrasena")
+            .And.Contain("no hemos podido cerrar").And.NotContain("Hemos cerrado");
+        escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == EscenaNoHeSidoYo.CorreoAdministrador)
+            .Which.Cuerpo.Should().Contain("No se han podido cerrar sus sesiones");
+        var aviso = escena.Contexto.Guardadas.Should().ContainSingle().Subject;
+        aviso.UsuarioDestinatarioId.Should().Be(EscenaNoHeSidoYo.Administrador);
+        aviso.Titulo.Should().NotContain("protegida");
+    }
+
+    /// <summary>
+    /// Con el registro real: la rotación del sello falla al guardar, y eso deja en la entidad un sello
+    /// que la base no tiene y en el contexto el cambio pendiente. El enlace tiene que firmarse con el
+    /// sello guardado y el aviso no puede repetir la escritura fallida.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_falla_la_rotacion_del_sello_el_enlace_vale_y_el_aviso_se_guarda()
+    {
+        var escena = new EscenaNoHeSidoYo(this, conRegistroReal: true);
+        _almacen.ComoEf = escena.Contexto;
+        _almacen.GuardadosCorrectos = 1;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Registro.Errores.Should().ContainSingle().Which.Should().Contain("sin poder cerrar las sesiones");
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        (await escena.ElEnlaceDelCorreoEsValidoAsync()).Should().BeTrue("el token tiene que firmarse con el sello guardado");
+        escena.Contexto.Guardadas.Should().ContainSingle()
+            .Which.UsuarioDestinatarioId.Should().Be(EscenaNoHeSidoYo.Administrador);
+    }
+
+    /// <summary>Ni releer la cuenta puede perder la señal, el correo ni el aviso.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_si_tampoco_se_puede_releer_la_cuenta_da_senal_correo_y_aviso()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this);
+        _almacen.BusquedasCorrectas = 1;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Registro.Errores.Should().HaveCount(2);
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        escena.Correos.Enviados.Should().Contain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>Una cuenta solo de Microsoft no recibe enlace, pero tampoco lee que esté protegida.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_sin_revocar_en_una_cuenta_solo_Microsoft_da_senal_y_aviso_sin_enlace()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this, conContrasena: false);
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Senales.NoReconocidos.Should().Equal([(escena.Usuario.Id, escena.Usuario.TenantId, false)]);
+        escena.Correos.Enviados.Should().NotContain(c => c.Destinatario == escena.Usuario.Email);
+        escena.Correos.Enviados.Should().ContainSingle(c => c.Destinatario == EscenaNoHeSidoYo.CorreoAdministrador)
+            .Which.Cuerpo.Should().Contain("No se han podido cerrar sus sesiones; entra con Microsoft");
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>Las sesiones sin cerrar pesan más que el correo perdido: la página no dice que estén cerradas.</summary>
+    [Fact]
+    public async Task No_he_sido_yo_sin_revocar_y_con_el_envio_fallido_no_se_queda_en_protegida_sin_correo()
+    {
+        _sesiones.Lanza = true;
+        var escena = new EscenaNoHeSidoYo(this);
+        escena.Correos.FallaPara = escena.Usuario.Email;
+
+        var resultado = await escena.ConfirmarAsync();
+
+        resultado.Should().Be(ResultadoNoHeSidoYo.SesionesSinCerrar);
+        escena.Senales.NoReconocidos.Should().ContainSingle();
+        escena.Contexto.Guardadas.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Devolver 0 se leería como «no tenía sesiones» y quien llama diría que están cerradas. Revocar una
+    /// sola no cambia: dice que no había una viva.
+    /// </summary>
+    [Fact]
+    public async Task Cerrar_las_sesiones_de_una_cuenta_que_no_se_ve_lanza_en_vez_de_devolver_cero()
+    {
+        var registro = new RegistroSesionesUsuario(null!, _usuarios, null!, NullLogger<RegistroSesionesUsuario>.Instance);
+        var cuenta = Guid.NewGuid();
+
+        await FluentActions.Awaiting(() => registro.CerrarTodasAsync(cuenta)).Should().ThrowAsync<InvalidOperationException>();
+        await FluentActions.Awaiting(() => registro.CerrarLasDemasAsync(cuenta, null)).Should().ThrowAsync<InvalidOperationException>();
+        (await registro.RevocarAsync(cuenta, Guid.NewGuid())).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El servicio real de «No he sido yo», sin servidor de base de datos: la lectura de Administradores
+    /// la responde un interceptor con uno solo, y lo que se iba a guardar se queda en
+    /// <see cref="ContextoSinServidor.Guardadas"/>. Quién es Administrador lo mide la integración
+    /// (<c>FronteraCuentaFirmadaTests</c>).
+    /// </summary>
+    private sealed class EscenaNoHeSidoYo
+    {
+        public static readonly Guid Administrador = Guid.NewGuid();
+        public const string CorreoAdministrador = "administrador@example.test";
+
+        private readonly VigilanciaInicioSesionService _vigilancia;
+        private readonly UserManager<ApplicationUser> _usuarios;
+
+        public EscenaNoHeSidoYo(AccesoCuentaEscenaTests pruebas, bool conContrasena = true, bool conRegistroReal = false)
+        {
+            _usuarios = pruebas._usuarios;
+            Usuario = new ApplicationUser
+            {
+                Id = Guid.NewGuid(),
+                TenantId = Guid.NewGuid(),
+                Email = "marta@example.test",
+                SecurityStamp = "sello-inicial",
+            };
+            pruebas._almacen.Usuario = Usuario;
+            if (conContrasena)
+                pruebas._almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(Usuario, "Abcdefghijk1");
+            pruebas._usuarios.RegisterTokenProvider(ProveedorTokenNoHeSidoYo.Nombre, new TokenSiempreValido());
+
+            var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+                .UseNpgsql("Host=localhost;Database=sin-servidor;Username=x;Password=x")
+                .AddInterceptors(new ConexionSinServidor(), new LecturaDeAdministrador())
+                .Options;
+            Contexto = new ContextoSinServidor(opciones);
+
+            IRegistroSesionesUsuario sesiones = conRegistroReal
+                ? new RegistroSesionesUsuario(Contexto, pruebas._usuarios, null!, NullLogger<RegistroSesionesUsuario>.Instance)
+                : pruebas._sesiones;
+            var ambitos = new ServiceCollection()
+                .AddSingleton(pruebas._usuarios)
+                .AddSingleton(sesiones)
+                .AddSingleton<IEmailService>(Correos)
+                .AddSingleton<CaeManagerDbContext>(Contexto)
+                .BuildServiceProvider()
+                .GetRequiredService<IServiceScopeFactory>();
+
+            var peticion = new DefaultHttpContext();
+            peticion.Request.Scheme = "https";
+            peticion.Request.Host = new HostString("app.example.test");
+            _vigilancia = new VigilanciaInicioSesionService(
+                new HttpContextAccessor { HttpContext = peticion }, ambitos, null!, null!, null!, null!, Registro, Senales);
+        }
+
+        public ApplicationUser Usuario { get; }
+        public ContextoSinServidor Contexto { get; }
+        public SenalesCapturadas Senales { get; } = new();
+        public CorreosCapturados Correos { get; } = new();
+        public RegistroCapturado Registro { get; } = new();
+
+        public Task<ResultadoNoHeSidoYo> ConfirmarAsync() =>
+            _vigilancia.ConfirmarNoHeSidoYoAsync(Usuario.Id.ToString(), WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token")));
+
+        /// <summary>Contra lo guardado, como cuando la persona abra el enlace en otra petición.</summary>
+        public async Task<bool> ElEnlaceDelCorreoEsValidoAsync()
+        {
+            var cuerpo = Correos.Enviados.Single(c => c.Destinatario == Usuario.Email).Cuerpo;
+            var codigo = cuerpo[(cuerpo.IndexOf("code=", StringComparison.Ordinal) + "code=".Length)..];
+            codigo = codigo[..codigo.IndexOf('"')];
+            var token = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(codigo));
+            Contexto.ChangeTracker.Clear();
+            var guardada = await _usuarios.FindByIdAsync(Usuario.Id.ToString());
+            return await _usuarios.VerifyUserTokenAsync(guardada!, _usuarios.Options.Tokens.PasswordResetTokenProvider,
+                UserManager<ApplicationUser>.ResetPasswordTokenPurpose, token);
+        }
+    }
+
+    private sealed class ConexionSinServidor : DbConnectionInterceptor
+    {
+        public override ValueTask<InterceptionResult> ConnectionOpeningAsync(
+            DbConnection connection, ConnectionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(InterceptionResult.Suppress());
+    }
+
+    private sealed class LecturaDeAdministrador : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            var filas = new DataTable();
+            filas.Columns.Add("Id", typeof(Guid));
+            filas.Columns.Add("Email", typeof(string));
+            filas.Columns.Add("LockoutEnd", typeof(DateTimeOffset));
+            filas.Rows.Add(EscenaNoHeSidoYo.Administrador, EscenaNoHeSidoYo.CorreoAdministrador, DBNull.Value);
+            return ValueTask.FromResult(InterceptionResult<DbDataReader>.SuppressWithResult(filas.CreateDataReader()));
+        }
+    }
+
+    private sealed class ContextoSinServidor(DbContextOptions<CaeManagerDbContext> opciones)
+        : CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantEfectivoDePrueba(null))
+    {
+        public List<NotificacionUsuario> Guardadas { get; } = [];
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            if (ChangeTracker.Entries<ApplicationUser>().Any(e => e.State == EntityState.Modified))
+                throw new DbUpdateException("La escritura de la cuenta que ya falló se repite y vuelve a fallar.");
+            Guardadas.AddRange(ChangeTracker.Entries<NotificacionUsuario>().Select(e => e.Entity));
+            return Task.FromResult(Guardadas.Count);
+        }
+    }
+
+    private sealed class SenalesCapturadas : ISenalesIncidenteSeguridad
+    {
+        public List<(Guid UsuarioId, Guid TenantId, bool TeniaContrasena)> NoReconocidos { get; } = [];
+
+        public Task InicioSesionNoReconocidoAsync(Guid usuarioId, Guid tenantPropietarioId, bool teniaContrasena, CancellationToken ct = default)
+        {
+            NoReconocidos.Add((usuarioId, tenantPropietarioId, teniaContrasena));
+            return Task.CompletedTask;
+        }
+
+        public Task ExportacionAsync(Guid actorRealUsuarioId, Guid? tenantId, int filas, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task DocumentoSensibleAbiertoAsync(Guid actorRealUsuarioId, Guid? tenantId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AccesoAOtroTenantRechazadoAsync(Guid usuarioId, Guid tenantOrigenId, Guid tenantObjetivoId, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class CorreosCapturados : IEmailService
+    {
+        public List<(string Destinatario, string Asunto, string Cuerpo)> Enviados { get; } = [];
+        public string? FallaPara { get; set; }
+
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
+        {
+            if (destinatarioEmail == FallaPara)
+                return Task.FromResult(Result.Fallo(Error.Crear("Correo.Fallo", "fallo simulado")));
+            Enviados.Add((destinatarioEmail, asunto, cuerpoHtml));
+            return Task.FromResult(Result.Exito());
+        }
+    }
+
+    private sealed class RegistroCapturado : ILogger<VigilanciaInicioSesionService>
+    {
+        public List<string> Errores { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error)
+                Errores.Add(formatter(state, exception));
+        }
+    }
+
+    private sealed class TokenSiempreValido : IUserTwoFactorTokenProvider<ApplicationUser>
+    {
+        public Task<string> GenerateAsync(string purpose, UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult("token");
+        public Task<bool> ValidateAsync(string purpose, string token, UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult(true);
+        public Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult(false);
+    }
+
+    /// <summary>Solo lo que hacen las páginas de contraseña. Cada llamada queda anotada aunque luego lance.</summary>
+    private sealed class SesionesCapturadas : IRegistroSesionesUsuario
+    {
+        public bool Lanza { get; set; }
+        public List<Guid> CerradasTodas { get; } = [];
+        public List<(Guid UsuarioId, Guid? SidConservada)> DemasCerradas { get; } = [];
+
+        public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default)
+        {
+            CerradasTodas.Add(usuarioId);
+            return Lanza ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
+        }
+
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default)
+        {
+            DemasCerradas.Add((usuarioId, sidConservada));
+            return Lanza ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
+        }
+
+        public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class AutenticacionCapturada(ClaimsPrincipal? principal) : IAuthenticationService
@@ -1100,8 +1531,42 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// <summary>Para sembrar la contraseña inicial directamente en el test, sin pasar por CreateAsync (no soportado).</summary>
         public string? HashContrasena { get => _hashContrasena; set => _hashContrasena = value; }
 
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
-            Task.FromResult(Usuario is not null && Usuario.Id.ToString() == userId ? Usuario : null);
+        /// <summary>
+        /// Con contexto, el almacén se comporta como el <c>UserStore</c> de EF: el sello vive en la entidad,
+        /// la cuenta rastreada es la que se devuelve y lo guardado solo cambia si el guardado sale bien.
+        /// </summary>
+        public ContextoSinServidor? ComoEf { get; set; }
+
+        /// <summary>Guardados que salen bien antes de que el siguiente falle y deje el cambio pendiente.</summary>
+        public int? GuardadosCorrectos { get; set; }
+
+        /// <summary>Búsquedas por identificador que salen bien antes de que las siguientes lancen.</summary>
+        public int? BusquedasCorrectas { get; set; }
+
+        private string? _selloGuardado;
+
+        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct)
+        {
+            if (BusquedasCorrectas is { } busquedas)
+            {
+                if (busquedas == 0)
+                    throw new InvalidOperationException("fallo simulado al buscar");
+                BusquedasCorrectas = busquedas - 1;
+            }
+
+            if (Usuario is null || Usuario.Id.ToString() != userId)
+                return Task.FromResult<ApplicationUser?>(null);
+            if (ComoEf is null)
+                return Task.FromResult<ApplicationUser?>(Usuario);
+
+            _selloGuardado ??= Usuario.SecurityStamp;
+            var rastreada = ComoEf.ChangeTracker.Entries<ApplicationUser>().SingleOrDefault()?.Entity;
+            if (rastreada is not null)
+                return Task.FromResult<ApplicationUser?>(rastreada);
+            var leida = new ApplicationUser { Id = Usuario.Id, TenantId = Usuario.TenantId, Email = Usuario.Email, SecurityStamp = _selloGuardado };
+            ComoEf.Attach(leida);
+            return Task.FromResult<ApplicationUser?>(leida);
+        }
 
         private int _busquedasCorreo;
         public int BusquedasCorreo => Volatile.Read(ref _busquedasCorreo);
@@ -1130,8 +1595,21 @@ public class AccesoCuentaEscenaTests : BunitContext
         /// segunda escritura explícita separada. <see cref="ResultadoUpdate"/>
         /// gobierna esa única llamada.
         /// </summary>
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct) =>
-            Task.FromResult(ResultadoUpdate);
+        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken ct)
+        {
+            if (GuardadosCorrectos is not { } guardados)
+                return Task.FromResult(ResultadoUpdate);
+
+            if (guardados == 0)
+            {
+                ComoEf!.Entry(user).State = EntityState.Modified;
+                return Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "fallo simulado al guardar" }));
+            }
+
+            GuardadosCorrectos = guardados - 1;
+            _selloGuardado = user.SecurityStamp;
+            return Task.FromResult(IdentityResult.Success);
+        }
 
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
@@ -1154,9 +1632,11 @@ public class AccesoCuentaEscenaTests : BunitContext
         public Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken ct)
         {
             _securityStamp = stamp;
+            user.SecurityStamp = stamp;
             return Task.CompletedTask;
         }
 
-        public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult<string?>(_securityStamp);
+        public Task<string?> GetSecurityStampAsync(ApplicationUser user, CancellationToken ct) =>
+            Task.FromResult<string?>(ComoEf is null ? _securityStamp : user.SecurityStamp);
     }
 }

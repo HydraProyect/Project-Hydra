@@ -155,6 +155,12 @@
   <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
     <value>Hemos cerrado todas tus sesiones. Tu cuenta entra con Microsoft: cambia la contraseña de tu cuenta de Microsoft y avisa a tu Administrador.</value>
   </data>
+  <data name="NoHeSidoYoSesionesSinCerrarTitulo" xml:space="preserve">
+    <value>No hemos podido cerrar tus sesiones</value>
+  </data>
+  <data name="NoHeSidoYoSesionesSinCerrarExplicacion" xml:space="preserve">
+    <value>Hemos registrado tu aviso, pero tus sesiones abiertas pueden seguir activas. Si entras con contraseña, la anterior ya no sirve: al crear una nueva se cierran todas; si no te llega el correo, pídelo desde aquí. Si entras con Microsoft, avisa a tu Administrador.</value>
+  </data>
   <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
     <value>¿No has sido tú?</value>
   </data>

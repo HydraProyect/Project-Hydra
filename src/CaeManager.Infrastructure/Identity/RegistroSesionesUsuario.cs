@@ -34,9 +34,20 @@ public interface IRegistroSesionesUsuario
     /// <summary>
     /// Cierra todas las sesiones de la cuenta: rota el sello de seguridad (también corta las
     /// cookies anteriores a los identificadores de sesión y el resto de lo que depende del sello)
-    /// y revoca todas sus sesiones vivas. Devuelve cuántas revocó.
+    /// y revoca todas sus sesiones vivas. Devuelve cuántas revocó. No depende de quién firme el
+    /// contexto: sirve también al restablecer la contraseña y en «No he sido yo», que llegan por un
+    /// enlace de correo, sin sesión de la cuenta. Lanza si no puede, también si no ve la cuenta: quien
+    /// llama no debe decir que las sesiones están cerradas sin que lo estén.
     /// </summary>
     Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Revoca todas las sesiones vivas de la cuenta salvo <paramref name="sidConservada"/>, la de quien
+    /// acaba de cambiar su contraseña; sin ella, todas. No rota el sello: lo ha rotado el propio cambio
+    /// de credencial, y esa sesión lo recoge con <c>RefreshSignInAsync</c>. Devuelve cuántas revocó.
+    /// Lanza si no puede, como <see cref="CerrarTodasAsync"/>.
+    /// </summary>
+    Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -48,11 +59,20 @@ public interface IRegistroSesionesUsuario
 /// acaba de resolver, como <c>VigilanciaInicioSesionService</c>; va en un ámbito de servicios
 /// propio para no guardar nada pendiente del contexto de la petición. Revocar lee la cuenta con
 /// <see cref="AmbitoIdentificacionSinTenant"/> y escribe bajo <see cref="AmbitoTenantExplicito"/>
-/// con su Tenant, así que funciona también desde un Delegated Workspace; la RLS
-/// (<c>solo_la_propia_cuenta_revoca</c>) exige además que la cuenta sea quien firma el contexto.
-/// Quien revoca desde una petición con una Sesión Privilegiada seleccionada tiene que resolver este
-/// servicio en un ámbito sin esa selección (ver <c>CierreSesionEnServidor</c>): con ella, la
-/// conexión adopta el rol de solo lectura de soporte.
+/// con su Tenant, así que funciona también desde un Delegated Workspace. Quien revoca desde una
+/// petición con una Sesión Privilegiada seleccionada tiene que resolver este servicio en un ámbito
+/// sin esa selección (ver <c>CierreSesionEnServidor</c>): con ella, la conexión adopta el rol de solo
+/// lectura de soporte.
+/// </para>
+///
+/// <para>
+/// <b>Quién revoca.</b> La RLS (<c>solo_la_propia_cuenta_revoca</c>) exige que la cuenta sea quien
+/// firma el contexto, y una sola sesión solo la revoca su cuenta (<see cref="RevocarAsync"/>). Revocar
+/// varias tiene que funcionar también sin esa firma: quien restablece la contraseña o confirma «No he
+/// sido yo» prueba ser la cuenta con el enlace de su correo, y no tiene sesión de ella o tiene la de
+/// otra. Bajo esa política el UPDATE no vería ninguna fila y devolvería 0 sin error, indistinguible de
+/// una cuenta sin sesiones. Por eso va por <c>app_revocar_sesiones_de_cuenta</c>, que exige contexto
+/// firmado y que su Tenant sea el de la cuenta. Autorizar sigue siendo cosa de quien llama.
 /// </para>
 /// </summary>
 public sealed class RegistroSesionesUsuario(
@@ -87,35 +107,51 @@ public sealed class RegistroSesionesUsuario(
                 .Where(s => s.UsuarioId == usuarioId && s.Sid == sid && s.RevocadaEnUtc == null)
                 .ExecuteUpdateAsync(cambios => cambios.SetProperty(s => s.RevocadaEnUtc, ahora), ct);
             return filas > 0;
-        }, valorSinCuenta: false);
+        }, sinCuenta: () => false);
 
     public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) =>
         EnElTenantDeLaCuentaAsync(usuarioId, async cuenta =>
         {
             // Primero el sello: aunque fallara lo siguiente, las cookies ya caen en la siguiente
-            // revalidación. Como «No he sido yo» (VigilanciaInicioSesionService).
+            // revalidación.
             var rotado = await userManager.UpdateSecurityStampAsync(cuenta);
             if (!rotado.Succeeded)
                 throw new InvalidOperationException($"No se pudo rotar el sello de seguridad de la cuenta {cuenta.Id}.");
 
-            // Mismo predicado que RevocarAsync, por el mismo motivo: un cierre simultáneo de una de
-            // estas sesiones no hace fallar este.
-            var ahora = DateTime.UtcNow;
-            var revocadas = await db.SesionesUsuario
-                .Where(s => s.UsuarioId == usuarioId && s.RevocadaEnUtc == null)
-                .ExecuteUpdateAsync(cambios => cambios.SetProperty(s => s.RevocadaEnUtc, ahora), ct);
+            var revocadas = await RevocarVariasAsync(usuarioId, SinSesionConservada, ct);
             logger.LogWarning("Cerradas todas las sesiones de la cuenta {UsuarioId}: sello rotado y {Sesiones} sesiones revocadas.",
                 usuarioId, revocadas);
             return revocadas;
-        }, valorSinCuenta: 0);
+        }, sinCuenta: () => throw CuentaNoVisible(usuarioId));
 
-    private async Task<T> EnElTenantDeLaCuentaAsync<T>(Guid usuarioId, Func<ApplicationUser, Task<T>> accion, T valorSinCuenta)
+    public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) =>
+        EnElTenantDeLaCuentaAsync(usuarioId, async _ =>
+        {
+            var revocadas = await RevocarVariasAsync(usuarioId, sidConservada ?? SinSesionConservada, ct);
+            logger.LogWarning("Cerradas las demás sesiones de la cuenta {UsuarioId}: {Sesiones} sesiones revocadas.",
+                usuarioId, revocadas);
+            return revocadas;
+        }, sinCuenta: () => throw CuentaNoVisible(usuarioId));
+
+    /// <summary>Ningún identificador de sesión es <see cref="Guid.Empty"/>: ver <c>LeerSid</c>.</summary>
+    private static readonly Guid SinSesionConservada = Guid.Empty;
+
+    /// <summary>Devolver 0 se leería como «no tenía sesiones», y quien llama diría que están cerradas.</summary>
+    private static InvalidOperationException CuentaNoVisible(Guid usuarioId) =>
+        new($"No se ve la cuenta {usuarioId}: sus sesiones no se han revocado.");
+
+    private async Task<int> RevocarVariasAsync(Guid usuarioId, Guid conservar, CancellationToken ct) =>
+        await db.Database
+            .SqlQuery<int>($"SELECT public.app_revocar_sesiones_de_cuenta({usuarioId}, {conservar}) AS \"Value\"")
+            .SingleAsync(ct);
+
+    private async Task<T> EnElTenantDeLaCuentaAsync<T>(Guid usuarioId, Func<ApplicationUser, Task<T>> accion, Func<T> sinCuenta)
     {
         ApplicationUser? cuenta;
         using (AmbitoIdentificacionSinTenant.Abrir())
             cuenta = await userManager.FindByIdAsync(usuarioId.ToString());
         if (cuenta is null)
-            return valorSinCuenta;
+            return sinCuenta();
 
         // El Tenant propietario de la cuenta, no el del workspace que la petición tenga abierto.
         using var _ = AmbitoTenantExplicito.Establecer(cuenta.TenantId);
