@@ -61,8 +61,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <!-- (Web.Tests tambien lo usa: ocupa el semaforo de conversion de Word sin lanzar LibreOffice.)

@@ -1,0 +1,6 @@
+# MJ-07 (2026-11-02). No existía; el rigor de compilación sale de -warnaserror en ci.yml.
+# Deliberadamente mínimo: `dotnet format --verify-no-changes` (job «Verificar formato») aplica
+# toda clave de espacios que se defina aquí, y el árbol tiene ficheros sin salto final, con BOM y con
+# tabuladores. Añadir charset, indent_style o insert_final_newline exige normalizar antes esos ficheros.
+# No fija end_of_line: el repositorio mezcla CRLF y LF según core.autocrlf y .gitattributes manda.
+root = true
