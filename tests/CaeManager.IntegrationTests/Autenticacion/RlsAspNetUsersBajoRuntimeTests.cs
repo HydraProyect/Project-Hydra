@@ -64,6 +64,126 @@ public class RlsAspNetUsersBajoRuntimeTests
     }
 
     [Fact]
+    public async Task Los_roles_solo_son_visibles_para_cuentas_visibles_incluida_la_propia()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Consulta);
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.DireccionCae);
+        await AsignarRolesAsync(e, e.OperadorDelegadoY.Id, Roles.GestorCae);
+
+        async Task<HashSet<Guid>> RolesVisibles(Guid? tenant, Guid? origen, Guid? usuario)
+        {
+            await using var conexion = await AbrirComoRuntimeAsync(e, tenant, origen, usuario);
+            await using var orden = new NpgsqlCommand("""SELECT "UserId" FROM "AspNetUserRoles" WHERE "UserId" = ANY(@ids)""", conexion);
+            orden.Parameters.AddWithValue("ids", new[] { e.PropiaX.Id, e.AjenaY.Id, e.OperadorDelegadoY.Id });
+            var resultado = new HashSet<Guid>();
+            await using var lector = await orden.ExecuteReaderAsync();
+            while (await lector.ReadAsync()) resultado.Add(lector.GetGuid(0));
+            return resultado;
+        }
+
+        (await RolesVisibles(e.TenantX, e.TenantX, e.PropiaX.Id)).Should().BeEquivalentTo(
+            new[] { e.PropiaX.Id, e.OperadorDelegadoY.Id });
+        (await RolesVisibles(e.TenantX, null, e.AjenaY.Id)).Should().Contain(e.AjenaY.Id);
+        (await RolesVisibles(null, null, null)).Should().BeEmpty();
+        (await RolesVisibles(e.TenantY, e.TenantY, e.AjenaY.Id)).Should().Contain(e.AjenaY.Id);
+    }
+
+    [Fact]
+    public async Task Soporte_ve_el_rol_de_su_cuenta_y_no_el_de_otra_cuenta_sin_relacion()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.SoporteP.Id, Roles.Administrador);
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.Consulta);
+        await using var conexion = await AbrirComoRuntimeAsync(e, e.TenantX, TenantP, e.SoporteP.Id);
+        await using (var adoptar = new NpgsqlCommand("SET ROLE cae_app_soporte", conexion))
+            await adoptar.ExecuteNonQueryAsync();
+        await using var orden = new NpgsqlCommand("""
+            SELECT "UserId" FROM "AspNetUserRoles" WHERE "UserId" = ANY(@ids)
+            """, conexion);
+        orden.Parameters.AddWithValue("ids", new[] { e.SoporteP.Id, e.AjenaY.Id });
+        var visibles = new List<Guid>();
+        await using var lector = await orden.ExecuteReaderAsync();
+        while (await lector.ReadAsync()) visibles.Add(lector.GetGuid(0));
+        visibles.Should().Equal(e.SoporteP.Id);
+    }
+
+    [Fact]
+    public async Task La_tabla_de_roles_tiene_rls_forzada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await using var conexion = await AbrirComoRuntimeAsync(e, null, null, null);
+        await using var orden = new NpgsqlCommand("""
+            SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
+            WHERE oid = 'public."AspNetUserRoles"'::regclass
+            """, conexion);
+        ((bool)(await orden.ExecuteScalarAsync())!).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Los_roles_de_una_cuenta_delegada_visible_no_se_pueden_modificar_desde_otro_Tenant()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.OperadorDelegadoY.Id, Roles.GestorCae);
+        await using var conexion = await AbrirComoRuntimeAsync(e, e.TenantX, e.TenantX, e.PropiaX.Id);
+
+        (await EjecutarAsync(conexion, """DELETE FROM "AspNetUserRoles" WHERE "UserId" = @id""", e.OperadorDelegadoY.Id))
+            .Should().Be(0);
+        var altaAjena = () => EjecutarAsync(conexion,
+            """INSERT INTO "AspNetUserRoles" ("UserId", "RoleId") SELECT @id, "Id" FROM "AspNetRoles" WHERE "Name" = 'Consulta'""",
+            e.OperadorDelegadoY.Id);
+        (await altaAjena.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+        (await EjecutarAsync(conexion,
+            """INSERT INTO "AspNetUserRoles" ("UserId", "RoleId") SELECT @id, "Id" FROM "AspNetRoles" WHERE "Name" = 'Consulta'""",
+            e.PropiaX.Id)).Should().Be(1);
+
+        await using var traslado = new NpgsqlCommand(
+            """UPDATE "AspNetUserRoles" SET "UserId" = @ajena WHERE "UserId" = @propia""", conexion);
+        traslado.Parameters.AddWithValue("ajena", e.OperadorDelegadoY.Id);
+        traslado.Parameters.AddWithValue("propia", e.PropiaX.Id);
+        var trasladar = () => traslado.ExecuteNonQueryAsync();
+        (await trasladar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501",
+            "el WITH CHECK impide llevar el rol propio a una cuenta de otro Tenant");
+    }
+
+    [Fact]
+    public async Task Identity_lee_el_rol_durante_la_identificacion_sin_Tenant()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Administrador);
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var cuenta = await usuarios.FindByEmailAsync(e.PropiaX.Email!);
+            cuenta.Should().NotBeNull();
+            (await usuarios.GetRolesAsync(cuenta!)).Should().Equal(Roles.Administrador);
+        }
+    }
+
+    [Fact]
+    public async Task La_fabrica_de_claims_recupera_el_rol_fuera_del_ambito_de_identificacion()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Administrador);
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var servicios = ambito.ServiceProvider;
+        var usuarios = servicios.GetRequiredService<UserManager<ApplicationUser>>();
+        ApplicationUser cuenta;
+        using (AmbitoIdentificacionSinTenant.Abrir())
+            cuenta = (await usuarios.FindByEmailAsync(e.PropiaX.Email!))!;
+
+        cuenta.Should().NotBeNull();
+        var fabrica = new TenantClaimsPrincipalFactory(
+            usuarios, servicios.GetRequiredService<RoleManager<IdentityRole<Guid>>>(),
+            servicios.GetRequiredService<Microsoft.Extensions.Options.IOptions<IdentityOptions>>(),
+            servicios.GetRequiredService<CaeManagerDbContext>());
+        var principal = await fabrica.CreateAsync(cuenta);
+        principal.IsInRole(Roles.Administrador).Should().BeTrue();
+        principal.HasClaim(TenantClaimsPrincipalFactory.TipoClaimRequiereActivacion, "true").Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Desde_un_Tenant_se_ven_sus_cuentas_y_las_relacionadas_con_el_y_ninguna_mas()
     {
         await using var e = await CrearEscenarioAsync();
