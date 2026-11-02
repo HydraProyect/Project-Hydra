@@ -115,6 +115,26 @@ public class SuspenderTenantCommandTests
     }
 
     [Fact]
+    public async Task Una_suspension_posterior_a_la_orden_no_se_levanta()
+    {
+        // Mismo estado que ve un reintento tras un commit sin acuse: reactivado y vuelto a suspender.
+        var tenant = new Tenant("Tenant A");
+        tenant.Suspender();
+        _bloqueo.AlBloquear = () =>
+        {
+            tenant.Reactivar();
+            tenant.Suspender();
+        };
+
+        var resultado = await Reactivar(tenant, AutorizacionAdminPlataformaFalsa.Global()).Handle(new(tenant.Id), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.SuspensionPosterior");
+        tenant.Estado.Should().Be(EstadoTenant.Suspendido);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Una_concesion_revocada_mientras_se_espera_el_candado_no_reactiva()
     {
         var tenant = new Tenant("Tenant A");

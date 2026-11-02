@@ -35,6 +35,8 @@ public class ReactivarTenantCommandHandler(
 {
     public async Task<Result> Handle(ReactivarTenantCommand request, CancellationToken cancellationToken)
     {
+        var ordenRecibidaUtc = DateTime.UtcNow;
+
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("Tenant.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
@@ -59,6 +61,11 @@ public class ReactivarTenantCommandHandler(
 
             if (tenant.Estado is EstadoTenant.Activo)
                 return Result.Exito();
+
+            // Una suspensión sellada tras recibir la orden no es la que se pidió levantar. Un reintento
+            // de la estrategia de ejecución tras un commit sin acuse la desharía; gana la suspensión.
+            if (tenant.ClavesApiValidasDesdeUtc > ordenRecibidaUtc)
+                return Result.Fallo(Error.Crear("Tenant.SuspensionPosterior", "Esta organización se ha suspendido mientras se reactivaba. Revisa su estado."));
 
             tenant.Reactivar();
             await unitOfWork.SaveChangesAsync(ct);
