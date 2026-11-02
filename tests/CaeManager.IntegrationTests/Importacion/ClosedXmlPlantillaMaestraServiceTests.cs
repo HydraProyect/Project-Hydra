@@ -214,6 +214,22 @@ public class ClosedXmlPlantillaMaestraServiceTests
     }
 
     [Fact]
+    public async Task Las_filas_se_leen_en_orden_aunque_una_posterior_tenga_altura_propia_y_gana_la_primera_en_un_duplicado()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        Fila(hoja, 4, "Duplicada Primera, S.L.", "A28017895", "", "");
+        Fila(hoja, 10, "Duplicada Segunda, S.L.", "A28017895", "", "");
+        hoja.Row(10).Height = 30; // una fila con propiedades propias sale antes en RowsUsed
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Select(e => e.Fila).Should().BeInAscendingOrder();
+        plan.Empresas.Should().ContainSingle(e => e.Cif == "A28017895").Which.Fila.Should().Be(4);
+        plan.Omitidos.Should().ContainSingle(o => o.Fila == 10 && o.Motivo.Contains("duplicado"));
+    }
+
+    [Fact]
     public async Task Muchas_cabeceras_repetidas_cuentan_para_el_tope_de_columnas()
     {
         var libro = LibroValido();
