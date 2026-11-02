@@ -440,7 +440,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     {
         var cut = Renderizar(new Escenario()).Cut;
 
-        var hoy = DateTime.UtcNow;
+        var hoy = DiaDeNegocio.Hoy();
         var mes = new DateOnly(hoy.Year, hoy.Month, 1);
         var ultimoDia = mes.AddMonths(1).AddDays(-1);
         var esperado = $"Del {mes:d 'de' MMMM 'de' yyyy} al {ultimoDia:d 'de' MMMM 'de' yyyy} · 2 organizaciones";

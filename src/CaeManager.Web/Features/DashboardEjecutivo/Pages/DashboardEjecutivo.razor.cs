@@ -133,13 +133,14 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
     private PeriodoKpi PeriodoSeleccionado()
     {
         var ahora = DateTime.UtcNow;
-        var inicioMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var (anyo, mes) = CorteDeMesDeNegocio.MesDe(ahora);
+        var mesActual = new DateOnly(anyo, mes, 1);
 
         return _preset switch
         {
-            PresetPeriodoKpi.MesAnterior => new PeriodoKpi(inicioMes.AddMonths(-1), inicioMes),
-            PresetPeriodoKpi.UltimosTresMeses => new PeriodoKpi(inicioMes.AddMonths(-2), inicioMes.AddMonths(1)),
-            PresetPeriodoKpi.AnyoActual => new PeriodoKpi(new DateTime(ahora.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc), inicioMes.AddMonths(1)),
+            PresetPeriodoKpi.MesAnterior => PeriodoKpi.DeMeses(mesActual.AddMonths(-1), mesActual.AddMonths(-1)),
+            PresetPeriodoKpi.UltimosTresMeses => PeriodoKpi.DeMeses(mesActual.AddMonths(-2), mesActual),
+            PresetPeriodoKpi.AnyoActual => PeriodoKpi.DeMeses(new DateOnly(anyo, 1, 1), mesActual),
             PresetPeriodoKpi.Personalizado when DateOnly.TryParse(_desdePersonalizado, out var desde) && DateOnly.TryParse(_hastaPersonalizado, out var hasta) && hasta >= desde
                 => PeriodoKpi.DeFechas(desde, hasta),
             _ => PeriodoKpi.MesActual(ahora)
@@ -372,8 +373,8 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         {
             if (PeriodoDelRotulo is not { } periodo) return TextoOrganizaciones;
 
-            var desde = DateOnly.FromDateTime(periodo.InicioUtc);
-            var hasta = DateOnly.FromDateTime(periodo.FinUtc.AddDays(-1));
+            var desde = CorteDeMesDeNegocio.DiaDe(periodo.InicioUtc);
+            var hasta = CorteDeMesDeNegocio.DiaDe(periodo.FinUtc.AddTicks(-1));
             var rango = desde == hasta ? Fecha(desde) : Textos["RangoFechas", Fecha(desde), Fecha(hasta)].Value;
             return $"{rango} · {TextoOrganizaciones}";
         }
