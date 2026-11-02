@@ -141,7 +141,7 @@ public class RlsAsignacionesOperadorDelegadoTests : IAsyncLifetime
             var usuario = new CurrentUserServiceFalso(tenantOrigenId: _operador);
             var handler = new RevocarAsignacionOperadorDelegadoCommandHandler(
                 new AsignacionOperadorDelegadoRepository(contexto), new DelegacionTenantRepository(contexto), usuario,
-                new AsignacionesOperativasWriter(contexto, actual, usuario), contexto, actual);
+                new AsignacionesOperativasWriter(contexto, actual, usuario), contexto, actual, new Autoriza());
             var resultado = await handler.Handle(new(_asignacionEnA), CancellationToken.None);
             resultado.Error.Codigo.Should().Be("AsignacionOperadorDelegado.RequiereTenantPropietario");
             contexto.ChangeTracker.HasChanges().Should().BeFalse();

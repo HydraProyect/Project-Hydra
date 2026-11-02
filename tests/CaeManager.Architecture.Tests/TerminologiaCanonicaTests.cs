@@ -483,7 +483,10 @@ public class TerminologiaCanonicaTests
         // 351 → 355 (2026-10-31, SEG-7): +4, referencias a tipos ya existentes. Reactivar y su lote reciben
         // IAutorizacionDelegacionTenant, y AdministradorQueReactiva la declara y llama a PuedeGestionarDelegacionesAsync.
         // Lo nuevo usa el nombre canónico; el renombrado es un incremento propio.
-        ["Delegacion"] = 355,
+        // 355 → 356 (2026-11-02, retirar a una persona de un Operador CAE externo): +1, referencia a un tipo ya
+        // existente. RevocarAsignacionOperadorDelegadoCommandHandler recibe IAutorizacionDelegacionTenant para
+        // usar el predicado de AdministradorQueReactiva.
+        ["Delegacion"] = 356,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
