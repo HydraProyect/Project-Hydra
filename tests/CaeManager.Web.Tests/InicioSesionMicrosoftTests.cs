@@ -286,6 +286,7 @@ public class InicioSesionMicrosoftTests
         builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
         builder.Services.AddSingleton<IRegistroSesionesUsuario>(sesiones);
         builder.Services.AddSingleton<ISelloSeguridadCuenta>(new SellosDePrueba(selloVigente));
+        builder.Services.AddSingleton<CaeManager.Application.Tenants.IEstadoOperativoTenant>(new EstadoOperativoDePrueba(null));
         builder.Services.AddSingleton<VerificacionContrasenaFicticia>();
         await using var app = builder.Build();
         app.UseAuthentication();
