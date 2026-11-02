@@ -119,6 +119,7 @@
     private string _telefono = string.Empty;
     private string _cargo = string.Empty;
     private string _notas = string.Empty;
+    private string? _notasAlCargar;
     private bool _esPredeterminado;
     private bool _recibeProgramacionVisitas;
     private bool _recibeFacturacion;
@@ -163,6 +164,7 @@
         _telefono = Contacto?.Telefono ?? string.Empty;
         _cargo = Contacto?.Cargo ?? string.Empty;
         _notas = Contacto?.Notas ?? string.Empty;
+        _notasAlCargar = Contacto?.Notas;
         _esPredeterminado = Contacto?.EsPredeterminado ?? PredeterminadoPorDefecto;
         _recibeProgramacionVisitas = Contacto?.RecibeProgramacionVisitas ?? false;
         _recibeFacturacion = Contacto?.RecibeFacturacion ?? false;
@@ -233,7 +235,7 @@
                 string.IsNullOrWhiteSpace(_cargo) ? null : _cargo,
                 string.IsNullOrWhiteSpace(_notas) ? null : _notas,
                 _esPredeterminado, _recibeProgramacionVisitas, _recibeFacturacion,
-                [.. _tiposSeleccionados], [.. _roles]));
+                [.. _tiposSeleccionados], [.. _roles], _notasAlCargar));
 
             if (resultado.EsFallido)
             {

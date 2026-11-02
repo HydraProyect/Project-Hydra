@@ -7,6 +7,7 @@ using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
+using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Tests.Asignaciones;
@@ -47,6 +48,7 @@ public class EscriturasDeCentroAlcanceGestionTests
     private const string MarcarCanalGestionPrincipal = nameof(MarcarCanalGestionPrincipal);
     private const string GuardarContactoAgenda = nameof(GuardarContactoAgenda);
     private const string EliminarContactoAgenda = nameof(EliminarContactoAgenda);
+    private const string FijarNotaContactoAgenda = nameof(FijarNotaContactoAgenda);
 
     private readonly Centro _centro = new(Guid.NewGuid(), Guid.NewGuid(), "Planta de Getafe");
     private readonly CentroRepositorioFalso _centros = new();
@@ -79,6 +81,7 @@ public class EscriturasDeCentroAlcanceGestionTests
         { MarcarCanalGestionPrincipal, "CanalGestion.NoEncontrado" },
         { GuardarContactoAgenda, "ContactoAgenda.SinAcceso" },
         { EliminarContactoAgenda, "ContactoAgenda.SinAcceso" },
+        { FijarNotaContactoAgenda, "ContactoAgenda.SinAcceso" },
     };
 
     [Theory]
@@ -181,7 +184,7 @@ public class EscriturasDeCentroAlcanceGestionTests
             .Handle(new MarcarCanalGestionPrincipalCommand(_canal.Id), CancellationToken.None),
 
         GuardarContactoAgenda => await new GuardarContactoAgendaCommandHandler(
-                _contactos, new TiposDocumentoQueryContextFalso(), alcance, _unitOfWork)
+                _contactos, new TiposDocumentoQueryContextFalso(), alcance, _usuario, _unitOfWork)
             .Handle(
                 new GuardarContactoAgendaCommand(
                     TipoPropietarioAgenda.Centro, _centro.Id, null, "Luis Ortega", "luis@ejemplo.test", null, null, null,
@@ -191,6 +194,10 @@ public class EscriturasDeCentroAlcanceGestionTests
         EliminarContactoAgenda => await new EliminarContactoAgendaCommandHandler(_contactos, alcance, _unitOfWork)
             .Handle(
                 new EliminarContactoAgendaCommand(TipoPropietarioAgenda.Centro, _centro.Id, _contacto.Id), CancellationToken.None),
+
+        FijarNotaContactoAgenda => await new FijarNotaContactoAgendaCommandHandler(_contactos, alcance, _usuario, _unitOfWork)
+            .Handle(
+                new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, _centro.Id, _contacto.Id, "Llamar antes de las 11"), CancellationToken.None),
 
         _ => throw new ArgumentOutOfRangeException(nameof(escritura), escritura, "Escritura de Centro sin caso en este test."),
     };

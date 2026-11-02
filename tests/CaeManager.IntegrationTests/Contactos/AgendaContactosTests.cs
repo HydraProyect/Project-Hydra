@@ -1,5 +1,7 @@
+using CaeManager.Application.Contactos.Commands.FijarNotaContactoAgenda;
 using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Contactos.Queries.ObtenerNotaContacto;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
@@ -25,6 +27,7 @@ public class AgendaContactosTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
+    private readonly Guid _autor = Guid.NewGuid();
     private Guid _clienteId;
     private Guid _tipoRlcId;
     private Guid _tipoAptoMedicoId;
@@ -137,12 +140,36 @@ public class AgendaContactosTests : IAsyncLifetime
         agendaCentro.Should().ContainSingle().Which.Nombre.Should().Be("Jefe de obra");
     }
 
+    [Fact]
+    public async Task La_nota_fijada_conserva_autor_y_fecha_y_se_lee_por_el_correo_del_interlocutor()
+    {
+        var contactoId = await GuardarAsync("Finanzas", "finanzas@cliente.test", []);
+
+        await using (var contexto = CrearContexto())
+        {
+            var resultado = await new FijarNotaContactoAgendaCommandHandler(
+                    new ContactoAgendaRepository(contexto), new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(_autor), contexto)
+                .Handle(new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Cliente, _clienteId, contactoId, "Llamar antes de las 11"), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        await using var lectura = CrearContexto();
+        var nota = await new ObtenerNotaContactoQueryHandler(lectura, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("Administrador"))
+            .Handle(new ObtenerNotaContactoQuery(TipoPropietarioAgenda.Cliente, _clienteId, " FINANZAS@cliente.test "), CancellationToken.None);
+
+        nota!.ContactoId.Should().Be(contactoId);
+        nota.Notas.Should().Be("Llamar antes de las 11");
+        nota.AutorUsuarioId.Should().Be(_autor);
+        nota.ActualizadaEnUtc.Should().NotBeNull();
+    }
+
     private async Task<Guid> GuardarAsync(
         string nombre, string email, IReadOnlyList<Guid> tipoDocumentoIds, Guid? contactoId = null, string? telefono = null)
     {
         await using var contexto = CrearContexto();
         var handler = new GuardarContactoAgendaCommandHandler(
-            new ContactoAgendaRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto);
+            new ContactoAgendaRepository(contexto), contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(_autor), contexto);
 
         var resultado = await handler.Handle(
             new GuardarContactoAgendaCommand(
