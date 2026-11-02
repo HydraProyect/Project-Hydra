@@ -4,6 +4,8 @@ using Bunit;
 using CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTenant;
 using CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 using CaeManager.Application.Comercial.Queries.ObtenerEstadoComercialTenants;
+using CaeManager.Application.Tenants.Commands.ReactivarTenant;
+using CaeManager.Application.Tenants.Commands.SuspenderTenant;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
@@ -105,6 +107,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         public string? IdPagadorStripe { get; set; }
         public string? IdSuscripcion { get; set; }
         public DateTime? ActualizadoEnUtc { get; set; }
+        public EstadoTenant Acceso { get; set; } = EstadoTenant.Activo;
     }
 
     /// <summary>Una suscripción tal como la ve «Stripe»: quién la paga y en qué estado está (ya mapeado).</summary>
@@ -177,14 +180,22 @@ public partial class EstadoComercialGen2Tests : BunitContext
             ObtenerEstadoComercialTenantsQuery => Consultar(),
             RegistrarSuscripcionTenantCommand c => Registrar(c),
             ActualizarEstadoComercialTenantCommand c => Actualizar(c),
+            SuspenderTenantCommand c => CambiarAcceso(c.TenantId, EstadoTenant.Suspendido),
+            ReactivarTenantCommand c => CambiarAcceso(c.TenantId, EstadoTenant.Activo),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
         };
 
         private List<EstadoComercialTenantDto> Consultar() => !AutorizacionGlobal
             ? []
             : Tenants.OrderBy(t => t.Nombre, StringComparer.Ordinal)
-                .Select(t => new EstadoComercialTenantDto(t.Id, t.Nombre, t.Estado, t.IdPagadorStripe, t.IdSuscripcion, t.ActualizadoEnUtc))
+                .Select(t => new EstadoComercialTenantDto(t.Id, t.Nombre, t.Estado, t.IdPagadorStripe, t.IdSuscripcion, t.ActualizadoEnUtc, t.Acceso))
                 .ToList();
+
+        private Result CambiarAcceso(Guid tenantId, EstadoTenant acceso)
+        {
+            Tenants.Single(t => t.Id == tenantId).Acceso = acceso;
+            return Result.Exito();
+        }
 
         private Result Registrar(RegistrarSuscripcionTenantCommand c)
         {
@@ -246,7 +257,11 @@ public partial class EstadoComercialGen2Tests : BunitContext
         Fila(cut, tenantId).QuerySelectorAll("td")[columna].TextContent.Trim();
 
     private static IElement BotonDeFila(IRenderedComponent<EstadoComercial> cut, Guid tenantId) =>
-        Fila(cut, tenantId).QuerySelectorAll("button").Single(b => !b.ClassList.Contains("estado-comercial-id"));
+        Fila(cut, tenantId).QuerySelectorAll("button").Single(b => !b.ClassList.Contains("estado-comercial-id")
+            && b.TextContent.Trim() is not ("Suspender" or "Reactivar"));
+
+    private static IElement BotonAccesoDeFila(IRenderedComponent<EstadoComercial> cut, Guid tenantId) =>
+        Fila(cut, tenantId).QuerySelectorAll("button").Single(b => b.TextContent.Trim() is "Suspender" or "Reactivar");
 
     /// <summary>El diálogo abierto con ese título, o null. Se busca de nuevo en cada llamada.</summary>
     private static IElement? Dialogo(IRenderedComponent<EstadoComercial> cut, string titulo) =>
@@ -313,16 +328,16 @@ public partial class EstadoComercialGen2Tests : BunitContext
             .Should().Equal("Construcciones Beitia", "Grupo Arbeko", "Montajes Elorrio");
 
         Celda(cut, TenantArbeko, 1).Should().Be("Activa");
-        Celda(cut, TenantArbeko, 2).Should().Be("sub_arbeko");
+        Celda(cut, TenantArbeko, 3).Should().Be("sub_arbeko");
         BotonDeFila(cut, TenantArbeko).TextContent.Trim().Should().Be("Actualizar desde Stripe");
 
         Celda(cut, TenantBeitia, 1).Should().Be("Sin suscripción");
-        Celda(cut, TenantBeitia, 2).Should().Be("—");
         Celda(cut, TenantBeitia, 3).Should().Be("—");
+        Celda(cut, TenantBeitia, 4).Should().Be("—");
         BotonDeFila(cut, TenantBeitia).TextContent.Trim().Should().Be("Vincular suscripción");
 
         Celda(cut, TenantElorrio, 1).Should().Be("Suspendida");
-        Celda(cut, TenantElorrio, 3).Should().Be(
+        Celda(cut, TenantElorrio, 4).Should().Be(
             new DateTime(2026, 8, 28, 10, 45, 0, DateTimeKind.Utc).EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm"));
     }
 
@@ -469,7 +484,7 @@ public partial class EstadoComercialGen2Tests : BunitContext
         Toasts().Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje == "Suscripción vinculada.");
         Enviados<ObtenerEstadoComercialTenantsQuery>(mediador).Should().HaveCount(2, "tras escribir se vuelve a leer lo persistido");
         Celda(cut, TenantBeitia, 1).Should().Be("Activa", "el estado lo decide Stripe, no la pantalla");
-        Celda(cut, TenantBeitia, 2).Should().Be("sub_beitia");
+        Celda(cut, TenantBeitia, 3).Should().Be("sub_beitia");
         BotonDeFila(cut, TenantBeitia).TextContent.Trim().Should().Be("Actualizar desde Stripe");
     }
 
@@ -541,6 +556,62 @@ public partial class EstadoComercialGen2Tests : BunitContext
         escenario.Retenidas.Single().Tarea.SetResult(escenario.Retenidas.Single().RespuestaAlPedir);
         await Task.WhenAll(primero, segundo);
         Enviados<RegistrarSuscripcionTenantCommand>(mediador).Should().ContainSingle();
+    }
+
+    // ---------------------------------------------------------------- suspender y reactivar
+
+    [Fact]
+    public async Task Suspender_pide_confirmacion_con_el_corte_real_y_la_fila_pasa_a_Reactivar()
+    {
+        var (cut, mediador, _) = Montar(new Escenario());
+
+        await BotonAccesoDeFila(cut, TenantArbeko).ClickAsync(new MouseEventArgs());
+
+        var confirmacion = Dialogo(cut, "¿Suspender esta organización?")!;
+        confirmacion.TextContent.Should().Contain("Grupo Arbeko").And.Contain("dejarán de valer");
+        Enviados<SuspenderTenantCommand>(mediador).Should().BeEmpty();
+
+        await BotonDe(confirmacion, "Suspender").ClickAsync(new MouseEventArgs());
+
+        Enviados<SuspenderTenantCommand>(mediador).Should().ContainSingle().Which.TenantId.Should().Be(TenantArbeko);
+        Dialogo(cut, "¿Suspender esta organización?").Should().BeNull();
+        Celda(cut, TenantArbeko, 2).Should().Be("Suspendido");
+        BotonAccesoDeFila(cut, TenantArbeko).TextContent.Trim().Should().Be("Reactivar");
+    }
+
+    [Fact]
+    public async Task Reactivar_envia_el_comando_de_reactivar_y_avisa_de_las_claves()
+    {
+        var escenario = new Escenario();
+        escenario.Tenants.Single(t => t.Id == TenantBeitia).Acceso = EstadoTenant.Suspendido;
+        var (cut, mediador, _) = Montar(escenario);
+
+        await BotonAccesoDeFila(cut, TenantBeitia).ClickAsync(new MouseEventArgs());
+
+        var confirmacion = Dialogo(cut, "¿Reactivar esta organización?")!;
+        confirmacion.TextContent.Should().Contain("claves de API anteriores no vuelven a valer");
+
+        await BotonDe(confirmacion, "Reactivar").ClickAsync(new MouseEventArgs());
+
+        Enviados<ReactivarTenantCommand>(mediador).Should().ContainSingle().Which.TenantId.Should().Be(TenantBeitia);
+        Enviados<SuspenderTenantCommand>(mediador).Should().BeEmpty();
+        Celda(cut, TenantBeitia, 2).Should().Be("Activo");
+    }
+
+    [Fact]
+    public async Task Si_suspender_se_rechaza_se_avisa_y_la_fila_no_cambia()
+    {
+        var escenario = new Escenario
+        {
+            Rechazar = p => p is SuspenderTenantCommand ? Error.Crear("Tenant.NoAutorizado", "Sin autorización.") : null,
+        };
+        var (cut, _, _) = Montar(escenario);
+
+        await BotonAccesoDeFila(cut, TenantArbeko).ClickAsync(new MouseEventArgs());
+        await BotonDe(Dialogo(cut, "¿Suspender esta organización?")!, "Suspender").ClickAsync(new MouseEventArgs());
+
+        Toasts().Should().ContainSingle(t => t.Tono == TonoToast.Error && t.Mensaje == "Sin autorización.");
+        Celda(cut, TenantArbeko, 2).Should().Be("Activo");
     }
 
     // ---------------------------------------------------------------- actualizar

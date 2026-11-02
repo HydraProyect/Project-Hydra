@@ -30,7 +30,8 @@ public record EstadoComercialTenantDto(
     EstadoComercialTenant EstadoComercial,
     string? StripeCustomerId,
     string? StripeSubscriptionId,
-    DateTime? EstadoComercialActualizadoEnUtc);
+    DateTime? EstadoComercialActualizadoEnUtc,
+    EstadoTenant Estado);
 
 public class ObtenerEstadoComercialTenantsQueryHandler(ITenantsQueryContext dbContext, IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService)
@@ -53,7 +54,7 @@ public class ObtenerEstadoComercialTenantsQueryHandler(ITenantsQueryContext dbCo
             .Where(t => !t.EsPlataforma)
             .OrderBy(t => t.Nombre)
             .Select(t => new EstadoComercialTenantDto(
-                t.Id, t.Nombre, t.EstadoComercial, t.StripeCustomerId, t.StripeSubscriptionId, t.EstadoComercialActualizadoEnUtc))
+                t.Id, t.Nombre, t.EstadoComercial, t.StripeCustomerId, t.StripeSubscriptionId, t.EstadoComercialActualizadoEnUtc, t.Estado))
             .ToListAsync(cancellationToken);
     }
 }
