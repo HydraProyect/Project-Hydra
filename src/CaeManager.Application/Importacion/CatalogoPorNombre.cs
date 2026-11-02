@@ -67,11 +67,28 @@ internal sealed class CatalogoPorNombre<TValor>
         _fijados.Add(nombre);
     }
 
+    /// <summary>
+    /// Qué entidades ve el acto (autoridad acotada). Si se fija, la ambigüedad solo cuenta las homónimas VISIBLES: que haya
+    /// otra homónima fuera del ámbito no puede cambiar el resultado de quien no la ve (sería un oráculo de multiplicidad).
+    /// Con una sola visible se resuelve a ella; con ninguna visible se resuelve a la primera, y el control de ámbito de la
+    /// fila la omite con el motivo uniforme.
+    /// </summary>
+    public Func<TValor, bool>? EsVisible { get; set; }
+
     public ResultadoBusquedaPorNombre Buscar(string nombre, out TValor? valor)
     {
         valor = default;
         if (!_entradas.TryGetValue(nombre, out var lista) || lista.Count == 0)
             return ResultadoBusquedaPorNombre.NoExiste;
+        if (lista.Count > 1 && EsVisible is not null)
+        {
+            var visibles = lista.Where(EsVisible).ToList();
+            if (visibles.Count <= 1)
+            {
+                valor = visibles.Count == 1 ? visibles[0] : lista[0];
+                return ResultadoBusquedaPorNombre.Unico;
+            }
+        }
         if (lista.Count > 1)
             return ResultadoBusquedaPorNombre.Ambiguo;
         valor = lista[0];

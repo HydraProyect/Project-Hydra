@@ -110,16 +110,20 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         // Z5-7: el índice único de CIF incluye las Empresas dadas de baja del Tenant propietario;
         // una fila que coincida con una baja abortaría el guardado con un error genérico.
-        // Con autoridad acotada ese error propio delataría que existe una Empresa dada de baja con ese CIF (un dato que el
-        // acto no ve): la fila se omite con el motivo uniforme de fuera de ámbito, sin abortar la carga.
-        HashSet<string>? cifsDeBaja = null;
+        // Con un ámbito de Clientes empresariales acotado, ese error propio delataría que existe una Empresa dada de baja con
+        // ese CIF (un dato que el acto no ve): la fila se omite con el motivo uniforme de fuera de ámbito y el nombre queda
+        // fijado a esa Empresa para que las filas que lo citen lo traten igual que a un Cliente existente fuera de ámbito.
+        // Si el acto ve todos los Clientes empresariales (Total, o Acotada sin restricción de Clientes) no hay nada que
+        // ocultar y se conserva el error accionable («Restáurala antes de importar»).
+        var ambitoDeBajas = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
+        Dictionary<string, Guid>? cifsDeBaja = null;
         foreach (var fila in plan.Clientes)
         {
             var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
             if (duplicada?.EstaEliminado != true) continue;
-            if (autoridad != AutoridadCargaMasiva.Acotada)
+            if (ambitoDeBajas.Cliente(duplicada.Id))
                 return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
-            (cifsDeBaja ??= []).Add(fila.Cif.Trim().ToUpperInvariant());
+            (cifsDeBaja ??= [])[fila.Cif.Trim().ToUpperInvariant()] = duplicada.Id;
         }
 
         try
@@ -138,7 +142,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
     }
 
     private async Task<Result<ResultadoImportacionCombinadaDto>> ConstruirYConfirmarAsync(
-        EjecutarImportacionCombinadaCommand request, AutoridadCargaMasiva autoridad, HashSet<string>? cifsDeBaja, CancellationToken cancellationToken)
+        EjecutarImportacionCombinadaCommand request, AutoridadCargaMasiva autoridad, Dictionary<string, Guid>? cifsDeBaja, CancellationToken cancellationToken)
     {
         var plan = request.Plan;
         var ambito = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
@@ -175,7 +179,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // C-06: dos Clientes empresariales que solo difieren en mayúsculas dejan el nombre AMBIGUO (el último que
         // se cargara ganaba, al azar). La hoja Clientes, que identifica por CIF, sí fija a qué Cliente se refiere
         // el nombre que declara.
-        var clientesIdPorRazonSocial = new CatalogoPorNombre<Guid>();
+        var clientesIdPorRazonSocial = new CatalogoPorNombre<Guid> { EsVisible = ambito.Cliente };
         foreach (var cliente in await empresasContext.Empresas.Where(e => e.EsCritico != null).ToListAsync(cancellationToken))
             clientesIdPorRazonSocial.Agregar(cliente.RazonSocial, cliente.Id);
 
@@ -196,8 +200,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         foreach (var fila in plan.Clientes)
         {
-            if (cifsDeBaja?.Contains(fila.Cif.Trim().ToUpperInvariant()) == true)
+            if (cifsDeBaja is not null && cifsDeBaja.TryGetValue(fila.Cif.Trim().ToUpperInvariant(), out var idDeBaja))
             {
+                clientesIdPorRazonSocial.Fijar(fila.RazonSocial, idDeBaja);
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     "Clientes", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Este Cliente empresarial")));
                 continue;
@@ -280,7 +285,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // filas que lo citan se omiten con su causal. La misma Empresa leída dos veces (semilla de Clientes y
         // consulta) no es una homónima: se compara por Id.
         var empresasPorRazonSocial = new CatalogoPorNombre<Empresa>(
-            EqualityComparer<Empresa>.Create((a, b) => a?.Id == b?.Id, e => e.Id.GetHashCode()));
+            EqualityComparer<Empresa>.Create((a, b) => a?.Id == b?.Id, e => e.Id.GetHashCode())) { EsVisible = e => ambito.Empresa(e.Id) };
         foreach (var cliente in clientesPorCif.Values)
             empresasPorRazonSocial.Agregar(cliente.RazonSocial, cliente);
         foreach (var empresa in await empresasContext.Empresas.ToListAsync(cancellationToken))
@@ -424,6 +429,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         var empresasIdPorRazonSocial = CatalogoPorNombre<Guid>.De(
             empresasPorRazonSocial.Entradas, e => e.Nombre, e => e.Valor.Id);
+        empresasIdPorRazonSocial.EsVisible = ambito.Empresa;
 
         var centrosExistentes = await centrosContext.Centros.ToListAsync(cancellationToken);
         // Centros no tiene índice único por nombre (solo CrearCentro lo vigila, con una comprobación previa): dos del
@@ -431,6 +437,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
         var centrosPorClienteYNombre = CatalogoPorNombre<Centro>.De(
             centrosExistentes, c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
+        centrosPorClienteYNombre.EsVisible = c => ambito.Centro(c.Id);
 
         var centrosCreados = 0;
         var centrosActualizados = 0;

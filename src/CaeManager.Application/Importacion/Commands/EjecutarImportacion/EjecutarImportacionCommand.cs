@@ -182,12 +182,15 @@ public class EjecutarImportacionCommandHandler(
             await empresasContext.Empresas.Where(e => e.EsCritico != null)
                 .Select(e => new { e.RazonSocial, e.Id }).ToListAsync(cancellationToken),
             e => e.RazonSocial, e => e.Id);
+        clientesPorNombre.EsVisible = ambito.Cliente;
         var centrosPorNombre = CatalogoPorNombre<Guid>.De(
             await centrosContext.Centros.Select(c => new { c.Nombre, c.Id }).ToListAsync(cancellationToken),
             c => c.Nombre, c => c.Id);
+        centrosPorNombre.EsVisible = ambito.Centro;
         var empresasPorRazonSocial = CatalogoPorNombre<Guid>.De(
             await empresasContext.Empresas.Select(e => new { e.RazonSocial, e.Id }).ToListAsync(cancellationToken),
             e => e.RazonSocial, e => e.Id);
+        empresasPorRazonSocial.EsVisible = ambito.Empresa;
         // Un trabajador anonimizado (Dni null) no puede ser destino de un
         // emparejamiento por DNI: queda fuera del diccionario.
         var trabajadoresPorDni = await trabajadoresContext.Trabajadores

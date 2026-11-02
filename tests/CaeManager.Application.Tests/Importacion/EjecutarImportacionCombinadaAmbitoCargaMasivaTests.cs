@@ -239,21 +239,58 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
         return (escenario, dentro, baja);
     }
 
-    [Fact]
-    public async Task Coordinador_con_el_CIF_de_una_Empresa_dada_de_baja_omite_la_fila_sin_abortar_la_carga()
+    [Theory]
+    [InlineData("B76543214")]
+    [InlineData("  b76543214 ")]
+    public async Task Coordinador_con_el_CIF_de_una_Empresa_dada_de_baja_omite_la_fila_sin_abortar_ni_crear_nada(string cif)
     {
         var (escenario, dentro, _) = EscenarioConBaja();
+        var antes = escenario.EmpresaRepositorio.Empresas.Count;
         var plan = EscenarioImportacionCombinada.Plan(clientes:
         [
-            new ClienteImportadoDto("Nombre Nuevo S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2),
-            new ClienteImportadoDto("Cliente Distinto S.A.", "A58818501", EsCritico: false, YaExiste: true, Fila: 3),
+            new ClienteImportadoDto("Nombre Nuevo S.A.", cif, EsCritico: false, YaExiste: false, Fila: 2),
+            new ClienteImportadoDto("Otro Nombre S.A.", cif, EsCritico: false, YaExiste: false, Fila: 3),
         ]);
 
         var resultado = await escenario.Handler(Cartera(clientes: [dentro.Id]), AutoridadCargaMasiva.Acotada)
             .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
 
         resultado.EsExitoso.Should().BeTrue("el error propio de baja delataría que existe esa Empresa dada de baja");
-        resultado.Valor.Omitidos.Should().Contain(o => o.Fila == 2 && o.Motivo.Contains("fuera de tu ámbito"));
+        resultado.Valor.ClientesCreados.Should().Be(0);
+        escenario.EmpresaRepositorio.Empresas.Should().HaveCount(antes, "la fila omitida no escribe nada");
+        resultado.Valor.Omitidos.Should().HaveCount(2).And.OnlyContain(o => o.Motivo.Contains("fuera de tu ámbito"));
+    }
+
+    [Fact]
+    public async Task Las_filas_que_citan_el_Cliente_omitido_por_baja_se_tratan_como_las_de_un_Cliente_fuera_de_ambito()
+    {
+        var (escenario, dentro, _) = EscenarioConBaja();
+        var plan = EscenarioImportacionCombinada.Plan(
+            clientes: [new ClienteImportadoDto("Cliente Dado De Baja S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2)],
+            empresas: [new EmpresaCombinadaImportadaDto("Proveedora Nueva S.L.", ["Cliente Dado De Baja S.A."], YaExiste: false, Fila: 2)],
+            centros: [new CentroImportadoDto("Planta Nueva", "Cliente Dado De Baja S.A.", Proveedora, null, null, null, null, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.Handler(Cartera(clientes: [dentro.Id], empresas: [escenario.EmpresaRepositorio.Empresas.First(e => e.RazonSocial == Proveedora).Id]), AutoridadCargaMasiva.Acotada)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.EmpresasCreadas.Should().Be(0, "la Empresa que cita ese Cliente se omite entera, sin crearla a medias");
+        resultado.Valor.CentrosCreados.Should().Be(0);
+        resultado.Valor.Omitidos.Should().HaveCount(3).And.OnlyContain(o => o.Motivo.Contains("fuera de tu ámbito"));
+    }
+
+    [Fact]
+    public async Task Con_todos_los_Clientes_visibles_el_CIF_de_una_baja_conserva_el_error_accionable()
+    {
+        var (escenario, _, _) = EscenarioConBaja();
+        var plan = EscenarioImportacionCombinada.Plan(clientes:
+            [new ClienteImportadoDto("Nombre Nuevo S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.Handler(new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: true), AutoridadCargaMasiva.Acotada)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be("Empresa.CifDeBaja");
     }
 
     [Fact]
@@ -267,6 +304,7 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
             .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
 
         resultado.EsExitoso.Should().BeFalse();
+        resultado.Error.Codigo.Should().Be("Empresa.CifDeBaja");
     }
 
     /// <summary>
@@ -288,5 +326,33 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
 
         conExistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
         sinExistente.TrabajadoresCreados.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Una_homonima_fuera_de_ambito_que_solo_difiere_en_mayusculas_no_cambia_el_resultado_para_el_Coordinador()
+    {
+        var (conGemela, _, _, proveedora1) = Escenario();
+        conGemela.EmpresaRepositorio.Empresas.Add(new Empresa(Proveedora.ToUpperInvariant()));
+        var (sinGemela, _, _, proveedora2) = Escenario();
+        var plan = EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto(Proveedora, [], YaExiste: true, Fila: 2)]);
+
+        var con = await conGemela.EjecutarAsync(plan, alcance: Cartera(empresas: [proveedora1.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+        var sin = await sinGemela.EjecutarAsync(plan, alcance: Cartera(empresas: [proveedora2.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+
+        con.Omitidos.Should().BeEmpty("la gemela de fuera del ámbito no puede hacer que el Coordinador vea «varias empresas»");
+        con.Should().BeEquivalentTo(sin);
+    }
+
+    [Fact]
+    public async Task Dos_homonimas_dentro_del_ambito_siguen_siendo_ambiguas()
+    {
+        var (escenario, _, _, proveedora) = Escenario();
+        var gemela = new Empresa(Proveedora.ToUpperInvariant());
+        escenario.EmpresaRepositorio.Empresas.Add(gemela);
+        var plan = EscenarioImportacionCombinada.Plan(empresas: [new EmpresaCombinadaImportadaDto(Proveedora, [], YaExiste: true, Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan, alcance: Cartera(empresas: [proveedora.Id, gemela.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+
+        resultado.Omitidos.Should().ContainSingle("quien ve las dos sí debe saber que son ambiguas");
     }
 }
