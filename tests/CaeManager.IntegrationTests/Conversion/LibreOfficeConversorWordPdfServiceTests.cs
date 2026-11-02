@@ -1,4 +1,6 @@
 using System.IO.Compression;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using CaeManager.Infrastructure.Conversion;
 using FluentAssertions;
@@ -74,6 +76,48 @@ public class LibreOfficeConversorWordPdfServiceTests
     }
 
     /// <summary>
+    /// Un .docx subido no puede hacer que el servidor pida una URL: la imagen enlazada
+    /// con <c>TargetMode="External"</c> se descargaba durante la conversión (medido con
+    /// LibreOffice 26.2). La sonda cuenta las conexiones; el control es una conexión
+    /// hecha a mano, para que un cero no sea una sonda que no escucha.
+    /// </summary>
+    [Fact]
+    public async Task Un_docx_con_imagen_externa_no_hace_peticiones_durante_la_conversion()
+    {
+        if (LocalizarLibreOffice() is not { } ejecutable) return;
+
+        var conexiones = 0;
+        using var sonda = new TcpListener(IPAddress.Loopback, 0);
+        sonda.Start();
+        var puerto = ((IPEndPoint)sonda.LocalEndpoint).Port;
+        using var fin = new CancellationTokenSource();
+        var escucha = Task.Run(async () =>
+        {
+            while (!fin.IsCancellationRequested)
+            {
+                using var cliente = await sonda.AcceptTcpClientAsync(fin.Token);
+                Interlocked.Increment(ref conexiones);
+            }
+        }, CancellationToken.None);
+
+        var pdf = await CrearServicio(ejecutable)
+            .ConvertirAPdfAsync(CrearDocxConImagenExterna($"http://127.0.0.1:{puerto}/imagen.png"));
+
+        pdf.Should().NotBeEmpty();
+        var duranteLaConversion = Volatile.Read(ref conexiones);
+
+        using (var control = new TcpClient())
+            await control.ConnectAsync(IPAddress.Loopback, puerto);
+        for (var intento = 0; intento < 50 && Volatile.Read(ref conexiones) == duranteLaConversion; intento++)
+            await Task.Delay(100);
+
+        Volatile.Read(ref conexiones).Should().Be(duranteLaConversion + 1, "la sonda tiene que ver una conexión de verdad");
+        await fin.CancelAsync();
+        await escucha.ContinueWith(_ => { }, TaskScheduler.Default);
+        duranteLaConversion.Should().Be(0);
+    }
+
+    /// <summary>
     /// Devuelve el ejecutable de LibreOffice utilizable, o null si no lo hay.
     /// Prueba el PATH (como en Linux/CI/despliegue) y, si falla, las rutas
     /// donde el instalador de Windows lo deja sin registrarlo en el PATH.
@@ -139,6 +183,45 @@ public class LibreOfficeConversorWordPdfServiceTests
                 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
                 <w:body><w:p><w:r><w:t>{texto}</w:t></w:r></w:p></w:body>
+                </w:document>
+                """);
+        }
+
+        return memoria.ToArray();
+    }
+
+    private static byte[] CrearDocxConImagenExterna(string url)
+    {
+        using var memoria = new MemoryStream();
+        using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            EscribirEntrada(zip, "[Content_Types].xml", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                <Default Extension="xml" ContentType="application/xml"/>
+                <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                </Types>
+                """);
+
+            EscribirEntrada(zip, "_rels/.rels", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """);
+
+            EscribirEntrada(zip, "word/_rels/document.xml.rels", $"""
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                <Relationship Id="rId9" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="{url}" TargetMode="External"/>
+                </Relationships>
+                """);
+
+            EscribirEntrada(zip, "word/document.xml", """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <w:body><w:p><w:r><w:drawing><wp:inline><wp:extent cx="99999" cy="99999"/><wp:docPr id="1" name="i"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="1" name="i"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:link="rId9"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:body>
                 </w:document>
                 """);
         }
