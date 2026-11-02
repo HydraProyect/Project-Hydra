@@ -37,7 +37,7 @@ public static class Observabilidad
     /// Latencia por Command/Query de MediatR — la misma medición que
     /// <see cref="LoggingBehavior{TRequest,TResponse}"/> ya hacía solo para
     /// el log, ahora también como histograma consultable (p95 por comando,
-    /// alertas de 2.4). Etiquetado solo por "Request" (el tipo del
+    /// alertas de 2.4). Etiquetado por "Request" y "Resultado" (el tipo del
     /// comando/query, cardinalidad acotada a los ~150 handlers/queries que
     /// documenta LoggingBehavior) — nunca por TenantId/UsuarioId, que sí van
     /// en el span pero no en la métrica, para no disparar la cardinalidad de
@@ -47,6 +47,27 @@ public static class Observabilidad
         "caemanager.comando.duracion_ms",
         unit: "ms",
         description: "Latencia de un Command/Query de MediatR (LoggingBehavior).");
+
+    /// <summary>Etiqueta «Resultado» del histograma: el Command/Query devolvió un resultado correcto.</summary>
+    public const string ResultadoExito = "exito";
+
+    /// <summary>Etiqueta «Resultado»: fallo de negocio esperado (Result fallido o denegación), no un error del sistema.</summary>
+    public const string ResultadoFallo = "fallo";
+
+    /// <summary>Etiqueta «Resultado»: excepción inesperada. Es la que cuenta contra la disponibilidad del servicio.</summary>
+    public const string ResultadoExcepcion = "excepcion";
+
+    /// <summary>
+    /// Registra la latencia de un Command/Query con las dos etiquetas de <see cref="DuracionComandoMs"/>: «Request» y
+    /// «Resultado» (exito, fallo, excepcion; cardinalidad 3). Con ella se calculan los SLI de disponibilidad y de
+    /// latencia por resultado sin fijar números de SLO (P34). Las cancelaciones no se registran: no son un desenlace
+    /// del servicio.
+    /// </summary>
+    public static void RegistrarDuracionComando(string request, double duracionMs, string resultado) =>
+        DuracionComandoMs.Record(
+            duracionMs,
+            new KeyValuePair<string, object?>("Request", request),
+            new KeyValuePair<string, object?>("Resultado", resultado));
 
     /// <summary>
     /// Un documento cuyo <c>TrabajoAnalisisDocumento</c> terminó en

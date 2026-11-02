@@ -163,6 +163,7 @@ src/CaeManager.Application/Facturacion/Commands/CrearTarifaCliente/CrearTarifaCl
 src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs :: ClienteId = 15
 src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs :: clienteId = 8
 src/CaeManager.Application/Facturacion/Queries/ObtenerTarifasCliente/ObtenerTarifasClienteQuery.cs :: ClienteId = 7
+src/CaeManager.Application/HerramientasPdf/ObtenerCatalogoDivisionPdfQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Importacion/AmbitoCargaMasiva.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: ClienteId = 8
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: clienteId = 7

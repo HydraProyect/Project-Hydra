@@ -20,7 +20,8 @@ export function atraparFoco(contenedor, devolverFila = false) {
     (enfocables()[0] ?? contenedor).focus();
 
     function manejarTab(evento) {
-        if (evento.key !== 'Tab') return;
+        // Un manejador interno que ya gestionó el Tab (p. ej. el salto de grupo del buscador global) manda.
+        if (evento.key !== 'Tab' || evento.defaultPrevented) return;
 
         const items = enfocables();
         if (items.length === 0) return;

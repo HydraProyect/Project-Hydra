@@ -214,12 +214,16 @@
         // Gestor o Coordinador CAE en su Operador CAE: IsInRole no lo sabe dentro de un Workspace
         // operativo derivado, donde el claim es el rol de la cartera en ese Tenant propietario.
         var participaEnIncorporacionCartera = await Mediator.Send(new ParticipaEnIncorporacionCarteraQuery());
+        // Opcional como la lente de demo: en un host sin el servicio el menú sigue siendo el de siempre.
+        var herramientasPdfDisponibles = Servicios.GetService<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf>() is not { } disponibilidadPdf
+            || await disponibilidadPdf.EstaDisponibleAsync();
 
         _contexto = new ContextoMenuLateral(
             new ClaimsPrincipal(new ClaimsIdentity()), vista, OpcionesComunicaciones.Value.Activo,
             esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1,
             ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera,
-            RotulosPrimeraPersona: rotulosPrimeraPersona);
+            RotulosPrimeraPersona: rotulosPrimeraPersona,
+            HerramientasPdfDisponibles: herramientasPdfDisponibles);
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

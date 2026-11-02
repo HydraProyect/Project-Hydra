@@ -28,6 +28,8 @@ public partial class BuscadorGlobal
     private IJSObjectReference? _suscripcionTab;
     private DotNetObjectReference<BuscadorGlobal>? _referenciaDotNet;
     private ElementReference _inputElemento;
+    private ElementReference _panelElemento;
+    private IJSObjectReference? _trampaFoco;
 
     private bool _visible;
     private string _termino = string.Empty;
@@ -901,7 +903,11 @@ public partial class BuscadorGlobal
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (!firstRender)
+        {
+            if (!_visible) await LiberarTrampaFocoAsync();
+            return;
+        }
 
         _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/buscador-global.js");
         _referenciaDotNet = DotNetObjectReference.Create(this);
@@ -955,6 +961,10 @@ public partial class BuscadorGlobal
             // Espera al siguiente render para que el <input> ya esté en el DOM antes de enfocarlo.
             await Task.Yield();
 
+            if (token.Value.IsCancellationRequested) return;
+
+            // Antes de enfocar el campo: la trampa recuerda quién tenía el foco al abrir y se lo devuelve al cerrar.
+            await ActivarTrampaFocoAsync(token.Value);
             if (token.Value.IsCancellationRequested) return;
 
             await modulo.InvokeVoidAsync("enfocarElemento", _inputElemento);
@@ -1049,6 +1059,51 @@ public partial class BuscadorGlobal
         }
 
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// El panel declara aria-modal: Tab desde «esc» no puede salir hacia la página de debajo (WCAG 2.4.3).
+    /// Mejor esfuerzo, igual que Modal: sin JS el palette sigue usable.
+    /// </summary>
+    private async Task ActivarTrampaFocoAsync(CancellationToken token)
+    {
+        try
+        {
+            await LiberarTrampaFocoAsync();
+            if (token.IsCancellationRequested || !_visible) return;
+
+            await using var moduloFoco = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            var trampa = await moduloFoco.InvokeAsync<IJSObjectReference>("atraparFoco", _panelElemento);
+
+            // Se cerró (o se retiró el componente) durante los await: la trampa nacería sobre un panel muerto.
+            if (!_visible || token.IsCancellationRequested)
+            {
+                await trampa.InvokeVoidAsync("dispose");
+                await trampa.DisposeAsync();
+                return;
+            }
+
+            _trampaFoco = trampa;
+        }
+        catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+        if (trampa is null) return;
+
+        try
+        {
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException)
+        {
+        }
     }
 
     private void Cerrar()
@@ -1275,10 +1330,12 @@ public partial class BuscadorGlobal
         // comentario de arriba promete que no ocurre.
         var suscripcionAtajo = _suscripcionAtajo;
         var suscripcionTab = _suscripcionTab;
+        var trampaFoco = _trampaFoco;
         var modulo = _modulo;
         var referencia = _referenciaDotNet;
         _suscripcionAtajo = null;
         _suscripcionTab = null;
+        _trampaFoco = null;
         _modulo = null;
         _referenciaDotNet = null;
 
@@ -1294,6 +1351,18 @@ public partial class BuscadorGlobal
             {
                 await suscripcionTab.InvokeVoidAsync("dispose");
                 await suscripcionTab.DisposeAsync();
+            }
+
+            if (trampaFoco is not null)
+            {
+                try
+                {
+                    await trampaFoco.InvokeVoidAsync("dispose");
+                    await trampaFoco.DisposeAsync();
+                }
+                catch (JSException)
+                {
+                }
             }
 
             if (modulo is not null)

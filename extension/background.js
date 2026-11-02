@@ -4,10 +4,12 @@
 // Hydra; el popup y el content script solo le mandan mensajes.
 //
 // Estado guardado:
-//   chrome.storage.local:   { hydraUrl }               -- sobrevive a reinicios
-//   chrome.storage.session: { token, expiraEnUtc }      -- se pierde al cerrar el navegador,
+//   chrome.storage.session: { hydraUrl, token, expiraEnUtc } -- se pierde al cerrar el navegador,
 //                                                           igual de corto que la vigencia real (8h)
 //                                                           que de todos modos impone el servidor.
+//                                                           El destino vive con el token: storage.local
+//                                                           lo puede escribir un content script, y
+//                                                           storage.session no.
 //   chrome.storage.session: { enviosPendientes, enviosConfirmados } -- «Lo he enviado» (E1): por
 //                                                           pestaña, la acreditación puesta en el formulario
 //                                                           y aún sin confirmar, y la última confirmada que
@@ -37,10 +39,17 @@
 const ORIGENES_TALVEG_PERMITIDOS = ["https://app.talveg.es", "https://staging.talveg.es"];
 
 async function obtenerConexion() {
-  const { hydraUrl } = await chrome.storage.local.get("hydraUrl");
-  const { token, expiraEnUtc } = await chrome.storage.session.get(["token", "expiraEnUtc"]);
+  const { hydraUrl, token, expiraEnUtc } = await chrome.storage.session.get(["hydraUrl", "token", "expiraEnUtc"]);
   const conectado = Boolean(hydraUrl && token && expiraEnUtc && new Date(expiraEnUtc) > new Date());
   return { hydraUrl: hydraUrl ?? null, token: token ?? null, expiraEnUtc: expiraEnUtc ?? null, conectado };
+}
+
+// Lo único que sale por mensajería: el content script corre dentro de un portal ajeno,
+// y lo que pueda pedir él lo puede pedir quien comprometa esa página. El token no sale
+// de este fichero más que en la cabecera hacia TALVEG.
+async function estadoDeConexion() {
+  const { hydraUrl, expiraEnUtc, conectado } = await obtenerConexion();
+  return { hydraUrl, expiraEnUtc, conectado };
 }
 
 function normalizarOrigen(url) {
@@ -82,14 +91,15 @@ async function avisarDeLaConexion(conectado, expiraEnUtc = null) {
 
 async function conectar(hydraUrl, token, expiraEnUtc) {
   const origen = normalizarOrigen(hydraUrl);
-  if (!origen) return { ok: false, error: "La URL de TALVEG no es válida." };
+  // El token se manda a este origen en cada petición: ni un código pegado ni un
+  // mensaje deciden a dónde va.
+  if (!ORIGENES_TALVEG_PERMITIDOS.includes(origen)) return { ok: false, error: "La URL de TALVEG no es válida." };
 
   // Sin chrome.permissions.request: host_permissions ya cubre de forma
   // estática los dos orígenes de TALVEG (ver cabecera del fichero) — no hace
   // falta pedir nada en caliente, y por tanto tampoco depende de que esta
   // llamada conserve un gesto de usuario real a través de la mensajería.
-  await chrome.storage.local.set({ hydraUrl: origen });
-  await chrome.storage.session.set({ token, expiraEnUtc });
+  await chrome.storage.session.set({ hydraUrl: origen, token, expiraEnUtc });
   await avisarDeLaConexion(true, expiraEnUtc);
   return { ok: true };
 }
@@ -101,7 +111,7 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
 // reintentar al volver a conectar; caducan solos a los 30 min, y el servidor
 // vuelve a comprobar la cartera de quien confirme.
 async function desconectar({ borrarEnvios = false } = {}) {
-  const claves = ["token", "expiraEnUtc", CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA, CLAVE_TENANT_POR_PESTANA];
+  const claves = ["hydraUrl", "token", "expiraEnUtc", CLAVE_TENANT_SELECCIONADO, CLAVE_SELECCION_RETIRADA, CLAVE_TENANT_POR_PESTANA];
   if (borrarEnvios) claves.push(CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS);
   await chrome.storage.session.remove(claves);
   await avisarDeLaConexion(false);
@@ -766,11 +776,11 @@ chrome.tabs?.onRemoved?.addListener?.((idPestana) => enSerie(async () => {
 }));
 chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
-    obtenerConexion: () => obtenerConexion(),
-    conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
-    conectarManual: (m) => conectarManual(m),
+    obtenerConexion: () => estadoDeConexion(),
+    // La conexión se abre y se cierra en el popup, nunca desde una pestaña del portal.
+    conectarManual: (m) => (remitente?.tab ? Promise.resolve({ ok: false }) : conectarManual(m)),
     // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
-    desconectar: () => desconectar({ borrarEnvios: true }),
+    desconectar: () => (remitente?.tab ? Promise.resolve({ ok: false }) : desconectar({ borrarEnvios: true })),
     listarPendientes: () => listarPendientesDelFlujo(remitente?.tab?.id),
     obtenerTenants: () => obtenerTenants(),
     // La selección se cambia en el popup, nunca desde una pestaña del portal.

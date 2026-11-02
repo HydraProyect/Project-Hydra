@@ -21,7 +21,10 @@ public partial class VisitasGen2Tests
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("", "Centro", "Cliente · Empresa", "Fechas", "Preparación", "Estado documental", "");
+            .Should().Equal("Desplegar la preparación", "Centro", "Cliente · Empresa", "Fechas", "Preparación", "Estado documental", "Acciones");
+
+        // Las dos cabeceras sin rótulo en la maqueta llevan texto solo-lector: axe `empty-table-header` (WCAG 1.3.1).
+        cut.FindAll("thead th span.visitas-solo-lector").Should().HaveCount(2);
     }
 
     [Fact]
