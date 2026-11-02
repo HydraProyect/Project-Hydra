@@ -75,6 +75,25 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
         resultado.EmpresasActualizadas.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_contador_de_Empresas_actualizadas_no_delata_una_Relacion_Empresarial_con_un_Cliente_fuera_de_ambito(bool conRelacionOculta)
+    {
+        var (escenario, dentro, fuera, proveedora) = Escenario();
+        if (conRelacionOculta)
+            escenario.RelacionesExistentes.Add(RelacionEmpresarial.Crear(proveedora.Id, fuera.Id, DateTime.UtcNow));
+        escenario.Relaciones.Permitir = true;
+        var plan = EscenarioImportacionCombinada.Plan(empresas:
+            [new EmpresaCombinadaImportadaDto(Proveedora, [], YaExiste: true, Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan, reemplazar: true,
+            alcance: Cartera(clientes: [dentro.Id], empresas: [proveedora.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+
+        resultado.EmpresasActualizadas.Should().Be(0, "con o sin Relación oculta el resultado visible es el mismo");
+        escenario.Relaciones.Cerradas.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Coordinador_no_toca_una_Empresa_existente_fuera_de_su_ambito()
     {

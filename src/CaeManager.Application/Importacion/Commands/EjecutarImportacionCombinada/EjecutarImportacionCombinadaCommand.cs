@@ -428,7 +428,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 nuevasAsociaciones++;
             }
 
-            if (!esNueva && (nuevasAsociaciones > 0 || (reemplazar && asociacionesDeLaEmpresa.Count != clienteIdsDeseados.Count)))
+            // El contador solo mira las Relaciones que el acto ve: una oculta (Cliente empresarial fuera del ámbito) lo delataría.
+            var relacionesVisibles = asociacionesDeLaEmpresa.Count(ec => { var (_, idCliente) = ec; return ambito.Cliente(idCliente); });
+            if (!esNueva && (nuevasAsociaciones > 0 || (reemplazar && relacionesVisibles != clienteIdsDeseados.Count)))
                 empresasActualizadas++;
         }
 
