@@ -244,7 +244,8 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
             .AddInterceptors(
                 new TenantSelladoInterceptor(_tenantDeLaPeticion),
-                new TenantRlsConnectionInterceptor(_tenantDeLaPeticion, new SinClienteActivo(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls))
+                new TenantRlsConnectionInterceptor(_tenantDeLaPeticion, new SinClienteActivo(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
+                new ConcurrenciaOptimistaInterceptor())
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), _tenantDeLaPeticion);
     }
