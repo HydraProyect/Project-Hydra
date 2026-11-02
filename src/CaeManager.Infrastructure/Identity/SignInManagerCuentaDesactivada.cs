@@ -140,6 +140,16 @@ public class SignInManagerCuentaDesactivada(
         return await base.ValidateSecurityStampAsync(user, securityStamp);
     }
 
+    /// <summary>
+    /// La cookie de dos pasos puede sobrevivir a la suspensión: sin este corte, el alta de TOTP de la primera
+    /// vinculación de Microsoft seguiría cambiando credenciales de una cuenta que ya no puede entrar.
+    /// </summary>
+    public override async Task<ApplicationUser?> GetTwoFactorAuthenticationUserAsync()
+    {
+        var usuario = await base.GetTwoFactorAuthenticationUserAsync();
+        return usuario is not null && await estadoOperativo.EstaSuspendidoAsync(usuario.TenantId) ? null : usuario;
+    }
+
     /// <summary>Lo pone <see cref="RefreshSignInAsync"/> mientras refresca una sesión que entró por Microsoft.</summary>
     private bool _conservarMarcaSso;
 

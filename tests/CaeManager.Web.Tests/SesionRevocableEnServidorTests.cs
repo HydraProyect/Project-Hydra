@@ -453,6 +453,58 @@ public class SesionRevocableEnServidorTests
         (await gestor.CanSignInAsync(cuenta)).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Un_Tenant_suspendido_no_continua_un_inicio_de_sesion_de_dos_pasos()
+    {
+        var estado = new EstadoOperativoFalso();
+        var (gestor, autenticacion, _, cuenta) = Montar(estadoOperativo: estado);
+        autenticacion.Cookie = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, cuenta.Id.ToString())], "dos-pasos"));
+        (await gestor.GetTwoFactorAuthenticationUserAsync()).Should().BeSameAs(cuenta, "control: sin suspender, la cookie de dos pasos vale");
+
+        estado.Suspendido = cuenta.TenantId;
+
+        (await gestor.GetTwoFactorAuthenticationUserAsync()).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_circuito_de_una_Sesion_Privilegiada_cae_si_se_suspende_el_Tenant_de_origen()
+    {
+        var origen = Guid.NewGuid();
+        var estado = new EstadoOperativoFalso { Suspendido = origen };
+        var principal = PrincipalDeActorReal(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, origen.ToString()));
+
+        (await VigenciaEnSesionPrivilegiada(estado).SigueVigenteAsync(principal)).Should().BeFalse();
+        (await VigenciaEnSesionPrivilegiada(estado).PrincipalVigenteAsync(principal)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_circuito_de_una_Sesion_Privilegiada_cae_si_no_puede_leer_el_Tenant_de_origen()
+    {
+        var principal = PrincipalDeActorReal();
+
+        (await VigenciaEnSesionPrivilegiada(new EstadoOperativoFalso()).SigueVigenteAsync(principal)).Should().BeFalse();
+    }
+
+    // Con sello y cuenta legibles: sin el corte, la vigencia llegaría a la base, que aquí es nula.
+    private static ClaimsPrincipal PrincipalDeActorReal(params Claim[] extra)
+    {
+        var claims = new IdentityOptions().ClaimsIdentity;
+        return new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(claims.SecurityStampClaimType, "SELLO"), new Claim(claims.UserIdClaimType, Guid.NewGuid().ToString()), .. extra], "cookie"));
+    }
+
+    // Sin base ni gestor: ambos cortes deben ocurrir antes de consultar el sello.
+    private static VigenciaSesionCuenta VigenciaEnSesionPrivilegiada(IEstadoOperativoTenant estado) => new(
+        new SeleccionPrivilegiada(), null!, null!, null!, Opciones.Create(new IdentityOptions()), estado,
+        NullLogger<VigenciaSesionCuenta>.Instance);
+
+    private sealed class SeleccionPrivilegiada : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada { get; } = Guid.NewGuid();
+    }
+
     private sealed class EstadoOperativoFalso : IEstadoOperativoTenant
     {
         public Guid? Suspendido { get; set; }
