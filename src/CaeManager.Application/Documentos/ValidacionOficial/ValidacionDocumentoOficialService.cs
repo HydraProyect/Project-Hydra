@@ -216,6 +216,8 @@ public class ValidacionDocumentoOficialService(
         }
 
         var extraido = extraidoPrevio;
+        // Las alertas deterministas (MotivosRevisionIa) se añaden antes que los demás motivos: el motivo de la revisión
+        // se recorta por el final, y de ellas depende que la revisión no se acepte en bloque.
         var motivos = new List<string>();
         var cotejo = ResultadoCotejoDocumentoOficial.Coincide;
 
@@ -229,7 +231,7 @@ public class ValidacionDocumentoOficialService(
             if (extraido.ResultadoPositivo == false)
             {
                 cotejo = ResultadoCotejoDocumentoOficial.Discrepancia;
-                motivos.Add("El certificado está emitido EN NEGATIVO — declara que la empresa no está al corriente.");
+                motivos.Add(MotivosRevisionIa.CertificadoEnNegativo);
             }
 
             if (string.IsNullOrWhiteSpace(cifPropietario))
@@ -252,7 +254,7 @@ public class ValidacionDocumentoOficialService(
             else if (!string.Equals(extraido.Cif, ParserDocumentoOficialBase.NormalizarCif(cifPropietario), StringComparison.OrdinalIgnoreCase))
             {
                 cotejo = ResultadoCotejoDocumentoOficial.Discrepancia;
-                motivos.Add($"El CIF del documento ({extraido.Cif}) no coincide con el del propietario ({cifPropietario}).");
+                motivos.Add(MotivosRevisionIa.CifNoCoincideConElPropietario(extraido.Cif, cifPropietario));
             }
 
             if (extraido.FechaEmision is { } fechaDetectada && fechaDetectada != documento.FechaEmision)

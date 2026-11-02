@@ -32,6 +32,9 @@ public class AlertasEnRevisionIaTests
         MotivosRevisionIa.NoAptoORestriccion,
         MotivosRevisionIa.FechaEmisionNoEscrita,
         MotivosRevisionIa.FirmaNoCuadraConElContenido,
+        MotivosRevisionIa.CertificadoEnNegativo,
+        MotivosRevisionIa.CifNoCoincideConElPropietario("B99999999", "B12345674"),
+        $"{MotivosRevisionIa.CertificadoEnNegativo} La fecha de emisión introducida no coincide con la del documento.",
         MotivosRevisionIa.LecturaParcial(26),
         $"{MotivosRevisionIa.LecturaParcial(26)}; Confianza baja (62%)",
     ];
@@ -152,6 +155,40 @@ public class AlertasEnRevisionIaTests
             .And.Contain(MotivosRevisionIa.TextoDirigidoAlLector)
             .And.Contain(MotivosRevisionIa.NoAptoORestriccion)
             .And.Contain(MotivosRevisionIa.FechaEmisionNoEscrita);
+    }
+
+    /// <summary>
+    /// Las alertas caben enteras para que la persona las vea todas, no solo para que quede alguna. El peor caso se mide por
+    /// quien escribe el motivo, porque la suma del catálogo entero no es alcanzable: cada revisión la crea una sola
+    /// verificación (y nada reescribe su motivo), <see cref="MotivosRevisionIa.SinContraste"/> excluye las alertas del
+    /// contraste, y en la validación oficial la firma alterada sale antes del cotejo.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void El_peor_caso_de_la_lectura_ia_cabe_entero_en_el_motivo(bool conContraste)
+    {
+        var contraste = conContraste ? new ContrasteTextoDocumentoDto(true, true, []) : null;
+        var peorCaso = new MetadatosDocumentoExtraidosDto(
+            "Formación", FechaLeida, null, true, 96, null, contraste, PaginasSinLeer: int.MaxValue);
+
+        var alertas = VerificacionIaDocumentoService.ComputarMotivos(DocumentoLeido(), TipoEsperado(), peorCaso)
+            .Where(MotivosRevisionIa.ContieneAlerta)
+            .ToList();
+
+        alertas.Should().HaveCount(conContraste ? 4 : 2, "control positivo: están todas las que pueden coincidir");
+        string.Join("; ", alertas).Length.Should().BeLessThanOrEqualTo(RevisionIaDocumento.LongitudMaximaMotivo);
+    }
+
+    [Fact]
+    public void El_peor_caso_de_la_validacion_oficial_cabe_entero_en_el_motivo()
+    {
+        var cifMaximo = new string('X', VerificacionDocumentoOficial.LongitudMaximaCif);
+
+        var alertas = $"{MotivosRevisionIa.CertificadoEnNegativo} {MotivosRevisionIa.CifNoCoincideConElPropietario(cifMaximo, cifMaximo)}";
+
+        alertas.Length.Should().BeLessThanOrEqualTo(RevisionIaDocumento.LongitudMaximaMotivo);
+        MotivosRevisionIa.FirmaNoCuadraConElContenido.Length.Should().BeLessThanOrEqualTo(RevisionIaDocumento.LongitudMaximaMotivo);
     }
 
     private static Documento DocumentoLeido() =>
