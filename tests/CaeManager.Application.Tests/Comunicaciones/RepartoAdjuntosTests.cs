@@ -24,6 +24,7 @@ using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using TenantActualFijo = CaeManager.Application.Tests.AutorizacionesLectura.TenantActualFijo;
@@ -594,6 +595,26 @@ public class RepartoAdjuntosTests
     }
 
     [Fact]
+    public async Task Sin_poder_comprobar_el_alta_el_registro_no_revela_lo_que_traia_la_excepcion()
+    {
+        const string ruta = @"C:\datos\tenants\documentos\aptitud.pdf";
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa
+        {
+            AntesDeResponder = () => _repositorio.LecturaRota = true,
+            Excepcion = new IOException($"Acceso denegado a {ruta}")
+        };
+        var registro = new RegistroDeAvisos<ActualizarDocumentoDesdeAdjuntoCommandHandler>();
+
+        var resultado = await Handler(alta, registro: registro).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoEstadoIndeterminado);
+        registro.Entradas.Should().Contain(e => e.Nivel == LogLevel.Error
+            && e.Texto.Contains(adjunto.Id.ToString()) && e.Texto.Contains(nameof(IOException)));
+        registro.Entradas.Should().NotContain(e => e.Texto.Contains(ruta) || e.Texto.Contains("Acceso denegado"));
+    }
+
+    [Fact]
     public async Task Un_conflicto_sin_comprobacion_no_dice_que_no_se_guardo_nada()
     {
         var adjunto = await SembrarConArchivo();
@@ -824,9 +845,10 @@ public class RepartoAdjuntosTests
         new(adjunto.Id, tipoId, trabajadorId, empresaId, new DateOnly(2026, 10, 1), null, null);
 
     private ActualizarDocumentoDesdeAdjuntoCommandHandler Handler(
-        AltaDeDocumentoFalsa alta, Guid? usuarioId = null, Guid? tenantId = null, bool sinTenant = false) => new(
+        AltaDeDocumentoFalsa alta, Guid? usuarioId = null, Guid? tenantId = null, bool sinTenant = false,
+        ILogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>? registro = null) => new(
         _contexto, _repositorio, Total(), _documentos, alta, alta, _almacen, new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()),
-        new TenantActualFijo(sinTenant ? null : tenantId ?? _tenant), NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+        new TenantActualFijo(sinTenant ? null : tenantId ?? _tenant), registro ?? NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
     /// <summary>Permite que la lectura de Documentos falle a partir de un momento: el alta sigue su curso antes de eso.</summary>
     private sealed class DocumentosConLecturaRompible : DocumentosQueryContextFalso, IDocumentosQueryContext

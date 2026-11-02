@@ -207,7 +207,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 repositorio.OlvidarCambios(adjunto);
                 if (desenlace == DesenlaceAlta.Indeterminada)
                 {
-                    logger.LogError(ex, "No se pudo determinar el resultado del alta desde el adjunto {AdjuntoId}.", request.AdjuntoId);
+                    // Solo el tipo: el mensaje de una excepción de almacenamiento puede traer una ruta física.
+                    logger.LogError("No se pudo determinar el resultado del alta desde el adjunto {AdjuntoId} ({TipoExcepcion}).",
+                        request.AdjuntoId, ex.GetType().Name);
                     return Result.Fallo<Guid>(EstadoIndeterminado());
                 }
 
