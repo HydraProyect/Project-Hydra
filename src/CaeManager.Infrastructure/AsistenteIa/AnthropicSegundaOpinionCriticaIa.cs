@@ -12,7 +12,7 @@ public class AnthropicSegundaOpinionCriticaIa(HttpClient cliente, IOptions<Anthr
     {
         var config = opciones.Value;
         if (string.IsNullOrWhiteSpace(config.ApiKey)) return null;
-        var ruta = config.Para("AlertaCritica");
+        var ruta = config.Para(RutasAnthropic.AlertaCritica);
         var correo = PromptCorreoEntrante.Preparar(texto, []);
         using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
         peticion.Headers.Add("x-api-key", config.ApiKey);

@@ -92,4 +92,5 @@ public static class RutasAnthropic
     public const string Trabajadores = "Trabajadores";
     public const string Ocr = "Ocr";
     public const string ExtraccionEstructurada = "ExtraccionEstructurada";
+    public const string AlertaCritica = "AlertaCritica";
 }
