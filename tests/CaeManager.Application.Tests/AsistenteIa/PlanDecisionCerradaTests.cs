@@ -377,7 +377,28 @@ public class PlanDecisionCerradaTests
         var uno = new CandidatoDecisionDto(Guid.NewGuid(), "Nave 912 345 678");
         var otro = new CandidatoDecisionDto(Guid.NewGuid(), "Nave (912) 345 678");
 
-        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Centro, [uno, otro])], Sufijo)
-            .EsFallido.Should().BeTrue("enmascarados serían indistinguibles para el modelo");
+        var resultado = PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Centro, [uno, otro])], Sufijo);
+
+        resultado.EsFallido.Should().BeTrue("enmascarados serían indistinguibles para el modelo");
+        resultado.Error.Codigo.Should().Be("DecisionCerrada.PeticionInvalida");
+        resultado.Error.Mensaje.Should().Contain("solo se distinguen por un teléfono",
+            "no puede confundirse con el rechazo por nombres idénticos ni por documento");
+    }
+
+    [Fact]
+    public void Un_candidato_llamado_como_un_marcador_no_se_confunde_con_el_marcador_de_la_orden()
+    {
+        var literal = new CandidatoDecisionDto(Guid.NewGuid(), "[TEL_1]");
+        var normal = new CandidatoDecisionDto(Guid.NewGuid(), "Centro Sur (Parla)");
+
+        var plan = PlanDecisionCerrada.ParaSeleccionar(
+            "Llama al 612 345 678", [new SeleccionSolicitadaDto(Centro, [literal, normal])], Sufijo).Valor;
+
+        plan.Estado[CampoTexto].Should().Be("Llama al [TEL_1]");
+        var opciones = plan.Preguntas.Single().Opciones;
+        opciones[0].Descripcion.Should().Be("(TEL_1)", "un marcador escrito a mano se desactiva, igual que en la orden");
+        opciones.Select(o => o.Descripcion).Should().NotContain("[TEL_1]");
+        opciones[0].Valor.Should().Be(literal.Id.ToString());
+        plan.Identificadores.Should().ContainSingle().Which.ValorOriginal.Should().Be("612 345 678");
     }
 }

@@ -188,6 +188,23 @@ public sealed class DeteccionGestionCorreoInyeccionTests
         resultado.Valor.Resumen.Should().Be("Entrega de EPI de 12345678-Z");
     }
 
+    [Fact]
+    public async Task Un_telefono_en_el_nombre_de_un_Trabajador_o_de_un_tipo_sale_enmascarado_con_el_marcador_del_correo()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+        var conTelefono = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "Ana Pérez (91) 234 56 78", "12345678Z");
+        var tipo = new TipoDocumentoCandidatoGestionDto(Guid.NewGuid(), "Entrega de EPI (913) 345 678");
+
+        await Servicio(manejador).DetectarAsync("Llama al 600 111 222. EPI de Ana Pérez, tel. 91 234 56 78", [conTelefono], [tipo, Epi]);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().NotContain("234 56 78").And.NotContain("345 678").And.NotContain("(91)").And.NotContain("(913)");
+        // El correo y el catálogo comparten marcador (el 2.º del correo); el teléfono del tipo, distinto, recibe el siguiente libre.
+        Apariciones(usuario, "[TEL_2]").Should().Be(2);
+        usuario.Should().Contain("rez [TEL_2]\"", "el nombre del Trabajador, con el marcador del correo").And.Contain("Entrega de EPI [TEL_3]").And.Contain("Entrega de EPI\"");
+        usuario.Should().Contain(conTelefono.Id.ToString()).And.Contain(tipo.Id.ToString());
+    }
+
     private static AnthropicDeteccionGestionCorreoService Servicio(HttpMessageHandler manejador) =>
         new(new HttpClient(manejador), Opciones, NullLogger<AnthropicDeteccionGestionCorreoService>.Instance);
 

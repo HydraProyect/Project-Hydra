@@ -132,15 +132,23 @@ public partial class AnthropicDeteccionGestionCorreoService(
                 PromptCorreoEntrante.MarcadorDelDocumento(t.Dni, correo) is not null
                 || PalabrasDeNombre(t.NombreCompleto).Any(palabrasDelCorreo.Contains))
             .ToArray();
+        // Los nombres del catálogo también salen hacia el proveedor: pasan por el mismo enmascarado y
+        // la misma tabla que el correo (en una sola pasada, para que dos teléfonos distintos no
+        // reciban el mismo marcador). Los id no cambian.
+        var nombresEnmascarados = EnmascaradorIdentificadores.EnmascararConTablaDe(
+            correo,
+            candidatos.Select(t => t.NombreCompleto)
+                .Concat(tiposDocumentoDisponibles.Select(t => t.Nombre))
+                .ToList());
         var trabajadoresJson = JsonSerializer.Serialize(
-            candidatos.Select(t => new
+            candidatos.Select((t, i) => new
             {
                 id = t.Id,
-                nombre = t.NombreCompleto,
+                nombre = nombresEnmascarados[i],
                 documento = PromptCorreoEntrante.MarcadorDelDocumento(t.Dni, correo),
             }));
         var tiposDocumentoJson = JsonSerializer.Serialize(
-            tiposDocumentoDisponibles.Select(t => new { id = t.Id, nombre = t.Nombre }));
+            tiposDocumentoDisponibles.Select((t, i) => new { id = t.Id, nombre = nombresEnmascarados[candidatos.Length + i] }));
 
         var textoUsuario =
             $"""
