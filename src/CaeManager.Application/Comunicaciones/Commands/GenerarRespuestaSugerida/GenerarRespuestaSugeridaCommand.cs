@@ -112,9 +112,12 @@ public class GenerarRespuestaSugeridaCommandHandler(
         {
             var guardado = await transaccion.EjecutarAsync(async ct =>
             {
+                // Vega tarda: lo que se comprobó arriba puede haber cambiado mientras redactaba.
+                if (!await SigueProcediendoAsync(conversacion.Id, ultimoMensaje.Id, ct))
+                    return Result.Fallo(NoProcede);
+
                 if (await respuestas.ObtenerActivaPorConversacionAsync(conversacion.Id, ct) is { } anterior)
                 {
-                    // Vega tarda: lo que se comprobó arriba puede haber cambiado mientras redactaba.
                     if (anterior.Estado == EstadoRespuestaSugerida.SinRevisar)
                         return Result.Fallo(PendienteDeRevisar);
                     if (anterior.Id != activa?.Id)
@@ -143,6 +146,24 @@ public class GenerarRespuestaSugeridaCommandHandler(
             descarteCambios.DescartarCambiosPendientes();
             return Result.Fallo<Guid>(Conflicto);
         }
+    }
+
+    // Proyecciones y no la entidad ya cargada: tienen que leer de la base lo que haya ahora.
+    private async Task<bool> SigueProcediendoAsync(Guid conversacionId, Guid mensajeOrigenId, CancellationToken cancellationToken)
+    {
+        var estado = await comunicaciones.Conversaciones
+            .Where(c => c.Id == conversacionId)
+            .Select(c => (EstadoConversacion?)c.Estado)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (estado is null or EstadoConversacion.Resuelta or EstadoConversacion.Cerrada)
+            return false;
+
+        var ultimoId = await comunicaciones.Mensajes
+            .Where(m => m.ConversacionId == conversacionId && !m.EsAutomatico)
+            .OrderByDescending(m => m.FechaUtc)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return ultimoId == mensajeOrigenId;
     }
 
     // DbException y no PostgresException: Application no depende de Npgsql (FronterasDeCapaTests).

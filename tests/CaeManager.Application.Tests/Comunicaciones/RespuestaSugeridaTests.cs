@@ -374,6 +374,59 @@ public class RespuestaSugeridaTests
         _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData(EstadoConversacion.Resuelta)]
+    [InlineData(EstadoConversacion.Cerrada)]
+    public async Task Si_mientras_Vega_redacta_la_conversacion_se_cierra_no_se_guarda_nada(EstadoConversacion estado)
+    {
+        var conversacion = Hilo();
+        var existente = Sugerencia(conversacion);
+        Entrante(conversacion, DateTime.UtcNow);
+        _redaccion.AlRedactar = () => conversacion.CambiarEstado(estado);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+        _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle().Which.Should().BeSameAs(existente);
+        existente.Estado.Should().Be(EstadoRespuestaSugerida.Propuesta);
+    }
+
+    [Fact]
+    public async Task Si_mientras_Vega_redacta_alguien_responde_no_se_guarda_nada()
+    {
+        var conversacion = Hilo();
+        _redaccion.AlRedactar = () => Saliente(conversacion);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+        _comunicaciones.ListaRespuestasSugeridas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_mientras_Vega_redacta_llega_otro_entrante_no_se_guarda_nada()
+    {
+        var conversacion = Hilo();
+        _redaccion.AlRedactar = () => Entrante(conversacion, DateTime.UtcNow);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+        _comunicaciones.ListaRespuestasSugeridas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_mientras_Vega_redacta_entra_un_automatico_la_sugerencia_se_guarda()
+    {
+        var conversacion = Hilo();
+        _redaccion.AlRedactar = () => Entrante(conversacion, DateTime.UtcNow, esAutomatico: true);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Si_mientras_Vega_redacta_otra_generacion_termina_es_un_conflicto()
     {
