@@ -85,7 +85,7 @@ public class ClosedXmlPlantillaMaestraService(
             var leida = new HojaLeida(hoja);
             if (leida.ExcedeColumnas)
             {
-                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas distintas; no se lee."));
+                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas (con nombre, repetidas o vacías); no se lee."));
                 continue;
             }
             var filas = leida.Filas().Count;
@@ -438,7 +438,7 @@ public class ClosedXmlPlantillaMaestraService(
             var leida = new HojaLeida(hoja);
             if (leida.ExcedeColumnas)
             {
-                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas distintas; no se lee."));
+                omitidos.Add(new(nombre, 1, "Cabecera", $"La hoja \"{nombre}\" tiene más de {MaxColumnasPorHoja} columnas (con nombre, repetidas o vacías); no se lee."));
                 return null;
             }
             var faltan = obligatorias.Where(c => !leida._columnas.ContainsKey(c)).ToList();

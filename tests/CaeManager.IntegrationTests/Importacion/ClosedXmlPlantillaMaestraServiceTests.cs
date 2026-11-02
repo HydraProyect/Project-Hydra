@@ -197,7 +197,7 @@ public class ClosedXmlPlantillaMaestraServiceTests
         var plan = await AnalizarAsync(libro);
 
         plan.Empresas.Should().BeEmpty();
-        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("columnas distintas"));
+        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("repetidas o vacías"));
     }
 
     [Fact]
@@ -210,7 +210,7 @@ public class ClosedXmlPlantillaMaestraServiceTests
         var plan = await AnalizarAsync(libro);
 
         plan.Empresas.Should().BeEmpty();
-        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("columnas distintas"));
+        plan.Omitidos.Should().Contain(o => o.Hoja == "Empresas" && o.Motivo.Contains("repetidas o vacías"));
     }
 
     [Fact]
