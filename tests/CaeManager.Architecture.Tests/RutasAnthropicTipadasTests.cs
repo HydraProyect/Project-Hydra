@@ -16,21 +16,30 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Lo que NO observa</b> (huecos declarados): (1) una variable de tipo <c>string</c> pasada a <c>Para</c> (no es un
-/// literal; hoy no hay ninguna); (2) el nombre del receptor no se mira: cualquier <c>.Para("…")</c> con literal en
-/// <c>src/CaeManager.Infrastructure</c> cuenta, también si no es de Anthropic (hoy no hay otra); (3) no mide que la
-/// ruta tenga configuración en los entornos.
+/// <b>Lo que exige.</b> Toda llamada <c>.Para(</c> de <c>src/CaeManager.Infrastructure</c> pasa como argumento un
+/// miembro de <c>RutasAnthropic</c>: un literal, una variable, una constante local, un argumento con nombre o una
+/// condicional dejan de pasar (hoy hay nueve llamadas y todas son de esa forma).
+///
+/// <b>Lo que NO observa</b> (huecos declarados): (1) el chequeo es textual, no de tipos: un <c>.Para(</c> legítimo de otra
+/// clase en Infrastructure habría que justificarlo aquí (hoy no hay ninguno); (2) no mide que la ruta tenga
+/// configuración en los entornos; (3) ningún test fija que cada servicio pida SU ruta (cambiar una constante por otra
+/// pasa en verde).
 /// </para>
 /// </summary>
 public class RutasAnthropicTipadasTests
 {
-    private static readonly Regex ParaConLiteral = new(@"\.\s*Para\s*\(\s*(?:\$|@)?""", RegexOptions.Compiled);
+    private static readonly Regex LlamadaPara = new(@"\.\s*Para\s*\(", RegexOptions.Compiled);
+
+    private static readonly Regex LlamadaTipada = new(@"\.\s*Para\s*\(\s*RutasAnthropic\s*\.\s*[A-Za-z]\w*\s*\)", RegexOptions.Compiled);
+
+    private static bool TodasTipadas(string texto) =>
+        LlamadaPara.Matches(texto).Count == LlamadaTipada.Matches(texto).Count;
 
     [Fact]
     public void Ninguna_ruta_de_Anthropic_se_pide_con_un_literal()
     {
         var infractores = FicherosDeInfraestructura()
-            .Where(f => ParaConLiteral.IsMatch(LimpiadorDeComentarios.Quitar(File.ReadAllText(f.Absoluta), razor: false)))
+            .Where(f => !TodasTipadas(LimpiadorDeComentarios.Quitar(File.ReadAllText(f.Absoluta), razor: false)))
             .Select(f => f.Relativa)
             .ToList();
 
@@ -41,9 +50,13 @@ public class RutasAnthropicTipadasTests
     [Fact]
     public void El_detector_ve_el_literal_y_no_la_constante()
     {
-        ParaConLiteral.IsMatch("var r = config.Para(\"AlertaCritica\");").Should().BeTrue();
-        ParaConLiteral.IsMatch("var r = config.Para( $\"{x}\");").Should().BeTrue();
-        ParaConLiteral.IsMatch("var r = config.Para(RutasAnthropic.AlertaCritica);").Should().BeFalse();
+        TodasTipadas("var r = config.Para(RutasAnthropic.AlertaCritica);").Should().BeTrue();
+        TodasTipadas("var r = config.Para(\"AlertaCritica\");").Should().BeFalse();
+        TodasTipadas("var r = config.Para( $\"{x}\");").Should().BeFalse();
+        TodasTipadas("var r = config.Para(ruta: \"AlertaCritca\");").Should().BeFalse();
+        TodasTipadas("var r = config.Para(cond ? \"A\" : \"B\");").Should().BeFalse();
+        TodasTipadas("const string n = \"X\"; var r = config.Para(n);").Should().BeFalse();
+        TodasTipadas("var r = config.Para(RutasAnthropic.Ocr ?? \"Y\");").Should().BeFalse();
     }
 
     [Fact]
@@ -51,9 +64,9 @@ public class RutasAnthropicTipadasTests
     {
         // Control positivo: si el recorrido no leyera los servicios de IA, «ningún literal» valdría por vacío.
         var conConstante = FicherosDeInfraestructura()
-            .Count(f => File.ReadAllText(f.Absoluta).Contains("Para(RutasAnthropic.", StringComparison.Ordinal));
+            .Count(f => LlamadaTipada.IsMatch(LimpiadorDeComentarios.Quitar(File.ReadAllText(f.Absoluta), razor: false)));
 
-        conConstante.Should().BeGreaterThan(5);
+        conConstante.Should().BeGreaterThanOrEqualTo(7);
     }
 
     [Fact]
