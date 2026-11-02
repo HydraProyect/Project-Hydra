@@ -9,6 +9,7 @@
 
     private IJSObjectReference? _modulo;
     private string? _fijado;
+    private readonly string _id = Guid.NewGuid().ToString("N");
     private bool _desechado;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -27,12 +28,13 @@
                 return;
             }
 
-            await _modulo.InvokeVoidAsync("fijarTitulo", titulo);
+            await _modulo.InvokeVoidAsync("fijarTitulo", titulo, _id);
             _fijado = titulo;
         }
-        catch (JSDisconnectedException)
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
         {
-            // El circuito se cerró mientras llegaba el módulo: no hay pestaña a la que fijar nada.
+            // El título es secundario: si el circuito se cerró o el módulo no cargó, la página sigue sin él en
+            // lugar de ceder su contenido al aviso de error del límite.
         }
     }
 
@@ -51,10 +53,10 @@
         _modulo = null;
         try
         {
-            await modulo.InvokeVoidAsync("liberar");
+            await modulo.InvokeVoidAsync("liberar", _id);
             await modulo.DisposeAsync();
         }
-        catch (JSDisconnectedException)
+        catch (Exception e) when (e is JSDisconnectedException or JSException or TaskCanceledException)
         {
             // Circuito ya desconectado: no hay módulo que liberar.
         }

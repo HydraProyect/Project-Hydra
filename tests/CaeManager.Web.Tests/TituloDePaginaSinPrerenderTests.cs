@@ -16,12 +16,12 @@ public class TituloDePaginaSinPrerenderTests : BunitContext
     public void Fija_el_titulo_de_la_pestana_al_montarse()
     {
         var modulo = JSInterop.SetupModule(Modulo);
-        modulo.SetupVoid("fijarTitulo", "Mi trabajo — TALVEG").SetVoidResult();
-        modulo.SetupVoid("liberar").SetVoidResult();
+        modulo.SetupVoid("fijarTitulo", _ => true).SetVoidResult();
+        modulo.SetupVoid("liberar", _ => true).SetVoidResult();
 
         Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "Mi trabajo — TALVEG"));
 
-        modulo.VerifyInvoke("fijarTitulo").Arguments.Should().ContainSingle().Which.Should().Be("Mi trabajo — TALVEG");
+        modulo.VerifyInvoke("fijarTitulo").Arguments[0].Should().Be("Mi trabajo — TALVEG");
     }
 
     [Fact]
@@ -29,12 +29,25 @@ public class TituloDePaginaSinPrerenderTests : BunitContext
     {
         var modulo = JSInterop.SetupModule(Modulo);
         modulo.SetupVoid("fijarTitulo", _ => true).SetVoidResult();
-        modulo.SetupVoid("liberar").SetVoidResult();
+        modulo.SetupVoid("liberar", _ => true).SetVoidResult();
 
         var cmp = Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
         await cmp.Instance.DisposeAsync();
 
         modulo.Invocations["liberar"].Should().HaveCount(1);
+        modulo.Invocations["liberar"][0].Arguments[0].Should().Be(modulo.Invocations["fijarTitulo"][0].Arguments[1],
+            "cada instancia solo libera lo que fijó ella: el módulo JS es único por documento");
+    }
+
+    [Fact]
+    public void Un_fallo_del_modulo_de_titulo_no_tumba_la_pagina()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("fijarTitulo", _ => true).SetException(new Microsoft.JSInterop.JSException("no cargó"));
+
+        var act = () => Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
+
+        act.Should().NotThrow("el título es secundario: un fallo suyo no puede ceder la cartera al aviso de error");
     }
 
     [Fact]
@@ -59,7 +72,7 @@ public class TituloDePaginaSinPrerenderTests : BunitContext
     {
         var modulo = JSInterop.SetupModule(Modulo);
         modulo.SetupVoid("fijarTitulo", _ => true).SetVoidResult();
-        modulo.SetupVoid("liberar").SetVoidResult();
+        modulo.SetupVoid("liberar", _ => true).SetVoidResult();
 
         var cmp = Render<TituloDePaginaSinPrerender>(p => p.Add(c => c.Titulo, "A"));
         cmp.Render();
@@ -68,6 +81,6 @@ public class TituloDePaginaSinPrerenderTests : BunitContext
         cmp.Render(p => p.Add(c => c.Titulo, "B"));
 
         modulo.Invocations["fijarTitulo"].Should().HaveCount(2);
-        modulo.Invocations["fijarTitulo"][1].Arguments.Should().ContainSingle().Which.Should().Be("B");
+        modulo.Invocations["fijarTitulo"][1].Arguments[0].Should().Be("B");
     }
 }

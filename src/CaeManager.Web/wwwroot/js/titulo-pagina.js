@@ -1,5 +1,7 @@
 // Fija el título de la pestaña desde una página sin prerender. El HeadOutlet del documento es estático:
 // el <PageTitle> de una página que solo existe en el circuito no le llega, y la pestaña se quedaba sin título.
+// El módulo es único por documento y varias instancias del componente pueden solaparse al salir y volver a la
+// página; cada una se identifica con su id y solo libera lo que fijó ella.
 let activo = null;
 
 function reponer() {
@@ -10,15 +12,19 @@ function reponer() {
     }
 }
 
-export function fijarTitulo(titulo) {
+export function fijarTitulo(titulo, id) {
     if (!activo && window.Blazor?.addEventListener) {
         window.Blazor.addEventListener('enhancedload', reponer);
     }
-    activo = { titulo, ruta: location.pathname };
+    activo = { id, titulo, ruta: location.pathname };
     document.title = titulo;
 }
 
-export function liberar() {
+export function liberar(id) {
+    if (!activo || activo.id !== id) {
+        return;
+    }
+
     activo = null;
     window.Blazor?.removeEventListener?.('enhancedload', reponer);
 }
