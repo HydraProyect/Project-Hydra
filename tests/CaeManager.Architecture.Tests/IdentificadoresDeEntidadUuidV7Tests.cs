@@ -97,6 +97,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs"] = 2,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaDocumentosService.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaMaestraService.cs"] = 1,
         // Referencia de correlación de un error en el log.
         ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,
         // Claves locales de UI: toasts y filas de la subida masiva.

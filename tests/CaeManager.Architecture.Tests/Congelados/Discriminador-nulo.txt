@@ -7,6 +7,7 @@ src/CaeManager.Application/Empresas/Queries/ObtenerClientesDeEmpresa/ObtenerClie
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: EsCritico = 1
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs :: EsCritico = 1
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: EsCritico = 3
+src/CaeManager.Application/Importacion/Commands/EjecutarImportacionMaestra/EjecutarImportacionMaestraCommand.cs :: EsCritico = 1
 src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs :: NivelServicio = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: EsCritico = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: NivelServicio = 1
@@ -19,6 +20,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: NivelServic
 src/CaeManager.Infrastructure/Importacion/ClosedXmlImportacionParser.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs :: EsCritico = 1
+src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaMaestraService.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/RelacionEmpresarialRepository.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: EsCritico = 1
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: NivelServicio = 1
