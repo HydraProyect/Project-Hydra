@@ -287,6 +287,8 @@ public class EjecutarImportacionMaestraTests
         r.Omitidos.Should().ContainSingle(o => o.Hoja == "Clientes empresariales" && o.Fila == 3);
         cliente.Notas.Should().Be("Nota B", "la primera fila válida del Cliente empresarial es la que se aplica");
         r.ClientesActualizados.Should().Be(1);
+        r.CamposRellenados.Should().Be(1, "solo la nota de la fila aplicada; la fila rechazada no deja rellenos");
+        r.ValoresSobrescritos.Should().BeEmpty("la razón social de la fila rechazada no se sobrescribió");
     }
 
     [Fact]
