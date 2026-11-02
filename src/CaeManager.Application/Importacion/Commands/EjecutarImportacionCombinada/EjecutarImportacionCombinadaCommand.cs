@@ -110,16 +110,21 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         // Z5-7: el índice único de CIF incluye las Empresas dadas de baja del Tenant propietario;
         // una fila que coincida con una baja abortaría el guardado con un error genérico.
+        // Con autoridad acotada ese error propio delataría que existe una Empresa dada de baja con ese CIF (un dato que el
+        // acto no ve): la fila se omite con el motivo uniforme de fuera de ámbito, sin abortar la carga.
+        HashSet<string>? cifsDeBaja = null;
         foreach (var fila in plan.Clientes)
         {
             var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
-            if (duplicada?.EstaEliminado == true)
+            if (duplicada?.EstaEliminado != true) continue;
+            if (autoridad != AutoridadCargaMasiva.Acotada)
                 return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
+            (cifsDeBaja ??= []).Add(fila.Cif.Trim().ToUpperInvariant());
         }
 
         try
         {
-            return await ConstruirYConfirmarAsync(request, autoridad, cancellationToken);
+            return await ConstruirYConfirmarAsync(request, autoridad, cifsDeBaja, cancellationToken);
         }
         catch
         {
@@ -133,7 +138,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
     }
 
     private async Task<Result<ResultadoImportacionCombinadaDto>> ConstruirYConfirmarAsync(
-        EjecutarImportacionCombinadaCommand request, AutoridadCargaMasiva autoridad, CancellationToken cancellationToken)
+        EjecutarImportacionCombinadaCommand request, AutoridadCargaMasiva autoridad, HashSet<string>? cifsDeBaja, CancellationToken cancellationToken)
     {
         var plan = request.Plan;
         var ambito = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
@@ -191,6 +196,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         foreach (var fila in plan.Clientes)
         {
+            if (cifsDeBaja?.Contains(fila.Cif.Trim().ToUpperInvariant()) == true)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Clientes", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Este Cliente empresarial")));
+                continue;
+            }
+
             if (clientesPorCif.TryGetValue(fila.Cif.Trim().ToUpperInvariant(), out var existente))
             {
                 if (!ambito.Cliente(existente.Id))

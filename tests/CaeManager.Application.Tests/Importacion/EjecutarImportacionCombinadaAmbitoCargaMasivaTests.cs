@@ -227,4 +227,66 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
             "«restáuralo» le diría a un Coordinador CAE que ese DNI existe en el Tenant aunque no sea de su cartera");
         administrador.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("Papelera");
     }
+
+    private const string CifDeBaja = "B76543214";
+
+    private static (EscenarioImportacionCombinada Escenario, Empresa Dentro, Empresa DadaDeBaja) EscenarioConBaja()
+    {
+        var (escenario, dentro, _, _) = Escenario();
+        var baja = Cliente("Cliente Dado De Baja S.A.", CifDeBaja);
+        baja.MarcarComoEliminado(Guid.NewGuid());
+        escenario.EmpresaRepositorio.Empresas.Add(baja);
+        return (escenario, dentro, baja);
+    }
+
+    [Fact]
+    public async Task Coordinador_con_el_CIF_de_una_Empresa_dada_de_baja_omite_la_fila_sin_abortar_la_carga()
+    {
+        var (escenario, dentro, _) = EscenarioConBaja();
+        var plan = EscenarioImportacionCombinada.Plan(clientes:
+        [
+            new ClienteImportadoDto("Nombre Nuevo S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2),
+            new ClienteImportadoDto("Cliente Distinto S.A.", "A58818501", EsCritico: false, YaExiste: true, Fila: 3),
+        ]);
+
+        var resultado = await escenario.Handler(Cartera(clientes: [dentro.Id]), AutoridadCargaMasiva.Acotada)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
+
+        resultado.EsExitoso.Should().BeTrue("el error propio de baja delataría que existe esa Empresa dada de baja");
+        resultado.Valor.Omitidos.Should().Contain(o => o.Fila == 2 && o.Motivo.Contains("fuera de tu ámbito"));
+    }
+
+    [Fact]
+    public async Task Administrador_con_el_CIF_de_una_Empresa_dada_de_baja_sigue_viendo_el_error_de_baja()
+    {
+        var (escenario, _, _) = EscenarioConBaja();
+        var plan = EscenarioImportacionCombinada.Plan(clientes:
+            [new ClienteImportadoDto("Nombre Nuevo S.A.", CifDeBaja, EsCritico: false, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.Handler(null, AutoridadCargaMasiva.Total)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacionCombinada.EjecutarImportacionCombinadaCommand(plan, false), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// RIESGO PENDIENTE DE ACEPTACIÓN (Chris): al confirmar, lo que existe fuera del ámbito se omite («fuera de tu ámbito») y lo
+    /// inexistente se crea, así que el resultado distingue ambos mundos. Es inherente a la clave única (el alta unitaria falla
+    /// por duplicado igual). Este test fija el comportamiento medido; si se decide otro diseño, se cambia a propósito.
+    /// </summary>
+    [Fact]
+    public async Task La_confirmacion_distingue_un_Trabajador_existente_fuera_de_ambito_de_uno_inexistente_riesgo_declarado()
+    {
+        var (existente, _, _, proveedora1) = Escenario();
+        existente.TrabajadorRepositorio.Trabajadores.Add(CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(proveedora1.Id, "Otra", "Persona", "99999999R"));
+        existente.TrabajadoresContexto.ListaTrabajadores.AddRange(existente.TrabajadorRepositorio.Trabajadores);
+        var (inexistente, _, _, proveedora2) = Escenario();
+        var plan = EscenarioImportacionCombinada.Plan(trabajadores: [Trabajador()]);
+
+        var conExistente = await existente.EjecutarAsync(plan, alcance: Cartera(empresas: [proveedora1.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+        var sinExistente = await inexistente.EjecutarAsync(plan, alcance: Cartera(empresas: [proveedora2.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+
+        conExistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        sinExistente.TrabajadoresCreados.Should().Be(1);
+    }
 }

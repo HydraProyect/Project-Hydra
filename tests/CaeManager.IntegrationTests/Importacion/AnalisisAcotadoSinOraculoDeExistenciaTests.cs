@@ -50,14 +50,6 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         }
     }
 
-    private sealed class AutoridadAcotada : IAutorizacionEscrituraEfectiva
-    {
-        public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
-
-        public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(AutoridadCargaMasiva.Acotada);
-    }
-
     private static RecorteDeAnalisisAlAmbito Recorte(Mundo m, bool visible)
     {
         var alcance = visible
@@ -66,7 +58,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
                 centroIdsParaGestion: [m.Centro.Id])
             : new AlcanceDatosServiceFalso(clienteIds: [], trabajadorIds: [], empresaIdsParaGestion: [], centroIdsParaGestion: []);
         return new RecorteDeAnalisisAlAmbito(
-            new AutoridadAcotada(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
+            new AutoridadAcotadaFalsa(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
     }
 
     private static MemoryStream Flujo(XLWorkbook libro)
@@ -241,7 +233,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         var alcance = new AlcanceDatosServiceFalso(
             clienteIds: [m.Cliente.Id], trabajadorIds: [], empresaIdsParaGestion: [m.Empresa.Id], centroIdsParaGestion: [m.Centro.Id]);
         var recorte = new RecorteDeAnalisisAlAmbito(
-            new AutoridadAcotada(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
+            new AutoridadAcotadaFalsa(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
         var libro = new XLWorkbook();
         libro.Worksheets.Add("Clientes");
         var empresas = libro.Worksheets.Add("Empresas");
@@ -290,7 +282,7 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         var alcance = new AlcanceDatosServiceFalso(
             clienteIds: [m.Cliente.Id, otro.Id], trabajadorIds: [m.Trabajador.Id], empresaIdsParaGestion: [m.Empresa.Id], centroIdsParaGestion: visibles);
         var recorte = new RecorteDeAnalisisAlAmbito(
-            new AutoridadAcotada(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
+            new AutoridadAcotadaFalsa(), alcance, m.Empresas, m.Centros, m.Trabajadores, new AsignacionesQueryContextFalso());
 
         var libro = new XLWorkbook();
         libro.Worksheets.Add("Clientes");
@@ -312,4 +304,13 @@ public class AnalisisAcotadoSinOraculoDeExistenciaTests
         plan.Centros.Single(c => c.RazonSocialCliente == "Otro Cliente S.A.").YaExiste.Should()
             .BeFalse("el Norte homónimo del otro Cliente está fuera del ámbito aunque el nombre del Centro sea visible");
     }
+}
+
+/// <summary>Autoridad de carga masiva acotada (Coordinador CAE o Dirección CAE) para los tests de la vista previa.</summary>
+internal sealed class AutoridadAcotadaFalsa : IAutorizacionEscrituraEfectiva
+{
+    public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+    public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(AutoridadCargaMasiva.Acotada);
 }

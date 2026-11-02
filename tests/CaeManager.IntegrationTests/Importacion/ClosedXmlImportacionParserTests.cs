@@ -475,4 +475,54 @@ public class ClosedXmlImportacionParserTests
         flujo.Position = 0;
         return await parser.AnalizarAsync(flujo);
     }
+
+    // ─── Cadena real de la plantilla de Importación: analizador → ámbito de una carga masiva acotada ───────────────
+
+    private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizadoAcotadoAsync(bool existente, bool visible)
+    {
+        var empresas = new EmpresasQueryContextFalso();
+        var trabajadores = new TrabajadoresQueryContextFalso();
+        var empresa = new Empresa(EmpresaMatriz);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(empresa.Id, "Marta", "Ruiz", DniValido);
+        if (existente)
+        {
+            empresas.ListaEmpresas.Add(empresa);
+            trabajadores.ListaTrabajadores.Add(trabajador);
+        }
+
+        var libro = NuevoLibroBase();
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet("Empleados"), fila: 4);
+
+        var parser = new ClosedXmlImportacionParser(
+            new AsignacionesQueryContextFalso(), new CentrosQueryContextFalso(), new DocumentosQueryContextFalso(),
+            empresas, new TiposDocumentoQueryContextFalso(), trabajadores, Options.Create(OpcionesDePrueba()));
+        var alcance = visible
+            ? new AlcanceDatosServiceFalso(trabajadorIds: [trabajador.Id], empresaIdsParaGestion: [empresa.Id])
+            : new AlcanceDatosServiceFalso(trabajadorIds: [], empresaIdsParaGestion: [], clienteIds: [], centroIdsParaGestion: []);
+        var recorte = new CaeManager.Application.Importacion.RecorteDeAnalisisAlAmbito(
+            new AutoridadAcotadaFalsa(), alcance, empresas, new CentrosQueryContextFalso(), trabajadores, new AsignacionesQueryContextFalso());
+
+        using var flujo = new MemoryStream();
+        libro.SaveAs(flujo);
+        flujo.Position = 0;
+        return await recorte.RecortarAsync(await parser.AnalizarAsync(flujo), default);
+    }
+
+    [Fact]
+    public async Task Con_autoridad_acotada_un_Trabajador_y_una_Empresa_fuera_de_ambito_dan_el_mismo_plan_que_si_no_existieran()
+    {
+        var fuera = await AnalizadoAcotadoAsync(existente: true, visible: false);
+        var inexistente = await AnalizadoAcotadoAsync(existente: false, visible: false);
+
+        fuera.Should().BeEquivalentTo(inexistente, o => o.Excluding(p => p.OperacionId).WithStrictOrdering());
+    }
+
+    [Fact]
+    public async Task Con_autoridad_acotada_control_el_Trabajador_y_la_Empresa_visibles_figuran_como_existentes()
+    {
+        var visible = await AnalizadoAcotadoAsync(existente: true, visible: true);
+
+        visible.Trabajadores.Should().ContainSingle().Which.YaExiste.Should().BeTrue();
+        visible.Empresas.Should().ContainSingle().Which.YaExiste.Should().BeTrue();
+    }
 }
