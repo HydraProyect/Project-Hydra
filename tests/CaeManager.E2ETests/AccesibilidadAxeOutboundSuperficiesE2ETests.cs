@@ -94,15 +94,8 @@ public class AccesibilidadAxeOutboundSuperficiesE2ETests(WebAppFixtureGestorCaeC
         await Expect(page.GetByRole(AriaRole.Dialog, new() { Name = "Buscar o ejecutar" })).ToBeVisibleAsync(EsperaEnFrio);
 
         // Los recientes llegan de forma asíncrona tras abrir: se mide con la lista asentada, no a medias.
-        var items = page.Locator("a.buscador-item");
-        var anterior = -1;
-        for (var estables = 0; estables < 3;)
-        {
-            await Task.Delay(400);
-            var ahora = await items.CountAsync();
-            estables = ahora == anterior ? estables + 1 : 0;
-            anterior = ahora;
-        }
+        await page.WaitForFunctionAsync(
+            "() => { const n = document.querySelectorAll('a.buscador-item').length; if (window.__axeN !== n) { window.__axeN = n; window.__axeT = performance.now(); return false; } return performance.now() - window.__axeT > 1200; }");
 
         ComprobarContraLineaBase(FicheroSuperficies, "buscador-global-abierto", await page.RunAxe());
     }
