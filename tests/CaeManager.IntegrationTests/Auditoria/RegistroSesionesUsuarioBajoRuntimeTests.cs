@@ -1,10 +1,12 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -12,12 +14,13 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Auditoria;
 
 /// <summary>
-/// <see cref="RegistroSesionesUsuario.RevocarAsync"/> y <see cref="RegistroSesionesUsuario.CerrarTodasAsync"/>
-/// con la implementación real, una cuenta real de Identity y la identidad de la aplicación
-/// (<c>cae_app_runtime</c>), con la cuenta como quien firma el contexto, como en la petición de
-/// cerrar sesión. <c>SesionesUsuarioBajoRuntimeTests</c> mide la tabla con SQL directo; aquí se mide
-/// que el camino de EF que usa la aplicación pasa la RLS (<c>solo_la_propia_cuenta_revoca</c>) y el
-/// disparador <c>sesion_revocada_no_se_reabre</c>.
+/// <see cref="RegistroSesionesUsuario.RevocarAsync"/>, <see cref="RegistroSesionesUsuario.CerrarTodasAsync"/>
+/// y <see cref="RegistroSesionesUsuario.CerrarLasDemasAsync"/> con la implementación real, una cuenta
+/// real de Identity y la identidad de la aplicación (<c>cae_app_runtime</c>), con la cuenta como quien
+/// firma el contexto, como en la petición de cerrar sesión, o sin ella, como en el enlace de
+/// restablecer la contraseña. <c>SesionesUsuarioBajoRuntimeTests</c> mide la tabla con SQL directo;
+/// aquí se mide que el camino que usa la aplicación pasa la RLS (<c>solo_la_propia_cuenta_revoca</c>)
+/// y el disparador <c>sesion_revocada_no_se_reabre</c>.
 /// </summary>
 public class RegistroSesionesUsuarioBajoRuntimeTests
 {
@@ -86,7 +89,223 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
         (await VigenteAsync(arnes, ajena, sidAjeno)).Should().BeTrue("las sesiones de otra cuenta del Tenant siguen vivas");
     }
 
+    [Fact]
+    public async Task Cerrar_las_demas_conserva_solo_esa_sesion_y_no_rota_el_sello()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(cuenta);
+        await CrearCuentaAsync(arnes, cuenta);
+        var esta = Guid.NewGuid();
+        var otra = Guid.NewGuid();
+        await RegistrarAsync(arnes, cuenta, esta, otra);
+        var selloAntes = await LeerSelloAsync(arnes, cuenta);
+
+        int revocadas;
+        using (var ambito = arnes.Servicios.CreateScope())
+            revocadas = await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarLasDemasAsync(cuenta, esta);
+
+        revocadas.Should().Be(1);
+        (await VigenteAsync(arnes, cuenta, esta)).Should().BeTrue("quien cambia su contraseña conserva su sesión");
+        (await VigenteAsync(arnes, cuenta, otra)).Should().BeFalse();
+        (await LeerSelloAsync(arnes, cuenta)).Should().Be(selloAntes, "el sello lo ha rotado el cambio de credencial");
+    }
+
+    /// <summary>
+    /// El caso que la RLS no deja pasar a un UPDATE: el enlace de restablecer la contraseña llega sin
+    /// sesión, o con la de otra cuenta, así que nadie firma el contexto como esa cuenta. El control
+    /// negativo mide que aquí <c>solo_la_propia_cuenta_revoca</c> oculta las filas: sin él, el test
+    /// pasaría también con el UPDATE directo, que devuelve 0 sin error.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sin_firmar_como_la_cuenta_cerrar_todas_revoca_igual(bool conSesionDeOtraCuenta)
+    {
+        var cuenta = Guid.NewGuid();
+        ICurrentUserService quienFirma = conSesionDeOtraCuenta ? new UsuarioFijo(Guid.NewGuid(), TenantA) : new SinUsuario();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            tenantActualPersonalizado: new TenantFijo(TenantA),
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: quienFirma,
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+        var sid = Guid.NewGuid();
+        await SembrarSesionComoPropietarioAsync(arnes, cuenta, sid);
+        var selloAntes = await LeerSelloAsync(arnes, cuenta);
+
+        using (var ambito = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+        {
+            var bd = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            (await bd.SesionesUsuario.Where(s => s.Sid == sid)
+                    .ExecuteUpdateAsync(c => c.SetProperty(s => s.RevocadaEnUtc, DateTime.UtcNow)))
+                .Should().Be(0, "control negativo: sin la firma de la cuenta, la RLS oculta la fila al UPDATE");
+        }
+
+        int revocadas;
+        using (var ambito = arnes.Servicios.CreateScope())
+            revocadas = await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarTodasAsync(cuenta);
+
+        revocadas.Should().Be(1);
+        (await VigenteAsync(arnes, cuenta, sid)).Should().BeFalse("una sesión viva se refrescaría con el sello nuevo");
+        (await LeerSelloAsync(arnes, cuenta)).Should().NotBe(selloAntes);
+    }
+
+    /// <summary>
+    /// La revocación que <c>RestablecerContrasena</c> pide antes de cambiar la credencial: llega por el
+    /// enlace, sin la firma de la cuenta, y tiene que revocarlas todas sin rotar el sello, porque el token
+    /// del enlace depende de él.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sin_firmar_como_la_cuenta_cerrar_las_demas_sin_conservar_ninguna_revoca_y_no_rota_el_sello(bool conSesionDeOtraCuenta)
+    {
+        var cuenta = Guid.NewGuid();
+        ICurrentUserService quienFirma = conSesionDeOtraCuenta ? new UsuarioFijo(Guid.NewGuid(), TenantA) : new SinUsuario();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            tenantActualPersonalizado: new TenantFijo(TenantA),
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: quienFirma,
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+        var sid = Guid.NewGuid();
+        await SembrarSesionComoPropietarioAsync(arnes, cuenta, sid);
+        var selloAntes = await LeerSelloAsync(arnes, cuenta);
+
+        int revocadas;
+        using (var ambito = arnes.Servicios.CreateScope())
+            revocadas = await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarLasDemasAsync(cuenta, null);
+
+        revocadas.Should().Be(1);
+        (await VigenteAsync(arnes, cuenta, sid)).Should().BeFalse("sin sesión conservada se revocan todas");
+        (await LeerSelloAsync(arnes, cuenta)).Should().Be(selloAntes, "rotarlo invalidaría el enlace antes de usarlo");
+    }
+
+    [Fact]
+    public async Task La_funcion_no_revoca_desde_el_contexto_de_otro_Tenant_y_soporte_no_la_ejecuta()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(cuenta);
+        await CrearCuentaAsync(arnes, cuenta);
+        var sid = Guid.NewGuid();
+        await SembrarSesionComoPropietarioAsync(arnes, cuenta, sid);
+
+        using (var ambito = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(Guid.NewGuid()))
+        {
+            var bd = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var revocar = () => bd.Database
+                .SqlQuery<int>($"SELECT public.app_revocar_sesiones_de_cuenta({cuenta}, {Guid.Empty}) AS \"Value\"")
+                .SingleAsync();
+            (await revocar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
+        }
+
+        (await VigenteAsync(arnes, cuenta, sid)).Should().BeTrue("el intento rechazado no revocó nada");
+
+        await using var propietario = new NpgsqlConnection(arnes.CadenaPropietario);
+        await propietario.OpenAsync();
+        await using var permisos = new NpgsqlCommand(
+            """
+            SELECT has_function_privilege('cae_app_runtime', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_soporte', p.oid, 'EXECUTE'),
+                   has_function_privilege('cae_app_aprovisionamiento', p.oid, 'EXECUTE'),
+                   p.prosecdef
+              FROM pg_proc p
+             WHERE p.oid = 'public.app_revocar_sesiones_de_cuenta(uuid, uuid)'::regprocedure;
+            """, propietario);
+        await using var fila = await permisos.ExecuteReaderAsync();
+        (await fila.ReadAsync()).Should().BeTrue();
+        fila.GetBoolean(0).Should().BeTrue();
+        fila.GetBoolean(1).Should().BeFalse();
+        fila.GetBoolean(2).Should().BeFalse();
+        fila.GetBoolean(3).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// La relectura del cerrojo de credencial, con la cuenta firmando el contexto y bajo la RLS de
+    /// <c>AspNetUsers</c>: si no viera la propia cuenta, nadie podría cambiar su contraseña.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_ve_la_propia_cuenta_y_nota_una_escritura_posterior()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(cuenta);
+        await CrearCuentaAsync(arnes, cuenta);
+
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
+    /// <summary>
+    /// Sin firma de cuenta y sin Tenant en el contexto, la fila solo se ve con
+    /// <see cref="AmbitoIdentificacionSinTenant"/>, que resuelve el Tenant de la cuenta. El control negativo
+    /// es la misma búsqueda fuera de ese ámbito: si <c>SigueComoSeLeyoAsync</c> dejara de abrirlo, no vería
+    /// la cuenta y rechazaría todo cambio de contraseña como si estuviera cambiada.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_sin_firma_ni_Tenant_ve_la_cuenta_por_su_ambito_de_identificacion()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: new SinUsuario(),
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+
+        using (var ambito = arnes.Servicios.CreateScope())
+            (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))
+                .Should().BeNull("control negativo: sin firma ni Tenant, la RLS oculta la fila");
+
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
+    /// <summary>
+    /// Con otro Tenant activo (Delegated Workspace) el ámbito de identificación no actúa, porque ya hay
+    /// Tenant en el contexto: la cuenta se ve por la firma, con la rama <c>"Id" = app.usuario_id</c> de
+    /// <c>cuentas_lectura</c>.
+    /// </summary>
+    [Fact]
+    public async Task La_relectura_de_credencial_con_otro_Tenant_activo_ve_la_propia_cuenta_firmada()
+    {
+        var cuenta = Guid.NewGuid();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            tenantActualPersonalizado: new TenantFijo(Guid.NewGuid()),
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: new UsuarioFijo(cuenta, TenantA),
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+
+        await ComprobarRelecturaAsync(arnes, cuenta);
+    }
+
     // ---------- Arnés ----------
+
+    /// <summary>La cuenta sin escrituras sigue igual, y tras rotar su sello la copia anterior ya no vale.</summary>
+    private static async Task ComprobarRelecturaAsync(ArnesDeArranqueRuntime arnes, Guid cuenta)
+    {
+        ApplicationUser leida;
+        using (var peticion = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+            leida = (await peticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(cuenta.ToString()))!;
+        var ambitos = arnes.Servicios.GetRequiredService<IServiceScopeFactory>();
+
+        await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
+            (await credencial.SigueComoSeLeyoAsync(leida)).Should().BeTrue("nadie ha escrito la cuenta");
+
+        using (var otraPeticion = arnes.Servicios.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(TenantA))
+        {
+            var usuarios = otraPeticion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            (await usuarios.UpdateSecurityStampAsync((await usuarios.FindByIdAsync(cuenta.ToString()))!)).Succeeded.Should().BeTrue();
+        }
+
+        await using (var credencial = AmbitoDeCredencial.Abrir(ambitos))
+            (await credencial.SigueComoSeLeyoAsync(leida)).Should().BeFalse("la copia de la petición ya no es la de la base");
+    }
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(Guid cuenta) =>
         ArnesDeArranqueRuntime.CrearAsync(
@@ -173,6 +392,15 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
     {
         public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
         public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    private sealed class SinUsuario : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
     }
 
     private sealed class UsuarioFijo(Guid usuarioId, Guid tenantOrigenId) : ICurrentUserService
