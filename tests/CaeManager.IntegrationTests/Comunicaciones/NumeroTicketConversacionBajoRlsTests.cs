@@ -1,6 +1,9 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -65,6 +68,38 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
         new[] { primera.NumeroTicket, segunda.NumeroTicket }.Should().Equal([1, 2],
             "EF lee de RETURNING el número que asigna el disparador");
         deOtroTenant.NumeroTicket.Should().Be(1, "el correlativo es por Tenant propietario, no global");
+    }
+
+    /// <summary>
+    /// El camino de producción: EF como <c>cae_app_runtime</c> (no superusuario), con el sellado de Tenant, la sesión RLS
+    /// y la concurrencia optimista reales. <c>CrearContexto</c> usa el superusuario sin sesión RLS y el resto de pruebas
+    /// va por SQL directo, así que sin esta nunca se prueba el <c>RETURNING</c> de EF con la identidad real.
+    /// </summary>
+    [Fact]
+    public async Task Por_EF_con_la_identidad_runtime_el_modelo_recibe_el_numero_y_cada_Tenant_numera_por_separado()
+    {
+        await using var contextoA = CrearContextoRuntime(_tenantA);
+        await using var contextoB = CrearContextoRuntime(_tenantB);
+
+        var primeraA = new Conversacion("Primera del Tenant A");
+        contextoA.Conversaciones.Add(primeraA);
+        await contextoA.SaveChangesAsync();
+        var primeraB = new Conversacion("Primera del Tenant B");
+        contextoB.Conversaciones.Add(primeraB);
+        await contextoB.SaveChangesAsync();
+        var segundaA = new Conversacion("Segunda del Tenant A");
+        contextoA.Conversaciones.Add(segundaA);
+        await contextoA.SaveChangesAsync();
+
+        primeraA.NumeroTicket.Should().Be(1, "el modelo recibe el número que el disparador asignó, leído de RETURNING");
+        segundaA.NumeroTicket.Should().Be(2);
+        primeraB.NumeroTicket.Should().Be(1, "dos Tenants propietarios numeran por separado, aunque se alternen");
+
+        await using var lectura = CrearContextoRuntime(_tenantA);
+        (await lectura.Conversaciones.IgnoreQueryFilters().Where(c => c.Id == segundaA.Id).Select(c => c.NumeroTicket).SingleAsync())
+            .Should().Be(2, "lo persistido coincide con lo que recibió el modelo");
+        (await lectura.Conversaciones.IgnoreQueryFilters().CountAsync(c => c.Id == primeraB.Id)).Should().Be(0,
+            "control del instrumento: sin filtro global de EF, solo RLS oculta la conversación del otro Tenant");
     }
 
     [Fact]
@@ -256,6 +291,33 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
             .Options;
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>EF como <c>cae_app_runtime</c> con los interceptores de producción que importan aquí (mismo arnés que la nota interna de Empresa).</summary>
+    private CaeManagerDbContext CrearContextoRuntime(Guid tenant)
+    {
+        var tenantActual = new TenantFijo(tenant);
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: tenant);
+        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
+            .AddInterceptors(
+                new TenantSelladoInterceptor(tenantActual),
+                new TenantRlsConnectionInterceptor(tenantActual, new SinClienteActivo(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
+                new ConcurrenciaOptimistaInterceptor())
+            .Options;
+        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    private sealed class TenantFijo(Guid tenantId) : ITenantActual
+    {
+        public Guid? TenantId => tenantId;
+    }
+
+    private sealed class SinClienteActivo : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
 
     private async Task<NpgsqlConnection> AbrirComoAsync(string rol, Guid tenant)
