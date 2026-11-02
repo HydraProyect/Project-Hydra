@@ -292,6 +292,11 @@ public class DirectorioUsuariosTenant(
 
             if (esGestorFijoDeWhatsApp) return true;
 
+            var esResponsableDeBuzon = await identidad.ConexionesIntegracion
+                .AnyAsync(c => c.ResponsableUsuarioId == usuarioId, cancellationToken);
+
+            if (esResponsableDeBuzon) return true;
+
             return await identidad.MiembrosPoolLinea
                 .AnyAsync(m => m.UsuarioId == usuarioId, cancellationToken);
         }, cancellationToken);

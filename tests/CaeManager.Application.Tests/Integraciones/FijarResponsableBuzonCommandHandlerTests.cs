@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Integraciones;
@@ -12,8 +13,10 @@ public class FijarResponsableBuzonCommandHandlerTests
     private readonly UnitOfWorkFalso _unitOfWork = new();
 
     private FijarResponsableBuzonCommandHandler CrearHandler(
-        string? rol = "Administrador", AlcanceDatosServiceFalso? alcance = null, bool responsableVisible = true) =>
-        new(_conexiones, alcance ?? new AlcanceDatosServiceFalso(), new DirectorioUsuariosServiceFalso(responsableVisible),
+        string? rol = "Administrador", AlcanceDatosServiceFalso? alcance = null, bool responsableVisible = true,
+        bool responsableActivo = true) =>
+        new(_conexiones, alcance ?? new AlcanceDatosServiceFalso(),
+            new DirectorioDestinosCarteraFalso(responsableVisible ? new DestinoCartera(responsableActivo, "GestorCae", null, false) : null),
             new CurrentUserServiceFalso(Guid.NewGuid(), rol), _unitOfWork);
 
     private ConexionIntegracion Buzon(ConexionIntegracion? conexion = null)
@@ -79,6 +82,25 @@ public class FijarResponsableBuzonCommandHandlerTests
     }
 
     [Fact]
+    public async Task Un_responsable_desactivado_se_rechaza()
+    {
+        var conexion = Buzon();
+
+        var resultado = await CrearHandler(responsableActivo: false)
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("Integraciones.Buzon.ResponsableNoValido");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Un_responsable_con_Guid_vacio_no_pasa_la_validacion()
+    {
+        new FijarResponsableBuzonCommandValidator()
+            .Validate(new FijarResponsableBuzonCommand(Guid.NewGuid(), Guid.Empty)).IsValid.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Una_conexion_que_no_es_del_Tenant_no_se_encuentra()
     {
         var resultado = await CrearHandler().Handle(new FijarResponsableBuzonCommand(Guid.NewGuid(), Guid.NewGuid()), default);
@@ -92,6 +114,18 @@ public class FijarResponsableBuzonCommandHandlerTests
         var conexion = Buzon();
 
         var resultado = await CrearHandler(alcance: new AlcanceDatosServiceFalso(conexionIntegracionVisible: false))
+            .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        conexion.ResponsableUsuarioId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_buzon_de_un_Cliente_empresarial_fuera_de_alcance_no_se_encuentra()
+    {
+        var conexion = Buzon(new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE", Guid.NewGuid()));
+
+        var resultado = await CrearHandler(alcance: new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: []))
             .Handle(new FijarResponsableBuzonCommand(conexion.Id, Guid.NewGuid()), default);
 
         resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");

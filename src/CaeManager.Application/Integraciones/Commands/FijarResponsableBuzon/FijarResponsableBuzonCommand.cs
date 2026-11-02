@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
@@ -14,6 +15,7 @@ public class FijarResponsableBuzonCommandValidator : AbstractValidator<FijarResp
     public FijarResponsableBuzonCommandValidator()
     {
         RuleFor(c => c.ConexionId).NotEmpty();
+        RuleFor(c => c.ResponsableUsuarioId).NotEqual(Guid.Empty);
     }
 }
 
@@ -25,7 +27,7 @@ public class FijarResponsableBuzonCommandValidator : AbstractValidator<FijarResp
 public class FijarResponsableBuzonCommandHandler(
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
-    IDirectorioUsuariosService directorioUsuarios,
+    IDirectorioDestinosCartera directorioDestinos,
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork)
     : IRequestHandler<FijarResponsableBuzonCommand, Result>
@@ -50,9 +52,9 @@ public class FijarResponsableBuzonCommandHandler(
                 "Integraciones.Buzon.PersonalSinResponsable", "Un buzón personal responde siempre a su propietario."));
 
         if (request.ResponsableUsuarioId is { } responsableId
-            && !await directorioUsuarios.EsVisibleEnTenantActualAsync(responsableId, cancellationToken))
+            && await directorioDestinos.ObtenerAsync(responsableId, cancellationToken) is not { Activa: true })
             return Result.Fallo(Error.Crear(
-                "Integraciones.Buzon.ResponsableNoValido", "No encontramos a ese usuario en tu organización."));
+                "Integraciones.Buzon.ResponsableNoValido", "No encontramos a ese usuario activo en tu organización."));
 
         conexion.FijarResponsable(request.ResponsableUsuarioId);
         await unitOfWork.SaveChangesAsync(cancellationToken);

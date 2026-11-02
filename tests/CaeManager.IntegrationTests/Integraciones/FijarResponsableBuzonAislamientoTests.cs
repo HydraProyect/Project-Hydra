@@ -1,6 +1,8 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -66,17 +68,29 @@ public class FijarResponsableBuzonAislamientoTests : IAsyncLifetime
             .ResponsableUsuarioId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Ser_responsable_de_un_buzon_es_un_vinculo_operativo_que_impide_la_baja()
+    {
+        var responsable = Guid.NewGuid();
+        await using var contexto = CrearContexto(_tenantA);
+        (await contexto.ConexionesIntegracion.SingleAsync(c => c.Id == _conexionDeA)).FijarResponsable(responsable);
+        await contexto.SaveChangesAsync();
+
+        var directorio = new DirectorioUsuariosTenant(
+            null!, contexto, new TenantActualAmbiental { TenantId = _tenantA }, new PuertaAccesoDatos(), contexto, null!);
+
+        (await directorio.TieneVinculoOperativoAsync(responsable)).Should().BeTrue();
+        (await directorio.TieneVinculoOperativoAsync(Guid.NewGuid())).Should().BeFalse();
+    }
+
     private static FijarResponsableBuzonCommandHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(new ConexionIntegracionRepository(contexto), new AlcanceDatosServiceFalso(),
             new Directorio(), new CurrentUserServiceFalso(rol: "Administrador"), contexto);
 
-    private sealed class Directorio : IDirectorioUsuariosService
+    private sealed class Directorio : IDirectorioDestinosCartera
     {
-        public Task<bool> EsVisibleEnTenantActualAsync(Guid id, CancellationToken ct = default) => Task.FromResult(true);
-        public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid id, CancellationToken ct = default) => Task.FromResult<Guid?>(null);
-        public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) => Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
-        public Task<bool> EsCuentaActivaConRolAsync(Guid id, Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult(true);
-        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(Guid tenant, string rol, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Guid>>([]);
+        public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<DestinoCartera?>(new(Activa: true, "GestorCae", null, false));
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)

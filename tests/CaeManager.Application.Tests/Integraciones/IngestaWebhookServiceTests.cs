@@ -1,4 +1,6 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Integraciones;
+using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -72,7 +74,7 @@ public class IngestaWebhookServiceTests
         CredencialIntegracionRepositorioFalso? credencialRepositorio = null,
         ResolucionProveedorPlataformaCaeServiceFalso? resolucionPlataforma = null,
         ClasificacionRuidoMensajeRepositorioFalso? clasificacionRuidoRepositorio = null,
-        DirectorioUsuariosServiceFalso? directorioUsuarios = null) =>
+        DestinoCartera? responsable = null) =>
         new(conexionRepositorio, conversacionRepositorio, graphClient,
             new AccesoGraphService(credencialRepositorio ?? new CredencialIntegracionRepositorioFalso(), graphClient),
             new FileStorageServiceFalso(),
@@ -85,7 +87,7 @@ public class IngestaWebhookServiceTests
             new RelevanciaCaeServiceFalso(),
             new AlertaCriticaServiceFalso(),
             NullLogger<IngestaWebhookService>.Instance, new CaeManager.Application.Tests.Comunicaciones.IntencionConversacionServiceFalso(),
-            directorioUsuarios ?? new DirectorioUsuariosServiceFalso());
+            new DirectorioDestinosCarteraFalso(responsable));
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
@@ -93,9 +95,11 @@ public class IngestaWebhookServiceTests
         return conexion;
     }
 
+    private static readonly DestinoCartera DestinoActivo = new(Activa: true, "GestorCae", null, false);
+
     private static async Task<Conversacion> IngerirHiloNuevoAsync(
         ConexionIntegracion conexion, ConversacionRepositorioFalso conversaciones,
-        DirectorioUsuariosServiceFalso? directorioUsuarios = null)
+        DestinoCartera? responsable = null)
     {
         var conexiones = new ConexionIntegracionRepositorioFalso();
         conexiones.Agregar(conexion);
@@ -108,7 +112,7 @@ public class IngestaWebhookServiceTests
         var credenciales = new CredencialIntegracionRepositorioFalso();
         credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
 
-        await CrearServicio(conexiones, conversaciones, graph, credenciales, directorioUsuarios: directorioUsuarios)
+        await CrearServicio(conexiones, conversaciones, graph, credenciales, responsable: responsable)
             .ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
 
         return conversaciones.Conversaciones.Single();
@@ -121,7 +125,7 @@ public class IngestaWebhookServiceTests
         var conexion = ConexionHabilitada();
         conexion.FijarResponsable(responsable);
 
-        var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso());
+        var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso(), DestinoActivo);
 
         conversacion.EjecutivoAsignadoId.Should().Be(responsable);
     }
@@ -132,7 +136,7 @@ public class IngestaWebhookServiceTests
         var propietario = Guid.NewGuid();
         var conexion = new ConexionIntegracion("gestor@ejemplo.test", "Personal", gestorPropietarioId: propietario);
 
-        var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso());
+        var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso(), DestinoActivo);
 
         conversacion.EjecutivoAsignadoId.Should().Be(propietario);
     }
@@ -140,19 +144,21 @@ public class IngestaWebhookServiceTests
     [Fact]
     public async Task Un_buzon_sin_responsable_deja_la_conversacion_sin_asignar()
     {
-        var conversacion = await IngerirHiloNuevoAsync(ConexionHabilitada(), new ConversacionRepositorioFalso());
+        var conversacion = await IngerirHiloNuevoAsync(ConexionHabilitada(), new ConversacionRepositorioFalso(), DestinoActivo);
 
         conversacion.EjecutivoAsignadoId.Should().BeNull();
     }
 
-    [Fact]
-    public async Task Un_responsable_que_ya_no_es_alcanzable_en_el_Tenant_no_se_asigna()
+    [Theory]
+    [InlineData(false)] // Ya no alcanzable desde el Tenant.
+    [InlineData(true)] // Cuenta desactivada.
+    public async Task Un_responsable_que_no_puede_atenderla_no_se_asigna(bool alcanzable)
     {
         var conexion = ConexionHabilitada();
         conexion.FijarResponsable(Guid.NewGuid());
 
         var conversacion = await IngerirHiloNuevoAsync(
-            conexion, new ConversacionRepositorioFalso(), new DirectorioUsuariosServiceFalso(esVisible: false));
+            conexion, new ConversacionRepositorioFalso(), alcanzable ? DestinoActivo with { Activa = false } : null);
 
         conversacion.EjecutivoAsignadoId.Should().BeNull();
     }
@@ -174,15 +180,18 @@ public class IngestaWebhookServiceTests
         existente.EjecutivoAsignadoId.Should().Be(gestora);
     }
 
-    [Fact]
-    public async Task La_continuacion_de_un_hilo_cerrado_conserva_a_quien_la_llevaba()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)] // Un responsable fijado después no entra en un hilo que seguía sin asignar.
+    public async Task La_continuacion_de_un_hilo_cerrado_conserva_su_asignacion(bool estabaAsignada)
     {
-        var gestora = Guid.NewGuid();
+        Guid? gestora = estabaAsignada ? Guid.NewGuid() : null;
         var conexion = ConexionHabilitada();
         conexion.FijarResponsable(Guid.NewGuid());
         var anterior = new Conversacion("Asunto");
         anterior.AsociarConexion(conexion.Id, "hilo");
-        anterior.Asignar(gestora);
+        if (gestora is { } asignada)
+            anterior.Asignar(asignada);
         anterior.CambiarEstado(EstadoConversacion.Cerrada, DateTime.UtcNow.AddDays(-1));
         var conversaciones = new ConversacionRepositorioFalso();
         conversaciones.Agregar(anterior);
@@ -197,7 +206,7 @@ public class IngestaWebhookServiceTests
         var credenciales = new CredencialIntegracionRepositorioFalso();
         credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
 
-        await CrearServicio(conexiones, conversaciones, graph, credenciales)
+        await CrearServicio(conexiones, conversaciones, graph, credenciales, responsable: DestinoActivo)
             .ProcesarAsync(new EventoWebhook(conexion.Id, "{}"), CancellationToken.None);
 
         conversaciones.Conversaciones.Single(c => c.Id != anterior.Id).EjecutivoAsignadoId.Should().Be(gestora);

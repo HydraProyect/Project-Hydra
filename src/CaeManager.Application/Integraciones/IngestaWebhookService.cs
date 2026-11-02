@@ -34,7 +34,7 @@ public class IngestaWebhookService(
     IAlertaCriticaService alertaCritica,
     ILogger<IngestaWebhookService> logger,
     IIntencionConversacionService intenciones,
-    IDirectorioUsuariosService directorioUsuarios)
+    CaeManager.Application.Clientes.IDirectorioDestinosCartera directorioDestinos)
 {
     private readonly List<string> _archivosGuardados = [];
 
@@ -151,8 +151,10 @@ public class IngestaWebhookService(
                     ? Conversacion.ContinuarCorreo(anterior, mensaje.Asunto)
                     : new Conversacion(mensaje.Asunto, conexion.ClienteId);
                 if (anterior is null)
+                {
                     conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
-                await AsignarAlResponsableDelBuzonAsync(conversacion, conexion, cancellationToken);
+                    await AsignarAlResponsableDelBuzonAsync(conversacion, conexion, cancellationToken);
+                }
                 conversacionRepositorio.Agregar(conversacion);
                 conversacionNueva = true;
             }
@@ -231,10 +233,11 @@ public class IngestaWebhookService(
     private async Task AsignarAlResponsableDelBuzonAsync(
         Conversacion conversacion, ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
-        if (conversacion.EjecutivoAsignadoId is not null || conexion.ResponsableEfectivoId is not { } responsableId)
+        if (conexion.ResponsableEfectivoId is not { } responsableId)
             return;
 
-        if (await directorioUsuarios.EsVisibleEnTenantActualAsync(responsableId, cancellationToken))
+        // Una cuenta desactivada no entra a atenderla, y asignada a ella tampoco saldría entre las sin asignar.
+        if (await directorioDestinos.ObtenerAsync(responsableId, cancellationToken) is { Activa: true })
             conversacion.Asignar(responsableId);
         else
             logger.LogWarning(

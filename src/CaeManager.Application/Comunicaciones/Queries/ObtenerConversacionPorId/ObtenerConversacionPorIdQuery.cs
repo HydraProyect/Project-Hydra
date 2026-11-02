@@ -118,7 +118,7 @@ public record ConversacionDetalleDto(
     bool EsConversacionInformativaPreCae = false,
     string? ResumenRelevanciaCae = null,
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
-    Guid? BuzonEntradaId = null);
+    Guid? ConexionEntradaId = null);
 
 public class ObtenerConversacionPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IComunicacionesQueryContext comunicacionesContext,
