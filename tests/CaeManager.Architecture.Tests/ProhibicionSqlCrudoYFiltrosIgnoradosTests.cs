@@ -399,6 +399,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de que haya Tenant en el contexto. Parámetros interpolados de
         // FormattableString: EF los envía como parámetros, no como texto.
         [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
+        // Revocar varias sesiones tras un cambio de credencial o en «cerrar en todos los
+        // dispositivos»: app_revocar_sesiones_de_cuenta (SECURITY DEFINER, contexto firmado y
+        // Tenant de la cuenta), porque quien llega por un enlace de correo no firma el contexto
+        // como esa cuenta y el UPDATE bajo solo_la_propia_cuenta_revoca devolvería 0 sin error.
+        [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<int>($\"SELECT public.app_revocar_sesiones_de_cuenta({usuarioId}, {conservar}) AS \\\"Value\\\"\")")] = 1,
         // Revalidación del circuito en una Sesión Privilegiada: app_cuenta_firmada_vigente
         // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
         // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.

@@ -470,6 +470,9 @@ public class SesionRevocableEnServidorTests
             CerradasTodas.Add(usuarioId);
             return Task.FromResult(1);
         }
+
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class SeleccionFalsa(Guid? sesionPrivilegiada) : IClienteActivoSeleccionado

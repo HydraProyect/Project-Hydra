@@ -17,6 +17,7 @@ public partial class RestablecerContrasena : ComponentBase
 {
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private SignInManager<ApplicationUser> SignInManager { get; set; } = default!;
+    [Inject] private IRegistroSesionesUsuario Sesiones { get; set; } = default!;
     [Inject] private IOptions<IdentityOptions> OpcionesIdentity { get; set; } = default!;
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
@@ -218,6 +219,12 @@ public partial class RestablecerContrasena : ComponentBase
         }
 
         logger.LogInformation("Restablecimiento de contraseña correcto: {UsuarioId}", _usuario.Id);
+
+        // ASVS 4.0.3 V3.3.3. Rotar el sello no basta: durante el intervalo de revalidación, una cookie
+        // robada de una sesión sin revocar puede llegar a RefreshSignInAsync (alta de TOTP) y salir con
+        // el sello nuevo. Un fallo se propaga, como en CierreSesionEnServidor: la página no dice
+        // «actualizada» con las sesiones abiertas, y el enlace ya gastado se pide de nuevo.
+        await Sesiones.CerrarTodasAsync(_usuario.Id);
 
         await SignInManager.SignOutAsync();
         _completado = true;

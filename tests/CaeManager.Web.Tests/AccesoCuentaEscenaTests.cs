@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Seguridad;
 using CaeManager.Web.Components.Account;
 using CaeManager.Web.Components.Account.Pages;
 using CaeManager.Web.Components.Layout;
@@ -36,6 +37,7 @@ public class AccesoCuentaEscenaTests : BunitContext
 {
     private readonly AlmacenFalso _almacen = new();
     private readonly UserManager<ApplicationUser> _usuarios;
+    private readonly SesionesCapturadas _sesiones = new();
 
     public AccesoCuentaEscenaTests()
     {
@@ -48,6 +50,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddSingleton<IEmailService>(new EmailQueNoDebeUsarse());
         Services.AddSingleton<IEleccionLiderService>(new CerrojoSiempreConcedidoFalso());
+        Services.AddSingleton<IRegistroSesionesUsuario>(_sesiones);
         Services.AddLocalization();
         AddAuthorization();
     }
@@ -869,12 +872,14 @@ public class AccesoCuentaEscenaTests : BunitContext
 
     /// <summary>
     /// V3.3.3 en el cambio voluntario: ChangePasswordAsync rota el sello (las demás sesiones
-    /// dejan de validar) y RefreshSignInAsync reemite la cookie de esta con el sello nuevo.
+    /// dejan de validar), las demás sesiones se revocan, esta se conserva, y RefreshSignInAsync
+    /// reemite su cookie con el sello nuevo.
     /// La contraseña actual tiene 10 caracteres: las anteriores a la política de 12 siguen valiendo.
     /// </summary>
     [Fact]
-    public async Task Cambiar_contrasena_rota_el_sello_y_reemite_la_sesion_actual()
+    public async Task Cambiar_contrasena_rota_el_sello_revoca_las_demas_y_reemite_la_sesion_actual()
     {
+        var sid = Guid.NewGuid();
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
@@ -883,7 +888,9 @@ public class AccesoCuentaEscenaTests : BunitContext
             [new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
              new Claim("AspNet.Identity.SecurityStamp", selloAnterior!)], "test"));
         var autenticacion = new AutenticacionCapturada(principal);
-        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(
+            new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+            new Claim(SignInManagerCuentaDesactivada.ClaimSid, sid.ToString("N")));
         var signIn = Services.GetRequiredService<SignInManager<ApplicationUser>>();
         signIn.Context.RequestServices = new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
 
@@ -898,12 +905,59 @@ public class AccesoCuentaEscenaTests : BunitContext
         (await signIn.ValidateSecurityStampAsync(principal)).Should().BeNull();
         autenticacion.Emitido.Should().NotBeNull();
         autenticacion.Emitido!.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(selloNuevo);
+        _sesiones.DemasCerradas.Should().Equal([(usuario.Id, (Guid?)sid)], "se conserva solo la sesi\u00f3n de quien cambia su contrase\u00f1a");
+        _sesiones.CerradasTodas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Fallo en cerrado, como <see cref="CierreSesionEnServidor"/>: sin revocar las demás sesiones
+    /// no se reemite la cookie ni se sigue como si hubiera ido bien.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_si_no_se_revocan_las_demas_falla_y_no_reemite_la_sesion()
+    {
+        _sesiones.Lanza = true;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        var autenticacion = new AutenticacionCapturada(null);
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        var enviar = () => cut.Find("form").SubmitAsync();
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        autenticacion.Emitido.Should().BeNull();
+    }
+
+    /// <summary>Con la contraseña actual incorrecta no cambia nada: ninguna sesión se revoca.</summary>
+    [Fact]
+    public async Task Cambiar_contrasena_rechazado_no_revoca_ninguna_sesion()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Incorrecta123" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+
+        _sesiones.DemasCerradas.Should().BeEmpty();
     }
 
     /// <summary>
     /// V3.3.3 en el restablecimiento por enlace: ResetPasswordAsync rota el sello (las
-    /// sesiones abiertas en otros navegadores dejan de validar) y la página cierra además
-    /// la del navegador donde se usó el enlace, sin reemitir ninguna cookie.
+    /// sesiones abiertas en otros navegadores dejan de validar), todas las sesiones de la
+    /// cuenta se revocan y la página cierra además la del navegador donde se usó el enlace,
+    /// sin reemitir ninguna cookie.
     /// </summary>
     [Fact]
     public async Task Restablecer_rota_el_sello_y_cierra_la_sesion_del_navegador_sin_reemitirla()
@@ -932,6 +986,110 @@ public class AccesoCuentaEscenaTests : BunitContext
             .Should().BeNull("la sesi\u00f3n con el sello anterior cae en la siguiente revalidaci\u00f3n");
         autenticacion.Emitido.Should().BeNull("el enlace no abre ni conserva sesi\u00f3n");
         autenticacion.Cierres.Should().BeGreaterThan(0, "la p\u00e1gina cierra la sesi\u00f3n del navegador");
+        _sesiones.CerradasTodas.Should().Equal([usuario.Id], "sin revocar, una cookie robada se refresca dentro del intervalo de revalidaci\u00f3n");
+    }
+
+    /// <summary>
+    /// Fallo en cerrado, como <see cref="CierreSesionEnServidor"/>: la página no dice «actualizada»
+    /// con las sesiones sin revocar. El enlace ya está gastado: se pide otro y se repite.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_si_no_se_revocan_las_sesiones_falla_y_no_lo_da_por_hecho()
+    {
+        _sesiones.Lanza = true;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+        var autenticacion = new AutenticacionCapturada(null);
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        var enviar = () => cut.Find("form").SubmitAsync();
+
+        await enviar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        cut.Markup.Should().NotContain("Contrase\u00f1a actualizada");
+        autenticacion.Cierres.Should().Be(0);
+    }
+
+    /// <summary>Un enlace rechazado no cambia la credencial: no revoca las sesiones de nadie.</summary>
+    [Fact]
+    public async Task Restablecer_con_token_invalido_no_revoca_ninguna_sesion()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token-inventado"));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("form").SubmitAsync();
+
+        _sesiones.CerradasTodas.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «No he sido yo» quita la contraseña y revoca las sesiones, no solo rota el sello. La señal
+    /// de incidente que viene después no se construye aquí: el doble lanza al revocar, y así se
+    /// mide a la vez que se llama con esa cuenta y que un fallo se propaga en vez de seguir.
+    /// </summary>
+    [Fact]
+    public async Task No_he_sido_yo_revoca_las_sesiones_y_si_falla_no_lo_da_por_hecho()
+    {
+        _sesiones.Lanza = true;
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghijk1");
+        _usuarios.RegisterTokenProvider(ProveedorTokenNoHeSidoYo.Nombre, new TokenSiempreValido());
+        var ambitos = new ServiceCollection()
+            .AddSingleton(_usuarios)
+            .AddSingleton<IRegistroSesionesUsuario>(_sesiones)
+            .BuildServiceProvider()
+            .GetRequiredService<IServiceScopeFactory>();
+        var vigilancia = new VigilanciaInicioSesionService(
+            null!, ambitos, null!, null!, null!, null!, NullLogger<VigilanciaInicioSesionService>.Instance, null!);
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes("token"));
+
+        var confirmar = () => vigilancia.ConfirmarNoHeSidoYoAsync(usuario.Id.ToString(), codigo);
+
+        await confirmar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo simulado");
+        _sesiones.CerradasTodas.Should().Equal([usuario.Id]);
+    }
+
+    private sealed class TokenSiempreValido : IUserTwoFactorTokenProvider<ApplicationUser>
+    {
+        public Task<string> GenerateAsync(string purpose, UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult("token");
+        public Task<bool> ValidateAsync(string purpose, string token, UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult(true);
+        public Task<bool> CanGenerateTwoFactorTokenAsync(UserManager<ApplicationUser> manager, ApplicationUser user) => Task.FromResult(false);
+    }
+
+    /// <summary>Solo lo que hacen las páginas de contraseña. Cada llamada queda anotada aunque luego lance.</summary>
+    private sealed class SesionesCapturadas : IRegistroSesionesUsuario
+    {
+        public bool Lanza { get; set; }
+        public List<Guid> CerradasTodas { get; } = [];
+        public List<(Guid UsuarioId, Guid? SidConservada)> DemasCerradas { get; } = [];
+
+        public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default)
+        {
+            CerradasTodas.Add(usuarioId);
+            return Lanza ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
+        }
+
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default)
+        {
+            DemasCerradas.Add((usuarioId, sidConservada));
+            return Lanza ? throw new InvalidOperationException("fallo simulado") : Task.FromResult(1);
+        }
+
+        public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     private sealed class AutenticacionCapturada(ClaimsPrincipal? principal) : IAuthenticationService

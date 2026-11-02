@@ -249,9 +249,11 @@ public sealed class VigilanciaInicioSesionService(
             }
         }
 
-        // 2. Todas las sesiones caen en la siguiente revalidación del sello
-        //    (Sesion:IntervaloRevalidacionSegundos). También invalida este enlace.
-        await userManager.UpdateSecurityStampAsync(usuario);
+        // 2. Todas las sesiones se revocan y el sello rota, lo que también invalida este enlace.
+        //    Solo con el sello, durante el intervalo de revalidación una cookie robada podía llegar a
+        //    RefreshSignInAsync y salir con el sello nuevo. Un fallo se propaga: la página no dice
+        //    «protegida» con las sesiones abiertas.
+        await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarTodasAsync(usuario.Id, ct);
         logger.LogWarning("«No he sido yo» confirmado: contraseña invalidada y sesiones cerradas para la cuenta {UsuarioId}.", usuario.Id);
 
         // Señal de incidente de seguridad sospechado (plano de Plataforma): la persona titular

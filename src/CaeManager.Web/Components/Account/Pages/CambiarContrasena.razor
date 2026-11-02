@@ -13,6 +13,7 @@
 @using Microsoft.Extensions.Options
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
+@inject IRegistroSesionesUsuario Sesiones
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
 @inject IOptions<IdentityOptions> OpcionesIdentity
@@ -222,6 +223,12 @@
             mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
+
+        // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan. El sello rotado no basta: durante
+        // el intervalo de revalidación, una cookie robada de una sesión sin revocar puede llegar a
+        // RefreshSignInAsync y salir con el sello nuevo. Un fallo se propaga, como en
+        // CierreSesionEnServidor, y sin refresco esta cookie cae en la siguiente revalidación.
+        await Sesiones.CerrarLasDemasAsync(usuario.Id, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User));
 
         // Reemite la cookie de autenticación tras el cambio de credencial —
         // práctica estándar de Identity (rota el security stamp) aunque el
