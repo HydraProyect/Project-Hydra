@@ -77,10 +77,49 @@ public class NotaContactoAgendaTests
     {
         _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
 
-        var resultado = await GuardarAsync(_contacto.Id, "Llamar antes de las 11", new CurrentUserServiceFalso(Guid.NewGuid()));
+        var resultado = await GuardarAsync(_contacto.Id, "Llamar antes de las 11", new CurrentUserServiceFalso(Guid.NewGuid()), "Llamar antes de las 11");
 
         resultado.EsExitoso.Should().BeTrue();
         _contacto.NotasAutorUsuarioId.Should().Be(_autor);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Nota anterior")]
+    public async Task El_formulario_abierto_antes_de_fijar_la_nota_no_la_borra_ni_la_firma(string? cargada)
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        await GuardarAsync(_contacto.Id, cargada, new CurrentUserServiceFalso(Guid.NewGuid()), cargada);
+
+        _contacto.Notas.Should().Be("Llamar antes de las 11");
+        _contacto.NotasAutorUsuarioId.Should().Be(_autor);
+    }
+
+    [Fact]
+    public async Task Vaciar_la_nota_en_el_formulario_la_retira()
+    {
+        _contacto.FijarNotas("Llamar antes de las 11", _autor, DateTime.UtcNow);
+
+        await GuardarAsync(_contacto.Id, null, new CurrentUserServiceFalso(_autor), "Llamar antes de las 11");
+
+        _contacto.Notas.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Fijar_la_nota_de_una_Empresa_exige_alcance_de_gestion()
+    {
+        var empresaId = Guid.NewGuid();
+        var contacto = ContactoAgenda.DeEmpresa(empresaId, "Luis Ortega", "luis@ejemplo.test");
+        _contactos.Agregar(contacto);
+        var soloLectura = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresaId], empresaIdsParaGestion: []);
+
+        var resultado = await new FijarNotaContactoAgendaCommandHandler(_contactos, soloLectura, new CurrentUserServiceFalso(_autor), _unitOfWork).Handle(
+            new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Empresa, empresaId, contacto.Id, "Llamar antes de las 11"),
+            CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContactoAgenda.SinAcceso");
+        contacto.Notas.Should().BeNull();
     }
 
     [Fact]
@@ -169,11 +208,11 @@ public class NotaContactoAgendaTests
             new FijarNotaContactoAgendaCommand(TipoPropietarioAgenda.Centro, propietarioId, contactoId, "Llamar antes de las 11"),
             CancellationToken.None);
 
-    private Task<Domain.Common.Result<Guid>> GuardarAsync(Guid? contactoId, string? notas, CurrentUserServiceFalso usuario) =>
+    private Task<Domain.Common.Result<Guid>> GuardarAsync(Guid? contactoId, string? notas, CurrentUserServiceFalso usuario, string? notasAlCargar = null) =>
         new GuardarContactoAgendaCommandHandler(_contactos, new TiposDocumentoQueryContextFalso(), _alcance, usuario, _unitOfWork).Handle(
             new GuardarContactoAgendaCommand(
                 TipoPropietarioAgenda.Centro, _centroId, contactoId, "Marta Ruiz", "marta@ejemplo.test", null, null, notas,
-                false, false, false, [], []),
+                false, false, false, [], [], notasAlCargar),
             CancellationToken.None);
 
     private Task<NotaContactoDto?> Leer(AlcanceDatosServiceFalso alcance, Guid propietarioId, string email, bool leeNotaInterna = true) =>

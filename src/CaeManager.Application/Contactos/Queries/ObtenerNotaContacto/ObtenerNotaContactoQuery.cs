@@ -20,8 +20,8 @@ public class ObtenerNotaContactoQueryHandler(
 {
     public async Task<NotaContactoDto?> Handle(ObtenerNotaContactoQuery request, CancellationToken cancellationToken)
     {
-        // La agenda le llega al rol Cliente (portal) por el alcance de lectura; la nota con su autoría no: solo viaja a
-        // quien opera desde el lado de gestión, con el mismo criterio que la nota interna de las fichas 360.
+        // Solo para quien opera desde el lado de gestión, con el mismo criterio que la nota interna de las fichas 360. No
+        // protege el texto por sí sola: ContactoAgendaDto aún lleva Notas al rol Cliente (ver ObtenerAgendaContactosQuery).
         if (!await politicaNotaInterna.PuedeLeerAsync(cancellationToken)) return null;
 
         var visible = request.Tipo switch

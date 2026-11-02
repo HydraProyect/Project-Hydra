@@ -27,7 +27,8 @@ public record GuardarContactoAgendaCommand(
     bool RecibeProgramacionVisitas,
     bool RecibeFacturacion,
     IReadOnlyList<Guid> TipoDocumentoIds,
-    IReadOnlyList<RolContacto> Roles) : ICommand<Guid>;
+    IReadOnlyList<RolContacto> Roles,
+    string? NotasAlCargar = null) : ICommand<Guid>;
 
 public class GuardarContactoAgendaCommandValidator : AbstractValidator<GuardarContactoAgendaCommand>
 {
@@ -117,7 +118,10 @@ public class GuardarContactoAgendaCommandHandler(
             repositorio.Agregar(contacto);
         }
 
-        contacto.FijarNotas(request.Notas, await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
+        // El formulario reenvía la nota que cargó al abrir: si no la tocó, no pisa la que se fijó entre medias desde el panel.
+        if ((request.Notas?.Trim() ?? string.Empty) != (request.NotasAlCargar?.Trim() ?? string.Empty))
+            contacto.FijarNotas(request.Notas, await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
+
         contacto.EstablecerTiposDocumento(tipoDocumentoIdsValidos);
         contacto.EstablecerRoles(request.Roles);
 
