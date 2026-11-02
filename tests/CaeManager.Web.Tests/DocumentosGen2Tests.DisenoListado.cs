@@ -109,8 +109,8 @@ public partial class DocumentosGen2Tests
 
     [Theory]
     [InlineData("Administrador", true, true)]
-    [InlineData("DireccionCae", true, false)]
-    [InlineData("CoordinadorCae", true, false)]
+    [InlineData("DireccionCae", true, true)]
+    [InlineData("CoordinadorCae", true, true)]
     [InlineData("GestorCae", true, false)]
     [InlineData("Consulta", false, false)]
     [InlineData("Cliente", false, false)]

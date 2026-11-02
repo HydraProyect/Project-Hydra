@@ -73,7 +73,7 @@ public static class AdmisionDeDestinos
         ["usuarios"] = new(Roles: CatalogoSeccionesMenu.RolesDeUsuarios),
         ["configuracion/claves-api"] = new(Roles: Roles.Administrador),
         ["tipos-documento"] = new(Roles: Roles.Administrador),
-        ["importacion"] = new(Roles: Roles.Administrador),
+        ["importacion"] = new(Roles: Roles.ConCargaMasivaCsv),
         ["integraciones"] = new(Roles: Roles.Administrador),
         ["retencion"] = new(Roles: Roles.Administrador),
         ["auditoria-ia"] = new(Roles: Roles.Administrador),

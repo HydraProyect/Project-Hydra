@@ -1,6 +1,6 @@
 @page "/importacion"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
+@attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.ConCargaMasivaCsv)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Web.Features.Importacion
 @using CaeManager.Web.Features.Importacion.Recursos
@@ -428,13 +428,13 @@
 
             @if (_planCombinada is { } planArbol && _vistaArbolPlan)
             {
-                <ArbolPlanImportacion Plan="planArbol" />
+                <ArbolPlanImportacion Plan="planArbol" DniCompleto="_dniCompleto" />
 
                 @if (planArbol.Advertencias.Count > 0)
                 {
                     <h3 class="titulo-items-plan">@Textos["TituloAvisosConteo", planArbol.Advertencias.Count]</h3>
                     <div class="tabla-plan-importacion-envoltorio">
-                        <TablaItemsImportacion Items="planArbol.Advertencias" Tono="TonoBadge.Advertencia" />
+                        <TablaItemsImportacion DniCompleto="_dniCompleto" Items="planArbol.Advertencias" Tono="TonoBadge.Advertencia" />
                     </div>
                 }
 
@@ -442,7 +442,7 @@
                 {
                     <h3 class="titulo-items-plan">@Textos["TituloOmitidosConteo", planArbol.Omitidos.Count]</h3>
                     <div class="tabla-plan-importacion-envoltorio">
-                        <TablaItemsImportacion Items="planArbol.Omitidos" Tono="TonoBadge.Peligro" />
+                        <TablaItemsImportacion DniCompleto="_dniCompleto" Items="planArbol.Omitidos" Tono="TonoBadge.Peligro" />
                     </div>
                 }
             }
@@ -462,9 +462,9 @@
                             @foreach (var fila in filasVisibles)
                             {
                                 <tr data-tipo-fila-plan="@fila.Tipo">
-                                    <td>@fila.Entidad</td>
+                                    <td>@MascaraDni.Aplicar(fila.Entidad, _dniCompleto)</td>
                                     <td><Badge Tono="fila.Tono">@fila.Accion</Badge></td>
-                                    <td>@fila.Motivo</td>
+                                    <td>@MascaraDni.Aplicar(fila.Motivo, _dniCompleto)</td>
                                 </tr>
                             }
                             @if (filasVisibles.Count == 0 && _filtroPlan != FiltroPlan.Todas)
@@ -567,13 +567,13 @@
                 @if (advertenciasReporte.Count > 0)
                 {
                     <h3 class="titulo-seccion-importacion">@Textos["TituloAvisosConteo", advertenciasReporte.Count]</h3>
-                    <TablaItemsImportacion Items="advertenciasReporte" Tono="TonoBadge.Advertencia" />
+                    <TablaItemsImportacion DniCompleto="_dniCompleto" Items="advertenciasReporte" Tono="TonoBadge.Advertencia" />
                 }
 
                 @if (omitidosReporte.Count > 0)
                 {
                     <h3 class="titulo-seccion-importacion">@Textos["TituloOmitidosConteo", omitidosReporte.Count]</h3>
-                    <TablaItemsImportacion Items="omitidosReporte" Tono="TonoBadge.Peligro" />
+                    <TablaItemsImportacion DniCompleto="_dniCompleto" Items="omitidosReporte" Tono="TonoBadge.Peligro" />
                 }
 
                 <span class="nota-reporte-importacion">@Textos["NotaReporte"]</span>

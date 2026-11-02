@@ -13,4 +13,7 @@ public class AutorizacionEscrituraEfectivaFalsa(bool esActoDeAdministrador = tru
 {
     public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(esActoDeAdministrador);
+
+    public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(esActoDeAdministrador ? AutoridadCargaMasiva.Total : AutoridadCargaMasiva.Ninguna);
 }

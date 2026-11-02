@@ -135,7 +135,7 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
-    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador") => new(
+    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador", IAlcanceDatosService? alcance = null) => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
@@ -148,7 +148,8 @@ internal sealed class EscenarioImportacion
         // es un camino de alta y su prueba observa la regla de verdad.
         new AltaAcreditacionesPlataformaService(
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
-            TiposDocumentoContexto, AcreditacionRepositorio));
+            TiposDocumentoContexto, AcreditacionRepositorio),
+        alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
 
     private sealed class TenantActualFalso : ITenantActual
     {

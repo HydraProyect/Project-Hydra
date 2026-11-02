@@ -171,20 +171,21 @@ public class EscriturasSobreEntidadesConCarteraTests
     /// <summary>
     /// Comandos de Importación con su motivo. Escriben en bloque Empresas, Clientes empresariales,
     /// Centros, Trabajadores y Documentos sacados de un fichero, sin nombrar ningún Id en su contrato,
-    /// así que la red de arriba (que decide por los Ids) no los ve. No se acotan por cartera: el
-    /// propio comando exige el acto de un Administrador (<see cref="IAutorizacionEscrituraEfectiva"/>:
-    /// rol Administrador o Sesión Privilegiada de Aprovisionamiento sobre este Tenant), y Administrador
-    /// no tiene restricción de cartera. Con encargo de administración no pleno, el área Importacion
-    /// queda además excluida por <c>ActosExcluidosDelEncargo</c>.
+    /// así que la red de arriba (que decide por los Ids) no los ve. El propio comando exige autoridad de
+    /// carga masiva (<see cref="IAutorizacionEscrituraEfectiva"/>): Administrador o Sesión Privilegiada de
+    /// Aprovisionamiento sobre este Tenant, sin recorte; Dirección CAE y Coordinador CAE, con cada fila
+    /// contrastada con su ámbito efectivo por <c>AmbitoCargaMasiva</c> (<see cref="IAlcanceDatosService"/>).
+    /// El Gestor CAE no carga. Con encargo de administración no pleno, el área Importacion queda además
+    /// excluida por <c>ActosExcluidosDelEncargo</c>.
     /// </summary>
     private static readonly Dictionary<string, string> ComandosDeImportacion = new()
     {
         ["EjecutarImportacionCommandHandler"] =
-            "alta masiva desde una plantilla por entidad; solo Administrador (Importacion.SoloAdministrador)",
+            "alta masiva desde una plantilla por entidad; Administrador, Dirección CAE o Coordinador CAE (Importacion.SinAutoridadCargaMasiva); filas acotadas por AmbitoCargaMasiva",
         ["EjecutarImportacionCombinadaCommandHandler"] =
-            "alta masiva combinada (Clientes empresariales, Centros, Empresas, Trabajadores); solo Administrador",
+            "alta masiva combinada (Clientes empresariales, Centros, Empresas, Trabajadores); mismos roles y ámbito",
         ["RegistrarHistorialImportacionCommandHandler"] =
-            "anota la operación de importación ya ejecutada; solo Administrador",
+            "anota la operación de importación ya ejecutada; mismos roles que quien ejecuta",
     };
 
     /// <summary>
@@ -215,8 +216,18 @@ public class EscriturasSobreEntidadesConCarteraTests
 
         string.Join(" | ", handlers.Where(h => !Parametros(h).Contains(typeof(IAutorizacionEscrituraEfectiva))).Select(h => h.Name))
             .Should().BeEmpty(
-                "un comando de importación no se acota por cartera, así que tiene que exigir el acto de un " +
-                "Administrador (IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync)");
+                "un comando de importación tiene que exigir la autoridad de carga masiva " +
+                "(IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync)");
+
+        // Los que escriben filas de entidades con cartera contrastan cada fila con el ámbito efectivo; el que solo
+        // anota el historial no escribe ninguna.
+        string.Join(" | ", handlers
+                .Where(h => h.Name != "RegistrarHistorialImportacionCommandHandler"
+                            && !Parametros(h).Contains(typeof(IAlcanceDatosService)))
+                .Select(h => h.Name))
+            .Should().BeEmpty(
+                "una carga masiva de un Coordinador CAE se acota fila a fila por su ámbito efectivo: el handler " +
+                "tiene que poder preguntar por el alcance (IAlcanceDatosService, vía AmbitoCargaMasiva)");
     }
 
     private static List<string> HandlersQueNoConsultanElAlcance()

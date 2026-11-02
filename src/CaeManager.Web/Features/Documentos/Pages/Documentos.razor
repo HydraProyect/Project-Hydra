@@ -387,7 +387,7 @@
         }
         <CaeManager.Web.Exportacion.EntradasExportar Ruta="/documentos/exportar.xlsx" />
         <SoloConEscritura>
-            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConCargaMasivaCsv">
                 <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/importar")'>Importar documentos</ItemMenuAccion>
             </AuthorizeView>
             <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/subida-masiva")'>Subida múltiple</ItemMenuAccion>

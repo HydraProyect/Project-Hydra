@@ -40,7 +40,7 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
             new DocumentosFalsos.EmpresasQueryContextFalso(),
             new PlantillasFalsas.TrabajadoresQueryContextFalso(),
             new OperacionImportacionRepositorioFalso(),
-            autorizacion);
+            autorizacion, new ClientesFalsos.AlcanceDatosServiceFalso());
     }
 
     private sealed class TenantActualFalso : ITenantActual
@@ -50,10 +50,13 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
 
     private static PlanImportacionCombinadaDto PlanVacio() => new(Guid.NewGuid(), [], [], [], [], [], []);
 
-    [Fact]
-    public async Task Administrador_puede_ejecutar_una_importacion_combinada()
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    public async Task Administrador_Direccion_y_Coordinador_pueden_ejecutar_una_importacion_combinada(string rol)
     {
-        var resultado = await Handler("Administrador").Handle(
+        var resultado = await Handler(rol).Handle(
             new EjecutarImportacionCombinadaCommand(PlanVacio(), ReemplazarExistentes: false), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -61,8 +64,8 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
 
     [Theory]
     [InlineData("GestorCae")]
-    [InlineData("CoordinadorCae")]
-    [InlineData("DireccionCae")]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
     [InlineData(null)]
     public async Task Otros_roles_no_pueden_ejecutar_una_importacion_combinada(string? rol)
     {
@@ -70,7 +73,7 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
             new EjecutarImportacionCombinadaCommand(PlanVacio(), ReemplazarExistentes: false), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Importacion.SoloAdministrador");
+        resultado.Error.Codigo.Should().Be("Importacion.SinAutoridadCargaMasiva");
     }
 
     private sealed class RelacionEmpresarialRepositorioNoUsado : IRelacionEmpresarialRepository

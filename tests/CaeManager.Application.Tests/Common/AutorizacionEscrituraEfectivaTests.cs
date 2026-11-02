@@ -11,6 +11,48 @@ public class AutorizacionEscrituraEfectivaTests
     private static SesionPrivilegiadaActiva SesionCon(CapacidadPrivilegio capacidad, Guid tenantObjetivoId) =>
         new(Guid.NewGuid(), Guid.NewGuid(), tenantObjetivoId, capacidad, null);
 
+
+    [Theory]
+    [InlineData("Administrador", AutoridadCargaMasiva.Total)]
+    [InlineData("DireccionCae", AutoridadCargaMasiva.Acotada)]
+    [InlineData("CoordinadorCae", AutoridadCargaMasiva.Acotada)]
+    [InlineData("GestorCae", AutoridadCargaMasiva.Ninguna)]
+    [InlineData("Consulta", AutoridadCargaMasiva.Ninguna)]
+    [InlineData("Cliente", AutoridadCargaMasiva.Ninguna)]
+    [InlineData(null, AutoridadCargaMasiva.Ninguna)]
+    public async Task La_autoridad_de_carga_masiva_depende_del_rol(string? rol, AutoridadCargaMasiva esperada)
+    {
+        var servicio = new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol),
+            new SesionPrivilegiadaActualFalsa(null), new TenantActualFalso(null));
+
+        (await servicio.ObtenerAutoridadCargaMasivaAsync()).Should().Be(esperada);
+    }
+
+    [Fact]
+    public async Task La_sesion_de_Aprovisionamiento_sobre_el_tenant_actual_tiene_autoridad_total_de_carga_masiva()
+    {
+        var tenant = Guid.NewGuid();
+        var servicio = new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.Aprovisionamiento, tenant)),
+            new TenantActualFalso(tenant));
+
+        (await servicio.ObtenerAutoridadCargaMasivaAsync()).Should().Be(AutoridadCargaMasiva.Total);
+    }
+
+    [Fact]
+    public async Task La_sesion_de_SoporteLectura_no_tiene_autoridad_de_carga_masiva()
+    {
+        var tenant = Guid.NewGuid();
+        var servicio = new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), null),
+            new SesionPrivilegiadaActualFalsa(SesionCon(CapacidadPrivilegio.SoporteLectura, tenant)),
+            new TenantActualFalso(tenant));
+
+        (await servicio.ObtenerAutoridadCargaMasivaAsync()).Should().Be(AutoridadCargaMasiva.Ninguna);
+    }
+
     [Fact]
     public async Task Administrador_es_acto_de_administrador_sin_necesitar_sesion_privilegiada()
     {

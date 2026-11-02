@@ -83,21 +83,22 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IOperacionImportacionRepository operacionImportacionRepositorio,
-    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
     /// <summary>Par vigente Empresa propia→Cliente, en memoria durante la importación — value equality para poder hacer Remove.</summary>
     private sealed record ParEmpresaCliente(Guid EmpresaId, Guid ClienteId);
 
-    // Restaura en Application el límite que ya expone ImportarCombinado.razor (@attribute [Authorize(Roles = Administrador)]):
-    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como DireccionCae/CoordinadorCae/GestorCae.
+    // Restaura en Application el límite que ya expone ImportarCombinado.razor (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
+    // sin este guard, cualquier llamador de MediatR que no sea esa página exacta podía importar como GestorCae, Consulta o Cliente. Mismos roles y ámbito por fila que EjecutarImportacionCommand.
     // IAutorizacionEscrituraEfectiva, no el literal "Administrador" — ver EjecutarImportacionCommand.
     public async Task<Result<ResultadoImportacionCombinadaDto>> Handle(
         EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
     {
-        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
-            return Result.Fallo<ResultadoImportacionCombinadaDto>(Error.Crear(
-                "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
+        var autoridad = await autorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync(cancellationToken);
+        if (autoridad == AutoridadCargaMasiva.Ninguna)
+            return Result.Fallo<ResultadoImportacionCombinadaDto>(ErroresCargaMasiva.SinAutoridad);
 
         var plan = request.Plan;
 
@@ -118,7 +119,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         try
         {
-            return await ConstruirYConfirmarAsync(request, cancellationToken);
+            return await ConstruirYConfirmarAsync(request, autoridad, cancellationToken);
         }
         catch
         {
@@ -132,9 +133,10 @@ public class EjecutarImportacionCombinadaCommandHandler(
     }
 
     private async Task<Result<ResultadoImportacionCombinadaDto>> ConstruirYConfirmarAsync(
-        EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
+        EjecutarImportacionCombinadaCommand request, AutoridadCargaMasiva autoridad, CancellationToken cancellationToken)
     {
         var plan = request.Plan;
+        var ambito = await AmbitoCargaMasiva.ResolverAsync(autoridad, alcanceDatos, cancellationToken);
         operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
 
         var reemplazar = request.ReemplazarExistentes;
@@ -191,6 +193,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
         {
             if (clientesPorCif.TryGetValue(fila.Cif.Trim().ToUpperInvariant(), out var existente))
             {
+                if (!ambito.Cliente(existente.Id))
+                {
+                    clientesIdPorRazonSocial.Fijar(fila.RazonSocial, existente.Id);
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Clientes", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Este Cliente empresarial")));
+                    continue;
+                }
+
                 if (reemplazar && (existente.RazonSocial != fila.RazonSocial || existente.EsCritico != fila.EsCritico))
                 {
                     if (await RazonSocialOcupadaAsync(fila.RazonSocial, existente.Id) is { } razonSocialOcupada)
@@ -308,6 +318,25 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
 
             var esNueva = busquedaEmpresa == ResultadoBusquedaPorNombre.NoExiste;
+
+            // Ámbito: una Empresa existente solo se toca dentro de él, y toda Relación Empresarial que la fila abra o cierre
+            // exige el Cliente empresarial dentro del ámbito (mismo criterio que la asociación unitaria). La fila se omite
+            // ENTERA antes de tocar nada.
+            var clientesDeLaFila = fila.ClientesAsociados
+                .Select(nombre => clientesIdPorRazonSocial.Buscar(nombre, out var idCliente) == ResultadoBusquedaPorNombre.Unico ? idCliente : (Guid?)null)
+                .OfType<Guid>().ToHashSet();
+            var clientesQueSeCierran = reemplazar && !esNueva
+                ? asociacionesActuales.Where(par => par.EmpresaId == existente!.Id)
+                    .Select(par => par.ClienteId)
+                    .Where(idCliente => !clientesDeLaFila.Contains(idCliente))
+                : [];
+            if ((!esNueva && !ambito.Empresa(existente!.Id))
+                || !clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Empresas", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Esta empresa o alguno de sus Clientes empresariales asociados")));
+                continue;
+            }
 
             if (esNueva)
             {
@@ -439,6 +468,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
             if (busquedaCentro == ResultadoBusquedaPorNombre.Unico && existente is not null)
             {
+                if (!ambito.Centro(existente.Id))
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Centros", fila.Fila, fila.Nombre, AmbitoCargaMasiva.Motivo("Este centro")));
+                    continue;
+                }
+
                 var codigoCentro = ResolverTexto(existente.CodigoCentro, fila.CodigoCentro, reemplazar);
                 var direccion = ResolverTexto(existente.Direccion, fila.Direccion, reemplazar);
                 var contacto = ResolverTexto(existente.Contacto, fila.Contacto, reemplazar);
@@ -453,6 +489,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     centrosActualizados++;
                 }
 
+                continue;
+            }
+
+            if (!ambito.Cliente(clienteId) || !ambito.Empresa(empresaId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Centros", fila.Fila, fila.Nombre, AmbitoCargaMasiva.Motivo("El Cliente empresarial o la empresa de este centro")));
                 continue;
             }
 
@@ -491,7 +534,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (!trabajadoresExistentes.ContainsKey(fila.Dni) && dnisEnPapelera.Contains(DnisEnPapelera.Normalizar(fila.Dni)))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", DnisEnPapelera.Motivo(fila.Dni)));
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ambito.MotivoPapelera(fila.Dni)));
                 continue;
             }
 
@@ -513,6 +556,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
             if (trabajadoresExistentes.TryGetValue(fila.Dni, out var existente))
             {
+                if (!ambito.Trabajador(existente.Id))
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto(
+                        "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", AmbitoCargaMasiva.Motivo("Este trabajador")));
+                    continue;
+                }
+
                 var fechaNacimiento = reemplazar
                     ? fila.FechaNacimiento ?? existente.FechaNacimiento
                     : existente.FechaNacimiento ?? fila.FechaNacimiento;
@@ -527,10 +577,18 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
+            if (!ambito.Empresa(empresaId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", AmbitoCargaMasiva.Motivo("La empresa de este trabajador")));
+                continue;
+            }
+
             try
             {
                 var trabajador = Trabajador.DeEmpresa(empresaId, fila.Nombre, fila.Apellidos, fila.Dni, fila.FechaNacimiento, fila.Email);
                 trabajadorRepositorio.Agregar(trabajador);
+                ambito.RegistrarTrabajadorCreado(trabajador.Id);
                 trabajadoresExistentes[fila.Dni] = trabajador;
                 trabajadoresCreados++;
             }
