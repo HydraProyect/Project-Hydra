@@ -13,17 +13,22 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_desechado || string.IsNullOrWhiteSpace(Titulo) || Titulo == _fijado)
+        var titulo = Titulo;
+        if (_desechado || string.IsNullOrWhiteSpace(titulo) || titulo == _fijado)
             return;
 
         try
         {
             _modulo ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/titulo-pagina.js");
             if (_desechado)
+            {
+                // Se salió de la página mientras llegaba el módulo: DisposeAsync ya pasó sin nada que liberar.
+                await LiberarAsync();
                 return;
+            }
 
-            await _modulo.InvokeVoidAsync("fijarTitulo", Titulo);
-            _fijado = Titulo;
+            await _modulo.InvokeVoidAsync("fijarTitulo", titulo);
+            _fijado = titulo;
         }
         catch (JSDisconnectedException)
         {
@@ -34,12 +39,20 @@
     public async ValueTask DisposeAsync()
     {
         _desechado = true;
+        await LiberarAsync();
+    }
+
+    private async Task LiberarAsync()
+    {
         if (_modulo is null)
             return;
 
+        var modulo = _modulo;
+        _modulo = null;
         try
         {
-            await _modulo.DisposeAsync();
+            await modulo.InvokeVoidAsync("liberar");
+            await modulo.DisposeAsync();
         }
         catch (JSDisconnectedException)
         {
