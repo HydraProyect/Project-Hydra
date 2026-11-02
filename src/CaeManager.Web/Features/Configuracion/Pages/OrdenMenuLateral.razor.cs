@@ -35,13 +35,14 @@ namespace CaeManager.Web.Features.Configuracion.Pages;
 /// es <see cref="GuardarOrdenMenuLateralCommand"/> en Application y la RLS de la tabla.
 /// </para>
 /// </summary>
-public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteractiva
+public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosConfiguracion> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunes { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
     [Inject] private ILogger<OrdenMenuLateral> Logger { get; set; } = default!;
+    [Inject] private IJSRuntime Js { get; set; } = default!;
 
     private const string CodigoSinPermiso = "OrdenMenu.SinPermiso";
 
@@ -93,6 +94,9 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     private string _rol = Roles.Administrador;
     private bool _confirmarRestablecer;
+    private ElementReference _dialogoRestablecer;
+    private IJSObjectReference? _trampaFoco;
+    private bool _activandoTrampa;
     private Aviso _aviso;
     private Func<Task>? _ultimaAccion;
     private string _anuncio = string.Empty;
@@ -134,6 +138,12 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // El diálogo de confirmación declara aria-modal: el foco no puede salir de él hacia la lista de debajo (WCAG 2.4.3).
+        if (_confirmarRestablecer && _trampaFoco is null && !_activandoTrampa)
+            await ActivarTrampaFocoAsync();
+        else if (!_confirmarRestablecer && _trampaFoco is not null)
+            await LiberarTrampaFocoAsync();
+
         // Con @key la fila movida conserva su elemento, pero el navegador le quita el foco al
         // recolocarlo: se devuelve al asa para que las flechas sigan moviendo la misma fila.
         if (_asaPorEnfocar is { } clave && _asas.TryGetValue(clave, out var asa))
@@ -153,6 +163,52 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
             }
         }
     }
+
+    private async Task ActivarTrampaFocoAsync()
+    {
+        _activandoTrampa = true;
+        try
+        {
+            await using var modulo = await Js.InvokeAsync<IJSObjectReference>("import", "./js/dialogo-foco.js");
+            var trampa = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _dialogoRestablecer);
+
+            // Se cerró el diálogo durante los await: la trampa nacería sobre un nodo retirado.
+            if (!_confirmarRestablecer)
+            {
+                await trampa.InvokeVoidAsync("dispose");
+                await trampa.DisposeAsync();
+                return;
+            }
+
+            _trampaFoco = trampa;
+        }
+        catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Mejor esfuerzo: sin JS el diálogo sigue siendo usable con Escape y los botones.
+        }
+        finally
+        {
+            _activandoTrampa = false;
+        }
+    }
+
+    private async Task LiberarTrampaFocoAsync()
+    {
+        var trampa = _trampaFoco;
+        _trampaFoco = null;
+        if (trampa is null) return;
+
+        try
+        {
+            await trampa.InvokeVoidAsync("dispose");
+            await trampa.DisposeAsync();
+        }
+        catch (Exception excepcion) when (excepcion is JSException or JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync() => await LiberarTrampaFocoAsync();
 
     // ------------------------------------------------------------------ estado guardado
 

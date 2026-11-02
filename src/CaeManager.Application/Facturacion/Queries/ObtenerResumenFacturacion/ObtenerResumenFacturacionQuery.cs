@@ -1,3 +1,4 @@
+using CaeManager.Application.Dashboard;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -73,10 +74,11 @@ public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asi
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken)) return null;
 
-        var periodoInicio = new DateTime(request.Anyo, request.Mes, 1, 0, 0, 0, DateTimeKind.Utc);
-        var periodoFin = periodoInicio.AddMonths(1);
-        var periodoInicioFecha = DateOnly.FromDateTime(periodoInicio);
-        var periodoFinFecha = DateOnly.FromDateTime(periodoFin.AddDays(-1));
+        // El mes se corta por el día de negocio (Europe/Madrid) desde noviembre de 2026 (D-4, C-12); antes, en UTC.
+        var periodoInicio = CorteDeMesDeNegocio.InicioEnUtc(request.Anyo, request.Mes);
+        var periodoFin = CorteDeMesDeNegocio.FinEnUtc(request.Anyo, request.Mes);
+        var periodoInicioFecha = new DateOnly(request.Anyo, request.Mes, 1);
+        var periodoFinFecha = periodoInicioFecha.AddMonths(1).AddDays(-1);
 
         var clienteNombre = await empresasContext.Empresas
             .Where(c => c.Id == request.ClienteId)

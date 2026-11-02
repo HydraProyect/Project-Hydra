@@ -58,4 +58,11 @@
     <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
 
+  <!-- Lenguaje común (MJ-07, 2026-11-02): los 13 proyectos repetían estas dos líneas. Aquí
+       una sola vez; un proyecto que necesite otra cosa la sobrescribe en su csproj. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
 </Project>

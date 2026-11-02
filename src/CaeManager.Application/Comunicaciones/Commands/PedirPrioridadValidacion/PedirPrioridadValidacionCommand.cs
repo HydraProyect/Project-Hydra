@@ -73,7 +73,9 @@ public class PedirPrioridadValidacionCommandHandler(
                 "SolicitudPrioridad.SinBuzonConectado", "No hay ningún buzón de correo conectado — conecta uno de Microsoft 365 antes de enviar."));
 
         var envioResultado = await mediator.Send(
-            new EnviarMensajeNuevoCommand(conexionId.Value, request.Destinatarios, request.Asunto, request.CuerpoHtml, centro.ClienteId),
+            new EnviarMensajeNuevoCommand(
+                conexionId.Value, request.Destinatarios, request.Asunto, request.CuerpoHtml, centro.ClienteId,
+                Origen: OrigenSalidaComunicacion.PrioridadValidacion),
             cancellationToken);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);

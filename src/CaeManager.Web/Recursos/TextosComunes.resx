@@ -388,6 +388,9 @@
   <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
     <value>Trabajando en {0}</value>
   </data>
+  <data name="MenuHerramientasPdf" xml:space="preserve">
+    <value>Herramientas PDF</value>
+  </data>
   <data name="MenuAuditoria" xml:space="preserve">
     <value>Auditoría</value>
   </data>
@@ -773,5 +776,11 @@
   </data>
   <data name="EstadoComercialErrorCambiarAcceso" xml:space="preserve">
     <value>No pudimos cambiar la suspensión. Vuelve a cargar la lista para ver en qué estado quedó.</value>
+  </data>
+  <data name="ArchivoSubidoSuperaMaximo" xml:space="preserve">
+    <value>"{0}" supera los {1} MB.</value>
+  </data>
+  <data name="ArchivoSubidoNoLeido" xml:space="preserve">
+    <value>No pudimos leer "{0}". Vuelve a elegirlo.</value>
   </data>
 </root>

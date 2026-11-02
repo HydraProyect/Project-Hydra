@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CriterioDocumentoIdentidadTrabajador = CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador;
 using TipoDocumentoTrabajador = CaeManager.Domain.Trabajadores.TipoDocumentoTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
@@ -363,6 +364,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
     [Inject] private IValidator<CrearTrabajadorCommand> ValidadorCrear { get; set; } = default!;
 
     /// <summary>Comando del palette "Crear trabajador" / "Crear trabajador «nombre»" (P3-31): abre el Drawer, con el nombre precargado si viene del palette.</summary>
@@ -1026,10 +1029,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         {
             // La página retirada no conserva una respuesta del contexto anterior.
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (!_desechado)
+            {
+                // Sin aviso, el filtro vacío se leería como «no hay Centros».
                 _centrosFiltro = [];
+                Logger.LogWarning("No se pudieron cargar las opciones del filtro de Centro: {TipoExcepcion}.", ex.GetType().Name);
+                ToastService.Mostrar(Textos["ToastFiltrosNoCargados"].Value, TonoToast.Error);
+            }
         }
     }
 
@@ -1196,10 +1204,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         {
             // La página retirada no conserva una respuesta del contexto anterior.
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (!_desechado && version == Volatile.Read(ref _versionEmpleadores))
+            {
+                // Sin aviso, el filtro vacío se leería como «no hay empleadores».
                 _empleadoresFiltro = new EmpleadoresDeTrabajadoresDto([], []);
+                Logger.LogWarning("No se pudieron cargar las opciones del filtro de empleador: {TipoExcepcion}.", ex.GetType().Name);
+                ToastService.Mostrar(Textos["ToastFiltrosNoCargados"].Value, TonoToast.Error);
+            }
         }
     }
 

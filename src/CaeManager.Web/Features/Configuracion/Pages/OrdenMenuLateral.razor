@@ -202,7 +202,7 @@
     @if (_confirmarRestablecer)
     {
         <div class="orden-menu-velo" @onkeydown="@(e => { if (e.Key == "Escape") _confirmarRestablecer = false; })">
-            <div role="dialog" aria-modal="true" aria-labelledby="orden-menu-dialogo-titulo" class="orden-menu-dialogo">
+            <div role="dialog" aria-modal="true" aria-labelledby="orden-menu-dialogo-titulo" class="orden-menu-dialogo" tabindex="-1" @ref="_dialogoRestablecer">
                 <h2 id="orden-menu-dialogo-titulo">@Textos["OrdenMenuDialogoTitulo"]</h2>
                 <p>@Textos["OrdenMenuDialogoTexto"]</p>
                 <div class="orden-menu-dialogo-acciones">
