@@ -56,7 +56,10 @@ public class AutorizacionAdminPlataformaPorConcesion(
     {
         if (usuarioId == Guid.Empty) return [];
 
+        // Sin seguimiento: en un circuito de Blazor el contexto vive tanto como la pantalla, y una
+        // concesión ya seguida conservaría su estado aunque otra sesión la hubiera revocado.
         return await plataformaContext.ConcesionesPrivilegio
+            .AsNoTracking()
             .Include(c => c.TenantsAlcanzados)
             .Where(c => c.UsuarioPlataformaId == usuarioId
                         && c.Capacidad == CapacidadPrivilegio.AdminPlataforma)

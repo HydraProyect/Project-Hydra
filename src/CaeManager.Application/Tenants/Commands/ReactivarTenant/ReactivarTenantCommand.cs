@@ -27,6 +27,9 @@ public class ReactivarTenantCommandHandler(
     ITenantsQueryContext dbContext,
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
+    ITransaccionDeComando transaccion,
+    IBloqueoEstadoOperativoTenant bloqueo,
+    IDescarteCambiosPendientes descarte,
     IUnitOfWork unitOfWork)
     : IRequestHandler<ReactivarTenantCommand, Result>
 {
@@ -39,16 +42,24 @@ public class ReactivarTenantCommandHandler(
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, cancellationToken))
             return Result.Fallo(Error.Crear("Tenant.NoAutorizado", "No tienes autorización de plataforma sobre esta organización."));
 
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
-        if (tenant is null)
-            return Result.Fallo(Error.Crear("Tenant.NoEncontrado", "No encontramos esta organización."));
+        return await transaccion.EjecutarAsync(async ct =>
+        {
+            // Candado antes de leer y contexto limpio: el del circuito puede conservar el Tenant como
+            // estaba cuando lo cargó, y decidir con esa copia daría por hecha una transición que no lo está.
+            await bloqueo.BloquearAsync(request.TenantId, ct);
+            descarte.DescartarCambiosPendientes();
 
-        if (tenant.Estado is EstadoTenant.Activo)
+            var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
+            if (tenant is null)
+                return Result.Fallo(Error.Crear("Tenant.NoEncontrado", "No encontramos esta organización."));
+
+            if (tenant.Estado is EstadoTenant.Activo)
+                return Result.Exito();
+
+            tenant.Reactivar();
+            await unitOfWork.SaveChangesAsync(ct);
+
             return Result.Exito();
-
-        tenant.Reactivar();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+        }, cancellationToken);
     }
 }

@@ -30,6 +30,9 @@ public class SuspenderTenantCommandHandler(
     ITenantsQueryContext dbContext,
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
+    ITransaccionDeComando transaccion,
+    IBloqueoEstadoOperativoTenant bloqueo,
+    IDescarteCambiosPendientes descarte,
     IUnitOfWork unitOfWork)
     : IRequestHandler<SuspenderTenantCommand, Result>
 {
@@ -42,19 +45,27 @@ public class SuspenderTenantCommandHandler(
         if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, cancellationToken))
             return Result.Fallo(Error.Crear("Tenant.NoAutorizado", "No tienes autorización de plataforma sobre esta organización."));
 
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
-        if (tenant is null)
-            return Result.Fallo(Error.Crear("Tenant.NoEncontrado", "No encontramos esta organización."));
+        return await transaccion.EjecutarAsync(async ct =>
+        {
+            // Candado antes de leer y contexto limpio: el del circuito puede conservar el Tenant como
+            // estaba cuando lo cargó, y decidir con esa copia daría por hecha una transición que no lo está.
+            await bloqueo.BloquearAsync(request.TenantId, ct);
+            descarte.DescartarCambiosPendientes();
 
-        if (!tenant.EsSuscribible())
-            return Result.Fallo(Error.Crear("Tenant.Plataforma", "La organización de la plataforma no se puede suspender."));
+            var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
+            if (tenant is null)
+                return Result.Fallo(Error.Crear("Tenant.NoEncontrado", "No encontramos esta organización."));
 
-        if (tenant.Estado is EstadoTenant.Suspendido)
+            if (!tenant.EsSuscribible())
+                return Result.Fallo(Error.Crear("Tenant.Plataforma", "La organización de la plataforma no se puede suspender."));
+
+            if (tenant.Estado is EstadoTenant.Suspendido)
+                return Result.Exito();
+
+            tenant.Suspender();
+            await unitOfWork.SaveChangesAsync(ct);
+
             return Result.Exito();
-
-        tenant.Suspender();
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+        }, cancellationToken);
     }
 }

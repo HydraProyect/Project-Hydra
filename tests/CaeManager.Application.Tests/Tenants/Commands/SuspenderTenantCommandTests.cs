@@ -1,6 +1,8 @@
 using CaeManager.Application.Tenants.Commands.ReactivarTenant;
 using CaeManager.Application.Tenants.Commands.SuspenderTenant;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Common;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Plataforma;
 using CaeManager.Domain.Tenants;
@@ -12,19 +14,20 @@ namespace CaeManager.Application.Tests.Tenants.Commands;
 public class SuspenderTenantCommandTests
 {
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly BloqueoFalso _bloqueo = new();
 
     private SuspenderTenantCommandHandler Suspender(Tenant tenant, AutorizacionAdminPlataformaFalsa autorizacion, Guid? usuario = null)
     {
         var contexto = new TenantsQueryContextFalso();
         contexto.ListaTenants.Add(tenant);
-        return new(contexto, autorizacion, new CurrentUserServiceFalso(usuario ?? Guid.NewGuid()), _unitOfWork);
+        return new(contexto, autorizacion, new CurrentUserServiceFalso(usuario ?? Guid.NewGuid()), new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
     }
 
     private ReactivarTenantCommandHandler Reactivar(Tenant tenant, AutorizacionAdminPlataformaFalsa autorizacion)
     {
         var contexto = new TenantsQueryContextFalso();
         contexto.ListaTenants.Add(tenant);
-        return new(contexto, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid()), _unitOfWork);
+        return new(contexto, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid()), new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
     }
 
     [Fact]
@@ -38,6 +41,31 @@ public class SuspenderTenantCommandTests
         resultado.EsExitoso.Should().BeTrue();
         tenant.Estado.Should().Be(EstadoTenant.Suspendido);
         tenant.ClavesApiValidasDesdeUtc.Should().NotBeNull();
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Decide_con_el_estado_leido_bajo_el_candado_y_no_con_la_copia_del_circuito()
+    {
+        // El contexto del circuito conserva el Tenant suspendido; otra sesión ya lo reactivó.
+        var copiaDelCircuito = new Tenant("Tenant A");
+        copiaDelCircuito.Suspender();
+        var actual = new Tenant("Tenant A");
+        var contexto = new TenantsQueryContextFalso();
+        contexto.ListaTenants.Add(copiaDelCircuito);
+        _bloqueo.AlDescartar = () =>
+        {
+            contexto.ListaTenants.Clear();
+            contexto.ListaTenants.Add(actual);
+        };
+        var handler = new SuspenderTenantCommandHandler(contexto, AutorizacionAdminPlataformaFalsa.Global(),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
+
+        var resultado = await handler.Handle(new(actual.Id), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        actual.Estado.Should().Be(EstadoTenant.Suspendido);
+        _bloqueo.Pasos.Should().Equal("bloquear", "descartar");
         _unitOfWork.VecesGuardado.Should().Be(1);
     }
 
@@ -118,5 +146,23 @@ public class SuspenderTenantCommandTests
 
         resultado.EsExitoso.Should().BeFalse();
         tenant.Estado.Should().Be(EstadoTenant.Suspendido);
+    }
+
+    private sealed class BloqueoFalso : IBloqueoEstadoOperativoTenant, IDescarteCambiosPendientes
+    {
+        public List<string> Pasos { get; } = [];
+        public Action? AlDescartar { get; set; }
+
+        public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default)
+        {
+            Pasos.Add("bloquear");
+            return Task.CompletedTask;
+        }
+
+        public void DescartarCambiosPendientes()
+        {
+            Pasos.Add("descartar");
+            AlDescartar?.Invoke();
+        }
     }
 }
