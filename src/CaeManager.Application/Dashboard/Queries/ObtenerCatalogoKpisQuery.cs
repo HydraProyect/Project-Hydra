@@ -267,10 +267,10 @@ public class ObtenerCatalogoKpisQueryHandler(
 
         foreach (var (anyo, mes) in periodo.MesesQueAbarca())
         {
-            var inicio = new DateTime(anyo, mes, 1, 0, 0, 0, DateTimeKind.Utc);
-            var fin = inicio.AddMonths(1);
-            var inicioFecha = DateOnly.FromDateTime(inicio);
-            var finFecha = DateOnly.FromDateTime(fin.AddDays(-1));
+            var inicio = CorteDeMesDeNegocio.InicioEnUtc(anyo, mes);
+            var fin = CorteDeMesDeNegocio.FinEnUtc(anyo, mes);
+            var inicioFecha = new DateOnly(anyo, mes, 1);
+            var finFecha = inicioFecha.AddMonths(1).AddDays(-1);
 
             foreach (var concepto in conceptosUsados)
             {

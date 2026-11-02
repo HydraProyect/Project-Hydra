@@ -12,19 +12,26 @@ namespace CaeManager.Application.Dashboard;
 /// </summary>
 public readonly record struct PeriodoKpi(DateTime InicioUtc, DateTime FinUtc)
 {
-    /// <summary>Mes natural en curso — el comportamiento que tenía el panel antes de que el periodo fuera elegible, y el valor por defecto.</summary>
+    /// <summary>
+    /// Mes natural en curso — el comportamiento que tenía el panel antes de que el periodo fuera elegible, y el valor
+    /// por defecto. El mes se corta por el día de negocio (<see cref="CorteDeMesDeNegocio"/>).
+    /// </summary>
     public static PeriodoKpi MesActual(DateTime ahoraUtc)
     {
-        var inicio = new DateTime(ahoraUtc.Year, ahoraUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        return new PeriodoKpi(inicio, inicio.AddMonths(1));
+        var (anyo, mes) = CorteDeMesDeNegocio.MesDe(ahoraUtc);
+        return DeMeses(new DateOnly(anyo, mes, 1), new DateOnly(anyo, mes, 1));
     }
+
+    /// <summary>Meses naturales completos, del que contiene <paramref name="primerMes"/> al que contiene <paramref name="ultimoMes"/>.</summary>
+    public static PeriodoKpi DeMeses(DateOnly primerMes, DateOnly ultimoMes) =>
+        new(CorteDeMesDeNegocio.InicioEnUtc(primerMes.Year, primerMes.Month), CorteDeMesDeNegocio.FinEnUtc(ultimoMes.Year, ultimoMes.Month));
 
     /// <summary>Construye el periodo a partir de dos fechas inclusivas de la interfaz: el día de fin cuenta entero.</summary>
     public static PeriodoKpi DeFechas(DateOnly desde, DateOnly hasta)
     {
-        var inicio = desde.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var fin = hasta.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        return new PeriodoKpi(inicio, fin > inicio ? fin : inicio.AddDays(1));
+        var inicio = CorteDeMesDeNegocio.InicioDeDiaEnUtc(desde);
+        var fin = CorteDeMesDeNegocio.InicioDeDiaEnUtc(hasta.AddDays(1));
+        return new PeriodoKpi(inicio, fin > inicio ? fin : CorteDeMesDeNegocio.InicioDeDiaEnUtc(desde.AddDays(1)));
     }
 
     /// <summary>
@@ -35,13 +42,14 @@ public readonly record struct PeriodoKpi(DateTime InicioUtc, DateTime FinUtc)
     /// </summary>
     public IEnumerable<(int Anyo, int Mes)> MesesQueAbarca()
     {
-        var cursor = new DateTime(InicioUtc.Year, InicioUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var ultimo = FinUtc.AddTicks(-1);
+        var (anyo, mes) = CorteDeMesDeNegocio.MesDe(InicioUtc);
+        var (ultimoAnyo, ultimoMes) = CorteDeMesDeNegocio.MesDe(FinUtc.AddTicks(-1));
 
-        while (cursor.Year < ultimo.Year || (cursor.Year == ultimo.Year && cursor.Month <= ultimo.Month))
+        while (anyo < ultimoAnyo || (anyo == ultimoAnyo && mes <= ultimoMes))
         {
-            yield return (cursor.Year, cursor.Month);
-            cursor = cursor.AddMonths(1);
+            yield return (anyo, mes);
+            var siguiente = new DateOnly(anyo, mes, 1).AddMonths(1);
+            (anyo, mes) = (siguiente.Year, siguiente.Month);
         }
     }
 }
