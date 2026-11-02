@@ -23,7 +23,7 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// </item>
 /// <item>
 /// <b>El grupo <c>/api/v1</c></b>, autenticado con <c>ClaveApi</c>. Hoy solo
-/// mapea <c>GET</c>, y lo único que escribe cada petición es el contador de
+/// mapea <c>GET</c>, y lo único que escribe cada endpoint es el contador de
 /// <c>UsosApiDiarios</c>, que no pasa por <c>RegistroAuditoria</c>: no hay
 /// ninguna fila de auditoría que corregir, y el filtro queda para que la primera
 /// escritura auditable futura de ese grupo no pase por una persona (el handler mete el Id de la clave como

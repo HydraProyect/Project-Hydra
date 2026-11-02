@@ -30,6 +30,9 @@ public class AsignacionApiDtosTests
         json.RootElement.GetProperty("trabajadorId").GetGuid().Should().Be(trabajadorId);
         json.RootElement.GetProperty("centroId").GetGuid().Should().Be(centroId);
         json.RootElement.GetProperty("clienteId").GetGuid().Should().Be(clienteEmpresarialId);
+        json.RootElement.GetProperty("trabajadorNombre").GetString().Should().Be("Nora Vidal");
+        json.RootElement.GetProperty("centroNombre").GetString().Should().Be("Planta Alfa");
+        json.RootElement.GetProperty("fechaAlta").GetString().Should().Be("2026-01-01");
         json.RootElement.GetProperty("clienteNombre").GetString().Should().Be("Alfa Montajes S.L.");
         json.RootElement.GetProperty("fechaBaja").GetString().Should().Be("2026-12-31");
     }
