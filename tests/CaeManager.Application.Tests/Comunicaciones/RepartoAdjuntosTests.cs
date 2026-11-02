@@ -4,6 +4,7 @@ using CaeManager.Application.Comunicaciones.Commands.AsignarAdjuntosLote;
 using CaeManager.Application.Comunicaciones.Commands.FijarDestinoAdjunto;
 using CaeManager.Application.Comunicaciones.Commands.ResolverAdjunto;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRepartoAdjuntos;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Tests.Clientes;
@@ -35,7 +36,7 @@ public class RepartoAdjuntosTests
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly EventoConversacionRepositorioFalso _eventos = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
-    private readonly DocumentosQueryContextFalso _documentos = new();
+    private readonly DocumentosConLecturaRompible _documentos = new();
     private readonly FileStorageServiceFalso _almacen = new();
     private readonly AdjuntoRepositorioFalso _repositorio;
     private readonly Guid _empresaConversacionId = Guid.NewGuid();
@@ -531,6 +532,66 @@ public class RepartoAdjuntosTests
     }
 
     [Fact]
+    public async Task Una_validacion_que_sale_tras_confirmar_el_Documento_conserva_la_copia()
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa { ConfirmaEn = _documentos, Excepcion = new ValidationException("En un evento posterior.") };
+
+        var accion = () => Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<ValidationException>();
+        _almacen.ArchivosGuardados.Should().Be(2, "es el archivo de un Documento confirmado");
+    }
+
+    [Fact]
+    public async Task Un_fallo_tras_confirmar_el_Documento_conserva_la_copia_y_el_alta_se_da_por_hecha()
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa
+        {
+            ConfirmaEn = _documentos,
+            Fallo = Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "En un evento posterior.")
+        };
+
+        var resultado = await Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be(adjunto.DocumentoId!.Value);
+        _documentos.ListaDocumentos.Should().ContainSingle(d => d.Id == resultado.Valor);
+        _repositorio.Olvidados.Should().BeEmpty();
+        _almacen.ArchivosGuardados.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Si_no_se_puede_comprobar_el_Documento_la_copia_se_queda(bool conExcepcion)
+    {
+        var adjunto = await SembrarConArchivo();
+        var alta = new AltaDeDocumentoFalsa
+        {
+            AntesDeResponder = () => _documentos.LecturaRota = true,
+            Excepcion = conExcepcion ? new ValidationException("Fecha no válida.") : null,
+            Fallo = conExcepcion ? null : Error.Crear("Alta.Rechazada", "Rechazada.")
+        };
+
+        var accion = () => Handler(alta).Handle(Comando(adjunto, Guid.NewGuid(), null, Guid.NewGuid()), CancellationToken.None);
+
+        if (conExcepcion)
+        {
+            await accion.Should().ThrowAsync<ValidationException>();
+        }
+        else
+        {
+            var resultado = await accion();
+            resultado.Error.Codigo.Should().Be("Alta.Rechazada");
+        }
+
+        _repositorio.Olvidados.Should().ContainSingle();
+        _almacen.ArchivosGuardados.Should().Be(2, "en duda, la copia se conserva");
+    }
+
+    [Fact]
     public async Task En_el_lote_un_conflicto_por_token_sale_en_su_fila_sin_Documento_y_el_resto_sigue()
     {
         var enConflicto = await SembrarConArchivo();
@@ -652,6 +713,15 @@ public class RepartoAdjuntosTests
         _contexto, _repositorio, Total(), _documentos, alta, alta, _almacen, new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()),
         NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
 
+    /// <summary>Permite que la lectura de Documentos falle a partir de un momento: el alta sigue su curso antes de eso.</summary>
+    private sealed class DocumentosConLecturaRompible : DocumentosQueryContextFalso, IDocumentosQueryContext
+    {
+        public bool LecturaRota { get; set; }
+
+        IQueryable<Documento> IDocumentosQueryContext.Documentos =>
+            LecturaRota ? throw new InvalidOperationException("Sin conexión.") : Documentos;
+    }
+
     internal sealed class AdjuntoRepositorioFalso(ComunicacionesQueryContextFalso contexto) : IAdjuntoMensajeRepository
     {
         public Task<AdjuntoMensaje?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
@@ -672,12 +742,15 @@ public class RepartoAdjuntosTests
         public AdjuntoMensaje? Adjunto { get; init; }
         public bool AdjuntoAsignadoAlGuardar { get; private set; }
 
+        /// <summary>Si se indica, el Documento reservado queda en la base antes de responder: lo que siga es posterior al commit.</summary>
+        public DocumentosQueryContextFalso? ConfirmaEn { get; init; }
+
+        public Action? AntesDeResponder { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Recibido = request;
             AdjuntoAsignadoAlGuardar = Adjunto is { EstadoReparto: EstadoRepartoAdjunto.Asignado };
-            if (Excepcion is not null) throw Excepcion;
-            if (Fallo is not null) return Task.FromResult((TResponse)(object)Result.Fallo<Guid>(Fallo));
 
             var reservado = request switch
             {
@@ -685,6 +758,13 @@ public class RepartoAdjuntosTests
                 RenovarDocumentoCommand renovar => renovar.DocumentoIdReservado,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
+            ConfirmaEn?.ListaDocumentos.Add(Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 1),
+                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), "copia", null, reservado));
+            AntesDeResponder?.Invoke();
+
+            if (Excepcion is not null) throw Excepcion;
+            if (Fallo is not null) return Task.FromResult((TResponse)(object)Result.Fallo<Guid>(Fallo));
+
             return Task.FromResult((TResponse)(object)Result.Exito(reservado!.Value));
         }
 

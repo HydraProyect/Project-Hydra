@@ -40,6 +40,15 @@ namespace CaeManager.Application.Comunicaciones.Commands.ActualizarDocumentoDesd
 /// <see cref="ActualizarDocumentoDesdeAdjuntoCommandHandler.CodigoConflicto"/>. El adjunto guarda el destino y el tipo
 /// del alta, haya o no propuesta previa: lo que elige una persona sustituye a la propuesta.
 ///
+/// El Id se reserva antes porque el resultado llega tarde: Crear/RenovarDocumento guardan y publican
+/// <c>DocumentacionCambiadaEvent</c> antes de devolverlo, de modo que escribir el Id después exigiría un segundo guardado
+/// (la ventana que esto cierra) o una transacción envolvente que dispararía ese evento antes de su commit. La reserva
+/// viaja en una propiedad que solo esta capa puede fijar y que ninguna serialización lee, y el Documento la toma al nacer.
+///
+/// Solo se borra la copia del fichero si la base confirma que el Documento reservado no existe: los eventos que siguen al
+/// commit también pueden lanzar o devolver un fallo, y el tipo de error no dice en qué lado del guardado ocurrió. Si el
+/// Documento existe, el alta está hecha aunque el resultado diga otra cosa; si no se puede saber, la copia se queda.
+///
 /// <paramref name="AplicaPropuestaFijada"/> lo pone quien da el alta con la propuesta que leyó del adjunto en vez de con
 /// lo que eligió una persona: si la propuesta ya es otra, es un conflicto antes de guardar nada.
 /// </summary>
@@ -170,21 +179,21 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
             alta = documentoExistenteId is { } idExistente
                 ? await mediator.Send(new RenovarDocumentoCommand(
                     idExistente, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    NoCaduca: request.NoCaduca, DocumentoIdReservado: documentoReservadoId),
+                    NoCaduca: request.NoCaduca) { DocumentoIdReservado = documentoReservadoId },
                     cancellationToken)
                 : await mediator.Send(new CrearDocumentoCommand(
                     request.TrabajadorId, null, request.EmpresaId, null, null,
                     request.TipoDocumentoId, request.FechaEmision, request.FechaVencimientoManual, archivoUrlDocumento, request.Comentarios,
-                    request.NoCaduca, documentoReservadoId),
+                    request.NoCaduca) { DocumentoIdReservado = documentoReservadoId },
                     cancellationToken);
         }
         catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or ValidationException)
         {
-            // Crear/RenovarDocumento validan y verifican el archivo antes de guardar nada, y esa lectura reserva del
-            // presupuesto de memoria: sin hueco, la copia no la referencia nadie. Se borra y se propaga, que quien
-            // llama avisa de ello.
+            // Lo habitual es que salgan al validar o al leer el archivo, antes de guardar: sin Documento, la copia no la
+            // referencia nadie. Pero un evento tras el commit también puede lanzarlas, y por eso decide la base, no el tipo.
             repositorio.OlvidarCambios(adjunto);
-            await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+            if (await DocumentoConfirmadoAsync(documentoReservadoId, cancellationToken) == false)
+                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
             throw;
         }
         catch
@@ -197,9 +206,19 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
 
         if (alta.EsFallido)
         {
-            repositorio.OlvidarCambios(adjunto);
-            await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
-            return Result.Fallo<Guid>(alta.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? Conflicto() : alta.Error);
+            var confirmado = await DocumentoConfirmadoAsync(documentoReservadoId, cancellationToken);
+            if (confirmado != true)
+            {
+                repositorio.OlvidarCambios(adjunto);
+                if (confirmado == false)
+                    await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
+                return Result.Fallo<Guid>(alta.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto ? Conflicto() : alta.Error);
+            }
+
+            // Documento y transición ya son firmes: lo que falló vino después del commit y no deshace el alta.
+            logger.LogWarning("El alta del documento {DocumentoId} se confirmó, pero un paso posterior falló ({Codigo}).",
+                documentoReservadoId, alta.Error.Codigo);
+            alta = Result.Exito(documentoReservadoId);
         }
 
         // Publicado DESPUÉS del commit de Crear/RenovarDocumentoCommand
@@ -227,6 +246,22 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
 
     private static Result<Guid> ArchivoNoValido() => Result.Fallo<Guid>(Error.Crear(
         "Adjunto.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
+
+    // Pregunta a la base, no al contexto: el fallo pudo dejar el Documento en memoria o descartarlo. Null es «no se
+    // sabe», y quien llama conserva la copia. Resolución por Id, sin filtro de operativos: uno ya sustituido también existe.
+    private async Task<bool?> DocumentoConfirmadoAsync(Guid documentoId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await documentosContext.Documentos.AnyAsync(d => d.Id == documentoId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("No se pudo comprobar si el documento {DocumentoId} llegó a confirmarse ({TipoExcepcion}).",
+                documentoId, ex.GetType().Name);
+            return null;
+        }
+    }
 
     // La copia se hace antes de delegar, así que si Crear/RenovarDocumento
     // rechaza (validación, alcance de cartera, concurrencia) nadie la

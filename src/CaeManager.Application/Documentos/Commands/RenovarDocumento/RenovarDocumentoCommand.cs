@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
@@ -32,14 +33,18 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// renovado no caduca; sin ella y sin fecha, queda
 /// <see cref="VigenciaDocumento.SinConfirmar"/> (ver
 /// <see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>).
-///
-/// <paramref name="DocumentoIdReservado"/> es el Id del Documento nuevo que nace al renovar con un archivo distinto, para
-/// quien deja pendiente en el contexto un cambio que apunta a él (el reparto de adjuntos, ver
-/// <see cref="CrearDocumento.CrearDocumentoCommand"/>). Sin archivo distinto no nace ninguno y no se usa.
 /// </summary>
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
-    Guid Version = default, bool NoCaduca = false, Guid? DocumentoIdReservado = null) : ICommand<Guid>;
+    Guid Version = default, bool NoCaduca = false) : ICommand<Guid>
+{
+    /// <summary>
+    /// El Id con el que nace el Documento nuevo al renovar con un archivo distinto; sin archivo distinto no nace ninguno
+    /// y no se usa. No es contrato: ver <see cref="CrearDocumento.CrearDocumentoCommand.DocumentoIdReservado"/>.
+    /// </summary>
+    [JsonIgnore]
+    public Guid? DocumentoIdReservado { get; internal init; }
+}
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -150,9 +155,7 @@ public class RenovarDocumentoCommandHandler(
         Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
         VigenciaDocumento vigencia, CancellationToken cancellationToken)
     {
-        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios);
-        if (request.DocumentoIdReservado is { } idReservado)
-            nuevo.AdoptarIdReservado(idReservado);
+        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado);
 
         repositorio.Agregar(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);

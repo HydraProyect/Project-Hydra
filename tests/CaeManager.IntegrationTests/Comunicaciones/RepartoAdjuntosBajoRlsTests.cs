@@ -350,8 +350,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
         {
             var crear = (CrearDocumentoCommand)request;
             var documento = Documento.DeEmpresa(crear.EmpresaId!.Value, crear.TipoDocumentoId, crear.FechaEmision,
-                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), crear.ArchivoUrl);
-            documento.AdoptarIdReservado(crear.DocumentoIdReservado!.Value);
+                VigenciaDocumento.VenceEl(new DateOnly(2027, 10, 1)), crear.ArchivoUrl, idReservado: crear.DocumentoIdReservado);
             contexto.Documentos.Add(documento);
 
             if (antesDeGuardar is not null)
