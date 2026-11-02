@@ -175,6 +175,88 @@ public class LoggingBehaviorTests
         fabrica.Logger.Eventos.Should().ContainSingle().Which.Nivel.Should().Be(LogLevel.Debug);
     }
 
+    // MJ-06: el histograma de latencia lleva la etiqueta «Resultado» para poder calcular SLI de disponibilidad
+    // (exito / fallo de negocio / excepcion) sin números de SLO. Request propio para no mezclar con otros tests.
+    private record RequestMedido : ICommand;
+
+    private static async Task<List<(double Valor, string? Resultado)>> MedirAsync(Func<LoggingBehavior<RequestMedido, Result>, Task> acto)
+    {
+        var medidas = new List<(double, string?)>();
+        using var oyente = new System.Diagnostics.Metrics.MeterListener();
+        oyente.InstrumentPublished = (instrumento, o) =>
+        {
+            // Por nombre y no por Observabilidad.DuracionComandoMs: el callback se dispara durante su inicializador estático.
+            if (instrumento.Name == "caemanager.comando.duracion_ms") o.EnableMeasurementEvents(instrumento);
+        };
+        oyente.SetMeasurementEventCallback<double>((_, valor, etiquetas, _) =>
+        {
+            string? request = null, resultado = null;
+            foreach (var etiqueta in etiquetas)
+            {
+                if (etiqueta.Key == "Request") request = etiqueta.Value as string;
+                if (etiqueta.Key == "Resultado") resultado = etiqueta.Value as string;
+            }
+            if (request == nameof(RequestMedido)) lock (medidas) medidas.Add((valor, resultado));
+        });
+        oyente.Start();
+
+        try { await acto(Construir<RequestMedido, Result>(new FabricaLoggerFalsa())); }
+        catch (Exception) { /* la propagación ya la fijan otros tests; aquí solo se mide */ }
+        return medidas;
+    }
+
+    [Fact]
+    public async Task La_latencia_de_un_exito_lleva_la_etiqueta_exito()
+    {
+        var medidas = await MedirAsync(b => b.Handle(new RequestMedido(), _ => Task.FromResult(Result.Exito()), CancellationToken.None));
+
+        medidas.Should().ContainSingle().Which.Resultado.Should().Be("exito");
+    }
+
+    [Fact]
+    public async Task La_latencia_de_un_result_fallido_lleva_la_etiqueta_fallo()
+    {
+        var error = Error.Crear("Autorizacion.SoloLectura", "Tu rol no permite escribir.");
+
+        var medidas = await MedirAsync(b => b.Handle(new RequestMedido(), _ => Task.FromResult(Result.Fallo(error)), CancellationToken.None));
+
+        medidas.Should().ContainSingle().Which.Resultado.Should().Be("fallo");
+    }
+
+    [Fact]
+    public async Task La_latencia_de_una_excepcion_se_mide_con_la_etiqueta_excepcion()
+    {
+        var medidas = await MedirAsync(b => b.Handle(new RequestMedido(), _ => throw new InvalidOperationException("x"), CancellationToken.None));
+
+        medidas.Should().ContainSingle().Which.Resultado.Should().Be("excepcion");
+    }
+
+    [Fact]
+    public async Task Pedir_credenciales_sin_2FA_se_mide_como_fallo_y_no_como_excepcion()
+    {
+        var medidas = await MedirAsync(b => b.Handle(
+            new RequestMedido(), _ => throw new SegundoFactorRequeridoParaCredencialesException(), CancellationToken.None));
+
+        medidas.Should().ContainSingle().Which.Resultado.Should().Be("fallo");
+    }
+
+    [Fact]
+    public async Task Un_archivo_rechazado_se_mide_como_fallo_y_no_como_excepcion()
+    {
+        var medidas = await MedirAsync(b => b.Handle(
+            new RequestMedido(), _ => throw new ArchivoRechazadoException("x"), CancellationToken.None));
+
+        medidas.Should().ContainSingle().Which.Resultado.Should().Be("fallo");
+    }
+
+    [Fact]
+    public async Task Una_cancelacion_no_entra_en_el_histograma_de_latencia()
+    {
+        var medidas = await MedirAsync(b => b.Handle(new RequestMedido(), _ => throw new OperationCanceledException(), CancellationToken.None));
+
+        medidas.Should().BeEmpty("navegar o reemplazar un debounce no es ni éxito ni fallo del servicio");
+    }
+
     private static LoggingBehavior<TRequest, TResponse> Construir<TRequest, TResponse>(FabricaLoggerFalsa fabrica)
         where TRequest : notnull
         => new(
