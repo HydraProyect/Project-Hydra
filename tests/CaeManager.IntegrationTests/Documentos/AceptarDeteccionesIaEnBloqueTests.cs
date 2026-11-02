@@ -95,7 +95,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
         new DescarteDeContexto(_dbContext), NullLogger<AceptarDeteccionesIaEnBloqueCommandHandler>.Instance);
 
     private async Task<(Documento Documento, RevisionIaDocumento Revision, AuditoriaExtraccionIa Auditoria)> SembrarAsync(
-        Trabajador titular, TipoDocumento tipo)
+        Trabajador titular, TipoDocumento tipo, string motivo = "Confianza baja")
     {
         var documento = Documento.DeTrabajador(titular.Id, tipo.Id, DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
@@ -104,7 +104,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
             null, 0.01m, 1, 92, null, documento.Id);
         _dbContext.AuditoriasExtraccionIa.Add(auditoria);
         var detectada = DiaDeNegocio.Hoy();
-        var revision = RevisionIaDocumento.Crear(documento.Id, 92, tipo.Nombre, detectada, detectada.AddYears(3), true, "Confianza baja");
+        var revision = RevisionIaDocumento.Crear(documento.Id, 92, tipo.Nombre, detectada, detectada.AddYears(3), true, motivo);
         revision.VincularAuditoriaExtraccionIa(auditoria.Id);
         _dbContext.RevisionesIaDocumento.Add(revision);
         await _dbContext.SaveChangesAsync();
@@ -155,6 +155,31 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
         var aMano = await _dbContext.Documentos.SingleAsync(d => d.Id == vigenciaAMano.Documento.Id);
         aMano.FechaEmision.Should().Be(emisionAMano, "la vigencia que confirma el Gestor CAE a mano no se pisa en bloque");
         aMano.FechaVencimiento.Should().Be(vencimientoAMano);
+    }
+
+    [Fact]
+    public async Task Una_revision_con_alerta_o_lectura_parcial_persistida_falla_en_el_bloque_y_no_se_toca()
+    {
+        var buena = await SembrarAsync(_visible, _tipoAutomatico);
+        var noApto = await SembrarAsync(_visible, _tipoAutomatico, $"Confianza baja; {MotivosRevisionIa.NoAptoORestriccion}");
+        var parcial = await SembrarAsync(_visible, _tipoAutomatico, MotivosRevisionIa.LecturaParcial(26));
+        var emision = noApto.Documento.FechaEmision;
+
+        var resultado = await CrearBloque().Handle(new AceptarDeteccionesIaEnBloqueCommand(
+            [noApto.Revision.Id, parcial.Revision.Id, buena.Revision.Id]), CancellationToken.None);
+
+        resultado.Valor.Aceptadas.Should().Be(1, "control positivo: la revisión sin alerta se acepta tras los dos fallos");
+        resultado.Valor.Resultados.Where(r => !r.Aceptada).Should().HaveCount(2)
+            .And.OnlyContain(r => r.CodigoError == CodigosRevisionIa.CodigoAlertaARevisarIndividualmente);
+
+        _dbContext.ChangeTracker.Clear();
+        foreach (var intacta in new[] { noApto, parcial })
+        {
+            (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == intacta.Revision.Id)).Resuelta.Should().BeFalse();
+            (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == intacta.Documento.Id)).Should().BeFalse();
+            (await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == intacta.Auditoria.Id)).DecisionHumana.Should().BeNull();
+            (await _dbContext.Documentos.SingleAsync(d => d.Id == intacta.Documento.Id)).FechaEmision.Should().Be(emision);
+        }
     }
 
     [Fact]

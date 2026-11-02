@@ -12,7 +12,6 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Llamadas a cualquiera de los dos envíos: la cuenta que prueba que algo salió, o que no.</summary>
     public int VecesEnviado { get; private set; }
 
-
     public bool FallaCreacionSuscripcion { get; set; }
     public string AccessTokenDevuelto { get; set; } = "access-token-falso";
     public string RefreshTokenDevuelto { get; set; } = "refresh-token-falso";

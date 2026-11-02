@@ -23,7 +23,7 @@ public class ResponderConversacionCommandHandlerTests
         var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
             repositorio, new ComunicacionesQueryContextFalso(), new ConexionIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance, new RegistroExportacionFalso(), new CaeManager.Application.Tests.Clientes.DescarteCambiosPendientesFalso());
     }
 
     private static ResponderConversacionCommandHandler CrearHandlerConConexion(
@@ -39,7 +39,7 @@ public class ResponderConversacionCommandHandlerTests
         var opciones = Options.Create(new ComunicacionesRemitenteOptions());
         return new ResponderConversacionCommandHandler(
             repositorio, new ComunicacionesQueryContextFalso(), conexionRepositorio, new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance, new RegistroExportacionFalso(), new CaeManager.Application.Tests.Clientes.DescarteCambiosPendientesFalso());
     }
 
     [Fact]

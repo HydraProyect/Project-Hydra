@@ -51,7 +51,8 @@ public class MigrarConversacionACorreoCommandHandler(
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IResolucionParticipanteConversacionService resolucionParticipante,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IRegistroExportacionService registroSalida)
     : IRequestHandler<MigrarConversacionACorreoCommand, Result>
 {
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
@@ -94,6 +95,9 @@ public class MigrarConversacionACorreoCommandHandler(
         if (conexion is null)
             return Result.Fallo(Error.Crear(
                 "Conversacion.SinBuzonConectado", "No hay ningún buzón de correo conectado."));
+
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.MigracionACorreo, conexion.Id, [request.EmailDestino], copia: null, adjuntos: null, cancellationToken);
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (tokenResultado.EsFallido)

@@ -34,10 +34,11 @@ namespace CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 /// anclar el hilo y no puede dejarlo caer en la cola de triage compartida.
 /// </param>
 /// <param name="Copia">Direcciones en copia (CC) del mensaje. Hoy solo las usa la reclamación (destinatarios añadidos en «Pedir»).</param>
+/// <param name="Origen">Camino del producto que envía; solo etiqueta el rastro de salida (<see cref="RegistroSalidaComunicaciones"/>).</param>
 public record EnviarMensajeNuevoCommand(
     Guid ConexionIntegracionId, IReadOnlyList<string> Destinatarios, string Asunto, string CuerpoHtml,
     Guid? ClienteId = null, IReadOnlyList<AdjuntoParaEnviarDto>? Adjuntos = null, Guid? EmpresaId = null,
-    IReadOnlyList<string>? Copia = null) : ICommand<Guid>;
+    IReadOnlyList<string>? Copia = null, OrigenSalidaComunicacion Origen = OrigenSalidaComunicacion.Redaccion) : ICommand<Guid>;
 
 public class EnviarMensajeNuevoCommandValidator : AbstractValidator<EnviarMensajeNuevoCommand>
 {
@@ -67,7 +68,8 @@ public class EnviarMensajeNuevoCommandHandler(
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
     IResolucionParticipanteConversacionService resolucionParticipante,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IRegistroExportacionService registroSalida)
     : IRequestHandler<EnviarMensajeNuevoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(EnviarMensajeNuevoCommand request, CancellationToken cancellationToken)
@@ -105,6 +107,8 @@ public class EnviarMensajeNuevoCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, conexion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
+        await registroSalida.RegistrarSalidaAsync(
+            request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (tokenResultado.EsFallido)

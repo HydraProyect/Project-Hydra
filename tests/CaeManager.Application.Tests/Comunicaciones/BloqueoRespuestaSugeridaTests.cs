@@ -37,6 +37,7 @@ public class BloqueoRespuestaSugeridaTests
     private readonly Microsoft365GraphClientFalso _graph = new();
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
     private readonly UnitOfWorkFalso _unidad = new();
+    private readonly RegistroExportacionFalso _registro = new();
 
     private RespuestaSugerida Sugerencia(Conversacion conversacion, EstadoRespuestaSugerida estado, string texto = TextoSugerido, Guid? origen = null)
     {
@@ -76,7 +77,8 @@ public class BloqueoRespuestaSugeridaTests
         new ResponderConversacionCommandHandler(
                 _conversaciones, _comunicaciones, _conexiones, new AlcanceDatosServiceFalso(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
-                Options.Create(new ComunicacionesRemitenteOptions()), _unidad, NullLogger<ResponderConversacionCommandHandler>.Instance)
+                Options.Create(new ComunicacionesRemitenteOptions()), _unidad, NullLogger<ResponderConversacionCommandHandler>.Instance,
+                _registro, new DescarteCambiosPendientesFalso())
             .Handle(new ResponderConversacionCommand(conversacion.Id, cuerpo), CancellationToken.None);
 
     private Conversacion HiloDeWhatsApp(DateTime ultimoEntranteUtc, out ConexionIntegracion linea)
@@ -96,20 +98,20 @@ public class BloqueoRespuestaSugeridaTests
     private Task<Result> ResponderPorWhatsApp(Conversacion conversacion, string texto) =>
         new ResponderConversacionWhatsAppCommandHandler(
                 _conversaciones, _comunicaciones, _conexiones, _lineas, new AlcanceDatosServiceFalso(), _whatsApp, _unidad,
-                NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance)
+                NullLogger<ResponderConversacionWhatsAppCommandHandler>.Instance, _registro, new DescarteCambiosPendientesFalso())
             .Handle(new ResponderConversacionWhatsAppCommand(conversacion.Id, texto), CancellationToken.None);
 
     private Task<Result> MigrarACorreo(Conversacion conversacion, string cuerpo) =>
         new MigrarConversacionACorreoCommandHandler(
                 _conversaciones, _comunicaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graph,
-                new AccesoGraphService(_credenciales, _graph), new ResolucionParticipanteConversacionServiceFalso(), _unidad)
+                new AccesoGraphService(_credenciales, _graph), new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
             .Handle(new MigrarConversacionACorreoCommand(conversacion.Id, "ana@contrata.test", cuerpo), CancellationToken.None);
 
     private Task<Result<Guid>> EnviarNuevo(ConexionIntegracion conexion, string cuerpo) =>
         new EnviarMensajeNuevoCommandHandler(
                 _conexiones, _conversaciones, _comunicaciones, new AlcanceDatosServiceFalso(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
-                new ResolucionParticipanteConversacionServiceFalso(), _unidad)
+                new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
             .Handle(new EnviarMensajeNuevoCommand(conexion.Id, ["ana@contrata.test"], "Documentación", cuerpo), CancellationToken.None);
 
     [Fact]
@@ -124,6 +126,26 @@ public class BloqueoRespuestaSugeridaTests
         _graph.VecesEnviado.Should().Be(0);
         conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
         _unidad.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>El bloqueo va antes que el rastro: quedaría constancia de una salida que no ha ocurrido.</summary>
+    [Fact]
+    public async Task Un_envio_bloqueado_no_deja_rastro_de_salida()
+    {
+        var conexion = Buzon();
+        var hiloDeCorreo = HiloDeCorreo(conexion);
+        Sugerencia(hiloDeCorreo, EstadoRespuestaSugerida.SinRevisar);
+        var hiloDeWhatsApp = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-1), out _);
+        Sugerencia(hiloDeWhatsApp, EstadoRespuestaSugerida.SinRevisar, TextoSugeridoPlano);
+        var hiloAMigrar = HiloDeWhatsApp(DateTime.UtcNow.AddHours(-30), out _);
+        Sugerencia(hiloAMigrar, EstadoRespuestaSugerida.SinRevisar);
+
+        (await Responder(hiloDeCorreo, EscritoAMano)).EsFallido.Should().BeTrue();
+        (await ResponderPorWhatsApp(hiloDeWhatsApp, "Otro texto")).EsFallido.Should().BeTrue();
+        (await MigrarACorreo(hiloAMigrar, EscritoAMano)).EsFallido.Should().BeTrue();
+        (await EnviarNuevo(conexion, TextoSugerido)).EsFallido.Should().BeTrue();
+
+        _registro.Filas.Should().BeEmpty();
     }
 
     [Fact]
