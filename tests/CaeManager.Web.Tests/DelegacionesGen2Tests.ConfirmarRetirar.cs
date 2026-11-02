@@ -25,11 +25,15 @@ public partial class DelegacionesGen2Tests
     private static AngleSharp.Dom.IElement BotonDelDialogo(IRenderedComponent<CaeManager.Web.Features.Delegaciones.Pages.Delegaciones> cut, string texto) =>
         cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == texto);
 
-    // El Command de retirar a una persona de una delegación de Operador CAE externo solo se
-    // atiende desde el Tenant propietario (RevocarAsignacionOperadorDelegadoCommandHandler,
-    // RequiereTenantPropietario): quien entra desde el Operador CAE externo no tiene qué pulsar.
-    // Las pruebas de retirada miran por eso la delegación desde el Tenant propietario
-    // (somosLaConsultora: false).
+    // El Command de retirar a una persona de una delegación de Operador CAE externo solo lo
+    // atiende el Administrador del Tenant propietario (RevocarAsignacionOperadorDelegadoCommandHandler):
+    // ni quien entra desde el Operador CAE externo ni un Gestor CAE del Tenant propietario tienen
+    // qué pulsar. Las pruebas de retirada miran por eso la delegación como ese Administrador.
+    private CaeManager.Application.Tenants.Queries.ObtenerDelegaciones.DelegacionDto DelegacionDelTenantQueAdministro()
+    {
+        ComoAdministradorDelTenantPropietario();
+        return Delegacion(somosLaConsultora: false, tenantClienteId: TenantPropietarioRefrielectric);
+    }
 
     [Fact]
     public void Desde_el_Operador_CAE_externo_no_se_ofrece_retirar_a_una_persona_porque_el_handler_lo_rechaza()
@@ -44,14 +48,38 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
-    public void Desde_el_Tenant_propietario_si_se_ofrece_retirar_a_una_persona()
+    public void Al_Administrador_del_Tenant_propietario_si_se_le_ofrece_retirar_a_una_persona()
     {
-        var delegacion = Delegacion(somosLaConsultora: false);
+        var delegacion = DelegacionDelTenantQueAdministro();
         var (cut, _, _) = Renderizar(delegacion);
 
         BotonConTexto(cut, "Retirar").Should().NotBeNull();
         cut.FindAll(".delegaciones-tabla thead th").Select(th => th.TextContent.Trim())
             .Should().Equal("Persona", "Rol CAE", "Acción");
+    }
+
+    [Fact]
+    public void A_un_Gestor_CAE_del_Tenant_propietario_no_se_le_ofrece_retirar_a_una_persona()
+    {
+        // Sin autoridad sobre el Tenant propietario, ObtenerTenantPropietarioAutorizanteQuery da null.
+        var delegacion = Delegacion(somosLaConsultora: false);
+        var (cut, _, _) = Renderizar(delegacion);
+
+        cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle("control positivo: la persona sigue listada");
+        cut.FindAll(".delegaciones-tabla button").Should().BeEmpty("retirar es del Administrador del Tenant propietario");
+        cut.FindAll(".delegaciones-tabla thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Persona", "Rol CAE");
+    }
+
+    [Fact]
+    public void Al_Administrador_del_Operador_CAE_externo_no_se_le_ofrece_retirar_a_una_persona()
+    {
+        // Ser Administrador de su Tenant de origen no basta: hay que serlo del Tenant propietario.
+        ComoAdministradorDelTenantPropietario();
+        var (cut, _, _) = Renderizar(Delegacion(somosLaConsultora: true));
+
+        cut.FindAll(".delegaciones-tabla tbody tr").Should().ContainSingle("control positivo: la persona sigue listada");
+        cut.FindAll(".delegaciones-tabla button").Should().BeEmpty();
     }
 
     [Fact]
@@ -92,7 +120,7 @@ public partial class DelegacionesGen2Tests
     [Fact]
     public async Task Retirar_a_una_persona_pide_confirmacion_y_cancelar_no_envia_el_Command()
     {
-        var delegacion = Delegacion(somosLaConsultora: false);
+        var delegacion = DelegacionDelTenantQueAdministro();
         var (cut, mediador, _) = Renderizar(delegacion);
 
         await BotonConTexto(cut, "Retirar").ClickAsync(new MouseEventArgs());
@@ -111,7 +139,7 @@ public partial class DelegacionesGen2Tests
     [Fact]
     public async Task Retirar_a_una_persona_y_confirmar_envia_el_Command_de_esa_asignacion()
     {
-        var delegacion = Delegacion(somosLaConsultora: false);
+        var delegacion = DelegacionDelTenantQueAdministro();
         var (cut, mediador, toasts) = Renderizar(delegacion);
 
         await BotonConTexto(cut, "Retirar").ClickAsync(new MouseEventArgs());

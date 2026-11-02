@@ -8,7 +8,8 @@ namespace CaeManager.Application.Tenants;
 /// SEG-7 del 2026-10-31: la revocación pertenece al plano de Propiedad y quien la sufre no la
 /// deshace desde el plano de Operación). La regla no mira quién revocó: vale igual para lo que
 /// revocó el Operador CAE externo y para lo que revocó Soporte TALVEG a petición del Tenant
-/// propietario.
+/// propietario. El mismo predicado decide retirar a una persona de un Operador CAE externo
+/// (<c>RevocarAsignacionOperadorDelegadoCommand</c>), otro acto del plano de Propiedad.
 ///
 /// <para>Hacen falta todas estas condiciones:</para>
 /// <list type="bullet">
