@@ -135,6 +135,35 @@ public class NumeroTicketConversacionBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_alta_espera_a_que_termine_la_transaccion_abierta_del_mismo_Tenant_y_hereda_su_numero_si_se_deshace()
+    {
+        await using var primera = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        await using var segunda = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        await using var transaccion = await primera.BeginTransactionAsync();
+        (await InsertarConversacionAsync(primera, _tenantA, numeroPedido: null)).Should().Be(1);
+
+        var alta = InsertarConversacionAsync(segunda, _tenantA, numeroPedido: null);
+        var terminada = await Task.WhenAny(alta, Task.Delay(TimeSpan.FromSeconds(1)));
+        terminada.Should().NotBeSameAs(alta, "el contador retiene a la segunda alta hasta el fin de la primera transacción");
+
+        await transaccion.RollbackAsync();
+
+        (await alta).Should().Be(1, "un número deshecho no deja hueco");
+    }
+
+    [Fact]
+    public async Task Cambiar_otra_columna_o_repetir_el_mismo_numero_no_lo_impide_la_inmutabilidad()
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+        await InsertarConversacionAsync(conexion, _tenantA, numeroPedido: null);
+
+        await EjecutarEscalarAsync(conexion, """UPDATE "Conversaciones" SET "EstaEliminado" = true, "NumeroTicket" = "NumeroTicket";""");
+        await EjecutarEscalarAsync(conexion, """UPDATE "Conversaciones" SET "EstaEliminado" = false;""");
+
+        (await EjecutarEscalarAsync(conexion, """SELECT "NumeroTicket" FROM "Conversaciones";""")).Should().Be(1L);
+    }
+
+    [Fact]
     public async Task Borrar_la_ultima_conversacion_no_reutiliza_su_numero()
     {
         await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
