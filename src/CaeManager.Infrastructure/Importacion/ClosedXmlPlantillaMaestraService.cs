@@ -453,9 +453,11 @@ public class ClosedXmlPlantillaMaestraService(
         private IEnumerable<int> LeerFilas()
         {
             if (ExcedeColumnas) yield break;
-            var ultima = _hoja.LastRowUsed()?.RowNumber() ?? 0;
-            for (var f = PrimeraFilaDatos; f <= ultima; f++)
+            // Solo las filas con contenido: un libro disperso (una celda en la fila 50.000) no obliga a visitar las vacías.
+            foreach (var filaUsada in _hoja.RowsUsed(XLCellsUsedOptions.Contents))
             {
+                var f = filaUsada.RowNumber();
+                if (f < PrimeraFilaDatos) continue;
                 var primera = _columnas.Values.Select(c => TextoBruto(f, c)).FirstOrDefault(t => t is not null);
                 // Una fila con datos solo bajo una cabecera repetida o vacía cuenta como fila con datos: así se anuncia.
                 if (primera is null)

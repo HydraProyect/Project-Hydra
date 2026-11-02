@@ -201,6 +201,19 @@ public class ClosedXmlPlantillaMaestraServiceTests
     }
 
     [Fact]
+    public async Task Un_libro_disperso_con_una_fila_lejana_se_lee_con_su_numero_real()
+    {
+        var libro = LibroValido();
+        var hoja = libro.Worksheets.Worksheet("Empresas");
+        Fila(hoja, 40000, "Lejana Ficticia, S.L.", "A28017895", "", "");
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Should().Contain(e => e.Fila == 40000 && e.Cif == "A28017895");
+        plan.Empresas.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task Muchas_cabeceras_repetidas_cuentan_para_el_tope_de_columnas()
     {
         var libro = LibroValido();

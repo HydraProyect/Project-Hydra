@@ -292,7 +292,8 @@ public class EjecutarImportacionMaestraCommandHandler(
             if (clientesPorCif.TryGetValue(fila.Cif, out var existente))
             {
                 cliente = existente;
-                // Una Empresa que ya existía puede venir repetida por otra pareja: solo la primera fila la toca.
+                // Una Empresa que ya existía puede venir repetida por otra pareja: solo la primera fila válida la toca. Si esa
+                // fila se rechaza, no cuenta como tratada: la siguiente del mismo Cliente empresarial lo intenta.
                 if (clientesTratados.Add(fila.Cif))
                 {
                     var rellenadosAntes = rellenados;
@@ -310,6 +311,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                     {
                         omitidos.Add(new(HojaClientes, fila.Fila, fila.RazonSocial, ocupada.Mensaje));
                         DescartarFila(rellenadosAntes, sobrescritosAntes);
+                        clientesTratados.Remove(fila.Cif);
                         continue;
                     }
 
@@ -327,6 +329,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                         {
                             omitidos.Add(new(HojaClientes, fila.Fila, fila.RazonSocial, error!));
                             DescartarFila(rellenadosAntes, sobrescritosAntes);
+                            clientesTratados.Remove(fila.Cif);
                             continue;
                         }
                     }

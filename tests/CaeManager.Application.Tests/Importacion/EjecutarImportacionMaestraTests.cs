@@ -271,6 +271,25 @@ public class EjecutarImportacionMaestraTests
     }
 
     [Fact]
+    public async Task Si_la_primera_fila_de_un_Cliente_repetido_se_rechaza_la_siguiente_si_lo_actualiza()
+    {
+        const string cifOtraGestionada = "A28017895";
+        var e = new Escenario();
+        e.Empresas.ListaEmpresas.Add(GestionadaExistente());
+        e.Empresas.ListaEmpresas.Add(new Empresa("Otra Gestionada, S.L.", cifOtraGestionada));
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var rechazada = new ClienteEmpresarialMaestraDto(3, new string('x', 1000), CifCliente, false, CifGestionada, "Nota A", YaExiste: true);
+        var valida = new ClienteEmpresarialMaestraDto(4, "Distribuciones Ficticias, S.A.", CifCliente, false, cifOtraGestionada, "Nota B", YaExiste: true);
+
+        var r = (await e.EjecutarAsync(Plan(clientes: [rechazada, valida]), reemplazar: true)).Valor;
+
+        r.Omitidos.Should().ContainSingle(o => o.Hoja == "Clientes empresariales" && o.Fila == 3);
+        cliente.Notas.Should().Be("Nota B", "la primera fila válida del Cliente empresarial es la que se aplica");
+        r.ClientesActualizados.Should().Be(1);
+    }
+
+    [Fact]
     public async Task El_telefono_normalizado_por_el_dominio_al_mismo_valor_no_cuenta_como_sobrescritura()
     {
         var e = new Escenario();
