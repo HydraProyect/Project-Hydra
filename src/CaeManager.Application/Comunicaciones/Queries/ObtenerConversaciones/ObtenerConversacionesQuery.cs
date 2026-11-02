@@ -64,7 +64,8 @@ public record ConversacionListaDto(
     int MensajesRuido = 0,
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
     DateTime? VencimientoSlaUtc = null,
-    TimeSpan? SlaRestante = null)
+    TimeSpan? SlaRestante = null,
+    long NumeroTicket = 0)
 {
     /// <summary>
     /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
@@ -223,6 +224,7 @@ public class ObtenerConversacionesQueryHandler(
                 c.Asunto,
                 c.Estado,
                 c.Prioridad,
+                c.NumeroTicket,
                 c.EjecutivoAsignadoId,
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
@@ -266,7 +268,7 @@ public class ObtenerConversacionesQueryHandler(
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
                 ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id), c.Prioridad,
                 plazos.TryGetValue(c.Id, out var plazo) ? plazo.Vence : null,
-                plazos.ContainsKey(c.Id) ? plazo.Restante : null);
+                plazos.ContainsKey(c.Id) ? plazo.Restante : null, c.NumeroTicket);
         }).ToList();
 
         return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);

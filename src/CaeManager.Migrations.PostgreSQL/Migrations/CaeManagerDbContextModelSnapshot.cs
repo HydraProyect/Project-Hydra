@@ -1274,6 +1274,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<long>("NumeroTicket")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValueSql("0");
+
                     b.Property<int>("Prioridad")
                         .HasColumnType("integer");
 
@@ -1298,6 +1303,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Estado");
 
+                    b.HasIndex("TenantId", "NumeroTicket")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "Canal", "Estado");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "HiloExternoId")
@@ -1309,6 +1317,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Conversaciones", null, t =>
                         {
                             t.HasCheckConstraint("CK_Conversaciones_AnclaUnica", "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1");
+
+                            t.HasCheckConstraint("CK_Conversaciones_NumeroTicketPositivo", "\"NumeroTicket\" > 0");
                         });
                 });
 
