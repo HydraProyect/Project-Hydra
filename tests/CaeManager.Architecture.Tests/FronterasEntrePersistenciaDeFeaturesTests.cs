@@ -449,6 +449,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerPendientePorPlataformaQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Dashboard.ObtenerPreferenciaDashboardQueryHandler", "IPreferenciaDashboardUsuarioRepository"),
         ("Dashboard.ObtenerPulsoEquipoQueryHandler", "IDocumentosQueryContext"),
+        // Dividir PDF lee el catálogo de la Empresa gestionada para reconocer tipo y titular; no escribe en esas features.
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),

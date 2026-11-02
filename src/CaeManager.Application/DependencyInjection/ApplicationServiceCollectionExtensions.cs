@@ -84,6 +84,7 @@ public static class ApplicationServiceCollectionExtensions
         services.TryAddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
             CaeManager.Application.Plataforma.ElevacionEscrituraPrivilegiadaInerte>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();

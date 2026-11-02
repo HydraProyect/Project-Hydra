@@ -51,7 +51,7 @@ public class NavMenuCaracterizacionTests
 
     private static readonly string[] NombresIcono =
     [
-        "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos",
+        "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos", "tijeras",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
         "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
         "inicio", "ejecutivo", "tendencia", "ia", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo", "auditoria", "importar",
