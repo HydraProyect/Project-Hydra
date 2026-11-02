@@ -53,6 +53,19 @@ namespace CaeManager.IntegrationTests.Identity;
 /// prueba que siempre concede, para poder atribuir cualquier fallo a Identity
 /// o al código de la página, nunca al cerrojo.
 /// </para>
+///
+/// <para>
+/// La revocación de sesiones (ASVS 4.0.3 V3.3.3) tampoco se ejercita con la
+/// implementación real: va con un doble que anota la llamada
+/// (<c>SesionesAnotadas</c>), para demostrar que la página la pide solo cuando la
+/// credencial cambia. El <c>RegistroSesionesUsuario</c> real no cabe en este
+/// arnés por dos motivos: aquí no hay Tenant firmado ni
+/// <c>TenantRlsConnectionInterceptor</c>, y <c>app_revocar_sesiones_de_cuenta</c>
+/// exige contexto firmado; y rota el sello con su propio UPDATE de
+/// <c>AspNetUsers</c>, que falsearía el recuento de una sola escritura que estos
+/// tests miden sobre la página. La implementación real la mide
+/// <c>RegistroSesionesUsuarioBajoRuntimeTests</c>.
+/// </para>
 /// </summary>
 public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
 {
@@ -60,6 +73,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
     private ServiceProvider _servicios = null!;
     private InterceptorConteoGuardadosAspNetUsers _interceptorUpdates = null!;
     private InterceptorConteoUpdatesRealesAspNetUsers _interceptorSql = null!;
+    private readonly SesionesAnotadas _sesiones = new();
 
     public async Task InitializeAsync()
     {
@@ -145,6 +159,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con CambiarContrasena — y explícitamente NO con verificar-2fa:{userId}");
+        _sesiones.CerradasTodas.Should().Equal([usuario.Id],
+            "restablecer con éxito revoca todas las sesiones de la cuenta (ASVS 4.0.3 V3.3.3)");
 
         // HUECO B (revisión de #657): la consolidación de DebeCambiarContrasena
         // tiene que dejar UNA sola escritura de AspNetUsers por éxito. Sensible
@@ -197,6 +213,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
                 "— ese camino en producción solo se toma cuando el código de Identity es \"InvalidToken\"");
             LeerCampo<bool>(pagina2, "_completado").Should().BeFalse();
         }
+        _sesiones.CerradasTodas.Should().Equal([usuario.Id], "un enlace ya gastado no vuelve a revocar nada");
 
         // Prueba directa del código EXACTO de Identity, sin pasar por la
         // página (que no expone el código, solo la decisión que toma con él).
@@ -274,6 +291,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con RestablecerContrasena — y explícitamente NO con verificar-2fa:{userId}");
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id],
+            "cambiar la contraseña con éxito revoca las demás sesiones de la cuenta (ASVS 4.0.3 V3.3.3)");
 
         // HUECO B (revisión de #657): mismo razonamiento que en Restablecer —
         // una sola escritura de AspNetUsers por éxito.
@@ -314,6 +333,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             LeerCampo<string?>(pagina2, "mensajeError").Should().NotBeNull(
                 "la \"contraseña actual\" del segundo intento ya no es la contraseña real de la cuenta");
         }
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id], "un cambio rechazado no vuelve a revocar nada");
 
         // Prueba directa del código EXACTO de Identity, sin pasar por la
         // página (que no expone el código, solo la descripción).
@@ -385,6 +405,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         cerrojo.Invocaciones.Should().Be(0,
             "HUECO A: el token se rechaza en la prevalidación, ANTES de competir por el cerrojo — un token " +
             "inventado con un userId real no debe poder ocupar `credencial:{userId}` ni brevemente");
+        _sesiones.CerradasTodas.Should().BeEmpty("un enlace rechazado no cambia la credencial ni revoca sesiones");
     }
 
     private static async Task<ApplicationUser> CrearUsuarioAsync(IServiceProvider servicios)
@@ -402,13 +423,14 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         return usuario;
     }
 
-    private static RestablecerContrasena CrearRestablecer(
+    private RestablecerContrasena CrearRestablecer(
         IServiceProvider servicios, Guid userId, string codigo, CerrojoSiempreConcedidoFalso? cerrojo = null)
     {
         var usuarios = servicios.GetRequiredService<UserManager<ApplicationUser>>();
         var pagina = new RestablecerContrasena();
         EscribirPropiedad(pagina, "UserManager", usuarios);
         EscribirPropiedad(pagina, "SignInManager", new SignInManagerFalso(usuarios));
+        EscribirPropiedad(pagina, "Sesiones", _sesiones);
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
@@ -418,13 +440,14 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         return pagina;
     }
 
-    private static CambiarContrasena CrearCambiar(
+    private CambiarContrasena CrearCambiar(
         IServiceProvider servicios, Guid userId, CerrojoSiempreConcedidoFalso? cerrojo = null)
     {
         var usuarios = servicios.GetRequiredService<UserManager<ApplicationUser>>();
         var pagina = new CambiarContrasena();
         EscribirPropiedad(pagina, "UserManager", usuarios);
         EscribirPropiedad(pagina, "SignInManager", new SignInManagerFalso(usuarios));
+        EscribirPropiedad(pagina, "Sesiones", _sesiones);
         EscribirPropiedad(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(userId));
         EscribirPropiedad(pagina, "Navigation", new NavigationManagerFalsa());
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
@@ -487,6 +510,29 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         var mi = instancia.GetType().GetMethod(nombre, BindingFlags.NonPublic | BindingFlags.Instance)
             ?? throw new InvalidOperationException($"No se encontró el método '{nombre}' en {instancia.GetType().Name}.");
         await (Task)mi.Invoke(instancia, null)!;
+    }
+
+    /// <summary>Anota la revocación que pide la página; ver el resumen de la clase para por qué no es la real.</summary>
+    private sealed class SesionesAnotadas : IRegistroSesionesUsuario
+    {
+        public List<Guid> CerradasTodas { get; } = [];
+        public List<Guid> DemasCerradas { get; } = [];
+
+        public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default)
+        {
+            CerradasTodas.Add(usuarioId);
+            return Task.FromResult(1);
+        }
+
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default)
+        {
+            DemasCerradas.Add(usuarioId);
+            return Task.FromResult(1);
+        }
+
+        public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     // Las páginas construidas por reflexión no pasan por DI: la guarda de Sesión Privilegiada (ASVS V4.1.5) lee
