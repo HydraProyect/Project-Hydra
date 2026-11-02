@@ -81,6 +81,12 @@ public class FijarResponsableBuzonAislamientoTests : IAsyncLifetime
 
         (await directorio.TieneVinculoOperativoAsync(responsable)).Should().BeTrue();
         (await directorio.TieneVinculoOperativoAsync(Guid.NewGuid())).Should().BeFalse();
+
+        await using var contextoDeB = CrearContexto(_tenantB);
+        var directorioDeB = new DirectorioUsuariosTenant(
+            null!, contextoDeB, new TenantActualAmbiental { TenantId = _tenantB }, new PuertaAccesoDatos(), contextoDeB, null!);
+
+        (await directorioDeB.TieneVinculoOperativoAsync(responsable)).Should().BeFalse("el buzón es de otro Tenant");
     }
 
     private static FijarResponsableBuzonCommandHandler CrearHandler(CaeManagerDbContext contexto) =>

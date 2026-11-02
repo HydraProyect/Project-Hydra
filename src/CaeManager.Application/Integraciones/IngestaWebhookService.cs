@@ -241,7 +241,7 @@ public class IngestaWebhookService(
             conversacion.Asignar(responsableId);
         else
             logger.LogWarning(
-                "La conversación nueva de la conexión {ConexionId} queda sin asignar: su responsable {UsuarioId} ya no es alcanzable en el Tenant.",
+                "La conversación nueva de la conexión {ConexionId} queda sin asignar: su responsable {UsuarioId} está desactivado o ya no es alcanzable en el Tenant.",
                 conexion.Id, responsableId);
     }
 
