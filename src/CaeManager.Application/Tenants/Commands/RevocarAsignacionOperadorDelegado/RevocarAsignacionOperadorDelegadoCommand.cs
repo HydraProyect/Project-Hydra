@@ -17,13 +17,16 @@ namespace CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDeleg
 /// (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md).
 ///
 /// <para>
-/// Quién retira a una persona de un Operador CAE externo: solo el Administrador del Tenant
-/// propietario, desde su casa (<see cref="AdministradorQueReactiva"/>; decisión de Chris del
-/// 2026-10-26 y ADR-004 § 12.2). Es el mismo predicado que reactiva su acceso, y la misma autoridad
-/// que lo autoriza: decide qué persona entra en los datos y cierra su cartera, así que un Gestor
-/// CAE del Tenant propietario no lo hace aunque RLS y la escritura general se lo admitan. La de
-/// Soporte TALVEG (plano 3) conserva las dos partes como criterio
-/// (<c>DelegacionAdministrablePorElUsuarioAsync</c>).
+/// Quién retira por este comando a una persona de un Operador CAE externo: solo el Administrador
+/// del Tenant propietario, desde su casa (<see cref="AdministradorQueReactiva"/>; decisión de Chris
+/// del 2026-10-26 y ADR-004 § 12.2). Es el mismo predicado que reactiva su acceso, y la misma
+/// autoridad que lo autoriza: decide qué persona entra en los datos y cierra su cartera, así que un
+/// Gestor CAE del Tenant propietario no lo hace aunque RLS y la escritura general se lo admitan. La
+/// de Soporte TALVEG (plano 3) conserva las dos partes como criterio
+/// (<c>DelegacionAdministrablePorElUsuarioAsync</c>). Las rutas de cartera del plano de Operación
+/// (<c>AsignarCarteraGestorCaeCommand</c>, <c>RevocarIncorporacionCarteraCommand</c>,
+/// <c>RetirarApoyoConcedidoCommand</c>) y la revocación entera siguen en el equipo del Operador CAE
+/// externo: este comando no las gobierna.
 /// </para>
 /// </summary>
 public record RevocarAsignacionOperadorDelegadoCommand(Guid AsignacionId) : ICommand;
