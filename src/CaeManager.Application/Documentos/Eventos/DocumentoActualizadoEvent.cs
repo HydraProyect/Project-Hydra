@@ -10,4 +10,4 @@ namespace CaeManager.Application.Documentos.Eventos;
 /// desde <c>/documentos</c> no tiene Conversacion de origen y no publica
 /// nada.
 /// </summary>
-public sealed record DocumentoActualizadoEvent(Guid ConversacionId, Guid DocumentoId) : INotification;
+public sealed record DocumentoActualizadoEvent(Guid ConversacionId, Guid DocumentoId, Guid AdjuntoId) : INotification;

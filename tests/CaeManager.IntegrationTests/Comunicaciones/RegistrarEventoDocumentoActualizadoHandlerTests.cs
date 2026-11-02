@@ -37,7 +37,7 @@ public class RegistrarEventoDocumentoActualizadoHandlerTests : IAsyncLifetime
             var handler = new RegistrarEventoDocumentoActualizadoHandler(
                 new EventoConversacionRepository(contexto), contexto, NullLogger<RegistrarEventoDocumentoActualizadoHandler>.Instance);
 
-            await handler.Handle(new DocumentoActualizadoEvent(conversacionId, documentoId), CancellationToken.None);
+            await handler.Handle(new DocumentoActualizadoEvent(conversacionId, documentoId, Guid.NewGuid()), CancellationToken.None);
         }
 
         await using var lectura = CrearContexto();

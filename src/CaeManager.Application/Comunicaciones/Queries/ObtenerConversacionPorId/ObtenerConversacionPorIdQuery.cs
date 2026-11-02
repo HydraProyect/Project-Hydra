@@ -78,7 +78,7 @@ public record EventoDetalleDto(Guid Id, TipoEventoConversacion Tipo, Guid Refere
 public record SugerenciaVinculacionDetalleDto(Guid ConversacionDestinoId, string AsuntoDestino, DesgloseCoincidenciaDto Desglose);
 
 /// <summary>
-/// No hay ninguna relación Mensaje/Adjunto↔Documento modelada en el dominio —
+/// <see cref="AdjuntoMensaje.DocumentoId"/> solo existe para los adjuntos repartidos —
 /// "Documentos citados" del panel de contexto se arma en tres niveles de
 /// certeza decreciente, todos calculados en cada lectura (ver
 /// ObtenerDocumentosCitadosAsync):
@@ -567,6 +567,10 @@ public class ObtenerConversacionPorIdQueryHandler(
                     ? "Se reclamó 1 documento pendiente por esta conversación."
                     : $"Se reclamaron {total} documentos pendientes por esta conversación.",
             TipoEventoConversacion.ReclamacionEnviada => "Se envió una reclamación documental por esta conversación.",
+
+            TipoEventoConversacion.AdjuntoRechazado => "Se rechazó un adjunto de esta conversación.",
+            TipoEventoConversacion.AdjuntoDescartado => "Se descartó un adjunto de esta conversación.",
+            TipoEventoConversacion.AdjuntoReabierto => "Un adjunto de esta conversación volvió a quedar pendiente.",
 
             _ => "Evento del sistema."
         };

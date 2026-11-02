@@ -325,6 +325,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "ITrabajadoresQueryContext"),
         ("Comunicaciones.EditarMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
+        // Comprueba que destino y tipo existan en el Tenant; solo lee otras features.
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "ITrabajadoresQueryContext"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
         // Alerta crítica (Z5-1, 2026-10-23): «Registrar incidencia» ata la alerta a la Incidencia que acaba de crearse y el Deshacer
