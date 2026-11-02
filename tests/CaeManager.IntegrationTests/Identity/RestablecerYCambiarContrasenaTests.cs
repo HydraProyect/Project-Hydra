@@ -159,6 +159,8 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         }
         cerrojo1.ClaveRecibida.Should().Be($"credencial:{usuario.Id}",
             "la clave compartida con CambiarContrasena — y explícitamente NO con verificar-2fa:{userId}");
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id],
+            "restablecer revoca las filas antes de cambiar la credencial, sin rotar el sello del que depende el token");
         _sesiones.CerradasTodas.Should().Equal([usuario.Id],
             "restablecer con éxito revoca todas las sesiones de la cuenta (ASVS 4.0.3 V3.3.3)");
 
@@ -214,6 +216,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             LeerCampo<bool>(pagina2, "_completado").Should().BeFalse();
         }
         _sesiones.CerradasTodas.Should().Equal([usuario.Id], "un enlace ya gastado no vuelve a revocar nada");
+        _sesiones.DemasCerradas.Should().Equal([usuario.Id], "un enlace ya gastado tampoco revoca antes de intentarlo");
 
         // Prueba directa del código EXACTO de Identity, sin pasar por la
         // página (que no expone el código, solo la decisión que toma con él).
@@ -406,6 +409,7 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
             "HUECO A: el token se rechaza en la prevalidación, ANTES de competir por el cerrojo — un token " +
             "inventado con un userId real no debe poder ocupar `credencial:{userId}` ni brevemente");
         _sesiones.CerradasTodas.Should().BeEmpty("un enlace rechazado no cambia la credencial ni revoca sesiones");
+        _sesiones.DemasCerradas.Should().BeEmpty("la revocación previa exige el token ya prevalidado");
     }
 
     private static async Task<ApplicationUser> CrearUsuarioAsync(IServiceProvider servicios)

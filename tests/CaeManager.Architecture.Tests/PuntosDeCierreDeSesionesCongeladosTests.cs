@@ -23,6 +23,9 @@ public class PuntosDeCierreDeSesionesCongeladosTests
         "src/CaeManager.Web/Components/Account/CierreSesionEnServidor.cs: CerrarTodasAsync",
         // El enlace de restablecer, con su token ya verificado por Identity.
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs: CerrarTodasAsync",
+        // El mismo enlace, antes de cambiar la credencial: su token ya prevalidado y la contraseña
+        // nueva admitida por la política. Con sesión conservada nula, para no rotar el sello.
+        "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs: CerrarLasDemasAsync",
         // La propia cuenta autenticada, que acaba de cambiar su contraseña.
         "src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor: CerrarLasDemasAsync",
     ];

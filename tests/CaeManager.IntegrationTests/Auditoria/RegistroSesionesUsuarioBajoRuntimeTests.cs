@@ -152,6 +152,38 @@ public class RegistroSesionesUsuarioBajoRuntimeTests
         (await LeerSelloAsync(arnes, cuenta)).Should().NotBe(selloAntes);
     }
 
+    /// <summary>
+    /// La revocación que <c>RestablecerContrasena</c> pide antes de cambiar la credencial: llega por el
+    /// enlace, sin la firma de la cuenta, y tiene que revocarlas todas sin rotar el sello, porque el token
+    /// del enlace depende de él.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sin_firmar_como_la_cuenta_cerrar_las_demas_sin_conservar_ninguna_revoca_y_no_rota_el_sello(bool conSesionDeOtraCuenta)
+    {
+        var cuenta = Guid.NewGuid();
+        ICurrentUserService quienFirma = conSesionDeOtraCuenta ? new UsuarioFijo(Guid.NewGuid(), TenantA) : new SinUsuario();
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false,
+            tenantActualPersonalizado: new TenantFijo(TenantA),
+            actorAuditoriaPersonalizado: new ActorFijo(ActorAuditoria.Normal(cuenta)),
+            currentUserServicePersonalizado: quienFirma,
+            serviciosAdicionales: s => s.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>());
+        await CrearCuentaAsync(arnes, cuenta);
+        var sid = Guid.NewGuid();
+        await SembrarSesionComoPropietarioAsync(arnes, cuenta, sid);
+        var selloAntes = await LeerSelloAsync(arnes, cuenta);
+
+        int revocadas;
+        using (var ambito = arnes.Servicios.CreateScope())
+            revocadas = await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().CerrarLasDemasAsync(cuenta, null);
+
+        revocadas.Should().Be(1);
+        (await VigenteAsync(arnes, cuenta, sid)).Should().BeFalse("sin sesión conservada se revocan todas");
+        (await LeerSelloAsync(arnes, cuenta)).Should().Be(selloAntes, "rotarlo invalidaría el enlace antes de usarlo");
+    }
+
     [Fact]
     public async Task La_funcion_no_revoca_desde_el_contexto_de_otro_Tenant_y_soporte_no_la_ejecuta()
     {

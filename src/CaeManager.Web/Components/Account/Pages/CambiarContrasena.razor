@@ -190,10 +190,20 @@
                         await UserManager.AccessFailedAsync(usuario);
                     }
                 }
-                else if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
+                else
                 {
+                    // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan. El sello rotado no basta:
+                    // durante el intervalo de revalidación, una cookie robada de una sesión sin revocar puede
+                    // llegar a RefreshSignInAsync y salir con el sello nuevo. Dentro del cerrojo, para que un
+                    // restablecimiento de la misma cuenta no se cruce entre el cambio y la revocación, y solo
+                    // tras acertar: revocar antes cerraría sesiones con una contraseña actual errónea. Un
+                    // fallo se propaga, como en CierreSesionEnServidor, y sin refresco esta cookie cae en la
+                    // siguiente revalidación.
+                    await Sesiones.CerrarLasDemasAsync(usuario.Id, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User));
+
                     // Como un login correcto: acertar la contraseña actual pone el contador a cero.
-                    await UserManager.ResetAccessFailedCountAsync(usuario);
+                    if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
+                        await UserManager.ResetAccessFailedCountAsync(usuario);
                 }
             },
             CancellationToken.None);
@@ -223,12 +233,6 @@
             mensajeError = string.Join(" ", resultado.Errors.Select(e => e.Description));
             return;
         }
-
-        // ASVS 4.0.3 V3.3.3: esta sesión sigue y las demás se revocan. El sello rotado no basta: durante
-        // el intervalo de revalidación, una cookie robada de una sesión sin revocar puede llegar a
-        // RefreshSignInAsync y salir con el sello nuevo. Un fallo se propaga, como en
-        // CierreSesionEnServidor, y sin refresco esta cookie cae en la siguiente revalidación.
-        await Sesiones.CerrarLasDemasAsync(usuario.Id, SignInManagerCuentaDesactivada.LeerSid(estadoAutenticacion.User));
 
         // Reemite la cookie de autenticación tras el cambio de credencial —
         // práctica estándar de Identity (rota el security stamp) aunque el
