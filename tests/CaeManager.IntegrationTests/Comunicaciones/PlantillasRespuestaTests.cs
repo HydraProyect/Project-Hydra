@@ -44,7 +44,7 @@ public class PlantillasRespuestaTests : IAsyncLifetime
         contexto.ChangeTracker.Clear();
         var lectura = new ObtenerConversacionPorIdQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto,
             contexto, contexto, alcance, new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
         var detalle = await lectura.Handle(new(conversacion.Id), CancellationToken.None);
         detalle.Should().NotBeNull();
         detalle!.Eventos.Should().ContainSingle().Which.Descripcion.Should().Be("Se aplicó la plantilla Solicitud mensual al borrador.");

@@ -427,6 +427,26 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
         registro.DatosDespues.Should().Contain("\"NombreArchivo\":\"***\"");
     }
 
+    /// <summary>El motivo de rechazo es texto libre sobre un adjunto y puede nombrar a una persona: mismo criterio que su nombre.</summary>
+    [Fact]
+    public async Task El_motivo_de_rechazo_de_un_adjunto_no_aparece_en_claro_en_la_auditoria()
+    {
+        const string motivoSecreto = "El reconocimiento es de otra persona";
+        var mensajeId = await SembrarMensajeConAdjuntoAsync();
+
+        await using (var contexto = CrearContexto())
+        {
+            var adjunto = await contexto.AdjuntosMensaje.SingleAsync(a => a.MensajeId == mensajeId);
+            adjunto.Rechazar(motivoSecreto, Guid.NewGuid(), DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+
+        var registro = await ObtenerRegistroDeModificacionAsync(nameof(AdjuntoMensaje));
+
+        registro.DatosDespues.Should().NotContain(motivoSecreto);
+        registro.DatosDespues.Should().Contain("\"MotivoRechazo\":\"***\"");
+    }
+
     /// <summary>
     /// Mismo motivo que el test hermano de <c>DatosAntes</c> al rotar el
     /// refresh token: el alta solo ejercita <c>DatosDespues</c>, y la simetría

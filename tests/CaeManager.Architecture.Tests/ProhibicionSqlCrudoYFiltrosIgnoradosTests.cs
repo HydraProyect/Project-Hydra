@@ -87,6 +87,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las dos consultas van acotadas al Tenant actual.
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
+        // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
+        [("src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarVerificacionExterna/RestaurarVerificacionExternaSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,

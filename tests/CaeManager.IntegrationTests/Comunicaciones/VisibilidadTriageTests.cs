@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Comunicaciones.Matching;
+using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
 using CaeManager.Domain.Integraciones;
@@ -77,7 +77,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(clienteIds: [_clientePropio]),
             new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "Cliente"),
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(
             new ObtenerConversacionPorIdQuery(_conversacionSinCliente), CancellationToken.None);
@@ -116,7 +116,7 @@ public class VisibilidadTriageTests : IAsyncLifetime
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura,
             new AlcanceDatosServiceFalso(clienteIds: [_clientePropio], conexionesIntegracionAjenas: [conexionPersonalId]),
             new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionPersonalId), CancellationToken.None);
 
