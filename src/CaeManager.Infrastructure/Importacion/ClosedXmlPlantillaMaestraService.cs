@@ -454,8 +454,8 @@ public class ClosedXmlPlantillaMaestraService(
         {
             if (ExcedeColumnas) yield break;
             // Solo las filas con contenido: un libro disperso (una celda en la fila 50.000) no obliga a visitar las vacías.
-            // RowsUsed no garantiza el orden (primero salen las filas con altura o estilo propios): «la primera fila gana» y
-            // los duplicados dependen de él, así que se ordena por número de fila.
+            // «La primera fila gana» y los duplicados dependen del orden ascendente. ClosedXML 0.105.1 ordena al enumerar XLRows,
+            // pero no está en su contrato: se ordena aquí para no depender de ese detalle (defensivo, sin coste apreciable).
             foreach (var filaUsada in _hoja.RowsUsed(XLCellsUsedOptions.Contents).OrderBy(r => r.RowNumber()))
             {
                 var f = filaUsada.RowNumber();
