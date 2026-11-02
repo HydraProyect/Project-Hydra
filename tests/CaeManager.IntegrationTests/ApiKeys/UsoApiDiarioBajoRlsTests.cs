@@ -87,11 +87,24 @@ public class UsoApiDiarioBajoRlsTests : IAsyncLifetime
     [Theory]
     [InlineData("0")]
     [InlineData("\"Peticiones\" - 1")]
-    public async Task Runtime_no_rebaja_lo_contado(string valor)
+    [InlineData("\"Peticiones\" + 2")]
+    [InlineData("9223372036854775807")]
+    public async Task Runtime_solo_suma_de_una_en_una(string valor)
     {
         await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
 
         await DebeDenegarseAsync(conexion, $"UPDATE \"UsosApiDiarios\" SET \"Peticiones\" = {valor};");
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(long.MaxValue)]
+    public async Task Runtime_no_siembra_el_contador(long peticiones)
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_runtime", _tenantA);
+
+        await DebeDenegarseAsync(conexion, InsertarFila(_tenantA, peticiones));
     }
 
     [Theory]
@@ -123,9 +136,9 @@ public class UsoApiDiarioBajoRlsTests : IAsyncLifetime
         await DebeDenegarseAsync(conexion, "SELECT count(*) FROM \"UsosApiDiarios\";");
     }
 
-    private static string InsertarFila(Guid tenantId) => $"""
+    private static string InsertarFila(Guid tenantId, long peticiones = 1) => $"""
         INSERT INTO "UsosApiDiarios" ("Id", "TenantId", "ApiKeyId", "TipoClave", "Dia", "Endpoint", "Peticiones")
-        VALUES (gen_random_uuid(), '{tenantId}', gen_random_uuid(), 2, DATE '2026-11-02', '/api/v1/clientes', 1);
+        VALUES (gen_random_uuid(), '{tenantId}', gen_random_uuid(), 2, DATE '2026-11-02', '/api/v1/clientes', {peticiones});
         """;
 
     private async Task<NpgsqlConnection> AbrirComoAsync(string rol, Guid? tenantId)

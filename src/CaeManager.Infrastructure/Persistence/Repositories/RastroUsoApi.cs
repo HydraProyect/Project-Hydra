@@ -7,7 +7,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 /// <summary>
 /// SQL y no el seguimiento de EF: leer y sumar perdería peticiones simultáneas, y este contador va en
 /// su propia sentencia, sin esperar a ningún <c>SaveChanges</c>. La política de RLS comprueba el Tenant
-/// de la fila, y un trigger de la tabla impide rebajar lo ya contado.
+/// de la fila, y un trigger de la tabla solo admite nacer con 1 y sumar uno.
 /// </summary>
 public class RastroUsoApi(CaeManagerDbContext dbContext) : IRastroUsoApi
 {

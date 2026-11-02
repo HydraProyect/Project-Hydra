@@ -8,9 +8,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <summary>
     /// Rastro agregado de <c>/api/v1</c> (C-11, decisión D-5 opción a). <c>UsosApiDiarios</c> nace con RLS
     /// forzada y la política <c>aislamiento_tenant</c>. <c>cae_app_runtime</c> lee e inserta, y de lo ya escrito
-    /// solo puede cambiar la columna <c>Peticiones</c>, y solo hacia arriba: no cambia de quién es una fila, no la
-    /// borra y no rebaja lo contado, porque un rastro de salida que se puede poner a cero no prueba nada. Lo de
-    /// hacia arriba lo impone un trigger, ya que un privilegio por columna no distingue valores. La migración retira
+    /// solo puede cambiar la columna <c>Peticiones</c>, y solo sumando uno: no cambia de quién es una fila, no la
+    /// borra y no reescribe lo contado, porque un rastro de salida que se puede poner a cero no prueba nada, y uno
+    /// sembrado con el máximo de <c>bigint</c> dejaría sin servicio esa ruta para esa clave al desbordar. Lo impone
+    /// un trigger, ya que un privilegio por columna no distingue valores: la fila nace con 1. La migración retira
     /// antes lo que los privilegios por defecto de la línea base conceden a una tabla nueva. El código
     /// anterior de un relevo azul/verde no toca la tabla, así que no hay ventana rota.
     /// </summary>
@@ -52,22 +53,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 GRANT SELECT, INSERT ON TABLE public."UsosApiDiarios" TO cae_app_runtime;
                 GRANT UPDATE ("Peticiones") ON TABLE public."UsosApiDiarios" TO cae_app_runtime;
 
-                CREATE FUNCTION public.uso_api_diario_solo_crece() RETURNS trigger
+                CREATE FUNCTION public.uso_api_diario_cuenta_de_una_en_una() RETURNS trigger
                 LANGUAGE plpgsql
                 SET search_path TO 'pg_catalog', 'pg_temp'
                 AS $$
                 BEGIN
-                    IF NEW."Peticiones" < OLD."Peticiones" THEN
-                        RAISE EXCEPTION 'El contador de UsosApiDiarios no se puede rebajar' USING ERRCODE = '42501';
+                    IF TG_OP = 'INSERT' THEN
+                        IF NEW."Peticiones" <> 1 THEN
+                            RAISE EXCEPTION 'El contador de UsosApiDiarios nace con una petición' USING ERRCODE = '42501';
+                        END IF;
+                    ELSIF NEW."Peticiones" <> OLD."Peticiones" + 1 THEN
+                        RAISE EXCEPTION 'El contador de UsosApiDiarios solo suma de una en una' USING ERRCODE = '42501';
                     END IF;
                     RETURN NEW;
                 END
                 $$;
-                REVOKE ALL ON FUNCTION public.uso_api_diario_solo_crece() FROM PUBLIC;
+                REVOKE ALL ON FUNCTION public.uso_api_diario_cuenta_de_una_en_una() FROM PUBLIC;
 
-                CREATE TRIGGER uso_api_diario_solo_crece
-                    BEFORE UPDATE ON public."UsosApiDiarios"
-                    FOR EACH ROW EXECUTE FUNCTION public.uso_api_diario_solo_crece();
+                CREATE TRIGGER uso_api_diario_cuenta_de_una_en_una
+                    BEFORE INSERT OR UPDATE ON public."UsosApiDiarios"
+                    FOR EACH ROW EXECUTE FUNCTION public.uso_api_diario_cuenta_de_una_en_una();
                 """);
         }
 
@@ -77,7 +82,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.DropTable(
                 name: "UsosApiDiarios");
 
-            migrationBuilder.Sql("DROP FUNCTION IF EXISTS public.uso_api_diario_solo_crece();");
+            migrationBuilder.Sql("DROP FUNCTION IF EXISTS public.uso_api_diario_cuenta_de_una_en_una();");
         }
     }
 }
