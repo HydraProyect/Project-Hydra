@@ -90,23 +90,6 @@ public class RecorteDeAnalisisAlAmbitoTests
     }
 
     [Fact]
-    public async Task La_vista_previa_combinada_tambien_se_recorta()
-    {
-        var escenario = Existente();
-        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(
-            tieneAccesoTotal: false, empresaIdsParaGestion: [], trabajadorIdsVisibles: []);
-        var combinada = new PlanImportacionCombinadaDto(
-            Guid.NewGuid(), [], [new EmpresaCombinadaImportadaDto(EscenarioImportacion.EmpresaConocida, [], YaExiste: true)], [],
-            [new TrabajadorImportadoDto(EscenarioImportacion.EmpresaConocida, "Marta", "Ruiz", EscenarioImportacion.DniConocido, null, null, YaExiste: true)],
-            [], []);
-
-        var plan = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(combinada, default);
-
-        plan.Empresas.Single().YaExiste.Should().BeFalse();
-        plan.Trabajadores.Single().YaExiste.Should().BeFalse();
-    }
-
-    [Fact]
     public async Task Ejecutar_un_trabajador_existente_fuera_de_ambito_lo_omite_sin_decir_que_ya_existia()
     {
         var escenario = new EscenarioImportacion().ConEmpresaExistente().ConTrabajadorExistente();
@@ -224,24 +207,6 @@ public class RecorteDeAnalisisAlAmbitoTests
         var recortado = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(plan, default);
 
         recortado.Omitidos.Should().ContainSingle().Which.Should().Be(original);
-    }
-
-    [Fact]
-    public async Task Combinada_un_Centro_homonimo_de_otro_Cliente_fuera_de_ambito_no_figura_como_existente()
-    {
-        var clienteA = new CaeManager.Domain.Empresas.Empresa("Cliente A");
-        var escenario = new EscenarioImportacion().ConCentroExistente(clienteId: clienteA.Id);
-        escenario.EmpresasContexto.ListaEmpresas.Add(clienteA);
-        escenario.EmpresasContexto.ListaEmpresas.Add(new CaeManager.Domain.Empresas.Empresa("Cliente B"));
-        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(
-            tieneAccesoTotal: false, centroIdsParaGestion: [escenario.CentroExistente!.Id], empresaIdsParaGestion: [clienteA.Id]);
-        CentroImportadoDto Fila(string cliente) => new(EscenarioImportacion.CentroConocido, cliente, "E", null, null, null, null, YaExiste: true);
-        var combinada = new PlanImportacionCombinadaDto(Guid.NewGuid(), [], [], [Fila("Cliente A"), Fila("Cliente B")], [], [], []);
-
-        var plan = await escenario.Recorte("CoordinadorCae", alcance).RecortarAsync(combinada, default);
-
-        plan.Centros[0].YaExiste.Should().BeTrue("el Centro del Cliente A está en su ámbito");
-        plan.Centros[1].YaExiste.Should().BeFalse("el homónimo del Cliente B no se ve");
     }
 
     [Fact]

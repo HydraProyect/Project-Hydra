@@ -10,6 +10,6 @@ public class AnalizarPlantillaCombinadaQueryHandler(IPlantillaCombinadaService s
     public async Task<PlanImportacionCombinadaDto> Handle(AnalizarPlantillaCombinadaQuery request, CancellationToken cancellationToken)
     {
         using var stream = new MemoryStream(request.ContenidoArchivo);
-        return await recorte.RecortarAsync(await servicio.AnalizarAsync(stream, cancellationToken), cancellationToken);
+        return await servicio.AnalizarAsync(stream, await recorte.ObtenerExistentesAsync(cancellationToken), cancellationToken);
     }
 }

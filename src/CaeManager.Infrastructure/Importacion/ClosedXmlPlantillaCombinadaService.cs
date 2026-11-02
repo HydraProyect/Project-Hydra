@@ -110,7 +110,8 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         return stream.ToArray();
     }
 
-    public async Task<PlanImportacionCombinadaDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
+    public async Task<PlanImportacionCombinadaDto> AnalizarAsync(
+        Stream archivo, ExistentesEnAmbito? ambito = null, CancellationToken cancellationToken = default)
     {
         // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
         InspectorXlsxSeguro.Verificar(archivo, limites?.Value);
@@ -120,7 +121,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         // contra Empresas es lo que de verdad evita el 23505 al guardar.
         var clientesExistentes = await empresasContext.Empresas.ToListAsync(cancellationToken);
         var cifsExistentes = new HashSet<string>(
-            clientesExistentes.Where(c => c.Cif is not null).Select(c => c.Cif!), StringComparer.OrdinalIgnoreCase);
+            clientesExistentes.Where(c => c.Cif is not null && (ambito is null || ambito.Cif(c.Cif))).Select(c => c.Cif!), StringComparer.OrdinalIgnoreCase);
         // La hoja "Centros" referencia un Cliente por razón social, y la
         // escritura resuelve ese nombre contra Clientes empresariales reales
         // (EjecutarImportacionCombinadaCommand siembra clientesIdPorRazonSocial
@@ -131,21 +132,25 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         // y se omitiría igualmente al confirmar — el mismo desajuste
         // análisis/escritura que la Plantilla de Clientes.
         var nombresClientesDisponibles = new HashSet<string>(
-            clientesExistentes.Where(c => c.EsCritico != null).Select(c => c.RazonSocial), StringComparer.OrdinalIgnoreCase);
+            clientesExistentes.Where(c => c.EsCritico != null && (ambito is null || ambito.Cliente(c.RazonSocial))).Select(c => c.RazonSocial), StringComparer.OrdinalIgnoreCase);
 
         var nombresEmpresasExistentes = new HashSet<string>(
-            await empresasContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken), StringComparer.OrdinalIgnoreCase);
+            (await empresasContext.Empresas.Select(e => e.RazonSocial).ToListAsync(cancellationToken))
+                .Where(r => ambito is null || ambito.Empresa(r)), StringComparer.OrdinalIgnoreCase);
         var nombresEmpresasDisponibles = new HashSet<string>(nombresEmpresasExistentes, StringComparer.OrdinalIgnoreCase);
 
         var centrosExistentes = new HashSet<string>(
             (await (from centro in centrosContext.Centros
                     join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
-                    select cliente.RazonSocial + ClaveSeparador + centro.Nombre)
-                .ToListAsync(cancellationToken)),
+                    select new { Cliente = cliente.RazonSocial, Centro = centro.Nombre })
+                .ToListAsync(cancellationToken))
+            .Where(c => ambito is null || ambito.Centro(c.Cliente, c.Centro))
+            .Select(c => c.Cliente + ClaveSeparador + c.Centro),
             StringComparer.OrdinalIgnoreCase);
 
         var dnisExistentes = new HashSet<string>(
-            await trabajadoresContext.Trabajadores.Where(t => t.Dni != null).Select(t => t.Dni!).ToListAsync(cancellationToken),
+            (await trabajadoresContext.Trabajadores.Where(t => t.Dni != null).Select(t => t.Dni!).ToListAsync(cancellationToken))
+                .Where(d => ambito is null || ambito.Dni(d)),
             StringComparer.OrdinalIgnoreCase);
 
         using var libro = new XLWorkbook(archivo);

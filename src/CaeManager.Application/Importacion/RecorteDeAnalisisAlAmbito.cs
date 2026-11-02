@@ -25,12 +25,6 @@ public sealed class RecorteDeAnalisisAlAmbito(
 {
     private const string SeparadorElemento = " — ";
 
-    private static string ClaveCentro(string cliente, string centro) => cliente + "\u001f" + centro;
-
-    private sealed record Existentes(
-        HashSet<string> Clientes, HashSet<string> Empresas, HashSet<string> Centros, HashSet<string> Cifs, HashSet<string> Dnis,
-        HashSet<(string Dni, string Centro)> Asignaciones, HashSet<string> ClientesCentros);
-
     public async Task<PlanImportacionDto> RecortarAsync(PlanImportacionDto plan, CancellationToken cancellationToken)
     {
         var ambito = await ResolverAsync(cancellationToken);
@@ -101,29 +95,22 @@ public sealed class RecorteDeAnalisisAlAmbito(
 
     private static string DniDe(ItemImportacionDto o) => o.Descripcion.Split(SeparadorElemento, 2)[0];
 
-    private static bool EsOmitidoPosteriorDeDocumento(ItemImportacionDto o, Existentes e) =>
+    private static bool EsOmitidoPosteriorDeDocumento(ItemImportacionDto o, ExistentesEnAmbito e) =>
         o.Hoja == MotivosDeOmision.HojaDocumentos
         && !e.Dnis.Contains(DniDe(o))
         && (o.Motivo.StartsWith(MotivosDeOmision.TipoDocumentoNoExiste, StringComparison.Ordinal)
             || o.Motivo.StartsWith(MotivosDeOmision.PrefijoFechaEmisionFutura, StringComparison.Ordinal)
             || o.Motivo.StartsWith(MotivosDeOmision.FilaDuplicadaEnElArchivo, StringComparison.Ordinal));
 
-    public async Task<PlanImportacionCombinadaDto> RecortarAsync(PlanImportacionCombinadaDto plan, CancellationToken cancellationToken)
+    /// <summary>
+    /// Lo existente dentro del ámbito del acto, o null con autoridad Total (sin recorte). La plantilla combinada lo recibe para
+    /// analizar con él en lugar de recortar después: así las asociaciones, las filas dependientes y el árbol siguen el mismo
+    /// camino para «existe fuera del ámbito» que para «no existe».
+    /// </summary>
+    public async Task<ExistentesEnAmbito?> ObtenerExistentesAsync(CancellationToken cancellationToken)
     {
         var ambito = await ResolverAsync(cancellationToken);
-        if (ambito is null) return plan;
-        var e = await CargarAsync(ambito, cancellationToken);
-
-        return plan with
-        {
-            Clientes = [.. plan.Clientes.Select(c => c with { YaExiste = c.YaExiste && e.Cifs.Contains(c.Cif.Trim()) })],
-            Empresas = [.. plan.Empresas.Select(x => x with { YaExiste = x.YaExiste && e.Empresas.Contains(x.RazonSocial) })],
-            Centros = [.. plan.Centros.Select(c => c with
-            {
-                YaExiste = c.YaExiste && e.ClientesCentros.Contains(ClaveCentro(c.RazonSocialCliente, c.Nombre)),
-            })],
-            Trabajadores = [.. plan.Trabajadores.Select(t => t with { YaExiste = t.YaExiste && e.Dnis.Contains(t.Dni) })],
-        };
+        return ambito is null ? null : await CargarAsync(ambito, cancellationToken);
     }
 
     private async Task<AmbitoCargaMasiva?> ResolverAsync(CancellationToken cancellationToken)
@@ -135,7 +122,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
             : await AmbitoCargaMasiva.ResolverAsync(autoridad, alcance, cancellationToken);
     }
 
-    private async Task<Existentes> CargarAsync(AmbitoCargaMasiva ambito, CancellationToken cancellationToken)
+    private async Task<ExistentesEnAmbito> CargarAsync(AmbitoCargaMasiva ambito, CancellationToken cancellationToken)
     {
         var comparador = StringComparer.OrdinalIgnoreCase;
 
@@ -163,7 +150,7 @@ public sealed class RecorteDeAnalisisAlAmbito(
             .Select(a => new { a.TrabajadorId, a.CentroId })
             .ToListAsync(cancellationToken);
 
-        return new Existentes(
+        return new ExistentesEnAmbito(
             new HashSet<string>(clientesEnAmbito.Select(x => x.RazonSocial), comparador),
             new HashSet<string>(empresas.Where(x => ambito.Empresa(x.Id)).Select(x => x.RazonSocial), comparador),
             new HashSet<string>(centrosEnAmbito.Select(c => c.Nombre), comparador),
@@ -174,6 +161,6 @@ public sealed class RecorteDeAnalisisAlAmbito(
                 .Select(a => (dniPorId[a.TrabajadorId], centroPorId[a.CentroId]))],
             new HashSet<string>(
                 centrosEnAmbito.Where(c => razonSocialPorId.ContainsKey(c.ClienteId))
-                    .Select(c => ClaveCentro(razonSocialPorId[c.ClienteId], c.Nombre)), comparador));
+                    .Select(c => ExistentesEnAmbito.ClaveCentro(razonSocialPorId[c.ClienteId], c.Nombre)), comparador));
     }
 }
