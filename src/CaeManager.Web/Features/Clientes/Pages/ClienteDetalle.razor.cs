@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
@@ -103,6 +104,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -194,6 +197,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _dandoDeBaja;
     private string? _errorBaja;
     private int _generacion;
+    private bool _recuentosAvisados;
     private int _cargaCabecera;
     private int _cargaResumen;
     private int _cargaCentros;
@@ -421,6 +425,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _bajaVisible = false;
         _dandoDeBaja = false;
         _errorBaja = null;
+        _recuentosAvisados = false;
         InvalidarCargas();
         _detalle = null;
         _error = false;
@@ -544,9 +549,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga != _cargaResumen) return;
             _resumen = resumen;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Se queda en null a propósito: la entradilla omite los recuentos.
+            // Se queda en null a propósito: la entradilla omite los recuentos. Sin aviso, esa omisión se leería como «no hay nada que contar».
+            if (carga == _cargaResumen)
+                AvisarRecuentosNoCargados(ex, _generacion);
         }
         finally
         {
@@ -689,10 +696,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                 // El certificado de la Seguridad Social ya es un requisito del catálogo: solo suma si ningún Centro lo exige.
                 documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } && !exigida.Requisitos.Any(r => r.EsCertificadoTgss) ? 1 : 0);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             exigida = null;
             documentacion = null;
+            AvisarRecuentosNoCargados(ex, generacion);
         }
 
         // Como cada paso de la cadena: con otro Cliente empresarial en marcha no se toca más el DbContext del circuito.
@@ -702,9 +710,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             agenda = (await Mediator.Send(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Cliente, detalle.Id), _cancelacion)).Count;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             agenda = null;
+            AvisarRecuentosNoCargados(ex, generacion);
         }
 
         if (generacion != _generacion) return;
@@ -861,9 +870,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             _tiposConTolerancia = tolerancias.Count(t => t.ToleranciaDias > 0);
             _toleranciasLeidas = true;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Sin aviso, el recuento ausente se leería como «ningún tipo tiene tolerancia».
             _tiposConTolerancia = null;
+            AvisarRecuentosNoCargados(ex, generacion);
         }
         finally
         {
@@ -983,4 +994,20 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private Task AbrirSubcontrataAsync(SubcontrataDeClienteDto subcontrata) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, subcontrata.Id, subcontrata.RazonSocial, "informacion");
+
+    /// <summary>
+    /// Recuentos de la ficha que no se pudieron leer: se registra solo el tipo de la excepción (el mensaje puede llevar
+    /// datos personales) y se avisa <b>una vez por ficha</b>, para que la ausencia no se lea como «cero» ni se apilen
+    /// cuatro avisos idénticos. No avisa de una cancelación (la ficha se retiró) ni de una carga superada por otra
+    /// ficha (<paramref name="generacion"/> ya no es la vigente): el aviso se atribuiría a una pantalla ajena.
+    /// </summary>
+    private void AvisarRecuentosNoCargados(Exception ex, int generacion)
+    {
+        if (ex is OperationCanceledException || generacion != _generacion || _recuentosAvisados)
+            return;
+
+        _recuentosAvisados = true;
+        Logger.LogWarning("No se pudo cargar un recuento de la ficha del Cliente empresarial: {TipoExcepcion}.", ex.GetType().Name);
+        ToastService.Mostrar(Textos["ToastRecuentosNoCargados"].Value, TonoToast.Error);
+    }
 }
