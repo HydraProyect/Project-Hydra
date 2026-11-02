@@ -47,18 +47,62 @@ public class TransicionEstadoOperativoTenantTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Una_reactivacion_y_una_suspension_a_la_vez_dejan_el_sello_de_la_ultima()
+    public async Task Un_circuito_con_la_copia_obsoleta_reactiva_de_verdad()
     {
         await using var circuito = CrearContexto();
         await using var otroCircuito = CrearContexto();
         (await Suspender(circuito)).EsExitoso.Should().BeTrue();
+        (await Reactivar(circuito)).EsExitoso.Should().BeTrue();
+        (await Suspender(otroCircuito)).EsExitoso.Should().BeTrue();
 
-        await Task.WhenAll(Reactivar(circuito), Suspender(otroCircuito));
+        (await Reactivar(circuito)).EsExitoso.Should().BeTrue();
 
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Activo);
+    }
+
+    [Fact]
+    public async Task La_transicion_espera_a_quien_tiene_el_candado_de_ese_Tenant()
+    {
+        await using var otraTransicion = CrearContexto();
+        await using var transaccion = await otraTransicion.Database.BeginTransactionAsync();
+        await new BloqueoEstadoOperativoTenant(otraTransicion).BloquearAsync(_tenant.Id);
+        await using var circuito = CrearContexto();
+
+        var suspension = Suspender(circuito);
+        var enEspera = EsperarCandadoSinConcederAsync();
+
+        (await Task.WhenAny(suspension, enEspera)).Should().BeSameAs(enEspera,
+            "la transición no puede decidir mientras otra tiene el candado");
+        (await enEspera).Should().BeTrue("PostgreSQL tiene que ver la transición esperando el candado");
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Activo);
+
+        await transaccion.CommitAsync();
+
+        (await suspension).EsExitoso.Should().BeTrue();
+        (await EstadoEnBaseAsync()).Should().Be(EstadoTenant.Suspendido);
+    }
+
+    /// <summary>
+    /// Lo que discrimina es el catálogo y no un plazo: sin candado la transición termina sin que
+    /// aparezca ninguna espera, y un plazo pasaría igual en una máquina lenta.
+    /// </summary>
+    private async Task<bool> EsperarCandadoSinConcederAsync()
+    {
         await using var lectura = CrearContexto();
-        var fila = await lectura.Tenants.AsNoTracking().SingleAsync(t => t.Id == _tenant.Id);
-        fila.ClavesApiValidasDesdeUtc.Should().NotBeNull();
-        fila.ClavesApiValidasDesdeUtc.Should().BeOnOrBefore(DateTime.UtcNow);
+        for (var intento = 0; intento < 300; intento++)
+        {
+            var esperando = await lectura.Database.SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value"
+                FROM pg_locks l
+                JOIN pg_database d ON d.oid = l.database
+                WHERE l.locktype = 'advisory' AND NOT l.granted AND d.datname = current_database()
+                """).SingleAsync();
+            if (esperando > 0) return true;
+
+            await Task.Delay(100);
+        }
+
+        return false;
     }
 
     private async Task<EstadoTenant> EstadoEnBaseAsync()

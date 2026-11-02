@@ -49,6 +49,10 @@ public class ReactivarTenantCommandHandler(
             await bloqueo.BloquearAsync(request.TenantId, ct);
             descarte.DescartarCambiosPendientes();
 
+            // La concesión pudo revocarse mientras se esperaba el candado.
+            if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, ct))
+                return Result.Fallo(Error.Crear("Tenant.NoAutorizado", "No tienes autorización de plataforma sobre esta organización."));
+
             var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
             if (tenant is null)
                 return Result.Fallo(Error.Crear("Tenant.NoEncontrado", "No encontramos esta organización."));

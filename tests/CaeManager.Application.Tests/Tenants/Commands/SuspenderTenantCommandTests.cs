@@ -2,6 +2,7 @@ using CaeManager.Application.Tenants.Commands.ReactivarTenant;
 using CaeManager.Application.Tenants.Commands.SuspenderTenant;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Plataforma;
@@ -67,6 +68,69 @@ public class SuspenderTenantCommandTests
         actual.Estado.Should().Be(EstadoTenant.Suspendido);
         _bloqueo.Pasos.Should().Equal("bloquear", "descartar");
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Reactivar_decide_con_el_estado_leido_bajo_el_candado()
+    {
+        // El contexto del circuito conserva el Tenant activo; otra sesión ya lo suspendió.
+        var copiaDelCircuito = new Tenant("Tenant A");
+        var actual = new Tenant("Tenant A");
+        actual.Suspender();
+        var contexto = new TenantsQueryContextFalso();
+        contexto.ListaTenants.Add(copiaDelCircuito);
+        _bloqueo.AlDescartar = () =>
+        {
+            contexto.ListaTenants.Clear();
+            contexto.ListaTenants.Add(actual);
+        };
+        var handler = new ReactivarTenantCommandHandler(contexto, AutorizacionAdminPlataformaFalsa.Global(),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
+
+        var resultado = await handler.Handle(new(actual.Id), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        actual.Estado.Should().Be(EstadoTenant.Activo);
+        _bloqueo.Pasos.Should().Equal("bloquear", "descartar");
+    }
+
+    [Fact]
+    public async Task Una_concesion_revocada_mientras_se_espera_el_candado_no_suspende()
+    {
+        var tenant = new Tenant("Tenant A");
+        var contexto = new TenantsQueryContextFalso();
+        contexto.ListaTenants.Add(tenant);
+        var autorizacion = new AutorizacionRevocable();
+        _bloqueo.AlBloquear = () => autorizacion.Revocada = true;
+        var handler = new SuspenderTenantCommandHandler(contexto, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid()),
+            new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
+
+        var resultado = await handler.Handle(new(tenant.Id), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.NoAutorizado");
+        tenant.Estado.Should().Be(EstadoTenant.Activo);
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_concesion_revocada_mientras_se_espera_el_candado_no_reactiva()
+    {
+        var tenant = new Tenant("Tenant A");
+        tenant.Suspender();
+        var contexto = new TenantsQueryContextFalso();
+        contexto.ListaTenants.Add(tenant);
+        var autorizacion = new AutorizacionRevocable();
+        _bloqueo.AlBloquear = () => autorizacion.Revocada = true;
+        var handler = new ReactivarTenantCommandHandler(contexto, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid()),
+            new TransaccionDeComandoFalsa(), _bloqueo, _bloqueo, _unitOfWork);
+
+        var resultado = await handler.Handle(new(tenant.Id), default);
+
+        resultado.EsExitoso.Should().BeFalse();
+        resultado.Error!.Codigo.Should().Be("Tenant.NoAutorizado");
+        tenant.Estado.Should().Be(EstadoTenant.Suspendido);
+        _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
@@ -148,14 +212,27 @@ public class SuspenderTenantCommandTests
         tenant.Estado.Should().Be(EstadoTenant.Suspendido);
     }
 
+    private sealed class AutorizacionRevocable : IAutorizacionAdminPlataforma
+    {
+        public bool Revocada { get; set; }
+
+        public Task<bool> PuedeSobreTenantAsync(Guid usuarioId, Guid tenantObjetivoId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(!Revocada);
+
+        public Task<bool> PuedeGlobalmenteAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(!Revocada);
+    }
+
     private sealed class BloqueoFalso : IBloqueoEstadoOperativoTenant, IDescarteCambiosPendientes
     {
         public List<string> Pasos { get; } = [];
         public Action? AlDescartar { get; set; }
+        public Action? AlBloquear { get; set; }
 
         public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default)
         {
             Pasos.Add("bloquear");
+            AlBloquear?.Invoke();
             return Task.CompletedTask;
         }
 
