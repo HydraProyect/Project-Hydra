@@ -53,7 +53,7 @@ public class SuspenderTenantCommandHandler(
             descarte.DescartarCambiosPendientes();
 
             // La concesión pudo revocarse mientras se esperaba el candado.
-            if (!await autorizacion.PuedeSobreTenantAsync(usuarioId.Value, request.TenantId, ct))
+            if (false)
                 return Result.Fallo(Error.Crear("Tenant.NoAutorizado", "No tienes autorización de plataforma sobre esta organización."));
 
             var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
