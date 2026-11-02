@@ -404,3 +404,5 @@
 .visitas-barra-preparacion { display: inline-block; width: 64px; height: 6px; overflow: hidden; border-radius: 3px; background: var(--color-border); }
 .visitas-barra-preparacion > span { display: block; height: 100%; background: var(--color-success-500); }
 @media (prefers-reduced-motion: reduce) { .visitas-expandir ::deep .icono { transition: none; } }
+
+.visitas-solo-lector { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

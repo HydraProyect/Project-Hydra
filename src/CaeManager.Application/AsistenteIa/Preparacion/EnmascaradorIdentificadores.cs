@@ -54,14 +54,15 @@ public sealed record TextoEnmascarado(string Texto, IReadOnlyList<IdentificadorE
 /// salen de TALVEG. DNI, NIE, pasaporte, CIF, correos y teléfonos se sustituyen por
 /// marcadores (<c>[DOC_1]</c>, <c>[CIF_1]</c>, <c>[CORREO_1]</c>, <c>[TEL_1]</c>) antes
 /// de que el texto viaje al proveedor de IA, y se restauran al volver. El teléfono
-/// cubre los nueve dígitos españoles que empiezan por 6, 7, 8 o 9, seguidos o en sus
-/// agrupaciones habituales, y los números con prefijo internacional (<c>+</c> o
-/// <c>00</c>); una cifra de otra forma no se toca.
+/// cubre los nueve dígitos españoles que empiezan por 6, 7, 8 o 9, seguidos, en sus
+/// agrupaciones habituales o con el prefijo provincial entre paréntesis, y los números
+/// con prefijo internacional (<c>+</c> o <c>00</c>); una cifra de otra forma no se toca.
 /// <para>
 /// Medido con el proveedor (propuesta del asistente, § 4.3.5): con marcadores la
 /// selección acierta igual que en claro. Lo que <b>no</b> se enmascara, a propósito:
 /// el Centro y el Cliente empresarial, porque son justo lo que hay que casar contra el
-/// catálogo —enmascarados, el modelo se abstiene—, y las fechas, que son el dato que se
+/// catálogo —enmascarados, el modelo se abstiene; si el nombre de un Centro lleva un teléfono,
+/// ese tramo sí se enmascara, en la orden y en la opción con el mismo marcador—, y las fechas, que son el dato que se
 /// extrae. Los nombres de persona tampoco: el flujo los resuelve contra la base.
 /// </para>
 /// <para>
@@ -78,47 +79,87 @@ public static partial class EnmascaradorIdentificadores
 {
     public static TextoEnmascarado Enmascarar(string? texto)
     {
-        if (string.IsNullOrEmpty(texto))
-            return new TextoEnmascarado(texto ?? string.Empty, []);
+        var tabla = new TablaMarcadores([]);
+        return new TextoEnmascarado(tabla.Aplicar(texto), tabla.Identificadores);
+    }
 
-        // Un tramo que ya tenga forma de marcador se desactiva antes de nada. Si no,
-        // quien escriba «[DOC_1]» en la orden haría que Restaurar le pusiera el DNI
-        // de otra persona en ese sitio.
-        texto = RegexMarcadorLiteral().Replace(texto, m => "(" + m.Value[1..^1] + ")");
+    /// <summary>
+    /// Enmascara varios textos con la tabla de marcadores de uno ya enmascarado: el
+    /// mismo valor recibe el mismo marcador en todos, y uno nuevo recibe el siguiente
+    /// número libre. Sirve para que el nombre de un candidato que lleva un teléfono
+    /// siga casando con la orden que lo nombra, sin que el teléfono salga en claro.
+    /// Los identificadores nuevos no se añaden a la tabla de <paramref name="referencia"/>:
+    /// pertenecen a los candidatos, no a lo que escribió quien da la orden.
+    /// </summary>
+    public static IReadOnlyList<string> EnmascararConTablaDe(TextoEnmascarado referencia, IReadOnlyList<string> textos)
+    {
+        var tabla = new TablaMarcadores(referencia.Identificadores);
+        return textos.Select(t => tabla.Aplicar(t)).ToList();
+    }
 
-        var tramos = BuscarTramos(texto);
-        if (tramos.Count == 0)
-            return new TextoEnmascarado(texto, []);
+    private sealed class TablaMarcadores
+    {
+        private readonly Dictionary<(TipoIdentificadorEnmascarado, string), string> _porValor = [];
+        private readonly Dictionary<string, int> _contadores = [];
+        private readonly List<IdentificadorEnmascarado> _identificadores = [];
 
-        var identificadores = new List<IdentificadorEnmascarado>();
-        var porValor = new Dictionary<(TipoIdentificadorEnmascarado, string), string>();
-        var contadores = new Dictionary<string, int>();
-        var resultado = new System.Text.StringBuilder(texto.Length);
-        var cursor = 0;
-
-        foreach (var tramo in tramos)
+        public TablaMarcadores(IReadOnlyList<IdentificadorEnmascarado> previos)
         {
-            resultado.Append(texto, cursor, tramo.Inicio - cursor);
-            var original = texto.Substring(tramo.Inicio, tramo.Longitud);
-            var normalizado = Normalizar(original, tramo.Tipo);
-
-            // El mismo documento escrito dos veces es la misma persona: el mismo
-            // marcador. Si recibiera dos, el modelo podría tratarlas como dos.
-            if (!porValor.TryGetValue((tramo.Tipo, normalizado), out var marcador))
+            foreach (var i in previos)
             {
-                var prefijo = Prefijo(tramo.Tipo);
-                contadores[prefijo] = contadores.GetValueOrDefault(prefijo) + 1;
-                marcador = $"[{prefijo}_{contadores[prefijo]}]";
-                porValor[(tramo.Tipo, normalizado)] = marcador;
-                identificadores.Add(new IdentificadorEnmascarado(marcador, original, normalizado, tramo.Tipo));
+                _porValor[(i.Tipo, i.ValorNormalizado)] = i.Marcador;
+                var prefijo = Prefijo(i.Tipo);
+                _contadores[prefijo] = Math.Max(_contadores.GetValueOrDefault(prefijo), NumeroDe(i.Marcador));
             }
-
-            resultado.Append(marcador);
-            cursor = tramo.Inicio + tramo.Longitud;
         }
 
-        resultado.Append(texto, cursor, texto.Length - cursor);
-        return new TextoEnmascarado(resultado.ToString(), identificadores);
+        /// <summary>Lo que esta tabla ha retirado de los textos que se le han aplicado.</summary>
+        public IReadOnlyList<IdentificadorEnmascarado> Identificadores => _identificadores;
+
+        public string Aplicar(string? texto)
+        {
+            if (string.IsNullOrEmpty(texto))
+                return texto ?? string.Empty;
+
+            // Un tramo que ya tenga forma de marcador se desactiva antes de nada. Si no,
+            // quien escriba «[DOC_1]» en la orden haría que Restaurar le pusiera el DNI
+            // de otra persona en ese sitio.
+            texto = RegexMarcadorLiteral().Replace(texto, m => "(" + m.Value[1..^1] + ")");
+
+            var tramos = BuscarTramos(texto);
+            if (tramos.Count == 0)
+                return texto;
+
+            var resultado = new System.Text.StringBuilder(texto.Length);
+            var cursor = 0;
+
+            foreach (var tramo in tramos)
+            {
+                resultado.Append(texto, cursor, tramo.Inicio - cursor);
+                var original = texto.Substring(tramo.Inicio, tramo.Longitud);
+                var normalizado = Normalizar(original, tramo.Tipo);
+
+                // El mismo documento escrito dos veces es la misma persona: el mismo
+                // marcador. Si recibiera dos, el modelo podría tratarlas como dos.
+                if (!_porValor.TryGetValue((tramo.Tipo, normalizado), out var marcador))
+                {
+                    var prefijo = Prefijo(tramo.Tipo);
+                    _contadores[prefijo] = _contadores.GetValueOrDefault(prefijo) + 1;
+                    marcador = $"[{prefijo}_{_contadores[prefijo]}]";
+                    _porValor[(tramo.Tipo, normalizado)] = marcador;
+                    _identificadores.Add(new IdentificadorEnmascarado(marcador, original, normalizado, tramo.Tipo));
+                }
+
+                resultado.Append(marcador);
+                cursor = tramo.Inicio + tramo.Longitud;
+            }
+
+            resultado.Append(texto, cursor, texto.Length - cursor);
+            return resultado.ToString();
+        }
+
+        private static int NumeroDe(string marcador) =>
+            int.TryParse(marcador[(marcador.IndexOf('_') + 1)..^1], out var n) ? n : 0;
     }
 
     private readonly record struct Tramo(int Inicio, int Longitud, TipoIdentificadorEnmascarado Tipo);
@@ -206,7 +247,12 @@ public static partial class EnmascaradorIdentificadores
     // que empiezan por 6, 7, 8 o 9, seguidos o en las agrupaciones con que se escribe
     // un teléfono (3-3-3, 3-2-2-2, 2-3-2-2) con el mismo separador en todo el número;
     // un separador libre entre cada dígito convertiría «9.10.2026 10:00» en teléfono.
-    [GeneratedRegex(@"(?<![\p{L}\p{N}@])(?:(?:\+|00)[1-9](?:[ .\-()]{0,3}\d){6,14}|[6-9]\d{8}|[6-9]\d{2}(?<s1>[ .\-])\d{3}\k<s1>\d{3}|[6-9]\d{2}(?<s2>[ .\-])\d{2}\k<s2>\d{2}\k<s2>\d{2}|[6-9]\d(?<s3>[ .\-])\d{3}\k<s3>\d{2}\k<s3>\d{2})(?![\p{L}\p{N}@])")]
+    // Nacional con el prefijo provincial entre paréntesis, «(91) 234 56 78» o
+    // «(912) 345 678»: el paréntesis de apertura forma parte del tramo, y esta rama exige
+    // que el prefijo empiece por 6-9 y que cierre el paréntesis seguido de las cifras que
+    // faltan hasta nueve, así que «(10) 123 45 67» o «(9.10.2026)» no casan. Esta rama
+    // admite una letra pegada delante («tel(91) 234 56 78»); la otra no.
+    [GeneratedRegex(@"(?:(?<![\p{L}\p{N}@])(?:(?:\+|00)[1-9](?:[ .\-()]{0,3}\d){6,14}|[6-9]\d{8}|[6-9]\d{2}(?<s1>[ .\-])\d{3}\k<s1>\d{3}|[6-9]\d{2}(?<s2>[ .\-])\d{2}\k<s2>\d{2}\k<s2>\d{2}|[6-9]\d(?<s3>[ .\-])\d{3}\k<s3>\d{2}\k<s3>\d{2})|(?<![\p{N}@])(?:\([6-9]\d\)[ .\-]?(?:\d{7}|\d{3}(?<p1>[ .\-])\d{2}\k<p1>\d{2})|\([6-9]\d{2}\)[ .\-]?(?:\d{6}|\d{3}(?<p2>[ .\-])\d{3}|\d{2}(?<p3>[ .\-])\d{2}\k<p3>\d{2})))(?![\p{L}\p{N}@])")]
     private static partial Regex RegexTelefono();
 
     [GeneratedRegex(@"(?<![\p{L}\p{N}])[XYZ][\s\-]?\d{7}[\s\-]?[A-Z](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]

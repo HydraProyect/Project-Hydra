@@ -1,0 +1,66 @@
+name: Vigilancia de paquetes NuGet vulnerables
+
+# Un aviso nuevo en la NuGet Advisory Database sobre una dependencia ya fijada no
+# avisaba hasta la siguiente PR: el job `paquetes-vulnerables` de ci.yml solo corre con
+# PR, cola de merge y push a main. Este workflow repite esa misma comprobación una vez
+# por semana (lunes) sobre main, sin los otros jobs de CI, y queda en rojo si hay algún
+# paquete con vulnerabilidad conocida (también transitiva); el rojo programado es el aviso.
+#
+# Canal de aviso: el rojo programado no abre issue; GitHub notifica el fallo de un workflow
+# programado a quien editó por última vez la línea `cron`, si tiene activadas las
+# notificaciones de Actions, y el run queda visible en la pestaña Actions. Quien toque el
+# `cron` pasa a ser el destinatario. Es un canal más frágil que las issues de
+# vigilancia-avisos.yml (límite conocido; abrir issue con alertas.js sería un incremento aparte).
+#
+# Las alertas de Dependabot son aparte y las activa Chris (D-6): este workflow no las toca.
+#
+# `schedule` solo corre desde la rama por defecto; a mano:
+#   gh workflow run vigilancia-paquetes.yml
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vigilancia-paquetes
+  cancel-in-progress: false
+
+jobs:
+  paquetes-vulnerables:
+    name: Paquetes NuGet vulnerables (semanal)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Misma lectura que el job de ci.yml: --format json omite "frameworks" en un proyecto
+      # sin paquetes vulnerables; la forma del JSON no depende del locale del runner.
+      - name: Comprobar vulnerabilidades conocidas (NuGet Advisory Database)
+        run: |
+          dotnet list CaeManager.slnx package --vulnerable --include-transitive --format json > vulnerables.json
+          jq '.' vulnerables.json
+          # A diferencia del job de ci.yml, aquí un verde vacío sería la única señal en una semana:
+          # sin proyectos leídos, o con problemas al consultar la fuente de avisos, no es «sin vulnerabilidades».
+          if ! jq -e '(.projects | length) > 0 and ((.problems // []) | length) == 0' vulnerables.json > /dev/null; then
+            echo "::error::La lectura de vulnerabilidades no es fiable (sin proyectos o con problemas al consultar la fuente)."
+            exit 1
+          fi
+          if jq -e '.projects[] | select(.frameworks != null)' vulnerables.json > /dev/null; then
+            echo "::error::Hay paquetes NuGet con vulnerabilidades conocidas. Ver el JSON de arriba (advisoryurl por paquete)."
+            exit 1
+          fi
+          echo "Sin vulnerabilidades conocidas en las fuentes actuales."

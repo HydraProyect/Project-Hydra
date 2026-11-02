@@ -201,7 +201,8 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         if (trabajadorIdsVisibles is not null) trabajadoresQuery = trabajadoresQuery.Where(t => trabajadorIdsVisibles.Contains(t.Id));
         var trabajadoresActivos = await trabajadoresQuery.CountAsync(cancellationToken);
 
-        var inicioDeMes = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var (anyoActual, mesActual) = CorteDeMesDeNegocio.MesDe(DateTime.UtcNow);
+        var inicioDeMes = CorteDeMesDeNegocio.InicioEnUtc(anyoActual, mesActual);
         var trabajadoresNuevosEsteMes = await trabajadoresQuery.CountAsync(t => t.CreadoEnUtc >= inicioDeMes, cancellationToken);
 
         var centrosQuery = centrosContext.Centros.AsQueryable();

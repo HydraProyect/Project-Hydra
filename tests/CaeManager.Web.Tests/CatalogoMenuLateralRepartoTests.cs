@@ -33,7 +33,7 @@ public class CatalogoMenuLateralRepartoTests
         Ids(visibles, "negocio").Should().Equal(
             ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["mi-trabajo", "comunicaciones", "gestiones", "visitas"]);
+            ["mi-trabajo", "comunicaciones", "gestiones", "visitas", "herramientas-pdf"]);
         Ids(visibles, "control").Should().Equal(
             ["alertas", "calendario", "reportes", "facturacion", "conectar-extension"]);
     }
@@ -43,7 +43,7 @@ public class CatalogoMenuLateralRepartoTests
     {
         var visibles = CatalogoMenuLateral.Visibles(Contexto(Roles.Administrador, comunicaciones: false));
 
-        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas"]);
+        Ids(visibles, "operacion").Should().Equal(["mi-trabajo", "gestiones", "visitas", "herramientas-pdf"]);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public class CatalogoMenuLateralRepartoTests
             "comunicaciones", "gestiones", "visitas", "vehiculos", "proyectos",
             "alertas", "calendario", "reportes",
         };
-        if (rol != Roles.Consulta) comunes.Add("mi-trabajo");
+        if (rol != Roles.Consulta) comunes.AddRange(["mi-trabajo", "herramientas-pdf"]);
         var administracionAmpliada = rol is Roles.Administrador or Roles.DireccionCae;
         if (administracionAmpliada) comunes.AddRange(["facturacion", "usuarios"]);
         // D-12: el Coordinador CAE llega a /usuarios (ya autorizado por rol) desde Control; no es un permiso nuevo.
@@ -159,7 +159,7 @@ public class CatalogoMenuLateralRepartoTests
         Ids(visibles, "negocio").Should().Equal(
             ["empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "vehiculos", "proyectos"]);
         Ids(visibles, "operacion").Should().Equal(
-            ["comunicaciones", "gestiones", "visitas", "mi-trabajo"]);
+            ["comunicaciones", "gestiones", "visitas", "mi-trabajo", "herramientas-pdf"]);
         Ids(visibles, "control").Should().Equal(
             ["conectar-extension", "alertas", "facturacion", "calendario", "reportes"]);
 

@@ -19,6 +19,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
     private readonly ConexionIntegracionRepositorioFalso _conexiones = new();
     private readonly Microsoft365GraphClientFalso _graphClient = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly RegistroExportacionFalso _registro = new();
 
     private MigrarConversacionACorreoCommandHandler CrearHandler()
     {
@@ -29,7 +30,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
         var accesoGraph = new AccesoGraphService(credencialRepositorio, _graphClient);
         return new MigrarConversacionACorreoCommandHandler(
             _conversaciones, _integraciones, _conexiones, new AlcanceDatosServiceFalso(), _graphClient, accesoGraph,
-            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork);
+            new ResolucionParticipanteConversacionServiceFalso(), _unitOfWork, _registro);
     }
 
     private ConexionIntegracion AgregarBuzonHabilitado(Guid? clienteId = null)
@@ -65,6 +66,20 @@ public class MigrarConversacionACorreoCommandHandlerTests
             m.Direccion == DireccionMensaje.Saliente && m.Canal == CanalConversacion.Correo && m.CuerpoHtml == "<p>Seguimos por aquí.</p>");
         conversacion.Participantes.Should().Contain(p => p.Email == "cliente@ejemplo.com" && p.Rol == RolParticipante.Para);
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_migracion_deja_una_fila_de_salida_con_el_destinatario_enmascarado()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        AgregarBuzonHabilitado();
+
+        await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "contacto@cliente.com", "<p>Hola</p>"), CancellationToken.None);
+
+        var fila = _registro.Filas.Should().ContainSingle().Subject;
+        fila.Criterios["origen"].Should().Be("MigracionACorreo");
+        fila.Criterios["destinatarios"].Should().Be("c***@cliente.com");
     }
 
     [Fact]

@@ -384,6 +384,9 @@
   <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
     <value>Treballant a {0}</value>
   </data>
+  <data name="MenuHerramientasPdf" xml:space="preserve">
+    <value>Eines PDF</value>
+  </data>
   <data name="MenuAuditoria" xml:space="preserve">
     <value>Auditoria</value>
   </data>

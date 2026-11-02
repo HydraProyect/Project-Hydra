@@ -142,6 +142,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.ConfirmarVigenciaAcreditacionCommandHandler",
         "Documentos.CorregirRevisionIaDocumentoCommandHandler",
         "Documentos.CrearDocumentoCommandHandler",
+        "HerramientasPdf.CrearDocumentosDesdeDivisionCommandHandler",
         "Documentos.EliminarDocumentoCommandHandler",
         "Documentos.EliminarDocumentosCommandHandler",
         "Documentos.FirmarDocumentoEnCampoCommandHandler",
