@@ -448,7 +448,7 @@ public class RepartoAdjuntosBajoRlsTests : IAsyncLifetime
 
     private DividirAdjuntoPdfCommandHandler Dividir(CaeManagerDbContext runtime, IFileStorageService almacen, IMediator mediador) => new(
         new DisponibilidadHerramientasPdf(), runtime, new AdjuntoMensajeRepository(runtime), new EventoConversacionRepository(runtime), Alcance(runtime),
-        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), new RegistroAccesoDatoSensibleFalso(), almacen, mediador, runtime,
+        new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion), new RegistroAccesoDatoSensibleFalso(), almacen, mediador, runtime, runtime,
         NullLogger<DividirAdjuntoPdfCommandHandler>.Instance);
 
     private PrepararDivisionAdjuntoQueryHandler Preparar(CaeManagerDbContext runtime, IFileStorageService almacen, IMediator mediador) => new(
