@@ -1,3 +1,6 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Domain.Comunicaciones;
@@ -26,19 +29,20 @@ public enum EstadoRespuestaSugerida
 /// <summary>
 /// Texto propuesto para contestar al último entrante de una conversación: una macro rellenada o una redacción de Vega.
 /// Nunca se envía sola y no se puede enviar por error: una persona revisa y envía siempre. Quien impide el envío en
-/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/> y <see cref="Texto"/>.
+/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/> y <see cref="TextoHash"/>.
 ///
 /// <para>
 /// Vive en el Tenant propietario de la conversación. Sin navegación desde <see cref="Conversacion"/>, como
 /// <see cref="NotaInternaConversacion"/>; la integridad con el hilo y con el mensaje de origen la sostienen FK compuestas
 /// con el Tenant creadas en SQL por la migración. Una conversación tiene como mucho una sugerencia activa
 /// (<see cref="EstadoRespuestaSugerida.Propuesta"/> o <see cref="EstadoRespuestaSugerida.SinRevisar"/>), por índice único
-/// parcial. El texto no cambia tras generarse: la columna ni siquiera admite UPDATE para el rol de la aplicación.
+/// parcial. El texto y su hash no cambian tras generarse: las columnas ni siquiera admiten UPDATE para el rol de la aplicación.
 /// </para>
 /// </summary>
 public class RespuestaSugerida : EntidadBase
 {
     public const int LongitudMaximaTexto = Mensaje.LongitudMaximaCuerpoHtml;
+    public const int LongitudTextoHash = 64;
 
     public static readonly Error ErrorTransicionNoPermitida = Error.Crear(
         "Sugerencia.TransicionNoPermitida", "Esta respuesta sugerida ya no admite esa acción.");
@@ -53,6 +57,9 @@ public class RespuestaSugerida : EntidadBase
 
     /// <summary>Contenido con el mismo formato que el cuerpo que se enviaría; la auditoría lo enmascara.</summary>
     public string Texto { get; private set; } = string.Empty;
+
+    /// <summary><see cref="CalcularTextoHash"/> de <see cref="Texto"/>: compara con un envío sin descargar el contenido.</summary>
+    public string TextoHash { get; private set; } = string.Empty;
 
     public EstadoRespuestaSugerida Estado { get; private set; }
     public Guid GeneradaPorUsuarioId { get; private set; }
@@ -86,6 +93,7 @@ public class RespuestaSugerida : EntidadBase
         Origen = origen;
         MacroId = macroId;
         Texto = texto;
+        TextoHash = CalcularTextoHash(texto);
         Estado = EstadoRespuestaSugerida.Propuesta;
         GeneradaPorUsuarioId = generadaPorUsuarioId;
         GeneradaEnUtc = generadaEnUtc;
@@ -133,4 +141,35 @@ public class RespuestaSugerida : EntidadBase
         Estado = EstadoRespuestaSugerida.Descartada;
         return Result.Exito();
     }
+
+    /// <summary>SHA-256 en hexadecimal de <see cref="NormalizarTexto"/>: el mismo para lo que se genera y lo que se envía.</summary>
+    public static string CalcularTextoHash(string texto) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(NormalizarTexto(texto))));
+
+    /// <summary>Sin HTML, con las entidades decodificadas y los espacios colapsados.</summary>
+    public static string NormalizarTexto(string texto)
+    {
+        var ultimoCierre = texto.LastIndexOf('>');
+        var sinEtiquetas = new StringBuilder(texto.Length);
+        for (var posicion = 0; posicion < texto.Length; posicion++)
+        {
+            if (AbreEtiqueta(texto, posicion, ultimoCierre))
+            {
+                sinEtiquetas.Append(' ');
+                posicion = texto.IndexOf('>', posicion);
+            }
+            else
+            {
+                sinEtiquetas.Append(texto[posicion]);
+            }
+        }
+
+        var decodificado = WebUtility.HtmlDecode(sinEtiquetas.ToString());
+        return string.Join(' ', decodificado.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    // Un < suelto es texto: «5<10» no abre nada, aunque más adelante haya un >.
+    private static bool AbreEtiqueta(string texto, int posicion, int ultimoCierre) =>
+        texto[posicion] == '<' && posicion < ultimoCierre
+        && (char.IsAsciiLetter(texto[posicion + 1]) || texto[posicion + 1] is '/' or '!');
 }

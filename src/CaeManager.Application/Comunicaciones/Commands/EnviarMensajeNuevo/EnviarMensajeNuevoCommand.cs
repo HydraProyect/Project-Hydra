@@ -102,7 +102,7 @@ public class EnviarMensajeNuevoCommandHandler(
         if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
-        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(conexion.Id, request.CuerpoHtml, cancellationToken);
+        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, conexion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
 

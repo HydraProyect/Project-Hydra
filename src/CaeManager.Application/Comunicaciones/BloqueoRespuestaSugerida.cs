@@ -1,5 +1,4 @@
-using System.Net;
-using System.Text;
+using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +8,8 @@ namespace CaeManager.Application.Comunicaciones;
 /// <summary>
 /// Bloqueo en servidor de la respuesta sugerida: nunca se envía sin que una persona la revise. Lo llaman, antes de tocar
 /// el canal, todos los comandos de Comunicaciones que envían texto de una persona. La interfaz bloquea además Enviar y
-/// Ctrl+Intro, pero la garantía es esta. Escribir a mano sin insertar la sugerencia no bloquea.
+/// Ctrl+Intro, pero la garantía es esta. Escribir a mano sin insertar la sugerencia no bloquea. Compara por
+/// <see cref="RespuestaSugerida.TextoHash"/>: el contenido del borrador no hace falta para decidir.
 /// </summary>
 public static class BloqueoRespuestaSugerida
 {
@@ -18,70 +18,66 @@ public static class BloqueoRespuestaSugerida
 
     /// <summary>
     /// Falla si la conversación tiene una sugerencia en <see cref="EstadoRespuestaSugerida.SinRevisar"/>, o si
-    /// <paramref name="cuerpo"/> coincide con una en <see cref="EstadoRespuestaSugerida.Propuesta"/>: esa es la vía de
-    /// enviarla sin pasar por Insertar.
+    /// <paramref name="cuerpo"/> coincide con una en <see cref="EstadoRespuestaSugerida.Propuesta"/>, que es la vía de
+    /// enviarla sin pasar por Insertar, o con una <see cref="EstadoRespuestaSugerida.Descartada"/> que contestaba al último
+    /// entrante: otra persona puede tener ese texto en el editor, y descartarla no lo revisa. Una coincidencia deja de
+    /// bloquear si una persona confirmó ese mismo texto para ese mismo mensaje.
     /// </summary>
     public static async Task<Result> ComprobarEnvioAsync(
         this IComunicacionesQueryContext comunicaciones, Guid conversacionId, string cuerpo, CancellationToken cancellationToken)
     {
-        var activas = await comunicaciones.RespuestasSugeridas
+        var ultimoEntrante = await comunicaciones.Mensajes
+            .Where(m => m.ConversacionId == conversacionId && m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico)
+            .OrderByDescending(m => m.FechaUtc)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var sugerencias = await comunicaciones.RespuestasSugeridas
             .Where(r => r.ConversacionId == conversacionId &&
-                        (r.Estado == EstadoRespuestaSugerida.Propuesta || r.Estado == EstadoRespuestaSugerida.SinRevisar))
-            .Select(r => new { r.Estado, r.Texto })
+                        (r.Estado == EstadoRespuestaSugerida.Propuesta || r.Estado == EstadoRespuestaSugerida.SinRevisar ||
+                         r.MensajeOrigenId == ultimoEntrante))
+            .Select(r => new { r.Estado, r.TextoHash, r.MensajeOrigenId })
             .ToListAsync(cancellationToken);
 
-        return activas.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar) || Coincide(cuerpo, activas.Select(r => r.Texto))
+        if (sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar))
+            return Result.Fallo(SugerenciaSinRevisar);
+
+        var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
+        var pendientes = sugerencias.Where(r =>
+            r.TextoHash == hash && r.Estado is EstadoRespuestaSugerida.Propuesta or EstadoRespuestaSugerida.Descartada);
+        var revisadas = sugerencias.Where(r => r.TextoHash == hash && r.Estado == EstadoRespuestaSugerida.Revisada);
+
+        return pendientes.Any(p => revisadas.All(r => r.MensajeOrigenId != p.MensajeOrigenId))
             ? Result.Fallo(SugerenciaSinRevisar)
             : Result.Exito();
     }
 
     /// <summary>
     /// Para un mensaje nuevo: el proveedor decide después de enviarlo si cae en un hilo ya existente, y solo puede ser un
-    /// hilo de este buzón. Antes de enviar no se sabe cuál, así que se compara con las sugerencias activas de todo el buzón.
+    /// hilo de este buzón. Antes de enviar no se sabe cuál, así que se compara con las sugerencias activas del buzón, en SQL
+    /// y por hash. Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese texto existe.
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
-        this IComunicacionesQueryContext comunicaciones, Guid conexionIntegracionId, string cuerpo, CancellationToken cancellationToken)
+        this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, string cuerpo,
+        CancellationToken cancellationToken)
     {
-        var textos = await (
+        var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
+        var hilos = await (
             from respuesta in comunicaciones.RespuestasSugeridas
-            where respuesta.Estado == EstadoRespuestaSugerida.Propuesta || respuesta.Estado == EstadoRespuestaSugerida.SinRevisar
+            where respuesta.TextoHash == hash &&
+                  (respuesta.Estado == EstadoRespuestaSugerida.Propuesta || respuesta.Estado == EstadoRespuestaSugerida.SinRevisar)
             join conversacion in comunicaciones.Conversaciones on respuesta.ConversacionId equals conversacion.Id
             where conversacion.ConexionIntegracionId == conexionIntegracionId
-            select respuesta.Texto)
+            select conversacion)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        return Coincide(cuerpo, textos) ? Result.Fallo(SugerenciaSinRevisar) : Result.Exito();
-    }
-
-    private static bool Coincide(string cuerpo, IEnumerable<string> textos)
-    {
-        var normalizado = Normalizar(cuerpo);
-        return textos.Any(t => Normalizar(t) == normalizado);
-    }
-
-    /// <summary>Sin HTML, con las entidades decodificadas y los espacios colapsados.</summary>
-    internal static string Normalizar(string texto)
-    {
-        var sinEtiquetas = new StringBuilder(texto.Length);
-        var dentroDeEtiqueta = false;
-        foreach (var caracter in texto)
+        foreach (var hilo in hilos)
         {
-            if (caracter == '<')
-            {
-                dentroDeEtiqueta = true;
-                sinEtiquetas.Append(' ');
-            }
-            else if (caracter == '>' && dentroDeEtiqueta)
-            {
-                dentroDeEtiqueta = false;
-            }
-            else if (!dentroDeEtiqueta)
-            {
-                sinEtiquetas.Append(caracter);
-            }
+            if (await alcanceDatos.ConversacionVisibleAsync(hilo, cancellationToken))
+                return Result.Fallo(SugerenciaSinRevisar);
         }
 
-        var decodificado = WebUtility.HtmlDecode(sinEtiquetas.ToString());
-        return string.Join(' ', decodificado.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return Result.Exito();
     }
 }

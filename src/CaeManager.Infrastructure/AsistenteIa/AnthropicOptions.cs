@@ -56,20 +56,22 @@ public class AnthropicOptions
     {
         Rutas.TryGetValue(ruta, out var propia);
 
+        var modeloPropio = !string.IsNullOrWhiteSpace(propia?.Modelo);
+        var porDefecto = modeloPropio ? default : PorDefectoDeRuta.GetValueOrDefault(ruta);
+
         return (
-            string.IsNullOrWhiteSpace(propia?.Modelo)
-                ? ModelosPorDefectoDeRuta.GetValueOrDefault(ruta, Modelo)
-                : propia.Modelo,
-            string.IsNullOrWhiteSpace(propia?.Esfuerzo) ? Esfuerzo : propia.Esfuerzo);
+            modeloPropio ? propia!.Modelo! : porDefecto.Modelo ?? Modelo,
+            string.IsNullOrWhiteSpace(propia?.Esfuerzo) ? porDefecto.Esfuerzo ?? Esfuerzo : propia.Esfuerzo);
     }
 
     /// <summary>
-    /// Rutas cuyo modelo por defecto no es <see cref="Modelo"/>. La configuración de la ruta manda sobre esto, y este
-    /// valor sobre el modelo general.
+    /// Rutas cuyo modelo por defecto no es <see cref="Modelo"/>, con el esfuerzo que ese modelo admite: el general podría
+    /// no valerle. Van juntos: una ruta que fija su modelo ya no recibe este esfuerzo. La configuración de la ruta manda
+    /// sobre esto, y esto sobre lo general.
     /// </summary>
-    private static readonly Dictionary<string, string> ModelosPorDefectoDeRuta = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, (string? Modelo, string? Esfuerzo)> PorDefectoDeRuta = new(StringComparer.OrdinalIgnoreCase)
     {
-        [RutasAnthropic.RespuestaSugerida] = "claude-haiku-5-5",
+        [RutasAnthropic.RespuestaSugerida] = ("claude-haiku-5-5", "low"),
     };
 
     /// <summary>

@@ -1703,6 +1703,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1048576)
                         .HasColumnType("character varying(1048576)");
 
+                    b.Property<string>("TextoHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");

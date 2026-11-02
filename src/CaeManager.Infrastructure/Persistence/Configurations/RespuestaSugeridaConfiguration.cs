@@ -12,6 +12,7 @@ public class RespuestaSugeridaConfiguration : IEntityTypeConfiguration<Respuesta
         builder.HasKey(r => r.Id);
 
         builder.Property(r => r.Texto).IsRequired().HasMaxLength(RespuestaSugerida.LongitudMaximaTexto);
+        builder.Property(r => r.TextoHash).IsRequired().HasMaxLength(RespuestaSugerida.LongitudTextoHash);
 
         // Una conversación tiene como mucho una sugerencia activa (Propuesta o SinRevisar).
         builder.HasIndex(r => new { r.TenantId, r.ConversacionId })

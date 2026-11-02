@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Domain.Comunicaciones;
 using FluentAssertions;
 
@@ -150,4 +152,32 @@ public class RespuestaSugeridaTests
 
         respuesta.Estado.Should().Be(estado);
     }
+
+    [Theory]
+    [InlineData("<p>Hola</p>  <p>Ana</p>", "Hola Ana")]
+    [InlineData("Hola\r\n\tAna", "Hola Ana")]
+    [InlineData("a &lt; b &amp; c", "a < b & c")]
+    [InlineData("<br/>", "")]
+    [InlineData("5<10", "5<10")]
+    [InlineData("5<10 y 7>2", "5<10 y 7>2")]
+    [InlineData("a < b", "a < b")]
+    [InlineData("<sin cierre", "<sin cierre")]
+    [InlineData("<!-- nota -->Hola", "Hola")]
+    [InlineData("Hola</p>", "Hola")]
+    public void Normaliza_sin_html_y_con_los_espacios_colapsados(string texto, string esperado) =>
+        RespuestaSugerida.NormalizarTexto(texto).Should().Be(esperado);
+
+    [Fact]
+    public void El_hash_es_el_sha256_del_texto_normalizado_y_se_fija_al_generar()
+    {
+        var sugerencia = RespuestaSugerida.DeVega(Guid.NewGuid(), Guid.NewGuid(), "<p>Recibido,</p>\n<p>gracias</p>", Guid.NewGuid(), DateTime.UtcNow);
+
+        sugerencia.TextoHash.Should().Be(RespuestaSugerida.CalcularTextoHash("Recibido, gracias"));
+        sugerencia.TextoHash.Should().Be(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes("Recibido, gracias"))));
+        sugerencia.TextoHash.Should().HaveLength(RespuestaSugerida.LongitudTextoHash);
+    }
+
+    [Fact]
+    public void Un_menor_que_escapado_y_uno_escrito_dan_el_mismo_hash() =>
+        RespuestaSugerida.CalcularTextoHash("<p>5&lt;10</p>").Should().Be(RespuestaSugerida.CalcularTextoHash("5<10"));
 }

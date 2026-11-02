@@ -82,6 +82,30 @@ public class AnthropicRedaccionRespuestaIaTests
         configurada.Cuerpo.GetProperty("model").GetString().Should().Be("modelo-de-la-ruta");
     }
 
+    [Fact]
+    public async Task Con_Haiku_por_defecto_fija_un_esfuerzo_que_admite_y_no_hereda_el_general()
+    {
+        var general = new AnthropicOptions { ApiKey = "clave-de-prueba-sin-red", Esfuerzo = "xhigh" };
+
+        general.Para(RutasAnthropic.RespuestaSugerida).Should().Be(("claude-haiku-5-5", "low"));
+
+        var llamada = new RespuestaFija(Respuesta("Hola"));
+        await Crear(llamada, general).RedactarAsync("Asunto", "Cuerpo");
+        llamada.Cuerpo.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("low");
+    }
+
+    [Fact]
+    public void La_configuracion_de_la_ruta_manda_sobre_el_esfuerzo_por_defecto()
+    {
+        var conEsfuerzo = new AnthropicOptions { Esfuerzo = "xhigh" };
+        conEsfuerzo.Rutas[RutasAnthropic.RespuestaSugerida] = new RutaAnthropicOptions { Esfuerzo = "medium" };
+        conEsfuerzo.Para(RutasAnthropic.RespuestaSugerida).Esfuerzo.Should().Be("medium");
+
+        var conModelo = new AnthropicOptions { Esfuerzo = "high" };
+        conModelo.Rutas[RutasAnthropic.RespuestaSugerida] = new RutaAnthropicOptions { Modelo = "modelo-de-la-ruta" };
+        conModelo.Para(RutasAnthropic.RespuestaSugerida).Should().Be(("modelo-de-la-ruta", "high"));
+    }
+
     [Theory]
     [InlineData("", "end_turn")]
     [InlineData("Texto cortado", "max_tokens")]

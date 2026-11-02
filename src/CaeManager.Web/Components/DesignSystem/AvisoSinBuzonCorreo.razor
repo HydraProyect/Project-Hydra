@@ -57,15 +57,6 @@
     /// esto, quien lo pega en su correo ve las etiquetas. Conserva los párrafos y las listas como líneas; no es un
     /// conversor general de HTML, solo el del marcado que generan los borradores de la aplicación.
     /// </summary>
-    public static string? HtmlATexto(string? html)
-    {
-        if (string.IsNullOrWhiteSpace(html)) return html;
-
-        var texto = System.Text.RegularExpressions.Regex.Replace(html, @"<li[^>]*>", "- ", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        texto = System.Text.RegularExpressions.Regex.Replace(texto, @"</p>|</ul>|</ol>", "\n\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        texto = System.Text.RegularExpressions.Regex.Replace(texto, @"<br\s*/?>|</li>|<ul[^>]*>|<ol[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        texto = System.Text.RegularExpressions.Regex.Replace(texto, @"<[^>]+>", string.Empty);
-        texto = System.Net.WebUtility.HtmlDecode(texto);
-        return System.Text.RegularExpressions.Regex.Replace(texto, @"\n{3,}", "\n\n").Trim();
-    }
+    public static string? HtmlATexto(string? html) =>
+        string.IsNullOrWhiteSpace(html) ? html : CaeManager.Application.Comunicaciones.VariablesPlantillaRespuesta.HtmlATexto(html);
 }

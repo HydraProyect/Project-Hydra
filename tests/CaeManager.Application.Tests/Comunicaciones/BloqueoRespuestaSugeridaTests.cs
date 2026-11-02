@@ -38,9 +38,9 @@ public class BloqueoRespuestaSugeridaTests
     private readonly WhatsAppCloudApiClientFalso _whatsApp = new();
     private readonly UnitOfWorkFalso _unidad = new();
 
-    private RespuestaSugerida Sugerencia(Conversacion conversacion, EstadoRespuestaSugerida estado, string texto = TextoSugerido)
+    private RespuestaSugerida Sugerencia(Conversacion conversacion, EstadoRespuestaSugerida estado, string texto = TextoSugerido, Guid? origen = null)
     {
-        var respuesta = RespuestaSugerida.DeVega(conversacion.Id, Guid.NewGuid(), texto, Guid.NewGuid(), DateTime.UtcNow);
+        var respuesta = RespuestaSugerida.DeVega(conversacion.Id, origen ?? Guid.NewGuid(), texto, Guid.NewGuid(), DateTime.UtcNow);
         if (estado is EstadoRespuestaSugerida.SinRevisar or EstadoRespuestaSugerida.Revisada)
             respuesta.Insertar();
         if (estado == EstadoRespuestaSugerida.Revisada)
@@ -344,11 +344,96 @@ public class BloqueoRespuestaSugeridaTests
         _graph.VecesEnviado.Should().Be(1);
     }
 
+    private Guid EntranteDePersona(Conversacion conversacion, bool esAutomatico = false)
+    {
+        var mensaje = conversacion.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "ana@contrata.test", "<p>Otra cosa</p>", DateTime.UtcNow, esAutomatico: esAutomatico);
+        _comunicaciones.ListaMensajes.Add(mensaje);
+        return mensaje.Id;
+    }
+
+    [Fact]
+    public async Task El_texto_descartado_para_el_ultimo_entrante_no_sale()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
+
+        var resultado = await Responder(conversacion, TextoSugerido);
+
+        resultado.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_ultimo_entrante_no_cuenta_los_automaticos()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var dePersona = EntranteDePersona(conversacion);
+        EntranteDePersona(conversacion, esAutomatico: true);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: dePersona);
+
+        (await Responder(conversacion, TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task El_texto_descartado_para_un_entrante_anterior_si_sale()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var anterior = EntranteDePersona(conversacion);
+        EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: anterior);
+
+        (await Responder(conversacion, TextoSugerido)).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
     [Theory]
-    [InlineData("<p>Hola</p>  <p>Ana</p>", "Hola Ana")]
-    [InlineData("Hola\r\n\tAna", "Hola Ana")]
-    [InlineData("a &lt; b &amp; c", "a < b & c")]
-    [InlineData("<br/>", "")]
-    public void Normaliza_sin_html_y_con_los_espacios_colapsados(string texto, string esperado) =>
-        BloqueoRespuestaSugerida.Normalizar(texto).Should().Be(esperado);
+    [InlineData(EstadoRespuestaSugerida.Descartada)]
+    [InlineData(EstadoRespuestaSugerida.Propuesta)]
+    public async Task Si_una_persona_confirmo_ese_texto_para_ese_mensaje_si_sale(EstadoRespuestaSugerida estado)
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, estado, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+
+        (await Responder(conversacion, TextoSugerido)).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Confirmar_ese_texto_para_un_mensaje_anterior_no_revisa_la_propuesta_del_ultimo()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        var anterior = EntranteDePersona(conversacion);
+        var ultimo = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: anterior);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, origen: ultimo);
+
+        (await Responder(conversacion, TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task La_coincidencia_en_un_hilo_que_quien_envia_no_ve_no_bloquea_ni_delata()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+
+        var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), conexion.Id, TextoSugerido, CancellationToken.None);
+        var viendolo = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
+            new AlcanceDatosServiceFalso(), conexion.Id, TextoSugerido, CancellationToken.None);
+
+        sinVer.EsExitoso.Should().BeTrue();
+        viendolo.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task Un_texto_con_menor_que_coincide_escrito_o_escapado()
+    {
+        var conversacion = HiloDeCorreo(Buzon());
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, "<p>Vence si 5&lt;10</p>");
+
+        (await Responder(conversacion, "Vence si 5<10")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -21,6 +21,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     Origen = table.Column<int>(type: "integer", nullable: false),
                     MacroId = table.Column<Guid>(type: "uuid", nullable: true),
                     Texto = table.Column<string>(type: "character varying(1048576)", maxLength: 1048576, nullable: false),
+                    TextoHash = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     Estado = table.Column<int>(type: "integer", nullable: false),
                     GeneradaPorUsuarioId = table.Column<Guid>(type: "uuid", nullable: false),
                     GeneradaEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -55,7 +56,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "RespuestasSugeridas",
                 columns: new[] { "MensajeOrigenId", "TenantId" });
 
-            // Texto y autoría no admiten UPDATE: la aplicación solo mueve el estado, y nunca borra.
+            // Texto, TextoHash y autoría no admiten UPDATE: la aplicación solo mueve el estado, y nunca borra.
             // Sin concesiones a cae_app_soporte: es contenido de un borrador dirigido a un tercero.
             migrationBuilder.Sql("""
                 ALTER TABLE public."RespuestasSugeridas"

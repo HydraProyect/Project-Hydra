@@ -8,6 +8,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -114,9 +115,9 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO "RespuestasSugeridas"
-                ("Id", "TenantId", "ConversacionId", "MensajeOrigenId", "Origen", "Texto", "Estado", "GeneradaPorUsuarioId",
+                ("Id", "TenantId", "ConversacionId", "MensajeOrigenId", "Origen", "Texto", "TextoHash", "Estado", "GeneradaPorUsuarioId",
                  "GeneradaEnUtc", "Version", "CreadoEnUtc", "EstaEliminado")
-            VALUES ({Guid.NewGuid()}, {_tenantAjeno}, {_conversacionAjena}, {_mensajeAjeno}, 1, 'Texto', 3, {_usuarioId},
+            VALUES ({Guid.NewGuid()}, {_tenantAjeno}, {_conversacionAjena}, {_mensajeAjeno}, 1, 'Texto', 'hash', 3, {_usuarioId},
                     now(), {Guid.NewGuid()}, now(), false)
             """));
 
@@ -137,10 +138,112 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
             .EsExitoso.Should().BeTrue();
     }
 
-    /// <summary>Control positivo: el ciclo completo persiste bajo RLS, también el descarte de la anterior.</summary>
+    /// <summary>El arnés lleva el interceptor de versiones: sin él el token nunca cambiaría y esto pasaría por otra causa.</summary>
     [Fact]
-    public async Task Generar_insertar_y_confirmar_persisten_y_la_nueva_descarta_la_anterior()
+    public async Task Resolver_sobre_una_fila_ya_cambiada_falla_por_el_token()
     {
+        await using var primero = CrearRuntime();
+        await using var segundo = CrearRuntime();
+        var unidad = new UnidadQueAntesDeGuardar(primero, () => Resolver(segundo).Handle(
+            new ResolverRespuestaSugeridaCommand(_sugerenciaPropia, AccionRespuestaSugerida.Descartar), CancellationToken.None));
+        var handler = new ResolverRespuestaSugeridaCommandHandler(
+            primero, new RespuestaSugeridaRepository(primero), Alcance(primero), Usuario(), unidad);
+
+        var confirmar = () => handler.Handle(
+            new ResolverRespuestaSugeridaCommand(_sugerenciaPropia, AccionRespuestaSugerida.Confirmar), CancellationToken.None);
+
+        await confirmar.Should().ThrowAsync<DbUpdateConcurrencyException>();
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var fila = await comprobacion.RespuestasSugeridas.IgnoreQueryFilters().SingleAsync(r => r.Id == _sugerenciaPropia);
+        fila.Estado.Should().Be(EstadoRespuestaSugerida.Descartada);
+        fila.RevisadaPorUsuarioId.Should().BeNull();
+    }
+
+    /// <summary>La barrera deja a las dos generaciones pasada la lectura inicial: ninguna ve lo que guarda la otra.</summary>
+    [Fact]
+    public async Task Dos_generaciones_simultaneas_dejan_una_activa_y_un_conflicto()
+    {
+        await DescartarLaSembradaAsync();
+        var barrera = new RedaccionConBarrera(participantes: 2);
+        await using var primero = CrearRuntime();
+        await using var segundo = CrearRuntime();
+
+        var resultados = await Task.WhenAll(
+            Generar(primero, barrera).Handle(new GenerarRespuestaSugeridaCommand(_conversacionPropia), CancellationToken.None),
+            Generar(segundo, barrera).Handle(new GenerarRespuestaSugeridaCommand(_conversacionPropia), CancellationToken.None));
+
+        resultados.Should().ContainSingle(r => r.EsExitoso);
+        resultados.Single(r => r.EsFallido).Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.Conflicto);
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.RespuestasSugeridas.IgnoreQueryFilters()
+                .CountAsync(r => r.ConversacionId == _conversacionPropia &&
+                                 (r.Estado == EstadoRespuestaSugerida.Propuesta || r.Estado == EstadoRespuestaSugerida.SinRevisar)))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Una_sugerencia_sin_revisar_no_se_sustituye()
+    {
+        await using var runtime = CrearRuntime();
+
+        (await Generar(runtime).Handle(new GenerarRespuestaSugeridaCommand(_conversacionPropia), CancellationToken.None))
+            .Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.PendienteDeRevisar);
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.RespuestasSugeridas.IgnoreQueryFilters().SingleAsync(r => r.Id == _sugerenciaPropia))
+            .Estado.Should().Be(EstadoRespuestaSugerida.SinRevisar);
+    }
+
+    [Fact]
+    public async Task Una_propuesta_se_sustituye_al_llegar_otro_entrante()
+    {
+        await DescartarLaSembradaAsync();
+        Guid primera;
+        await using (var runtime = CrearRuntime())
+            primera = (await Generar(runtime).Handle(new GenerarRespuestaSugeridaCommand(_conversacionPropia), CancellationToken.None)).Valor;
+
+        var nuevoEntrante = await SembrarEntranteAsync(_tenantSesion, _conversacionPropia);
+
+        Guid segunda;
+        await using (var runtime = CrearRuntime())
+            segunda = (await Generar(runtime).Handle(new GenerarRespuestaSugeridaCommand(_conversacionPropia), CancellationToken.None)).Valor;
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var filas = await comprobacion.RespuestasSugeridas.IgnoreQueryFilters()
+            .Where(r => r.ConversacionId == _conversacionPropia).ToListAsync();
+        filas.Single(r => r.Id == primera).Estado.Should().Be(EstadoRespuestaSugerida.Descartada);
+        var activa = filas.Single(r => r.Id == segunda);
+        activa.Estado.Should().Be(EstadoRespuestaSugerida.Propuesta);
+        activa.MensajeOrigenId.Should().Be(nuevoEntrante);
+    }
+
+    [Fact]
+    public async Task El_bloqueo_compara_en_SQL_por_hash_tambien_por_buzon_y_con_el_texto_descartado()
+    {
+        var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón</p>");
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Texto del buzón", CancellationToken.None))
+                .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Otro texto", CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await DescartarLaSembradaAsync();
+        await using var despues = CrearRuntime();
+        (await despues.ComprobarEnvioAsync(_conversacionPropia, "<p>Borrador</p>", CancellationToken.None))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await despues.ComprobarEnvioAsync(_conversacionPropia, "Escrito a mano", CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+    }
+
+    /// <summary>Control positivo: el ciclo completo persiste bajo RLS.</summary>
+    [Fact]
+    public async Task Generar_insertar_y_confirmar_persisten()
+    {
+        await DescartarLaSembradaAsync();
         Guid generada;
         await using (var runtime = CrearRuntime())
         {
@@ -198,6 +301,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
 
     [Theory]
     [InlineData("""UPDATE "RespuestasSugeridas" SET "Texto" = 'otro'""")]
+    [InlineData("""UPDATE "RespuestasSugeridas" SET "TextoHash" = 'otro'""")]
     [InlineData("""UPDATE "RespuestasSugeridas" SET "GeneradaPorUsuarioId" = gen_random_uuid()""")]
     [InlineData("""UPDATE "RespuestasSugeridas" SET "TenantId" = gen_random_uuid()""")]
     [InlineData("""DELETE FROM "RespuestasSugeridas" """)]
@@ -210,13 +314,20 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501");
     }
 
-    private GenerarRespuestaSugeridaCommandHandler Generar(CaeManagerDbContext runtime)
+    private async Task DescartarLaSembradaAsync()
+    {
+        await using var runtime = CrearRuntime();
+        (await Resolver(runtime).Handle(new ResolverRespuestaSugeridaCommand(_sugerenciaPropia, AccionRespuestaSugerida.Descartar), CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+    }
+
+    private GenerarRespuestaSugeridaCommandHandler Generar(CaeManagerDbContext runtime, IRedaccionRespuestaIa? redaccion = null)
     {
         var alcance = Alcance(runtime);
         return new GenerarRespuestaSugeridaCommandHandler(
             runtime, new RespuestaSugeridaRepository(runtime),
             new RellenoMacroRespuesta(runtime, runtime, runtime, runtime, runtime, PendientesDeReclamacionFabrica.Crear(runtime, alcance), alcance),
-            new RedaccionFija(), new InstruccionHabilitada(), _tenantDeLaPeticion, alcance, Usuario(),
+            redaccion ?? new RedaccionFija(), new InstruccionHabilitada(), _tenantDeLaPeticion, alcance, Usuario(),
             new TransaccionDeComando(runtime), runtime, runtime);
     }
 
@@ -224,7 +335,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         runtime, new RespuestaSugeridaRepository(runtime), Alcance(runtime), Usuario(), runtime);
 
     private ObtenerRespuestaSugeridaQueryHandler Obtener(CaeManagerDbContext runtime) => new(
-        runtime, Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador));
+        runtime, Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador), new SesionPrivilegiadaAusente());
 
     private CurrentUserServiceFalso Usuario() => new(_usuarioId, Roles.Administrador, tenantOrigenId: _tenantSesion);
 
@@ -248,6 +359,32 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         return (conversacion.Id, mensaje.Id, sugerencia.Id);
     }
 
+    private async Task<Guid> SembrarEntranteAsync(Guid tenantId, Guid conversacionId)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var mensaje = new Mensaje(conversacionId, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@example.test", "Otro cuerpo", DateTime.UtcNow);
+        _propietario.Mensajes.Add(mensaje);
+        await _propietario.SaveChangesAsync();
+        return mensaje.Id;
+    }
+
+    private async Task<Guid> SembrarHiloDeBuzonConPropuestaAsync(string texto)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        var empresaId = await _propietario.Conversaciones.IgnoreQueryFilters().Where(c => c.Id == _conversacionPropia).Select(c => c.EmpresaId).SingleAsync();
+        var conexion = new ConexionIntegracion("cae@example.test", "Buzón CAE");
+        var conversacion = new Conversacion("Documentación", empresaId: empresaId);
+        conversacion.AsociarConexion(conexion.Id, "hilo-del-buzon");
+        var mensaje = new Mensaje(conversacion.Id, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@example.test", "Cuerpo", DateTime.UtcNow);
+        _propietario.ConexionesIntegracion.Add(conexion);
+        _propietario.Conversaciones.Add(conversacion);
+        _propietario.Mensajes.Add(mensaje);
+        await _propietario.SaveChangesAsync();
+        _propietario.RespuestasSugeridas.Add(RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, texto, Guid.NewGuid(), DateTime.UtcNow));
+        await _propietario.SaveChangesAsync();
+        return conexion.Id;
+    }
+
     private CaeManagerDbContext CrearPropietarioLimpio()
     {
         var tenant = new TenantActualPorAmbito();
@@ -264,6 +401,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
             .AddInterceptors(
                 new TenantSelladoInterceptor(_tenantDeLaPeticion),
+                new ConcurrenciaOptimistaInterceptor(),
                 new TenantRlsConnectionInterceptor(_tenantDeLaPeticion, new SinClienteActivo(), Usuario(), BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), _tenantDeLaPeticion);
@@ -273,6 +411,30 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
     {
         public Task<Result<string>> RedactarAsync(string asunto, string cuerpoUltimoEntrante, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Exito("Recibido, gracias."));
+    }
+
+    private sealed class RedaccionConBarrera(int participantes) : IRedaccionRespuestaIa
+    {
+        private readonly TaskCompletionSource _todos = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _llegados;
+
+        public async Task<Result<string>> RedactarAsync(string asunto, string cuerpoUltimoEntrante, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _llegados) == participantes)
+                _todos.TrySetResult();
+
+            await _todos.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            return Result.Exito("Recibido, gracias.");
+        }
+    }
+
+    private sealed class UnidadQueAntesDeGuardar(CaeManagerDbContext contexto, Func<Task> antes) : IUnitOfWork
+    {
+        public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await antes();
+            return await contexto.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private sealed class InstruccionHabilitada : IInstruccionTratamientoIaService

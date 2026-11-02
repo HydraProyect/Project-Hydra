@@ -4,6 +4,7 @@ using CaeManager.Application.Comunicaciones.Commands.GenerarRespuestaSugerida;
 using CaeManager.Application.Comunicaciones.Commands.ResolverRespuestaSugerida;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRespuestaSugerida;
 using CaeManager.Application.Cumplimiento;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Configuracion;
@@ -17,9 +18,11 @@ using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using System.Data.Common;
 
 namespace CaeManager.Application.Tests.Comunicaciones;
 
@@ -61,8 +64,8 @@ public class RespuestaSugeridaTests
         _comunicaciones, _respuestas, alcance ?? new AlcanceDatosServiceFalso(),
         new CurrentUserServiceFalso(sinUsuario ? null : _usuarioId), _unidad);
 
-    private ObtenerRespuestaSugeridaQueryHandler Obtener(bool puedeLeer = true, AlcanceDatosServiceFalso? alcance = null) => new(
-        _comunicaciones, alcance ?? new AlcanceDatosServiceFalso(), new PoliticaNotaInternaFalsa(puedeLeer));
+    private ObtenerRespuestaSugeridaQueryHandler Obtener(bool puedeLeer = true, AlcanceDatosServiceFalso? alcance = null, bool sesionPrivilegiada = false) => new(
+        _comunicaciones, alcance ?? new AlcanceDatosServiceFalso(), new PoliticaNotaInternaFalsa(puedeLeer), new SesionFalsa(sesionPrivilegiada));
 
     private Conversacion Hilo(Guid? clienteId = null, bool anclada = true, CanalConversacion canal = CanalConversacion.Correo)
     {
@@ -74,18 +77,19 @@ public class RespuestaSugeridaTests
         return conversacion;
     }
 
-    private Mensaje Entrante(Conversacion conversacion, DateTime? fecha = null)
+    private Mensaje Entrante(Conversacion conversacion, DateTime? fecha = null, bool esAutomatico = false)
     {
         var mensaje = conversacion.AgregarMensaje(
-            DireccionMensaje.Entrante, conversacion.Canal, "ana@contrata.test", "<p>Adjunto la documentación</p>", fecha ?? DateTime.UtcNow.AddHours(-1));
+            DireccionMensaje.Entrante, conversacion.Canal, "ana@contrata.test", "<p>Adjunto la documentación</p>",
+            fecha ?? DateTime.UtcNow.AddHours(-1), esAutomatico: esAutomatico);
         _comunicaciones.ListaMensajes.Add(mensaje);
         return mensaje;
     }
 
-    private void Saliente(Conversacion conversacion)
+    private void Saliente(Conversacion conversacion, bool esAutomatico = false)
     {
         var mensaje = conversacion.AgregarMensaje(
-            DireccionMensaje.Saliente, conversacion.Canal, "cae@empresa.test", "<p>Recibido</p>", DateTime.UtcNow);
+            DireccionMensaje.Saliente, conversacion.Canal, "cae@empresa.test", "<p>Recibido</p>", DateTime.UtcNow, esAutomatico: esAutomatico);
         _comunicaciones.ListaMensajes.Add(mensaje);
     }
 
@@ -96,10 +100,13 @@ public class RespuestaSugeridaTests
         return macro;
     }
 
-    private RespuestaSugerida Sugerencia(Conversacion conversacion, EstadoRespuestaSugerida estado = EstadoRespuestaSugerida.Propuesta)
+    private RespuestaSugerida Sugerencia(
+        Conversacion conversacion, EstadoRespuestaSugerida estado = EstadoRespuestaSugerida.Propuesta, Mensaje? origen = null, Guid? macroId = null)
     {
-        var respuesta = RespuestaSugerida.DeVega(
-            conversacion.Id, conversacion.Mensajes.First().Id, "<p>Borrador</p>", Guid.NewGuid(), DateTime.UtcNow);
+        var origenId = (origen ?? conversacion.Mensajes.First()).Id;
+        var respuesta = macroId is { } macro
+            ? RespuestaSugerida.DesdeMacro(conversacion.Id, origenId, macro, "<p>Borrador</p>", Guid.NewGuid(), DateTime.UtcNow)
+            : RespuestaSugerida.DeVega(conversacion.Id, origenId, "<p>Borrador</p>", Guid.NewGuid(), DateTime.UtcNow);
         if (estado != EstadoRespuestaSugerida.Propuesta)
             respuesta.Insertar();
         _respuestas.Agregar(respuesta);
@@ -266,6 +273,7 @@ public class RespuestaSugeridaTests
     {
         var conversacion = Hilo();
         var anterior = Sugerencia(conversacion);
+        Entrante(conversacion, DateTime.UtcNow);
         _redaccion.Respuesta = Result.Fallo<string>(Error.Crear("Otro.Error", "fallo"));
 
         var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
@@ -277,33 +285,207 @@ public class RespuestaSugeridaTests
         _transaccion.Ejecutadas.Should().Be(0);
     }
 
-    [Theory]
-    [InlineData(EstadoRespuestaSugerida.Propuesta)]
-    [InlineData(EstadoRespuestaSugerida.SinRevisar)]
-    public async Task Generar_otra_descarta_la_activa_en_la_misma_transaccion(EstadoRespuestaSugerida estado)
+    [Fact]
+    public async Task Generar_otra_sustituye_la_propuesta_de_un_mensaje_anterior_en_la_misma_transaccion()
     {
         var conversacion = Hilo();
-        var anterior = Sugerencia(conversacion, estado);
+        var anterior = Sugerencia(conversacion);
+        var nuevoEntrante = Entrante(conversacion, DateTime.UtcNow);
 
         var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         anterior.Estado.Should().Be(EstadoRespuestaSugerida.Descartada);
-        _comunicaciones.ListaRespuestasSugeridas.Where(r => r.EstaActiva).Should().ContainSingle().Which.Id.Should().Be(resultado.Valor);
+        var activa = _comunicaciones.ListaRespuestasSugeridas.Where(r => r.EstaActiva).Should().ContainSingle().Subject;
+        activa.Id.Should().Be(resultado.Valor);
+        activa.MensajeOrigenId.Should().Be(nuevoEntrante.Id);
         _transaccion.Ejecutadas.Should().Be(1);
         _unidad.VecesGuardado.Should().Be(2);
     }
 
     [Fact]
-    public async Task Si_gana_otra_generacion_concurrente_se_descartan_los_cambios_y_se_informa()
+    public async Task Una_sugerencia_sin_revisar_no_se_sustituye_ni_se_llama_a_la_IA()
     {
         var conversacion = Hilo();
-        _unidad.ExcepcionAlGuardar = new DbUpdateException("índice único parcial");
+        var anterior = Sugerencia(conversacion, EstadoRespuestaSugerida.SinRevisar);
+        Entrante(conversacion, DateTime.UtcNow);
 
         var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("Sugerencia.Conflicto");
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.PendienteDeRevisar);
+        anterior.Estado.Should().Be(EstadoRespuestaSugerida.SinRevisar);
+        _redaccion.Llamadas.Should().BeEmpty();
+        _transaccion.Ejecutadas.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Con_una_propuesta_del_mismo_mensaje_la_devuelve_sin_llamar_a_la_IA()
+    {
+        var conversacion = Hilo();
+        var existente = Sugerencia(conversacion);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Valor.Should().Be(existente.Id);
+        existente.Estado.Should().Be(EstadoRespuestaSugerida.Propuesta);
+        _redaccion.Llamadas.Should().BeEmpty();
+        _unidad.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Vega_no_redacta_si_hay_una_propuesta_de_macro_del_mismo_mensaje()
+    {
+        var conversacion = Hilo();
+        var existente = Sugerencia(conversacion, macroId: Macro().Id);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Valor.Should().Be(existente.Id);
+        _redaccion.Llamadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_misma_macro_devuelve_su_propuesta_y_otra_macro_la_sustituye()
+    {
+        var conversacion = Hilo();
+        var primera = Macro();
+        var existente = Sugerencia(conversacion, macroId: primera.Id);
+
+        (await Generar().Handle(new(conversacion.Id, primera.Id), CancellationToken.None)).Valor.Should().Be(existente.Id);
+
+        var otra = await Generar().Handle(new(conversacion.Id, Macro().Id), CancellationToken.None);
+
+        otra.Valor.Should().NotBe(existente.Id);
+        existente.Estado.Should().Be(EstadoRespuestaSugerida.Descartada);
+    }
+
+    [Fact]
+    public async Task Si_mientras_Vega_redacta_alguien_inserta_la_propuesta_no_se_descarta()
+    {
+        var conversacion = Hilo();
+        var existente = Sugerencia(conversacion);
+        Entrante(conversacion, DateTime.UtcNow);
+        _redaccion.AlRedactar = () => existente.Insertar();
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.PendienteDeRevisar);
+        existente.Estado.Should().Be(EstadoRespuestaSugerida.SinRevisar);
+        _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Si_mientras_Vega_redacta_otra_generacion_termina_es_un_conflicto()
+    {
+        var conversacion = Hilo();
+        _redaccion.AlRedactar = () => Sugerencia(conversacion);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.Conflicto);
+        _comunicaciones.ListaRespuestasSugeridas.Should().ContainSingle().Which.Estado.Should().Be(EstadoRespuestaSugerida.Propuesta);
+    }
+
+    [Fact]
+    public async Task La_violacion_del_indice_unico_es_un_conflicto_y_descarta_los_cambios()
+    {
+        var conversacion = Hilo();
+        _unidad.ExcepcionAlGuardar = new DbUpdateException("índice único parcial", new ExcepcionDeBaseDeDatos("23505"));
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.Conflicto);
         _descarte.VecesDescartado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Un_cambio_de_version_a_medias_es_un_conflicto()
+    {
+        var conversacion = Hilo();
+        _unidad.ExcepcionAlGuardar = new DbUpdateConcurrencyException("token");
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.Conflicto);
+    }
+
+    [Fact]
+    public async Task Otro_fallo_de_la_base_no_se_disfraza_de_conflicto()
+    {
+        var conversacion = Hilo();
+        _unidad.ExcepcionAlGuardar = new DbUpdateException("clave ajena", new ExcepcionDeBaseDeDatos("23503"));
+
+        var generar = () => Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        await generar.Should().ThrowAsync<DbUpdateException>();
+        _descarte.VecesDescartado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_entrante_automatico_no_es_el_mensaje_de_origen()
+    {
+        var conversacion = Hilo();
+        var dePersona = conversacion.Mensajes.Single();
+        Entrante(conversacion, DateTime.UtcNow, esAutomatico: true);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        _comunicaciones.ListaRespuestasSugeridas.Single(r => r.Id == resultado.Valor).MensajeOrigenId.Should().Be(dePersona.Id);
+    }
+
+    [Fact]
+    public async Task Sin_entrantes_de_una_persona_no_procede()
+    {
+        var conversacion = new Conversacion("Fuera de oficina", Guid.NewGuid());
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        Entrante(conversacion, esAutomatico: true);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+    }
+
+    [Fact]
+    public async Task Un_automatico_tras_contestar_una_persona_no_reabre_la_sugerencia()
+    {
+        var conversacion = Hilo();
+        Saliente(conversacion);
+        Entrante(conversacion, DateTime.UtcNow.AddMinutes(1), esAutomatico: true);
+
+        var resultado = await Generar().Handle(new(conversacion.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.NoProcede);
+    }
+
+    [Fact]
+    public async Task Un_saliente_automatico_no_tapa_el_entrante_que_espera_respuesta()
+    {
+        var conversacion = Hilo();
+        Saliente(conversacion, esAutomatico: true);
+
+        (await Generar().Handle(new(conversacion.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task En_WhatsApp_la_macro_queda_en_texto_plano()
+    {
+        var conversacion = Hilo(canal: CanalConversacion.WhatsApp);
+        var macro = Macro("<p>Recibida &amp; revisada.</p><ul><li>Uno</li></ul>");
+
+        var resultado = await Generar().Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+
+        _comunicaciones.ListaRespuestasSugeridas.Single(r => r.Id == resultado.Valor).Texto.Should().Be("Recibida & revisada.\n\n- Uno");
+    }
+
+    [Fact]
+    public async Task En_WhatsApp_una_macro_sin_texto_no_se_guarda()
+    {
+        var conversacion = Hilo(canal: CanalConversacion.WhatsApp);
+
+        var resultado = await Generar().Handle(new(conversacion.Id, Macro("<p> </p>").Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(GenerarRespuestaSugeridaCommandHandler.SinTexto);
+        _comunicaciones.ListaRespuestasSugeridas.Should().BeEmpty();
     }
 
     [Fact]
@@ -409,6 +591,18 @@ public class RespuestaSugeridaTests
     }
 
     [Fact]
+    public async Task La_consulta_no_llega_a_la_tabla_con_una_sesion_privilegiada()
+    {
+        var conversacion = Hilo();
+        Sugerencia(conversacion);
+
+        var dto = await Obtener(sesionPrivilegiada: true).Handle(new(conversacion.Id), CancellationToken.None);
+
+        dto.Should().BeNull();
+        _comunicaciones.LecturasDeRespuestasSugeridas.Should().Be(0, "cae_app_soporte no tiene concesión sobre la tabla");
+    }
+
+    [Fact]
     public async Task La_consulta_respeta_el_alcance_de_la_conversacion()
     {
         var conversacion = Hilo();
@@ -418,6 +612,19 @@ public class RespuestaSugeridaTests
             .Handle(new(conversacion.Id), CancellationToken.None);
 
         dto.Should().BeNull();
+    }
+
+    private sealed class SesionFalsa(bool activa) : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => RevalidarAsync(cancellationToken);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult<SesionPrivilegiadaActiva?>(
+            activa ? new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, null) : null);
+    }
+
+    private sealed class ExcepcionDeBaseDeDatos(string estado) : DbException("fallo de la base")
+    {
+        public override string SqlState => estado;
     }
 
     private sealed class VisitasVacias : IVisitasQueryContext
@@ -441,10 +648,12 @@ public class RespuestaSugeridaTests
     {
         public Result<string> Respuesta { get; set; } = Result.Exito("Recibido, gracias.");
         public List<(string Asunto, string Cuerpo)> Llamadas { get; } = [];
+        public Action? AlRedactar { get; set; }
 
         public Task<Result<string>> RedactarAsync(string asunto, string cuerpoUltimoEntrante, CancellationToken cancellationToken = default)
         {
             Llamadas.Add((asunto, cuerpoUltimoEntrante));
+            AlRedactar?.Invoke();
             return Task.FromResult(Respuesta);
         }
     }
