@@ -29,6 +29,13 @@ public sealed class AmbitoCargaMasiva
     private readonly HashSet<Guid>? _trabajadores;
     private readonly HashSet<Guid> _trabajadoresCreados = [];
 
+    /// <summary>
+    /// La Asignación de Cartera universal alcanza el Tenant entero aunque sus listas sean explícitas
+    /// (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>). Solo decide los MOTIVOS: no hay nada fuera del
+    /// ámbito que ocultar, así que se conservan los accionables. Las comprobaciones de escritura siguen usando las listas.
+    /// </summary>
+    private bool _alcanzaElTenantEntero;
+
     private AmbitoCargaMasiva(
         bool sinRestriccion, IReadOnlyList<Guid>? clientes, IReadOnlyList<Guid>? empresas,
         IReadOnlyList<Guid>? centros, IReadOnlyList<Guid>? trabajadores)
@@ -55,7 +62,10 @@ public sealed class AmbitoCargaMasiva
             await alcance.ObtenerClienteIdsVisiblesAsync(cancellationToken),
             await alcance.ObtenerEmpresaIdsParaGestionAsync(cancellationToken),
             await alcance.ObtenerCentroIdsParaGestionAsync(cancellationToken),
-            await alcance.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken));
+            await alcance.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken))
+        {
+            _alcanzaElTenantEntero = await alcance.AlcanzaElTenantEnteroAsync(cancellationToken),
+        };
     }
 
     public bool Cliente(Guid id) => _sinRestriccion || _clientes is null || _clientes.Contains(id);
@@ -79,8 +89,7 @@ public sealed class AmbitoCargaMasiva
     /// ninguna lista visible), así que con ámbito acotado se da el mismo motivo que fuera de ámbito: «restáuralo» revelaría
     /// a un Coordinador CAE que ese DNI existe en el Tenant aunque no sea de su cartera.
     /// </summary>
-    public string MotivoPapelera(string dni) =>
-        _sinRestriccion ? DnisEnPapelera.Motivo(dni) : Motivo("Un trabajador con ese DNI");
+    public string MotivoPapelera(string dni) => MotivoPapeleraSinDistinguir("Un trabajador con ese DNI", dni);
 
     /// <summary>
     /// Motivo de un documento cuyo trabajador no existe ni pudo crearse. Con ámbito acotado es el mismo que el de un
@@ -103,14 +112,15 @@ public sealed class AmbitoCargaMasiva
         Recorta(citada) ? Motivo(quePide) : motivoSinRestriccion;
 
     /// <summary>
-    /// Motivo de una fila (documento o Asignación) cuyo DNI está en la Papelera. Mismo criterio que
-    /// <see cref="MotivoPapelera"/> (con ámbito acotado nunca «restáuralo»), pero con el <paramref name="quePide"/> de la
-    /// hoja, para que la Papelera no se distinga de «no existe» ni de «fuera de ámbito» en esa fila.
+    /// Motivo de una fila cuyo DNI está en la Papelera, con el <paramref name="quePide"/> de la hoja. Si la lista de
+    /// Trabajadores recorta, el mismo motivo uniforme que «no existe» y «fuera de ámbito» en esa fila (nunca «restáuralo»,
+    /// que revelaría que el DNI existe en el Tenant); si no recorta, quien carga alcanza el Tenant entero (también los
+    /// agregados de filas eliminadas) y conserva el accionable, igual que con autoridad Total.
     /// </summary>
     public string MotivoPapeleraSinDistinguir(string quePide, string dni) =>
-        _sinRestriccion ? DnisEnPapelera.Motivo(dni) : Motivo(quePide);
+        MotivoSinDistinguirExistencia(quePide, EntidadDelAmbito.Trabajador, DnisEnPapelera.Motivo(dni));
 
-    private bool Recorta(EntidadDelAmbito entidad) => !_sinRestriccion && entidad switch
+    private bool Recorta(EntidadDelAmbito entidad) => !_sinRestriccion && !_alcanzaElTenantEntero && entidad switch
     {
         EntidadDelAmbito.Cliente => _clientes is not null,
         EntidadDelAmbito.Empresa => _empresas is not null,

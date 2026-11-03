@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 using CaeManager.Domain.Empresas;
@@ -193,6 +194,41 @@ public class EjecutarImportacionDependenciasSinOraculoTests
             .Should().ContainSingle().Which.Motivo.Should().Contain("Este Cliente no existe todavía");
         (await EjecutarAsync(ConCliente(new EscenarioImportacion(), out _), EscenarioImportacion.Plan(clientesCentros: [FilaDeCentros(ClienteConocido)]), rol, sinRecorte)).Omitidos
             .Should().ContainSingle().Which.Motivo.Should().Contain("Este centro no existe todavía");
+    }
+
+    /// <summary>Asignación de Cartera universal: listas explícitas (aquí vacías) y, aun así, el Tenant entero alcanzado.</summary>
+    private sealed class CarteraUniversalConListasExplicitas()
+        : ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [], trabajadorIdsVisibles: [],
+            empresaIdsParaGestion: [], centroIdsParaGestion: []), IAlcanceDatosService
+    {
+        public Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+    }
+
+    [Fact]
+    public async Task Con_cartera_universal_de_listas_explicitas_se_conservan_los_motivos_accionables()
+    {
+        // Codex sobre 7ae0fddfd (BAJA): una lista explícita no basta para decir que hay algo fuera del ámbito.
+        var universal = new CarteraUniversalConListasExplicitas();
+
+        (await EjecutarAsync(new EscenarioImportacion(), PlanConUnaAsignacion(), Coordinador, universal)).Omitidos
+            .Should().ContainSingle().Which.Motivo.Should().Contain("no existe").And.NotContain("fuera de tu ámbito");
+        (await EjecutarAsync(new EscenarioImportacion(), EscenarioImportacion.Plan(clientesCentros: [FilaDeCentros(ClienteConocido)]), Coordinador, universal)).Omitidos
+            .Should().ContainSingle().Which.Motivo.Should().Contain("Este Cliente no existe todavía");
+    }
+
+    [Fact]
+    public async Task Sin_lista_que_recorte_un_DNI_en_la_Papelera_conserva_el_motivo_restauralo()
+    {
+        // Codex sobre 7ae0fddfd (MEDIA): sin recorte, «fuera de tu ámbito» para la Papelera y «no existe» para el DNI
+        // inexistente distinguían la existencia en la Papelera, y además eran falsos.
+        var plan = EscenarioImportacion.Plan(
+            documentos: [new DocumentoImportadoDto(EscenarioImportacion.DniConocido, EscenarioImportacion.TipoDocumentoConocido, new DateOnly(2026, 1, 1), YaExiste: false)],
+            asignaciones: [new AsignacionImportadaDto(EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false, Fila: 2)]);
+        var enPapelera = new EscenarioImportacion().ConTipoDocumentoExistente();
+        enPapelera.TrabajadorRepositorio.DnisEnPapelera.Add(EscenarioImportacion.DniConocido);
+
+        (await EjecutarAsync(enPapelera, plan, Coordinador, new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: true))).Omitidos
+            .Should().HaveCount(2).And.OnlyContain(o => o.Motivo.Contains("Papelera") && !o.Motivo.Contains("fuera de tu ámbito"));
     }
 
     [Fact]
