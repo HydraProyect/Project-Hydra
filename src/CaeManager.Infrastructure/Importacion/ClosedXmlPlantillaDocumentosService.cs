@@ -32,7 +32,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// </summary>
 public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesLimitesImportacion>? limites = null) : IPlantillaDocumentosService
 {
-    private const string NombreHoja = "Documentos";
+    private const string NombreHoja = MotivosDeOmision.HojaDocumentos;
     private const int FilaCabecera = 1;
     private const int PrimeraFilaDatos = 2;
     private const string MarcadorEjemplo = "EJEMPLO";
@@ -131,27 +131,27 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
             if (!dnisExistentes.Contains(dni))
             {
                 omitidos.Add(new ItemImportacionDto(
-                    NombreHoja, fila, dni, "No existe ningún trabajador con este DNI. Da de alta al trabajador antes de importar sus documentos."));
+                    NombreHoja, fila, dni, MotivosDeOmision.TrabajadorNoExiste));
                 continue;
             }
 
             if (!nombresTiposDocumentoValidos.Contains(tipoDocumento))
             {
                 omitidos.Add(new ItemImportacionDto(
-                    NombreHoja, fila, $"{dni} — {tipoDocumento}", "No existe este tipo de documento en el catálogo del sistema."));
+                    NombreHoja, fila, $"{dni} — {tipoDocumento}", MotivosDeOmision.TipoDocumentoNoExiste));
                 continue;
             }
 
             if (fechaEmision > hoy)
             {
                 omitidos.Add(new ItemImportacionDto(
-                    NombreHoja, fila, $"{dni} — {tipoDocumento}", $"La fecha de emisión ({fechaEmision:dd/MM/yyyy}) es futura; no se puede importar."));
+                    NombreHoja, fila, $"{dni} — {tipoDocumento}", $"{MotivosDeOmision.PrefijoFechaEmisionFutura}{fechaEmision:dd/MM/yyyy}) es futura; no se puede importar."));
                 continue;
             }
 
             if (!clavesVistas.Add((dni, tipoDocumento)))
             {
-                omitidos.Add(new ItemImportacionDto(NombreHoja, fila, $"{dni} — {tipoDocumento}", "Fila duplicada dentro del propio archivo."));
+                omitidos.Add(new ItemImportacionDto(NombreHoja, fila, $"{dni} — {tipoDocumento}", MotivosDeOmision.FilaDuplicadaEnElArchivo));
                 continue;
             }
 

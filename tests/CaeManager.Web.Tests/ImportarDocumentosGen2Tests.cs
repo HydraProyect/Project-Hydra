@@ -65,7 +65,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
     }
 
     [Fact]
-    public void La_ruta_de_Documentos_redirige_al_asistente_y_las_dos_siguen_exigiendo_Administrador()
+    public void La_ruta_de_Documentos_redirige_al_asistente_y_las_dos_siguen_exigiendo_carga_masiva()
     {
         Render<ImportarDocumentos>();
 
@@ -74,7 +74,7 @@ public class ImportarDocumentosGen2Tests : BunitContext
 
         foreach (var pagina in new[] { typeof(ImportarDocumentos), typeof(PaginaImportacion) })
             pagina.GetCustomAttributes<AuthorizeAttribute>(inherit: true)
-                .Should().ContainSingle().Which.Roles.Should().Be(Roles.Administrador);
+                .Should().ContainSingle().Which.Roles.Should().Be(Roles.ConCargaMasivaCsv);
     }
 
     [Fact]

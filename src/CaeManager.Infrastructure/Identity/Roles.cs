@@ -38,6 +38,15 @@ public static class Roles
     /// </summary>
     public const string ConEscrituraCsv = $"{Administrador},{DireccionCae},{CoordinadorCae},{GestorCae}";
 
+    /// <summary>
+    /// Roles que pueden ejecutar cargas masivas del Importador (decisión de Chris, 2026-11-01): Administrador, y como
+    /// nivel mínimo dentro del Tenant el Coordinador CAE, con la Dirección CAE por estar por encima. El Gestor CAE no:
+    /// conserva la escritura unitaria y la entrada de Importación no se le ofrece. Quien decide de verdad es
+    /// <c>IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync</c>, que repite esta lista (Application no
+    /// puede referenciar Infrastructure.Identity); lo vigila <c>RolesConEscrituraParidadTests (Cada_rol_del_sistema_carga_masivamente_…)</c>.
+    /// </summary>
+    public const string ConCargaMasivaCsv = $"{Administrador},{DireccionCae},{CoordinadorCae}";
+
     private static readonly IReadOnlyDictionary<string, string> NombresVisibles = new Dictionary<string, string>
     {
         [Administrador] = "Administrador",

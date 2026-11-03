@@ -19,8 +19,8 @@
             <tr>
                 <td><Badge Tono="Tono">@item.Hoja</Badge></td>
                 <td>@(item.Fila == 0 ? "—" : item.Fila.ToString())</td>
-                <td>@item.Descripcion</td>
-                <td>@item.Motivo</td>
+                <td>@MascaraDni.Aplicar(item.Descripcion, DniCompleto)</td>
+                <td>@MascaraDni.Aplicar(item.Motivo, DniCompleto)</td>
             </tr>
         }
     </tbody>
@@ -28,5 +28,8 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<ItemImportacionDto> Items { get; set; } = [];
+
+    /// <summary>Falla cerrado: sin pedirlo, el DNI sale enmascarado (ver <see cref="MascaraDni"/>).</summary>
+    [Parameter] public bool DniCompleto { get; set; }
     [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
 }

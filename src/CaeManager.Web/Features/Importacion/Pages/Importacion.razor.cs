@@ -390,7 +390,17 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     private string[] MensajesAnalizando => _mensajesAnalizando ??=
         [Textos["AnalizandoLeyendo"].Value, Textos["AnalizandoDuplicados"].Value, Textos["AnalizandoValidando"].Value, Textos["AnalizandoCruzando"].Value];
 
-    protected override Task OnInitializedAsync() => CargarHistorialAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // Decisión provisional (2026-11-02): solo el Administrador ve el DNI del plan completo; ver MascaraDni. Falla cerrado.
+        var estado = EstadoAutenticacion is null ? null : await EstadoAutenticacion;
+        _dniCompleto = MascaraDni.PuedeVerCompleto(estado?.User);
+        await CargarHistorialAsync();
+    }
+
+    private bool _dniCompleto;
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
 
     private async Task CargarHistorialAsync()
     {

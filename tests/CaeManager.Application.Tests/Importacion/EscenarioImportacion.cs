@@ -74,9 +74,9 @@ internal sealed class EscenarioImportacion
     }
 
     /// <summary>Siembra un Centro ya dado de alta, para que su nombre sí se resuelva.</summary>
-    public EscenarioImportacion ConCentroExistente(string nombre = CentroConocido)
+    public EscenarioImportacion ConCentroExistente(string nombre = CentroConocido, Guid? clienteId = null)
     {
-        CentroExistente = new Centro(Guid.NewGuid(), Guid.NewGuid(), nombre);
+        CentroExistente = new Centro(clienteId ?? Guid.NewGuid(), Guid.NewGuid(), nombre);
         CentrosContexto.ListaCentros.Add(CentroExistente);
         return this;
     }
@@ -135,7 +135,7 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
-    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador") => new(
+    public EjecutarImportacionCommandHandler Handler(string? rol = "Administrador", IAlcanceDatosService? alcance = null) => new(
         EmpresaRepositorio, TrabajadorRepositorio, DocumentoRepositorio, AsignacionRepositorio,
         OperacionImportacionRepositorio,
         AsignacionesContexto, CentrosContexto, DocumentosContexto, EmpresasContexto,
@@ -148,7 +148,13 @@ internal sealed class EscenarioImportacion
         // es un camino de alta y su prueba observa la regla de verdad.
         new AltaAcreditacionesPlataformaService(
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
-            TiposDocumentoContexto, AcreditacionRepositorio));
+            TiposDocumentoContexto, AcreditacionRepositorio),
+        alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
+
+    public RecorteDeAnalisisAlAmbito Recorte(string? rol, IAlcanceDatosService alcance) => new(
+        new AutorizacionEscrituraEfectiva(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), new SesionPrivilegiadaAusente(), new TenantActualFalso()),
+        alcance, EmpresasContexto, CentrosContexto, TrabajadoresContexto, AsignacionesContexto);
 
     private sealed class TenantActualFalso : ITenantActual
     {

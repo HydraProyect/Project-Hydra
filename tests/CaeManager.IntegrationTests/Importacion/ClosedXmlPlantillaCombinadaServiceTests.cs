@@ -286,6 +286,6 @@ public class ClosedXmlPlantillaCombinadaServiceTests
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);
         flujo.Position = 0;
-        return await servicio.AnalizarAsync(flujo);
+        return await servicio.AnalizarAsync(flujo, null);
     }
 }

@@ -76,6 +76,20 @@ public class PaginasClasificadasParaElEncargoTests
             + "reabrir un mes sigue siendo solo de Dirección CAE",
     };
 
+
+    /// <summary>
+    /// Páginas que admiten Coordinador CAE (y por eso salen de la población «solo Administrador o Dirección CAE») pero
+    /// que el encargo de administración no pleno sigue sin abrir. Cada una sigue en <c>PaginasExcluidasDelEncargo</c>:
+    /// admitir al Coordinador CAE en una carga masiva (decisión de Chris, 2026-11-01) no abre el Importador al rol
+    /// elevado por un encargo.
+    /// </summary>
+    private static readonly Dictionary<string, string> ExcluidasAunqueAdmitanCoordinador = new(StringComparer.Ordinal)
+    {
+        ["src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor"] = "Importador: cargas masivas, ver ConCargaMasivaCsv",
+        ["src/CaeManager.Web/Features/Clientes/Pages/ImportarClientes.razor"] = "marcador antiguo que redirige al Importador",
+        ["src/CaeManager.Web/Features/Clientes/Pages/ImportarCombinado.razor"] = "marcador antiguo que redirige al Importador",
+        ["src/CaeManager.Web/Features/Documentos/Pages/ImportarDocumentos.razor"] = "marcador antiguo que redirige al Importador",
+    };
     private static readonly Regex AtributoAuthorize = new(@"@attribute\s+\[Authorize\((?<args>[^\]]*)\)\]", RegexOptions.Compiled);
 
     private static readonly Regex TipoDePagina = new(@"typeof\(Features\.(?<tipo>[\w.]+)\)", RegexOptions.Compiled);
@@ -102,8 +116,9 @@ public class PaginasClasificadasParaElEncargoTests
             "control positivo: ClavesApi pide Administrador; si no aparece, el detector ha dejado de observar");
         excluidas.Should().HaveCountGreaterThan(10, "control positivo: la lista de páginas excluidas se lee del código");
         excluidas.Should().NotIntersectWith(Permitidas.Keys);
+        excluidas.Should().Contain(ExcluidasAunqueAdmitanCoordinador.Keys);
 
-        paginasDeAdministrador.Should().BeEquivalentTo(excluidas.Concat(Permitidas.Keys),
+        paginasDeAdministrador.Concat(ExcluidasAunqueAdmitanCoordinador.Keys).Should().BeEquivalentTo(excluidas.Concat(Permitidas.Keys),
             "una página nueva que pida Administrador o Dirección CAE se añade a PaginasExcluidasDelEncargo o, si el "
             + "encargo debe abrirla, a Permitidas con su motivo; y una que ya no lo pida se retira de donde esté");
     }
@@ -143,6 +158,19 @@ public class PaginasClasificadasParaElEncargoTests
             + "intermedia o en el .razor.cs: el detector por texto no la ve y quedaría sin clasificar para el encargo");
     }
 
+    [Theory]
+    [InlineData("src/CaeManager.Web/Features/Clientes/ClientesEndpoints.cs", 2)]
+    [InlineData("src/CaeManager.Web/Features/Documentos/DocumentosEndpoints.cs", 1)]
+    public void Las_plantillas_de_importacion_que_admiten_Coordinador_conservan_la_marca_de_excluido_del_encargo(string fichero, int minimo)
+    {
+        var texto = File.ReadAllText(Absoluta(fichero));
+
+        System.Text.RegularExpressions.Regex.Matches(texto, @"RequireRole\([^;]*?CoordinadorCae[^;]*?\.ExcluidoDelEncargoDeAdministracion\(\)")
+            .Count.Should().BeGreaterThanOrEqualTo(minimo,
+                "al admitir Coordinador CAE (2026-11-01) las plantillas salieron de la población del ratchet de arriba; el "
+                + "Importador sigue excluido del encargo de administración y estas rutas conservan la marca");
+    }
+
     [Fact]
     public void Todo_endpoint_de_Administrador_o_Direccion_CAE_lleva_la_marca_de_excluido_del_encargo()
     {
@@ -151,8 +179,8 @@ public class PaginasClasificadasParaElEncargoTests
             .Where(x => EsEndpointDePropiedadSinCoordinador(x.Sentencia))
             .ToList();
 
-        sentencias.Should().HaveCountGreaterThanOrEqualTo(8,
-            "control positivo: auditoría (2), Microsoft 365 (2), plantillas de importación (3) y facturación (1)");
+        sentencias.Should().HaveCountGreaterThanOrEqualTo(5,
+            "control positivo: auditoría (2), Microsoft 365 (2) y facturación (1); las 3 plantillas de importación admiten Coordinador CAE desde el 2026-11-01 y salen de esta población (conservan la marca)");
 
         sentencias.Where(x => !x.Sentencia.Contains(".ExcluidoDelEncargoDeAdministracion()", StringComparison.Ordinal))
             .Select(x => x.Fichero)

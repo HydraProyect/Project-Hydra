@@ -92,6 +92,9 @@
 
     [Parameter, EditorRequired] public PlanImportacionCombinadaDto Plan { get; set; } = default!;
 
+    /// <summary>Falla cerrado: sin pedirlo, el DNI sale enmascarado (ver <see cref="MascaraDni"/>).</summary>
+    [Parameter] public bool DniCompleto { get; set; }
+
     /// <param name="Tipo">Nombre del icono del catálogo: "centros" o "trabajadores".</param>
     public sealed record NodoHijo(string Tipo, string Nombre, string Meta, bool YaExiste);
 
@@ -163,7 +166,7 @@
                     .Select(c => new NodoHijo("centros", c.Nombre, MetaCentro(c), c.YaExiste));
             var trabajadores = plan.Trabajadores
                 .Where(t => comparador.Equals(t.RazonSocialEmpresa, nombreEmpresa))
-                .Select(t => new NodoHijo("trabajadores", $"{t.Nombre} {t.Apellidos}", t.Dni, t.YaExiste));
+                .Select(t => new NodoHijo("trabajadores", $"{t.Nombre} {t.Apellidos}", MascaraDni.AplicarDocumento(t.Dni, DniCompleto), t.YaExiste));
 
             // Fuera de la hoja Empresas solo puede venir del sistema.
             var yaExiste = !empresasHoja.TryGetValue(nombreEmpresa, out var filaEmpresa) || filaEmpresa.YaExiste;

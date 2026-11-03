@@ -50,9 +50,8 @@ public class RegistrarHistorialImportacionCommandHandler(
     // sesión de Aprovisionamiento el rol de negocio es null, y ObtenerRolEfectivoAsync ya lo devuelve así.
     public async Task<Result> Handle(RegistrarHistorialImportacionCommand request, CancellationToken cancellationToken)
     {
-        if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
-            return Result.Fallo(Error.Crear(
-                "Importacion.SoloAdministrador", "Solo Administrador puede registrar el historial de una importación."));
+        if (await autorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync(cancellationToken) == AutoridadCargaMasiva.Ninguna)
+            return Result.Fallo(ErroresCargaMasiva.SinAutoridad);
 
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync() ?? Guid.Empty;
 

@@ -435,7 +435,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     // ---------------------------------------------------------------- ruta y cabecera
 
     [Fact]
-    public void La_ruta_de_Clientes_redirige_al_asistente_con_su_plantilla_y_las_dos_siguen_exigiendo_Administrador()
+    public void La_ruta_de_Clientes_redirige_al_asistente_con_su_plantilla_y_las_dos_siguen_exigiendo_carga_masiva()
     {
         Render<ImportarClientes>();
 
@@ -444,7 +444,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         foreach (var pagina in new[] { typeof(ImportarClientes), typeof(PaginaImportacion) })
             pagina.GetCustomAttributes<AuthorizeAttribute>(inherit: true)
-                .Should().ContainSingle().Which.Roles.Should().Be(Roles.Administrador, $"{pagina.Name} conserva su regla de rol");
+                .Should().ContainSingle().Which.Roles.Should().Be(Roles.ConCargaMasivaCsv, $"{pagina.Name} conserva su regla de rol");
     }
 
     /// <summary>
@@ -457,15 +457,25 @@ public partial class ImportarClientesGen2Tests : BunitContext
     /// de rol se abre, la decisión sobre el DNI del plan hay que volver a tomarla.
     /// </summary>
     [Fact]
-    public void El_plan_de_importacion_con_DNI_sigue_siendo_exclusivo_del_Administrador()
+    public void El_plan_de_importacion_con_DNI_completo_sigue_siendo_exclusivo_del_Administrador()
     {
         var roles = typeof(PaginaImportacion).GetCustomAttributes<AuthorizeAttribute>(inherit: true)
             .Should().ContainSingle().Which.Roles!
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        roles.Should().Equal([Roles.Administrador],
-            "el DNI del plan de importación solo está justificado para el Administrador (decisión del 2026-09-24, S3)");
-        roles.Should().NotIntersectWith([Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta, Roles.DireccionCae]);
+        roles.Should().BeEquivalentTo(Roles.ConCargaMasivaCsv.Split(','),
+            "la página la abren los roles de carga masiva (2026-11-01); GestorCae, Consulta y Cliente no");
+        roles.Should().NotIntersectWith([Roles.GestorCae, Roles.Consulta, Roles.Cliente]);
+
+        foreach (var rol in Roles.Todos)
+        {
+            var usuario = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, rol)], "prueba"));
+            CaeManager.Web.Features.Importacion.MascaraDni.PuedeVerCompleto(usuario).Should().Be(rol == Roles.Administrador,
+                "el DNI completo del plan solo está justificado para el Administrador (decisión S3, 2026-09-24); "
+                + "Dirección CAE y Coordinador CAE lo ven enmascarado (decisión PROVISIONAL del 2026-11-02, pendiente de Chris)");
+        }
+        CaeManager.Web.Features.Importacion.MascaraDni.PuedeVerCompleto(null).Should().BeFalse("sin usuario falla cerrado");
     }
 
     [Fact]

@@ -50,6 +50,29 @@ public class RolesConEscrituraParidadTests
         return resultado.EsExitoso;
     }
 
+    /// <summary>
+    /// Misma paridad para las cargas masivas del Importador: la UI ofrece la entrada de Importación según
+    /// <see cref="Roles.ConCargaMasivaCsv"/>; quien decide es <c>AutorizacionEscrituraEfectiva</c>, que repite la lista
+    /// con literales. Ejecuta el servicio REAL para cada rol (el Gestor CAE queda fuera, con la entrada oculta).
+    /// </summary>
+    [Fact]
+    public async Task Cada_rol_del_sistema_carga_masivamente_si_y_solo_si_la_UI_le_ofrece_Importacion()
+    {
+        var conCargaMasivaEnUi = Roles.ConCargaMasivaCsv.Split(',');
+        var cargan = new List<string>();
+
+        foreach (var rol in Roles.Todos)
+        {
+            var servicio = new AutorizacionEscrituraEfectiva(new UsuarioConRol(rol), new SinSesionPrivilegiada(), new SinTenant());
+            var autoridad = await servicio.ObtenerAutoridadCargaMasivaAsync();
+            if (autoridad != AutoridadCargaMasiva.Ninguna) cargan.Add(rol);
+        }
+
+        cargan.Should().NotBeEmpty("control positivo: el instrumento tiene que poder observar un rol que cargue");
+        cargan.Should().NotContain(Roles.GestorCae, "el Gestor CAE conserva la escritura unitaria pero no ejecuta cargas masivas");
+        cargan.Should().BeEquivalentTo(conCargaMasivaEnUi);
+    }
+
     [Fact]
     public async Task Cada_rol_del_sistema_escribe_en_el_behavior_si_y_solo_si_la_UI_le_ofrece_escribir()
     {

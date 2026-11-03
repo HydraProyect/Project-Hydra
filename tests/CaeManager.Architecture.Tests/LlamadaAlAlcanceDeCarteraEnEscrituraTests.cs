@@ -187,6 +187,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Gestiones.EliminarGestionCommandHandler",
         "Gestiones.RestaurarGestionCommandHandler",
 
+        // Importacion
+        "Importacion.EjecutarImportacionCombinadaCommandHandler",
+        "Importacion.EjecutarImportacionCommandHandler",
+
         // Incidencias
         "Incidencias.CrearIncidenciaCommandHandler",
         "Incidencias.EditarIncidenciaCommandHandler",
@@ -447,6 +451,18 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "mismo motivo que ActualizarDeteccionTrabajadoresGlobalCommandHandler", Guardas: SoloAdministrador),
         ["TiposDocumento.ActualizarVerificacionIaGlobalCommandHandler"] = new(
             "mismo motivo que ActualizarDeteccionTrabajadoresGlobalCommandHandler", Guardas: SoloAdministrador),
+        ["Importacion.RegistrarHistorialImportacionCommandHandler"] = new(
+            "anota la operación de carga masiva ya ejecutada (una fila de historial del Tenant, sin cartera); exige la " +
+            "misma autoridad de carga masiva que quien ejecuta (Administrador, Dirección CAE o Coordinador CAE), y las filas " +
+            "con cartera las acota AmbitoCargaMasiva en los comandos de ejecución",
+            Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync))]),
+        ["Importacion.EjecutarImportacionMaestraCommandHandler[EjecutarImportacionMaestraCommand]"] = new(
+            "alta masiva de la plantilla maestra; solo acto de Administrador, que no tiene restricción de cartera: no " +
+            "admite la autoridad acotada de Dirección CAE ni de Coordinador CAE",
+            Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync))]),
+        ["Importacion.EjecutarImportacionMaestraCommandHandler[PrevisualizarImportacionMaestraCommand]"] = new(
+            "vista previa de la plantilla maestra; mismo motivo que EjecutarImportacionMaestraCommand",
+            Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync))]),
         ["Integraciones.ActualizarLineaWhatsAppCommandHandler"] = new(
             "configuración de una línea de WhatsApp del Tenant; solo rol Administrador, sin restricción de cartera",
             Guardas: SoloAdministrador),
@@ -503,7 +519,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 40;
+    private const int MaximoDeExentos = 43;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;
@@ -536,9 +552,6 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["Cumplimiento"] =
             "aceptación de términos de la propia persona (autoservicio) e instrucción de tratamiento de IA del " +
             "Tenant propietario: plano de Propiedad, autorizado por IAutorizacionAdminPlataforma o rol Administrador",
-        ["Importacion"] =
-            "alta masiva solo para Administrador, que no tiene restricción de cartera; su red está en " +
-            "EscriturasSobreEntidadesConCarteraTests (ComandosDeImportacion)",
         ["Notificaciones"] =
             "marca leída una notificación de la propia persona (IComandoDeAutoservicio)",
         ["Plataforma"] =

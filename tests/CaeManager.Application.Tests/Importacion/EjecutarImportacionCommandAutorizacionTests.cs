@@ -7,12 +7,15 @@ namespace CaeManager.Application.Tests.Importacion;
 /// <summary>Restaura en Application el límite que ya exponen las 4 páginas de importación (Administrador).</summary>
 public class EjecutarImportacionCommandAutorizacionTests
 {
-    [Fact]
-    public async Task Administrador_puede_ejecutar_una_importacion()
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    public async Task Administrador_Direccion_y_Coordinador_pueden_ejecutar_una_importacion(string rol)
     {
         var escenario = new EscenarioImportacion();
 
-        var resultado = await escenario.Handler("Administrador").Handle(
+        var resultado = await escenario.Handler(rol).Handle(
             new EjecutarImportacionCommand(EscenarioImportacion.Plan()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -20,8 +23,8 @@ public class EjecutarImportacionCommandAutorizacionTests
 
     [Theory]
     [InlineData("GestorCae")]
-    [InlineData("CoordinadorCae")]
-    [InlineData("DireccionCae")]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
     [InlineData(null)]
     public async Task Otros_roles_no_pueden_ejecutar_una_importacion(string? rol)
     {
@@ -31,6 +34,6 @@ public class EjecutarImportacionCommandAutorizacionTests
             new EjecutarImportacionCommand(EscenarioImportacion.Plan()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Importacion.SoloAdministrador");
+        resultado.Error.Codigo.Should().Be("Importacion.SinAutoridadCargaMasiva");
     }
 }

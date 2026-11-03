@@ -151,6 +151,9 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 
         servicios.AddSingleton<ICurrentUserService>(currentUser);
         servicios.AddSingleton<ITenantActual>(tenantActual);
+        // La sesión de Aprovisionamiento tiene autoridad Total de carga masiva: AmbitoCargaMasiva no consulta el alcance.
+        // El handler lo pide por constructor, así que se registra un doble que no restringe nada.
+        servicios.AddSingleton<IAlcanceDatosService>(new AlcanceDatosServiceFalso());
         servicios.AddSingleton<IClienteActivoSeleccionado>(clienteActivoSeleccionado);
         servicios.AddSingleton(dbContext);
 

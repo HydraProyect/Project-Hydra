@@ -46,6 +46,9 @@ public class EjecutarImportacionMaestraTests
         private sealed class Autorizacion(bool administrador) : IAutorizacionEscrituraEfectiva
         {
             public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(administrador);
+
+            public Task<AutoridadCargaMasiva> ObtenerAutoridadCargaMasivaAsync(CancellationToken cancellationToken = default) =>
+                Task.FromResult(administrador ? AutoridadCargaMasiva.Total : AutoridadCargaMasiva.Ninguna);
         }
     }
 
