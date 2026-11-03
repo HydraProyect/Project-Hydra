@@ -456,9 +456,12 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "misma autoridad de carga masiva que quien ejecuta (Administrador, Dirección CAE o Coordinador CAE), y las filas " +
             "con cartera las acota AmbitoCargaMasiva en los comandos de ejecución",
             Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync))]),
-        ["Importacion.EjecutarImportacionMaestraCommandHandler"] = new(
-            "alta masiva (y su vista previa) de la plantilla maestra; solo acto de Administrador, que no tiene restricción " +
-            "de cartera: no admite la autoridad acotada de Dirección CAE ni de Coordinador CAE",
+        ["Importacion.EjecutarImportacionMaestraCommandHandler[EjecutarImportacionMaestraCommand]"] = new(
+            "alta masiva de la plantilla maestra; solo acto de Administrador, que no tiene restricción de cartera: no " +
+            "admite la autoridad acotada de Dirección CAE ni de Coordinador CAE",
+            Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync))]),
+        ["Importacion.EjecutarImportacionMaestraCommandHandler[PrevisualizarImportacionMaestraCommand]"] = new(
+            "vista previa de la plantilla maestra; mismo motivo que EjecutarImportacionMaestraCommand",
             Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync))]),
         ["Integraciones.ActualizarLineaWhatsAppCommandHandler"] = new(
             "configuración de una línea de WhatsApp del Tenant; solo rol Administrador, sin restricción de cartera",
@@ -516,7 +519,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 41;
+    private const int MaximoDeExentos = 43;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;
