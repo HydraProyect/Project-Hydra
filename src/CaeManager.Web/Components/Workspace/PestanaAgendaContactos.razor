@@ -67,7 +67,9 @@ else
                     {
                         <span class="agenda-contacto-telefono">@contacto.Telefono</span>
                     }
-                    @if (!string.IsNullOrWhiteSpace(contacto.Notas))
+                    @* Quién lee la nota lo decide IPoliticaNotaInterna (NotaVisible). SoloConEscritura solo la reserva a los roles
+                       operativos: por sí solo dejaría pasar a una Impersonación, que simula un rol con escritura. *@
+                    @if (contacto.NotaVisible && !string.IsNullOrWhiteSpace(contacto.Notas))
                     {
                         <SoloConEscritura>
                         <span class="agenda-contacto-nota" title="@Comunes["AgendaNotaMarcapaginas"]">

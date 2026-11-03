@@ -696,4 +696,7 @@
   <data name="ToastSeguridadActualizada" xml:space="preserve">
     <value>Seguridad de acceso actualizada.</value>
   </data>
+  <data name="SeguridadNoCargada" xml:space="preserve">
+    <value>No pudimos cargar el ajuste de seguridad de acceso. Recarga la página para verlo.</value>
+  </data>
 </root>

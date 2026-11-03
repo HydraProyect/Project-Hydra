@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
@@ -89,6 +90,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
 
     private EmpresaDetalleDto? _detalle;
     private int? _cumplimiento;
@@ -903,10 +906,15 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaContacto)
                 _contactoPrincipal = contactos.FirstOrDefault(c => c.EsPredeterminado);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (carga == _cargaContacto)
+            {
+                // Sin aviso, se leería como «esta Empresa no tiene contacto principal».
                 _contactoPrincipal = null;
+                Logger.LogWarning("No se pudo cargar el contacto principal de la Empresa {EmpresaId}: {TipoExcepcion}.", empresaId, ex.GetType().Name);
+                ToastService.Mostrar(Textos["ToastContactoPrincipalNoCargado"].Value, TonoToast.Error);
+            }
         }
     }
 

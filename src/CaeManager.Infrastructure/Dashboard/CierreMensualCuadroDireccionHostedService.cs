@@ -24,6 +24,10 @@ public class CierreMensualCuadroDireccionHostedService(
         return DiaDeNegocio.InicioEnUtc(new DateOnly(hoy.Year, hoy.Month, 1).AddMonths(1));
     }
 
+    internal static bool ReaperturaVencida(DateTime? reabiertoEnUtc, DateOnly hoy) =>
+        reabiertoEnUtc is { } r
+        && DiaDeNegocio.De(DateTime.SpecifyKind(r, DateTimeKind.Utc)) < new DateOnly(hoy.Year, hoy.Month, 1);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
@@ -72,11 +76,12 @@ public class CierreMensualCuadroDireccionHostedService(
                 if (desde > mesAnterior) desde = mesAnterior;
                 for (var mes = desde; mes <= mesAnterior; mes = mes.AddMonths(1))
                 {
-                    // Un mes reabierto se vuelve a cerrar en la siguiente pasada del cierre: la reapertura dura
-                    // hasta el próximo día 1 y la foto nueva sustituye a la anterior.
+                    // Un mes reabierto se vuelve a cerrar cuando llega el primer día de un mes posterior al de la
+                    // reapertura (día de negocio de Madrid): la reapertura dura hasta el próximo día 1 y la foto
+                    // nueva sustituye a la anterior. Un arranque o reintento dentro del mismo mes no la toca.
                     var existente = await db.CierresMensualesTenantBeneficiario
                         .SingleOrDefaultAsync(c => c.Anyo == mes.Year && c.Mes == mes.Month, ct);
-                    if (existente is not null && existente.ReabiertoEnUtc is null)
+                    if (existente is not null && !ReaperturaVencida(existente.ReabiertoEnUtc, hoy))
                         continue;
                     var periodo = new MesCuadroDireccion(mes.Year, mes.Month);
                     var cifras = await medicion.MedirAsync(periodo, periodo.FinUtc, ct, medirDocumental: false);

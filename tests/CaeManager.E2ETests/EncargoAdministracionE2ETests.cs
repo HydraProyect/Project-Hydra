@@ -200,7 +200,7 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
         // Se espera a que el navegador aterrice en la redirección antes de navegar otra vez: sin
         // esto, el Goto siguiente interrumpe esa navegación (mismo caso que GestorCaeCarteraMultiTenantTests).
         await page.WaitForURLAsync("**/acceso-denegado**", new PageWaitForURLOptions { Timeout = 15_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
 
         // Y la sesión no quedó en ese Tenant: el selector sigue mostrando uno de los que opera.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");

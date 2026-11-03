@@ -66,11 +66,16 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> NoSonIdDeEntidad = new()
     {
+        // Identificador de instancia del componente que fija el título de la pestaña: etiqueta efímera en memoria
+        // del circuito para que el módulo JS (único por documento) distinga qué instancia libera qué.
+        ["src/CaeManager.Web/Components/DesignSystem/TituloDePaginaSinPrerender.razor"] = 1,
         // ConcurrencyStamp de Identity, renovado al guardar el avatar: token de concurrencia.
         ["src/CaeManager.Infrastructure/Identity/AvatarDeCuentasIdentity.cs"] = 1,
         // ConcurrencyStamp de Identity, renovado al guardar tema, idioma o actividad: token de concurrencia.
         ["src/CaeManager.Infrastructure/Identity/PreferenciasCuentaPropia.cs"] = 1,
         // Version de AlertaCriticaConversacion: token de concurrencia de la resolución.
+        // Version del adjunto: token de concurrencia del reparto.
+        ["src/CaeManager.Domain/Comunicaciones/AdjuntoMensaje.cs"] = 1,
         ["src/CaeManager.Domain/Comunicaciones/AlertaCriticaConversacion.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
@@ -97,6 +102,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs"] = 2,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaDocumentosService.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaMaestraService.cs"] = 1,
         // Referencia de correlación de un error en el log.
         ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,
         // Claves locales de UI: toasts y filas de la subida masiva.

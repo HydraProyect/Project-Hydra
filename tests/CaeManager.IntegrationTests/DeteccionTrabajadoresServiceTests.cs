@@ -58,7 +58,8 @@ public class DeteccionTrabajadoresServiceTests : IAsyncLifetime
         new(_dbContext, _dbContext, _dbContext, _dbContext,
             almacenamiento ?? new AlmacenamientoFalso(), extraccion,
             new DeteccionTrabajadorRepository(_dbContext), new NotificacionUsuarioRepository(_dbContext),
-            new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual, _dbContext);
+            new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual, _dbContext,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     [Fact]
     public async Task Detecta_altas_y_bajas_y_avisa_al_gestor_del_cliente()

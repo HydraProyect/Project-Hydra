@@ -93,7 +93,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
             foreach (var destino in new[] { "trabajadores", "centros", "empresas", "trabajadores", "centros", "empresas" })
             {
                 await page.Locator($"nav a.nav-item[href='{destino}']").First.ClickAsync();
-                await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+                await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
                 donde = $"menú lateral → {destino}";
                 await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
                 // Se comprueba que la revalidación no interrumpe el circuito durante ese intervalo.
@@ -104,7 +104,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
             }
 
             await page.ReloadAsync();
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
             donde = "recarga final";
             await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
         }

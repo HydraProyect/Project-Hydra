@@ -9,7 +9,7 @@ public class ApiKeySecuritySchemeTransformer : IOpenApiDocumentTransformer
     public Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
     {
         document.Info.Title = "TALVEG API v1 (no publicada)";
-        document.Info.Description = "Superficie de solo lectura para integraciones autorizadas. Sin anunciar todavía — ver docs/business/MATURITY_REVIEW.md. Autenticación: cabecera \"Authorization: ApiKey {clave}\".";
+        document.Info.Description = "Superficie de solo lectura para integraciones autorizadas. Sin anunciar todavía — ver docs/business/MATURITY_REVIEW.md. Autenticación: \"Authorization: Bearer {token}\" con una Clave de Integración del Tenant, o \"Authorization: ApiKey {clave}\" con una Clave de Soporte TALVEG.";
 
         document.Components ??= new OpenApiComponents();
         document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
@@ -19,6 +19,14 @@ public class ApiKeySecuritySchemeTransformer : IOpenApiDocumentTransformer
             In = ParameterLocation.Header,
             Name = "Authorization",
             Description = "Formato: ApiKey {clave}",
+        };
+        document.Components.SecuritySchemes["ClaveIntegracion"] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.OAuth2,
+            Flows = new OpenApiOAuthFlows
+            {
+                ClientCredentials = new OpenApiOAuthFlow { TokenUrl = new Uri("/api/v1/token", UriKind.Relative) },
+            },
         };
 
         return Task.CompletedTask;

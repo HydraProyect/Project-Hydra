@@ -44,13 +44,15 @@ public class MigrarConversacionACorreoCommandValidator : AbstractValidator<Migra
 
 public class MigrarConversacionACorreoCommandHandler(
     IConversacionRepository conversacionRepositorio,
+    IComunicacionesQueryContext comunicaciones,
     IIntegracionesQueryContext integracionesContext,
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IResolucionParticipanteConversacionService resolucionParticipante,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IRegistroExportacionService registroSalida)
     : IRequestHandler<MigrarConversacionACorreoCommand, Result>
 {
     public async Task<Result> Handle(MigrarConversacionACorreoCommand request, CancellationToken cancellationToken)
@@ -66,6 +68,10 @@ public class MigrarConversacionACorreoCommandHandler(
         if (conversacion.VentanaServicioAbierta(DateTime.UtcNow))
             return Result.Fallo(Error.Crear(
                 "Conversacion.VentanaAbierta", "La ventana de WhatsApp sigue abierta — responde por ese canal."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        if (bloqueo.EsFallido)
+            return bloqueo;
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también
@@ -89,6 +95,9 @@ public class MigrarConversacionACorreoCommandHandler(
         if (conexion is null)
             return Result.Fallo(Error.Crear(
                 "Conversacion.SinBuzonConectado", "No hay ningún buzón de correo conectado."));
+
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.MigracionACorreo, conexion.Id, [request.EmailDestino], copia: null, adjuntos: null, cancellationToken);
 
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (tokenResultado.EsFallido)

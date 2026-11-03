@@ -215,6 +215,12 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
     public Task Aislamiento_ClaveApi() => VerificarAislamientoAsync(
         () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba de aislamiento"));
 
+    [Fact]
+    public Task Aislamiento_ClaveIntegracionTenant() => VerificarAislamientoAsync(
+        () => new ClaveIntegracionTenant(
+            "ERP de nóminas", "ERP", "talveg_int_ab12", $"{Guid.NewGuid():N}{Guid.NewGuid():N}", [AlcancesIntegracion.ClientesLeer],
+            DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
+
     // Command Palette, grupo "Recientes" (ver plan de implementación) — mismo
     // UsuarioId en ambos tenants a propósito: el aislamiento tiene que venir
     // del TenantId, no de que los usuarios de prueba resulten distintos.
@@ -438,6 +444,25 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
             () => new NotaInternaConversacion(conversacionId, Guid.NewGuid(), "Nota del equipo.",
                 new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)),
             async contexto => conversacionId = await SembrarConversacionAsync(contexto));
+    }
+
+    [Fact]
+    public async Task Aislamiento_RespuestaSugerida()
+    {
+        var conversacionId = Guid.Empty;
+        var mensajeId = Guid.Empty;
+
+        await VerificarAislamientoAsync(
+            () => RespuestaSugerida.DeVega(conversacionId, mensajeId, "<p>Borrador</p>", Guid.NewGuid(),
+                new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)),
+            async contexto =>
+            {
+                conversacionId = await SembrarConversacionAsync(contexto);
+                var mensaje = new Mensaje(conversacionId, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente@ejemplo.com", "Cuerpo", DateTime.UtcNow);
+                contexto.Mensajes.Add(mensaje);
+                await contexto.SaveChangesAsync();
+                mensajeId = mensaje.Id;
+            });
     }
 
     /// <summary>

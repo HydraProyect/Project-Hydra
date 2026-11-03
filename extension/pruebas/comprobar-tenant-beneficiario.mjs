@@ -5,6 +5,8 @@
 // selección en el popup con un documento ya puesto en el formulario, «Lo he
 // enviado» y «Deshacer» no pueden acabar en el otro Tenant. Y si TALVEG retira una
 // selección, no se cae a otro Tenant: se avisa y se espera a que la persona elija.
+// Y si TALVEG no confirma el Tenant efectivo de una respuesta (un binario que ignora
+// la solicitud), no se muestra ni se entrega nada de ella.
 //
 // Uso:  node comprobar-tenant-beneficiario.mjs <ruta a background.js>
 
@@ -32,7 +34,7 @@ globalThis.chrome = {
   runtime: {
     onMessage: { addListener: (fn) => (manejadorDeMensajes = fn) },
     onMessageExternal: { addListener() {} },
-    getManifest: () => ({ version: "0.5.1" }),
+    getManifest: () => ({ version: "0.5.2" }),
     lastError: null,
   },
   storage: {
@@ -50,13 +52,22 @@ globalThis.chrome = {
   tabs: {
     query: async () => [{ id: 7 }],
     get: async (id) => ({ id, url: "https://app.nalandaglobal.com/documentos" }),
-    sendMessage: async () => ({ ok: true }),
+    sendMessage: async (_idPestana, cuerpo) => {
+      mensajesAPestana.push(cuerpo);
+      return { ok: true };
+    },
     onRemoved: { addListener() {} },
   },
 };
 
 let llamadas = [];
+let mensajesAPestana = [];
 let tenantsRetirados = new Set();
+// Qué confirma cada respuesta: por defecto, el Tenant pedido, o el de origen si no se
+// pidió ninguno. `confirmar(ruta, tenant)` simula lo demás: null es un binario que
+// no sabe confirmar. `estadoDe(ruta)` fuerza un estado para una ruta.
+let confirmar = (_ruta, tenant) => tenant ?? TENANT_ORIGEN;
+let estadoDe = () => null;
 let listaDeTenants = { estado: 200, tenants: [
   { tenantId: TENANT_ORIGEN, nombre: "Origen", esOrigen: true },
   { tenantId: TENANT_A, nombre: "A", esOrigen: false },
@@ -65,7 +76,7 @@ let listaDeTenants = { estado: 200, tenants: [
 
 function respuesta(estado, cuerpo, extras = {}) {
   const r = {
-    ok: estado < 300, status: estado, type: "basic",
+    ok: estado < 300, status: estado, type: "basic", headers: new Headers(),
     json: async () => cuerpo,
     arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
     ...extras,
@@ -78,6 +89,15 @@ globalThis.fetch = async (url, opciones = {}) => {
   const ruta = String(url);
   const tenant = opciones.headers?.["X-Tenant-Beneficiario"];
   llamadas.push({ ruta, tenant, credenciales: opciones.credentials });
+  const r = responder(ruta, tenant);
+  const efectivo = r.status === 403 || r.status === 429 || r.status >= 500 ? null : confirmar(ruta, tenant);
+  if (efectivo) r.headers.set("X-Tenant-Efectivo", efectivo);
+  return r;
+};
+
+function responder(ruta, tenant) {
+  const forzado = estadoDe(ruta);
+  if (forzado) return respuesta(forzado, { detail: `Detalle del ${forzado}` });
   if (tenant && tenantsRetirados.has(tenant))
     return respuesta(403, { title: TITULO_RECHAZO, status: 403 });
   if (ruta.endsWith("/extension/tenants-beneficiarios"))
@@ -91,7 +111,7 @@ globalThis.fetch = async (url, opciones = {}) => {
     dominios: ["nalandaglobal.com"], proveedoresSolapados: [],
     clientes: [{ documentos: [{ acreditacionId: ACREDITACION, documentoId: DOCUMENTO }] }],
   }]);
-};
+}
 
 (0, eval)(readFileSync(process.argv[2], "utf8"));
 
@@ -102,7 +122,10 @@ function conectar() {
     expiraEnUtc: new Date(Date.now() + 8 * 3600e3).toISOString(),
   };
   llamadas = [];
+  mensajesAPestana = [];
   tenantsRetirados = new Set();
+  confirmar = (_ruta, tenant) => tenant ?? TENANT_ORIGEN;
+  estadoDe = () => null;
   listaDeTenants = { ...listaDeTenants, estado: 200, porDefecto: TENANT_A };
 }
 
@@ -203,6 +226,83 @@ resultado = await mensaje({ accion: "confirmarEnvio", acreditacionId: ACREDITACI
 comprobar("la confirmación no se repite sin Tenant ni con otro",
   !resultado.ok && resultado.seleccionRetirada === true
     && tenantDe("/subida").length === antes + 1 && tenantDe("/subida").at(-1) === TENANT_A);
+
+console.log("Respuesta sin la confirmación del Tenant efectivo");
+const documentoPuesto = () => mensajesAPestana.some((m) => m.accion === "inyectarArchivo");
+const sinConfirmar = (r) => !r.ok && r.tenantSinConfirmar === true && !r.proveedores;
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+confirmar = () => null;
+resultado = await mensaje({ accion: "listarPendientes" }, pestana);
+comprobar("un binario que ignora la solicitud no muestra su listado", sinConfirmar(resultado), JSON.stringify(resultado));
+comprobar("la selección sigue y la conexión también: no es una retirada",
+  almacen.tenantSeleccionado === TENANT_A && !almacen.seleccionRetirada && Boolean(almacen.token));
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+confirmar = () => TENANT_ORIGEN;
+resultado = await mensaje({ accion: "listarPendientes" }, pestana);
+comprobar("confirmar el Tenant de origen no vale por el Tenant beneficiario pedido", sinConfirmar(resultado));
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+await mensaje({ accion: "listarPendientes" }, pestana);
+confirmar = (ruta, tenant) => (ruta.endsWith("/acreditaciones-pendientes") ? tenant : null);
+resultado = await subir();
+comprobar("sin confirmar el ticket no se pide el archivo", sinConfirmar(resultado) && tenantDe("/archivo").length === 0);
+comprobar("ni se pone el documento ni queda envío pendiente",
+  !documentoPuesto() && !almacen.enviosPendientes?.["7"]?.[ACREDITACION]);
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+await mensaje({ accion: "listarPendientes" }, pestana);
+confirmar = (ruta, tenant) => (ruta.endsWith("/archivo") ? TENANT_ORIGEN : tenant);
+resultado = await subir();
+comprobar("un archivo de otro Tenant no llega a la pestaña",
+  sinConfirmar(resultado) && tenantDe("/archivo").length === 1 && !documentoPuesto());
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+await mensaje({ accion: "listarPendientes" }, pestana);
+await subir();
+confirmar = () => null;
+estadoDe = (ruta) => (ruta.endsWith("/subida") ? 404 : null);
+resultado = await mensaje({ accion: "confirmarEnvio", acreditacionId: ACREDITACION }, pestana);
+comprobar("un 404 sin confirmar no da por perdido el envío",
+  sinConfirmar(resultado) && Boolean(almacen.enviosPendientes?.["7"]?.[ACREDITACION]));
+confirmar = (_ruta, tenant) => tenant;
+estadoDe = () => null;
+resultado = await mensaje({ accion: "confirmarEnvio", acreditacionId: ACREDITACION }, pestana);
+comprobar("con la confirmación de vuelta, «Lo he enviado» se completa", resultado.ok && resultado.puedeDeshacer);
+confirmar = () => null;
+resultado = await mensaje({ accion: "deshacerEnvio", acreditacionId: ACREDITACION }, pestana);
+comprobar("«Deshacer» sin confirmar lleva a Centro 360, no a reintentar",
+  sinConfirmar(resultado) && resultado.error.includes("Centro 360"));
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+confirmar = (_ruta, tenant) => tenant.toUpperCase();
+resultado = await mensaje({ accion: "listarPendientes" }, pestana);
+comprobar("el Guid confirmado se compara sin distinguir mayúsculas", resultado.ok, resultado.error);
+
+conectar();
+listaDeTenants = { ...listaDeTenants, estado: 404 };
+confirmar = () => null;
+resultado = await mensaje({ accion: "listarPendientes" }, pestana);
+comprobar("sin Tenant pedido no se exige confirmación", resultado.ok, resultado.error);
+
+conectar();
+await mensaje({ accion: "elegirTenant", tenantId: TENANT_A });
+await mensaje({ accion: "listarPendientes" }, pestana);
+estadoDe = (ruta) => (ruta.endsWith("/entrega") ? 429 : null);
+resultado = await subir();
+comprobar("un 429 conserva su mensaje: lo corta el limitador, antes de resolver el Tenant",
+  !resultado.ok && !resultado.tenantSinConfirmar && resultado.error.includes("muchos documentos"));
+estadoDe = (ruta) => (ruta.endsWith("/entrega") ? 500 : null);
+resultado = await subir();
+comprobar("un 500 sigue siendo un fallo y no pone nada",
+  !resultado.ok && !resultado.tenantSinConfirmar && !documentoPuesto());
 
 console.log("Desconectar");
 conectar();

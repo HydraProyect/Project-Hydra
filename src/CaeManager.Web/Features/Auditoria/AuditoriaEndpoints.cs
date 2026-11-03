@@ -111,8 +111,13 @@ public static class AuditoriaEndpoints
         typeof(RegistroAuditoria).Assembly.GetExportedTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
 
     public static async Task<IResult> ExportarAsync(
-        string? entidad, IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion, CancellationToken cancellationToken)
+        string? entidad, string? desde, string? hasta, IMediator mediator, [Microsoft.AspNetCore.Mvc.FromServices] IRegistroExportacionService registroExportacion, CancellationToken cancellationToken)
     {
+        // Sin «desde»/«hasta» exporta todo el historial (contrato de siempre); la pantalla de
+        // Auditoría los envía siempre con el rango que muestra, para que el Excel sea lo que se ve.
+        var fechaDesde = RangoFechasAuditoria.Interpretar(desde);
+        var fechaHasta = RangoFechasAuditoria.Interpretar(hasta);
+
         using var libro = new XLWorkbook();
         var hoja = libro.Worksheets.Add("Auditoría");
 
@@ -135,7 +140,9 @@ public static class AuditoriaEndpoints
             mediator.Send(
                 new ObtenerAuditoriaQuery(
                     EntidadTipo: string.IsNullOrWhiteSpace(entidad) ? null : entidad,
-                    UsuarioId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    UsuarioId: null, Pagina: pagina, TamanoPagina: tamanoPagina,
+                    DesdeUtc: RangoFechasAuditoria.DesdeUtc(fechaDesde),
+                    HastaUtc: RangoFechasAuditoria.HastaUtcExclusivo(fechaHasta)),
                 cancellationToken)))
         {
             string nombreUsuario;
@@ -170,7 +177,9 @@ public static class AuditoriaEndpoints
         {
             await registroExportacion.RegistrarAsync(
                 nameof(RegistroAuditoria), fila - 2,
-                CriteriosExportacion.Desde(("listado", "auditoria"), ("entidad", EntidadParaElRastro(entidad))),
+                CriteriosExportacion.Desde(("listado", "auditoria"), ("entidad", EntidadParaElRastro(entidad)),
+                    ("desde", fechaDesde?.ToString(RangoFechasAuditoria.FormatoFecha)),
+                    ("hasta", fechaHasta?.ToString(RangoFechasAuditoria.FormatoFecha))),
                 cancellationToken);
         }
         catch
@@ -188,7 +197,7 @@ public static class AuditoriaEndpoints
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
-        // — el único filtro de la pantalla es el tipo de entidad. Resuelve
+        // — los filtros de la pantalla son el tipo de entidad y el rango de fechas (el enlace los lleva). Resuelve
         // nombre de usuario con el mismo criterio que Auditoria.razor.cs.
         endpoints.MapGet("/auditoria/exportar.xlsx", ExportarAsync).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();

@@ -1005,13 +1005,13 @@ public partial class EmpresasListaGen2Tests : BunitContext
         mediador.Retener = p => p is ObtenerEmpresasQuery ? respuesta.Task : null;
         Registrar(mediador);
         Navegacion.NavigateTo("empresas");
-        Render<Empresas>();
+        var cut = Render<Empresas>();
 
         var token = mediador.Tokens[mediador.Enviadas.FindIndex(p => p is ObtenerEmpresasQuery)];
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la página");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult(mediador.Filtrar(new ObtenerEmpresasQuery(null)));

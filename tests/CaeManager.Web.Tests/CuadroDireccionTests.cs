@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Bunit;
+using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Dashboard.TarifasOperadorCae;
@@ -35,6 +36,23 @@ public partial class CuadroDireccionTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddSingleton<IRegistroExportacionService>(Registro);
+        Services.AddScoped<PuertaAccesoDatos>();
+    }
+
+    private RegistroExportacionFalso Registro { get; } = new();
+
+    private sealed class RegistroExportacionFalso : IRegistroExportacionService
+    {
+        public List<(string Entidad, int Filas, IReadOnlyDictionary<string, string> Criterios, int DescargasHechas)> Llamadas { get; } = [];
+        public Exception? Fallo { get; set; }
+        public Func<int> DescargasHechas { get; set; } = () => 0;
+
+        public Task RegistrarAsync(string entidadTipo, int filas, IReadOnlyDictionary<string, string> criterios, CancellationToken cancellationToken = default)
+        {
+            Llamadas.Add((entidadTipo, filas, criterios, DescargasHechas()));
+            return Fallo is null ? Task.CompletedTask : Task.FromException(Fallo);
+        }
     }
 
     // ---------------------------------------------------------------- doble y fabricación
@@ -570,5 +588,23 @@ public partial class CuadroDireccionTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ese mes todavía no ha empezado"));
         cut.FindAll(".cuadro-kpi").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_estado_de_autenticacion_el_CSV_no_se_registra_ni_se_descarga()
+    {
+        var modulo = ModuloPreferencias();
+        var mediador = new MediatorFalso(() => Cuadro(EstadoCifraMensual.Parcial));
+        Services.AddScoped<IMediator>(_ => mediador);
+        Services.AddScoped<ToastService>();
+        Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        var cut = Render<CuadroDireccionPagina>();
+        cut.WaitForAssertion(() => cut.FindAll(".cuadro-kpi").Should().NotBeEmpty());
+        IrA(cut, "Empresas");
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Exportar a Excel").Click();
+
+        modulo.Invocations["descargar"].Should().BeEmpty("sin identidad no hay rol: fallo cerrado");
+        Registro.Llamadas.Should().BeEmpty();
     }
 }

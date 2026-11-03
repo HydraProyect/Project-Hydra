@@ -224,7 +224,7 @@ public class OrdenUnicoDeLaColaTests
                 ObtenerAlertasQuery => _alertas,
                 ObtenerRevisionesIaPendientesQuery => new List<RevisionIaDocumentoDto>(),
                 ObtenerDocumentacionBloqueantePendienteQuery => _requisitos,
-                ObtenerVisitasQuery => new ResultadoPaginado<VisitaListaDto>([], 0, 1, 200),
+                ObtenerVisitasUrgentesQuery => new List<VisitaListaDto>(),
                 ObtenerSugerenciasVisitaCorreoPendientesQuery => new List<SugerenciaVisitaCorreoPendienteDto>(),
                 ObtenerDeteccionesPendientesQuery => new List<DeteccionPendienteDto>(),
                 ObtenerAcreditacionesPorProveedorQuery => _acreditaciones,

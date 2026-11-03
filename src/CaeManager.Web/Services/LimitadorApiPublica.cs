@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.RateLimiting;
 using CaeManager.Infrastructure.Autenticacion;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 
 namespace CaeManager.Web.Services;
@@ -41,6 +42,12 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
+/// El token de una Clave de Integración del Tenant cuenta por el Id de la clave que lleva dentro, no por
+/// el token: renovarlo no da un cupo nuevo. Leerlo descifra sin tocar la base y solo reparte el cupo, nunca
+/// autoriza, igual que en <see cref="LimitadorEntregaExtension"/>. Un token ilegible cuenta por IP.
+/// </para>
+///
+/// <para>
 /// Consecuencias asumidas. (1) El cupo es por clave, no por Tenant; un Tenant con varias claves suma sus
 /// cupos. Agrupar por Tenant exigiría autenticar antes de limitar, con el coste de arriba. (2) El techo
 /// por IP se cobra antes de saber si la clave es válida: integraciones de Tenants distintos que salen por
@@ -53,18 +60,40 @@ public static class LimitadorApiPublica
 {
     public const string Politica = "ApiPublica";
 
+    /// <summary>Política de <c>POST /api/v1/token</c>: el secreto se usa poco, y un pico indica error o abuso.</summary>
+    public const string PoliticaToken = "ApiPublicaToken";
+
     private const string PrefijoRuta = "/api/v1";
 
-    /// <summary>Partición de la política <c>ApiPublica</c>: huella de la clave presentada, o IP si no hay.</summary>
-    public static RateLimitPartition<string> ParticionPorLlamante(HttpContext contexto, int limitePorMinuto)
+    /// <summary>Partición de la política <c>ApiPublica</c>: huella de la clave presentada, Id de la clave del token, o IP si no hay.</summary>
+    public static RateLimitPartition<string> ParticionPorLlamante(
+        HttpContext contexto, int limitePorMinuto, IDataProtectionProvider dataProtectionProvider)
     {
-        var clave = CabeceraClaveApi.ExtraerClave(contexto.Request.Headers.Authorization.ToString());
+        var cabecera = contexto.Request.Headers.Authorization.ToString();
+        var clave = CabeceraClaveApi.ExtraerClave(cabecera);
+        if (!string.IsNullOrEmpty(clave))
+            return VentanaFija($"clave:{CabeceraClaveApi.HuellaParaLimitador(clave)}", limitePorMinuto);
 
-        var particion = string.IsNullOrEmpty(clave)
-            ? $"ip:{IpDelCliente(contexto)}"
-            : $"clave:{CabeceraClaveApi.HuellaParaLimitador(clave)}";
+        var token = CabeceraClaveIntegracion.ExtraerToken(cabecera);
+        var carga = string.IsNullOrEmpty(token) ? null : TokenClaveIntegracion.Leer(dataProtectionProvider, token);
 
-        return VentanaFija(particion, limitePorMinuto);
+        return VentanaFija(carga is null ? $"ip:{IpDelCliente(contexto)}" : $"integracion:{carga.ClaveId:N}", limitePorMinuto);
+    }
+
+    /// <summary>
+    /// Partición de <see cref="PoliticaToken"/>: el Id de la clave presentada junto con la IP, o solo la IP si no
+    /// hay. Por el Id y no por el secreto, que daría un cupo nuevo a cada secreto probado; con la IP, porque el Id
+    /// no es secreto y por sí solo dejaría a cualquiera agotar el cupo de la integración ajena.
+    /// </summary>
+    public static RateLimitPartition<string> ParticionToken(HttpContext contexto, int limitePorMinuto)
+    {
+        var credenciales = CabeceraClaveIntegracion.ExtraerCredenciales(contexto.Request.Headers.Authorization.ToString());
+
+        return VentanaFija(
+            credenciales is null
+                ? $"token-ip:{IpDelCliente(contexto)}"
+                : $"token:{credenciales.ClaveId:N}:{IpDelCliente(contexto)}",
+            limitePorMinuto);
     }
 
     /// <summary>

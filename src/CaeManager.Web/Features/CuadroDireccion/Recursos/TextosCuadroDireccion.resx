@@ -186,6 +186,12 @@
   <data name="MapaCalorSinDatos" xml:space="preserve">
     <value>Sin datos.</value>
   </data>
+  <data name="ExportarSinRastro" xml:space="preserve">
+    <value>No se pudo exportar la tabla: no se pudo dejar constancia de la descarga. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ExportarBloqueadaSoporte" xml:space="preserve">
+    <value>Con una Sesión Privilegiada no se puede exportar la tabla.</value>
+  </data>
   <data name="ExportarNoDisponible" xml:space="preserve">
     <value>No se pudo exportar la tabla: este navegador no permite la descarga.</value>
   </data>

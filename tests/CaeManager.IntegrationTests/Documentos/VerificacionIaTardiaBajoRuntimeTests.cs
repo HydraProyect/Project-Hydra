@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.DocumentosIa.Common;
@@ -264,9 +264,10 @@ public class VerificacionIaTardiaBajoRuntimeTests
         contexto.Trabajadores.Add(trabajador);
         var tipo = new TipoDocumento("Apto médico", 12, aplicaVencimientoAutomatico: true, orden: 1,
             AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
+        contexto.TiposDocumento.Add(tipo);
+        await contexto.SaveChangesAsync();
         tipo.EstablecerLecturaIaActiva(true);
         tipo.EstablecerVerificacionIaActiva(true);
-        contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
 
         var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, Emision, VigenciaDocumento.NoCaduca, "original.pdf");
@@ -293,7 +294,9 @@ public class VerificacionIaTardiaBajoRuntimeTests
             contexto, contexto, new AlmacenamientoFalso(), extraccion,
             new RevisionIaDocumentoRepository(contexto),
             new AuditoriaExtraccionIaRepository(contexto), new InstruccionSiempreHabilitada(), _tenant,
-            new TransaccionDocumentoBloqueado(contexto, _tenant), contexto);
+            new TransaccionDocumentoBloqueado(contexto, _tenant), contexto,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
         return await servicio.ProcesarDocumentoAsync(encargo);
     }
 

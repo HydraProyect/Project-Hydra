@@ -495,7 +495,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("control positivo: sigue montada");
 
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue();
         puerta.SetResult();
@@ -521,7 +521,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Render<Trabajadores>();
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         puerta.SetResult();
         await EsperarFinDeResolucionAsync(pagina);
 
@@ -547,7 +547,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Render<Trabajadores>();
         var pagina = cut.Instance;
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         puerta.SetResult();
         await EsperarFinDeResolucionAsync(pagina);
 

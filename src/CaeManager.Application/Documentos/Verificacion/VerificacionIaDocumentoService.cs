@@ -1,8 +1,10 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.TiposDocumento;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using Microsoft.EntityFrameworkCore;
@@ -68,7 +70,8 @@ public class VerificacionIaDocumentoService(
     IInstruccionTratamientoIaService instruccionTratamientoIa,
     ITenantActual tenantActual,
     ITransaccionDocumentoBloqueado transaccion,
-    IUnitOfWork unitOfWork) : IVerificacionIaDocumentoService
+    IUnitOfWork unitOfWork,
+    IPresupuestoMemoriaDocumentos presupuestoMemoria) : IVerificacionIaDocumentoService
 {
     /// <summary>Por debajo de este umbral, la confianza general por sí sola ya justifica revisión humana (ver Issue #19, "70-95% revisar").</summary>
     private const int UmbralConfianzaBaja = 70;
@@ -111,13 +114,12 @@ public class VerificacionIaDocumentoService(
         if (motivoDescartePrevio is not null)
             return motivoDescartePrevio;
 
-        byte[] contenido;
+        // La copia que analiza la IA sigue reservada en el presupuesto de memoria hasta que acaba la extracción
+        // (OWASP API4:2023, ASVS 4.0.3 V12.1.1): el flujo del almacenamiento solo retiene la suya mientras está abierto.
+        LecturaAlmacenadaParaAnalisis lectura;
         try
         {
-            await using var archivo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-            using var buffer = new MemoryStream();
-            await archivo.CopyToAsync(buffer, cancellationToken);
-            contenido = buffer.ToArray();
+            lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(almacenamiento, presupuestoMemoria, documento.ArchivoUrl, cancellationToken);
         }
         catch (FileNotFoundException)
         {
@@ -147,7 +149,11 @@ public class VerificacionIaDocumentoService(
                 $"No se pudo abrir el archivo del Documento {documentoId} para verificación IA.", ex);
         }
 
-        var resultadoExtraccion = await extraccion.ExtraerAsync(contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
+        Result<MetadatosDocumentoExtraidosDto> resultadoExtraccion;
+        using (lectura)
+        {
+            resultadoExtraccion = await extraccion.ExtraerAsync(lectura.Contenido, tipoDocumento.Nombre, documentoId, cancellationToken);
+        }
 
         if (resultadoExtraccion.EsFallido)
         {
@@ -255,27 +261,32 @@ public class VerificacionIaDocumentoService(
     /// <summary>
     /// La IA solo propone: toda lectura requiere confirmación humana. El contraste,
     /// la confianza y las discrepancias aportan motivos; el tipo detectado se coteja
-    /// con el nombre y los alias del catálogo.
+    /// con el nombre y los alias del catálogo. Las alertas deterministas
+    /// (<see cref="MotivosRevisionIa"/>) van primero: el motivo persistido se recorta
+    /// por el final, y de ellas depende que la revisión no se acepte en bloque.
     /// </summary>
     internal static List<string> ComputarMotivos(Documento documento, TipoDocumento tipoDocumento, MetadatosDocumentoExtraidosDto extraido)
     {
         var motivos = new List<string>();
 
+        if (extraido.PaginasSinLeer > 0)
+            motivos.Add(MotivosRevisionIa.LecturaParcial(extraido.PaginasSinLeer));
+
         var contraste = extraido.Contraste;
         if (contraste is null)
         {
-            motivos.Add("No se pudo contrastar la lectura automática con el texto del documento");
+            motivos.Add(MotivosRevisionIa.SinContraste);
         }
         else
         {
             if (contraste.PareceDirigidoAlModelo)
-                motivos.Add("El documento contiene texto dirigido al sistema de lectura automática (posible manipulación)");
+                motivos.Add(MotivosRevisionIa.TextoDirigidoAlLector);
 
             if (contraste.MencionaNoAptoORestriccion)
-                motivos.Add("El documento menciona «no apto» o una restricción: lo tiene que decidir una persona");
+                motivos.Add(MotivosRevisionIa.NoAptoORestriccion);
 
             if (extraido.FechaEmisionDetectada is { } fechaLeida && !contraste.ContieneFecha(fechaLeida))
-                motivos.Add("La fecha de emisión que dice haber leído la IA no aparece escrita en el documento");
+                motivos.Add(MotivosRevisionIa.FechaEmisionNoEscrita);
         }
 
         if (extraido.ConfianzaGeneral < UmbralConfianzaBaja)

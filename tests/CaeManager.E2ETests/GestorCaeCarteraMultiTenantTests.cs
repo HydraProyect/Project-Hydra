@@ -158,7 +158,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.InRange(cambio.Status, 300, 399);
         Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
         await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
     }
 
@@ -207,7 +207,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.InRange(cambio.Status, 300, 399);
         Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
         await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
 
         // Corregir la Rechazada: versión corregida, que la devuelve a pendiente de envío.
@@ -337,7 +337,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page.GetByRole(AriaRole.Heading, new() { Name = CentroA })).ToBeVisibleAsync();
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroFuera}");
-        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+        await Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/centros", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}" })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
 
@@ -368,7 +368,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // Esperar a que aterrice antes de navegar: un GotoAsync lanzado con la redirección en
         // vuelo se cruza con ella («Navigation ... is interrupted by another navigation»).
         await page.WaitForURLAsync("**/acceso-denegado**");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
     }
@@ -402,7 +402,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
 
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
         await Ayudas.MostrarCentrosSinAgruparAsync(page);
         await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync();
@@ -462,7 +462,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}");
-            await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/centros", new() { Timeout = 30_000 });
+            await Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/centros", new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
             await Expect(page.Locator(".toast").Filter(new() { HasText = $"Esa ficha no está en {TenantBeneficiarioA}; te llevamos a la lista." }))
                 .ToBeVisibleAsync(EsperaEnFrio);
             await Expect(page.GetByText(CentroFueraDeCartera)).ToHaveCountAsync(0);
@@ -483,7 +483,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.DoesNotContain("Reintentar", conPista);
         Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
         await page.ReloadAsync();
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir en {TenantBeneficiarioB}" })).ToBeVisibleAsync(EsperaEnFrio);
         Assert.Equal(tenantA, await Ayudas.TenantActivoIdAsync(page));
 
@@ -524,7 +524,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(
             @"[?&]q=" + System.Text.RegularExpressions.Regex.Escape(Uri.EscapeDataString(texto)) + @"(&|$)"),
             new() { Timeout = 30_000 });
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         // Con búsqueda activa la página no pinta «Plegar/Expandir todas» (MiTrabajo.razor): desaparece en el mismo
         // lote de render que las filas filtradas, así que es la barrera de «el DOM ya es el filtrado».
         await Expect(page.Locator(".mi-trabajo-plegar-todas")).ToHaveCountAsync(0, new() { Timeout = 30_000 });

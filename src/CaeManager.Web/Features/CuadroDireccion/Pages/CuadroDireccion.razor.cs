@@ -1,4 +1,5 @@
 using System.Globalization;
+using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Common;
@@ -48,7 +49,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// pisan las tarjetas ni los avisos vistos. Sin usuario identificado no se recuerda nada.
     /// </summary>
     private string? _clavePreferencias;
-    private bool _avisoExportar;
+    /// <summary>Clave del texto del aviso de la última exportación fallida o rechazada; null si no hay.</summary>
+    private string? _avisoExportar;
     /// <summary>Los gráficos de la serie enseñan hasta 36 meses de historial (el máximo de la consulta) cuando lo hay.</summary>
     private const int MesesSerie = ObtenerSerieCuadroDireccionQuery.MaximoMeses;
 
@@ -82,6 +84,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<CuadroDireccion> Logger { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
+    [Inject] private IRegistroExportacionService RegistroExportacion { get; set; } = default!;
+    [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
@@ -97,7 +101,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private string _pestana = "general";
     private bool _error;
     private bool _puedeReabrir;
-    private bool _puedeExportarExtranjeros = true;
+    private bool _puedeExportar;
 
     private SerieCuadroDireccionDto? _serie;
     private bool _cargandoSerie;
@@ -179,8 +183,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             var usuario = (await EstadoAutenticacion).User;
             _puedeReabrir = usuario.IsInRole(Roles.DireccionCae);
             // En Sesión Privilegiada el middleware quita los roles: el Excel de extranjeros no se ofrece (su endpoint
-            // exige rol, ver CuadroDireccionEndpoints).
-            _puedeExportarExtranjeros = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles.Any(usuario.IsInRole);
+            // exige rol, ver CuadroDireccionEndpoints) ni se descarga ninguna tabla en CSV (DescargarCsvAsync).
+            _puedeExportar = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles.Any(usuario.IsInRole);
             if (usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value is { Length: > 0 } usuarioId)
                 _clavePreferencias = $"{PrefijoClavePreferencias}:{usuarioId}";
         }
@@ -1403,23 +1407,60 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         await GuardarPreferenciasAsync();
     }
 
+    /// <summary>
+    /// El CSV de una tabla del Cuadro. Mismo trato que el xlsx (<see cref="CuadroDireccionEndpoints"/>, PR #1890): no sale bajo
+    /// Sesión Privilegiada, y el rastro (<see cref="IRegistroExportacionService"/>) se deja antes de entregar el fichero, con fallo
+    /// cerrado. Aquí no hay HttpContext: el Actor real sale del token del circuito, vía <see cref="IActorAuditoria"/>.
+    /// </summary>
     private async Task DescargarCsvAsync(string tabla, IEnumerable<IReadOnlyList<string>> filas)
     {
-        _avisoExportar = false;
+        _avisoExportar = null;
+
+        // Mismos roles que el xlsx (RequireRole en CuadroDireccionEndpoints). En Sesión Privilegiada el middleware quita los roles
+        // de negocio, y el lector de acceso total del Actor de Plataforma TALVEG no incluye llevarse la tabla (la cartera por
+        // Gestor CAE lleva nombres de personas). Sin rol, fallo cerrado.
+        if (!_puedeExportar)
+        {
+            _avisoExportar = "ExportarBloqueadaSoporte";
+            return;
+        }
+
         if (_modulo is null)
         {
-            _avisoExportar = true;
+            _avisoExportar = "ExportarNoDisponible";
+            return;
+        }
+
+        var lista = filas.ToList();
+        try
+        {
+            // La escritura toca el DbContext del circuito: por la puerta, como todo acceso directo desde un componente.
+            await PuertaAccesoDatos.EjecutarAsync(() => RegistroExportacion.RegistrarAsync(
+                "CuadroDireccion", Math.Max(0, lista.Count - 1),
+                new Dictionary<string, string>
+                {
+                    ["listado"] = "cuadroDireccionCsv",
+                    ["tabla"] = tabla,
+                    ["anyo"] = _anyo.ToString(CultureInfo.InvariantCulture),
+                    ["mes"] = _mes.ToString(CultureInfo.InvariantCulture),
+                }));
+        }
+        catch (Exception ex)
+        {
+            // Fallo cerrado: sin rastro no hay fichero. Una excepción sin capturar tumbaría el circuito.
+            Logger.LogError(ex, "No se pudo dejar rastro de la exportación de la tabla {Tabla} del Cuadro de dirección.", tabla);
+            _avisoExportar = "ExportarSinRastro";
             return;
         }
 
         try
         {
-            await _modulo.InvokeVoidAsync("descargar", Textos["NombreFichero", tabla, $"{_anyo}-{_mes:00}"].Value, CalculosCuadro.Csv(filas), "text/csv;charset=utf-8");
+            await _modulo.InvokeVoidAsync("descargar", Textos["NombreFichero", tabla, $"{_anyo}-{_mes:00}"].Value, CalculosCuadro.Csv(lista), "text/csv;charset=utf-8");
         }
         catch (Exception ex) when (ex is JSException or InvalidOperationException or TaskCanceledException or JSDisconnectedException)
         {
             Logger.LogWarning(ex, "No se pudo descargar la tabla {Tabla} del Cuadro de dirección.", tabla);
-            _avisoExportar = true;
+            _avisoExportar = "ExportarNoDisponible";
         }
     }
 

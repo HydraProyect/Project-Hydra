@@ -72,6 +72,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs", "contexto.Set<T>().IgnoreQueryFilters().AsNoTracking().Where(e => e.TenantId == tenantId);")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
+        // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
@@ -84,6 +87,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las dos consultas van acotadas al Tenant actual.
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        // Antes de borrar la copia de un adjunto comprueba que no haya fila con el Id reservado, tampoco entre las eliminadas,
+        // que son restaurables y conservan su archivo. Solo Id y Tenant actual explícito; RLS sigue aplicando.
+        [("src/CaeManager.Application/Comunicaciones/Commands/ActualizarDocumentoDesdeAdjunto/ActualizarDocumentoDesdeAdjuntoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarVerificacionExterna/RestaurarVerificacionExternaSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
@@ -150,6 +156,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por EF, no concatenado.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveApiRepository.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_api({hashClave}) AS \"Value\"")""")] = 1,
+        // Mismo patrón para la Clave de Integración del Tenant: app_tenant_de_clave_integracion.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ClaveIntegracionTenantRepository.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_clave_integracion({hashClave}) AS \"Value\"")""")] = 1,
+
+        // Rastro agregado de la API v1: suma atómica con ON CONFLICT, bajo RLS.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RastroUsoApi.cs",
+            "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Reserva del acuse automático por buzón: ON CONFLICT atómico confirmado antes de enviar, bajo RLS.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/ConversacionRepository.cs",
+            "return await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
 
         // Encargo de administración pleno (decisión del 2026-10-15): si el Tenant propietario
         // tiene Administrador propio (activo o pendiente de activar) se pregunta a la función SECURITY DEFINER
@@ -180,14 +196,20 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
         // contexto de Tenant. Estas funciones SECURITY DEFINER (migración
-        // 20260925184521_RlsAspNetUsers) devuelven solo Id y TenantId; la fila
-        // se lee después por EF dentro del AmbitoTenantExplicito de su Tenant.
-        // Las mismas dos de búsqueda sostienen la unicidad global de nombre y
-        // correo (ValidadorUnicidadGlobalCuenta). Parámetros por EF.
+        // 20260925184521_RlsAspNetUsers) exigen el contexto firmado (migración
+        // OraculosTransversalesExigenContextoFirmado) y de ellas solo se lee el
+        // TenantId; la fila se lee después por EF dentro del AmbitoTenantExplicito
+        // de su Tenant. La unicidad global de nombre y correo
+        // (ValidadorUnicidadGlobalCuenta) no recibe identificadores: solo un
+        // booleano. Parámetros por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             """db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
-            "await db.Database.SqlQuery<CuentaResuelta>(")] = 2,
+            "await db.Database.SqlQuery<Guid>(")] = 2,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_nombre_en_uso_por_otra_cuenta({nombreNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
+            """db.Database.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({emailNormalizado}, {cuentaId}) AS \"Value\"")""")] = 1,
         // M-35: la cuenta emisora de una clave de API es de otro Tenant; la función devuelve
         // solo sus dos fechas (migración CuentaEmisoraCortaClaveApi). Parámetro por EF.
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
@@ -219,6 +241,16 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 2,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 1,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<FilaDestinatarioAvisoSeguridad>(")] = 1,
+
+        // Aviso de violaciones de seguridad, incremento 3b: la página del incidente lee los nombres de los
+        // Tenants afectados, que son de otros Tenants (mismo criterio que la cola de contactos de seguridad).
+        // Decidir, reclamar y resolver un envío van por app_decidir_incidente_seguridad,
+        // app_reclamar_envio_aviso_seguridad y app_resolver_envio_aviso_seguridad, SECURITY DEFINER que repiten
+        // contexto firmado, concesión AdminPlataforma global y cuenta de plataforma, y devuelven un código.
+        // Valores parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", "return await contexto.Tenants.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 2,
+        [("src/CaeManager.Infrastructure/Plataforma/IncidentesSeguridadPlataforma.cs", ".SqlQuery<FilaEnvioReclamado>(")] = 1,
 
         // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
         // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
@@ -377,6 +409,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // de que haya Tenant en el contexto. Parámetros interpolados de
         // FormattableString: EF los envía como parámetros, no como texto.
         [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
+        // Revocar varias sesiones tras un cambio de credencial o en «cerrar en todos los
+        // dispositivos»: app_revocar_sesiones_de_cuenta (SECURITY DEFINER, contexto firmado y
+        // Tenant de la cuenta), porque quien llega por un enlace de correo no firma el contexto
+        // como esa cuenta y el UPDATE bajo solo_la_propia_cuenta_revoca devolvería 0 sin error.
+        [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<int>($\"SELECT public.app_revocar_sesiones_de_cuenta({usuarioId}, {conservar}) AS \\\"Value\\\"\")")] = 1,
         // Revalidación del circuito en una Sesión Privilegiada: app_cuenta_firmada_vigente
         // (SECURITY DEFINER, solo un booleano) compara el sello sin que cae_app_soporte lea
         // la cuenta. La cuenta no es un argumento: sale del contexto RLS firmado.
@@ -467,6 +504,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,

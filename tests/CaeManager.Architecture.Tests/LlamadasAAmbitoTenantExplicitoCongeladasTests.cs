@@ -419,6 +419,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         // ── CREDENCIAL VERIFICADA INMEDIATAMENTE ANTES ──────────────────────────────
         ["src/CaeManager.Infrastructure/Autenticacion/ApiKeyAuthenticationHandler.cs"] =
             new(Categoria.CredencialVerificadaInmediatamenteAntes, "clave.TenantId, tras validar el hash de la clave de API recibida"),
+        ["src/CaeManager.Infrastructure/Autenticacion/EmisorTokenClaveIntegracion.cs"] =
+            new(Categoria.CredencialVerificadaInmediatamenteAntes, "tenantId, resuelto por la función a partir del hash del secreto recibido"),
+        ["src/CaeManager.Infrastructure/Autenticacion/ClaveIntegracionAuthenticationHandler.cs"] =
+            new(Categoria.CredencialVerificadaInmediatamenteAntes, "carga.TenantId, del token que Data Protection acaba de verificar"),
         ["src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs"] =
             new(Categoria.IdentificacionWebhookSinSesion, "tenantId, resuelto por la función de la conexión; solo se lee la suscripción para verificar su secreto"),
         ["src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs"] =
@@ -470,7 +474,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
         ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant propietario de la cuenta: user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para insertar su SesionUsuario; y cuenta.TenantId leída con AmbitoIdentificacionSinTenant para revocar una o todas sus sesiones, nunca el Tenant del workspace abierto; la RLS (solo_la_propia_cuenta_revoca) exige además que la cuenta sea quien firma el contexto"),
+            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant propietario de la cuenta: user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para insertar su SesionUsuario; y cuenta.TenantId leída con AmbitoIdentificacionSinTenant para revocar una o todas sus sesiones, nunca el Tenant del workspace abierto; revocar una sesión exige además, por la RLS (solo_la_propia_cuenta_revoca), que la cuenta firme el contexto, y revocar varias va por app_revocar_sesiones_de_cuenta, que exige ese Tenant firmado"),
+        ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "1 llamada — user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para comprobar el sello vigente de esa misma cuenta en su Tenant propietario, nunca en el del Workspace operativo derivado abierto"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 
@@ -615,6 +621,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Identity/TenantClaimsPrincipalFactory.cs"] = 1,
             ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
             ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
+            ["src/CaeManager.Infrastructure/Identity/SelloSeguridadCuenta.cs"] = 1,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,

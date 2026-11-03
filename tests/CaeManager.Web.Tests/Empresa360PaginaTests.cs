@@ -63,6 +63,7 @@ public partial class Empresa360PaginaTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<Guid, EmpresaDetalleDto> Detalles { get; } = [];
+        public bool FallarAgenda { get; set; }
         public Dictionary<Guid, int?> Cumplimiento { get; } = [];
         public Dictionary<Guid, List<TrabajadorListaDto>> Trabajadores { get; } = [];
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> Clientes { get; } = [];
@@ -90,6 +91,7 @@ public partial class Empresa360PaginaTests : BunitContext
         {
             ObtenerEmpresaPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerSelloEmpresaQuery q => Sellos.GetValueOrDefault(q.EmpresaId),
+            ObtenerAgendaContactosQuery when FallarAgenda => throw new InvalidOperationException("Fallo simulado de la agenda."),
             ObtenerAgendaContactosQuery q => (IReadOnlyList<ContactoAgendaDto>)(Agenda.GetValueOrDefault(q.PropietarioId) ?? []),
             ObtenerCumplimientoEmpresaQuery q => Cumplimiento.GetValueOrDefault(q.EmpresaId),
             ObtenerTrabajadoresQuery q => ResponderTrabajadores(q),
@@ -265,6 +267,23 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.FindAll("[role=tab]").Single(b => b.TextContent.Trim().StartsWith(texto, StringComparison.Ordinal));
 
     // ── Carga y cabecera ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// M-06: un fallo al leer la agenda se leía como «sin contacto principal». El usuario recibe un
+    /// aviso de error y la cabecera sigue pintándose.
+    /// </summary>
+    [Fact]
+    public void Si_la_agenda_de_contactos_falla_avisa_al_usuario_y_la_cabecera_sigue()
+    {
+        var mediador = Empresa();
+        mediador.FallarAgenda = true;
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.Find("[data-pieza=cabecera-identidad]").Should().NotBeNull();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Tono == TonoToast.Error);
+    }
 
     [Fact]
     public void La_cabecera_pinta_identidad_recuentos_y_anillo_con_las_consultas_del_panel()

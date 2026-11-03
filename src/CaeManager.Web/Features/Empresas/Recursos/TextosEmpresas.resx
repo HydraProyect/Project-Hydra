@@ -810,4 +810,7 @@
     <value>Un Centro donde opera le exige como obligatorio un documento de Empresa que falta o ya no vale</value>
     <comment>Título del estado «Pendiente» de una Empresa en el listado: un requisito obligatorio de Empresa incumplido.</comment>
   </data>
+  <data name="ToastContactoPrincipalNoCargado" xml:space="preserve">
+    <value>No pudimos cargar el contacto principal de esta empresa. Que no aparezca no significa que no tenga; recarga la página.</value>
+  </data>
 </root>

@@ -50,12 +50,24 @@ public class ExportacionCompletaTenantTests
     [InlineData(typeof(LineaWhatsApp), "TokenAcceso")]
     [InlineData(typeof(EventoWebhook), "PayloadCrudo")]
     [InlineData(typeof(ClaveApi), "HashClave")]
+    [InlineData(typeof(ClaveIntegracionTenant), "HashClave")]
     public void Los_secretos_conocidos_no_se_exportan(Type entidad, string propiedad)
     {
         var columna = Modelo.FindEntityType(entidad)!.FindProperty(propiedad);
 
         columna.Should().NotBeNull($"{entidad.Name}.{propiedad} tiene que seguir existiendo para que esta prueba mida algo");
         ExportacionCompletaTenant.EsSecreta(columna!).Should().BeTrue();
+    }
+
+    /// <summary>La exportación solo escribe columnas con propiedad: mapeados a un campo, los alcances se perderían.</summary>
+    [Fact]
+    public void Los_alcances_de_la_clave_de_integracion_se_exportan()
+    {
+        var columna = Modelo.FindEntityType(typeof(ClaveIntegracionTenant))!.FindProperty("AlcancesConcedidos");
+
+        columna.Should().NotBeNull();
+        columna!.PropertyInfo.Should().NotBeNull();
+        ExportacionCompletaTenant.EsSecreta(columna).Should().BeFalse();
     }
 
     [Fact]

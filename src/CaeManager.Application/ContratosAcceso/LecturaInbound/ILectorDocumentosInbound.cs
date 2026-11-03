@@ -14,7 +14,8 @@ namespace CaeManager.Application.ContratosAcceso.LecturaInbound;
 /// <b>La función no sustituye a la cartera.</b> Quien llama decide antes la autoridad del usuario dentro de su Tenant
 /// (rol y cartera sobre el Cliente empresarial del contrato, <see cref="LecturaInboundAutoridad"/>); la función garantiza el
 /// Tenant, el contrato y la autorización. Sin contexto firmado la base responde 42501 (excepción), que es distinto de
-/// «sin autorización» (vacío o null): un lector vacío en silencio podría alimentar una baja por ausencia.
+/// «sin autorización» (vacío o null): un lector vacío en silencio podría alimentar una baja por ausencia. Por lo mismo,
+/// si el propietario de la función no evita la RLS, la base lanza una excepción en vez de devolver vacío.
 /// </para>
 ///
 /// <para>

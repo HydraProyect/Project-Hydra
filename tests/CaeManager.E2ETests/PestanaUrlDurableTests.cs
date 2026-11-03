@@ -26,7 +26,7 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
         // El clic va por Ayudas.SeleccionarPestanaAsync y no a pelo: el botón
         // role="tab" lleva un @onclick server-side, así que un clic sobre el
         // prerenderizado estático se pierde en silencio y el fallo aparece 30 s
-        // después aquí, en el WaitForURLAsync — medido en CI (REC-110, run
+        // después aquí, en la espera de la URL — medido en CI (REC-110, run
         // 33649091982 intento 1). El helper confirma por aria-selected que el
         // clic llegó al circuito antes de seguir.
         await Ayudas.SeleccionarPestanaAsync(
@@ -47,9 +47,9 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
         // entre 15 y 30 s pasaba antes y habría empezado a fallar — cambiar un
         // intermitente por otro. El arreglo del clic perdido no necesita
         // estrechar este margen.
-        await page.WaitForURLAsync(
+        await Assertions.Expect(page).ToHaveURLAsync(
             $"{fixture.BaseUrl}/documentos?Pestana=revision-ia",
-            new PageWaitForURLOptions { Timeout = 30_000 });
+            new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
         // Carga en frío con esa URL exacta (no un clic dentro de la página ya
         // cargada): reproduce compartir el enlace o pulsar F5, no una
@@ -80,9 +80,9 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
             "Generados");
 
         // 30 s explícitos, por el mismo motivo que en el test de arriba.
-        await page.WaitForURLAsync(
+        await Assertions.Expect(page).ToHaveURLAsync(
             $"{fixture.BaseUrl}/plantillas?Pestana=generados",
-            new PageWaitForURLOptions { Timeout = 30_000 });
+            new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/plantillas?Pestana=generados");
 
@@ -112,9 +112,9 @@ public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
             "Plantillas");
 
         // 30 s explícitos, por el mismo motivo que en los tests de arriba.
-        await page.WaitForURLAsync(
+        await Assertions.Expect(page).ToHaveURLAsync(
             $"{fixture.BaseUrl}/documentos?Pestana=plantillas",
-            new PageWaitForURLOptions { Timeout = 30_000 });
+            new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Pestana=plantillas");
 

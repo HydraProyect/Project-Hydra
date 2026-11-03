@@ -1,0 +1,81 @@
+name: Apt acotado
+description: >
+  Ejecuta un comando que usa apt con tiempo limitado, reintentos y sin depender
+  del espejo de Azure cuando este no responde.
+
+# Por qué existe: la imagen ubuntu-24.04 de GitHub declara sus fuentes como
+# `mirror+file:/etc/apt/apt-mirrors.txt`, con azure.archive.ubuntu.com delante.
+# Cuando el runner no alcanza ese espejo, `apt-get update` pasa a
+# archive.ubuntu.com, descarga los InRelease y se queda parado sin escribir
+# nada ni terminar. El 2026-10-31 eso colgó seis jobs, siempre en la misma
+# línea del log, y dejó sin respuesta la cola de fusión (#1929, #1932).
+# Reproducido bloqueando ese espejo con iptables en un runner: `apt-get update`
+# seguía parado a los 300 s; con archive.ubuntu.com directo, instalar tardó 28 s.
+#
+# Cada comando con apt del CI pasa por aquí: AptAcotadoEnCiTests lo exige.
+# El sondeo evita el cuelgue conocido; el límite por intento cubre el resto.
+
+inputs:
+  comando:
+    description: Comando de bash que usa apt, con sudo si lo necesita.
+    required: true
+  limite-segundos:
+    description: Tiempo máximo de cada uno de los tres intentos.
+    required: false
+    default: "360"
+
+runs:
+  using: composite
+  steps:
+    - name: Ejecutar con apt acotado
+      shell: bash
+      env:
+        COMANDO: ${{ inputs.comando }}
+        LIMITE: ${{ inputs.limite-segundos }}
+      run: |
+        # Sin -e, que `shell: bash` activa: un fallo al preparar o limpiar no
+        # debe abortar el paso, porque quitaría los reintentos que quedan.
+        set +e -uo pipefail
+
+        fuentes=/etc/apt/sources.list.d/ubuntu.sources
+        . /etc/os-release
+        sonda="http://azure.archive.ubuntu.com/ubuntu/dists/${VERSION_CODENAME}/InRelease"
+
+        # Sin esto, apt espera 120 s por conexión y el cerrojo de dpkg de un
+        # intento anterior haría fallar el siguiente en vez de esperar.
+        printf '%s\n' \
+          'Acquire::Retries "1";' \
+          'Acquire::http::Timeout "30";' \
+          'Acquire::https::Timeout "30";' \
+          'DPkg::Lock::Timeout "60";' \
+          | sudo tee /etc/apt/apt.conf.d/99-ci-apt-acotado > /dev/null
+
+        usar_archivo_directo() {
+          sudo sed -i 's|mirror+file:/etc/apt/apt-mirrors.txt|https://archive.ubuntu.com/ubuntu/|' "$fuentes"
+        }
+
+        # `timeout` corre como runner y no puede matar a los procesos de root
+        # que deja `sudo apt-get`: siguen vivos y con el cerrojo tomado.
+        limpiar_apt() {
+          sudo pkill -9 -x apt-get
+          sudo pkill -9 -f '^/usr/lib/apt/methods/'
+          sudo pkill -9 -x dpkg
+          sudo timeout -k 5 120 dpkg --configure -a
+        }
+
+        if ! curl -fsS --max-time 10 -o /dev/null "$sonda"; then
+          echo "::warning::El espejo de Azure no responde: apt usará archive.ubuntu.com directamente."
+          usar_archivo_directo
+        fi
+
+        for intento in 1 2 3; do
+          timeout -k 15 "$LIMITE" bash -euo pipefail -c "$COMANDO" && exit 0
+          codigo=$?
+          echo "::warning::Intento $intento de 3 terminó con código $codigo (124 o 137: superó ${LIMITE} s)."
+          limpiar_apt
+          usar_archivo_directo
+          [ "$intento" -lt 3 ] && sleep $((intento * 10))
+        done
+
+        echo "::error::El comando con apt no terminó bien en tres intentos."
+        exit 1

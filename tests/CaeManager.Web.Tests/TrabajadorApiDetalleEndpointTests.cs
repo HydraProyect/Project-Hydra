@@ -1,5 +1,8 @@
+using System.Security.Claims;
 using System.Text.Json;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Domain.ApiKeys;
+using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Web.Api.V1;
 using FluentAssertions;
 using MediatR;
@@ -28,6 +31,42 @@ public class TrabajadorApiDetalleEndpointTests
     [Fact]
     public async Task El_endpoint_de_detalle_no_publica_la_ficha_de_altas_en_plataforma()
     {
+        var cuerpo = await LlamarAsync(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "clave")], ApiKeyAuthenticationSchemeOptions.NombreEsquema)));
+
+        cuerpo.Should().NotContain("281234567840").And.NotContain("Colombiana").And.NotContain("Se identifica con NIE");
+        using var json = JsonDocument.Parse(cuerpo);
+        json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
+            "id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "dni",
+            "fechaNacimiento", "email", "observaciones", "alias", "telefono", "puesto", "version");
+        json.RootElement.GetProperty("id").GetGuid().Should().Be(Detalle.Id);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Los_datos_personales_exigen_su_alcance_propio_y_sin_el_el_campo_no_existe(bool concedido)
+    {
+        var claims = new List<Claim> { new(ClaveIntegracionAuthenticationSchemeOptions.TipoClaimAlcance, AlcancesIntegracion.TrabajadoresLeer) };
+        if (concedido)
+            claims.Add(new(ClaveIntegracionAuthenticationSchemeOptions.TipoClaimAlcance, AlcancesIntegracion.TrabajadoresDatosPersonalesLeer));
+
+        var cuerpo = await LlamarAsync(new ClaimsPrincipal(new ClaimsIdentity(claims, ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema)));
+
+        using var json = JsonDocument.Parse(cuerpo);
+        var campos = json.RootElement.EnumerateObject().Select(p => p.Name).ToList();
+        if (concedido)
+        {
+            campos.Should().Contain(["dni", "fechaNacimiento", "email", "observaciones", "telefono"]);
+            return;
+        }
+
+        campos.Should().Equal("id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "alias", "puesto", "version");
+        cuerpo.Should().NotContain("12345678Z").And.NotContain("nora@example.test");
+    }
+
+    private static async Task<string> LlamarAsync(ClaimsPrincipal usuario)
+    {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton<IMediator>(new MediatorConDetalle());
         await using var app = builder.Build();
@@ -36,7 +75,7 @@ public class TrabajadorApiDetalleEndpointTests
             .Single(e => e.RoutePattern.RawText == "/trabajadores/{id:guid}");
 
         using var scope = app.Services.CreateScope();
-        var contexto = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        var contexto = new DefaultHttpContext { RequestServices = scope.ServiceProvider, User = usuario };
         contexto.Request.RouteValues["id"] = Detalle.Id.ToString();
         contexto.Response.Body = new MemoryStream();
         await endpoint.RequestDelegate!(contexto);
@@ -44,13 +83,7 @@ public class TrabajadorApiDetalleEndpointTests
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
         contexto.Response.Body.Position = 0;
         using var lector = new StreamReader(contexto.Response.Body);
-        var cuerpo = await lector.ReadToEndAsync();
-        cuerpo.Should().NotContain("281234567840").And.NotContain("Colombiana").And.NotContain("Se identifica con NIE");
-        using var json = JsonDocument.Parse(cuerpo);
-        json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
-            "id", "empresaId", "subcontrataId", "empleadorNombre", "nombre", "apellidos", "dni",
-            "fechaNacimiento", "email", "observaciones", "alias", "telefono", "puesto", "version");
-        json.RootElement.GetProperty("id").GetGuid().Should().Be(Detalle.Id);
+        return await lector.ReadToEndAsync();
     }
 
     private sealed class MediatorConDetalle : IMediator

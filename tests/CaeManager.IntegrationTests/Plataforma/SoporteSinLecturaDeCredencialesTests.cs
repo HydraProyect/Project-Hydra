@@ -84,9 +84,14 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         { "LineasWhatsApp", "TokenAcceso", [
             "Id", "ComercialAsignadoId", "ConexionIntegracionId", "MensajeAutoTriage", "Modo", "NumeroTelefono",
             "PhoneNumberId", "TenantId", "WabaId"] },
+        { "ClavesIntegracionTenant", "HashClave", [
+            "Id", "Alcances", "CaducaEnUtc", "CreadaPorUsuarioId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId",
+            "EstaEliminado", "InvalidadaDefinitivamenteEnUtc", "MotivoSuspension", "Nombre", "PrefijoVisible", "RevocadaEnUtc",
+            "SistemaConsumidor", "SucedeAClaveId", "SuspendidaEnUtc", "TenantId", "UltimoUsoUtc", "Version"] },
         { "ConexionesIntegracion", "UltimoError", [
-            "Id", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId", "EstaEliminado",
-            "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "TenantId", "Version"] },
+            "Id", "AcuseAutomaticoActivo", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId",
+            "EstaEliminado", "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "ResponsableUsuarioId",
+            "TenantId", "Version"] },
     };
 
     private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";
@@ -160,6 +165,8 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("AspNetUsers", "ClavesApiValidasDesdeUtc"),
             // Instante de la última suspensión del Tenant: una fecha que corta sus claves de API anteriores, no una clave.
             ("Tenants", "ClavesApiValidasDesdeUtc"),
+            // Identificador de la clave antecesora en una rotación, no un secreto.
+            ("ClavesIntegracionTenant", "SucedeAClaveId"),
             // Identity usa el sello de la cuenta para detectar escrituras concurrentes, no para autenticar.
             ("AspNetUsers", "ConcurrencyStamp"),
             // Identity usa el sello del rol para detectar escrituras concurrentes, no para autenticar.
@@ -196,6 +203,7 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             ("AccesosPlataformaCaeEmpresa", "Contrasena"),
             ("CanalesGestionDocumental", "Contrasena"),
             ("ClavesApi", "HashClave"),
+            ("ClavesIntegracionTenant", "HashClave"),
             ("CredencialesAccesoEmpresa", "Contrasena"),
             ("CredencialesConexionPlataformaCae", "SecretoApi"),
             ("CredencialesAccesoSubcontrata", "Contrasena"),

@@ -68,7 +68,20 @@
        editar. *@
     @if (OpcionesAzureAd.Value.EstaConfigurado)
     {
-        <p class="acceso-alterno">o <a href="@EnlaceLoginMicrosoft">continuar con Microsoft</a></p>
+        @* Botón de inicio de sesión con Microsoft según la guía de marca de Microsoft
+           Learn (howto-add-branding-in-apps): logotipo de cuatro cuadrados sin
+           alterar y el texto «Iniciar sesión con Microsoft». El SVG es decorativo:
+           el nombre accesible lo da el texto. Sin scripts (CSP script-src 'self'). *@
+        <p class="acceso-separador" aria-hidden="true"><span>@Textos["LoginMicrosoftSeparador"]</span></p>
+        <a class="acceso-microsoft" href="@EnlaceLoginMicrosoft">
+            <svg class="acceso-microsoft-logo" width="21" height="21" viewBox="0 0 21 21" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+                <rect x="0" y="0" width="10" height="10" fill="#F25022" />
+                <rect x="11" y="0" width="10" height="10" fill="#7FBA00" />
+                <rect x="0" y="11" width="10" height="10" fill="#00A4EF" />
+                <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
+            </svg>
+            <span>@Textos["LoginMicrosoftIniciarSesion"]</span>
+        </a>
         <p class="acceso-nota">Con correo y contraseña, el acceso es solo de consulta.</p>
     }
 
@@ -216,9 +229,15 @@
     /// <summary>
     /// Un único texto para credenciales inválidas y cuenta bloqueada —
     /// distinguirlos permitiría enumerar cuentas existentes y bloqueadas
-    /// (hallazgo de la auditoría de PR #48 sobre P0-2).
+    /// (hallazgo de la auditoría de PR #48 sobre P0-2; ASVS 4.0.3 V2.2, OWASP A07).
+    /// El texto ofrece además una salida común a ambos casos —restablecer la
+    /// contraseña o consultar con quien gestiona su acceso en su organización—:
+    /// quien tiene la cuenta desactivada (<c>LockoutEnd = MaxValue</c>) no debe
+    /// reintentar sin fin ante un mensaje que solo le dice «revisa tus datos»,
+    /// y como el texto es el mismo para ambos, la salida no revela cuál de los
+    /// dos casos es.
     /// </summary>
-    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña e intenta nuevamente.";
+    private const string MensajeErrorLogin = "No pudimos iniciar sesión. Revisa tu correo y contraseña. Si sigue sin funcionar, restablece tu contraseña o consulta con quien gestiona tu acceso en tu organización.";
 
     private sealed class DatosEntrada
     {

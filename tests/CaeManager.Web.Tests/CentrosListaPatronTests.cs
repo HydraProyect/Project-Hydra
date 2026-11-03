@@ -266,7 +266,7 @@ public partial class CentrosListaPatronTests : BunitContext
         mediador.TokenDeAutorizados.Should().NotBeNull("la resolución se pidió con el token del ciclo de vida");
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeFalse("la página sigue montada");
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         mediador.TokenDeAutorizados!.Value.IsCancellationRequested.Should().BeTrue("al retirar la página nadie espera la respuesta");
         puerta.SetResult();
@@ -278,9 +278,9 @@ public partial class CentrosListaPatronTests : BunitContext
         var puerta = new TaskCompletionSource();
         var mediador = ConCartera(origenGestionado: false, Centro("Centro Sur"));
         mediador.RetenerAutorizados = puerta.Task; // este mediador ignora el token, como una dependencia mal portada
-        Renderizar(mediador, tenantSeleccionado: EmpresaSur);
+        var cut = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         puerta.SetResult();
         await Task.Delay(300); // la continuación corre en el hilo del pool: se le da margen antes de afirmar la ausencia
 

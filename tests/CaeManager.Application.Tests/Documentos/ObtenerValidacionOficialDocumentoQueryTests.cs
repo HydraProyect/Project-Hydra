@@ -1,5 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocumento;
+using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
 
@@ -14,19 +16,24 @@ public class ObtenerValidacionOficialDocumentoQueryTests
         public Guid? SesionPrivilegiadaIdSeleccionada => soporte ? Guid.NewGuid() : null;
     }
 
+    private static ObtenerValidacionOficialDocumentoQueryHandler Handler(DocumentosQueryContextFalso contexto, bool soporte) =>
+        new(contexto, new ProyectosQueryContextFalso(), new AlcanceDatosServiceFalso(), new Seleccion(soporte));
+
     [Theory]
     [InlineData(true, "CODIGO", false, null)]
     [InlineData(false, "CODIGO", true, "CODIGO")]
     [InlineData(false, null, true, null)]
     public async Task Distingue_codigo_no_disponible_de_codigo_ausente(bool soporte, string? codigo, bool disponible, string? esperado)
     {
-        var id = Guid.NewGuid();
         var contexto = new DocumentosQueryContextFalso();
+        var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var id = documento.Id;
+        contexto.ListaDocumentos.Add(documento);
         contexto.ListaVerificacionesDocumentoOficial.Add(new VerificacionDocumentoOficial(
             id, PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
             codigo, null, null, null, null, ResultadoCotejoDocumentoOficial.Coincide,
             DecisionValidacionOficial.AutoValidado, ""));
-        var resultado = await new ObtenerValidacionOficialDocumentoQueryHandler(contexto, new Seleccion(soporte))
+        var resultado = await Handler(contexto, soporte)
             .Handle(new(id), CancellationToken.None);
         resultado.Should().NotBeNull();
         resultado!.CodigoVerificacionDisponible.Should().Be(disponible);
@@ -39,7 +46,7 @@ public class ObtenerValidacionOficialDocumentoQueryTests
     [InlineData(false)]
     public async Task Sin_verificacion_devuelve_null(bool soporte)
     {
-        var resultado = await new ObtenerValidacionOficialDocumentoQueryHandler(new DocumentosQueryContextFalso(), new Seleccion(soporte))
+        var resultado = await Handler(new DocumentosQueryContextFalso(), soporte)
             .Handle(new(Guid.NewGuid()), CancellationToken.None);
         resultado.Should().BeNull();
     }

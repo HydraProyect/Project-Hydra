@@ -15,6 +15,9 @@ public class AdjuntoMensajeConfiguration : IEntityTypeConfiguration<AdjuntoMensa
         builder.Property(a => a.TipoContenido).IsRequired().HasMaxLength(AdjuntoMensaje.LongitudMaximaTipoContenido);
         builder.Property(a => a.ArchivoUrl).IsRequired().HasMaxLength(AdjuntoMensaje.LongitudMaximaArchivoUrl);
 
+        builder.Property(a => a.EstadoReparto).HasConversion<int>();
+        builder.Property(a => a.MotivoRechazo).HasMaxLength(AdjuntoMensaje.LongitudMaximaMotivoRechazo);
+
         builder.HasIndex(a => a.MensajeId);
 
         // Filtro global de tenant centralizado en CaeManagerDbContext.OnModelCreating.

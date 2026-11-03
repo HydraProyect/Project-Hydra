@@ -259,13 +259,15 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 
     /// <summary>La URL lleva exactamente esos parámetros. La página la escribe por el circuito, sin recargar el documento.</summary>
     private static Task EsperarVistaEnLaUrlAsync(IPage page, params (string Parametro, string Valor)[] vista) =>
-        page.WaitForURLAsync(
-            url =>
-            {
-                var parametros = ParametrosDe(url);
-                return parametros.Count == vista.Length && vista.All(p => parametros.GetValueOrDefault(p.Parametro) == p.Valor);
-            },
-            new PageWaitForURLOptions { Timeout = 30_000 });
+        page.WaitForFunctionAsync(
+            """
+            vista => {
+                const parametros = new URLSearchParams(location.search);
+                return [...parametros.keys()].length === vista.length && vista.every(([clave, valor]) => parametros.get(clave) === valor);
+            }
+            """,
+            vista.Select(p => new[] { p.Parametro, p.Valor }).ToArray(),
+            new PageWaitForFunctionOptions { Timeout = 30_000 });
 
     /// <summary>
     /// Dos idas y vueltas por el circuito que no tocan la vista: abrir y cerrar una pastilla de filtro.

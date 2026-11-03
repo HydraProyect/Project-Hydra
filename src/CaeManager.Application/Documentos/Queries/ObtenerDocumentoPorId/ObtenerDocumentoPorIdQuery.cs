@@ -11,7 +11,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 
-public record ObtenerDocumentoPorIdQuery(Guid Id) : IRequest<DocumentoDetalleDto?>;
+/// <param name="ExcluirCategoriaEspecialSalud">Un documento de salud responde como inexistente, igual que uno fuera de alcance.</param>
+public record ObtenerDocumentoPorIdQuery(Guid Id, bool ExcluirCategoriaEspecialSalud = false) : IRequest<DocumentoDetalleDto?>;
 
 /// <summary>
 /// <paramref name="Version"/> viaja al formulario para volver en
@@ -79,32 +80,9 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
 
         if (documento is null) return null;
 
-        // El ámbito (Trabajador/Cliente/Vehículo/Empresa) determina contra qué
-        // cartera se comprueba el alcance — son cuatro FKs mutuamente
-        // excluyentes (ver Fase 29 de Project-Hydra-Negocio/tecnico/ROADMAP.md), así que solo una aplica.
-        // Documento de Trabajador es el caso más sensible: incluye archivos de
-        // vigilancia de la salud (categoría especial Art. 9 RGPD).
-        var proyectoClienteId = documento.ProyectoId is { } proyectoIdVisibilidad
-            ? await proyectosContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
-            : null;
-
-        // Rama Empresa en alcance de LECTURA es correcta (REC-149, se
-        // queda): el documento ES el objeto del portal — es literalmente la
-        // documentación de cumplimiento que un Cliente necesita revisar de
-        // su contratista. Cambiar esta rama a gestión vaciaría la pestaña
-        // "Documentación" para el mismo usuario al que el portal existe
-        // para servir.
-        var visible = documento.TrabajadorId is { } trabajadorId
-            ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
-            : documento.ClienteId is { } clienteId
-                ? await alcanceDatos.ClienteVisibleAsync(clienteId, cancellationToken)
-                : documento.VehiculoId is { } vehiculoId
-                    ? await alcanceDatos.VehiculoVisibleAsync(vehiculoId, cancellationToken)
-                    : proyectoClienteId is { } clienteIdDeProyecto
-                        ? await alcanceDatos.ClienteVisibleAsync(clienteIdDeProyecto, cancellationToken)
-                        // Un Proyecto eliminado (filtro global de borrado logico) no resuelve su Cliente
-                        // empresarial y llega aqui sin EmpresaId (propietario exclusivo): no encontrado, no 500.
-                        : documento.EmpresaId is { } empresaId && await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken);
+        var visible = await alcanceDatos.DocumentoLegibleAsync(
+            documento.TrabajadorId, documento.ClienteId, documento.VehiculoId, documento.ProyectoId, documento.EmpresaId,
+            proyectosContext, cancellationToken);
 
         if (!visible) return null;
 
@@ -118,11 +96,13 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                 t.CriteriosValidacion,
                 t.SeSolicitaA,
                 t.Observaciones,
-                t.PerfilDocumentoOficial
+                t.PerfilDocumentoOficial,
+                t.Sensibilidad
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (tipoDocumento is null) return null;
+        if (request.ExcluirCategoriaEspecialSalud && tipoDocumento.Sensibilidad == SensibilidadDocumental.CategoriaEspecialSalud) return null;
 
         var (ambito, propietarioNombre) = documento.TrabajadorId is not null
             ? (AmbitoAplicacion.Trabajador, await trabajadoresContext.Trabajadores

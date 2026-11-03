@@ -35,6 +35,13 @@ public static class RutaTrasCambioDeTenant
         if (!segmentos.Any(s => Guid.TryParse(s, out _)))
             return sinConsulta.StartsWith('/') ? sinConsulta : "/" + sinConsulta;
 
-        return Guid.TryParse(segmentos[0], out _) ? "/" : "/" + segmentos[0];
+        // El árbol /plataforma/… (Plano de Plataforma) no tiene página propia en /plataforma ni lista de
+        // incidentes de seguridad todavía: una ficha suya vuelve al inicio.
+        if (Guid.TryParse(segmentos[0], out _) || segmentos[0].Equals(ArbolPlataforma, StringComparison.OrdinalIgnoreCase))
+            return "/";
+
+        return "/" + segmentos[0];
     }
+
+    private const string ArbolPlataforma = "plataforma";
 }

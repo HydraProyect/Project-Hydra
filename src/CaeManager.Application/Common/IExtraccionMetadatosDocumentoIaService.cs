@@ -31,6 +31,8 @@ public interface IExtraccionMetadatosDocumentoIaService
 /// <paramref name="Contraste"/> es lo que una regla determinista puede afirmar
 /// del texto del documento, sin el modelo (ver <see cref="ContrasteTextoDocumento"/>);
 /// null cuando no se pudo calcular, que para decidir cuenta como «no contrastado».
+/// <paramref name="PaginasSinLeer"/> son las páginas que ni la IA ni el contraste
+/// vieron (ver <see cref="ExtraccionEstructuradaDto.PaginasSinLeer"/>).
 /// </summary>
 public record MetadatosDocumentoExtraidosDto(
     string? TipoDetectado,
@@ -39,4 +41,5 @@ public record MetadatosDocumentoExtraidosDto(
     bool? TieneFirma,
     int ConfianzaGeneral,
     string? NotasValidacion,
-    ContrasteTextoDocumentoDto? Contraste = null);
+    ContrasteTextoDocumentoDto? Contraste = null,
+    int PaginasSinLeer = 0);

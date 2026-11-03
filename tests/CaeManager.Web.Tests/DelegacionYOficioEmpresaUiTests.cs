@@ -210,7 +210,7 @@ public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
         cut.Find("input[role=combobox]").Input("Electricista");
         cut.Find("li.selector-entidad-opcion-crear").Click();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         _mediador.GuardarOficioPendiente.SetResult(Result.Exito(Guid.NewGuid()));
 
         elegido.Should().BeNull();

@@ -41,6 +41,31 @@ public class SeguridadAccesoTarjetaTests : BunitContext
         Render<SeguridadAccesoTarjeta>().FindAll("[data-testid=seguridad-acceso]").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// M-06: sin aviso, la tarjeta ausente por un fallo de lectura era indistinguible de «no tienes
+    /// permiso». El usuario debe enterarse de que no se pudo cargar.
+    /// </summary>
+    [Fact]
+    public void Si_la_lectura_falla_avisa_al_usuario_de_que_no_se_pudo_cargar()
+    {
+        Montar(null, new InvalidOperationException());
+
+        Render<SeguridadAccesoTarjeta>();
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
+            .Which.Tono.Should().Be(TonoToast.Error);
+    }
+
+    [Fact]
+    public void Quien_no_puede_editar_no_recibe_ningun_aviso()
+    {
+        Montar(new SeguridadAccesoDto(30, false, PuedeEditar: false));
+
+        Render<SeguridadAccesoTarjeta>();
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+    }
+
     [Fact]
     public void Muestra_el_plazo_y_el_interruptor_con_sus_atributos_de_accesibilidad()
     {

@@ -317,7 +317,7 @@ public class Microsoft365GraphClient(
         // contenido de todos los adjuntos de un mensaje que quizás nadie
         // vaya a abrir sería desperdiciar ancho de banda en el caso común.
         var url = $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeId)}" +
-            "?$select=subject,from,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments,internetMessageHeaders" +
+            "?$select=subject,from,replyTo,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments,internetMessageHeaders" +
             "&$expand=attachments($select=id,name,contentType,size)";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
@@ -357,7 +357,10 @@ public class Microsoft365GraphClient(
                 FechaUtc: mensaje.ReceivedDateTime ?? DateTime.UtcNow,
                 Participantes: participantes,
                 Adjuntos: adjuntos,
-                Cabeceras: mensaje.InternetMessageHeaders?.Select(c => new CabeceraCorreoDto(c.Name ?? string.Empty, c.Value ?? string.Empty)).ToList()));
+                Cabeceras: mensaje.InternetMessageHeaders?.Select(c => new CabeceraCorreoDto(c.Name ?? string.Empty, c.Value ?? string.Empty)).ToList(),
+                ResponderA: (mensaje.ReplyTo ?? [])
+                    .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
+                    .Select(r => r.EmailAddress!.Address!).ToList()));
         }
         catch (HttpRequestException ex)
         {
@@ -725,7 +728,8 @@ public class Microsoft365GraphClient(
         [property: JsonPropertyName("conversationId")] string? ConversationId,
         [property: JsonPropertyName("hasAttachments")] bool? HasAttachments,
         [property: JsonPropertyName("attachments")] IReadOnlyList<AdjuntoDetalleGraph>? Attachments,
-        [property: JsonPropertyName("internetMessageHeaders")] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders);
+        [property: JsonPropertyName("internetMessageHeaders")] IReadOnlyList<CabeceraGraph>? InternetMessageHeaders,
+        [property: JsonPropertyName("replyTo")] IReadOnlyList<EmailAddressGraph>? ReplyTo = null);
 
     private sealed record CabeceraGraph(
         [property: JsonPropertyName("name")] string? Name,

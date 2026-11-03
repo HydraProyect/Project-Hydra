@@ -984,7 +984,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado));
+            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado, detalle.Version));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -1574,14 +1574,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
-    private async Task AlternarNotificadoAsync(Guid id, bool notificado)
+    private async Task AlternarNotificadoAsync(Guid id, bool notificado, Guid version)
     {
         if (!_marcandoNotificado.Add(id))
             return;
 
         try
         {
-            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(id, notificado));
+            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(id, notificado, version));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);

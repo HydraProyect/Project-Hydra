@@ -717,12 +717,13 @@ public partial class Visita360PaginaTests : BunitContext
     [Fact]
     public void El_interruptor_envia_el_mismo_comando_que_el_del_listado()
     {
-        var (cut, mediador) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
+        var detalle = Detalle();
+        var (cut, mediador) = Montar(detalle, documentacion: DocumentacionConIncidencias());
 
         cut.Find("input[role=switch]").Change(true);
 
         mediador.Enviadas.OfType<MarcarNotificadoClienteCommand>().Should().ContainSingle()
-            .Which.Should().Be(new MarcarNotificadoClienteCommand(VisitaId, true));
+            .Which.Should().Be(new MarcarNotificadoClienteCommand(VisitaId, true, detalle.Version));
         cut.Find("input[role=switch]").HasAttribute("checked").Should().BeTrue();
     }
 

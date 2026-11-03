@@ -2,6 +2,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Application.Visitas;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -40,6 +41,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
     private CaeManagerDbContext _dbContext = null!;
     private ServiceProvider _servicios = null!;
+    private Centro _centro = null!;
 
     public async Task InitializeAsync()
     {
@@ -93,7 +95,7 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         _dbContext.ParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 15));
         await _dbContext.SaveChangesAsync();
 
-        var centro = new Centro(cliente.Id, empresa.Id, "Centro de la bandeja");
+        var centro = _centro = new Centro(cliente.Id, empresa.Id, "Centro de la bandeja");
         _dbContext.Centros.Add(centro);
 
         var trabajador = Trabajador.DeEmpresa(empresa.Id, "Bandeja", "Trabajador", "77189989B");
@@ -158,5 +160,28 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         resultado.Should().HaveCount(5);
         resultado.Count(i => i.Tipo == TipoItemBandeja.Faltante).Should().Be(2);
         resultado.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente);
+    }
+
+    /// <summary>
+    /// El aviso de la vigilancia enlaza a esta cola y recorre todas las candidatas: la cola tampoco puede
+    /// quedarse con una página, ni con las Visitas en curso, que van delante por fecha y no son urgentes.
+    /// </summary>
+    [Fact]
+    public async Task Ensena_las_Visitas_urgentes_de_mas_de_una_pagina_con_mas_de_una_pagina_en_curso()
+    {
+        var tamanoPagina = GestionesUrgentesDeVisita.ConsultaCandidatas().TamanoPagina;
+        var hoy = DiaDeNegocio.Hoy();
+        var manana = hoy.AddDays(1);
+        for (var i = 0; i < tamanoPagina + 1; i++)
+        {
+            _dbContext.Visitas.Add(new Visita(_centro.Id, hoy.AddDays(-1), manana, notas: null));
+            _dbContext.Visitas.Add(new Visita(_centro.Id, manana, manana, notas: null));
+        }
+        await _dbContext.SaveChangesAsync();
+
+        var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerBandejaGestorQuery());
+
+        // Una más que las añadidas: la Visita urgente de la siembra de la clase.
+        resultado.Count(i => i.Tipo == TipoItemBandeja.VisitaUrgente).Should().Be(tamanoPagina + 2);
     }
 }

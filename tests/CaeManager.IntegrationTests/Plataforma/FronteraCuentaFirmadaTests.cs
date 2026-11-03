@@ -276,6 +276,23 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Bajo_cae_app_soporte_suspender_el_Tenant_de_origen_corta_el_circuito()
+    {
+        var principal = PrincipalDe(_actorReal, SelloActorReal);
+        await using var contexto = ContextoDeSoporte(principal);
+        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeTrue("control: sin suspender, vale");
+
+        await using (var escritura = ContextoPropietario())
+        {
+            var origen = await escritura.Tenants.SingleAsync(t => t.Id == _tenantOrigen);
+            origen.Suspender();
+            await escritura.SaveChangesAsync();
+        }
+
+        (await Vigencia(contexto).SigueVigenteAsync(principal)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task El_sello_del_Actor_real_no_valida_un_contexto_firmado_por_otra_cuenta()
     {
         var principal = PrincipalDe(_usuarioSimulado, SelloActorReal);
@@ -726,7 +743,7 @@ public class FronteraCuentaFirmadaTests : IAsyncLifetime
     private VigenciaSesionCuenta Vigencia(CaeManagerDbContext contexto, IClienteActivoSeleccionado? seleccion = null) => new(
         seleccion ?? _seleccion, null!, contexto,
         new RegistroSesionesUsuario(contexto, null!, null!, NullLogger<RegistroSesionesUsuario>.Instance),
-        Options.Create(new IdentityOptions()), NullLogger<VigenciaSesionCuenta>.Instance);
+        Options.Create(new IdentityOptions()), new EstadoOperativoTenant(contexto), NullLogger<VigenciaSesionCuenta>.Instance);
 
     private CaeManagerDbContext ContextoDeSoporte(ClaimsPrincipal principal)
     {

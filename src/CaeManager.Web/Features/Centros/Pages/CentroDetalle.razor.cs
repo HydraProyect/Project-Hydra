@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
@@ -52,6 +53,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private ILoggerFactory LoggerFactory { get; set; } = default!;
+    private ILogger Logger => LoggerFactory.CreateLogger(GetType());
 
     private int? _numeroTrabajadores;
 
@@ -444,10 +447,15 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             if (carga != _cargaCanales) return;
             _canales = canales;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             if (carga == _cargaCanales)
+            {
+                // Sin aviso, la tarjeta vacía se leería como «este Centro no tiene canales».
                 _canales = [];
+                Logger.LogWarning("No se pudieron cargar los canales de gestión del Centro {CentroId}: {TipoExcepcion}.", centroId, ex.GetType().Name);
+                ToastService.Mostrar(Textos["ToastCanalesNoCargados"].Value, TonoToast.Error);
+            }
         }
         finally
         {

@@ -312,12 +312,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),
         // Rellena variables con los sujetos y la visita del hilo; solo lee otras features.
-        ("Comunicaciones.AplicarMacroCommandHandler", "ICentrosQueryContext"),
-        ("Comunicaciones.AplicarMacroCommandHandler", "IDocumentosQueryContext"),
-        ("Comunicaciones.AplicarMacroCommandHandler", "IEmpresasQueryContext"),
-        ("Comunicaciones.AplicarMacroCommandHandler", "ITiposDocumentoQueryContext"),
-        ("Comunicaciones.AplicarMacroCommandHandler", "ITrabajadoresQueryContext"),
-        ("Comunicaciones.AplicarMacroCommandHandler", "IVisitasQueryContext"),
+        ("Comunicaciones.RellenoMacroRespuesta", "ICentrosQueryContext"),
+        ("Comunicaciones.RellenoMacroRespuesta", "IEmpresasQueryContext"),
+        ("Comunicaciones.RellenoMacroRespuesta", "ITrabajadoresQueryContext"),
+        ("Comunicaciones.RellenoMacroRespuesta", "IVisitasQueryContext"),
         ("Comunicaciones.AsignarClienteConversacionCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.CrearMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "IEmpresasQueryContext"),
@@ -325,6 +323,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.DetectarActualizacionDocumentoDesdeAdjuntoQueryHandler", "ITrabajadoresQueryContext"),
         ("Comunicaciones.EditarMacroCommandHandler", "IEmpresaRepository"),
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
+        // Comprueba que destino y tipo existan en el Tenant; solo lee otras features.
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "IEmpresasQueryContext"),
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Comunicaciones.FijarDestinoAdjuntoCommandHandler", "ITrabajadoresQueryContext"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
         // Alerta crítica (Z5-1, 2026-10-23): «Registrar incidencia» ata la alerta a la Incidencia que acaba de crearse y el Deshacer
@@ -355,6 +357,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.ObtenerMacrosQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.ObtenerMensajesBuzonPersonalQueryHandler", "IIntegracionesQueryContext"),
         ("Comunicaciones.ObtenerMensajesBuzonPersonalQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IDocumentosQueryContext"),
+        ("Comunicaciones.ObtenerRepartoAdjuntosQueryHandler", "IProyectosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerSugerenciasVisitaCorreoPendientesQueryHandler", "IClientesQueryContext"),
         ("Comunicaciones.PedirPrioridadValidacionCommandHandler", "ICentrosQueryContext"),
@@ -449,6 +453,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerPendientePorPlataformaQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Dashboard.ObtenerPreferenciaDashboardQueryHandler", "IPreferenciaDashboardUsuarioRepository"),
         ("Dashboard.ObtenerPulsoEquipoQueryHandler", "IDocumentosQueryContext"),
+        // Dividir PDF lee el catálogo de la Empresa gestionada para reconocer tipo y titular; no escribe en esas features.
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IEmpresasQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITiposDocumentoQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "ITrabajadoresQueryContext"),
+        ("HerramientasPdf.ObtenerCatalogoDivisionPdfQueryHandler", "IVehiculosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IAuditoriaExtraccionIaRepository"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.AplicarDeteccionIaDocumentoCommandHandler", "ITiposDocumentoQueryContext"),
@@ -509,6 +518,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
+        // La puerta de lectura por Id (DocumentoLegibleAsync) resuelve el Cliente empresarial de un Documento de Proyecto.
+        ("Documentos.ObtenerFirmasEnCampoDocumentoQueryHandler", "IProyectosQueryContext"),
+        ("Documentos.ObtenerValidacionOficialDocumentoQueryHandler", "IProyectosQueryContext"),
         // La entrega del archivo a la extensión hace las mismas preguntas que «Lo he enviado» y que la lista.
         ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "ICentrosQueryContext"),
         ("Documentos.PrepararEntregaArchivoExtensionQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
@@ -616,6 +628,14 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ITrabajadorRepository"),
         // F4.2c — mismo destino final que el bloque de Empresas de arriba.
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IRelacionEmpresarialRepository"),
+        // Plantilla maestra del Importador (Paso 1): mismo destino y justificación que el bloque de la Combinada de arriba.
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ICentroRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ICentrosQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresaRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IEmpresasQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "IRelacionEmpresarialRepository"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadoresQueryContext"),
+        ("Importacion.EjecutarImportacionMaestraCommandHandler", "ITrabajadorRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionesQueryContext"),
         ("Importacion.EjecutarImportacionCommandHandler", "IAsignacionRepository"),
         ("Importacion.EjecutarImportacionCommandHandler", "ICentrosQueryContext"),

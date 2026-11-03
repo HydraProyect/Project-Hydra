@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Herramientas" xml:space="preserve">
+    <value>Herramientas PDF</value>
+  </data>
+  <data name="PortadaDescripcion" xml:space="preserve">
+    <value>Lo que haces con PDF dentro de la gestión CAE de la Empresa gestionada, sin salir de TALVEG.</value>
+  </data>
+  <data name="PortadaDividirTitulo" xml:space="preserve">
+    <value>Dividir un PDF con varios documentos</value>
+  </data>
+  <data name="PortadaDividirDescripcion" xml:space="preserve">
+    <value>TALVEG propone dónde empieza cada documento y de quién es. Lo revisas todo antes de crear nada.</value>
+  </data>
+  <data name="PortadaDividirAccion" xml:space="preserve">
+    <value>Dividir un PDF</value>
+  </data>
+  <data name="NoDisponibleTitulo" xml:space="preserve">
+    <value>Herramientas PDF no está disponible</value>
+  </data>
+  <data name="NoDisponibleDescripcion" xml:space="preserve">
+    <value>Tu plan no incluye Herramientas PDF.</value>
+  </data>
+  <data name="DividirPestana" xml:space="preserve">
+    <value>Dividir PDF</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Cargando…</value>
+  </data>
+  <data name="SubirTitulo" xml:space="preserve">
+    <value>Elige el PDF con varios documentos</value>
+  </data>
+  <data name="SubirDescripcion" xml:space="preserve">
+    <value>TALVEG propone dónde empieza cada documento y de quién es. Lo revisas todo antes de crear nada.</value>
+  </data>
+  <data name="SubirPie" xml:space="preserve">
+    <value>El original no se conserva: desaparece al crear los documentos o al salir de esta pantalla.</value>
+  </data>
+  <data name="SinEmpresaAviso" xml:space="preserve">
+    <value>Elige primero una Empresa gestionada en el selector de la barra lateral. Los documentos se crean en ella.</value>
+  </data>
+  <data name="SoloLectura" xml:space="preserve">
+    <value>Tu acceso es de solo lectura: no puedes crear documentos.</value>
+  </data>
+  <data name="SinEmpresaPropia" xml:space="preserve">
+    <value>Aún no hay ninguna Empresa gestionada a la que asignar documentos.</value>
+  </data>
+  <data name="ElegirEmpresaGestionada" xml:space="preserve">
+    <value>Elige una Empresa gestionada</value>
+  </data>
+  <data name="EmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ElegirEmpresa" xml:space="preserve">
+    <value>Elige una Empresa gestionada</value>
+  </data>
+  <data name="EmpresaDelSelector" xml:space="preserve">
+    <value>Empresa gestionada: {0} · la del selector de la barra lateral</value>
+  </data>
+  <data name="EmpresaUnica" xml:space="preserve">
+    <value>Empresa gestionada: {0}</value>
+  </data>
+  <data name="ZonaTitulo" xml:space="preserve">
+    <value>Arrastra aquí el PDF o pulsa para elegirlo</value>
+  </data>
+  <data name="ZonaFormatos" xml:space="preserve">
+    <value>Escaneado o fusionado, hasta {0} MB.</value>
+  </data>
+  <data name="ZonaBloqueada" xml:space="preserve">
+    <value>Elige una Empresa gestionada para poder subir el PDF</value>
+  </data>
+  <data name="ErrorDemasiadoGrande" xml:space="preserve">
+    <value>El PDF supera los {0} MB. Divídelo antes o sube otra copia.</value>
+  </data>
+  <data name="ErrorContrasena" xml:space="preserve">
+    <value>El PDF tiene contraseña. Quítala y vuelve a subirlo.</value>
+  </data>
+  <data name="ErrorIlegible" xml:space="preserve">
+    <value>No hemos podido leer este PDF. Sube otra copia.</value>
+  </data>
+  <data name="ErrorSinEspacio" xml:space="preserve">
+    <value>Ahora mismo no hay espacio para este PDF. Vuelve a intentarlo en unos minutos.</value>
+  </data>
+  <data name="ErrorTenantCambiado" xml:space="preserve">
+    <value>La Empresa gestionada del selector ha cambiado desde que subiste el PDF. No se ha creado nada: vuelve a subirlo.</value>
+  </data>
+  <data name="PasosEtiqueta" xml:space="preserve">
+    <value>Pasos de la división</value>
+  </data>
+  <data name="PasoDividir" xml:space="preserve">
+    <value>1. Dividir</value>
+  </data>
+  <data name="PasoAsignarUno" xml:space="preserve">
+    <value>2. Asignar 1 documento</value>
+  </data>
+  <data name="PasoAsignarVarios" xml:space="preserve">
+    <value>2. Asignar {0} documentos</value>
+  </data>
+  <data name="PasoRevisar" xml:space="preserve">
+    <value>3. Revisar y crear</value>
+  </data>
+  <data name="AvisoFirmado" xml:space="preserve">
+    <value>Este PDF está firmado. Al dividirlo, la firma deja de ser válida en cada documento resultante.</value>
+  </data>
+  <data name="AvisoIlegible" xml:space="preserve">
+    <value>No hemos podido leer el texto de este PDF. Marca a mano dónde empieza cada documento.</value>
+  </data>
+  <data name="AvisoUnDocumento" xml:space="preserve">
+    <value>TALVEG solo ve un documento. Puedes marcar tú dónde empieza cada uno.</value>
+  </data>
+  <data name="PropuestasSinConfirmar" xml:space="preserve">
+    <value>TALVEG propone {0} divisiones sin confirmar. Las propuestas están en cian: pulsa una para quitarla.</value>
+  </data>
+  <data name="ConfirmarPropuestas" xml:space="preserve">
+    <value>Confirmar las propuestas</value>
+  </data>
+  <data name="PaginasEtiqueta" xml:space="preserve">
+    <value>Páginas del PDF</value>
+  </data>
+  <data name="PistaTijeras" xml:space="preserve">
+    <value>Pulsa las tijeras entre dos páginas para marcar dónde empieza cada documento.</value>
+  </data>
+  <data name="TamanoPaginas" xml:space="preserve">
+    <value>Tamaño</value>
+  </data>
+  <data name="TamanoPequenas" xml:space="preserve">
+    <value>Pequeñas</value>
+  </data>
+  <data name="TamanoMedianas" xml:space="preserve">
+    <value>Medianas</value>
+  </data>
+  <data name="TamanoGrandes" xml:space="preserve">
+    <value>Grandes</value>
+  </data>
+  <data name="VerPagina" xml:space="preserve">
+    <value>Ver la página {0}</value>
+  </data>
+  <data name="DividirTras" xml:space="preserve">
+    <value>Dividir tras la página {0}</value>
+  </data>
+  <data name="QuitarDivision" xml:space="preserve">
+    <value>Quitar la división tras la página {0}</value>
+  </data>
+  <data name="DetectadoTitulo" xml:space="preserve">
+    <value>Qué ha detectado TALVEG</value>
+  </data>
+  <data name="SinIdentificar" xml:space="preserve">
+    <value>Sin identificar</value>
+  </data>
+  <data name="LoAsignarasEnSuPaso" xml:space="preserve">
+    <value>Lo asignarás en su paso</value>
+  </data>
+  <data name="ResumenDivision" xml:space="preserve">
+    <value>{0} documentos · de {1} a {2} páginas</value>
+  </data>
+  <data name="CambiarPdf" xml:space="preserve">
+    <value>Cambiar el PDF</value>
+  </data>
+  <data name="AsignarUno" xml:space="preserve">
+    <value>Asignar el documento</value>
+  </data>
+  <data name="AsignarVarios" xml:space="preserve">
+    <value>Asignar documentos</value>
+  </data>
+  <data name="PaginaAmpliada" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="PaginaSinVista" xml:space="preserve">
+    <value>Sin vista previa de esta página</value>
+  </data>
+  <data name="Anterior" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Siguiente" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Cerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="DocumentoDeN" xml:space="preserve">
+    <value>Documento {0} de {1}</value>
+  </data>
+  <data name="QueEsYDeQuien" xml:space="preserve">
+    <value>¿Qué es y de quién?</value>
+  </data>
+  <data name="SugeridoPorTalveg" xml:space="preserve">
+    <value>Sugerido por TALVEG · {0}</value>
+  </data>
+  <data name="VolverASugerencia" xml:space="preserve">
+    <value>Volver a la sugerencia de TALVEG</value>
+  </data>
+  <data name="EsDe" xml:space="preserve">
+    <value>Es de</value>
+  </data>
+  <data name="ClaseEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="ClaseSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="ClaseTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ClaseVehiculo" xml:space="preserve">
+    <value>Vehículo</value>
+  </data>
+  <data name="ElegirSubcontrata" xml:space="preserve">
+    <value>Elige una Subcontrata</value>
+  </data>
+  <data name="EmpresaALaQuePertenece" xml:space="preserve">
+    <value>Empresa a la que pertenece</value>
+  </data>
+  <data name="ElegirTrabajador" xml:space="preserve">
+    <value>Elige un Trabajador</value>
+  </data>
+  <data name="ElegirVehiculo" xml:space="preserve">
+    <value>Elige un Vehículo</value>
+  </data>
+  <data name="TipoDocumento" xml:space="preserve">
+    <value>Tipo de Documento</value>
+  </data>
+  <data name="ElegirTipo" xml:space="preserve">
+    <value>Elige un tipo</value>
+  </data>
+  <data name="FechaEmision" xml:space="preserve">
+    <value>Fecha de emisión</value>
+  </data>
+  <data name="FechaCaducidad" xml:space="preserve">
+    <value>Fecha de caducidad</value>
+  </data>
+  <data name="SinCaducidad" xml:space="preserve">
+    <value>Sin caducidad</value>
+  </data>
+  <data name="CaducidadAutomatica" xml:space="preserve">
+    <value>Este tipo calcula la caducidad desde la fecha de emisión.</value>
+  </data>
+  <data name="CaducidadAutomaticaCorta" xml:space="preserve">
+    <value>Desde la emisión</value>
+  </data>
+  <data name="SinFecha" xml:space="preserve">
+    <value>Sin fecha</value>
+  </data>
+  <data name="NoCrearDocumento" xml:space="preserve">
+    <value>No crear este documento</value>
+  </data>
+  <data name="FaltaParaCrear" xml:space="preserve">
+    <value>Falta: {0}. Sin esto no se creará.</value>
+  </data>
+  <data name="FaltaTitular" xml:space="preserve">
+    <value>a quién pertenece</value>
+  </data>
+  <data name="FaltaTipo" xml:space="preserve">
+    <value>el tipo</value>
+  </data>
+  <data name="FaltaFechaEmision" xml:space="preserve">
+    <value>la fecha de emisión</value>
+  </data>
+  <data name="VolverADividir" xml:space="preserve">
+    <value>Volver a dividir</value>
+  </data>
+  <data name="SiguienteDocumento" xml:space="preserve">
+    <value>Siguiente documento</value>
+  </data>
+  <data name="RevisarYCrear" xml:space="preserve">
+    <value>Revisar y crear</value>
+  </data>
+  <data name="RevisarTitulo" xml:space="preserve">
+    <value>Revisa lo que se va a crear</value>
+  </data>
+  <data name="ColumnaPaginas" xml:space="preserve">
+    <value>Páginas</value>
+  </data>
+  <data name="ColumnaAsignadoA" xml:space="preserve">
+    <value>Asignado a</value>
+  </data>
+  <data name="ColumnaCaducidad" xml:space="preserve">
+    <value>Caducidad</value>
+  </data>
+  <data name="ColumnaAccion" xml:space="preserve">
+    <value>Acción</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="SinTipo" xml:space="preserve">
+    <value>Sin tipo</value>
+  </data>
+  <data name="SinTitular" xml:space="preserve">
+    <value>Sin asignar</value>
+  </data>
+  <data name="NoSeCrea" xml:space="preserve">
+    <value>No se crea</value>
+  </data>
+  <data name="Restaurar" xml:space="preserve">
+    <value>Restaurar</value>
+  </data>
+  <data name="Corregir" xml:space="preserve">
+    <value>Corregir</value>
+  </data>
+  <data name="NadaQueCrear" xml:space="preserve">
+    <value>No hay documentos que crear</value>
+  </data>
+  <data name="CrearUno" xml:space="preserve">
+    <value>Crear 1 documento</value>
+  </data>
+  <data name="CrearVarios" xml:space="preserve">
+    <value>Crear {0} documentos</value>
+  </data>
+  <data name="ResultadoUno" xml:space="preserve">
+    <value>1 documento creado</value>
+  </data>
+  <data name="ResultadoVarios" xml:space="preserve">
+    <value>{0} documentos creados</value>
+  </data>
+  <data name="ResultadoDe" xml:space="preserve">
+    <value>De {0} para la Empresa gestionada {1} —</value>
+  </data>
+  <data name="ResultadoHora" xml:space="preserve">
+    <value>creados por ti hoy a las {0}.</value>
+  </data>
+  <data name="ColumnaAbrir" xml:space="preserve">
+    <value>Abrir</value>
+  </data>
+  <data name="CreadoSugerido" xml:space="preserve">
+    <value>Creado · sugerido por TALVEG</value>
+  </data>
+  <data name="CreadoConfirmado" xml:space="preserve">
+    <value>Creado · confirmado por ti</value>
+  </data>
+  <data name="TramoDemasiadoGrande" xml:space="preserve">
+    <value>No creado: supera los {0} MB por documento</value>
+  </data>
+  <data name="TramoSinConfirmar" xml:space="preserve">
+    <value>Sin confirmar: compruébalo en Documentos antes de repetirlo</value>
+  </data>
+  <data name="TramoRechazado" xml:space="preserve">
+    <value>No creado: {0}</value>
+  </data>
+  <data name="AbrirDocumento" xml:space="preserve">
+    <value>Abrir documento</value>
+  </data>
+  <data name="IrADocumentos" xml:space="preserve">
+    <value>Ir a Documentos</value>
+  </data>
+  <data name="DividirOtro" xml:space="preserve">
+    <value>Dividir otro PDF</value>
+  </data>
+  <data name="Pagina" xml:space="preserve">
+    <value>Pág. {0}</value>
+  </data>
+  <data name="Paginas" xml:space="preserve">
+    <value>Págs. {0}-{1}</value>
+  </data>
+  <data name="MotivoSinTexto" xml:space="preserve">
+    <value>Página sin texto</value>
+  </data>
+  <data name="MotivoSinCoincidencias" xml:space="preserve">
+    <value>Sin coincidencias en el catálogo</value>
+  </data>
+  <data name="MotivoTipoSinTitular" xml:space="preserve">
+    <value>Tipo reconocido; no se ha leído ningún nombre</value>
+  </data>
+  <data name="MotivoVariosTitulares" xml:space="preserve">
+    <value>Hay varios posibles titulares en la pág. {0}</value>
+  </data>
+  <data name="MotivoCifEmpresaGestionada" xml:space="preserve">
+    <value>CIF leído en la pág. {0}</value>
+  </data>
+  <data name="MotivoCifSubcontrata" xml:space="preserve">
+    <value>CIF de la Subcontrata en la pág. {0}</value>
+  </data>
+  <data name="MotivoDni" xml:space="preserve">
+    <value>DNI leído en la pág. {0}</value>
+  </data>
+  <data name="MotivoNombre" xml:space="preserve">
+    <value>Nombre leído en la pág. {0}</value>
+  </data>
+  <data name="MotivoMatricula" xml:space="preserve">
+    <value>Matrícula en la pág. {0}</value>
+  </data>
+  <data name="LaDelSelector" xml:space="preserve">
+    <value>la del selector de la barra lateral</value>
+  </data>
+  <data name="EmpresaGestionadaDe" xml:space="preserve">
+    <value>Empresa gestionada:</value>
+  </data>
+  <data name="SinEmpresaAvisoNegrita" xml:space="preserve">
+    <value>Elige primero una Empresa gestionada</value>
+  </data>
+  <data name="DocumentosUno" xml:space="preserve">
+    <value>1 documento</value>
+  </data>
+  <data name="PaginasTitulo" xml:space="preserve">
+    <value>Páginas</value>
+  </data>
+  <data name="SinEmpresaAvisoResto" xml:space="preserve">
+    <value>en el selector de la barra lateral. Los documentos se crean en ella.</value>
+  </data>
+  <data name="DividirTitulo" xml:space="preserve">
+    <value>Dividir un PDF</value>
+  </data>
+  <data name="RotuloDocumento" xml:space="preserve">
+    <value>Documento {0}</value>
+  </data>
+  <data name="DocumentosVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="ResultadoDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+</root>

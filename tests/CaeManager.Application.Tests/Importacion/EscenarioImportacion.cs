@@ -81,9 +81,10 @@ internal sealed class EscenarioImportacion
         return this;
     }
 
-    public EscenarioImportacion ConTipoDocumentoExistente(string nombre = TipoDocumentoConocido)
+    public EscenarioImportacion ConTipoDocumentoExistente(
+        string nombre = TipoDocumentoConocido, bool aplicaVencimientoAutomatico = true)
     {
-        TipoDocumentoExistente = new TipoDocumento(nombre, 12, aplicaVencimientoAutomatico: true, orden: 1, AmbitoAplicacion.Trabajador);
+        TipoDocumentoExistente = new TipoDocumento(nombre, 12, aplicaVencimientoAutomatico, orden: 1, AmbitoAplicacion.Trabajador);
         TiposDocumentoContexto.ListaTiposDocumento.Add(TipoDocumentoExistente);
         return this;
     }

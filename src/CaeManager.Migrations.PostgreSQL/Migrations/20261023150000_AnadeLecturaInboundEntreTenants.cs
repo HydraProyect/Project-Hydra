@@ -53,7 +53,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // Supuesto del que depende todo lo de abajo: el propietario de las funciones (el rol que aplica las migraciones)
             // es superusuario o tiene BYPASSRLS. Las tablas tienen FORCE ROW LEVEL SECURITY, así que un propietario sin
-            // ninguno de los dos vería sus propias políticas y las funciones no leerían nada de Y. Lo comprueba
+            // ninguno de los dos vería sus propias políticas y no leería nada de Y; desde FalloCerradoLecturaInbound, las
+            // tres funciones públicas lanzan una excepción en ese caso. Lo comprueba
             // LecturaInboundBajoRuntimeTests.Las_funciones_cumplen_su_contrato_de_privilegios contra pg_roles.
             //
             // Funciones públicas (plpgsql, SECURITY DEFINER, search_path fijado, nombres cualificados; EXECUTE solo para

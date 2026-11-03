@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,9 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerValidacionOficialDocu
 /// El resultado de la validación oficial de un Documento (si existe): la
 /// cabecera con nivel de confianza y decisión, y sus firmas verificadas.
 /// Null cuando el documento nunca pasó por el circuito (su tipo no tiene
-/// perfil oficial, o todavía no se procesó).
+/// perfil oficial, o todavía no se procesó), y también cuando quien pide no
+/// puede leer el Documento: fuera de su Asignación de Cartera es igual que no
+/// existir (SEG-16, <see cref="DocumentoAlcanceExtensions"/>).
 /// </summary>
 public record ObtenerValidacionOficialDocumentoQuery(Guid DocumentoId) : IRequest<ValidacionOficialDocumentoDto?>;
 
@@ -51,12 +54,16 @@ public record FirmaDigitalDocumentoDto(
 /// <c>TenantRlsConnectionInterceptor</c> adopta el rol, como en <c>ObtenerConexionesIntegracionQueryHandler</c>.
 /// </remarks>
 public class ObtenerValidacionOficialDocumentoQueryHandler(
-    IDocumentosQueryContext documentosContext, IClienteActivoSeleccionado clienteActivoSeleccionado)
+    IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos,
+    IClienteActivoSeleccionado clienteActivoSeleccionado)
     : IRequestHandler<ObtenerValidacionOficialDocumentoQuery, ValidacionOficialDocumentoDto?>
 {
     public async Task<ValidacionOficialDocumentoDto?> Handle(
         ObtenerValidacionOficialDocumentoQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.DocumentoLegibleAsync(request.DocumentoId, documentosContext, proyectosContext, cancellationToken))
+            return null;
+
         ValidacionOficialDocumentoDto? verificacion;
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
         {

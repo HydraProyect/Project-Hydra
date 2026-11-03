@@ -21,11 +21,35 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
     // (hay estado a nivel de proceso/sistema que esa opción no siempre aísla).
     // Serializar es la opción simple y suficiente para el volumen esperado (uso
     // interno, no SaaS) — no justifica un listener persistente tipo unoconv.
-    private static readonly SemaphoreSlim Semaforo = new(1, 1);
+    //
+    // La espera por el semáforo también tiene tope (EsperaMaximaSegundos): el
+    // TimeoutSegundos solo cubre el proceso, así que sin él una conversión atascada
+    // en cola dejaba esperando sin límite a todas las demás cargas de Word.
+    // internal para que los tests puedan ocuparlo sin lanzar LibreOffice.
+    internal static readonly SemaphoreSlim Semaforo = new(1, 1);
 
     // Los comparte el barrido de arranque (LimpiezaTemporalesConversionWordHostedService).
     internal const string PrefijoDirectorio = "caemanager-word2pdf-";
     internal const string NombreMarcaActivo = ".activo";
+
+    // Lo único que hereda el proceso: LibreOffice lee un documento que no controlamos, y el
+    // entorno de la aplicación lleva cadenas de conexión y claves. No aísla del todo: el
+    // proceso corre con el mismo usuario, en el mismo contenedor y con la misma red.
+    private static readonly string[] VariablesHeredadas = ["PATH", "LANG", "LC_ALL", "SystemRoot", "windir"];
+
+    // Perfil de cada conversión. BlockUntrustedRefererLinks corta la descarga de imágenes
+    // enlazadas (un .docx hacía que el servidor pidiera su URL durante la conversión), y el
+    // resto apaga macros, contenido activo y actualización de enlaces.
+    internal const string RegistroPerfilEndurecido = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <oor:items xmlns:oor="http://openoffice.org/2001/registry" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="BlockUntrustedRefererLinks" oor:op="fuse"><value>true</value></prop></item>
+        <item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="DisableMacrosExecution" oor:op="fuse"><value>true</value></prop></item>
+        <item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="DisableActiveContent" oor:op="fuse"><value>true</value></prop></item>
+        <item oor:path="/org.openoffice.Office.Common/Security/Scripting"><prop oor:name="MacroSecurityLevel" oor:op="fuse"><value>3</value></prop></item>
+        <item oor:path="/org.openoffice.Office.Writer/Content/Update"><prop oor:name="Link" oor:op="fuse"><value>2</value></prop></item>
+        </oor:items>
+        """;
 
     private readonly LibreOfficeConversorWordPdfServiceOptions _opciones;
     private readonly ILogger<LibreOfficeConversorWordPdfService> _logger;
@@ -54,6 +78,7 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
             await File.WriteAllBytesAsync(rutaDocx, contenidoDocx, cancellationToken);
 
             var rutaPerfil = Path.Combine(directorioTrabajo, "perfil");
+            await EscribirPerfilEndurecidoAsync(rutaPerfil, cancellationToken);
 
             using var proceso = new Process
             {
@@ -64,6 +89,8 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
                     {
                         $"-env:UserInstallation=file://{rutaPerfil}",
                         "--headless",
+                        // Sin esto el formato lo decide el contenido, no la extensión.
+                        "--infilter=MS Word 2007 XML",
                         "--convert-to", "pdf",
                         "--outdir", directorioTrabajo,
                         rutaDocx,
@@ -72,11 +99,16 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
                     UseShellExecute = false,
                 },
             };
-            proceso.StartInfo.Environment["TMPDIR"] = directorioTrabajo;
-            proceso.StartInfo.Environment["TMP"] = directorioTrabajo;
-            proceso.StartInfo.Environment["TEMP"] = directorioTrabajo;
+            LimitarEntorno(proceso.StartInfo, directorioTrabajo);
 
-            await Semaforo.WaitAsync(cancellationToken);
+            if (!await Semaforo.WaitAsync(TimeSpan.FromSeconds(Math.Max(0, _opciones.EsperaMaximaSegundos)), cancellationToken))
+            {
+                _logger.LogWarning(
+                    "Conversión de Word a PDF rechazada: el servicio siguió ocupado durante {Segundos} s.",
+                    _opciones.EsperaMaximaSegundos);
+                throw new ConversionWordPdfOcupadaException();
+            }
+
             try
             {
                 try
@@ -144,6 +176,31 @@ public class LibreOfficeConversorWordPdfService : IConversorWordPdfService
         {
             BorrarDirectorioDeTrabajo(directorioTrabajo);
         }
+    }
+
+    internal static async Task EscribirPerfilEndurecidoAsync(string rutaPerfil, CancellationToken cancellationToken)
+    {
+        var rutaUsuario = Path.Combine(rutaPerfil, "user");
+        Directory.CreateDirectory(rutaUsuario);
+        await File.WriteAllTextAsync(
+            Path.Combine(rutaUsuario, "registrymodifications.xcu"), RegistroPerfilEndurecido, cancellationToken);
+    }
+
+    internal static void LimitarEntorno(ProcessStartInfo inicio, string directorioTrabajo)
+    {
+        var heredadas = VariablesHeredadas
+            .Select(nombre => (Nombre: nombre, Valor: Environment.GetEnvironmentVariable(nombre)))
+            .Where(variable => variable.Valor is not null)
+            .ToList();
+
+        inicio.Environment.Clear();
+        foreach (var (nombre, valor) in heredadas)
+            inicio.Environment[nombre] = valor;
+
+        inicio.Environment["HOME"] = directorioTrabajo;
+        inicio.Environment["TMPDIR"] = directorioTrabajo;
+        inicio.Environment["TMP"] = directorioTrabajo;
+        inicio.Environment["TEMP"] = directorioTrabajo;
     }
 
     private static void CrearDirectorioPrivado(string ruta)

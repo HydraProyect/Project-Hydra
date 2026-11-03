@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Comunicaciones.Matching;
+using CaeManager.Application.Comunicaciones.Matching;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Infrastructure.Comunicaciones;
@@ -61,7 +61,7 @@ public class CuerpoMensajeSaneadoTests : IAsyncLifetime
         var handler = new ObtenerConversacionPorIdQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), new GanssSanitizadorHtmlService(),
             new CurrentUserServiceFalso(rol: "GestorCae"),
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(_conversacionId), CancellationToken.None);
 

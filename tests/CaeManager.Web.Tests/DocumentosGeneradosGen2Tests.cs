@@ -359,13 +359,13 @@ public class DocumentosGeneradosGen2Tests : BunitContext
         var mediador = new MediatorFalso();
         mediador.Retener = p => p is ObtenerDocumentosGeneradosQuery ? respuesta.Task : null;
         Services.AddScoped<IMediator>(_ => mediador);
-        Render<DocumentosGeneradosPanel>();
+        var cut = Render<DocumentosGeneradosPanel>();
 
         var token = mediador.Tokens[mediador.Enviadas.FindIndex(p => p is ObtenerDocumentosGeneradosQuery)];
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo del panel");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("retirar el panel cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult((IReadOnlyList<DocumentoGeneradoListaDto>)[Generado(AnexoId, "Anexo II")]);

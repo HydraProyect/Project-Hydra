@@ -45,7 +45,16 @@
                     <option value="@_filtroEntidadTipo">@_filtroEntidadTipo</option>
                 }
             </CampoSelect>
+            @* La tabla está particionada por fecha: sin cota inferior cada
+               página recorre todo el historial. Por eso arranca en los últimos
+               90 días, a la vista y editable; «Desde» vacío = todo el historial. *@
+            <CampoTexto Etiqueta="@Textos["Desde"]" Type="date" Valor="@_desde" ValorChanged="CambiarDesdeAsync" />
+            <CampoTexto Etiqueta="@Textos["Hasta"]" Type="date" Valor="@_hasta" ValorChanged="CambiarHastaAsync" />
         </div>
+        @if (RangoFechasAuditoria.Interpretar(_desde) is null)
+        {
+            <p class="nota-rango-auditoria">@Textos["SinFechaInicio"]</p>
+        }
     </section>
 
     @if (_error)
@@ -71,7 +80,7 @@
            la consulta solo devuelve el total ya filtrado, así que esta página
            no sabe cuántos hay sin filtro. *@
         <EstadoVacio NombreIcono="vacio" Titulo="Ningún registro con este filtro"
-                     Descripcion="Ninguna modificación registrada corresponde al tipo de entidad seleccionado.">
+                     Descripcion="Ninguna modificación registrada coincide con el tipo de entidad ni con el rango de fechas seleccionados.">
             <Accion>
                 <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar el filtro</Boton>
             </Accion>

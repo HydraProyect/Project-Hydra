@@ -28,12 +28,25 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Visitas por estado de la documentación con los demás
 /// filtros aplicados y sin el de estado. Los cuatro estados parten la lista, así que su suma es el total.
 /// </param>
+/// <param name="SoloPorEmpezar">
+/// Solo las Visitas que aún no han empezado. <c>SoloUrgentes</c> no las separa, porque el listado también
+/// quiere ver en ese filtro las que están en curso; <see cref="GestionesUrgentesDeVisita"/> no las cuenta.
+/// </param>
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? VisitaId = null,
     IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false,
-    string? ClienteFiltro = null, string? EmpresaFiltro = null, int? VentanaDias = null, bool AgruparPorCliente = false)
+    string? ClienteFiltro = null, string? EmpresaFiltro = null, int? VentanaDias = null, bool AgruparPorCliente = false,
+    bool SoloPorEmpezar = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
+
+/// <summary>
+/// Todas las Visitas urgentes que el usuario puede ver, sin página: lo que enseñan /bandeja y Mi trabajo. El aviso
+/// de la vigilancia horaria enlaza allí, así que un tope aquí dejaría contar una gestión que la cola no enseña. Lo
+/// acota el propio criterio, <see cref="GestionesUrgentesDeVisita.ConsultaCandidatas"/>: solo trae las Visitas por
+/// empezar dentro de la ventana de aviso.
+/// </summary>
+public record ObtenerVisitasUrgentesQuery : IRequest<IReadOnlyList<VisitaListaDto>>;
 
 public record VisitaListaDto(
     Guid Id,
@@ -104,9 +117,61 @@ public record VisitaListaDto(
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
 public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ITrabajadoresQueryContext trabajadoresContext)
-    : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
+    : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>,
+      IRequestHandler<ObtenerVisitasUrgentesQuery, IReadOnlyList<VisitaListaDto>>
 {
-    public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
+    public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken) =>
+        await CalcularAsync(request, await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
+
+    public async Task<IReadOnlyList<VisitaListaDto>> Handle(ObtenerVisitasUrgentesQuery request, CancellationToken cancellationToken) =>
+        await LeerTodasAsync(
+            GestionesUrgentesDeVisita.ConsultaCandidatas(), await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// El listado con el alcance de Centros ya resuelto. <see cref="Handle"/> lo resuelve para el
+    /// usuario de la sesión; un trabajo de fondo no tiene usuario, y por <see cref="IAlcanceDatosService"/>
+    /// obtendría una lista vacía, así que llama aquí con <paramref name="centroIdsVisibles"/> a <c>null</c>:
+    /// el Tenant entero, ya acotado por <see cref="AmbitoTenantExplicito"/> y por RLS (mismo patrón que
+    /// <c>ObtenerAlertasQueryHandler.CalcularAsync</c>). Es un parámetro de este método y no un campo de
+    /// <see cref="ObtenerVisitasQuery"/> para que ninguna sesión de usuario pueda pedir ese alcance.
+    /// </summary>
+    public Task<ResultadoPaginado<VisitaListaDto>> CalcularAsync(
+        ObtenerVisitasQuery request, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken) =>
+        CalcularAsync(request, centroIdsVisibles, despuesDeId: null, cancellationToken);
+
+    /// <summary>
+    /// Todas las filas de <paramref name="request"/>, para quien decide sobre el conjunto entero y no
+    /// enseña una página: el orden y la página de la petición no se usan, solo sus filtros y su tamaño.
+    /// Cada página es una consulta aparte, sin instantánea común, así que se avanza por clave y no por
+    /// desplazamiento: una fila que salga del conjunto entre dos lecturas no adelanta a las demás, y
+    /// ninguna se pierde ni se repite. Se termina con una página incompleta, no comparando con el total:
+    /// ese total ya es de otra lectura y puede haber bajado.
+    /// </summary>
+    public async Task<IReadOnlyList<VisitaListaDto>> LeerTodasAsync(
+        ObtenerVisitasQuery request, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    {
+        var primeraPagina = request with { Pagina = 1 };
+        var visitas = new List<VisitaListaDto>();
+        var ultimoId = Guid.Empty;
+        IReadOnlyList<VisitaListaDto> pagina;
+        do
+        {
+            pagina = (await CalcularAsync(primeraPagina, centroIdsVisibles, ultimoId, cancellationToken)).Elementos;
+            visitas.AddRange(pagina);
+            if (pagina.Count > 0)
+                ultimoId = pagina[^1].Id;
+        }
+        while (pagina.Count > 0 && pagina.Count == request.TamanoPagina);
+
+        return visitas;
+    }
+
+    /// <param name="despuesDeId">
+    /// Con valor, ordena solo por Id y devuelve las filas con un Id mayor (la primera página de
+    /// <see cref="LeerTodasAsync"/> parte de <see cref="Guid.Empty"/>); sin él, pagina por desplazamiento.
+    /// </param>
+    private async Task<ResultadoPaginado<VisitaListaDto>> CalcularAsync(
+        ObtenerVisitasQuery request, IReadOnlyList<Guid>? centroIdsVisibles, Guid? despuesDeId, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -119,7 +184,6 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                        join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
                        select new { visita, centro, cliente, empresa };
 
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
             consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
@@ -161,6 +225,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             var limiteAviso = hoy.AddDays(parametros.HorasAvisoVisita / 24);
             consulta = consulta.Where(x => x.visita.FechaFin >= hoy && x.visita.FechaInicio <= limiteAviso);
         }
+
+        if (request.SoloPorEmpezar)
+            consulta = consulta.Where(x => x.visita.FechaInicio > hoy);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
@@ -251,11 +318,14 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver
         // las filas empatadas en distinto orden entre una página y otra, y al
         // paginar en SQL eso hace que una fila aparezca dos veces o no
-        // aparezca nunca. El Id no se ordena nunca por sí solo — solo cierra
-        // el orden que haya elegido el usuario.
+        // aparezca nunca. El Id solo se ordena por sí solo en el recorrido por
+        // clave de LeerTodasAsync; en un listado, cierra el orden que haya
+        // elegido el usuario.
         if (request.AgruparPorCliente)
             ordenada = consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.cliente.Id).ThenBy(x => x.visita.FechaInicio);
-        ordenada = ordenada.ThenBy(x => x.visita.Id);
+        ordenada = despuesDeId is { } clave
+            ? consulta.Where(x => x.visita.Id.CompareTo(clave) > 0).OrderBy(x => x.visita.Id)
+            : ordenada.ThenBy(x => x.visita.Id);
 
         var filas = ordenada
             .Select(x => new

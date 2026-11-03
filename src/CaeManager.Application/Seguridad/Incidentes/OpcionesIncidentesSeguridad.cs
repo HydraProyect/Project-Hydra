@@ -24,8 +24,19 @@ public sealed class OpcionesIncidentesSeguridad
         if (!string.IsNullOrWhiteSpace(UrlAlertaSaliente)
             && !(Uri.TryCreate(UrlAlertaSaliente, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps))
             errores.Add($"{Seccion}:{nameof(UrlAlertaSaliente)} tiene que ser una URL absoluta https.");
+        if (!string.IsNullOrWhiteSpace(CorreoContactoSeguridadTalveg)
+            && !System.Net.Mail.MailAddress.TryCreate(CorreoContactoSeguridadTalveg.Trim(), out _))
+            errores.Add($"{Seccion}:{nameof(CorreoContactoSeguridadTalveg)} tiene que ser un correo válido.");
         return errores;
     }
+
+    /// <summary>
+    /// Correo del responsable de seguridad de TALVEG: punto de contacto del aviso de violación (art. 33.3.b
+    /// RGPD) y <c>Reply-To</c> del correo, para que la respuesta del Tenant beneficiario no se pierda en el
+    /// buzón de envío. Vacío = el aviso nombra al responsable sin correo y sale sin <c>Reply-To</c>; la página
+    /// del incidente lo advierte, y el Actor de Plataforma TALVEG puede escribir el contacto en el borrador.
+    /// </summary>
+    public string? CorreoContactoSeguridadTalveg { get; set; }
 
     /// <summary>
     /// Ventana de deduplicación: la misma señal sobre el mismo sujeto dentro de ella
@@ -65,7 +76,7 @@ public sealed class OpcionesIncidentesSeguridad
 
     public TimeSpan VentanaRechazosOtroTenant => TimeSpan.FromMinutes(Math.Max(1, MinutosVentanaRechazosOtroTenant));
 
-    /// <summary>Ruta de la página de confirmación (incremento 3) para un incidente.</summary>
+    /// <summary>Ruta de la página del incidente, donde se confirma y se envía el aviso.</summary>
     public static string RutaIncidente(Guid incidenteId) => $"/plataforma/incidentes/{incidenteId:D}";
 
     public string EnlaceIncidente(Guid incidenteId)

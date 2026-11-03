@@ -26,10 +26,20 @@ public class ObtenerSugerenciasVisitaCorreoPendientesQueryHandler(
     : IRequestHandler<ObtenerSugerenciasVisitaCorreoPendientesQuery, IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>>
 {
     public async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> Handle(
-        ObtenerSugerenciasVisitaCorreoPendientesQuery request, CancellationToken cancellationToken)
-    {
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        ObtenerSugerenciasVisitaCorreoPendientesQuery request, CancellationToken cancellationToken) =>
+        await CalcularAsync(await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
 
+    /// <summary>
+    /// Las sugerencias con el alcance de Centros ya resuelto. <see cref="Handle"/> lo resuelve para el
+    /// usuario de la sesión; un trabajo de fondo no tiene usuario, y por <see cref="IAlcanceDatosService"/>
+    /// obtendría una lista vacía, así que llama aquí con <paramref name="centroIdsVisibles"/> a <c>null</c>:
+    /// el Tenant entero, ya acotado por <see cref="AmbitoTenantExplicito"/> y por RLS, también las
+    /// sugerencias sin Centro resuelto, igual que las ve quien tiene acceso total. Es un parámetro de este
+    /// método, y la Query no lleva ningún campo de alcance, para que ninguna sesión de usuario pueda pedirlo.
+    /// </summary>
+    public async Task<IReadOnlyList<SugerenciaVisitaCorreoPendienteDto>> CalcularAsync(
+        IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
+    {
         var consulta =
             from sugerencia in comunicacionesContext.SugerenciasVisitaCorreo
             where !sugerencia.Resuelta

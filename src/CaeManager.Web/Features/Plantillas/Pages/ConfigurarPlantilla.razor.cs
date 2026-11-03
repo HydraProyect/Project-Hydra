@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Plantillas.Commands.ConfirmarPlantillaDocumentoVersion;
 using CaeManager.Application.Plantillas.Commands.CrearPlantillaDocumento;
@@ -16,6 +17,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Documentos;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -36,6 +38,8 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private DotNetObjectReference<ConfigurarPlantilla>? _referencia;
     private IJSObjectReference? _modulo;
     private bool _moduloIniciado;
+    private Task<IJSObjectReference>? _tareaModulo;
+    private int _generacionContenedor;
 
     private sealed class PaginaEditor
     {
@@ -76,6 +80,24 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private Guid? _tipoDocumentoId;
     private byte[]? _archivoSeleccionado;
     private string? _nombreArchivoSeleccionado;
+
+    /// <summary>
+    /// Lo que el PDF elegido en el alta descuenta del presupuesto de memoria del proceso mientras
+    /// <see cref="_archivoSeleccionado"/> lo retiene (no es transitorio: dura hasta que se pulse Crear). Se suelta al
+    /// sustituir el archivo, al crear la plantilla, al abrir una versión existente y al desmontar la página
+    /// (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+    ///
+    /// <para>
+    /// Es una retención deliberada: se acepta que un PDF elegido y no creado ocupe presupuesto, y a cambio, si el
+    /// presupuesto no da, la selección falla con aviso en vez de agotar la memoria del proceso. Sigue sin haber un límite
+    /// por usuario: el tope es el presupuesto compartido entre todos los Tenants, y quien elige PDFs sin crear puede
+    /// ocuparlo hasta que se agote para los demás (seguimiento aparte).
+    /// </para>
+    /// </summary>
+    private ReservaMemoriaDocumentos? _reservaArchivoSeleccionado;
+
+    /// <summary>Generación de la selección: una lectura que termina con otra ya vigente (o con la página cerrada) se descarta.</summary>
+    private int _seleccionArchivo;
     private bool _creando;
     private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
@@ -264,6 +286,9 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             _cargandoEditor = false;
             _errorCarga = false;
             _noEncontrada = false;
+            // El editor anterior ya no se muestra: sus páginas dejan de retenerse.
+            SoltarReservasEditor();
+            _paginas = [];
             FijarInstantaneaFormulario();
             return;
         }
@@ -284,6 +309,14 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _cargandoEditor = true;
         _errorCarga = false;
         _noEncontrada = false;
+
+        // Se abre una versión existente: el PDF elegido en el alta, si lo hubo, ya no tiene a dónde ir.
+        SoltarArchivoSeleccionado();
+
+        // Las páginas de la versión anterior se sueltan ANTES de leer la nueva: si se retuvieran mientras la lectura
+        // espera hueco, recargar o reintentar esperaría a la memoria de esta misma instancia.
+        SoltarReservasEditor();
+        _paginas = [];
         StateHasChanged();
 
         try
@@ -308,27 +341,29 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             // ("formulario reutilizable a partir del cual se generan
             // documentos"), que un Administrador configura — no un Documento
             // relleno de una persona concreta.
-            // El flujo se cierra en cuanto se copia: retiene su reserva del presupuesto de memoria
-            // hasta cerrarse, y no tiene por qué retenerla mientras se inicia el editor.
-            byte[] contenido;
-            await using (var flujo = await AlmacenamientoArchivos.AbrirAsync(detalle.ArchivoOriginalUrl, _ciclo.Token))
-            {
-                using var memoria = new MemoryStream();
-                await flujo.CopyToAsync(memoria, _ciclo.Token);
-                contenido = memoria.ToArray();
-            }
+            // La copia del PDF sigue reservada en el presupuesto de memoria mientras se inicia el editor
+            // (rasterizar y detectar derivan de ella); el flujo del almacenamiento solo retiene la suya
+            // mientras está abierto (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+            using var lectura = await LecturaAlmacenadaParaAnalisis.LeerAsync(
+                AlmacenamientoArchivos, PresupuestoMemoria, detalle.ArchivoOriginalUrl, _ciclo.Token);
 
             if (!EsVigente(carga))
                 return;
 
             await IniciarEditorAsync(
                 carga, versionId, detalle.PlantillaDocumentoId, detalle.NombrePlantilla, detalle.AmbitoAplicacion, detalle.FormatoOrigen,
-                detalle.EstadoConfiguracion, contenido, ElementosIniciales(detalle));
+                detalle.EstadoConfiguracion, lectura.Contenido, ElementosIniciales(detalle));
         }
         catch (Exception) when (!EsVigente(carga))
         {
             // Una carga superada (o cancelada al retirarse la página) que falla
             // no es un error de la vigente: no puede tapar su resultado.
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria del proceso, no un fallo de la plantilla: se avisa y se puede reintentar.
+            _errorCarga = true;
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
         }
         catch (Exception)
         {
@@ -366,11 +401,98 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
-        await using var flujo = e.File.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes);
-        using var memoria = new MemoryStream();
-        await flujo.CopyToAsync(memoria);
-        _archivoSeleccionado = memoria.ToArray();
-        _nombreArchivoSeleccionado = e.File.Name;
+        if (_desechado)
+            return;
+
+        // El archivo anterior se suelta ANTES de leer el nuevo: si siguiera reservado mientras la lectura espera hueco,
+        // sustituirlo esperaría a la memoria de esta misma página.
+        SoltarArchivoSeleccionado();
+        _nombreArchivoSeleccionado = null;
+        var seleccion = _seleccionArchivo;
+        var archivo = e.File;
+
+        if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
+        {
+            Toasts.Mostrar(TextosArchivo["ArchivoSubidoSuperaMaximo", archivo.Name, LimitesArchivoSubido.TamanoMaximoMb].Value, TonoToast.Error);
+            return;
+        }
+
+        ArchivoSubidoReservado lectura;
+        try
+        {
+            lectura = await ArchivoSubidoReservado.LeerAsync(archivo, PresupuestoMemoria, _ciclo.Token);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Saturación transitoria del proceso: el archivo no se retiene y se puede volver a elegir.
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+            return;
+        }
+        catch (OperationCanceledException) when (_desechado)
+        {
+            return;
+        }
+        catch (IOException)
+        {
+            Toasts.Mostrar(TextosArchivo["ArchivoSubidoNoLeido", archivo.Name].Value, TonoToast.Error);
+            return;
+        }
+
+        if (_desechado || seleccion != _seleccionArchivo)
+        {
+            lectura.Dispose();
+            return;
+        }
+
+        _archivoSeleccionado = lectura.Contenido;
+        _reservaArchivoSeleccionado = lectura.Reserva;
+        _nombreArchivoSeleccionado = archivo.Name;
+    }
+
+    /// <summary>Suelta el PDF elegido y su reserva, e invalida cualquier lectura en vuelo.</summary>
+    private void SoltarArchivoSeleccionado()
+    {
+        _seleccionArchivo++;
+        _archivoSeleccionado = null;
+        _reservaArchivoSeleccionado?.Dispose();
+        _reservaArchivoSeleccionado = null;
+    }
+
+    /// <summary>
+    /// Vuelve a retener el PDF tras un intento de creación que no llegó a crear la plantilla. Sin hueco, el archivo se
+    /// descarta con aviso (hay que volver a elegirlo) en vez de quedar retenido sin contar.
+    /// </summary>
+    private async Task RetenerArchivoSeleccionadoAsync(byte[] contenido, int seleccion)
+    {
+        ReservaMemoriaDocumentos reserva;
+        try
+        {
+            // Sin token: _ciclo se cancela y se desecha con la página, y su Token ya no se puede leer entonces. La espera
+            // está acotada por el propio presupuesto y, si la página se desecha mientras tanto, abajo se devuelve.
+            if (_desechado)
+                return;
+
+            reserva = await PresupuestoMemoria.ReservarAsync(contenido.Length);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            if (!_desechado && seleccion == _seleccionArchivo)
+            {
+                _nombreArchivoSeleccionado = null;
+                Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+            }
+
+            return;
+        }
+
+        if (_desechado || seleccion != _seleccionArchivo)
+        {
+            reserva.Dispose();
+            return;
+        }
+
+        _archivoSeleccionado = contenido;
+        _reservaArchivoSeleccionado = reserva;
     }
 
     private bool PuedeCrear =>
@@ -382,11 +504,23 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
         _creando = true;
         StateHasChanged();
+        Guid? versionCreadaId = null;
+
+        // El almacenamiento reserva por su cuenta el claro y el cifrado del guardado (DiskFileStorageService.GuardarAsync):
+        // si la reserva del PDF elegido siguiera retenida, el guardado esperaría a esta misma página (y, con una petición
+        // mayor en cola entre las dos, se bloquearían hasta rechazarse). Se suelta antes de crear; mientras tanto el PDF
+        // solo vive en esta variable local, la misma ventana que el alta individual de documento. Si no se llega a crear,
+        // se vuelve a retener abajo.
+        var contenidoPdf = _archivoSeleccionado;
+        var seleccionAlCrear = _seleccionArchivo;
+        _archivoSeleccionado = null;
+        _reservaArchivoSeleccionado?.Dispose();
+        _reservaArchivoSeleccionado = null;
 
         try
         {
             var resultado = await Mediator.Send(new CrearPlantillaDocumentoCommand(
-                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, tipoDocumentoId, _archivoSeleccionado,
+                _nombre, _ambitoAplicacion, _formatoOrigenSeleccionado, tipoDocumentoId, contenidoPdf,
                 _nombreArchivoSeleccionado ?? "plantilla.pdf", _descripcion, _centroId, _clienteId));
 
             if (resultado.EsFallido)
@@ -400,14 +534,47 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             // vuelva a cargar desde el servidor sobre el editor recién montado.
             var carga = ++_cargaVigente;
             _versionSolicitada = resultado.Valor.PlantillaDocumentoVersionId;
+            versionCreadaId = resultado.Valor.PlantillaDocumentoVersionId;
+
+            // El PDF elegido ya está en memoria desde que se seleccionó: mientras se inicia el editor (rasterizar y
+            // detectar derivan de él) se reserva del presupuesto del proceso. Después de crear, no durante: el guardado
+            // reserva por su cuenta y esperaría a esta reserva (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+            using var reservaContenido = await PresupuestoMemoria.ReservarAsync(
+                contenidoPdf.Length * (long)LecturaAlmacenadaParaAnalisis.FactorMemoriaAnalisis);
             await IniciarEditorAsync(
                 carga, resultado.Valor.PlantillaDocumentoVersionId, resultado.Valor.PlantillaDocumentoId, _nombre, _ambitoAplicacion,
-                _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, _archivoSeleccionado, []);
+                _formatoOrigenSeleccionado, EstadoConfiguracionPlantilla.Borrador, contenidoPdf, []);
 
             Navigation.NavigateTo($"/plantillas/{resultado.Valor.PlantillaDocumentoVersionId}/editar", replace: true);
         }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            Toasts.Mostrar(PresupuestoMemoriaAgotadoException.MensajeUsuario, TonoToast.Error);
+
+            // La plantilla ya se creó: se lleva a su editor, que la carga desde el servidor y deja reintentar,
+            // en vez de dejar un editor sin páginas sobre una versión existente.
+            if (versionCreadaId is { } creadaId)
+            {
+                _versionSolicitada = null;
+                _versionIdActual = null;
+                Navigation.NavigateTo($"/plantillas/{creadaId}/editar", replace: true);
+            }
+        }
         finally
         {
+            // Creada la plantilla, el PDF vive en el servidor y el editor lo recarga de ahí: ya no se retiene. Si no se creó,
+            // el formulario sigue ofreciendo Crear y el archivo vuelve a contarse.
+            // Con la página ya desechada durante el Send no hay nada que retener (y _ciclo ya no se puede leer).
+            if (versionCreadaId is null)
+            {
+                if (!_desechado)
+                    await RetenerArchivoSeleccionadoAsync(contenidoPdf, seleccionAlCrear);
+            }
+            else
+            {
+                SoltarArchivoSeleccionado();
+            }
+
             _creando = false;
         }
     }
@@ -433,16 +600,32 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _formatoOrigen = formatoOrigen;
         _estadoConfiguracion = estadoConfiguracion;
         _elementos = elementosExistentes;
+        // Las páginas anteriores del editor (otra versión en la misma instancia) dejan de retenerse.
+        SoltarReservasEditor();
+        _paginas = [];
         _idLocalSeleccionado = null;
         ReiniciarEstadoDeGeneracion();
 
-        _paginas = await RasterizarPaginasAsync(contenidoPdf);
+        try
+        {
+            _paginas = await RasterizarPaginasAsync(contenidoPdf);
 
-        if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
-            await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
+            if (_elementos.Count == 0 && estadoConfiguracion == EstadoConfiguracionPlantilla.Borrador)
+                await EjecutarDeteccionInicialAsync(carga, formatoOrigen, contenidoPdf);
 
-        if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
-            await CargarOpcionesGeneracionAsync(carga);
+            if (estadoConfiguracion == EstadoConfiguracionPlantilla.Confirmada && EsVigente(carga))
+                await CargarOpcionesGeneracionAsync(carga);
+        }
+        catch when (EsVigente(carga))
+        {
+            // Si la detección o las opciones fallan con las páginas ya creadas, el editor se muestra con el error de
+            // carga y no con las páginas: se sueltan con sus reservas en vez de retenerlas hasta cerrar la página.
+            // Solo lo hace la carga vigente: una superada (otra carga, volver al alta o cerrar la página) ya perdió sus
+            // páginas cuando la sustituyeron, y soltar aquí liberaría las de la carga que montó las suyas después.
+            SoltarReservasEditor();
+            _paginas = [];
+            throw;
+        }
 
         // Con la versión ya montada (y la detección inicial, que se persiste al
         // momento, ya aplicada): lo que el servidor tiene es el punto de partida.
@@ -682,33 +865,62 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         using var documento = PdfReader.Open(new MemoryStream(contenidoPdf), PdfDocumentOpenMode.Import);
 
         var paginas = new List<PaginaEditor>();
-        for (var i = 0; i < documento.PageCount; i++)
+        try
         {
-            // El editor sí necesita todas las páginas a la vez —es su razón de
-            // ser— pero se piden de una en una: así el pico de memoria es el
-            // PNG actual más lo ya convertido a base64, no el doble por tener
-            // además la lista completa de byte[] en vuelo.
-            var resultado = Rasterizador.RasterizarPagina(contenidoPdf, i);
-            if (resultado.EsFallido)
-                return [];
-
-            var png = resultado.Valor;
-            var paginaPdf = documento.Pages[i];
-
-            paginas.Add(new PaginaEditor
+            for (var i = 0; i < documento.PageCount; i++)
             {
-                NumeroPagina = i + 1,
-                ImagenBase64 = Convert.ToBase64String(png),
-                // El ancho/alto se toma del PDF real, no de la imagen rasterizada: el PNG
-                // generado por el rasterizador no trae metadatos de resolución fiables (XImage
-                // cae a 96 dpi por defecto aunque se renderizó a 150), lo que inflaba el espacio
-                // de coordenadas del editor un ~1,56x respecto al PDF y desplazaba el estampado.
-                AnchoPuntos = paginaPdf.Width.Point,
-                AltoPuntos = paginaPdf.Height.Point,
-            });
+                // El editor sí necesita todas las páginas a la vez —es su razón de
+                // ser— pero se piden de una en una: así el pico de memoria es el
+                // PNG actual más lo ya convertido a base64, no el doble por tener
+                // además la lista completa de byte[] en vuelo.
+                var resultado = Rasterizador.RasterizarPagina(contenidoPdf, i);
+                if (resultado.EsFallido)
+                {
+                    SoltarReservasEditor();
+                    return [];
+                }
+
+                var png = resultado.Valor;
+                var paginaPdf = documento.Pages[i];
+                var imagenBase64 = Convert.ToBase64String(png);
+
+                // El editor retiene el base64 de todas las páginas mientras está abierto: cada una se reserva al
+                // generarse, sin esperar (esperar reteniendo las anteriores se esperaría a sí mismo) y sin recortar.
+                // Si no cabe, el editor no se abre y se avisa de la saturación (OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+                if (!PresupuestoMemoria.TryReservar(imagenBase64.Length * (long)sizeof(char), out var retenida))
+                    throw new PresupuestoMemoriaAgotadoException();
+                _reservasEditor.Add(retenida);
+
+                paginas.Add(new PaginaEditor
+                {
+                    NumeroPagina = i + 1,
+                    ImagenBase64 = imagenBase64,
+                    // El ancho/alto se toma del PDF real, no de la imagen rasterizada: el PNG
+                    // generado por el rasterizador no trae metadatos de resolución fiables (XImage
+                    // cae a 96 dpi por defecto aunque se renderizó a 150), lo que inflaba el espacio
+                    // de coordenadas del editor un ~1,56x respecto al PDF y desplazaba el estampado.
+                    AnchoPuntos = paginaPdf.Width.Point,
+                    AltoPuntos = paginaPdf.Height.Point,
+                });
+            }
+        }
+        catch
+        {
+            SoltarReservasEditor();
+            throw;
         }
 
         return paginas;
+    }
+
+    /// <summary>Páginas del editor (base64) que esta instancia retiene del presupuesto de memoria mientras está abierto.</summary>
+    private readonly List<ReservaMemoriaDocumentos> _reservasEditor = [];
+
+    private void SoltarReservasEditor()
+    {
+        foreach (var reserva in _reservasEditor)
+            reserva.Dispose();
+        _reservasEditor.Clear();
     }
 
     private async Task EjecutarDeteccionInicialAsync(int carga, FormatoOrigenPlantilla formatoOrigen, byte[] contenidoPdf)
@@ -737,11 +949,56 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_moduloIniciado || _paginas.Count == 0) return;
+        if (_paginas.Count == 0 || !EnEditor)
+        {
+            // Sin editor visible el contenedor del lienzo no existe (carga, error, alta): el siguiente que se pinte es
+            // un elemento nuevo, sin los eventos de arrastre, y hay que iniciarlo de nuevo. Cambiar de generación
+            // invalida cualquier inicio que siga esperando la importación del módulo para el contenedor anterior.
+            if (_moduloIniciado)
+            {
+                _moduloIniciado = false;
+                _generacionContenedor++;
+            }
+
+            return;
+        }
+
+        if (_moduloIniciado) return;
 
         _moduloIniciado = true;
-        _referencia = DotNetObjectReference.Create(this);
-        _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js");
+        var generacion = _generacionContenedor;
+        _referencia ??= DotNetObjectReference.Create(this);
+
+        // Una sola importación del módulo por instancia, aunque varios renders la esperen a la vez.
+        var tareaModulo = _tareaModulo ??= JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/editorPlantilla.js").AsTask();
+        IJSObjectReference modulo;
+        try
+        {
+            modulo = await tareaModulo;
+        }
+        catch
+        {
+            if (ReferenceEquals(_tareaModulo, tareaModulo))
+                _tareaModulo = null;
+            if (generacion == _generacionContenedor)
+                _moduloIniciado = false;
+            throw;
+        }
+
+        _modulo ??= modulo;
+
+        if (_desechado)
+        {
+            // La página se cerró mientras se importaba: DisposeAsync no vio el módulo y lo suelta quien lo recibe.
+            await SoltarModuloAsync(modulo);
+            return;
+        }
+
+        // Tras la espera, solo inicia quien sigue siendo el contenedor vigente: un render sin editor entre medias lo
+        // destruyó y el siguiente ya pidió su propio inicio. Así `iniciar` no se llama dos veces para el mismo elemento.
+        if (generacion != _generacionContenedor || !_moduloIniciado || _paginas.Count == 0 || !EnEditor)
+            return;
+
         await _modulo.InvokeVoidAsync("iniciar", _referencia, _idContenedor);
     }
 
@@ -994,18 +1251,29 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _desechado = true;
         _ciclo.Cancel();
         _ciclo.Dispose();
+        SoltarReservasEditor();
+        SoltarArchivoSeleccionado();
 
-        if (_modulo is not null)
-        {
-            try
-            {
-                await _modulo.DisposeAsync();
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-        }
+        await SoltarModuloAsync(_modulo);
 
         _referencia?.Dispose();
+    }
+
+    private bool _moduloSoltado;
+
+    /// <summary>Suelta el módulo JS una sola vez, lo haga DisposeAsync o la importación que terminó después de cerrar la página.</summary>
+    private async ValueTask SoltarModuloAsync(IJSObjectReference? modulo)
+    {
+        if (modulo is null || _moduloSoltado)
+            return;
+
+        _moduloSoltado = true;
+        try
+        {
+            await modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 }

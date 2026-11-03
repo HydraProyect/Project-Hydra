@@ -704,4 +704,7 @@
   <data name="NotaInternaGuardada" xml:space="preserve"><value>Nota interna guardada</value></data>
   <data name="CifCopiado" xml:space="preserve"><value>CIF {0} copiado al portapapeles</value></data>
   <data name="CodigoClienteCopiado" xml:space="preserve"><value>Código de cliente copiado al portapapeles</value></data>
+  <data name="ToastRecuentosNoCargados" xml:space="preserve">
+    <value>No pudimos cargar algunos recuentos de esta ficha. Lo que ves puede estar incompleto; recarga la página.</value>
+  </data>
 </root>

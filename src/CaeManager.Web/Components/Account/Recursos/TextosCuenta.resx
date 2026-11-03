@@ -155,6 +155,12 @@
   <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
     <value>Hemos cerrado todas tus sesiones. Tu cuenta entra con Microsoft: cambia la contraseña de tu cuenta de Microsoft y avisa a tu Administrador.</value>
   </data>
+  <data name="NoHeSidoYoSesionesSinCerrarTitulo" xml:space="preserve">
+    <value>No hemos podido cerrar tus sesiones</value>
+  </data>
+  <data name="NoHeSidoYoSesionesSinCerrarExplicacion" xml:space="preserve">
+    <value>Hemos registrado tu aviso, pero tus sesiones abiertas pueden seguir activas. Si entras con contraseña, la anterior ya no sirve: al crear una nueva se cierran todas; si no te llega el correo, pídelo desde aquí. Si entras con Microsoft, avisa a tu Administrador.</value>
+  </data>
   <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
     <value>¿No has sido tú?</value>
   </data>
@@ -193,6 +199,8 @@
   <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a iniciar sesión con Microsoft.</value></data>
   <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Volver a iniciar sesión con Microsoft</value></data>
   <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ya se está verificando esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="AltaDosFactoresSesionObsoleta" xml:space="preserve"><value>Los datos de seguridad de la cuenta han cambiado desde que iniciaste esta sesión. Cierra la sesión y vuelve a iniciarla para activar la autenticación en dos pasos.</value></data>
+  <data name="VerificacionInicioRechazado" xml:space="preserve"><value>No se ha podido completar el inicio de sesión. Vuelve a iniciar sesión.</value></data>
   <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
   <data name="AltaVinculoExplicacion" xml:space="preserve"><value>Para vincular tu cuenta de Microsoft, configura antes la verificación en dos pasos de {0}.</value></data>
   <data name="AltaVinculoQrAlternativo" xml:space="preserve"><value>Código QR para configurar la aplicación autenticadora</value></data>
@@ -202,4 +210,6 @@
   <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Después te pediremos otro código: espera a que la aplicación muestre uno nuevo, porque cada código sirve una sola vez.</value></data>
   <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.</value></data>
   <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No se pudo preparar la verificación en dos pasos. Vuelve a iniciar sesión.</value></data>
+  <data name="LoginMicrosoftSeparador" xml:space="preserve"><value>o</value></data>
+  <data name="LoginMicrosoftIniciarSesion" xml:space="preserve"><value>Iniciar sesión con Microsoft</value></data>
 </root>

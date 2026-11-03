@@ -214,12 +214,12 @@ public class DocumentoTests
     {
         var constructor = typeof(Documento)
             .GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
-            .Single(c => c.GetParameters().Length == 10);
+            .Single(c => c.GetParameters().Length == 11);
 
         return constructor.Invoke(
         [
             trabajadorId, clienteId, empresaId, vehiculoId, proyectoId,
-            Guid.NewGuid(), Hoy, null, null, null
+            Guid.NewGuid(), Hoy, null, null, null, null
         ]);
     }
 

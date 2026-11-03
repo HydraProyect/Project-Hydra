@@ -53,6 +53,7 @@ public static class ApplicationServiceCollectionExtensions
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        services.AddScoped<CaeManager.Application.Integraciones.ResponsableBuzonElegible>();
         services.AddScoped<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal,
             CaeManager.Application.Operaciones.AsignacionAutomaticaDePrincipal>();
         // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el
@@ -84,6 +85,7 @@ public static class ApplicationServiceCollectionExtensions
         services.TryAddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
             CaeManager.Application.Plataforma.ElevacionEscrituraPrivilegiadaInerte>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
@@ -190,6 +192,7 @@ public static class ApplicationServiceCollectionExtensions
         // Qué se puede pedir sin vencimiento (documento que falta, «Sin confirmar» sin fecha): lo leen el lote y el envío.
         services.AddScoped<Reclamaciones.IPendientesDeReclamacionService, Reclamaciones.PendientesDeReclamacionService>();
         services.AddScoped<Reclamaciones.ReclamacionEmpresaEmpleadoraService>();
+        services.AddScoped<Comunicaciones.RellenoMacroRespuesta>();
         services.AddScoped<Reclamaciones.DestinoDeReclamacionesEnviadasService>();
         // Estado en las plataformas del Centro y última reclamación de cada documento: lo leen las fichas 360 que fijan un Centro.
         services.AddScoped<

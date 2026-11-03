@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Documentos;
 using MediatR;
 
@@ -14,23 +16,25 @@ public static class DocumentosApiEndpoints
         // trata como parámetros de query obligatorios (verificado con curl).
         endpoints.MapGet("/documentos", async (
             Guid? trabajadorId, AmbitoAplicacion? ambito, string? busqueda, EstadoDocumento? estado, Guid? propietarioId,
-            int pagina = 1, int tamanoPagina = 20, IMediator mediator = default!, CancellationToken cancellationToken = default) =>
+            int pagina = 1, int tamanoPagina = 20, IMediator mediator = default!, ClaimsPrincipal usuario = default!,
+            CancellationToken cancellationToken = default) =>
         {
             var resultado = await mediator.Send(
                 new ObtenerDocumentosQuery(
-                    trabajadorId, ambito, busqueda, estado, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina), propietarioId),
+                    trabajadorId, ambito, busqueda, estado, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina), propietarioId,
+                    ExcluirCategoriaEspecialSalud: !ApiV1.EsClaveDeSoporte(usuario)),
                 cancellationToken);
 
             return Results.Ok(new ResultadoPaginado<DocumentoApiListaDto>(
                 resultado.Elementos.Select(DocumentoApiListaDto.DesdeInterno).ToList(),
                 resultado.TotalElementos, resultado.Pagina, resultado.TamanoPagina));
-        });
+        }).RequiereAlcanceIntegracion(AlcancesIntegracion.DocumentosLeer);
 
-        endpoints.MapGet("/documentos/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/documentos/{id:guid}", async (Guid id, ClaimsPrincipal usuario, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
+            var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id, !ApiV1.EsClaveDeSoporte(usuario)), cancellationToken);
             return documento is null ? Results.NotFound() : Results.Ok(DocumentoApiDetalleDto.DesdeInterno(documento));
-        });
+        }).RequiereAlcanceIntegracion(AlcancesIntegracion.DocumentosLeer);
 
         return endpoints;
     }

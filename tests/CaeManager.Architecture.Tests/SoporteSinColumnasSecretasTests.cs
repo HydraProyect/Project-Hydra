@@ -73,7 +73,7 @@ public class SoporteSinColumnasSecretasTests
         ["ExtraccionesIaCache"] = "ExtraccionJson",
     };
 
-    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "AspNetUserLogins", "CredencialesIntegracion", "CredencialesConexionPlataformaCae"];
+    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "AspNetUserLogins", "CredencialesIntegracion", "CredencialesConexionPlataformaCae", "EnviosAvisoIncidenteSeguridad"];
 
     /// <summary>
     /// Tablas que Soporte TALVEG lee por columnas, con la columna que nunca se le concede. Las de
@@ -84,6 +84,7 @@ public class SoporteSinColumnasSecretasTests
     private static readonly Dictionary<string, string[]> ColumnasSecretasPorTabla = new(StringComparer.OrdinalIgnoreCase)
     {
         ["ClavesApi"] = ["HashClave"],
+        ["ClavesIntegracionTenant"] = ["HashClave"],
         ["CanalesGestionDocumental"] = ["Contrasena"],
         ["CredencialesAccesoEmpresa"] = ["Contrasena"],
         ["CredencialesAccesoSubcontrata"] = ["Contrasena"],

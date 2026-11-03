@@ -674,7 +674,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado));
+            var resultado = await Mediator.Send(new MarcarNotificadoClienteCommand(detalle.Id, notificado, detalle.Version));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);

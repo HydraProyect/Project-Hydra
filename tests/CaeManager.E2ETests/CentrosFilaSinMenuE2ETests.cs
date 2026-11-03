@@ -84,7 +84,7 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await IrALaListaAsync(page);
         await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        // Aserción de URL, no WaitForURLAsync: la navegación mejorada de Blazor no es un documento nuevo y la espera de «load» caducaba a los 30 s (#1843).
+        // Aserción de URL, no WaitForURLAsync: aquel mira la URL y se suscribe después, y la navegación mejorada (sin documento nuevo) que cae entre ambos no la ve.
         await Expect(page).ToHaveURLAsync(new Regex(@"/centros/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
     }

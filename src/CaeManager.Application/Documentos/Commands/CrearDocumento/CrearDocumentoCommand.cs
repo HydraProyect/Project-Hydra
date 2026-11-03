@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
@@ -37,7 +38,16 @@ namespace CaeManager.Application.Documentos.Commands.CrearDocumento;
 public record CrearDocumentoCommand(
     Guid? TrabajadorId, Guid? ClienteId, Guid? EmpresaId, Guid? VehiculoId, Guid? ProyectoId, Guid TipoDocumentoId, DateOnly FechaEmision,
     DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios, bool NoCaduca = false)
-    : ICommand<Guid>;
+    : ICommand<Guid>
+{
+    /// <summary>
+    /// El Id con el que nace el Documento, para quien deja pendiente en el contexto un cambio que apunta a él y debe
+    /// confirmarse en este guardado (el reparto de adjuntos, ver <c>ActualizarDocumentoDesdeAdjuntoCommand</c>). No es
+    /// contrato: solo se fija dentro de esta capa y ninguna serialización lo lee ni lo escribe.
+    /// </summary>
+    [JsonIgnore]
+    public Guid? DocumentoIdReservado { get; internal init; }
+}
 
 public class CrearDocumentoCommandValidator : AbstractValidator<CrearDocumentoCommand>
 {
@@ -126,19 +136,19 @@ public class CrearDocumentoCommandHandler(
         {
             AmbitoAplicacion.Trabajador => Documento.DeTrabajador(
                 request.TrabajadorId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
             AmbitoAplicacion.Cliente => Documento.DeCliente(
                 request.ClienteId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
             AmbitoAplicacion.Vehiculo => Documento.DeVehiculo(
                 request.VehiculoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
             AmbitoAplicacion.Proyecto => Documento.DeProyecto(
                 request.ProyectoId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios),
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado),
             _ => Documento.DeEmpresa(
                 request.EmpresaId!.Value, request.TipoDocumentoId, request.FechaEmision, vigencia,
-                request.ArchivoUrl, request.Comentarios)
+                request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado)
         };
 
         // Alcance de cartera: existir en el Tenant no basta. Un Gestor CAE solo

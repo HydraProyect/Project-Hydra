@@ -63,6 +63,7 @@ public static class CoberturaDePaleta
         ("Ir a Centros", "/centros"),
         ("Ir a Trabajadores", "/trabajadores"),
         ("Ir a Documentos", "/documentos"),
+        (TextosBusquedaGlobal.Texto("IrAHerramientasPdf"), "/herramientas-pdf"),
         ("Ir a Dashboard", "/"),
         ("Ir a Configuración", "/configuracion"),
         ("Ir a Claves API", "/configuracion/claves-api"),

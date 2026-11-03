@@ -59,7 +59,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
     IDirectorioUsuariosService directorioUsuarios,
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork, ITenantsQueryContext tenantsContext)
+    IUnitOfWork unitOfWork, ITenantsQueryContext tenantsContext, ITenantActual tenantActual)
     : IRequestHandler<CrearAsignacionOperadorDelegadoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionOperadorDelegadoCommand request, CancellationToken cancellationToken)
@@ -85,8 +85,9 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
+        var tenantPropietarioId = delegacion.TenantClienteId;
         if (!await autorizacion.PuedeGestionarDelegacionesAsync(
-                usuarioId.Value, delegacion.TenantClienteId, cancellationToken))
+                usuarioId.Value, tenantPropietarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.NoAutorizado",
                 "Solo un administrador de la organización que delega puede autorizar a un operador sobre sus datos."));
@@ -108,6 +109,26 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "AsignacionOperadorDelegado.NoAutorizado",
                 "Solo un administrador de la organización que delega puede autorizar a un operador sobre sus datos."));
+
+        // La fila solo se escribe con un extremo de la delegación como Tenant activo
+        // (extremos_de_la_delegacion). Esta guarda solo restringe: la autoridad ya se
+        // decidió arriba contra el Tenant propietario.
+        var tenantActivo = tenantActual.TenantId;
+        if (tenantActivo != tenantPropietarioId && tenantActivo != delegacion.TenantConsultoraId)
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.NoAutorizado",
+                "Para autorizar a esta persona, vuelve a tu organización."));
+
+        // La de un Operador CAE externo abre además una cartera, que es dato del Tenant
+        // propietario: posicion_en_la_asignacion solo la deja escribir con él activo y,
+        // con el Operador CAE externo activo y el origen en el Tenant propietario, ni
+        // siquiera deja localizar la Asignación de Operación. Se rechaza aquí en vez de
+        // acabar en una excepción de AbrirCarteraOperadorAsync.
+        var deOperadorExterno = delegacion.Proposito == PropositoDelegacion.OperadorExterno;
+        if (deOperadorExterno && tenantActivo != tenantPropietarioId)
+            return Result.Fallo<Guid>(Error.Crear(
+                "AsignacionOperadorDelegado.RequiereTenantPropietario",
+                "Para autorizar a esta persona, vuelve a tu organización."));
 
         if (!delegacion.Activa)
             return Result.Fallo<Guid>(Error.Crear("AsignacionOperadorDelegado.DelegacionInactiva", "Esta delegación está desactivada."));
@@ -136,7 +157,7 @@ public class CrearAsignacionOperadorDelegadoCommandHandler(
         var asignacion = new AsignacionOperadorDelegado(request.DelegacionTenantId, request.UsuarioId, request.Rol);
         repositorio.Agregar(asignacion);
 
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
+        if (deOperadorExterno)
             await asignacionesWriter.AbrirCarteraOperadorAsync(
                 delegacion.TenantClienteId, delegacion.TenantConsultoraId,
                 request.UsuarioId, request.Rol, cancellationToken);

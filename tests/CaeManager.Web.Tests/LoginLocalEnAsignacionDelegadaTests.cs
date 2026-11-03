@@ -230,11 +230,12 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         private ServiceProvider proveedor = null!;
         private AsignacionOperacion operacion = null!;
 
-        public IQueryable<Tenant> Tenants => throw new NotSupportedException();
+        public IQueryable<Tenant> Tenants => Consulta(Array.Empty<Tenant>());
         public IQueryable<RegistroActividadSoporte> RegistrosActividadSoporte => throw new NotSupportedException();
         public IQueryable<DelegacionTenant> DelegacionesTenant => Consulta(new[] { Delegacion });
         public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Consulta(Asignaciones.Where(a => !a.EstaRevocada));
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => Consulta(new[] { operacion });
+        public IQueryable<Guid> TenantsSuspendidosIds => Consulta(Array.Empty<Guid>());
         public IQueryable<AsignacionCartera> AsignacionesCartera => Consulta(carteras);
         private readonly List<AsignacionCartera> carteras = [];
 

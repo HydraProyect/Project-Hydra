@@ -28,5 +28,17 @@ public enum TipoEventoConversacion
     ReclamacionEnviada = 3,
 
     /// <summary>ReferenciaId identifica la MacroRespuesta aplicada al borrador; no identifica al Gestor CAE.</summary>
-    PlantillaAplicada = 4
+    PlantillaAplicada = 4,
+
+    /// <summary>ReferenciaId identifica el AdjuntoMensaje rechazado; el motivo vive en el adjunto, no en el timeline.</summary>
+    AdjuntoRechazado = 5,
+
+    /// <summary>ReferenciaId identifica el AdjuntoMensaje descartado.</summary>
+    AdjuntoDescartado = 6,
+
+    /// <summary>ReferenciaId identifica el AdjuntoMensaje que vuelve a estar pendiente.</summary>
+    AdjuntoReabierto = 7,
+
+    /// <summary>ReferenciaId identifica el AdjuntoMensaje dividido; cada Documento resultante deja su propio DocumentoActualizado.</summary>
+    AdjuntoDividido = 8
 }

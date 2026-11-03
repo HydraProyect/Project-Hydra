@@ -7,7 +7,8 @@ namespace CaeManager.Application.Common;
 /// Decide quién lee la «Nota interna» de una ficha 360 (Cliente, Subcontrata, Vehículo, Tipo de documento). Es la única
 /// regla de lectura: ninguna consulta la repite. Desde el 2026-10-15 decide también, con el mismo criterio, quién recibe
 /// el permiso de trabajo del Trabajador (tipo, caducidad y motivo) en <c>ObtenerTrabajadorPorIdQuery</c>, y desde el
-/// 2026-10-18 su contacto de emergencia (nombre y teléfono).
+/// 2026-10-18 su contacto de emergencia (nombre y teléfono). Desde el 2026-11-02 decide también quién lee la nota fija
+/// de un contacto de la agenda (<c>ContactoAgendaDto.Notas</c> y <c>ObtenerNotaContactoQuery</c>).
 ///
 /// <para>
 /// <b>La regla.</b> La nota la lee quien pertenece al equipo del Tenant propietario, es decir, quien tiene uno de los
@@ -28,6 +29,8 @@ namespace CaeManager.Application.Common;
 /// <para>
 /// <b>Escritura.</b> Esta política no concede escribir. Quien guarda la nota pasa por <c>AutorizacionEscrituraBehavior</c>
 /// y por el alcance de gestión de cada handler; una Sesión de solo lectura (<c>SoporteLectura</c>) lee y no escribe.
+/// Al revés sí limita: quien no lee un dato protegido por esta política no lo cambia a ciegas, y <c>EditarFichaTrabajadorCommand</c>,
+/// <c>GuardarContactoAgendaCommand</c> y <c>FijarNotaContactoAgendaCommand</c> lo comprueban aquí.
 /// </para>
 /// </summary>
 public interface IPoliticaNotaInterna

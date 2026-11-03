@@ -34,6 +34,17 @@ public class SlaConversacionTests
     }
 
     [Fact]
+    public void El_acuse_automatico_no_cuenta_como_respuesta_y_el_plazo_sigue_corriendo()
+    {
+        var conversacion = new Conversacion("Asunto");
+        var inicio = DateTime.UtcNow.AddDays(-1);
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Primero", inicio);
+        conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", inicio.AddMinutes(1), esAutomatico: true);
+
+        PlazosConversacionService.PrimerEntranteSinRespuesta(conversacion.Mensajes).Should().Be(inicio);
+    }
+
+    [Fact]
     public async Task La_prioridad_Critica_avisa_sin_lectura_de_la_conversacion_y_no_duplica_una_repeticion()
     {
         var conversacion = new Conversacion("Asunto");

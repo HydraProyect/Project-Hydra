@@ -64,7 +64,8 @@ public record ConversacionListaDto(
     int MensajesRuido = 0,
     PrioridadConversacion Prioridad = PrioridadConversacion.Normal,
     DateTime? VencimientoSlaUtc = null,
-    TimeSpan? SlaRestante = null)
+    TimeSpan? SlaRestante = null,
+    long NumeroTicket = 0)
 {
     /// <summary>
     /// "Esperando respuesta externa" en la bandeja: el estado explícito <see cref="EstadoConversacion.EsperandoRespuestaExterna"/> que
@@ -179,7 +180,7 @@ public class ObtenerConversacionesQueryHandler(
             consulta = consulta.Where(c => c.Estado == EstadoConversacion.EsperandoRespuestaExterna ||
                 (c.Estado == EstadoConversacion.Abierta &&
                 comunicacionesContext.Mensajes
-                    .Where(m => m.ConversacionId == c.Id)
+                    .Where(m => m.ConversacionId == c.Id && !(m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico))
                     .OrderByDescending(m => m.FechaUtc)
                     .Select(m => m.Direccion)
                     .FirstOrDefault() == DireccionMensaje.Saliente));
@@ -223,6 +224,7 @@ public class ObtenerConversacionesQueryHandler(
                 c.Asunto,
                 c.Estado,
                 c.Prioridad,
+                c.NumeroTicket,
                 c.EjecutivoAsignadoId,
                 c.FechaUltimoMensajeUtc,
                 c.Canal,
@@ -237,7 +239,7 @@ public class ObtenerConversacionesQueryHandler(
 
         var mensajes = await comunicacionesContext.Mensajes
             .Where(m => conversacionIds.Contains(m.ConversacionId))
-            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion, m.Remitente })
+            .Select(m => new { m.Id, m.ConversacionId, m.CuerpoHtml, m.FechaUtc, m.Direccion, m.Remitente, m.EsAutomatico })
             .ToListAsync(cancellationToken);
 
         var remitentes = await comunicacionesContext.ParticipantesConversacion
@@ -253,7 +255,10 @@ public class ObtenerConversacionesQueryHandler(
         var elementos = conversaciones.Select(c =>
         {
             var mensajesDeConversacion = mensajesPorConversacion.GetValueOrDefault(c.Id, []);
-            var ultimoMensaje = mensajesDeConversacion.OrderByDescending(m => m.FechaUtc).FirstOrDefault();
+            // El acuse automático no dice en qué punto está la conversación: ni la vista previa ni «esperando» lo cuentan.
+            var ultimoMensaje = mensajesDeConversacion
+                .Where(m => !(m.Direccion == DireccionMensaje.Saliente && m.EsAutomatico))
+                .OrderByDescending(m => m.FechaUtc).FirstOrDefault();
 
             return new ConversacionListaDto(
                 c.Id, c.ClienteId, c.ClienteRazonSocial, c.Asunto, c.Estado, c.EjecutivoAsignadoId,
@@ -266,7 +271,7 @@ public class ObtenerConversacionesQueryHandler(
                 c.FechaUltimoMensajeUtc, mensajesDeConversacion.Count, c.Canal, c.TelefonoContacto,
                 ultimoMensaje?.Direccion, mensajesRuidoPorConversacion.GetValueOrDefault(c.Id), c.Prioridad,
                 plazos.TryGetValue(c.Id, out var plazo) ? plazo.Vence : null,
-                plazos.ContainsKey(c.Id) ? plazo.Restante : null);
+                plazos.ContainsKey(c.Id) ? plazo.Restante : null, c.NumeroTicket);
         }).ToList();
 
         return new ResultadoPaginado<ConversacionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
@@ -286,7 +291,7 @@ public class ObtenerConversacionesQueryHandler(
         foreach (var conversacion in candidatas)
         {
             var mensajes = porConversacion[conversacion.Id];
-            var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente).Select(m => (DateTime?)m.FechaUtc).Max();
+            var ultimoSaliente = mensajes.Where(m => m.Direccion == DireccionMensaje.Saliente && !m.EsAutomatico).Select(m => (DateTime?)m.FechaUtc).Max();
             var primero = mensajes.Where(m => m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico
                                               && (ultimoSaliente == null || m.FechaUtc > ultimoSaliente))
                 .Select(m => (DateTime?)m.FechaUtc).Min();

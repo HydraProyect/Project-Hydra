@@ -66,6 +66,13 @@ public class DarDeBajaAsignacionesCommandHandler(
                 continue;
             }
 
+            // Ver DarDeBajaAsignacionCommand: una baja ya dada no se re-fecha en silencio.
+            if (!asignacion.EstaActiva)
+            {
+                errores.Add("Una asignación ya estaba dada de baja.");
+                continue;
+            }
+
             try
             {
                 asignacion.DarDeBaja(request.FechaBaja);

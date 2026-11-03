@@ -47,7 +47,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// ninguna fila. Dentro de <see cref="AmbitoIdentificacionSinTenant"/>, y solo
 /// mientras <see cref="ITenantActual"/> no tenga Tenant, las búsquedas por clave
 /// (Id, nombre, correo) resuelven primero el Tenant de la cuenta con una función
-/// <c>SECURITY DEFINER</c> que devuelve ese dato y nada más, y leen la fila dentro de
+/// <c>SECURITY DEFINER</c> de la que solo se lee ese dato, y leen la fila dentro de
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
 /// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Los roles
 /// de la cuenta (<c>GetRolesAsync</c>; no <c>IsInRoleAsync</c> ni <c>GetUsersInRoleAsync</c>)
@@ -59,9 +59,22 @@ namespace CaeManager.Infrastructure.Identity;
 /// </para>
 /// </summary>
 public class AlmacenUsuarios(
-    CaeManagerDbContext context, ITenantActual tenantActual, IdentityErrorDescriber? describer = null)
+    CaeManagerDbContext context, ITenantActual tenantActual, IdentityErrorDescriber? describer = null,
+    ISelloSeguridadCuenta? sellos = null)
     : UserStore<ApplicationUser, IdentityRole<Guid>, CaeManagerDbContext, Guid>(context, describer)
 {
+    /// <summary>
+    /// Toda rotación del sello de Identity pasa por aquí con el sello anterior aún en la entidad: lo
+    /// necesita el refresco de la cookie de esta petición (ver <see cref="SelloSeguridadCuenta"/>). Sin
+    /// la anotación, ese refresco falla en cerrado.
+    /// </summary>
+    public override Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        sellos?.AnotarRotacion(user.Id, user.SecurityStamp);
+        return base.SetSecurityStampAsync(user, stamp, cancellationToken);
+    }
+
     // Los mismos valores que las constantes privadas de UserStoreBase: la fila
     // es la misma que usaría Identity sin este almacén.
     internal const string ProveedorInterno = "[AspNetUserStore]";
@@ -100,8 +113,8 @@ public class AlmacenUsuarios(
         if (!ResuelveSinTenant)
             return await base.FindByNameAsync(normalizedUserName, cancellationToken);
 
-        var cuentas = await CuentasPorNombreNormalizadoAsync(Context, normalizedUserName, cancellationToken);
-        return await EnTenantAsync(TenantUnico(cuentas),
+        var tenants = await TenantsPorNombreNormalizadoAsync(Context, normalizedUserName, cancellationToken);
+        return await EnTenantAsync(TenantUnico(tenants),
             () => base.FindByNameAsync(normalizedUserName, cancellationToken));
     }
 
@@ -111,8 +124,8 @@ public class AlmacenUsuarios(
         if (!ResuelveSinTenant)
             return await base.FindByEmailAsync(normalizedEmail, cancellationToken);
 
-        var cuentas = await CuentasPorEmailNormalizadoAsync(Context, normalizedEmail, cancellationToken);
-        return await EnTenantAsync(TenantUnico(cuentas),
+        var tenants = await TenantsPorEmailNormalizadoAsync(Context, normalizedEmail, cancellationToken);
+        return await EnTenantAsync(TenantUnico(tenants),
             () => base.FindByEmailAsync(normalizedEmail, cancellationToken));
     }
 
@@ -156,13 +169,13 @@ public class AlmacenUsuarios(
     /// en Tenants distintos harían que la búsqueda de Identity fallara igual
     /// (<c>SingleOrDefault</c>). Se falla aquí, antes de elegir un Tenant al azar.
     /// </summary>
-    private static Guid? TenantUnico(IReadOnlyList<CuentaResuelta> cuentas)
+    private static Guid? TenantUnico(IReadOnlyList<Guid> tenants)
     {
-        var tenants = cuentas.Select(c => c.TenantId).Distinct().ToList();
-        return tenants.Count switch
+        var distintos = tenants.Distinct().ToList();
+        return distintos.Count switch
         {
             0 => null,
-            1 => tenants[0],
+            1 => distintos[0],
             _ => throw new InvalidOperationException(
                 "Hay más de una cuenta con esa clave en Tenants distintos; la búsqueda sin Tenant no puede elegir."),
         };
@@ -174,7 +187,10 @@ public class AlmacenUsuarios(
     // Las funciones SECURITY DEFINER sobre AspNetUsers. Estáticas e internas: las
     // usan también ValidadorUnicidadGlobalCuenta y ClaveApiRepository (estado de la cuenta que
     // emitió una clave de API), y ProhibicionSqlCrudoYFiltrosIgnoradosTests congela estas
-    // líneas como los únicos sitios que las invocan.
+    // líneas como los únicos sitios que las invocan. Exigen el contexto RLS firmado (migraciones
+    // OraculosTransversalesExigenContextoFirmado y ResolucionesRestantesExigenContextoFirmado): el
+    // interceptor lo pone en toda conexión, y quien solo tiene la credencial de cae_app_runtime no
+    // puede firmarlo.
 
     internal static Task<Guid?> TenantDeCuentaAsync(CaeManagerDbContext db, Guid cuentaId, CancellationToken cancellationToken) =>
         db.Database.SqlQuery<Guid?>($"SELECT app_tenant_de_cuenta({cuentaId}) AS \"Value\"")
@@ -192,17 +208,31 @@ public class AlmacenUsuarios(
             .ToListAsync(cancellationToken))
         .SingleOrDefault();
 
-    internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorNombreNormalizadoAsync(
+    private static async Task<IReadOnlyList<Guid>> TenantsPorNombreNormalizadoAsync(
         CaeManagerDbContext db, string nombreNormalizado, CancellationToken cancellationToken) =>
-        await db.Database.SqlQuery<CuentaResuelta>(
-                $"SELECT cuenta_id AS \"CuentaId\", tenant_id AS \"TenantId\" FROM app_cuenta_por_nombre_normalizado({nombreNormalizado})")
+        await db.Database.SqlQuery<Guid>(
+                $"SELECT tenant_id AS \"Value\" FROM app_cuenta_por_nombre_normalizado({nombreNormalizado})")
             .ToListAsync(cancellationToken);
 
-    internal static async Task<IReadOnlyList<CuentaResuelta>> CuentasPorEmailNormalizadoAsync(
+    private static async Task<IReadOnlyList<Guid>> TenantsPorEmailNormalizadoAsync(
         CaeManagerDbContext db, string emailNormalizado, CancellationToken cancellationToken) =>
-        await db.Database.SqlQuery<CuentaResuelta>(
-                $"SELECT cuenta_id AS \"CuentaId\", tenant_id AS \"TenantId\" FROM app_cuentas_por_email_normalizado({emailNormalizado})")
+        await db.Database.SqlQuery<Guid>(
+                $"SELECT tenant_id AS \"Value\" FROM app_cuentas_por_email_normalizado({emailNormalizado})")
             .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// La unicidad global (<see cref="ValidadorUnicidadGlobalCuenta"/>) solo necesita saber si otra
+    /// cuenta usa ese valor: quien da de alta una cuenta no recibe el Id ni el Tenant de la otra.
+    /// </summary>
+    internal static Task<bool> NombreEnUsoPorOtraCuentaAsync(
+        CaeManagerDbContext db, string nombreNormalizado, Guid cuentaId, CancellationToken cancellationToken) =>
+        db.Database.SqlQuery<bool>($"SELECT app_nombre_en_uso_por_otra_cuenta({nombreNormalizado}, {cuentaId}) AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
+    internal static Task<bool> CorreoEnUsoPorOtraCuentaAsync(
+        CaeManagerDbContext db, string emailNormalizado, Guid cuentaId, CancellationToken cancellationToken) =>
+        db.Database.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({emailNormalizado}, {cuentaId}) AS \"Value\"")
+            .SingleAsync(cancellationToken);
 
     // ── Códigos de recuperación de la 2FA (P0-8) ───────────────────────────
 
@@ -289,13 +319,6 @@ public class AlmacenUsuarios(
     private static byte[] Derivar(string codigoNormalizado, byte[] sal) =>
         Rfc2898DeriveBytes.Pbkdf2(
             Encoding.UTF8.GetBytes(codigoNormalizado), sal, Iteraciones, HashAlgorithmName.SHA256, BytesHash);
-}
-
-/// <summary>Una fila de las funciones de resolución de cuenta de <c>RlsAspNetUsers</c>.</summary>
-public sealed record CuentaResuelta
-{
-    public Guid CuentaId { get; init; }
-    public Guid TenantId { get; init; }
 }
 
 /// <summary>La fila de <c>app_estado_cuenta_emisora</c>: solo lo que decide si la cuenta respalda una clave de API.</summary>

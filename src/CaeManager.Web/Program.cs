@@ -126,10 +126,9 @@ builder.Host.UseSerilog((context, services, loggerConfiguration) =>
         loggerConfiguration.WriteTo.Seq(urlSeq, apiKey: apiKeySeq);
 });
 
-// Error tracking con Sentry — si "Sentry:Dsn" no está configurado (hoy, en
-// todos los entornos: no hay cuenta de Sentry provisionada todavía), la SDK
-// queda inerte por diseño propio: no envía nada, no lanza, no bloquea el
-// arranque. IMPORTANTE: hay que pasar explícitamente "" (no null) para que
+// Error tracking con Sentry — la cuenta existe; si "Sentry:Dsn" no está
+// configurado en un entorno, la SDK queda inerte por diseño propio: no envía
+// nada, no lanza, no bloquea el arranque. IMPORTANTE: hay que pasar explícitamente "" (no null) para que
 // quede inerte — un Dsn null hace que Sentry.SentrySdk.InitHub lance
 // ArgumentNullException en el arranque en vez de desactivarse en silencio
 // (comprobado en local, no es el comportamiento que sugiere la documentación
@@ -196,6 +195,11 @@ builder.WebHost.UseSentry(options =>
 // (LoggingBehavior y el resto los usan sin condición), pero sin listener
 // StartActivity devuelve null y las métricas no tienen a quién exportar: el
 // coste es marginal, no una llamada de red que reintentar en bucle.
+//
+// MJ-06: fracción de trazas que se exporta (Observabilidad:MuestreoTrazas, 0 a 1; sin valor, todas). Se valida siempre
+// al arrancar, haya o no Seq. Solo afecta a las trazas: las métricas, que alimentan los SLI, van siempre completas.
+var muestreoTrazas = MuestreoDeTrazas.Leer(builder.Configuration);
+
 if (!string.IsNullOrWhiteSpace(urlSeq))
 {
     var otlpTracesUrl = new Uri($"{urlSeq.TrimEnd('/')}/ingest/otlp/v1/traces");
@@ -213,6 +217,7 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
         .ConfigureResource(recurso => recurso.AddService(
             "CaeManager", serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString()))
         .WithTracing(tracing => tracing
+            .SetSampler(MuestreoDeTrazas.Crear(muestreoTrazas))
             // MediatR: ver Observabilidad.ActivitySource / LoggingBehavior.
             .AddSource(Observabilidad.NombreOrigen)
             // HTTP entrante (páginas Razor, endpoints, API v1) y saliente
@@ -226,6 +231,11 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
             .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpTracesUrl)))
         .WithMetrics(metrics => metrics
             .AddMeter(Observabilidad.NombreOrigen)
+            // MJ-06: SLI de base de datos (pool de conexiones y comandos de Npgsql) y de runtime (GC, hilos, pool de
+            // hilos). Ambos son Meters nativos —Npgsql desde su versión 8 y System.Runtime desde .NET 9—, así que
+            // no hay paquete nuevo que añadir.
+            .AddMeter("Npgsql")
+            .AddMeter("System.Runtime")
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddOtlpExporter(opciones => ConfigurarExportadorSeq(opciones, otlpMetricsUrl)));
@@ -298,6 +308,8 @@ builder.Services.AddScoped<CaeManager.Web.Services.IVentanaDeSoporteActual>(
 // tzdata, que el arranque falle aquí y no en la primera fecha que se juzgue.
 _ = CaeManager.Domain.Common.DiaDeNegocio.Zona;
 // Reloj de AvisoVentanaSoporte; inyectable para poder fijar la hora en los tests.
+// El arnés E2E (solo Development) registra aquí un reloj desplazado; es el último AddSingleton de TimeProvider y por eso gana a los TryAdd anteriores: ver RelojDesplazadoPorFichero.
+CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, builder.Configuration, builder.Environment);
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
@@ -323,6 +335,11 @@ authenticationBuilder.AddIdentityCookies();
 // de un parámetro suelto — ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.
 authenticationBuilder.AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
     ApiKeyAuthenticationSchemeOptions.NombreEsquema, options => { });
+
+// Clave de Integración del Tenant: esquema propio, para que un fallo aquí no
+// pueda convertir un privilegio de Soporte TALVEG en una integración duradera.
+authenticationBuilder.AddScheme<ClaveIntegracionAuthenticationSchemeOptions, ClaveIntegracionAuthenticationHandler>(
+    ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema, options => { });
 
 // Extensión de navegador (MVP1 de integración con plataformas CAE). Esquema
 // propio por el mismo motivo que el de arriba, pero con una diferencia de
@@ -434,11 +451,13 @@ builder.Services.AddAuthorization(options =>
         .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
             CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles)));
 
-    // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
+    // Solo los dos esquemas de clave — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con
     // sesión de navegador podría llamar a /api/v1 sin clave.
     options.AddPolicy("ApiPublica", policy => policy
-        .AddAuthenticationSchemes(ApiKeyAuthenticationSchemeOptions.NombreEsquema)
+        .AddAuthenticationSchemes(
+            ApiKeyAuthenticationSchemeOptions.NombreEsquema,
+            ClaveIntegracionAuthenticationSchemeOptions.NombreEsquema)
         .RequireAuthenticatedUser());
 
     // Lo que sirve tanto a una pestaña de Hydra como a la extensión: la lista
@@ -481,6 +500,7 @@ var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPor
 // Nunca por debajo del cupo por clave: un techo menor haría inalcanzable el cupo de una sola clave.
 var rateLimitPorMinutoPorIp = Math.Max(
     builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 3000), rateLimitPorMinuto);
+var rateLimitTokenPorMinuto = builder.Configuration.GetValue("ApiPublica:TokenPorMinuto", 10);
 // La entrega de archivos a la extensión: 30 peticiones al minuto son 15 documentos,
 // más de lo que una persona pone a mano en un formulario de una plataforma CAE.
 var rateLimitEntregaExtensionPorMinuto = builder.Configuration.GetValue("RateLimiting:Extension:LimitePorMinuto", 30);
@@ -488,7 +508,10 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy(LimitadorApiPublica.Politica, httpContext =>
-        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto));
+        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto,
+            httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
+    options.AddPolicy(LimitadorApiPublica.PoliticaToken, httpContext =>
+        LimitadorApiPublica.ParticionToken(httpContext, rateLimitTokenPorMinuto));
     options.AddPolicy(LimitadorEntregaExtension.Politica, httpContext =>
         LimitadorEntregaExtension.ParticionPorUsuario(httpContext, rateLimitEntregaExtensionPorMinuto,
             httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
@@ -1403,6 +1426,11 @@ app.UseRolEfectivoDelWorkspace();
 app.UseCuentaAMedioActivarSinAcceso();
 
 app.UseAuthorization();
+
+// Antes de UseAntiforgery: la reejecución de /not-found tras un 400 de antiforgery reentra aquí con el
+// rechazo de la primera pasada y, sin esto, el framework lanza y la respuesta acaba en 500 (ver
+// RechazoDeAntiforgeryReejecutadoMiddleware).
+app.UseRechazoDeAntiforgeryReejecutado();
 app.UseAntiforgery();
 
 // Después de UseAuthentication (hace falta el usuario resuelto) y antes de
@@ -1469,22 +1497,32 @@ app.MapWebhookStripeEndpoints();
 // P41c: quien llama con una ClaveApi es una integración externa, no una persona,
 // y el handler de la clave mete el Id de la clave como NameIdentifier, así que
 // sin este filtro cualquier escritura futura de este grupo se auditaría como
-// `Persona`. Hoy el grupo solo mapea GET y sus consultas no escriben (medido
-// sobre este mismo bloque y sobre las cuatro queries por Id), de modo que el
-// filtro no corrige ninguna fila: cierra la puerta a la primera que llegue.
+// `Persona`. Hoy el grupo solo mapea GET, y lo único que escribe dentro del grupo
+// es el contador de `UsosApiDiarios` (RastroUsoApiEndpointFilter), que no pasa por
+// la auditoría, de modo que el filtro no corrige ninguna fila: cierra la puerta a
+// la primera que llegue. `ClaveApi.RegistrarUso` se escribe antes, en el handler
+// de autenticación, con su propio ámbito de actor.
 var apiV1 = app.MapGroup("/api/v1")
     .RequireAuthorization("ApiPublica")
     .RequireRateLimiting("ApiPublica")
-    .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
-apiV1.MapClientesApiEndpoints();
-apiV1.MapCentrosApiEndpoints();
-apiV1.MapTrabajadoresApiEndpoints();
-apiV1.MapDocumentosApiEndpoints();
-apiV1.MapAsignacionesApiEndpoints();
+    .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
+    .AddEndpointFilter<AlcanceIntegracionEndpointFilter>()
+    .AddEndpointFilter<RastroUsoApiEndpointFilter>();
+apiV1.MapRecursosApiV1();
 
-// El documento OpenAPI no expone datos, solo forma — no requiere auth
-// (misma práctica habitual que /swagger.json en una API privada).
-app.MapOpenApi("/api/v1/openapi.json").AllowAnonymous();
+// Fuera del grupo: quien pide el token aún no lo tiene.
+app.MapTokenIntegracionEndpoint();
+
+// El documento OpenAPI describe una API sin anunciar (OWASP API9:2023): exige
+// clave mientras no se decida publicarlo. Solo el entorno del escaneo ZAP de CI
+// lo abre, y por entorno: una variable suelta podría reabrirlo en producción.
+// Con clave deja rastro como el resto de la API v1; el escaneo anónimo no tiene
+// clave a la que atribuirlo.
+var documentoOpenApi = app.MapOpenApi("/api/v1/openapi.json");
+if (app.Environment.IsEnvironment("Escaneo"))
+    documentoOpenApi.AllowAnonymous();
+else
+    documentoOpenApi.RequireAuthorization("ApiPublica").AddEndpointFilter<IEndpointConventionBuilder, RastroUsoApiEndpointFilter>();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

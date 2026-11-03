@@ -78,6 +78,8 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ["CaeManager.Web/Api/Comercial/WebhookStripeEndpoints.cs"] = (1, Categoria.SistemaDeTercero),
         ["CaeManager.Web/Api/Integraciones/WebhookMicrosoft365Endpoints.cs"] = (1, Categoria.SistemaDeTercero),
         ["CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] = (1, Categoria.SistemaDeTercero),
+        // El canje del secreto de la Clave de Integración del Tenant: escribe el último uso de la clave.
+        ["CaeManager.Web/Api/V1/TokenIntegracionEndpoints.cs"] = (1, Categoria.SistemaDeTercero),
 
         // Iniciar sesión con Microsoft y su retorno: una persona, aún sin sesión.
         ["CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs"] = (2, Categoria.PersonaSinSesion),

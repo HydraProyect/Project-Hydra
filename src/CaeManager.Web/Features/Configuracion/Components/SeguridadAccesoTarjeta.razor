@@ -7,6 +7,7 @@
 @using FluentValidation
 @inject MediatR.IMediator Mediator
 @inject ToastService ToastService
+@inject Microsoft.Extensions.Logging.ILogger<SeguridadAccesoTarjeta> Logger
 @inject Microsoft.Extensions.Localization.IStringLocalizer<TextosConfiguracion> Textos
 
 @* Solo la ve quien puede cambiarla: el Administrador del Tenant (AutoridadSeguridadAcceso). Si la
@@ -86,9 +87,12 @@
             _exigeTodos = ajuste.ExigeSegundoFactorTodosLosPerfiles;
             _puedeEditar = true;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Sin aviso, la tarjeta ausente se leería igual que «no tienes permiso».
             _puedeEditar = false;
+            Logger.LogWarning("No se pudo leer el ajuste de seguridad de acceso: {TipoExcepcion}.", ex.GetType().Name);
+            ToastService.Mostrar(Textos["SeguridadNoCargada"].Value, TonoToast.Error);
         }
     }
 

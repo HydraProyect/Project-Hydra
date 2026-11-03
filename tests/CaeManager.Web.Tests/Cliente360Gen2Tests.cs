@@ -736,7 +736,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         var tokenDelCiclo = tokensDeConsulta[0];
         tokenDelCiclo.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         tokenDelCiclo.IsCancellationRequested.Should().BeTrue(
             "retirado el panel, lo que estuviera en vuelo se cancela");
@@ -760,7 +760,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         campoGeneracion.Should().NotBeNull("el test lee la generación para comprobar que Dispose se ejecutó");
         var generacionAntes = (int)campoGeneracion!.GetValue(instancia)!;
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         ((int)campoGeneracion.GetValue(instancia)!).Should().BeGreaterThan(generacionAntes,
             "DisposeComponentsAsync tiene que haber llamado a Dispose del panel (cut.Dispose de bUnit 2.x no lo hace)");

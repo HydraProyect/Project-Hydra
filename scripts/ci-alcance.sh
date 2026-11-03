@@ -176,7 +176,7 @@ alcance_pr() {
   # compilación o las dependencias de TODOS los proyectos (un salto de versión
   # de Npgsql o de EF en un .csproj no toca ninguna ruta «de integración» y
   # rompe la integración igual): activa los tres.
-  local re_infra='^(\.github/workflows/|deploy/|\.config/)|(^|/)(Dockerfile[^/]*|docker-[^/]*|Directory\.[^/]*|global\.json|packages\.lock\.json|[^/]*\.(csproj|props|targets|slnx?))$'
+  local re_infra='^(\.github/(workflows|actions)/|deploy/|\.config/)|(^|/)(Dockerfile[^/]*|docker-[^/]*|Directory\.[^/]*|global\.json|packages\.lock\.json|[^/]*\.(csproj|props|targets|slnx?))$'
   # Integración: lo que toca base de datos, RLS, migraciones, guiones y
   # autorización. Los directorios de tests entran porque los 6 rojos propios
   # de integración medidos en PR tocaban tests/CaeManager.IntegrationTests/.

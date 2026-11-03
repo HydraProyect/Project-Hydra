@@ -33,6 +33,7 @@
 @inject CaeManager.Infrastructure.Coordinacion.IEleccionLiderService CerrojoVerificacion
 @inject IDataProtectionProvider ProteccionDatos
 @inject IClienteActivoSeleccionado Seleccion
+@inject ISelloSeguridadCuenta Sellos
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -229,6 +230,7 @@
     private string? mensajeError;
     private string? _errorCarga;
     private ApplicationUser? _usuario;
+    private string? _selloAlCargar;
     private int _codigosRestantes;
     private IReadOnlyList<string>? _codigosRecuperacion;
     private bool _dosFactoresRecienActivado;
@@ -321,6 +323,7 @@
             _cargando = false;
             return;
         }
+        _selloAlCargar = _usuario.SecurityStamp;
 
         _dosFactoresActivo = await UserManager.GetTwoFactorEnabledAsync(_usuario);
         if (_dosFactoresActivo)
@@ -332,6 +335,16 @@
                 || _principal!.HasClaim(
                     TenantClaimsPrincipalFactory.TipoClaimActivacionPendiente,
                     TenantClaimsPrincipalFactory.ActivacionPendienteDosFactores);
+
+            // Antes de generar o enseñar la clave: una sesión que se quedó atrás en un cambio de credencial
+            // no la ve, porque quien la tiene puede acabar activando ese mismo factor desde su sesión legítima.
+            if (!await SesionLlevaElSelloVigenteAsync())
+            {
+                RegistroAuditoria.LogWarning("Alta de 2FA rechazada al cargar, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
+                _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
+                _cargando = false;
+                return;
+            }
 
             // La prueba que llega con el código (o la de un inicio de sesión reciente) es lo único que
             // abre el alta; una prueba ajena, caducada o de otra sesión no vale.
@@ -353,6 +366,15 @@
 
         _cargando = false;
     }
+
+    // Contra la base y no contra _usuario, que pudo cargarse antes del cambio de credencial. Un sello vacío
+    // en la cookie o en la cuenta no coincide con nada.
+    private async Task<bool> SesionLlevaElSelloVigenteAsync() =>
+        _usuario is not null
+        && await Sellos.EsVigenteAsync(
+            _usuario.Id, _usuario.TenantId, _principal?.FindFirst(UserManager.Options.ClaimsIdentity.SecurityStampClaimType)?.Value);
+
+    private ILogger RegistroAuditoria => LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
 
     private async Task PrepararReautenticacionAsync(ApplicationUser usuario)
     {
@@ -392,6 +414,15 @@
         var contrasena = Reautenticacion.Contrasena;
         // No vuelve a la página: el campo de contraseña se pinta vacío en la respuesta.
         Reautenticacion.Contrasena = string.Empty;
+
+        // Antes de verificar la contraseña: acertarla puede renovar su hash y rotar el sello, y entonces
+        // ya no se distinguiría una sesión obsoleta de la propia rotación.
+        if (!await SesionLlevaElSelloVigenteAsync())
+        {
+            RegistroAuditoria.LogWarning("Reautenticación para el alta de 2FA rechazada, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
+            return;
+        }
 
         // Mismo cerrojo no bloqueante que LoginCon2fa y la regeneración de códigos
         // (verificar-2fa:{userId}): sin él, N contraseñas en paralelo cargarían la cuenta con el mismo
@@ -468,6 +499,26 @@
             claveSinFormato = await UserManager.GetAuthenticatorKeyAsync(usuario);
         }
 
+        // Comprobar el sello y leer la clave no son atómicos: un cambio de credencial ajeno pudo llegar entre
+        // medias. Se relee después de tener la clave y antes de enseñarla o de refrescar la cookie. El sello
+        // que vale aquí es el de la cuenta tras lo que rotó esta petición, no el de la cookie, que ya no
+        // coincide en quien acaba de generar la clave. Vacío o desfasado no es vigente.
+        if (!await Sellos.EsVigenteAsync(usuario.Id, usuario.TenantId, usuario.SecurityStamp))
+        {
+            RegistroAuditoria.LogWarning("Alta de 2FA rechazada tras leer la clave, el sello de la cuenta ya no es el vigente: {UsuarioId}", usuario.Id);
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
+            return;
+        }
+
+        // Generar la clave rota el sello, y también puede hacerlo verificar la contraseña al renovar su
+        // hash. Se reemite en esta misma petición: en la del código, la cookie ya llevaría un sello que
+        // nadie sustituye ahí y SignInManagerCuentaDesactivada no la refrescaría.
+        if (!string.Equals(usuario.SecurityStamp, _selloAlCargar, StringComparison.Ordinal))
+        {
+            await SignInManager.RefreshSignInAsync(usuario);
+            _selloAlCargar = usuario.SecurityStamp;
+        }
+
         _claveCompartida = ClaveAutenticadorTotp.FormatearClave(claveSinFormato!);
         _uriOtpAuth = ClaveAutenticadorTotp.GenerarUriOtpAuth(usuario.Email ?? usuario.UserName ?? string.Empty, claveSinFormato!);
         _qrCodeDataUri = ClaveAutenticadorTotp.GenerarQrCodeDataUri(_uriOtpAuth);
@@ -483,6 +534,16 @@
         if (!_reautenticado)
         {
             mensajeError = Textos["ReautenticacionCaducada"];
+            return;
+        }
+
+        // Una sesión que se quedó atrás en un cambio de credencial no da de alta un factor en la cuenta,
+        // aunque aún no haya pasado su revalidación: SignInManagerCuentaDesactivada le negaría la cookie,
+        // pero el factor con su clave ya estaría activo.
+        if (!await SesionLlevaElSelloVigenteAsync())
+        {
+            RegistroAuditoria.LogWarning("Alta de 2FA rechazada, la sesión lleva un sello obsoleto: {UsuarioId}", _usuario?.Id);
+            _errorCarga = Textos["AltaDosFactoresSesionObsoleta"];
             return;
         }
 

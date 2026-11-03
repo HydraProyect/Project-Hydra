@@ -3,6 +3,7 @@ using System.Security.Claims;
 using CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
@@ -153,6 +154,13 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
             "que la resolución hash→clave no sobrevive a la política RLS de ClavesApi");
         cuerpo.Should().Contain(RazonSocialDelCliente,
             "autenticar no basta: el tenant resuelto desde la clave tiene que ser el que ve su propia cartera");
+
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var consulta = conexion.CreateCommand();
+        consulta.CommandText = "SELECT \"TipoClave\" FROM \"UsosApiDiarios\";";
+        ((int)(await consulta.ExecuteScalarAsync())!).Should().Be((int)TipoClaveUsoApi.ClaveSoporte,
+            "el rastro distingue la Clave de Soporte de la Clave de Integración del Tenant");
     }
 
     /// <summary>
@@ -215,14 +223,15 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
 
     /// <summary>
     /// Decisión del 2026-10-28 concretada el 2026-10-31: la suspensión operativa corta y reactivar
-    /// no devuelve la clave; la comercial corta y al revertirse vuelve a valer; solo lectura no corta.
+    /// no devuelve la clave; Suspendida y SoloLectura cortan y al revertirse vuelve a valer.
     /// </summary>
     [Theory]
     [InlineData("suspendido", HttpStatusCode.Unauthorized)]
     [InlineData("reactivado", HttpStatusCode.Unauthorized)]
     [InlineData("comercial suspendida", HttpStatusCode.Unauthorized)]
     [InlineData("comercial revertida", HttpStatusCode.OK)]
-    [InlineData("solo lectura", HttpStatusCode.OK)]
+    [InlineData("solo lectura", HttpStatusCode.Unauthorized)]
+    [InlineData("solo lectura revertida", HttpStatusCode.OK)]
     public async Task Bajo_RLS_el_estado_del_Tenant_propietario_decide_la_clave(string caso, HttpStatusCode esperado)
     {
         await using (var contexto = CrearContextoPropietario())
@@ -239,8 +248,15 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
                     break;
                 default:
                     tenant.VincularSuscripcionStripe("cus_prueba", "sub_prueba", EstadoComercialTenant.Activa);
-                    tenant.ActualizarEstadoComercial(caso == "solo lectura" ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
-                    if (caso == "comercial revertida") tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    tenant.ActualizarEstadoComercial(caso.StartsWith("solo lectura", StringComparison.Ordinal) ? EstadoComercialTenant.SoloLectura : EstadoComercialTenant.Suspendida);
+                    if (caso.EndsWith("revertida", StringComparison.Ordinal))
+                    {
+                        // Guardado y observado antes de revertir: si no, el test solo vería el estado final.
+                        await contexto.SaveChangesAsync();
+                        (await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro)).Estado
+                            .Should().Be(HttpStatusCode.Unauthorized, "control: el corte está aplicado");
+                        tenant.ActualizarEstadoComercial(EstadoComercialTenant.Activa);
+                    }
                     break;
             }
             await contexto.SaveChangesAsync();
@@ -475,6 +491,7 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         app.MapGroup("/api/v1")
             .RequireAuthorization("ApiPublica")
             .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>()
+            .AddEndpointFilter<RastroUsoApiEndpointFilter>()
             .MapClientesApiEndpoints();
 
         await app.StartAsync();

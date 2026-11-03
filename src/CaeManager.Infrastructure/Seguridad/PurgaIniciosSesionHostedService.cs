@@ -24,6 +24,11 @@ namespace CaeManager.Infrastructure.Seguridad;
 /// emitidas y revocadas) con <c>app_purgar_sesiones_usuario()</c>, con el mismo criterio: corte
 /// fijo dentro de la función y sin DELETE para el runtime.
 /// </para>
+///
+/// <para>
+/// El log de abajo es solo operativo: la evidencia de cada borrado la deja la propia función en
+/// <c>TrazasPurga</c>, en la misma transacción, también por llamada SQL directa.
+/// </para>
 /// </summary>
 public class PurgaIniciosSesionHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<PurgaIniciosSesionHostedService> logger)

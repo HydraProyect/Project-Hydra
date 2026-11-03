@@ -1239,7 +1239,7 @@ public class InicioGen2Tests : BunitContext
             "con CancellationToken.None, retirar la pantalla no cancelaría nada");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue();
 

@@ -6,6 +6,8 @@ using CaeManager.Application.Integraciones.Commands.ActualizarLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Integraciones.Commands.CrearLineaWhatsApp;
 using CaeManager.Application.Integraciones.Commands.DesconectarBuzon;
+using CaeManager.Application.Integraciones.Commands.FijarAcuseAutomaticoBuzon;
+using CaeManager.Application.Integraciones.Commands.FijarResponsableBuzon;
 using CaeManager.Application.Integraciones.Commands.GuardarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.RetirarConexionPlataformaCae;
 using CaeManager.Application.Integraciones.Commands.ReactivarConexion;
@@ -87,6 +89,9 @@ public static class ActosExcluidosDelEncargo
         "Facturacion",  // tarifas, resumen y su exportación
         "Importacion",  // importaciones masivas (Clientes empresariales, Documentos, combinada)
         "Retencion",    // purga y retención
+        // Decisión y aviso de un incidente de seguridad de Plataforma: solo un Actor de Plataforma TALVEG con
+        // concesión AdminPlataforma global y segundo factor; nunca quien administra un Tenant por encargo.
+        "Seguridad",
     };
 
     /// <summary>Peticiones excluidas de áreas que, por lo demás, quedan permitidas.</summary>
@@ -104,6 +109,8 @@ public static class ActosExcluidosDelEncargo
         typeof(ConectarBuzonMicrosoft365Command),
         typeof(DesconectarBuzonCommand),
         typeof(ReactivarConexionCommand),
+        typeof(FijarResponsableBuzonCommand),
+        typeof(FijarAcuseAutomaticoBuzonCommand),
         typeof(CrearLineaWhatsAppCommand),
         typeof(ActualizarLineaWhatsAppCommand),
         typeof(GuardarConexionPlataformaCaeCommand),
@@ -127,7 +134,7 @@ public static class ActosExcluidosDelEncargo
     {
         "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "Bandeja", "Blindaje42", "BusquedaGlobal",
         "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos", "ContratosAcceso",
-        "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "Incidencias",
+        "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "HerramientasPdf", "Incidencias",
         "Integraciones", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",
         "Reclamaciones", "Reportes", "Subcontratas", "Telemetria", "Tenants",
         "TiposDocumento", "Trabajadores", "Usuarios", "Vehiculos", "VigilanciaNormativa", "Visitas",

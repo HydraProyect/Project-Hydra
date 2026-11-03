@@ -248,6 +248,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Ni la marca de inicio de sesión, que el alta del TOTP lee como autenticación reciente.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        services.AddScoped<ISelloSeguridadCuenta, SelloSeguridadCuenta>();
         services.AddScoped<IVigenciaSesionCuenta, VigenciaSesionCuenta>();
         services.AddScoped<ILecturaCuentaPropia, LecturaCuentaPropia>();
         services.AddScoped<IPreferenciasCuentaPropia, PreferenciasCuentaPropia>();
@@ -290,9 +291,12 @@ public static class InfrastructureServiceCollectionExtensions
         configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion).Bind(opcionesMicrosoft365);
         services.Configure<Microsoft365GraphOptions>(configuration.GetSection(Microsoft365GraphOptions.SeccionConfiguracion));
 
-        services.AddHttpClient<CaeManager.Application.Integraciones.IMicrosoft365GraphClient, Microsoft365GraphClient>(
+        // El contrato se entrega siempre detrás de la guarda de envío (C-04, ver EnvioCorreoOptions).
+        services.AddHttpClient<Microsoft365GraphClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
+        services.AddTransient<CaeManager.Application.Integraciones.IMicrosoft365GraphClient>(sp =>
+            ActivatorUtilities.CreateInstance<GuardaEnvioMicrosoft365GraphClient>(sp, sp.GetRequiredService<Microsoft365GraphClient>()));
 
         if (opcionesMicrosoft365.EstaConfigurado)
         {
@@ -391,6 +395,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
         services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
+        services.AddSingleton<CaeManager.Application.HerramientasPdf.IDivisorPdf, CaeManager.Infrastructure.HerramientasPdf.PdfSharpDivisorPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
@@ -442,6 +447,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ISugerenciaVisitaCorreoRepository, SugerenciaVisitaCorreoRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.IEventoConversacionRepository, EventoConversacionRepository>();
         services.AddScoped<CaeManager.Domain.Comunicaciones.INotaInternaConversacionRepository, NotaInternaConversacionRepository>();
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IAdjuntoMensajeRepository, AdjuntoMensajeRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaRepository, AlertaCriticaRepository>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>();
         services.AddScoped<CaeManager.Application.Comunicaciones.Deteccion.IAlertaCriticaService>(sp => sp.GetRequiredService<CaeManager.Application.Comunicaciones.Deteccion.AlertaCriticaService>());
@@ -473,6 +479,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionIntencionCaeService, AnthropicDeteccionIntencionCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
+        services.AddScoped<CaeManager.Domain.Comunicaciones.IRespuestaSugeridaRepository, RespuestaSugeridaRepository>();
+        services.AddHttpClient<CaeManager.Application.Comunicaciones.IRedaccionRespuestaIa, AnthropicRedaccionRespuestaIaService>(
+                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
@@ -488,17 +498,23 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Comunicaciones.IContactoWhatsAppRepository, ContactoWhatsAppRepository>();
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
+        services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookTenantResolver, WebhookTenantResolver>();
         services.AddScoped<CaeManager.Application.Integraciones.IWebhookWhatsAppTenantResolver, WebhookWhatsAppTenantResolver>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookWhatsAppService>();
         services.AddSingleton<CaeManager.Application.Integraciones.ISenalIngestaWhatsApp, SenalIngestaWhatsApp>();
         services.AddSingleton<CaeManager.Application.Comunicaciones.Eventos.INotificadorMensajesTiempoReal, NotificadorMensajesTiempoReal>();
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
+        services.AddScoped<CaeManager.Domain.ApiKeys.IClaveIntegracionTenantRepository, ClaveIntegracionTenantRepository>();
+        services.AddScoped<CaeManager.Domain.ApiKeys.IRastroUsoApi, RastroUsoApi>();
+        services.AddScoped<CaeManager.Infrastructure.Autenticacion.EmisorTokenClaveIntegracion>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -619,6 +635,8 @@ public static class InfrastructureServiceCollectionExtensions
             CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
             CaeManager.Infrastructure.Plataforma.ContactosSeguridadPlataforma>();
+        services.AddScoped<CaeManager.Application.Seguridad.Incidentes.Aviso.IIncidentesSeguridadPlataforma,
+            CaeManager.Infrastructure.Plataforma.IncidentesSeguridadPlataforma>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
         services.AddScoped<CaeManager.Application.Usuarios.Queries.ObtenerNombreCuenta.ILectorNombreCuenta, LectorNombreCuentaIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
@@ -746,8 +764,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Documentos.Verificacion.ITransaccionDocumentoBloqueado, TransaccionDocumentoBloqueado>();
         services.AddHostedService<ProcesadorAnalisisDocumentoHostedService>();
 
-        // Fase F: aviso por hora (solo campana, sin correo en v1) de
-        // gestiones urgentes de visita — reutiliza ObtenerBandejaGestorQuery,
+        // Fase F: comprobación horaria y aviso agregado por destinatario (solo campana, sin correo en v1) de
+        // gestiones urgentes de visita — reutiliza el criterio de Mi trabajo,
         // sin interruptor de configuración propio (a diferencia del resumen
         // de alertas por correo, no manda nada fuera de la aplicación).
         services.AddHostedService<Visitas.VigilanciaVisitasUrgentesHostedService>();
@@ -882,7 +900,19 @@ public static class InfrastructureServiceCollectionExtensions
         // Buzón de dinahosting (info@talveg.es) por SMTP — no Microsoft Graph:
         // el MX de talveg.es resuelve a mail.talveg.es, no a Exchange Online.
         services.Configure<SmtpEmailOptions>(configuration.GetSection(SmtpEmailOptions.SeccionConfiguracion));
-        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<SmtpEmailService>();
+        services.AddScoped<IEmailService>(sp =>
+            ActivatorUtilities.CreateInstance<GuardaEnvioEmailService>(sp, sp.GetRequiredService<SmtpEmailService>()));
+
+        // Guarda de envío (C-04, decisión D-2): cerrada por defecto en todo entorno, porque staging
+        // arranca como Production. Vale para SMTP y para Microsoft 365. Un valor inválido impide arrancar.
+        services.AddOptions<EnvioCorreoOptions>()
+            .Bind(configuration.GetSection(EnvioCorreoOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(),
+                $"La sección {EnvioCorreoOptions.SeccionConfiguracion} no es válida: Modo tiene que ser Cerrado, SoloPermitidos o Abierto; " +
+                "SoloPermitidos exige DestinatariosPermitidos con direcciones exactas y Abierto no admite lista.")
+            .ValidateOnStart();
+        services.AddHostedService<AvisoGuardaEnvioCorreoHostedService>();
 
         // A quién vuelve la respuesta de una reclamación enviada por SMTP
         // (decisión D3): al Gestor CAE que la emite. Scoped porque resuelve la
@@ -926,6 +956,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
         services.AddScoped<IPlantillaCombinadaService, ClosedXmlPlantillaCombinadaService>();
+        services.AddScoped<IPlantillaMaestraService, ClosedXmlPlantillaMaestraService>();
 
         return services;
     }

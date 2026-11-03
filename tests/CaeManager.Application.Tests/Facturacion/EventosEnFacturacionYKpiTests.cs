@@ -114,6 +114,24 @@ public class EventosEnFacturacionYKpiTests
         return await handler.CalcularFacturacionEstimadaAsync(PeriodoKpi.DeFechas(desde, hasta), CancellationToken.None);
     }
 
+    /// <summary>
+    /// D-4 (C-12): desde noviembre de 2026 el mes se corta por el día de negocio en Madrid. Un Centro dado de alta el
+    /// 31 de octubre a las 23:30 UTC es del 1 de noviembre a las 00:30 en Madrid: cuenta en noviembre, no en octubre.
+    /// </summary>
+    [Fact]
+    public async Task Un_alta_de_centro_de_las_0030_de_Madrid_del_1_de_noviembre_se_factura_en_noviembre()
+    {
+        typeof(Domain.Common.EntidadBase).GetProperty(nameof(Centro.CreadoEnUtc))!
+            .SetValue(_centro, new DateTime(2026, 10, 31, 23, 30, 0, DateTimeKind.Utc));
+        Tarifa(ConceptoFacturable.AltaCentro, 10m);
+
+        var octubre = await ResumenAsync(2026, 10);
+        var noviembre = await ResumenAsync(2026, 11);
+
+        Unidades(octubre, ConceptoFacturable.AltaCentro).Should().Be(0);
+        Unidades(noviembre, ConceptoFacturable.AltaCentro).Should().Be(1);
+    }
+
     private static int Unidades(ResumenFacturacionDto resumen, ConceptoFacturable concepto) =>
         resumen.Lineas.Single(l => l.Concepto == concepto).Unidades;
 

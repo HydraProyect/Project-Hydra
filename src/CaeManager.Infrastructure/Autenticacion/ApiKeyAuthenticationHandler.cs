@@ -39,8 +39,8 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// <para>
 /// Lo que corta para siempre: cerrarse la ventana, a mano o por expiración, desactivar la cuenta
 /// emisora y la suspensión operativa del Tenant. Reabrir la ventana o reactivar no devuelve la clave,
-/// igual que no resucita las sesiones anteriores. La suspensión comercial sí es reversible. El bloqueo
-/// temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
+/// igual que no resucita las sesiones anteriores. Los cortes comerciales, Suspendida y SoloLectura, sí
+/// son reversibles. El bloqueo temporal por intentos fallidos no corta: cualquiera que conociera el correo tumbaría la integración.
 /// </para>
 ///
 /// <para>
@@ -148,9 +148,10 @@ public class ApiKeyAuthenticationHandler(
             // ningún endpoint. Era falso: Program.cs monta /api/v1 con ella (cinco
             // grupos de endpoints). La medición había excluido Program.cs, que es
             // justo donde está el uso. La conclusión práctica se mantiene —el grupo
-            // solo mapea GET y sus consultas no escriben, así que
-            // `ClaveApi.RegistrarUso` sigue siendo la única escritura auditable de
-            // una petición con clave—, pero la premisa era errónea.
+            // solo mapea GET y el contador de `UsosApiDiarios` no pasa por la
+            // auditoría, así que `ClaveApi.RegistrarUso` sigue siendo la única
+            // escritura auditable de una petición con clave—, pero la premisa era
+            // errónea.
             using var ambitoActor = AmbitoActorAuditoria.EstablecerIntegracionExterna();
             clave.RegistrarUso();
             await unitOfWork.SaveChangesAsync(Context.RequestAborted);

@@ -447,7 +447,7 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         _mediador.FiltrosGuardados.Add(filtro);
         var cut = Renderizar();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         await _conexion.AplicarAsync(filtro.Id.ToString());
 
         _aplicadas.Should().BeEmpty();

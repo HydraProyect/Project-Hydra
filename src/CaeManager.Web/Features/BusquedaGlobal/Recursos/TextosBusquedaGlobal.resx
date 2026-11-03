@@ -15,6 +15,9 @@
   <data name="IrAMiAvatar" xml:space="preserve">
     <value>Ir a Mi avatar</value>
   </data>
+  <data name="IrAHerramientasPdf" xml:space="preserve">
+    <value>Ir a Herramientas PDF</value>
+  </data>
   <data name="IrAMiTrabajoDeLaCartera" xml:space="preserve">
     <value>Ir a Mi trabajo de toda la cartera</value>
   </data>

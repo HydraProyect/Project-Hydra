@@ -191,9 +191,11 @@ jobs:
       # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
       # aquí y ya no en el job de build, que se ahorra los ~25 s.
       - name: Instalar LibreOffice (Entorno de conversión)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libreoffice-writer
+        uses: ./.github/actions/apt-acotado
+        with:
+          comando: |
+            sudo apt-get update
+            sudo apt-get install -y libreoffice-writer
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -663,6 +665,9 @@ jobs:
       - name: background.js — el código de conexión que empaqueta el C# se lee aquí
         run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
 
+      - name: background.js — una pestaña del portal no lee el token ni redirige la conexión
+        run: node extension/pruebas/comprobar-frontera-conexion.mjs extension/background.js
+
       # E3 — empaquetado. El zip se construye con extension/herramientas/empaquetar.mjs:
       # solo lo que el manifiesto alcanza (sin pruebas ni herramientas), con
       # fechas y orden fijos, así que dos ejecuciones dan los mismos bytes.
@@ -746,18 +751,14 @@ jobs:
       # 14 minutos: en la CI de la PR #1751 las dependencias de apt
       # tardaron 7 porque el espejo de Azure servía las fuentes a ~60 kB/s.
       - name: Instalar Playwright de npm y Chromium
-        working-directory: extension/pruebas
         timeout-minutes: 14
-        run: |
-          for intento in 1 2 3; do
-            if npm ci --ignore-scripts --no-audit --no-fund \
-              && npx --no-install playwright install --with-deps --no-shell chromium; then
-              exit 0
-            fi
-            echo "::warning::Instalación de Playwright fallida (intento $intento de 3)"
-            sleep $((intento * 15))
-          done
-          exit 1
+        uses: ./.github/actions/apt-acotado
+        with:
+          limite-segundos: "240"
+          comando: |
+            cd extension/pruebas
+            npm ci --ignore-scripts --no-audit --no-fund
+            npx --no-install playwright install --with-deps --no-shell chromium
 
       - name: Extensión MV3 en Chromium real (headless nuevo)
         working-directory: extension/pruebas
@@ -809,6 +810,11 @@ jobs:
 
       - name: Probar la guarda del modelo de migración
         run: python3 scripts/verificar-modelo-migracion.tests.py
+
+      # Es lo único que sale de ZAP a un repositorio público, y seguridad-codigo.yml
+      # no es obligatorio: aquí un filtro roto sí bloquea la PR.
+      - name: Probar el resumen publicable de ZAP
+        run: python3 scripts/resumen-zap.tests.py
 
       - name: Comprobar el orden de las migraciones
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
@@ -1423,7 +1429,9 @@ jobs:
           -f deploy/bootstrap/roles-de-cluster.sql
 
       - name: Instalar navegadores de Playwright
-        run: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+        uses: ./.github/actions/apt-acotado
+        with:
+          comando: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
 
       # El logger "trx" no cambia qué se ejecuta ni qué hace fallar al job:
       # solo añade, junto al log de consola, un fichero con el nombre, el
@@ -2135,11 +2143,15 @@ jobs:
 
       # Copia cifrada de las claves de Data Protection (P38): esta prueba usa
       # `age` REAL (el cifrado no se puede simular) y NO da verde sin él.
+      - name: Instalar age
+        uses: ./.github/actions/apt-acotado
+        with:
+          comando: |
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends age
+
       - name: scripts/dataprotection-copia-cifrada.tests.sh
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends age
-          bash scripts/dataprotection-copia-cifrada.tests.sh
+        run: bash scripts/dataprotection-copia-cifrada.tests.sh
 
   licencias-dependencias:
     name: Licencias de dependencias

@@ -31,6 +31,49 @@ public class DocumentoSustitucionTests
     // ── Qué hace ───────────────────────────────────────────────────────────
 
     [Fact]
+    public void Un_documento_nace_con_el_Id_reservado_en_cualquiera_de_sus_ambitos()
+    {
+        var reservado = IdentificadorEntidad.Nuevo();
+        var vigencia = VigenciaDocumento.VenceEl(Hoy.AddYears(1));
+
+        Documento[] documentos =
+        [
+            Documento.DeTrabajador(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
+            Documento.DeCliente(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
+            Documento.DeEmpresa(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
+            Documento.DeVehiculo(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
+            Documento.DeProyecto(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: reservado),
+            DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, reservado)
+        ];
+
+        documentos.Should().OnlyContain(d => d.Id == reservado);
+    }
+
+    [Fact]
+    public void Sin_reserva_el_documento_recibe_su_Id_propio_y_una_reserva_vacia_se_rechaza()
+    {
+        var vigencia = VigenciaDocumento.VenceEl(Hoy.AddYears(1));
+
+        DeTrabajador(Guid.NewGuid()).Id.Should().NotBe(Guid.Empty);
+
+        var alta = () => Documento.DeTrabajador(Guid.NewGuid(), Tipo, Hoy, vigencia, idReservado: Guid.Empty);
+        var renovacion = () => DeTrabajador(Guid.NewGuid()).NuevoDelMismoTitular(Hoy, vigencia, "archivos/nuevo.pdf", null, Guid.Empty);
+
+        alta.Should().Throw<ArgumentException>();
+        renovacion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void El_Id_de_un_documento_no_se_puede_cambiar_despues_de_nacer()
+    {
+        typeof(Entity).GetProperty(nameof(Entity.Id))!.SetMethod!.IsPublic.Should().BeFalse();
+        typeof(Documento).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.GetParameters() is [{ ParameterType: var tipo }] && tipo == typeof(Guid) && m.ReturnType == typeof(void))
+            .Select(m => m.Name)
+            .Should().NotContain("AdoptarIdReservado");
+    }
+
+    [Fact]
     public void Un_documento_nuevo_es_operativo_y_no_tiene_datos_de_sustitucion()
     {
         var documento = DeTrabajador(Guid.NewGuid());

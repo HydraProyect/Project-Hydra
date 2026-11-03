@@ -34,6 +34,17 @@ public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
     public IQueryable<NotaInternaConversacion> NotasInternasConversacion => new TestAsyncQueryable<NotaInternaConversacion>(ListaNotasInternasConversacion.AsQueryable());
     public List<PropuestaRecordatorioConversacion> ListaPropuestasRecordatorioConversacion { get; } = [];
     public IQueryable<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion => new TestAsyncQueryable<PropuestaRecordatorioConversacion>(ListaPropuestasRecordatorioConversacion.AsQueryable());
+    public List<RespuestaSugerida> ListaRespuestasSugeridas { get; } = [];
+    public int LecturasDeRespuestasSugeridas { get; private set; }
+
+    public IQueryable<RespuestaSugerida> RespuestasSugeridas
+    {
+        get
+        {
+            LecturasDeRespuestasSugeridas++;
+            return new TestAsyncQueryable<RespuestaSugerida>(ListaRespuestasSugeridas.AsQueryable());
+        }
+    }
     public List<ClasificacionRuidoMensaje> ListaClasificacionesRuidoMensaje { get; } = [];
     public IQueryable<ClasificacionRuidoMensaje> ClasificacionesRuidoMensaje => new TestAsyncQueryable<ClasificacionRuidoMensaje>(ListaClasificacionesRuidoMensaje.AsQueryable());
     public List<ClasificacionRelevanciaCae> ListaClasificacionesRelevanciaCae { get; } = [];

@@ -1,6 +1,7 @@
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Empresas;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CaeManager.Infrastructure.Persistence.Configurations;
@@ -13,10 +14,18 @@ public class ConversacionConfiguration : IEntityTypeConfiguration<Conversacion>
         // ninguna es la cola de triage, que es un estado legítimo y frecuente
         // (§ 12.4) — a diferencia de una reclamación, que siempre tiene a
         // quién se le mandó.
-        builder.ToTable("Conversaciones", t => t.HasCheckConstraint(
-            "CK_Conversaciones_AnclaUnica",
-            "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1"));
+        builder.ToTable("Conversaciones", t =>
+        {
+            t.HasCheckConstraint("CK_Conversaciones_AnclaUnica", "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1");
+            t.HasCheckConstraint("CK_Conversaciones_NumeroTicketPositivo", "\"NumeroTicket\" > 0");
+        });
         builder.HasKey(c => c.Id);
+
+        // Lo asigna el disparador asignar_numero_ticket_conversacion, que ignora el valor recibido. El default solo
+        // existe para que EF omita la columna en el INSERT y la lea de RETURNING; nunca se actualiza después.
+        builder.Property(c => c.NumeroTicket).HasDefaultValueSql("0");
+        builder.Property(c => c.NumeroTicket).Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+        builder.HasIndex(c => new { c.TenantId, c.NumeroTicket }).IsUnique();
 
         builder.Property(c => c.Asunto).IsRequired().HasMaxLength(Conversacion.LongitudMaximaAsunto);
         builder.Property(c => c.Etiquetas).HasMaxLength(Conversacion.LongitudMaximaEtiquetas);

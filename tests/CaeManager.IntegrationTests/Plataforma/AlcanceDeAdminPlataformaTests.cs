@@ -125,6 +125,29 @@ public class AlcanceDeAdminPlataformaTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// En un circuito de Blazor el contexto dura lo que la pantalla: una concesión que quedara
+    /// seguida seguiría autorizando después de que otra sesión la revocara.
+    /// </summary>
+    [Fact]
+    public async Task Una_concesion_revocada_por_otra_sesion_deja_de_autorizar_en_el_mismo_contexto()
+    {
+        var autorizacion = CrearAutorizacion(out var contextoDelCircuito);
+        await using var _ = contextoDelCircuito;
+        (await autorizacion.PuedeGlobalmenteAsync(_conAlcanceGlobal)).Should().BeTrue();
+
+        await using (var otraSesion = CrearContexto())
+        {
+            var concesion = await otraSesion.ConcesionesPrivilegio
+                .SingleAsync(c => c.UsuarioPlataformaId == _conAlcanceGlobal);
+
+            concesion.Revocar(DateTime.UtcNow);
+            await otraSesion.SaveChangesAsync();
+        }
+
+        (await autorizacion.PuedeGlobalmenteAsync(_conAlcanceGlobal)).Should().BeFalse();
+    }
+
+    /// <summary>
     /// Que <c>SoporteLectura</c> no sirve para esto. Son capacidades distintas y
     /// una no se sustituye por la otra por muy amplio que sea su alcance.
     /// </summary>

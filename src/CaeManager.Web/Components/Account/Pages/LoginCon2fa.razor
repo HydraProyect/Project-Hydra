@@ -356,6 +356,18 @@
             return;
         }
 
+        if (resultado.IsNotAllowed)
+        {
+            // Sello cambiado durante el inicio, cuenta desactivada o país no permitido: el código no tiene
+            // la culpa y reintentarlo no serviría. El mensaje no dice cuál de los tres es.
+            // Sin SignOutAsync: borraría también la cookie de una sesión legítima previa, y aquí no se ha
+            // emitido ninguna que la sustituya.
+            logger.LogWarning("Verificación 2FA rechazada sin emitir la sesión: {UsuarioId}", _usuarioPendiente.Id);
+            _mensajeCierre = Textos["VerificacionInicioRechazado"];
+            _bloqueado = true;
+            return;
+        }
+
         logger.LogWarning("Verificación 2FA fallida: {UsuarioId}", _usuarioPendiente.Id);
         mensajeError = "Código no válido. Revisa tu aplicación autenticadora e intenta nuevamente.";
     }
@@ -403,7 +415,9 @@
                 }
 
                 resultadoObtenido = await SignInManager.TwoFactorRecoveryCodeSignInAsync(EntradaRecuperacion.Codigo);
-                if (!resultadoObtenido.Succeeded)
+                // IsNotAllowed aquí es el código bueno con el inicio rechazado por el sello
+                // (ConRechazoPorSello): no es un intento fallido.
+                if (!resultadoObtenido.Succeeded && !resultadoObtenido.IsNotAllowed)
                 {
                     // Revisión Codex: AccessFailedAsync devuelve un IdentityResult fallido
                     // cuando pierde la concurrencia optimista (un intento de contraseña
@@ -453,6 +467,15 @@
         {
             logger.LogWarning("Verificación 2FA con código de recuperación rechazada, cuenta bloqueada: {UsuarioId}", usuario.Id);
             await SignInManager.SignOutAsync();
+            _bloqueado = true;
+            return;
+        }
+
+        if (resultado.IsNotAllowed)
+        {
+            // Mismo cierre que en VerificarAsync, y también sin SignOutAsync. El código ya quedó canjeado.
+            logger.LogWarning("Verificación 2FA con código de recuperación rechazada, la credencial cambió durante el inicio de sesión: {UsuarioId}", usuario.Id);
+            _mensajeCierre = Textos["VerificacionInicioRechazado"];
             _bloqueado = true;
             return;
         }

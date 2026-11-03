@@ -58,8 +58,9 @@ public class WebhookTenantResolverTests : IAsyncLifetime
     [Fact]
     public async Task Verifica_y_resuelve_el_tenant_propietario_cuando_el_clientState_y_el_subscriptionId_coinciden()
     {
-        // Contexto de un tenant DISTINTO al propietario — simula la petición
-        // HTTP anónima, sin ningún tenant de sesión resuelto todavía.
+        // Filtro de EF de un tenant DISTINTO al propietario, sobre una conexión propietaria sin contexto firmado:
+        // comprueba que el resolver no depende de ese filtro. La petición anónima real, firmada y sin Tenant,
+        // se mide con CrearContextoRuntime; con un Tenant firmado la función no resuelve.
         await using var contexto = CrearContexto(Guid.NewGuid());
         var resolver = new WebhookTenantResolver(contexto);
 

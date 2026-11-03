@@ -440,7 +440,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     {
         var cut = Renderizar(new Escenario()).Cut;
 
-        var hoy = DateTime.UtcNow;
+        var hoy = DiaDeNegocio.Hoy();
         var mes = new DateOnly(hoy.Year, hoy.Month, 1);
         var ultimoDia = mes.AddMonths(1).AddDays(-1);
         var esperado = $"Del {mes:d 'de' MMMM 'de' yyyy} al {ultimoDia:d 'de' MMMM 'de' yyyy} · 2 organizaciones";
@@ -974,7 +974,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         tokens.Should().OnlyContain(t => t.CanBeCanceled, "todas las llamadas llevan el token del ciclo de la página");
         tokens.Should().OnlyContain(t => !t.IsCancellationRequested);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         tokens.Should().OnlyContain(t => t.IsCancellationRequested, "salir de la página cancela lo que siga en vuelo");
         var llegaTarde = () => cut.InvokeAsync(() => respuesta.SetResult(null));
@@ -993,7 +993,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         var escenario = new Escenario { Retener = p => p is ObtenerDashboardEjecutivoQuery ? respuesta.Task : null };
         var (cut, _, logger, _) = Renderizar(escenario);
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
         await cut.InvokeAsync(() => respuesta.SetException(new OperationCanceledException("cancelada al salir")));
 
         logger.Errores.Should().BeEmpty("la carga ya no es de nadie: su fallo no es un error que registrar");

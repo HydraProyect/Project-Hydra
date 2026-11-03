@@ -7,14 +7,51 @@ namespace CaeManager.E2ETests;
 /// Instancia propia con el intervalo de revalidación de sesión a 2 s
 /// (<c>Sesion:IntervaloRevalidacionSegundos</c>, 60 s por defecto): el corte
 /// de una sesión tras desactivar la cuenta es «como mucho un intervalo», y
-/// esperar 60 s por cada comprobación no cabe en una suite E2E. Colección
+/// esperar 60 s por cada comprobación no cabe en una suite E2E. También lleva el reloj adelantable de la
+/// caducidad por inactividad (<see cref="ExpiracionPorInactividadE2ETests"/>). Colección
 /// propia porque el test desactiva y reactiva cuentas de prueba, y el resto de
 /// la suite no debe encontrárselas a medias.
 /// </summary>
 public sealed class WebAppFixtureConRevalidacionRapida : WebAppFixture
 {
+    private string _ficheroReloj = string.Empty;
+    private long _desplazamientoSegundos;
+
+    protected override Task PrepararAntesDeArrancarAsync()
+    {
+        _ficheroReloj = Path.Combine(Path.GetTempPath(), $"talveg-reloj-e2e-{Guid.NewGuid():N}.txt");
+        File.WriteAllText(_ficheroReloj, "0");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Además de la revalidación a 2 s: el reloj del servidor que adelanta <see cref="AdelantarReloj"/>
+    /// (<c>Pruebas:RelojDesplazamientoFichero</c>, solo Development) y la siembra del Gestor CAE con cartera
+    /// en varios Tenants (<c>DatosPrueba:GestorCaeCarteraMultiTenant</c>), que usa
+    /// <see cref="ExpiracionPorInactividadE2ETests"/>. Sin adelantar, el reloj es el del sistema.
+    /// </summary>
     protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
-        new Dictionary<string, string> { ["Sesion__IntervaloRevalidacionSegundos"] = "2" };
+        new Dictionary<string, string>
+        {
+            ["Sesion__IntervaloRevalidacionSegundos"] = "2",
+            ["Pruebas__RelojDesplazamientoFichero"] = _ficheroReloj,
+            ["DatosPrueba__GestorCaeCarteraMultiTenant"] = "true",
+        };
+
+    /// <summary>Adelanta el reloj del servidor. Vale para la lectura siguiente: el servidor lee el fichero en cada lectura de la hora.</summary>
+    public void AdelantarReloj(TimeSpan tiempo) => EscribirDesplazamiento(_desplazamientoSegundos + (long)tiempo.TotalSeconds);
+
+    /// <summary>Vuelve al reloj del sistema. Solo cuando no queda ninguna sesión viva de la que el reloj pudiera retroceder.</summary>
+    public void RestablecerReloj() => EscribirDesplazamiento(0);
+
+    private void EscribirDesplazamiento(long segundos)
+    {
+        _desplazamientoSegundos = segundos;
+        // Escritura y renombrado: el servidor nunca lee un fichero a medio escribir.
+        var temporal = _ficheroReloj + ".tmp";
+        File.WriteAllText(temporal, segundos.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        File.Move(temporal, _ficheroReloj, overwrite: true);
+    }
 }
 
 [CollectionDefinition("AppCollectionRevalidacionRapida")]

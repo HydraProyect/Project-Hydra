@@ -25,7 +25,7 @@ public record AdjuntoParaEnviarDto(string NombreArchivo, string TipoContenido, b
 public record MensajeGraphDto(
     string MensajeExternoId, string HiloExternoId, string Asunto, string Remitente, string CuerpoHtml, DateTime FechaUtc,
     IReadOnlyList<ParticipanteGraphDto> Participantes, IReadOnlyList<AdjuntoGraphDto> Adjuntos,
-    IReadOnlyList<CabeceraCorreoDto>? Cabeceras = null);
+    IReadOnlyList<CabeceraCorreoDto>? Cabeceras = null, IReadOnlyList<string>? ResponderA = null);
 
 public record CabeceraCorreoDto(string Nombre, string Valor);
 
@@ -74,6 +74,13 @@ public static class LimitesAdjuntosCorreo
 /// incluido, aunque no haga ninguna llamada HTTP: el mapeo de campos de un
 /// proveedor externo vive solo en su adaptador (Project-Hydra-Negocio/tecnico/docs/INTEGRATION_GUIDELINES.md
 /// paso 6), nunca en Application.
+///
+/// <para>
+/// Lo que se inyecta siempre lleva delante la guarda de envío (C-04):
+/// <see cref="EnviarRespuestaAsync"/> y <see cref="EnviarNuevoMensajeAsync"/>
+/// devuelven un fallo con <c>Email.EnvioCerrado</c> mientras la guarda no los
+/// deje salir. Un método nuevo que saque correo tiene que pasar por ella.
+/// </para>
 /// </summary>
 public interface IMicrosoft365GraphClient
 {

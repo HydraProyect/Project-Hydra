@@ -717,4 +717,7 @@
     <value>Un Centre on opera li exigeix com a obligatori un document d'Empresa que falta o ja no és vàlid</value>
     <comment>Título del estado «Pendiente» de una Empresa en el listado: un requisito obligatorio de Empresa incumplido.</comment>
   </data>
+  <data name="ToastContactoPrincipalNoCargado" xml:space="preserve">
+    <value>No hem pogut carregar el contacte principal d'aquesta empresa. Que no aparegui no vol dir que no en tingui; recarrega la pàgina.</value>
+  </data>
 </root>

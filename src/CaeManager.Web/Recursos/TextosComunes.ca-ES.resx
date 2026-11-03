@@ -384,6 +384,9 @@
   <data name="SelectorTenantTrabajandoEn" xml:space="preserve">
     <value>Treballant a {0}</value>
   </data>
+  <data name="MenuHerramientasPdf" xml:space="preserve">
+    <value>Eines PDF</value>
+  </data>
   <data name="MenuAuditoria" xml:space="preserve">
     <value>Auditoria</value>
   </data>
@@ -720,5 +723,50 @@
   </data>
   <data name="ModalSuscripcionObligatoria" xml:space="preserve">
     <value>Completa l’identificador de subscripció.</value>
+  </data>
+  <data name="EstadoComercialColumnaAcceso" xml:space="preserve">
+    <value>Accés</value>
+  </data>
+  <data name="EstadoComercialAccesoActivo" xml:space="preserve">
+    <value>Actiu</value>
+  </data>
+  <data name="EstadoComercialAccesoSuspendido" xml:space="preserve">
+    <value>Suspès</value>
+  </data>
+  <data name="EstadoComercialSuspender" xml:space="preserve">
+    <value>Suspendre</value>
+  </data>
+  <data name="EstadoComercialReactivar" xml:space="preserve">
+    <value>Reactivar</value>
+  </data>
+  <data name="EstadoComercialNotaAcceso" xml:space="preserve">
+    <value>La columna «Accés» és una altra cosa: «Suspès» és la suspensió per incident o seguretat.</value>
+  </data>
+  <data name="EstadoComercialTituloSuspender" xml:space="preserve">
+    <value>Vols suspendre aquesta organització?</value>
+  </data>
+  <data name="EstadoComercialTituloReactivar" xml:space="preserve">
+    <value>Vols reactivar aquesta organització?</value>
+  </data>
+  <data name="EstadoComercialConfirmarSuspender" xml:space="preserve">
+    <value>Ningú de {0} no podrà iniciar sessió, les seves sessions obertes es tancaran en fins a 60 segons, l’extensió i les claus d’API deixaran de ser vàlides i no s’hi podrà escriure des de l’aplicació. És la suspensió per incident o seguretat, diferent de l’impagament. En reactivar-lo, les claus d’API anteriors no tornaran a ser vàlides.</value>
+  </data>
+  <data name="EstadoComercialConfirmarReactivar" xml:space="preserve">
+    <value>{0} recuperarà l’accés. Les claus d’API anteriors no tornen a ser vàlides: haurà de fer servir claus noves.</value>
+  </data>
+  <data name="EstadoComercialTenantSuspendido" xml:space="preserve">
+    <value>Organització suspesa.</value>
+  </data>
+  <data name="EstadoComercialTenantReactivado" xml:space="preserve">
+    <value>Organització reactivada.</value>
+  </data>
+  <data name="EstadoComercialErrorCambiarAcceso" xml:space="preserve">
+    <value>No hem pogut canviar la suspensió. Torna a carregar la llista per veure en quin estat ha quedat.</value>
+  </data>
+  <data name="ArchivoSubidoSuperaMaximo" xml:space="preserve">
+    <value>"{0}" supera els {1} MB.</value>
+  </data>
+  <data name="ArchivoSubidoNoLeido" xml:space="preserve">
+    <value>No hem pogut llegir "{0}". Torna a triar-lo.</value>
   </data>
 </root>

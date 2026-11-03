@@ -405,11 +405,11 @@ public class Cliente360DocumentacionTests : BunitContext
         var (id, mediador) = Preparar();
         mediador.Colgar = true;
 
-        Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true));
+        var cut = Render<DocumentosExigidosCliente>(p => p.Add(x => x.ClienteId, id).Add(x => x.Cargar, true));
         var token = mediador.Tokens.Should().ContainSingle().Subject;
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue();
     }

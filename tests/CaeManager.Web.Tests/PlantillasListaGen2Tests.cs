@@ -340,13 +340,13 @@ public class PlantillasListaGen2Tests : BunitContext
         mediador.Retener = p => p is ObtenerPlantillasDocumentoQuery ? respuesta.Task : null;
         Registrar(mediador);
         Navegacion.NavigateTo("plantillas");
-        Render<PaginaPlantillas>();
+        var cut = Render<PaginaPlantillas>();
 
         var token = mediador.Tokens[mediador.Enviadas.FindIndex(p => p is ObtenerPlantillasDocumentoQuery)];
         token.CanBeCanceled.Should().BeTrue("la consulta tiene que llevar el token del ciclo de la pestaña");
         token.IsCancellationRequested.Should().BeFalse();
 
-        await DisposeComponentsAsync();
+        await CierreDePagina.CerrarPaginaAsync(cut, this);
 
         token.IsCancellationRequested.Should().BeTrue("salir de la página cancela la consulta en curso");
         var llegaTarde = () => respuesta.SetResult((IReadOnlyList<PlantillaDocumentoListaDto>)mediador.Almacen.ToList());

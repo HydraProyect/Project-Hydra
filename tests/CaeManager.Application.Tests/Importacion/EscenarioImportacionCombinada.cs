@@ -18,6 +18,15 @@ internal sealed class EscenarioImportacionCombinada
 {
     public EmpresaRepositorioConFallo EmpresaRepositorio { get; } = new();
     public OperacionImportacionRepositorioFalso OperacionImportacionRepositorio { get; } = new();
+    public CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso TrabajadorRepositorio { get; } = new();
+    public CaeManager.Application.Tests.Centros.CentroRepositorioFalso CentroRepositorio { get; } = new();
+    public PlantillasFalsas.CentrosQueryContextFalso CentrosContexto { get; } = new();
+
+    /// <summary>Relaciones Empresariales que "ya están en la base" (la consulta de asociaciones actuales las lee).</summary>
+    public List<RelacionEmpresarial> RelacionesExistentes { get; } = [];
+
+    /// <summary>Doble de relaciones: por defecto cualquier llamada de escritura es un error del test; con <c>Permitir</c> las registra.</summary>
+    public RelacionesRegistradas Relaciones { get; } = new();
 
     public EjecutarImportacionCombinadaCommandHandler Handler()
     {
@@ -25,12 +34,13 @@ internal sealed class EscenarioImportacionCombinada
         var empresas = new DocumentosFalsos.EmpresasQueryContextFalso();
         empresas.ListaEmpresas.AddRange(EmpresaRepositorio.Empresas
             .Where(e => e.TenantId == EmpresaRepositorio.TenantPropietarioId && !e.EstaEliminado));
+        empresas.ListaRelacionesEmpresariales.AddRange(RelacionesExistentes);
 
         return new EjecutarImportacionCombinadaCommandHandler(
-            EmpresaRepositorio, new RelacionesNoUsadas(),
-            new CaeManager.Application.Tests.Centros.CentroRepositorioFalso(),
-            new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
-            new PlantillasFalsas.CentrosQueryContextFalso(), empresas, new PlantillasFalsas.TrabajadoresQueryContextFalso(),
+            EmpresaRepositorio, Relaciones,
+            CentroRepositorio,
+            TrabajadorRepositorio,
+            CentrosContexto, empresas, new PlantillasFalsas.TrabajadoresQueryContextFalso(),
             OperacionImportacionRepositorio, new AdministracionPermitida());
     }
 
@@ -65,13 +75,32 @@ internal sealed class EscenarioImportacionCombinada
         public Task<bool> EsActoDeAdministradorAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
-    /// <summary>Ningún plan de estos tests asocia Empresas con Clientes: cualquier llamada sería un error del test.</summary>
-    private sealed class RelacionesNoUsadas : IRelacionEmpresarialRepository
+    /// <summary>
+    /// Por defecto, ningún plan de estos tests asocia Empresas con Clientes: cualquier llamada de escritura sería un
+    /// error del test. Con <see cref="Permitir"/> se registran las cierres y altas para poder comprobarlas.
+    /// </summary>
+    internal sealed class RelacionesRegistradas : IRelacionEmpresarialRepository
     {
+        public bool Permitir { get; set; }
+        public List<(Guid ProveedoraId, Guid ClienteId)> Cerradas { get; } = [];
+        public List<(Guid ProveedoraId, Guid ClienteId)> Agregadas { get; } = [];
+
         public void Agregar(RelacionEmpresarial relacion) => throw new NotImplementedException();
+        public Task<bool> AgregarSiNoVigenteAsync(Guid proveedoraId, Guid clienteId, DateTime ahora, Guid? enmarcadaEnId = null, CancellationToken cancellationToken = default)
+        {
+            if (!Permitir) throw new NotImplementedException();
+            Agregadas.Add((proveedoraId, clienteId));
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> CerrarVigenteAsync(Guid proveedoraId, Guid clienteId, DateTime ahora, CancellationToken cancellationToken = default)
+        {
+            if (!Permitir) throw new NotImplementedException();
+            Cerradas.Add((proveedoraId, clienteId));
+            return Task.FromResult(true);
+        }
+
         public Task<ContrapartesVigentes> ObtenerContrapartesVigentesAsync(Guid proveedoraId, CancellationToken cancellationToken = default) => Task.FromResult(ContrapartesVigentes.Vacias);
-        public Task<bool> AgregarSiNoVigenteAsync(Guid proveedoraId, Guid clienteId, DateTime ahora, Guid? enmarcadaEnId = null, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<bool> CerrarVigenteAsync(Guid proveedoraId, Guid clienteId, DateTime ahora, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<RelacionEmpresarial?> ObtenerVigentePorParAsync(Guid proveedoraId, Guid clienteId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Guid?> ObtenerCandidatoUnicoParaEnmarcarAsync(IReadOnlyCollection<Guid> empresaIdsCandidatas, Guid clienteId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<bool> CreariaUnCicloAsync(Guid relacionId, Guid propuestaEnmarcadaEnId, CancellationToken cancellationToken = default) => throw new NotImplementedException();

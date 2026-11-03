@@ -119,12 +119,27 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     }
 
     [Fact]
-    public void Sin_filtro_y_sin_registros_sigue_diciendo_que_no_hay_ninguno()
+    public void Sin_filtro_ni_rango_y_sin_registros_sigue_diciendo_que_no_hay_ninguno()
+    {
+        var cut = Renderizar();
+        cut.FindAll("input[type=date]")[0].Input("");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
+        cut.Markup.Should().NotContain("Ningún registro con este filtro");
+    }
+
+    /// <summary>
+    /// M-21: la pantalla arranca con un rango de fechas, que es un filtro. Un listado vacío en ese
+    /// rango no puede afirmar que la auditoría no registra nada (puede haber registros anteriores).
+    /// </summary>
+    [Fact]
+    public void Con_el_rango_por_defecto_y_sin_registros_habla_del_rango_y_no_de_que_no_haya_ninguno()
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No hay registros de auditoría");
-        cut.Markup.Should().NotContain("Ningún registro con este filtro");
+        cut.Markup.Should().Contain("Ningún registro con este filtro");
+        cut.Markup.Should().Contain("rango de fechas");
+        cut.Markup.Should().NotContain("No hay registros de auditoría");
     }
 
     /// <summary>
@@ -136,8 +151,9 @@ public class AuditoriaVacioPorFiltroTests : BunitContext
     public void El_estado_sin_filtro_ya_no_habla_de_un_filtro_que_no_existe()
     {
         var cut = Renderizar();
+        cut.FindAll("input[type=date]")[0].Input("");
 
-        cut.Markup.Should().Contain("No hay registros de auditoría");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay registros de auditoría"));
         cut.Markup.Should().NotContain("con este filtro");
     }
 

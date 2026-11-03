@@ -1,0 +1,196 @@
+@page "/plataforma/incidentes/{IncidenteId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@implements IDisposable
+@attribute [Authorize]
+@* Página del incidente de seguridad (aviso de violaciones, incremento 3b): el enlace de la alerta lleva aquí.
+   El Actor de Plataforma TALVEG decide (confirmar y enviar el primer aviso, pedir más tiempo o descartar) y,
+   tras confirmar, envía la notificación completa. Nada se envía solo: cada envío sale de un clic. La página
+   no es el enforcement: la consulta falla sin concesión AdminPlataforma global, los comandos exigen además
+   segundo factor activo y superado en la sesión, y la RLS y las funciones de la base repiten la comprobación. *@
+@using CaeManager.Application.Seguridad.Incidentes.Aviso
+@using CaeManager.Domain.Plataforma
+@using CaeManager.Web.Features.IncidentesSeguridad.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosIncidenteSeguridad> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloDocumento"] — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina pagina-incidente-seguridad">
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="5" />
+    }
+    else if (_vista is null)
+    {
+        <EstadoVacio NombreIcono="error-circulo" Titulo="@(_errorCarga ?? Textos["ErrorCarga"])">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else
+    {
+        var incidente = _vista.Incidente;
+        <CabeceraPagina Titulo="@Textos["Titulo", _vista.Referencia]">
+            <Descripcion>
+                <span class="incidente-estado incidente-estado-@incidente.Estado.ToString().ToLowerInvariant()" data-testid="estado-incidente">
+                    @NombreEstado(incidente.Estado)
+                </span>
+                @Textos["Detectado", Cuando(incidente.DetectadoEnUtc)]
+            </Descripcion>
+        </CabeceraPagina>
+
+        @if (_error is not null)
+        {
+            <p class="incidente-error" role="alert">@_error</p>
+        }
+        @if (_vista.MotivoParaNoDecidir is { } motivo)
+        {
+            <p class="incidente-aviso" role="status" data-testid="motivo-no-decidir">@motivo.Mensaje</p>
+        }
+        @if (_vista.SinCorreoContactoTalveg)
+        {
+            <p class="incidente-aviso" role="status" data-testid="sin-correo-talveg">@Textos["SinCorreoContactoTalveg"]</p>
+        }
+
+        <section class="incidente-bloque" aria-labelledby="titulo-senal">
+            <h2 id="titulo-senal">@Textos["QueHaPasado"]</h2>
+            <p>@_vista.DescripcionSenal</p>
+        </section>
+
+        @if (incidente.Estado == EstadoIncidenteSeguridad.Confirmado && _vista.PrimerAvisoVenceEnUtc is { } vencePrimero
+             && _vista.NotificacionCompletaVenceEnUtc is { } venceCompleta)
+        {
+            <section class="incidente-plazos" aria-label="@Textos["Plazos"]" data-testid="plazos">
+                <div class="incidente-plazo">
+                    <span class="incidente-plazo-etiqueta">@Textos["PlazoPrimerAviso"]</span>
+                    <strong>@(Restante(vencePrimero, TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso)))</strong>
+                </div>
+                <div class="incidente-plazo">
+                    <span class="incidente-plazo-etiqueta">@Textos["PlazoNotificacionCompleta"]</span>
+                    <strong>@(Restante(venceCompleta, TodoEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta)))</strong>
+                </div>
+                <p class="incidente-plazo-nota">@Textos["PlazosDesdeConfirmacion", Cuando(incidente.ConfirmadoEnUtc!.Value)]</p>
+            </section>
+        }
+
+        <section class="incidente-bloque" aria-labelledby="titulo-tenants">
+            <h2 id="titulo-tenants">@Textos["TenantsAfectados", _vista.Tenants.Count]</h2>
+            <ul class="incidente-tenants">
+                @foreach (var tenant in _vista.Tenants)
+                {
+                    <li data-testid="tenant-afectado">
+                        <strong>@tenant.Nombre</strong>
+                        @if (tenant.Destinatarios.Count == 0)
+                        {
+                            <span class="incidente-marca incidente-marca-grave">@Textos["SinDestinatario"]</span>
+                        }
+                        else if (tenant.SinContactoValidado)
+                        {
+                            <span class="incidente-marca">@Textos["SinContactoValidado"]</span>
+                        }
+                        <span class="incidente-destinatarios">
+                            @string.Join(", ", tenant.Destinatarios.Select(d => $"{d.Nombre} <{d.Correo}>"))
+                        </span>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        @* Un solo paso a la vista y un solo primario: el del paso vigente (primer aviso hasta que haya un intento
+           hacia algún destinatario; después, la notificación completa, con el reintento del primer aviso como
+           secundario mientras no haya salido a todos). El botón es el mismo; cambian su texto y su comando, así
+           que la superficie nunca pinta dos primarios ni se queda sin el suyo. *@
+        @if (PasoVigente() is var paso && paso != PasoAviso.Ninguno)
+        {
+            var esPrimerAviso = paso == PasoAviso.PrimerAviso;
+            <section class="incidente-bloque incidente-paso" aria-labelledby="titulo-paso"
+                     data-testid="@(esPrimerAviso ? "paso-primer-aviso" : "paso-notificacion-completa")">
+                <h2 id="titulo-paso">@(esPrimerAviso ? Textos["PrimerAvisoTitulo"] : Textos["CompletaTitulo"])</h2>
+                @if (esPrimerAviso)
+                {
+                    <p class="incidente-ayuda">@Textos["PrimerAvisoAyuda"]</p>
+                    <p class="incidente-ayuda" data-testid="aviso-texto-comun">@Textos["TextoComunAyuda"]</p>
+                    <FormularioContenidoAviso Contenido="_primerAviso" ConConsecuencias="false" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
+                }
+                else
+                {
+                    @if (PrimerAvisoPendiente())
+                    {
+                        <p class="incidente-ayuda" data-testid="primer-aviso-pendiente">@Textos["PrimerAvisoPendienteAyuda"]</p>
+                    }
+                    @if (Pendientes() is { Count: > 0 } pendientes)
+                    {
+                        <p class="incidente-ayuda" data-testid="apartados-pendientes">@Textos["ApartadosPendientes", string.Join(", ", pendientes)]</p>
+                    }
+                    <p class="incidente-ayuda" data-testid="aviso-texto-comun">@Textos["TextoComunAyuda"]</p>
+                    <FormularioContenidoAviso Contenido="_completa" ConConsecuencias="true" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
+                }
+                <div class="incidente-acciones">
+                    <Boton Variante="VarianteBoton.Primario" data-testid="enviar-paso"
+                           Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null || (!esPrimerAviso && Pendientes().Count > 0))"
+                           Cargando="@_procesando" OnClick="EnviarPasoVigenteAsync">
+                        @TextoEnviar(paso, incidente.Estado)
+                    </Boton>
+                    @if (!esPrimerAviso && PrimerAvisoPendiente())
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" data-testid="reintentar-primer-aviso"
+                               Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
+                               OnClick="ReintentarPrimerAvisoAsync">@Textos["BotonReintentarPrimerAvisoSecundario"]</Boton>
+                    }
+                    @if (esPrimerAviso && incidente.Estado == EstadoIncidenteSeguridad.Sospechado)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
+                               OnClick="EvaluarAsync">@Textos["BotonMasTiempo"]</Boton>
+                    }
+                    @if (esPrimerAviso && incidente.Estado != EstadoIncidenteSeguridad.Confirmado)
+                    {
+                        <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
+                               OnClick="AbrirDescarte">@Textos["BotonDescartar"]</Boton>
+                    }
+                </div>
+            </section>
+        }
+
+        <section class="incidente-bloque" aria-labelledby="titulo-registro">
+            <h2 id="titulo-registro">@Textos["Registro"]</h2>
+            <ul class="incidente-registro">
+                @foreach (var transicion in incidente.Transiciones)
+                {
+                    <li>
+                        <time>@Cuando(transicion.OcurridoEnUtc)</time>
+                        @Textos["Transicion", NombreEstado(transicion.EstadoNuevo), QuienDecidio(transicion.ActorUsuarioId)]
+                        @if (!string.IsNullOrWhiteSpace(transicion.Motivo))
+                        {
+                            <span class="incidente-motivo">— @transicion.Motivo</span>
+                        }
+                    </li>
+                }
+                @foreach (var envio in incidente.Envios)
+                {
+                    <li data-testid="envio">
+                        <time>@Cuando(envio.EnviadoEnUtc ?? envio.UltimoIntentoEnUtc)</time>
+                        @DescripcionEnvio(envio.Estado, NombrePlantilla(envio.Plantilla), envio.DestinatarioNombre,
+                                envio.DestinatarioCorreo, QuienDecidio(envio.ConfirmadoPorUsuarioId))
+                        @if (envio.SinContactoValidado)
+                        {
+                            <span class="incidente-marca">@Textos["SinContactoValidado"]</span>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+</div>
+
+<ModalFormulario Visible="@_descartando" VisibleChanged="CerrarDescarte" Titulo="@Textos["DescartarTitulo"]"
+                 Ancho="AnchoModal.Pequeno" HayCambios="() => !string.IsNullOrWhiteSpace(_motivo)"
+                 Guardando="@_procesando" MensajeError="@_errorDescarte" HayErroresDeCampo="@(_errorMotivo is not null)"
+                 OnGuardar="DescartarAsync" TextoGuardar="@Textos["BotonConfirmarDescarte"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p>@Textos["DescartarTexto"]</p>
+    <CampoTextarea Etiqueta="@Textos["CampoMotivo"]" Valor="@_motivo" ValorChanged="v => _motivo = v"
+                   MensajeError="@_errorMotivo" />
+</ModalFormulario>
+</LimiteDeErrores>
