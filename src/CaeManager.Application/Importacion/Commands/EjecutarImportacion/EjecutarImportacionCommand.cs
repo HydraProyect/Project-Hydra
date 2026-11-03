@@ -229,6 +229,7 @@ public class EjecutarImportacionCommandHandler(
         // válida — se reporta como omitida igual que los casos ya detectados
         // al analizar.
         var omitidosEnEscritura = new List<ItemImportacionDto>();
+        var advertenciasEnEscritura = new List<ItemImportacionDto>();
 
         // Altas de esta importación que pueden hacer nacer acreditaciones de
         // plataforma (ver IAltaAcreditacionesPlataformaService más abajo).
@@ -314,9 +315,12 @@ public class EjecutarImportacionCommandHandler(
                 // vista previa no prometió crearla. Solo se registra si el plan sí
                 // la prometía y apareció entre analizar y confirmar. Una Empresa fuera del ámbito no se reutiliza
                 // ni se describe (decir «ya existía» a quien no la ve revelaría que existe): se omite y se cuenta.
+                // Una segunda fila de una Empresa que esta carga acaba de crear no la oculta: la creó quien carga.
                 if (!ambito.Empresa(empresaExistenteId))
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        fila.Hoja, fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Esta empresa")));
+                        fila.Hoja, fila.Fila, fila.RazonSocial, ambito.EsEmpresaCreadaFueraDelAmbito(empresaExistenteId)
+                            ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocial)
+                            : AmbitoCargaMasiva.Motivo("Esta empresa")));
                 else if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
                         fila.Hoja, fila.Fila, fila.RazonSocial,
@@ -342,6 +346,9 @@ public class EjecutarImportacionCommandHandler(
                 empresaRepositorio.Agregar(empresa);
                 empresasPorRazonSocial.Agregar(fila.RazonSocial, empresa.Id);
                 empresasCreadas++;
+                ambito.RegistrarEmpresaCreada(empresa.Id);
+                if (ambito.AvisoEmpresaCreadaFueraDeCartera(empresa.Id, fila.RazonSocial) is { } aviso)
+                    advertenciasEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, aviso));
             }
             catch (ArgumentException ex)
             {
@@ -395,9 +402,13 @@ public class EjecutarImportacionCommandHandler(
 
             if (!ambito.Empresa(empresaId))
             {
+                // La Empresa que crea la propia carga no entra en el ámbito (ver AmbitoCargaMasiva.RegistrarEmpresaCreada);
+                // la fila lo dice en vez del motivo uniforme, que aquí no oculta nada.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
-                    AmbitoCargaMasiva.Motivo(QuePideEmpresaDelTrabajador)));
+                    ambito.EsEmpresaCreadaFueraDelAmbito(empresaId)
+                        ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocialEmpresa)
+                        : AmbitoCargaMasiva.Motivo(QuePideEmpresaDelTrabajador)));
                 continue;
             }
 
@@ -669,7 +680,7 @@ public class EjecutarImportacionCommandHandler(
 
         return new ResultadoImportacionDto(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,
-            plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]);
+            [.. plan.Advertencias, .. advertenciasEnEscritura], [.. plan.Omitidos, .. omitidosEnEscritura]);
     }
 
     /// <summary>Lo que pide una fila de Asignaciones: el mismo texto para «no existe», «Papelera» y «fuera de ámbito».</summary>

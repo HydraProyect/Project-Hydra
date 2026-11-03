@@ -17,7 +17,9 @@ namespace CaeManager.Application.Importacion;
 ///
 /// <para>
 /// Lo que el propio fichero crea NO queda dentro del ámbito por haberlo creado (D-7: crear un Cliente empresarial no
-/// concede Asignación de Cartera), salvo los Trabajadores, que solo se crean si su Empresa ya estaba dentro.
+/// concede Asignación de Cartera), salvo los Trabajadores, que solo se crean si su Empresa ya estaba dentro. Una Empresa
+/// que crea la propia carga tampoco entra (decisión de Chris, 2026-11-03): su fila y las que la citan llevan un texto que
+/// dice qué hacer (<see cref="AvisoEmpresaCreadaFueraDeCartera"/>, <see cref="MotivoEmpresaCreadaFueraDeCartera"/>).
 /// </para>
 /// </summary>
 public sealed class AmbitoCargaMasiva
@@ -28,6 +30,7 @@ public sealed class AmbitoCargaMasiva
     private readonly HashSet<Guid>? _centros;
     private readonly HashSet<Guid>? _trabajadores;
     private readonly HashSet<Guid> _trabajadoresCreados = [];
+    private readonly HashSet<Guid> _empresasCreadas = [];
 
     /// <summary>
     /// La Asignación de Cartera universal alcanza el Tenant entero aunque sus listas sean explícitas
@@ -79,6 +82,39 @@ public sealed class AmbitoCargaMasiva
 
     /// <summary>Un Trabajador creado por esta carga (solo se crea con su Empresa dentro del ámbito) está dentro de él.</summary>
     public void RegistrarTrabajadorCreado(Guid id) => _trabajadoresCreados.Add(id);
+
+    /// <summary>
+    /// Recuerda una Empresa creada por esta carga SIN meterla en el ámbito (decisión de Chris, 2026-11-03: ninguna
+    /// importación amplía por sí sola la Asignación de Cartera de nadie). Solo sirve para que el resultado diga a quien
+    /// carga qué hacer con ella y con las filas que la citan, en vez del motivo uniforme de «fuera de tu ámbito».
+    /// </summary>
+    public void RegistrarEmpresaCreada(Guid id) => _empresasCreadas.Add(id);
+
+    /// <summary>La Empresa la creó esta carga y, aun así, queda fuera del ámbito de quien carga.</summary>
+    public bool EsEmpresaCreadaFueraDelAmbito(Guid id) => _empresasCreadas.Contains(id) && !Empresa(id);
+
+    /// <summary>
+    /// Aviso de la fila de una Empresa recién creada que queda fuera del ámbito de quien carga durante esta carga;
+    /// <c>null</c> si queda dentro (autoridad Total o lista de Empresas sin restricción). No revela nada de fuera del
+    /// ámbito: la Empresa la acaba de crear quien carga.
+    /// <para>
+    /// No afirma que haga falta pedir nada: tras la carga, la Empresa puede entrar sola en las Empresas visibles (la cartera
+    /// universal, o la Empresa propia del Tenant que ve un Coordinador CAE con cartera no vacía, D-8). Por eso manda volver a
+    /// cargar y solo pedir a la Dirección CAE que amplíe la Asignación de Cartera si sigue fuera.
+    /// </para>
+    /// </summary>
+    public string? AvisoEmpresaCreadaFueraDeCartera(Guid id, string razonSocial) =>
+        EsEmpresaCreadaFueraDelAmbito(id)
+            ? $"Empresa «{razonSocial}» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla."
+            : null;
+
+    /// <summary>
+    /// Motivo de una fila que no se escribe porque cita una Empresa que esta misma carga acaba de crear y que queda fuera
+    /// del ámbito (ver <see cref="RegistrarEmpresaCreada"/> y <see cref="AvisoEmpresaCreadaFueraDeCartera"/>). Sustituye al
+    /// motivo uniforme: la Empresa no es «algo de fuera» que ocultar, la creó quien carga.
+    /// </summary>
+    public static string MotivoEmpresaCreadaFueraDeCartera(string razonSocial) =>
+        $"La empresa «{razonSocial}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.";
 
     /// <summary>Motivo uniforme con el que se omite y se cuenta una fila fuera del ámbito; nunca nombra qué hay fuera.</summary>
     public static string Motivo(string quePide) =>

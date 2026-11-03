@@ -144,6 +144,69 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
         resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
     }
 
+    /// <summary>
+    /// Decisión de Chris, 2026-11-03: la Empresa que crea la propia carga no entra en el ámbito de quien carga, y el resultado
+    /// lo dice en su fila y en las que la citan en vez del motivo uniforme (que aquí no oculta nada).
+    /// </summary>
+    [Fact]
+    public async Task Una_Empresa_creada_por_el_fichero_no_amplia_el_ambito_y_el_resultado_dice_que_pedir()
+    {
+        const string nueva = "Empresa Nueva S.L.";
+        var (escenario, dentro, _, proveedora) = Escenario();
+        var alcance = Cartera(clientes: [dentro.Id], empresas: [proveedora.Id]);
+        var plan = EscenarioImportacionCombinada.Plan(
+            empresas: [new EmpresaCombinadaImportadaDto(nueva, [], YaExiste: false, Fila: 2)],
+            centros: [new CentroImportadoDto("Planta Nueva", ClienteDentro, nueva, null, null, null, null, YaExiste: false, Fila: 2)],
+            trabajadores: [new TrabajadorImportadoDto(nueva, "Lucía", "Fernández", "99999999R", null, null, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan, alcance: alcance, autoridad: AutoridadCargaMasiva.Acotada);
+
+        resultado.EmpresasCreadas.Should().Be(1);
+        resultado.CentrosCreados.Should().Be(0);
+        resultado.TrabajadoresCreados.Should().Be(0);
+        escenario.CentroRepositorio.Centros.Should().BeEmpty();
+        escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
+
+        resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Be(
+            $"Empresa «{nueva}» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+        resultado.Omitidos.Should().HaveCount(2).And.OnlyContain(o => o.Motivo ==
+            $"La empresa «{nueva}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+    }
+
+    [Fact]
+    public async Task Administrador_que_crea_una_Empresa_no_recibe_aviso_de_ambito()
+    {
+        const string nueva = "Empresa Nueva S.L.";
+        var (escenario, _, _, _) = Escenario();
+        var plan = EscenarioImportacionCombinada.Plan(
+            empresas: [new EmpresaCombinadaImportadaDto(nueva, [], YaExiste: false, Fila: 2)],
+            trabajadores: [new TrabajadorImportadoDto(nueva, "Lucía", "Fernández", "99999999R", null, null, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan,
+            alcance: Cartera(empresas: []), autoridad: AutoridadCargaMasiva.Total);
+
+        resultado.TrabajadoresCreados.Should().Be(1);
+        resultado.Advertencias.Should().BeEmpty("la autoridad Total no recorta, así que la Empresa creada queda dentro");
+        resultado.Omitidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Centro_de_una_Empresa_creada_por_el_fichero_y_un_Cliente_fuera_de_ambito_conserva_el_motivo_uniforme()
+    {
+        const string nueva = "Empresa Nueva S.L.";
+        var (escenario, _, _, proveedora) = Escenario();
+        var plan = EscenarioImportacionCombinada.Plan(
+            empresas: [new EmpresaCombinadaImportadaDto(nueva, [], YaExiste: false, Fila: 2)],
+            centros: [new CentroImportadoDto("Planta Nueva", ClienteFuera, nueva, null, null, null, null, YaExiste: false, Fila: 2)]);
+
+        var resultado = await escenario.EjecutarAsync(plan,
+            alcance: Cartera(clientes: [], empresas: [proveedora.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Be(
+            AmbitoCargaMasiva.Motivo("El Cliente empresarial o la empresa de este centro"),
+            "el Cliente empresarial existente fuera del ámbito no se nombra aunque la Empresa la haya creado el fichero");
+    }
+
     [Fact]
     public async Task Coordinador_no_crea_un_Centro_cuya_Empresa_esta_fuera_de_su_ambito()
     {
@@ -347,6 +410,29 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
 
         conExistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
         sinExistente.TrabajadoresCreados.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Gemelo del anterior para la Empresa del trabajador, mismo RIESGO DECLARADO (Chris, 2026-11-02, reafirmado el
+    /// 2026-11-03 para esta rama): la confirmación de la combinada dice «no se encontró la empresa» si no existe y «fuera de tu
+    /// ámbito» si existe fuera de él. Fija el comportamiento medido; si se decide otro diseño, se cambia a propósito.
+    /// </summary>
+    [Fact]
+    public async Task La_confirmacion_distingue_la_Empresa_inexistente_de_un_Trabajador_de_una_fuera_de_ambito_riesgo_declarado()
+    {
+        var (fueraDeAmbito, _, _, _) = Escenario();
+        var (inexistente, _, _, _) = Escenario();
+        var conEmpresaInexistente = new TrabajadorImportadoDto("Empresa Inexistente S.L.", "Lucía", "Fernández", "99999999R", null, null, YaExiste: false, Fila: 2);
+
+        var conFuera = await fueraDeAmbito.EjecutarAsync(EscenarioImportacionCombinada.Plan(trabajadores: [Trabajador()]),
+            alcance: Cartera(empresas: []), autoridad: AutoridadCargaMasiva.Acotada);
+        var conInexistente = await inexistente.EjecutarAsync(EscenarioImportacionCombinada.Plan(trabajadores: [conEmpresaInexistente]),
+            alcance: Cartera(empresas: []), autoridad: AutoridadCargaMasiva.Acotada);
+
+        conFuera.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        conInexistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("No se encontró la empresa");
+        fueraDeAmbito.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
+        inexistente.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
     }
 
     [Fact]

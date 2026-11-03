@@ -150,6 +150,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
+        var advertenciasEnEscritura = new List<ItemImportacionDto>();
         var ahora = DateTime.UtcNow;
 
         var clientesPorCif = await empresasContext.Empresas
@@ -353,8 +354,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if ((!esNueva && !ambito.Empresa(existente!.Id))
                 || !clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente))
             {
+                // Una segunda fila de una Empresa que esta carga acaba de crear no la oculta: la creó quien carga.
+                var empresaCreadaPorEstaCarga = !esNueva && ambito.EsEmpresaCreadaFueraDelAmbito(existente!.Id)
+                    && clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente);
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empresas", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Esta empresa o alguno de sus Clientes empresariales asociados")));
+                    "Empresas", fila.Fila, fila.RazonSocial, empresaCreadaPorEstaCarga
+                        ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocial)
+                        : AmbitoCargaMasiva.Motivo("Esta empresa o alguno de sus Clientes empresariales asociados")));
                 continue;
             }
 
@@ -374,6 +380,9 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     empresaRepositorio.Agregar(empresa);
                     empresasPorRazonSocial.Agregar(fila.RazonSocial, empresa);
                     empresasCreadas++;
+                    ambito.RegistrarEmpresaCreada(empresa.Id);
+                    if (ambito.AvisoEmpresaCreadaFueraDeCartera(empresa.Id, fila.RazonSocial) is { } aviso)
+                        advertenciasEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, aviso));
                 }
                 catch (ArgumentException ex)
                 {
@@ -519,10 +528,16 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
-            if (!ambito.Cliente(clienteId) || !ambito.Empresa(empresaId))
+            var clienteDelCentroEnAmbito = ambito.Cliente(clienteId);
+            if (!clienteDelCentroEnAmbito || !ambito.Empresa(empresaId))
             {
+                // Con el Cliente empresarial dentro, una Empresa creada por esta misma carga no es «algo de fuera» que
+                // ocultar (ver AmbitoCargaMasiva.RegistrarEmpresaCreada).
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros", fila.Fila, fila.Nombre, AmbitoCargaMasiva.Motivo("El Cliente empresarial o la empresa de este centro")));
+                    "Centros", fila.Fila, fila.Nombre,
+                    clienteDelCentroEnAmbito && ambito.EsEmpresaCreadaFueraDelAmbito(empresaId)
+                        ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocialEmpresa)
+                        : AmbitoCargaMasiva.Motivo("El Cliente empresarial o la empresa de este centro")));
                 continue;
             }
 
@@ -607,7 +622,10 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (!ambito.Empresa(empresaId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", AmbitoCargaMasiva.Motivo("La empresa de este trabajador")));
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                    ambito.EsEmpresaCreadaFueraDelAmbito(empresaId)
+                        ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocialEmpresa)
+                        : AmbitoCargaMasiva.Motivo("La empresa de este trabajador")));
                 continue;
             }
 
@@ -634,7 +652,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         return new ResultadoImportacionCombinadaDto(
             clientesCreados, clientesActualizados, empresasCreadas, empresasActualizadas,
             centrosCreados, centrosActualizados, trabajadoresCreados, trabajadoresActualizados,
-            plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]);
+            [.. plan.Advertencias, .. advertenciasEnEscritura], [.. plan.Omitidos, .. omitidosEnEscritura]);
     }
 
     private static string MotivoVariasEmpresas(string razonSocial) =>

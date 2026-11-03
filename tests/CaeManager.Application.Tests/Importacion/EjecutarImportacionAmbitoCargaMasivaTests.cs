@@ -203,6 +203,11 @@ public class EjecutarImportacionAmbitoCargaMasivaTests
         resultado.Omitidos.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Decisión de Chris, 2026-11-03: la Empresa que crea la propia carga NO entra en el ámbito de quien carga (ninguna
+    /// importación amplía por sí sola la Asignación de Cartera), pero el resultado dice qué hacer en vez del motivo uniforme
+    /// de «fuera de tu ámbito», que aquí no oculta nada: la Empresa la acaba de crear quien carga.
+    /// </summary>
     [Fact]
     public async Task D7_una_empresa_creada_por_el_fichero_no_amplia_el_ambito_y_su_trabajador_se_omite()
     {
@@ -218,7 +223,51 @@ public class EjecutarImportacionAmbitoCargaMasivaTests
 
         resultado.EmpresasCreadas.Should().Be(1);
         resultado.TrabajadoresCreados.Should().Be(0);
-        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty("la Empresa creada no entra en el ámbito, así que su trabajador no se escribe");
+
+        resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Be(
+            "Empresa «Empresa Nueva S.L.» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Be(
+            "La empresa «Empresa Nueva S.L.» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+    }
+
+    [Theory]
+    [InlineData("Administrador", false)]
+    [InlineData("DireccionCae", true)]
+    public async Task Sin_recorte_de_Empresas_crear_una_empresa_no_da_aviso_de_ambito(string rol, bool alcanceSinRestriccion)
+    {
+        var escenario = new EscenarioImportacion();
+        // El Administrador, con una lista que recortaría a cualquier otro: su autoridad Total no la consulta.
+        var alcance = alcanceSinRestriccion
+            ? new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: true)
+            : new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []);
+        var plan = EscenarioImportacion.Plan(
+            empresas: [new EmpresaImportadaDto("Empresa Nueva S.L.", YaExiste: false)],
+            trabajadores: [new TrabajadorImportadoDto("Empresa Nueva S.L.", "Lucía", "Fernández",
+                EscenarioImportacion.DniDesconocido, null, null, YaExiste: false)]);
+
+        var resultado = (await escenario.Handler(rol, alcance)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand(plan), default)).Valor;
+
+        resultado.TrabajadoresCreados.Should().Be(1);
+        resultado.Advertencias.Should().BeEmpty("la Empresa creada queda dentro del ámbito de quien no se recorta");
+        resultado.Omitidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_empresa_existente_fuera_de_ambito_conserva_el_motivo_uniforme_aunque_otra_la_cree_el_fichero()
+    {
+        var escenario = new EscenarioImportacion().ConEmpresaExistente();
+        var alcance = new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: []);
+        var plan = EscenarioImportacion.Plan(
+            empresas: [new EmpresaImportadaDto("Empresa Nueva S.L.", YaExiste: false)],
+            trabajadores: PlanConUnTrabajador().Trabajadores);
+
+        var resultado = (await escenario.Handler("CoordinadorCae", alcance)
+            .Handle(new Application.Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand(plan), default)).Valor;
+
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Be(AmbitoCargaMasiva.Motivo("La empresa de este trabajador"),
+            "solo la Empresa que crea la propia carga cambia el texto; la que ya existía fuera del ámbito sigue sin nombrarse");
     }
 
     [Fact]

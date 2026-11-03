@@ -205,6 +205,24 @@ public class EjecutarImportacionDependenciasSinOraculoTests
     }
 
     [Fact]
+    public async Task Con_cartera_universal_una_empresa_creada_por_el_fichero_tampoco_entra_en_el_ambito_de_la_misma_carga()
+    {
+        // Las listas explícitas de la cartera universal se leyeron antes de crear la Empresa: no entra hasta la carga siguiente.
+        var plan = EscenarioImportacion.Plan(
+            empresas: [new EmpresaImportadaDto("Empresa Nueva S.L.", YaExiste: false)],
+            trabajadores: [new TrabajadorImportadoDto("Empresa Nueva S.L.", "Lucía", "Fernández",
+                EscenarioImportacion.DniDesconocido, null, null, YaExiste: false)]);
+
+        var resultado = await EjecutarAsync(new EscenarioImportacion(), plan, Coordinador, new CarteraUniversalConListasExplicitas());
+
+        resultado.EmpresasCreadas.Should().Be(1);
+        resultado.TrabajadoresCreados.Should().Be(0, "ni la cartera universal amplía el ámbito con lo que crea la propia carga");
+        resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Contain("no queda en tu ámbito durante esta carga");
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Be(
+            AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera("Empresa Nueva S.L."), "el motivo uniforme de «fuera de tu ámbito» no oculta aquí nada");
+    }
+
+    [Fact]
     public async Task Con_cartera_universal_de_listas_explicitas_se_conservan_los_motivos_accionables()
     {
         // Codex sobre 7ae0fddfd (BAJA): una lista explícita no basta para decir que hay algo fuera del ámbito.
