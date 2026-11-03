@@ -396,7 +396,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "el Tenant, corren con el rol propietario de las tablas y buscan la cuenta en todos los Tenants; también " +
             "app_nombre_en_uso_por_otra_cuenta, app_correo_en_uso_por_otra_cuenta (unicidad global de la cuenta), " +
             "app_tenant_tiene_administrador_propio (WITH CHECK de EncargosAdministracion) y " +
-            "app_es_administrador_del_tenant. El backfill de asignaciones lee además dbContext.Users de todos los " +
+            "app_es_administrador_del_tenant, que solo responden por el Tenant del contexto firmado pero leen sus " +
+            "cuentas sin pasar por la política de AspNetUsers. El backfill de asignaciones lee además dbContext.Users de todos los " +
             "Tenants con la identidad de bootstrap. Con FORCE y un rol propietario sometido a RLS no encontrarían " +
             "ninguna cuenta y el inicio de sesión fallaría"),
     };

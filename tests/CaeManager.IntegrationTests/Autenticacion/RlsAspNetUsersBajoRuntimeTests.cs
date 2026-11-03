@@ -594,6 +594,118 @@ public class RlsAspNetUsersBajoRuntimeTests
         (await lectura.ObtenerAsync(e.Todas.Select(u => u.Id).ToArray(), default)).Should().BeEmpty();
     }
 
+    // ── Funciones SECURITY DEFINER sobre el rol Administrador ───────────
+    // app_es_administrador_del_tenant y app_tenant_tiene_administrador_propio leen AspNetUserRoles
+    // sin RLS (corren como el propietario). Migración CierraFuncionesDeAdministradorAlTenantDelContexto:
+    // solo responden por el Tenant del contexto firmado; por otro, un valor fijo que falla cerrado.
+
+    [Fact]
+    public async Task Las_funciones_de_Administrador_no_revelan_nada_de_otro_Tenant()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.Administrador);
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Consulta);
+        var tenantSinCuentas = Guid.NewGuid();
+
+        // Control positivo del instrumento: desde Y la cuenta sí es Administrador de Y.
+        await using (var desdeY = await AbrirComoRuntimeAsync(e, e.TenantY, e.TenantY, e.AjenaY.Id))
+        {
+            (await EsAdministradorDelTenantAsync(desdeY, e.AjenaY.Id, e.TenantY)).Should().BeTrue();
+            (await TieneAdministradorPropioAsync(desdeY, e.TenantY)).Should().BeTrue();
+        }
+
+        // Desde X, la misma pregunta por Y recibe el valor fijo: la respuesta no depende de los datos de Y.
+        await using (var desdeX = await AbrirComoRuntimeAsync(e, e.TenantX, e.TenantX, e.PropiaX.Id))
+        {
+            (await EsAdministradorDelTenantAsync(desdeX, e.AjenaY.Id, e.TenantY)).Should().BeFalse(
+                "desde X no se sabe si una cuenta de Y es Administrador");
+            (await TieneAdministradorPropioAsync(desdeX, e.TenantY)).Should().BeTrue(
+                "por otro Tenant responde como si lo tuviera");
+            (await TieneAdministradorPropioAsync(desdeX, tenantSinCuentas)).Should().BeTrue(
+                "la misma respuesta para un Tenant sin ninguna cuenta: no distingue uno de otro");
+
+            // El GUC suelto no es autoridad: el runtime lo fija a mano y la función sigue el contexto firmado.
+            await using (var falsear = new NpgsqlCommand("SELECT set_config('app.tenant_id', @tenant, false)", desdeX))
+            {
+                falsear.Parameters.AddWithValue("tenant", e.TenantY.ToString());
+                await falsear.ExecuteNonQueryAsync();
+            }
+            (await EsAdministradorDelTenantAsync(desdeX, e.AjenaY.Id, e.TenantY)).Should().BeFalse(
+                "app.tenant_id = Y sin contexto firmado de Y no abre la respuesta");
+            (await TieneAdministradorPropioAsync(desdeX, e.TenantY)).Should().BeTrue();
+        }
+
+        // Un Operador CAE externo de Y operando X tampoco pregunta por su Tenant de origen.
+        await using (var operandoX = await AbrirComoRuntimeAsync(e, e.TenantX, e.TenantY, e.AjenaY.Id))
+        {
+            (await EsAdministradorDelTenantAsync(operandoX, e.AjenaY.Id, e.TenantY)).Should().BeFalse(
+                "el Tenant de origen no es el Tenant activo");
+        }
+
+        // Sin contexto firmado, tampoco.
+        await using (var sinContexto = await AbrirComoRuntimeAsync(e, null, null, null))
+        {
+            (await EsAdministradorDelTenantAsync(sinContexto, e.AjenaY.Id, e.TenantY)).Should().BeFalse();
+            (await TieneAdministradorPropioAsync(sinContexto, e.TenantY)).Should().BeTrue();
+            (await TieneAdministradorPropioAsync(sinContexto, e.TenantX)).Should().BeTrue(
+                "X no tiene Administrador, pero sin contexto la función no lo dice");
+        }
+    }
+
+    [Fact]
+    public async Task Los_llamadores_legitimos_reciben_la_respuesta_real_del_Tenant_activo()
+    {
+        await using var e = await CrearEscenarioAsync();
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Consulta);
+
+        async Task<bool> PorElServicioAsync(Guid tenantActivo, Guid tenantPreguntado)
+        {
+            using var ambito = e.Arnes.Servicios.CreateScope();
+            using (AmbitoTenantExplicito.Establecer(tenantActivo))
+                return await new TenantConAdministradorPropioEnBase(ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>())
+                    .TieneAdministradorPropioAsync(tenantPreguntado);
+        }
+
+        // TenantConAdministradorPropioEnBase (TechoDeRolPorEncargo) con la conexión de producción.
+        (await PorElServicioAsync(e.TenantX, e.TenantX)).Should().BeFalse(
+            "X no tiene Administrador propio: es la respuesta que hace pleno un encargo");
+        (await PorElServicioAsync(e.TenantX, e.TenantY)).Should().BeTrue("por otro Tenant, fijo y cerrado");
+
+        await AsignarRolesAsync(e, e.AjenaY.Id, Roles.Administrador);
+        (await PorElServicioAsync(e.TenantY, e.TenantY)).Should().BeTrue();
+
+        // Quien opera X desde Y (Operador CAE externo) pregunta por X, el Tenant activo, y recibe la respuesta real.
+        await using (var operandoX = await AbrirComoRuntimeAsync(e, e.TenantX, e.TenantY, e.OperadorDelegadoY.Id))
+        {
+            (await TieneAdministradorPropioAsync(operandoX, e.TenantX)).Should().BeFalse();
+            (await EsAdministradorDelTenantAsync(operandoX, e.PropiaX.Id, e.TenantX)).Should().BeFalse();
+        }
+
+        await AsignarRolesAsync(e, e.PropiaX.Id, Roles.Administrador);
+        (await PorElServicioAsync(e.TenantX, e.TenantX)).Should().BeTrue();
+        await using (var operandoX = await AbrirComoRuntimeAsync(e, e.TenantX, e.TenantY, e.OperadorDelegadoY.Id))
+        {
+            (await TieneAdministradorPropioAsync(operandoX, e.TenantX)).Should().BeTrue();
+            (await EsAdministradorDelTenantAsync(operandoX, e.PropiaX.Id, e.TenantX)).Should().BeTrue(
+                "las políticas de SesionesPrivilegiadas y ContactosSeguridadTenant preguntan así, por el Tenant activo");
+        }
+    }
+
+    private static async Task<bool?> EsAdministradorDelTenantAsync(NpgsqlConnection conexion, Guid usuario, Guid tenant)
+    {
+        await using var orden = new NpgsqlCommand("SELECT app_es_administrador_del_tenant(@usuario, @tenant)", conexion);
+        orden.Parameters.AddWithValue("usuario", usuario);
+        orden.Parameters.AddWithValue("tenant", tenant);
+        return await orden.ExecuteScalarAsync() as bool?;
+    }
+
+    private static async Task<bool?> TieneAdministradorPropioAsync(NpgsqlConnection conexion, Guid tenant)
+    {
+        await using var orden = new NpgsqlCommand("SELECT app_tenant_tiene_administrador_propio(@tenant)", conexion);
+        orden.Parameters.AddWithValue("tenant", tenant);
+        return await orden.ExecuteScalarAsync() as bool?;
+    }
+
     // ── Escenario ───────────────────────────────────────────────────────
 
     private static async Task<Escenario> CrearEscenarioAsync()

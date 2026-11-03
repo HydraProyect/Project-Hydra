@@ -13,6 +13,14 @@ namespace CaeManager.Application.Tenants;
 /// Falla cerrado: ante cualquier duda contesta que sí, porque «no tiene» es lo
 /// que levanta las exclusiones del encargo.
 /// </para>
+///
+/// <para>
+/// <b>Solo responde por el Tenant activo.</b> <c>tenantId</c> tiene que ser el Tenant
+/// del contexto de la conexión (el Tenant propietario en el que opera quien
+/// administra por encargo). Por cualquier otro Tenant, o sin contexto, la respuesta
+/// es siempre que sí: la base no dice nada de otro Tenant, y ese «sí» es
+/// indistinguible de uno real.
+/// </para>
 /// </summary>
 public interface ITenantConAdministradorPropio
 {
