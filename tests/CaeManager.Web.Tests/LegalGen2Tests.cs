@@ -59,7 +59,10 @@ public class LegalGen2Tests : BunitContext
             .Should().ContainSingle(f => f.TextContent.Contains("Anthropic PBC")).Subject;
         fila.TextContent.Should().Contain("Estados Unidos")
             .And.Contain("Cláusulas Contractuales Tipo")
-            .And.Contain("no entrena modelos");
+            .And.Contain("módulos 2 y 3")
+            .And.Contain("no entrena modelos")
+            .And.Contain("30 días");
+        cut.Markup.Should().Contain("único subencargado").And.Contain("No hay caída automática");
         // Decisión vigente: Anthropic es el único proveedor de IA; los retirados no se nombran.
         cut.Markup.Should().NotContain("Mistral").And.NotContain("Gemini");
     }
