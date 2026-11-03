@@ -354,13 +354,11 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if ((!esNueva && !ambito.Empresa(existente!.Id))
                 || !clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente))
             {
-                // Una segunda fila de una Empresa que esta carga acaba de crear no la oculta: la creó quien carga.
-                var empresaCreadaPorEstaCarga = !esNueva && ambito.EsEmpresaCreadaFueraDelAmbito(existente!.Id)
-                    && clientesDeLaFila.Concat(clientesQueSeCierran).All(ambito.Cliente);
+                // Motivo uniforme también para una segunda fila de una Empresa que esta carga acaba de crear: distinguirla
+                // dependería de si sus Clientes empresariales asociados existen fuera del ámbito o no existen (Codex sobre
+                // dff89fbe3), un oráculo que no es el de clave única aceptado.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empresas", fila.Fila, fila.RazonSocial, empresaCreadaPorEstaCarga
-                        ? AmbitoCargaMasiva.MotivoEmpresaCreadaFueraDeCartera(fila.RazonSocial)
-                        : AmbitoCargaMasiva.Motivo("Esta empresa o alguno de sus Clientes empresariales asociados")));
+                    "Empresas", fila.Fila, fila.RazonSocial, AmbitoCargaMasiva.Motivo("Esta empresa o alguno de sus Clientes empresariales asociados")));
                 continue;
             }
 

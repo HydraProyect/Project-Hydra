@@ -226,7 +226,7 @@ public class EjecutarImportacionAmbitoCargaMasivaTests
         escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty("la Empresa creada no entra en el ámbito, así que su trabajador no se escribe");
 
         resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Be(
-            "Empresa «Empresa Nueva S.L.» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+            "Empresa «Empresa Nueva S.L.» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
         resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Be(
             "La empresa «Empresa Nueva S.L.» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
     }

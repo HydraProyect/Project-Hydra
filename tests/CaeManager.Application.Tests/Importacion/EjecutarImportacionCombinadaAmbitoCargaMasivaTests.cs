@@ -168,9 +168,30 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
         escenario.TrabajadorRepositorio.Trabajadores.Should().BeEmpty();
 
         resultado.Advertencias.Should().ContainSingle().Which.Motivo.Should().Be(
-            $"Empresa «{nueva}» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+            $"Empresa «{nueva}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
         resultado.Omitidos.Should().HaveCount(2).And.OnlyContain(o => o.Motivo ==
             $"La empresa «{nueva}» se ha creado con esta importación, pero no queda en tu ámbito durante la misma carga: la fila no se ha escrito. Vuelve a cargar esta fila; si sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla.");
+    }
+
+    [Fact]
+    public async Task Una_segunda_fila_de_la_Empresa_creada_no_distingue_un_Cliente_empresarial_inexistente_de_uno_fuera_de_ambito()
+    {
+        // Codex sobre dff89fbe3: un plan presentado directamente al handler puede repetir la Empresa.
+        const string nueva = "Empresa Nueva S.L.";
+        async Task<string> MotivoDeLaSegundaFila(string clienteCitado)
+        {
+            var (escenario, dentro, _, proveedora) = Escenario();
+            var plan = EscenarioImportacionCombinada.Plan(empresas:
+            [
+                new EmpresaCombinadaImportadaDto(nueva, [], YaExiste: false, Fila: 2),
+                new EmpresaCombinadaImportadaDto(nueva, [clienteCitado], YaExiste: false, Fila: 3),
+            ]);
+            var resultado = await escenario.EjecutarAsync(plan,
+                alcance: Cartera(clientes: [dentro.Id], empresas: [proveedora.Id]), autoridad: AutoridadCargaMasiva.Acotada);
+            return resultado.Omitidos.Should().ContainSingle().Which.Motivo;
+        }
+
+        (await MotivoDeLaSegundaFila("Cliente Inexistente S.A.")).Should().Be(await MotivoDeLaSegundaFila(ClienteFuera));
     }
 
     [Fact]

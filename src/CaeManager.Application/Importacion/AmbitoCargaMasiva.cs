@@ -105,7 +105,7 @@ public sealed class AmbitoCargaMasiva
     /// </summary>
     public string? AvisoEmpresaCreadaFueraDeCartera(Guid id, string razonSocial) =>
         EsEmpresaCreadaFueraDelAmbito(id)
-            ? $"Empresa «{razonSocial}» creada, pero no queda en tu ámbito durante esta carga: las filas de este archivo que la citan no se escriben. Si al volver a cargarlas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla."
+            ? $"Empresa «{razonSocial}» creada, pero no queda en tu ámbito durante esta carga: no se da de alta nada que dependa de ella en este archivo. Si al volver a cargar esas filas sigue fuera de tu ámbito, pide a la Dirección CAE que amplíe tu Asignación de Cartera para verla."
             : null;
 
     /// <summary>
