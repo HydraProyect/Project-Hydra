@@ -96,6 +96,12 @@ public record ResultadoImportacionDto(
 /// o la Asignación de ese DNI con «restáuralo», sin revelar datos del eliminado, en
 /// vez de dejar que el guardado entero falle con un 23505.
 ///
+/// Excepción por ámbito (cargas masivas acotadas, decisión de Chris del 2026-11-01): con autoridad acotada y una lista
+/// de cartera que recorta, la causal concreta de una dependencia que la fila NO intenta crear («no existe», «está en la
+/// Papelera») se sustituye por el mismo motivo uniforme que «fuera de tu ámbito» (<see cref="AmbitoCargaMasiva.MotivoSinDistinguirExistencia"/>):
+/// nombrarla revelaría a quien no ve lo existente qué existe en el Tenant. La fila sigue registrada con hoja, fila y
+/// descripción; con autoridad Total, o sin lista que recorte esa entidad, las causales accionables no cambian.
+///
 /// La deduplicación es la excepción razonada, no un olvido: reutilizar una
 /// entidad que ya existe no es descartar una fila. El paso de análisis ya lo
 /// anuncia marcando la fila <c>YaExiste</c>, y la vista previa no la cuenta
@@ -247,24 +253,45 @@ public class EjecutarImportacionCommandHandler(
             // de importar. Crear cualquiera de los dos de cero se deja para cuando
             // la plantilla incluya esos campos; mientras tanto se omite con un
             // motivo explícito en vez de fallar o inventar un CIF/Empresa falsos.
-            var busquedaCliente = clientesPorNombre.Buscar(fila.Nombre);
+            //
+            // Esta hoja nunca intenta crear: con ámbito acotado, un Cliente empresarial o un Centro que no existe y uno que
+            // existe fuera del ámbito se omiten con el mismo motivo uniforme (MotivoSinDistinguirExistencia). Decir «no existe»
+            // solo a lo inexistente, y nada a lo existente fuera del ámbito, revelaría qué existe en el Tenant sin el
+            // intento de alta que justifica el oráculo de clave única aceptado.
+            const string QuePideClienteOCentro = "El Cliente empresarial o el centro de esta fila";
+            var busquedaCliente = clientesPorNombre.Buscar(fila.Nombre, out var idDelClienteEmpresarial);
+            if (busquedaCliente == ResultadoBusquedaPorNombre.Unico && !ambito.Cliente(idDelClienteEmpresarial))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, fila.Nombre, AmbitoCargaMasiva.Motivo(QuePideClienteOCentro)));
+                continue;
+            }
+
             if (busquedaCliente != ResultadoBusquedaPorNombre.Unico)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, fila.Nombre,
                     busquedaCliente == ResultadoBusquedaPorNombre.Ambiguo
                         ? $"Hay varios Clientes empresariales llamados «{fila.Nombre}» (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila."
-                        : "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
+                        : ambito.MotivoSinDistinguirExistencia(QuePideClienteOCentro, EntidadDelAmbito.Cliente,
+                            "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes.")));
                 continue;
             }
 
             // Un Centro homónimo (ambiguo) sí existe: esta fila no promete crear nada. La ambigüedad se reporta en
             // las Asignaciones que lo citan, que son las que no pueden elegir.
-            if (centrosPorNombre.Buscar(fila.Nombre) == ResultadoBusquedaPorNombre.NoExiste)
+            var busquedaCentroDeLaFila = centrosPorNombre.Buscar(fila.Nombre, out var centroDeLaFilaId);
+            if (busquedaCentroDeLaFila == ResultadoBusquedaPorNombre.NoExiste)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, fila.Nombre,
-                    "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
+                    ambito.MotivoSinDistinguirExistencia(QuePideClienteOCentro, EntidadDelAmbito.Centro,
+                        "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros.")));
+            }
+            else if (busquedaCentroDeLaFila == ResultadoBusquedaPorNombre.Unico && !ambito.Centro(centroDeLaFilaId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, fila.Nombre, AmbitoCargaMasiva.Motivo(QuePideClienteOCentro)));
             }
         }
 
@@ -357,10 +384,12 @@ public class EjecutarImportacionCommandHandler(
             if (busquedaEmpresaDelTrabajador == ResultadoBusquedaPorNombre.NoExiste)
             {
                 // Dependencia dentro del propio archivo: la Empresa del trabajador
-                // ni existía antes ni pudo crearse en esta importación.
+                // ni existía antes ni pudo crearse en esta importación. Con ámbito acotado, el mismo motivo que una
+                // Empresa fuera del ámbito: esta fila no intenta crear la Empresa que cita.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
-                    $"La empresa «{fila.RazonSocialEmpresa}» no existe y no pudo crearse al importar este archivo; un trabajador no puede darse de alta sin la empresa a la que pertenece."));
+                    ambito.MotivoSinDistinguirExistencia(QuePideEmpresaDelTrabajador, EntidadDelAmbito.Empresa,
+                        $"La empresa «{fila.RazonSocialEmpresa}» no existe y no pudo crearse al importar este archivo; un trabajador no puede darse de alta sin la empresa a la que pertenece.")));
                 continue;
             }
 
@@ -368,7 +397,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
-                    AmbitoCargaMasiva.Motivo("La empresa de este trabajador")));
+                    AmbitoCargaMasiva.Motivo(QuePideEmpresaDelTrabajador)));
                 continue;
             }
 
@@ -400,11 +429,12 @@ public class EjecutarImportacionCommandHandler(
             {
                 // El documento se queda sin titular: su trabajador no existía ni
                 // pudo crearse (su propia fila se omitió más arriba, con su motivo).
-                // Si está en la Papelera, el motivo es ese: «no existe» sería falso.
+                // Si está en la Papelera, el motivo es ese: «no existe» sería falso. Con ámbito acotado, Papelera,
+                // inexistencia y fuera de ámbito dan el mismo motivo: esta fila no intenta crear al trabajador.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     EstaEnPapelera(fila.Dni)
-                        ? ambito.MotivoPapelera(fila.Dni)
+                        ? ambito.MotivoPapeleraSinDistinguir("El trabajador de este documento", fila.Dni)
                         : ambito.MotivoTitularDeDocumentoInexistente(
                             $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse.")));
                 continue;
@@ -498,13 +528,26 @@ public class EjecutarImportacionCommandHandler(
 
         foreach (var fila in plan.Asignaciones)
         {
+            // La hoja de Asignaciones no crea ni Trabajadores ni Centros: con ámbito acotado, un Trabajador o un Centro que
+            // no existe (o un DNI en la Papelera) se omite con el mismo motivo que uno fuera del ámbito
+            // (MotivoSinDistinguirExistencia). Las causales accionables de DCR-12 B se conservan con autoridad Total.
             if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                     EstaEnPapelera(fila.Dni)
-                        ? ambito.MotivoPapelera(fila.Dni)
-                        : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
+                        ? ambito.MotivoPapeleraSinDistinguir(QuePideAsignacion, fila.Dni)
+                        : ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Trabajador,
+                            $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse.")));
+                continue;
+            }
+
+            // Antes que las causales del Centro: un Trabajador fuera del ámbito con un Centro ambiguo o inexistente
+            // recibiría un motivo distinto del de un DNI inexistente, y delataría que el DNI existe.
+            if (!ambito.Trabajador(trabajadorId))
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
                 continue;
             }
 
@@ -535,7 +578,8 @@ public class EjecutarImportacionCommandHandler(
                     : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
 
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
+                    ambito.MotivoSinDistinguirExistencia(QuePideAsignacion, EntidadDelAmbito.Centro, motivoCentro)));
                 continue;
             }
 
@@ -543,7 +587,7 @@ public class EjecutarImportacionCommandHandler(
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
-                    AmbitoCargaMasiva.Motivo("El trabajador o el centro de esta asignación")));
+                    AmbitoCargaMasiva.Motivo(QuePideAsignacion)));
                 continue;
             }
 
@@ -627,6 +671,12 @@ public class EjecutarImportacionCommandHandler(
             clientesCreados, centrosCreados, empresasCreadas, trabajadoresCreados, documentosCreados, asignacionesCreadas,
             plan.Advertencias, [.. plan.Omitidos, .. omitidosEnEscritura]);
     }
+
+    /// <summary>Lo que pide una fila de Asignaciones: el mismo texto para «no existe», «Papelera» y «fuera de ámbito».</summary>
+    private const string QuePideAsignacion = "El trabajador o el centro de esta asignación";
+
+    /// <summary>Lo que pide una fila de Trabajadores a su Empresa: el mismo texto para «no existe» y «fuera de ámbito».</summary>
+    private const string QuePideEmpresaDelTrabajador = "La empresa de este trabajador";
 
     private static string MotivoVariasEmpresas(string razonSocial) =>
         $"Hay varias empresas con la razón social «{razonSocial}» en el sistema (el nombre solo cambia en mayúsculas); la importación no puede saber a cuál se refiere esta fila. Unifica o renombra las empresas duplicadas y vuelve a importar.";

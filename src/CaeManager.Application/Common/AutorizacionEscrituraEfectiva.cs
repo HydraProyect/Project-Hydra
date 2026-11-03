@@ -30,8 +30,8 @@ public class AutorizacionEscrituraEfectiva(
             return true;
 
         // ObtenerAsync, no RevalidarAsync — al revés que en AutorizacionEscrituraBehavior,
-        // y a propósito (hallazgo de Codex, revisión previa a este PR): este método SIEMPRE
-        // se invoca desde DENTRO de un handler marcado IComandoDeAprovisionamiento, es decir,
+        // y a propósito (hallazgo de Codex, revisión previa a este PR): para escribir, este método
+        // se invoca siempre desde DENTRO de un handler marcado IComandoDeAprovisionamiento, es decir,
         // DESPUÉS de que en el mismo comando ya revalidaron la sesión, en fresco, tanto
         // AutorizacionEscrituraBehavior como ElevacionEscrituraAprovisionamientoBehavior — el
         // segundo justo antes de elevar el rol de la conexión a cae_app_aprovisionamiento.
@@ -46,6 +46,16 @@ public class AutorizacionEscrituraEfectiva(
         // ejecución de este comando, por el propio pipeline que lo autorizó — el "punto de
         // mutación" que RevalidarAsync protege ya se ejerció más afuera, en
         // AutorizacionEscrituraBehavior.
+        //
+        // Excepción de lectura (cargas masivas): ObtenerAutoridadCargaMasivaAsync también
+        // llega aquí desde Queries del Importador (vista previa recortada al ámbito, historial
+        // de importaciones), donde no hay revalidación en el mismo pipeline. Ahí la respuesta
+        // Total solo decide «no recortar» una lectura del Tenant objetivo que la propia sesión
+        // ya tiene concedida por capacidad, con la misma memo: AlcanceDatosService da acceso
+        // total al catálogo de ese Tenant a Aprovisionamiento para deduplicar, y la conexión
+        // de una Sesión Privilegiada lee bajo RLS acotada a ese Tenant. No abre escritura
+        // (eso sigue exigiendo IComandoDeAprovisionamiento y la revalidación de arriba) ni
+        // amplía lo que la sesión puede leer.
         var sesion = await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken);
 
         return sesion is { Capacidad: CapacidadPrivilegio.Aprovisionamiento } s

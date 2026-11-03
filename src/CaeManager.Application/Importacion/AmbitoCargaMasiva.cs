@@ -88,7 +88,45 @@ public sealed class AmbitoCargaMasiva
     /// existe en el Tenant sin intentar crear nada (no es el oráculo de clave única aceptado).
     /// </summary>
     public string MotivoTitularDeDocumentoInexistente(string motivoSinRestriccion) =>
-        _sinRestriccion ? motivoSinRestriccion : Motivo("El trabajador de este documento");
+        MotivoSinDistinguirExistencia("El trabajador de este documento", EntidadDelAmbito.Trabajador, motivoSinRestriccion);
+
+    /// <summary>
+    /// Motivo de una fila que no se escribe porque algo de lo que depende (el Trabajador o el Centro de una Asignación, la
+    /// Empresa de un Trabajador, el Cliente empresarial o el Centro de la hoja de Centros) no existe o queda fuera del
+    /// ámbito. Si la lista de <paramref name="citada"/> recorta (autoridad acotada con lista explícita), las dos causas dan
+    /// el MISMO motivo uniforme, con el mismo <paramref name="quePide"/> que la rama «fuera de ámbito» de esa fila: la fila
+    /// no intenta crear lo que cita, así que distinguirlas sería un oráculo de existencia que no es el de clave única
+    /// aceptado. Si no recorta (autoridad Total, o acotada que alcanza el Tenant entero para esa entidad), no hay nada fuera
+    /// del ámbito que ocultar y se conserva el motivo accionable.
+    /// </summary>
+    public string MotivoSinDistinguirExistencia(string quePide, EntidadDelAmbito citada, string motivoSinRestriccion) =>
+        Recorta(citada) ? Motivo(quePide) : motivoSinRestriccion;
+
+    /// <summary>
+    /// Motivo de una fila (documento o Asignación) cuyo DNI está en la Papelera. Mismo criterio que
+    /// <see cref="MotivoPapelera"/> (con ámbito acotado nunca «restáuralo»), pero con el <paramref name="quePide"/> de la
+    /// hoja, para que la Papelera no se distinga de «no existe» ni de «fuera de ámbito» en esa fila.
+    /// </summary>
+    public string MotivoPapeleraSinDistinguir(string quePide, string dni) =>
+        _sinRestriccion ? DnisEnPapelera.Motivo(dni) : Motivo(quePide);
+
+    private bool Recorta(EntidadDelAmbito entidad) => !_sinRestriccion && entidad switch
+    {
+        EntidadDelAmbito.Cliente => _clientes is not null,
+        EntidadDelAmbito.Empresa => _empresas is not null,
+        EntidadDelAmbito.Centro => _centros is not null,
+        EntidadDelAmbito.Trabajador => _trabajadores is not null,
+        _ => true,
+    };
+}
+
+/// <summary>Qué lista del ámbito decide si una fila puede tener algo fuera de él (ver <see cref="AmbitoCargaMasiva.MotivoSinDistinguirExistencia"/>).</summary>
+public enum EntidadDelAmbito
+{
+    Cliente,
+    Empresa,
+    Centro,
+    Trabajador,
 }
 
 /// <summary>Errores de autoridad compartidos por los comandos de carga masiva del Importador.</summary>
