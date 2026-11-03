@@ -51,6 +51,20 @@ public class LegalGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_politica_nombra_a_Anthropic_como_unico_subencargado_de_inteligencia_artificial()
+    {
+        var cut = Render<PoliticaPrivacidad>();
+
+        var fila = cut.FindAll(".documento-legal-tabla tbody tr")
+            .Should().ContainSingle(f => f.TextContent.Contains("Anthropic PBC")).Subject;
+        fila.TextContent.Should().Contain("Estados Unidos")
+            .And.Contain("Cláusulas Contractuales Tipo")
+            .And.Contain("no entrena modelos");
+        // Decisión vigente: Anthropic es el único proveedor de IA; los retirados no se nombran.
+        cut.Markup.Should().NotContain("Mistral").And.NotContain("Gemini");
+    }
+
+    [Fact]
     public void La_presentacion_no_inventa_una_fecha_de_actualizacion_manual()
     {
         var privacidad = Render<PoliticaPrivacidad>();
