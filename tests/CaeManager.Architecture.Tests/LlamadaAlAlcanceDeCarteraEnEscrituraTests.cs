@@ -456,6 +456,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "misma autoridad de carga masiva que quien ejecuta (Administrador, Dirección CAE o Coordinador CAE), y las filas " +
             "con cartera las acota AmbitoCargaMasiva en los comandos de ejecución",
             Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync))]),
+        ["Importacion.EjecutarImportacionMaestraCommandHandler"] = new(
+            "alta masiva (y su vista previa) de la plantilla maestra; solo acto de Administrador, que no tiene restricción " +
+            "de cartera: no admite la autoridad acotada de Dirección CAE ni de Coordinador CAE",
+            Guardas: [new(typeof(IAutorizacionEscrituraEfectiva), nameof(IAutorizacionEscrituraEfectiva.EsActoDeAdministradorAsync))]),
         ["Integraciones.ActualizarLineaWhatsAppCommandHandler"] = new(
             "configuración de una línea de WhatsApp del Tenant; solo rol Administrador, sin restricción de cartera",
             Guardas: SoloAdministrador),

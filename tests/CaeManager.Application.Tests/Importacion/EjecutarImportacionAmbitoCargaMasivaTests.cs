@@ -130,6 +130,37 @@ public class EjecutarImportacionAmbitoCargaMasivaTests
         escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// RIESGO DECLARADO, aceptado por Chris el 2026-11-03 para la plantilla genérica (como en la combinada y en el alta
+    /// unitaria): al confirmar, un DNI que existe fuera del ámbito se omite («fuera de tu ámbito») y uno inexistente se crea,
+    /// así que el resultado distingue ambos mundos. Es inherente a la clave única. Este test fija el comportamiento medido; si
+    /// se decide otro diseño, se cambia a propósito.
+    /// </summary>
+    [Fact]
+    public async Task La_confirmacion_distingue_un_Trabajador_existente_fuera_de_ambito_de_uno_inexistente_riesgo_declarado()
+    {
+        var plan = EscenarioImportacion.Plan(trabajadores:
+        [
+            new TrabajadorImportadoDto(
+                EscenarioImportacion.EmpresaConocida, "Lucía", "Fernández",
+                EscenarioImportacion.DniConocido, null, null, YaExiste: false)
+        ]);
+        var existente = new EscenarioImportacion().ConEmpresaExistente().ConTrabajadorExistente();
+        var inexistente = new EscenarioImportacion().ConEmpresaExistente();
+
+        var conExistente = (await existente.Handler("CoordinadorCae", new ClientesFalsos.AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, empresaIdsParaGestion: [existente.EmpresasContexto.ListaEmpresas.Single().Id], trabajadorIdsVisibles: []))
+            .Handle(new Application.Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand(plan), default)).Valor;
+        var sinExistente = (await inexistente.Handler("CoordinadorCae", new ClientesFalsos.AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, empresaIdsParaGestion: [inexistente.EmpresasContexto.ListaEmpresas.Single().Id], trabajadorIdsVisibles: []))
+            .Handle(new Application.Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand(plan), default)).Valor;
+
+        conExistente.TrabajadoresCreados.Should().Be(0);
+        conExistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        sinExistente.TrabajadoresCreados.Should().Be(1);
+        sinExistente.Omitidos.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_trabajador_creado_por_la_carga_dentro_del_ambito_puede_recibir_su_documento_en_el_mismo_fichero()
     {

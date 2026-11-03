@@ -222,9 +222,10 @@ public class EscriturasSobreEntidadesConCarteraTests
                 "(IAutorizacionEscrituraEfectiva.ObtenerAutoridadCargaMasivaAsync)");
 
         // Los que escriben filas de entidades con cartera contrastan cada fila con el ámbito efectivo; el que solo
-        // anota el historial no escribe ninguna.
+        // anota el historial no escribe ninguna, y la plantilla maestra sigue siendo solo de Administrador (acto Total,
+        // sin recorte que hacer; su guarda la fija LlamadaAlAlcanceDeCarteraEnEscrituraTests).
         string.Join(" | ", handlers
-                .Where(h => h.Name != "RegistrarHistorialImportacionCommandHandler"
+                .Where(h => h.Name is not ("RegistrarHistorialImportacionCommandHandler" or "EjecutarImportacionMaestraCommandHandler")
                             && !Parametros(h).Contains(typeof(IAlcanceDatosService)))
                 .Select(h => h.Name))
             .Should().BeEmpty(

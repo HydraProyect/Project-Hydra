@@ -327,9 +327,11 @@ public class EjecutarImportacionCombinadaAmbitoCargaMasivaTests
     }
 
     /// <summary>
-    /// RIESGO PENDIENTE DE ACEPTACIÓN (Chris): al confirmar, lo que existe fuera del ámbito se omite («fuera de tu ámbito») y lo
-    /// inexistente se crea, así que el resultado distingue ambos mundos. Es inherente a la clave única (el alta unitaria falla
-    /// por duplicado igual). Este test fija el comportamiento medido; si se decide otro diseño, se cambia a propósito.
+    /// RIESGO DECLARADO, aceptado por Chris el 2026-11-02 para la plantilla combinada (y el 2026-11-03 para la genérica, ver
+    /// <see cref="EjecutarImportacionAmbitoCargaMasivaTests"/>): al confirmar, lo que existe fuera del ámbito se omite («fuera
+    /// de tu ámbito») y lo inexistente se crea, así que el resultado distingue ambos mundos. Es inherente a la clave única (el
+    /// alta unitaria falla por duplicado igual). Este test fija el comportamiento medido; si se decide otro diseño, se cambia a
+    /// propósito.
     /// </summary>
     [Fact]
     public async Task La_confirmacion_distingue_un_Trabajador_existente_fuera_de_ambito_de_uno_inexistente_riesgo_declarado()
