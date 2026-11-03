@@ -31,6 +31,8 @@ public class ObtenerHistorialImportacionesAmbitoTests
             HistorialImportacion.Exito("Clientes", "mi-carga.xlsx", Yo, 3, 0, 1),
             HistorialImportacion.Exito("Combinada", "carga-ajena.xlsx", OtroUsuario, 40, 2, 0),
             HistorialImportacion.Fallo("Documentos", "fallo-ajeno.xlsx", OtroUsuario, "Error de otra carga."),
+            // Carga sin usuario resoluble (RegistrarHistorialImportacion guarda Guid.Empty): nunca es «propia» de nadie.
+            HistorialImportacion.Exito("Clientes", "sin-autor.xlsx", Guid.Empty, 1, 0, 0),
         ];
 
         public IQueryable<HistorialImportacion> HistorialImportaciones =>
@@ -60,7 +62,7 @@ public class ObtenerHistorialImportacionesAmbitoTests
         var historial = await Consultar("Administrador", alcanzaElTenantEntero: true);
 
         historial.Select(h => h.NombreArchivo).Should()
-            .BeEquivalentTo(["mi-carga.xlsx", "carga-ajena.xlsx", "fallo-ajeno.xlsx"]);
+            .BeEquivalentTo(["mi-carga.xlsx", "carga-ajena.xlsx", "fallo-ajeno.xlsx", "sin-autor.xlsx"]);
     }
 
     [Theory]
@@ -82,7 +84,7 @@ public class ObtenerHistorialImportacionesAmbitoTests
     {
         var historial = await Consultar(rol, alcanzaElTenantEntero: true);
 
-        historial.Should().HaveCount(3);
+        historial.Should().HaveCount(4);
     }
 
     [Theory]

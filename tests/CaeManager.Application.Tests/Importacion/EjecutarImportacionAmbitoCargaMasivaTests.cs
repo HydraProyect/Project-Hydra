@@ -162,6 +162,27 @@ public class EjecutarImportacionAmbitoCargaMasivaTests
     }
 
     [Fact]
+    public async Task Un_documento_de_un_DNI_inexistente_se_omite_igual_que_el_de_un_trabajador_fuera_de_ambito()
+    {
+        var existente = new EscenarioImportacion().ConTrabajadorExistente().ConTipoDocumentoExistente();
+        var inexistente = new EscenarioImportacion().ConTipoDocumentoExistente();
+        var plan = EscenarioImportacion.Plan(documentos:
+            [new DocumentoImportadoDto(EscenarioImportacion.DniConocido, EscenarioImportacion.TipoDocumentoConocido, new DateOnly(2026, 1, 1), YaExiste: false)]);
+
+        async Task<Application.Importacion.Commands.EjecutarImportacion.ResultadoImportacionDto> Ejecutar(EscenarioImportacion escenario, string rol) =>
+            (await escenario.Handler(rol, new ClientesFalsos.AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: []))
+                .Handle(new Application.Importacion.Commands.EjecutarImportacion.EjecutarImportacionCommand(plan), default)).Valor;
+
+        var conExistente = await Ejecutar(existente, "CoordinadorCae");
+        var sinExistente = await Ejecutar(inexistente, "CoordinadorCae");
+
+        conExistente.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("fuera de tu ámbito");
+        sinExistente.Should().BeEquivalentTo(conExistente, "«no existe» frente a «fuera de tu ámbito» delataría que el DNI existe en el Tenant");
+        (await Ejecutar(new EscenarioImportacion().ConTipoDocumentoExistente(), "Administrador")).Omitidos
+            .Should().ContainSingle().Which.Motivo.Should().Contain("no existe", "el Administrador ve el Tenant entero y conserva el motivo accionable");
+    }
+
+    [Fact]
     public async Task Un_trabajador_creado_por_la_carga_dentro_del_ambito_puede_recibir_su_documento_en_el_mismo_fichero()
     {
         var escenario = new EscenarioImportacion().ConEmpresaExistente().ConTipoDocumentoExistente();

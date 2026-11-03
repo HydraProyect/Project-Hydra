@@ -81,6 +81,14 @@ public sealed class AmbitoCargaMasiva
     /// </summary>
     public string MotivoPapelera(string dni) =>
         _sinRestriccion ? DnisEnPapelera.Motivo(dni) : Motivo("Un trabajador con ese DNI");
+
+    /// <summary>
+    /// Motivo de un documento cuyo trabajador no existe ni pudo crearse. Con ámbito acotado es el mismo que el de un
+    /// trabajador fuera de ámbito: «no existe» frente a «fuera de tu ámbito» revelaría a un Coordinador CAE que ese DNI
+    /// existe en el Tenant sin intentar crear nada (no es el oráculo de clave única aceptado).
+    /// </summary>
+    public string MotivoTitularDeDocumentoInexistente(string motivoSinRestriccion) =>
+        _sinRestriccion ? motivoSinRestriccion : Motivo("El trabajador de este documento");
 }
 
 /// <summary>Errores de autoridad compartidos por los comandos de carga masiva del Importador.</summary>

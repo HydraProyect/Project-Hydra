@@ -405,7 +405,8 @@ public class EjecutarImportacionCommandHandler(
                     fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     EstaEnPapelera(fila.Dni)
                         ? ambito.MotivoPapelera(fila.Dni)
-                        : $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
+                        : ambito.MotivoTitularDeDocumentoInexistente(
+                            $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse.")));
                 continue;
             }
 
