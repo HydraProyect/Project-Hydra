@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Domain.Common;
@@ -24,9 +25,11 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(_cargaDeBuzones.Task));
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(_cargaDeBuzones.Task, _enviados));
         Services.AddScoped<ToastService>();
     }
+
+    private readonly List<EnviarMensajeNuevoCommand> _enviados = [];
 
     /// <summary>La carga de buzones: completa salvo en la prueba que la retiene.</summary>
     private TaskCompletionSource _cargaDeBuzones = CargaCompletada();
@@ -38,10 +41,12 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
         return carga;
     }
 
-    private sealed class MediatorFalso(Task cargaDeBuzones) : IMediator
+    private sealed class MediatorFalso(Task cargaDeBuzones, List<EnviarMensajeNuevoCommand> enviados) : IMediator
     {
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is EnviarMensajeNuevoCommand enviado)
+                enviados.Add(enviado);
             if (request is ObtenerConexionesIntegracionQuery)
                 await cargaDeBuzones;
             return Responder(request);
@@ -111,6 +116,22 @@ public class RedactarMensajeDrawerAvisoCambiosSinGuardarTests : BunitContext
             "el test necesita que el asunto llegue prellenado por el llamador");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "abrir el drawer con lo prellenado no deja nada que perder");
+    }
+
+    [Fact]
+    public async Task El_origen_del_llamador_llega_al_comando_para_etiquetar_el_rastro()
+    {
+        var cut = Render<RedactarMensajeDrawer>(p => p
+            .Add(x => x.Visible, true)
+            .Add(x => x.Origen, OrigenSalidaComunicacion.Informe)
+            .Add(x => x.AsuntoInicial, "Informe de cumplimiento")
+            .Add(x => x.CuerpoInicial, "Adjunto el informe del mes."));
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty());
+        await EscribirDestinatarioAsync(cut);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        _enviados.Should().ContainSingle().Which.Origen.Should().Be(OrigenSalidaComunicacion.Informe);
     }
 
     [Fact]

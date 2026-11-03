@@ -285,7 +285,8 @@ public class EjecutarImportacionCombinadaCommandHandler(
         // filas que lo citan se omiten con su causal. La misma Empresa leída dos veces (semilla de Clientes y
         // consulta) no es una homónima: se compara por Id.
         var empresasPorRazonSocial = new CatalogoPorNombre<Empresa>(
-            EqualityComparer<Empresa>.Create((a, b) => a?.Id == b?.Id, e => e.Id.GetHashCode())) { EsVisible = e => ambito.Empresa(e.Id) };
+            EqualityComparer<Empresa>.Create((a, b) => a?.Id == b?.Id, e => e.Id.GetHashCode()))
+        { EsVisible = e => ambito.Empresa(e.Id) };
         foreach (var cliente in clientesPorCif.Values)
             empresasPorRazonSocial.Agregar(cliente.RazonSocial, cliente);
         foreach (var empresa in await empresasContext.Empresas.ToListAsync(cancellationToken))

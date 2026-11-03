@@ -153,6 +153,23 @@ bash "$LISTAR" "$TMP/repo-vacio" > /dev/null 2>&1; comprobar "sin migraciones fa
 d="$TMP/repo-doble/src/CaeManager.Migrations.PostgreSQL/Migrations"; mkdir -p "$d"
 echo '[Migration("20260101000000_X")]' > "$d/a.Designer.cs"; echo '[Migration("20260101000000_X")]' > "$d/b.Designer.cs"
 bash "$LISTAR" "$TMP/repo-doble" > /dev/null 2>&1; comprobar "un identificador repetido falla" 1 "$?"
+# Inventario completo: tantas clases ': Migration' fuera de *.Designer.cs como atributos reconocidos.
+inventario() {  # <nombre> <atributo> <declaración de la clase>
+  local d="$TMP/repo-$1/src/CaeManager.Migrations.PostgreSQL/Migrations"; mkdir -p "$d"
+  printf '%s\npartial class M { }\n' "[Migration(\"20260101000000_A\")]" > "$d/20260101000000_A.Designer.cs"
+  printf 'public partial class M : Migration { }\n' > "$d/20260101000000_A.cs"
+  printf '%s\npartial class N { }\n' "$2" > "$d/20260102000000_B.Designer.cs"
+  printf '%b\n' "$3" > "$d/20260102000000_B.cs"
+}
+inventario canonica '[Migration("20260102000000_B")]' 'public partial class N\n    : Migration { }'
+comprobar "dos migraciones canónicas, una con la clase en dos líneas" "20260101000000_A,20260102000000_B" "$(bash "$LISTAR" "$TMP/repo-canonica")"
+inventario espacio '[Migration ("20260102000000_B")]' 'public partial class N : Migration { }'
+salida="$(bash "$LISTAR" "$TMP/repo-espacio" 2>&1)"; codigo=$?
+comprobar "un atributo no canónico falla" 1 "$codigo"
+comprobar "y no imprime un inventario incompleto" "listar-migraciones-ef: 2 clases ': Migration' fuera de *.Designer.cs frente a 1 identificadores [Migration(\"...\")]; hay una migración con el atributo escrito de otra forma o sin su .Designer.cs" "$salida"
+inventario sin-designer '[Migration("20260102000000_B")]' 'public partial class N : Migration { }'
+rm "$TMP/repo-sin-designer/src/CaeManager.Migrations.PostgreSQL/Migrations/20260102000000_B.Designer.cs"
+bash "$LISTAR" "$TMP/repo-sin-designer" > /dev/null 2>&1; comprobar "una clase sin .Designer.cs falla" 1 "$?"
 
 echo "imagenes-retenidas.sh"
 escenario produccion "$C"

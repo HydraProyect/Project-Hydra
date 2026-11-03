@@ -36,6 +36,15 @@ public interface IConversacionRepository
     /// </summary>
     Task<bool> ExisteMensajeExternoAsync(Guid conexionIntegracionId, string mensajeExternoId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Reserva el acuse automático de este buzón a este remitente, sin distinguir mayúsculas, y devuelve si la obtuvo:
+    /// no la obtiene si hay otra dentro del <paramref name="intervalo"/>. Queda confirmada al volver, sin esperar a
+    /// SaveChanges, y de varias llamadas simultáneas solo una la obtiene.
+    /// </summary>
+    Task<bool> ReservarAcuseAsync(
+        Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Hilo WhatsApp: la conversación más reciente NO cerrada de ese teléfono en esa línea, o null si toca crear una nueva. Incluye Mensajes.</summary>
     Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default);
 

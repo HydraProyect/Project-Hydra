@@ -217,7 +217,7 @@ public class ObtenerConversacionPorIdQueryDocumentosCitadosTests : IAsyncLifetim
         await using var lectura = CrearContexto();
         var handler = new ObtenerConversacionPorIdQueryHandler(
             lectura, lectura, lectura, lectura, lectura, lectura, lectura, lectura, _alcanceDatos, new GanssSanitizadorHtmlService(), _currentUser,
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(lectura)), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerConversacionPorIdQuery(conversacionId), CancellationToken.None);
         detalle.Should().NotBeNull();

@@ -10,17 +10,40 @@ namespace CaeManager.Domain.Comunicaciones;
 /// storage paralelo") — <see cref="ArchivoUrl"/> es el identificador opaco
 /// que devuelve ese servicio, nunca la ruta real ni una URL pública.
 /// </summary>
-public class AdjuntoMensaje : EntidadConTenant
+public class AdjuntoMensaje : EntidadConTenant, IVersionable
 {
     public const int LongitudMaximaNombreArchivo = 260;
     public const int LongitudMaximaTipoContenido = 150;
     public const int LongitudMaximaArchivoUrl = 500;
+    public const int LongitudMaximaMotivoRechazo = 500;
 
     public Guid MensajeId { get; private set; }
     public string NombreArchivo { get; private set; } = string.Empty;
     public string TipoContenido { get; private set; } = string.Empty;
     public long TamanoBytes { get; private set; }
     public string ArchivoUrl { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// Quien reparte y quien da el alta pueden coincidir: la transición a Asignado se guarda con el Documento, y este
+    /// token decide ese guardado. Si el adjunto cambió desde que se leyó, no queda ni transición ni Documento.
+    /// </summary>
+    public Guid Version { get; private set; } = Guid.NewGuid();
+
+    public EstadoRepartoAdjunto EstadoReparto { get; private set; }
+
+    /// <summary>Destino propuesto: un Trabajador o una Empresa, nunca los dos. Una vez asignado, el que recibió el Documento.</summary>
+    public Guid? DestinoTrabajadorId { get; private set; }
+    public Guid? DestinoEmpresaId { get; private set; }
+    public Guid? TipoDocumentoPropuestoId { get; private set; }
+
+    public string? MotivoRechazo { get; private set; }
+    public Guid? ResueltoPorUsuarioId { get; private set; }
+    public DateTime? ResueltoEnUtc { get; private set; }
+
+    /// <summary>El Documento que salió de este adjunto, si se asignó.</summary>
+    public Guid? DocumentoId { get; private set; }
+
+    public bool EstaPendiente => EstadoReparto == EstadoRepartoAdjunto.Pendiente;
 
     private AdjuntoMensaje()
     {
@@ -50,5 +73,93 @@ public class AdjuntoMensaje : EntidadConTenant
         TipoContenido = tipoContenido.Trim();
         TamanoBytes = tamanoBytes;
         ArchivoUrl = archivoUrl;
+    }
+
+    public void FijarDestino(Guid? trabajadorId, Guid? empresaId, Guid? tipoDocumentoId)
+    {
+        ExigirPendiente();
+        if (trabajadorId is not null && empresaId is not null)
+            throw new InvalidOperationException("El destino es un Trabajador o una Empresa, no los dos.");
+
+        DestinoTrabajadorId = trabajadorId;
+        DestinoEmpresaId = empresaId;
+        TipoDocumentoPropuestoId = tipoDocumentoId;
+    }
+
+    public void MarcarAsignado(Guid documentoId, Guid? usuarioId, DateTime ahoraUtc)
+    {
+        ExigirPendiente();
+        if (documentoId == Guid.Empty)
+            throw new ArgumentException("El adjunto asignado debe apuntar a un Documento.", nameof(documentoId));
+
+        EstadoReparto = EstadoRepartoAdjunto.Asignado;
+        DocumentoId = documentoId;
+        RegistrarResolucion(usuarioId, ahoraUtc);
+    }
+
+    public void Rechazar(string motivo, Guid usuarioId, DateTime ahoraUtc)
+    {
+        ExigirPendiente();
+        if (string.IsNullOrWhiteSpace(motivo))
+            throw new ArgumentException("Rechazar un adjunto exige un motivo.", nameof(motivo));
+        if (motivo.Trim().Length > LongitudMaximaMotivoRechazo)
+            throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivoRechazo} caracteres.", nameof(motivo));
+
+        EstadoReparto = EstadoRepartoAdjunto.Rechazado;
+        MotivoRechazo = motivo.Trim();
+        RegistrarResolucion(usuarioId, ahoraUtc);
+    }
+
+    public void Descartar(Guid usuarioId, DateTime ahoraUtc)
+    {
+        ExigirPendiente();
+        EstadoReparto = EstadoRepartoAdjunto.Descartado;
+        RegistrarResolucion(usuarioId, ahoraUtc);
+    }
+
+    /// <summary>
+    /// Reserva el adjunto para dividirlo. Se guarda antes de crear el primer Documento: el token <see cref="Version"/>
+    /// deja pasar una sola división, porque los Documentos de los tramos confirman por separado y no pueden deshacerse.
+    /// </summary>
+    public void MarcarDividido(Guid usuarioId, DateTime ahoraUtc)
+    {
+        ExigirPendiente();
+        EstadoReparto = EstadoRepartoAdjunto.Dividido;
+        RegistrarResolucion(usuarioId, ahoraUtc);
+    }
+
+    /// <summary>Devuelve a pendiente una división de la que no salió ningún Documento. No es una decisión de una persona.</summary>
+    public void DeshacerDivision()
+    {
+        if (EstadoReparto != EstadoRepartoAdjunto.Dividido)
+            throw new InvalidOperationException("Solo se deshace la división de un adjunto dividido.");
+
+        EstadoReparto = EstadoRepartoAdjunto.Pendiente;
+        ResueltoPorUsuarioId = null;
+        ResueltoEnUtc = null;
+    }
+
+    /// <summary>Deshace un rechazo o un descarte. Un adjunto asignado o dividido no se reabre: sus Documentos ya existen.</summary>
+    public void Reabrir()
+    {
+        if (EstadoReparto is not (EstadoRepartoAdjunto.Rechazado or EstadoRepartoAdjunto.Descartado))
+            throw new InvalidOperationException("Solo se reabre un adjunto rechazado o descartado.");
+
+        EstadoReparto = EstadoRepartoAdjunto.Pendiente;
+        MotivoRechazo = null;
+        ResueltoPorUsuarioId = null;
+        ResueltoEnUtc = null;
+    }
+
+    private void ExigirPendiente()
+    {
+        if (!EstaPendiente)
+            throw new InvalidOperationException("Este adjunto ya está resuelto.");
+    }
+
+    private void RegistrarResolucion(Guid? usuarioId, DateTime ahoraUtc)
+    {
+        ResueltoPorUsuarioId = usuarioId;
+        ResueltoEnUtc = ahoraUtc;
     }
 }

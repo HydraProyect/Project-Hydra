@@ -747,4 +747,7 @@
   <data name="ToastCanalesNoCargados" xml:space="preserve">
     <value>No pudimos cargar los canales de gestión de este centro. Lo que ves puede estar incompleto; recarga la página.</value>
   </data>
+  <data name="ToastFiltrosNoCargados" xml:space="preserve">
+    <value>No pudimos cargar las opciones de los filtros. Las listas pueden estar incompletas; recarga la página.</value>
+  </data>
 </root>

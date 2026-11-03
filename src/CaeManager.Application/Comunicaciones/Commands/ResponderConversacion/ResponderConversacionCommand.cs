@@ -49,6 +49,7 @@ public class ResponderConversacionCommandValidator : AbstractValidator<Responder
 /// </summary>
 public class ResponderConversacionCommandHandler(
     IConversacionRepository repositorio,
+    IComunicacionesQueryContext comunicaciones,
     IConexionIntegracionRepository conexionRepositorio,
     IAlcanceDatosService alcanceDatos,
     IMicrosoft365GraphClient graphClient,
@@ -56,7 +57,9 @@ public class ResponderConversacionCommandHandler(
     IFileStorageService almacenamiento,
     IOptions<ComunicacionesRemitenteOptions> opcionesRemitente,
     IUnitOfWork unitOfWork,
-    ILogger<ResponderConversacionCommandHandler> logger)
+    ILogger<ResponderConversacionCommandHandler> logger,
+    IRegistroExportacionService registroSalida,
+    IDescarteCambiosPendientes descarteCambios)
     : IRequestHandler<ResponderConversacionCommand, Result>
 {
     private const string RemitenteSimuladoEmail = "equipo-cae@buzon-simulado.local";
@@ -68,6 +71,10 @@ public class ResponderConversacionCommandHandler(
         // esto se podía responder en el hilo de otro gestor.
         if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))
             return Result.Fallo(Error.Crear("Conversacion.NoEncontrada", "No encontramos esta conversación."));
+
+        var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
+        if (bloqueo.EsFallido)
+            return bloqueo;
 
         Mensaje mensajeCreado;
         var huboEnvioReal = false;
@@ -107,6 +114,7 @@ public class ResponderConversacionCommandHandler(
             logger.LogError(ex,
                 "El mensaje se envió por Graph pero no se pudo registrar localmente en la conversación {ConversacionId}. Requiere reconciliación manual.",
                 request.ConversacionId);
+            descarteCambios.DescartarCambiosPendientes();
             return Result.Exito();
         }
 
@@ -139,6 +147,11 @@ public class ResponderConversacionCommandHandler(
         if (ultimoMensajeEntrante is null)
             return Result.Fallo<Mensaje>(Error.Crear(
                 "Conversacion.SinMensajeOrigen", "No hay ningún mensaje entrante al que responder en este hilo."));
+
+        // Solo aquí: el remitente simulado de las demos no saca nada del sistema. El destinatario
+        // de un /reply es quien escribió el mensaje al que se responde.
+        await registroSalida.RegistrarSalidaAsync(
+            OrigenSalidaComunicacion.Respuesta, conexion.Id, [ultimoMensajeEntrante.Remitente], copia: null, adjuntos, cancellationToken);
 
         var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
         if (accessTokenResultado.EsFallido)

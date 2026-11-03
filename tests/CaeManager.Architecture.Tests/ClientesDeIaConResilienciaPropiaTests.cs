@@ -41,6 +41,7 @@ public class ClientesDeIaConResilienciaPropiaTests
         "AnthropicDeteccionGestionCorreoService",
         "AnthropicDeteccionRelevanciaCaeService",
         "AnthropicDeteccionIntencionCaeService",
+        "AnthropicRedaccionRespuestaIaService",
         "AnthropicSegundaOpinionCriticaIa",
         "AnthropicDocumentAIProvider",
         "AnthropicDecisionesCerradasService",

@@ -8,6 +8,7 @@ namespace CaeManager.Application.Documentos.Eventos;
 /// (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5). Solo se publica desde ese flujo
 /// (adjunto de conversación → Documento); un Documento creado o renovado
 /// desde <c>/documentos</c> no tiene Conversacion de origen y no publica
-/// nada.
+/// nada. Su único efecto es la entrada del timeline: el adjunto ya quedó
+/// asignado en el mismo guardado que el Documento.
 /// </summary>
 public sealed record DocumentoActualizadoEvent(Guid ConversacionId, Guid DocumentoId) : INotification;

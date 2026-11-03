@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Domain.Comunicaciones;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,6 +35,25 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
          join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
          where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
          select m).AnyAsync(cancellationToken);
+
+    public async Task<bool> ReservarAcuseAsync(
+        Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
+        CancellationToken cancellationToken = default)
+    {
+        var huella = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(remitente.Trim().ToLowerInvariant())));
+        var vigenteDesdeUtc = ahoraUtc - intervalo;
+
+        // ON CONFLICT … DO UPDATE … WHERE bloquea la fila y evalúa la condición sobre su última versión confirmada: de
+        // dos sentencias simultáneas, la segunda no actualiza nada (0 filas). Va en su propia sentencia, sin SaveChanges,
+        // para quedar confirmada antes de enviar. La política de RLS comprueba el Tenant de la fila.
+        return await dbContext.Database.ExecuteSqlAsync($"""
+            INSERT INTO "ReservasAcuseBuzon" ("TenantId", "ConexionIntegracionId", "HuellaRemitente", "ReservadaEnUtc")
+            VALUES ({tenantId}, {conexionIntegracionId}, {huella}, {ahoraUtc})
+            ON CONFLICT ("TenantId", "ConexionIntegracionId", "HuellaRemitente")
+            DO UPDATE SET "ReservadaEnUtc" = EXCLUDED."ReservadaEnUtc"
+            WHERE "ReservasAcuseBuzon"."ReservadaEnUtc" < {vigenteDesdeUtc}
+            """, cancellationToken) == 1;
+    }
 
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>

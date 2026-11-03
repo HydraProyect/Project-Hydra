@@ -48,6 +48,32 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         primera.Elementos.Concat(segunda.Elementos).Select(c => c.Id).Should().OnlyHaveUniqueItems().And.NotContain(futura.Id);
     }
 
+    [Fact]
+    public async Task Fuera_de_SLA_no_toma_el_acuse_automatico_por_una_respuesta()
+    {
+        await using var contexto = CrearContexto();
+        var inicio = DateTime.UtcNow.AddDays(-14);
+        var conAcuse = new Conversacion("Con acuse");
+        conAcuse.CambiarPrioridad(PrioridadConversacion.Critica);
+        conAcuse.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta", inicio);
+        conAcuse.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", inicio.AddMinutes(1), esAutomatico: true);
+        contexto.Conversaciones.Add(conAcuse);
+        var respondida = new Conversacion("Respondida por una persona");
+        respondida.CambiarPrioridad(PrioridadConversacion.Critica);
+        respondida.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta", inicio);
+        respondida.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Respuesta", inicio.AddMinutes(1));
+        contexto.Conversaciones.Add(respondida);
+        await contexto.SaveChangesAsync();
+        var plazos = new Application.Comunicaciones.PlazosConversacionService(new OperacionSlaFalsa(),
+            Microsoft.Extensions.Options.Options.Create(new Application.Comunicaciones.CalendariosOperadorCaeOptions()));
+        var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: "GestorCae"), plazos);
+
+        var resultado = await handler.Handle(new(SoloFueraDeSla: true), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(conAcuse.Id);
+    }
+
     private sealed class OperacionSlaFalsa : Application.Comunicaciones.IContextoOperativoConversacionService
     {
         public Task<Application.Comunicaciones.OperacionDeConversacion?> ResolverAsync(Guid propietarioTenantId, Guid? clienteEmpresarialId,
@@ -82,6 +108,22 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
         var encontrada = await repositorio.ObtenerPorHiloExternoAsync(conexion.Id, "hilo-cerrado");
         encontrada!.Id.Should().Be(nueva.Id);
         encontrada.ConversacionAnteriorId.Should().Be(anterior.Id);
+        encontrada.NumeroTicket.Should().Be(anterior.NumeroTicket + 1, "la continuación tras el cierre es un ticket nuevo");
+    }
+
+    [Fact]
+    public async Task La_bandeja_devuelve_el_numero_de_ticket_de_cada_conversacion()
+    {
+        await using var contexto = CrearContexto();
+        var conversacion = new Conversacion("Con número");
+        contexto.Conversaciones.Add(conversacion);
+        await contexto.SaveChangesAsync();
+        var handler = new ObtenerConversacionesQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(rol: "GestorCae"));
+
+        var resultado = await handler.Handle(new(), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.NumeroTicket.Should().Be(1);
     }
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
@@ -115,6 +157,33 @@ public class ObtenerConversacionesQueryTests : IAsyncLifetime
 
         resultado.TotalElementos.Should().Be(1);
         resultado.Elementos.Should().ContainSingle().Which.Estado.Should().Be(EstadoConversacion.EsperandoRespuestaExterna);
+    }
+
+    [Fact]
+    public async Task El_acuse_automatico_no_hace_que_la_conversacion_parezca_respondida()
+    {
+        await using (var contexto = CrearContexto())
+        {
+            var conversacion = new Conversacion("Con acuse");
+            var inicio = DateTime.UtcNow.AddMinutes(-5);
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta del contacto", inicio);
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Acuse", inicio.AddMinutes(1), esAutomatico: true);
+            contexto.Conversaciones.Add(conversacion);
+
+            var respondida = new Conversacion("Respondida por una persona");
+            respondida.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "contacto@ejemplo.test", "Pregunta", inicio);
+            respondida.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@ejemplo.test", "Respuesta", inicio.AddMinutes(1));
+            contexto.Conversaciones.Add(respondida);
+            await contexto.SaveChangesAsync();
+        }
+
+        var esperando = await EjecutarAsync(new ObtenerConversacionesQuery(SoloEsperandoCliente: true));
+        var bandeja = await EjecutarAsync(new ObtenerConversacionesQuery());
+
+        esperando.Elementos.Should().ContainSingle().Which.Asunto.Should().Be("Respondida por una persona");
+        var conAcuse = bandeja.Elementos.Should().ContainSingle(c => c.Asunto == "Con acuse").Subject;
+        conAcuse.PreviewUltimoMensaje.Should().Contain("Pregunta del contacto");
+        conAcuse.UltimoMensajeDireccion.Should().Be(DireccionMensaje.Entrante);
     }
 
     [Fact]

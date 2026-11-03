@@ -32,6 +32,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
     private readonly ApplicationUser _usuario = new()
     {
         Id = Guid.NewGuid(),
+        SecurityStamp = "sello",
         Email = "marta.reyes@consultoravega.es"
     };
 
@@ -45,6 +46,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         Services.AddSingleton(usuarios);
         Services.AddSingleton(CrearSignIn(usuarios));
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(_usuario.Id));
+        Services.AddSingleton<ISelloSeguridadCuenta>(new SellosConLaCookieVigente());
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
@@ -253,9 +255,25 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
             new ClaimsPrincipal(new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString()),
+                new Claim(new IdentityOptions().ClaimsIdentity.SecurityStampClaimType, "sello"),
                 new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion,
                     DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)),
             ], "prueba"))));
+    }
+
+    /// <summary>La vigencia del sello la cubre ConfigurarAutenticadorDosFactoresEscrituraTests.</summary>
+    private sealed class SellosConLaCookieVigente : ISelloSeguridadCuenta
+    {
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default) =>
+            Task.FromResult(sello == "sello");
+
+        public void AnotarRotacion(Guid usuarioId, string? selloAnterior) { }
+
+        public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior)
+        {
+            selloAnterior = null;
+            return false;
+        }
     }
 
     private sealed class AlmacenAutenticador : IUserStore<ApplicationUser>, IUserAuthenticatorKeyStore<ApplicationUser>,

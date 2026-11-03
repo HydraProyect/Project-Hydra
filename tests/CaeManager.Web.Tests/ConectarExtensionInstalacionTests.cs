@@ -27,6 +27,7 @@ public class ConectarExtensionInstalacionTests : BunitContext
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionSinSesion());
         Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
         Services.AddSingleton<IRegistroSesionesUsuario>(new SesionesQueNadieDebeTocar());
+        Services.AddSingleton<ISelloSeguridadCuenta>(new SellosQueNadieDebeTocar());
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
@@ -49,6 +50,14 @@ public class ConectarExtensionInstalacionTests : BunitContext
         public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<int> CerrarLasDemasAsync(Guid usuarioId, Guid? sidConservada, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class SellosQueNadieDebeTocar : ISelloSeguridadCuenta
+    {
+        public Task<bool> EsVigenteAsync(Guid usuarioId, Guid tenantPropietarioId, string? sello, CancellationToken ct = default) => throw new NotSupportedException();
+        public void AnotarRotacion(Guid usuarioId, string? selloAnterior) => throw new NotSupportedException();
+        public bool RotadoEnEstaPeticion(Guid usuarioId, out string? selloAnterior) => throw new NotSupportedException();
     }
 
     /// <summary>La sección de instalación no depende de generar el token: la página no llega a pedir ningún usuario.</summary>

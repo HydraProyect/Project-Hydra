@@ -1,2 +1,14 @@
 {
+  "/gestiones": {
+    "heading-order": 1
+  },
+  "/incidencias": {
+    "heading-order": 1
+  },
+  "/subcontratas": {
+    "heading-order": 1
+  },
+  "/vehiculos": {
+    "heading-order": 1
+  }
 }

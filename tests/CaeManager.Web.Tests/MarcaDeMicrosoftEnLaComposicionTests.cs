@@ -38,6 +38,22 @@ public class MarcaDeMicrosoftEnLaComposicionTests
     }
 
     /// <summary>
+    /// La anotación de la rotación vive lo que la petición: como Singleton, una rotación de una cuenta se
+    /// tomaría por propia en la petición siguiente; como Transient, el almacén y el SignInManager no la compartirían.
+    /// </summary>
+    [Fact]
+    public void La_composicion_real_registra_la_lectura_del_sello_vigente_por_peticion()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
+
+        var registro = servicios.Should().ContainSingle(s => s.ServiceType == typeof(ISelloSeguridadCuenta)).Subject;
+
+        registro.Lifetime.Should().Be(ServiceLifetime.Scoped);
+        registro.ImplementationType.Should().Be(typeof(SelloSeguridadCuenta));
+    }
+
+    /// <summary>
     /// La sesión que Identity emite tras el TOTP de TALVEG del inicio con Microsoft (D-2)
     /// lleva la marca que pone <see cref="SignInManagerCuentaDesactivada.ConMarcaDeInicioConMicrosoft"/>,
     /// y el gancho de la composición real la conserva al revalidar la cookie.

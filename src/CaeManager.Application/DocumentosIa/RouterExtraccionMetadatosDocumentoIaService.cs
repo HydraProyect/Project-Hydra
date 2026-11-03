@@ -36,7 +36,8 @@ public class RouterExtraccionMetadatosDocumentoIaService(IDocumentAIRouterServic
             ParsearBooleano(campos.GetValueOrDefault(EvidenciaMinimaLectura.ClaveTieneFirma)),
             resultado.Valor.ConfianzaGeneral,
             resultado.Valor.NotasValidacion,
-            resultado.Valor.Contraste));
+            resultado.Valor.Contraste,
+            resultado.Valor.PaginasSinLeer));
     }
 
     private static DateOnly? ParsearFecha(string? valor) =>

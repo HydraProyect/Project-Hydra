@@ -1,3 +1,4 @@
+using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.AplicarMacro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
@@ -36,15 +37,16 @@ public class PlantillasRespuestaTests : IAsyncLifetime
         contexto.MacrosRespuesta.Add(plantilla);
         await contexto.SaveChangesAsync();
         var alcance = new AlcanceDatosServiceFalso();
-        var aplicar = new AplicarMacroCommandHandler(contexto, contexto, contexto, contexto, contexto,
-            PendientesDeReclamacionFabrica.Crear(contexto, alcance), alcance, new EventoConversacionRepository(contexto), contexto);
+        var aplicar = new AplicarMacroCommandHandler(contexto,
+            new RellenoMacroRespuesta(contexto, contexto, contexto, contexto, contexto, PendientesDeReclamacionFabrica.Crear(contexto, alcance), alcance),
+            alcance, new EventoConversacionRepository(contexto), contexto);
 
         var resultado = await aplicar.Handle(new(conversacion.Id, plantilla.Id), CancellationToken.None);
         resultado.Valor.Should().Be("Hola Empresa destinataria");
         contexto.ChangeTracker.Clear();
         var lectura = new ObtenerConversacionPorIdQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto,
             contexto, contexto, alcance, new GanssSanitizadorHtmlService(), new CurrentUserServiceFalso(rol: "GestorCae"),
-            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)));
+            new MotorCoincidenciaConversacionesService(new ConversacionRepository(contexto)), PoliticaNotaInternaPruebas.Con("GestorCae"));
         var detalle = await lectura.Handle(new(conversacion.Id), CancellationToken.None);
         detalle.Should().NotBeNull();
         detalle!.Eventos.Should().ContainSingle().Which.Descripcion.Should().Be("Se aplicó la plantilla Solicitud mensual al borrador.");

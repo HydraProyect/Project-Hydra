@@ -285,6 +285,24 @@ public sealed class DeteccionVisitaCorreoInyeccionTests
         resultado.Valor.CentroId.Should().Be(Norte.Id);
     }
 
+    [Fact]
+    public async Task Un_telefono_en_el_nombre_de_un_Centro_sale_enmascarado_con_el_marcador_del_correo()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(RespuestaNeutra));
+        var conTelefono = new CentroCandidatoVisitaDto(Guid.NewGuid(), "Planta Este (91) 234 56 78");
+        var otro = new CentroCandidatoVisitaDto(Guid.NewGuid(), "Planta Oeste 912 345 679");
+
+        await Servicio(manejador).DetectarAsync(
+            "Llamar al 600 111 222. Entran el lunes en Planta Este 91 234 56 78", [conTelefono, otro, Norte], Hoy);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().NotContain("234 56 78").And.NotContain("345 679").And.NotContain("(91)");
+        // El correo y la lista de Centros comparten marcador (el 2.º del correo, no el 1.º); el otro teléfono recibe el siguiente libre.
+        Apariciones(usuario, "Planta Este [TEL_2]").Should().Be(2);
+        usuario.Should().Contain("Planta Oeste [TEL_3]").And.Contain("Planta Norte");
+        usuario.Should().Contain(conTelefono.Id.ToString()).And.Contain(otro.Id.ToString());
+    }
+
     private static AnthropicDeteccionVisitaCorreoService Servicio(HttpMessageHandler manejador) =>
         new(new HttpClient(manejador), Opciones, NullLogger<AnthropicDeteccionVisitaCorreoService>.Instance);
 

@@ -184,6 +184,8 @@ public class EscriturasSobreEntidadesConCarteraTests
             "alta masiva desde una plantilla por entidad; Administrador, Dirección CAE o Coordinador CAE (Importacion.SinAutoridadCargaMasiva); filas acotadas por AmbitoCargaMasiva",
         ["EjecutarImportacionCombinadaCommandHandler"] =
             "alta masiva combinada (Clientes empresariales, Centros, Empresas, Trabajadores); mismos roles y ámbito",
+        ["EjecutarImportacionMaestraCommandHandler"] =
+            "alta masiva de la plantilla maestra (Empresas, Clientes empresariales, Centros, Trabajadores por CIF/identidad), con vista previa; solo Administrador",
         ["RegistrarHistorialImportacionCommandHandler"] =
             "anota la operación de importación ya ejecutada; mismos roles que quien ejecuta",
     };

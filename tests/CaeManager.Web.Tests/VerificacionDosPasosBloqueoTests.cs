@@ -144,6 +144,45 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         _registro.Mensajes.Should().Contain(m => m.Contains("correcta con código de recuperación"));
     }
 
+    /// <summary>
+    /// El código era bueno y el inicio lo rechazó el sello: ni fue un intento fallido ni hay nada que reintentar.
+    /// Tampoco se cierra la sesión, porque se llevaría la cookie de una sesión legítima previa.
+    /// </summary>
+    [Fact]
+    public async Task Un_codigo_de_recuperacion_rechazado_por_el_sello_cierra_el_paso_sin_gastar_un_intento()
+    {
+        _signIn.ResultadoRecuperacion = SignInResult.NotAllowed;
+        var cut = RenderizarModoRecuperacion();
+
+        await EnviarRecuperacionAsync(cut, "abcde-12345");
+
+        _signIn.Usuarios.Fallos.Should().Be(0);
+        ComprobarPasoCerradoSinNadaQueReintentar(cut);
+        cut.Find("[role=alert]").TextContent.Should().NotContain("Código de recuperación no válido");
+        _registro.Mensajes.Should().Contain(m => m.Contains("la credencial cambió durante el inicio de sesión"));
+    }
+
+    [Fact]
+    public async Task Un_codigo_de_la_aplicacion_rechazado_sin_emitir_la_sesion_cierra_el_paso()
+    {
+        _signIn.Resultado = SignInResult.NotAllowed;
+        var cut = Render<LoginCon2fa>();
+
+        await EnviarCodigoAsync(cut);
+
+        ComprobarPasoCerradoSinNadaQueReintentar(cut);
+        cut.Find("[role=alert]").TextContent.Should().NotContain(TextoCodigoNoValido);
+        _registro.Mensajes.Should().Contain(m => m.Contains("rechazada sin emitir la sesión"));
+    }
+
+    private void ComprobarPasoCerradoSinNadaQueReintentar(IRenderedComponent<LoginCon2fa> cut)
+    {
+        cut.Find("[role=alert]").TextContent.Should().Contain("No se ha podido completar el inicio de sesión");
+        cut.FindAll("form").Should().BeEmpty("reintentar no serviría de nada");
+        cut.Find("a.acceso-entrar").GetAttribute("href").Should().Be("/cuenta/iniciar-sesion");
+        _signIn.SesionCerrada.Should().BeFalse("no se emitió una sesión que sustituya a la que ya hubiera");
+    }
+
     [Fact]
     public async Task Un_codigo_de_recuperacion_incorrecto_cuenta_un_intento_fallido()
     {

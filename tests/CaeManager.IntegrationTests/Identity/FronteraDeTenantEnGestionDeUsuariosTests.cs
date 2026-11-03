@@ -686,7 +686,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                     cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio,
                     new OtroAdministradorSiempre()).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(
-                    cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre()).Handle(c, cancellationToken),
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new OtroAdministradorSiempre(), new SinBloqueoCartera()).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),

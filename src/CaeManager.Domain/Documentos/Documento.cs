@@ -103,8 +103,12 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl,
-        string? comentarios)
+        string? comentarios,
+        Guid? idReservado)
     {
+        if (idReservado == Guid.Empty)
+            throw new ArgumentException("El Id reservado no puede estar vacío.", nameof(idReservado));
+
         if (tipoDocumentoId == Guid.Empty)
             throw new ArgumentException("El documento debe tener un tipo de documento.", nameof(tipoDocumentoId));
 
@@ -120,6 +124,9 @@ public class Documento : EntidadBase
                 "El documento debe tener exactamente un propietario entre Trabajador, Cliente, Empresa, " +
                 $"Vehículo y Proyecto (CK_Documentos_PropietarioXor); tiene {numeroDePropietarios}.",
                 nameof(trabajadorId));
+
+        if (idReservado is { } id)
+            Id = id;
 
         TrabajadorId = trabajadorId;
         ClienteId = clienteId;
@@ -138,12 +145,13 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
-        string? comentarios = null)
+        string? comentarios = null,
+        Guid? idReservado = null)
     {
         if (trabajadorId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un trabajador.", nameof(trabajadorId));
 
-        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(trabajadorId, null, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     public static Documento DeCliente(
@@ -152,12 +160,13 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
-        string? comentarios = null)
+        string? comentarios = null,
+        Guid? idReservado = null)
     {
         if (clienteId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un cliente.", nameof(clienteId));
 
-        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(null, clienteId, null, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     public static Documento DeEmpresa(
@@ -166,12 +175,13 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
-        string? comentarios = null)
+        string? comentarios = null,
+        Guid? idReservado = null)
     {
         if (empresaId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a una empresa.", nameof(empresaId));
 
-        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(null, null, empresaId, null, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     public static Documento DeVehiculo(
@@ -180,12 +190,13 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
-        string? comentarios = null)
+        string? comentarios = null,
+        Guid? idReservado = null)
     {
         if (vehiculoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un vehículo.", nameof(vehiculoId));
 
-        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(null, null, null, vehiculoId, null, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     public static Documento DeProyecto(
@@ -194,12 +205,13 @@ public class Documento : EntidadBase
         DateOnly fechaEmision,
         VigenciaDocumento vigencia,
         string? archivoUrl = null,
-        string? comentarios = null)
+        string? comentarios = null,
+        Guid? idReservado = null)
     {
         if (proyectoId == Guid.Empty)
             throw new ArgumentException("El documento debe pertenecer a un proyecto.", nameof(proyectoId));
 
-        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(null, null, null, null, proyectoId, tipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     /// <summary>
@@ -311,11 +323,11 @@ public class Documento : EntidadBase
     /// viva ya tiene el suyo.
     /// </summary>
     public Documento NuevoDelMismoTitular(
-        DateOnly fechaEmision, VigenciaDocumento vigencia, string? archivoUrl, string? comentarios)
+        DateOnly fechaEmision, VigenciaDocumento vigencia, string? archivoUrl, string? comentarios, Guid? idReservado = null)
     {
         ExigirNoSustituido(nameof(NuevoDelMismoTitular));
         var p = Propietarios;
-        return new Documento(p[0], p[1], p[2], p[3], p[4], TipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+        return new Documento(p[0], p[1], p[2], p[3], p[4], TipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios, idReservado);
     }
 
     private void ExigirNoSustituido(string operacion)

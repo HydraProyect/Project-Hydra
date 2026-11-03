@@ -182,6 +182,40 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ClavesIntegracionTenant", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ApiKeys.UsoApiDiario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Dia")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Endpoint")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("Peticiones")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TipoClave")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ApiKeyId", "TipoClave", "Dia", "Endpoint")
+                        .IsUnique();
+
+                    b.ToTable("UsosApiDiarios", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -963,13 +997,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid?>("DestinoEmpresaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DestinoTrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EstadoReparto")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("MotivoRechazo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("NombreArchivo")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
+
+                    b.Property<DateTime?>("ResueltoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltoPorUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("TamanoBytes")
                         .HasColumnType("bigint");
@@ -981,6 +1037,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
+
+                    b.Property<Guid?>("TipoDocumentoPropuestoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
@@ -1274,6 +1337,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<long>("NumeroTicket")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValueSql("0");
+
                     b.Property<int>("Prioridad")
                         .HasColumnType("integer");
 
@@ -1298,6 +1366,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "Estado");
 
+                    b.HasIndex("TenantId", "NumeroTicket")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "Canal", "Estado");
 
                     b.HasIndex("TenantId", "ConexionIntegracionId", "HiloExternoId")
@@ -1309,6 +1380,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Conversaciones", null, t =>
                         {
                             t.HasCheckConstraint("CK_Conversaciones_AnclaUnica", "num_nonnulls(\"ClienteId\", \"EmpresaId\") <= 1");
+
+                            t.HasCheckConstraint("CK_Conversaciones_NumeroTicketPositivo", "\"NumeroTicket\" > 0");
                         });
                 });
 
@@ -1648,6 +1721,84 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasDatabaseName("IX_PropuestasRecordatorioConversacion_Espera_Unica");
 
                     b.ToTable("PropuestasRecordatorioConversacion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Comunicaciones.RespuestaSugerida", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("GeneradaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GeneradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MacroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MensajeOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Origen")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RevisadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevisadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(1048576)
+                        .HasColumnType("character varying(1048576)");
+
+                    b.Property<string>("TextoHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversacionId", "TenantId")
+                        .HasDatabaseName("IX_RespuestasSugeridas_ConversacionId_TenantId");
+
+                    b.HasIndex("MensajeOrigenId", "TenantId")
+                        .HasDatabaseName("IX_RespuestasSugeridas_MensajeOrigenId_TenantId");
+
+                    b.HasIndex("TenantId", "ConversacionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_RespuestasSugeridas_Activa_Unica")
+                        .HasFilter("\"Estado\" IN (0, 1)");
+
+                    b.ToTable("RespuestasSugeridas", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.SolicitudPrioridadDocumento", b =>
@@ -2052,6 +2203,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<string>("Notas")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("NotasActualizadasEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("NotasAutorUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("RecibeFacturacion")
                         .HasColumnType("boolean");
@@ -6918,6 +7075,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AcuseAutomaticoActivo")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("BuzonEmail")
                         .IsRequired()
                         .HasMaxLength(320)
@@ -6954,6 +7114,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<int>("Proveedor")
                         .HasColumnType("integer");
+
+                    b.Property<Guid?>("ResponsableUsuarioId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

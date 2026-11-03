@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
@@ -35,7 +36,15 @@ namespace CaeManager.Application.Documentos.Commands.RenovarDocumento;
 /// </summary>
 public record RenovarDocumentoCommand(
     Guid Id, DateOnly FechaEmision, DateOnly? FechaVencimientoManual, string? ArchivoUrl, string? Comentarios,
-    Guid Version = default, bool NoCaduca = false) : ICommand<Guid>;
+    Guid Version = default, bool NoCaduca = false) : ICommand<Guid>
+{
+    /// <summary>
+    /// El Id con el que nace el Documento nuevo al renovar con un archivo distinto; sin archivo distinto no nace ninguno
+    /// y no se usa. No es contrato: ver <see cref="CrearDocumento.CrearDocumentoCommand.DocumentoIdReservado"/>.
+    /// </summary>
+    [JsonIgnore]
+    public Guid? DocumentoIdReservado { get; internal init; }
+}
 
 public class RenovarDocumentoCommandValidator : AbstractValidator<RenovarDocumentoCommand>
 {
@@ -146,7 +155,7 @@ public class RenovarDocumentoCommandHandler(
         Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
         VigenciaDocumento vigencia, CancellationToken cancellationToken)
     {
-        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios);
+        var nuevo = anterior.NuevoDelMismoTitular(request.FechaEmision, vigencia, request.ArchivoUrl, request.Comentarios, request.DocumentoIdReservado);
 
         repositorio.Agregar(nuevo);
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);

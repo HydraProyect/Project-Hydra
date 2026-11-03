@@ -40,8 +40,8 @@ public class AlcanceEscrituraConversacionTests
         var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
         var opciones = Options.Create(new ComunicacionesRemitenteOptions { PermitirRemitenteSimulado = permitirRemitenteSimulado });
         return new ResponderConversacionCommandHandler(
-            repositorio, new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph,
-            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance);
+            repositorio, new ComunicacionesQueryContextFalso(), new ConexionIntegracionRepositorioFalso(), alcance, graphClient, accesoGraph,
+            new FileStorageServiceFalso(), opciones, unitOfWork, NullLogger<ResponderConversacionCommandHandler>.Instance, new RegistroExportacionFalso(), new CaeManager.Application.Tests.Clientes.DescarteCambiosPendientesFalso());
     }
 
     [Fact]

@@ -238,7 +238,10 @@ public class CaeManagerDbContext(
     public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
     IQueryable<Vehiculo> IVehiculosQueryContext.Vehiculos => Vehiculos;
     public DbSet<ParametroSistema> ParametrosSistema => Set<ParametroSistema>();
-    IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema;
+    // Sin seguimiento (MJ-05): el contexto de un circuito de Blazor vive todo el circuito, y con seguimiento EF devuelve
+    // la instancia ya rastreada sin refrescar sus valores, de modo que un cambio de umbrales hecho por otro usuario
+    // no se veía hasta recargar. Las escrituras pasan por IParametroSistemaRepository, no por este contrato.
+    IQueryable<ParametroSistema> IConfiguracionQueryContext.ParametrosSistema => ParametrosSistema.AsNoTracking();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     IQueryable<RegistroAuditoria> IAuditoriaQueryContext.RegistrosAuditoria => RegistrosAuditoria;
     public DbSet<RegistroAccesoDocumentoSensible> RegistrosAccesoDocumentoSensible => Set<RegistroAccesoDocumentoSensible>();
@@ -343,6 +346,8 @@ public class CaeManagerDbContext(
     IQueryable<AsignacionOperacion> IOperacionesQueryContext.AsignacionesOperacion => AsignacionesOperacion;
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
+    IQueryable<Guid> IOperacionesQueryContext.TenantsSuspendidosIds =>
+        Tenants.Where(t => t.Estado == EstadoTenant.Suspendido).Select(t => t.Id);
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
@@ -412,6 +417,8 @@ public class CaeManagerDbContext(
     IQueryable<NotaInternaConversacion> IComunicacionesQueryContext.NotasInternasConversacion => NotasInternasConversacion;
     public DbSet<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion => Set<PropuestaRecordatorioConversacion>();
     IQueryable<PropuestaRecordatorioConversacion> IComunicacionesQueryContext.PropuestasRecordatorioConversacion => PropuestasRecordatorioConversacion;
+    public DbSet<RespuestaSugerida> RespuestasSugeridas => Set<RespuestaSugerida>();
+    IQueryable<RespuestaSugerida> IComunicacionesQueryContext.RespuestasSugeridas => RespuestasSugeridas;
     public DbSet<TareaAsistente> TareasAsistente => Set<TareaAsistente>();
     IQueryable<TareaAsistente> CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext.TareasAsistente => TareasAsistente;
     public DbSet<TurnoTareaAsistente> TurnosTareaAsistente => Set<TurnoTareaAsistente>();
@@ -431,6 +438,7 @@ public class CaeManagerDbContext(
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();
     IQueryable<ClaveApi> IApiKeysQueryContext.ClavesApi => ClavesApi;
     public DbSet<ClaveIntegracionTenant> ClavesIntegracionTenant => Set<ClaveIntegracionTenant>();
+    public DbSet<UsoApiDiario> UsosApiDiarios => Set<UsoApiDiario>();
     public DbSet<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario => Set<PreferenciaDashboardUsuario>();
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
@@ -438,7 +446,9 @@ public class CaeManagerDbContext(
     public DbSet<OrdenCajasFicha> OrdenesCajasFicha => Set<OrdenCajasFicha>();
     IQueryable<OrdenCajasFicha> IConfiguracionQueryContext.OrdenesCajasFicha => OrdenesCajasFicha;
     public DbSet<EstadoAutomatizacion> EstadosAutomatizacion => Set<EstadoAutomatizacion>();
-    IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion;
+    // Sin seguimiento, como ParametrosSistema: las filas las escriben trabajos en segundo plano de otro ámbito y el
+    // panel, en un circuito largo, no puede quedarse con la ejecución anterior.
+    IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion.AsNoTracking();
     public DbSet<HistorialImportacion> HistorialImportaciones => Set<HistorialImportacion>();
     IQueryable<HistorialImportacion> IImportacionQueryContext.HistorialImportaciones => HistorialImportaciones;
     public DbSet<OperacionImportacion> OperacionesImportacion => Set<OperacionImportacion>();

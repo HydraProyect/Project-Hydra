@@ -166,6 +166,10 @@ public class IngestaWebhookHostedService(
                         evento.Id, ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
                     throw;
                 }
+
+                // Tras confirmar, dentro del ámbito de este Tenant y del actor de sistema: ver AcuseAutomaticoBuzonService.
+                await ambito.ServiceProvider.GetRequiredService<AcuseAutomaticoBuzonService>()
+                    .EnviarAsync(ingesta.AcusesPendientes, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
