@@ -53,6 +53,8 @@ public static class ApplicationServiceCollectionExtensions
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        // Webhook de Stripe: aplica el estado actual de la Subscription, no la copia del evento.
+        services.AddScoped<CaeManager.Application.Comercial.Common.ProcesadorWebhookSuscripcion>();
         services.AddScoped<CaeManager.Application.Integraciones.ResponsableBuzonElegible>();
         services.AddScoped<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal,
             CaeManager.Application.Operaciones.AsignacionAutomaticaDePrincipal>();

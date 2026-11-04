@@ -182,6 +182,7 @@ public class WebhooksAutenticacionHttpTests
         builder.Services.AddSingleton<IPaymentProvider>(servicios => new StripePaymentProvider(
             Options.Create(new StripeOptions { ApiKey = "sk_test_falsa", WebhookSecret = Secreto }),
             servicios.GetRequiredService<ILogger<StripePaymentProvider>>()));
+        builder.Services.AddSingleton<ProcesadorWebhookSuscripcion>();
         await using var app = builder.Build();
         app.MapWebhookWhatsAppEndpoints();
         app.MapWebhookMicrosoft365Endpoints();

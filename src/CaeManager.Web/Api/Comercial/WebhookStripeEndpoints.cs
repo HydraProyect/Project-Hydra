@@ -1,10 +1,7 @@
 using System.Text;
 using CaeManager.Application.Comercial.Common;
-using CaeManager.Application.Common;
-using CaeManager.Application.Tenants;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Web.Api.Integraciones;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Web.Api.Comercial;
 
@@ -31,7 +28,9 @@ namespace CaeManager.Web.Api.Comercial;
 /// <c>Tenant.StripeSubscriptionId</c>, que es la única correlación que
 /// Hydra guarda con Stripe — de ahí que <see cref="ITenantsQueryContext"/>
 /// no necesite ningún ámbito de tenant explícito aquí (Tenant no pertenece a
-/// ningún tenant, ver TenantConfiguration).
+/// ningún tenant, ver TenantConfiguration). El estado que se aplica no es la copia
+/// de la Subscription que trae el evento sino el que Stripe reporta al procesarlo
+/// (<see cref="ProcesadorWebhookSuscripcion"/>): Stripe no garantiza el orden de entrega.
 ///
 /// Si esa correlación resolviera al tenant de plataforma —nunca debería,
 /// pero es deriva de datos, no una invariante de base de datos—, el evento
@@ -54,8 +53,7 @@ public static class WebhookStripeEndpoints
         grupo.MapPost("/", async (
             HttpRequest request,
             IPaymentProvider paymentProvider,
-            ITenantsQueryContext dbContext,
-            IUnitOfWork unitOfWork,
+            ProcesadorWebhookSuscripcion procesador,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
         {
@@ -77,63 +75,52 @@ public static class WebhookStripeEndpoints
                 return Results.Unauthorized();
             }
 
-            // Eventos reconocidos pero sin Subscription asociada (p. ej. de
-            // factura o de cliente) — ver StripePaymentProvider sobre por
-            // qué basta con reaccionar a customer.subscription.*. Se
-            // reconocen con 200 para que Stripe no los reintente.
-            if (evento.Valor.Suscripcion is not { } suscripcion)
-                return Results.Ok();
+            var resultado = await procesador.ProcesarAsync(evento.Valor, cancellationToken);
+            var idSuscripcion = evento.Valor.Suscripcion?.IdSuscripcion;
 
-            var nuevoEstado = MapeoEstadoComercialTenant.Desde(suscripcion.Estado);
-            if (nuevoEstado is null)
+            switch (resultado)
             {
-                logger.LogWarning(
-                    "Webhook de Stripe {TipoEvento} con un estado de suscripción no reconocido para {IdSuscripcion}.",
-                    evento.Valor.TipoEvento, suscripcion.IdSuscripcion);
-                // 200 de todas formas: un estado que Hydra no sabe mapear no
-                // se va a arreglar solo con que Stripe reintente el mismo
-                // evento — seguirá sin reconocerlo. Queda en el log para
-                // revisión manual (ver ActualizarEstadoComercialTenantCommand
-                // para resincronizar a mano una vez corregido el código).
-                return Results.Ok();
+                case ResultadoWebhookSuscripcion.SinTenantVinculado:
+                    // Suscripción todavía sin vincular a ningún tenant: p. ej. el webhook de
+                    // creación llegó antes de que el operador completara el alta manual
+                    // (RegistrarSuscripcionTenantCommand consulta el estado actual a Stripe en
+                    // ese momento, así que no se pierde nada). No es un error.
+                    logger.LogInformation(
+                        "Webhook de Stripe para una suscripción sin tenant vinculado todavía: {IdSuscripcion}.", idSuscripcion);
+                    return Results.Ok();
+
+                case ResultadoWebhookSuscripcion.TenantNoSuscribible:
+                    // Solo puede ser deriva de datos (RegistrarSuscripcionTenantCommand impide
+                    // vincular el tenant de plataforma). 200 para que Stripe no reintente algo que
+                    // no se arregla reintentando, pero en Warning: merece revisión manual.
+                    logger.LogWarning(
+                        "Webhook de Stripe {TipoEvento} para una suscripción vinculada al tenant de plataforma: {IdSuscripcion}. Se ignora sin mutar el estado comercial.",
+                        evento.Valor.TipoEvento, idSuscripcion);
+                    return Results.Ok();
+
+                case ResultadoWebhookSuscripcion.EstadoNoReconocido:
+                    // 200 de todas formas: un estado que TALVEG no sabe mapear no se arregla con
+                    // que Stripe reintente. Queda en el log para revisión manual (ver
+                    // ActualizarEstadoComercialTenantCommand para resincronizar a mano).
+                    logger.LogWarning(
+                        "Webhook de Stripe {TipoEvento} con un estado de suscripción no reconocido para {IdSuscripcion}.",
+                        evento.Valor.TipoEvento, idSuscripcion);
+                    return Results.Ok();
+
+                case ResultadoWebhookSuscripcion.ProveedorNoDisponible:
+                    // No se pudo leer el estado actual en Stripe: sin él no se escribe nada (ver
+                    // ProcesadorWebhookSuscripcion sobre por qué no vale la copia del evento).
+                    // Un código no 2xx hace que Stripe reintente el evento más tarde.
+                    logger.LogWarning(
+                        "Webhook de Stripe {TipoEvento} para {IdSuscripcion}: no se pudo consultar el estado actual en Stripe; se pide reintento.",
+                        evento.Valor.TipoEvento, idSuscripcion);
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+                default:
+                    // SinSuscripcion (eventos de factura o de cliente, reconocidos con 200 para que
+                    // Stripe no los reintente) y Aplicado.
+                    return Results.Ok();
             }
-
-            var tenant = await dbContext.Tenants
-                .SingleOrDefaultAsync(t => t.StripeSubscriptionId == suscripcion.IdSuscripcion, cancellationToken);
-
-            if (tenant is null)
-            {
-                // Suscripción todavía sin vincular a ningún tenant — p. ej.
-                // el webhook de creación llegó antes de que el operador
-                // completara el alta manual (RegistrarSuscripcionTenantCommand
-                // ya consulta el estado actual a Stripe en ese momento, así
-                // que no se pierde nada). No es un error: se ignora.
-                logger.LogInformation(
-                    "Webhook de Stripe para una suscripción sin tenant vinculado todavía: {IdSuscripcion}.", suscripcion.IdSuscripcion);
-                return Results.Ok();
-            }
-
-            if (!tenant.EsSuscribible())
-            {
-                // El tenant de plataforma nunca es él mismo un suscriptor
-                // (RegistrarSuscripcionTenantCommand lo impide al vincular).
-                // Que llegue aquí solo puede ser deriva de datos — se ignora
-                // sin mutar el estado comercial, con acuse 200 igual que el
-                // resto de ramas benignas de este endpoint (Stripe no debe
-                // reintentar algo que no se va a arreglar reintentando), pero
-                // en Warning porque, a diferencia de una suscripción sin
-                // vincular todavía, esto no es un estado esperado del ciclo
-                // de alta y merece revisión manual.
-                logger.LogWarning(
-                    "Webhook de Stripe {TipoEvento} para una suscripción vinculada al tenant de plataforma ({TenantId}): {IdSuscripcion}. Se ignora sin mutar el estado comercial.",
-                    evento.Valor.TipoEvento, tenant.Id, suscripcion.IdSuscripcion);
-                return Results.Ok();
-            }
-
-            tenant.ActualizarEstadoComercial(nuevoEstado.Value);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            return Results.Ok();
         });
 
         return endpoints;
