@@ -53,7 +53,7 @@ public sealed class ServicioRetoPruebaTrabajo
     internal const string Proposito = "CaeManager.Web.AltaAutonoma.RetoPruebaTrabajo.v1";
     private const byte Version = 1;
     private const int LongitudCarga = 1 + 16 + 16 + 1 + 8 + 8;
-    private const int LongitudMaximaToken = 1024;
+    internal const int LongitudMaximaToken = 1024;
     private const int LongitudMaximaNonce = 20;
 
     private readonly IDataProtector _protector;
@@ -140,8 +140,11 @@ public sealed class ServicioRetoPruebaTrabajo
 }
 
 /// <summary>
-/// Ids de reto ya aceptados, hasta su caducidad. En memoria de la instancia (ver <see cref="ServicioRetoPruebaTrabajo"/>).
-/// Solo crece con retos resueltos de verdad, cada uno con su trabajo, y se purga de caducados cada pocos registros.
+/// Ids de reto y nonces de sello del formulario (<see cref="ServicioTrampasFormulario"/>) ya aceptados, hasta su
+/// caducidad: ambos son 128 bits aleatorios, así que comparten almacén sin chocar. En memoria de la instancia (ver
+/// <see cref="ServicioRetoPruebaTrabajo"/>). Solo crece con verificaciones superadas (retos resueltos, cada uno con su
+/// trabajo, y sellos que esperaron el tiempo mínimo junto a su reto) y se purga de caducados cada pocos registros. Quien
+/// lo use en un envío verifica primero el reto, para que un sello solo se consuma tras el trabajo.
 /// </summary>
 public sealed class RegistroRetosUsados(TimeProvider reloj)
 {

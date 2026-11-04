@@ -5,7 +5,8 @@
 
 @* Honeypot y sello de tiempo (ver ServicioTrampasFormulario). El campo trampa queda fuera de la vista, fuera del orden
    de tabulación y fuera del árbol de accesibilidad (aria-hidden), así que ni la vista ni el teclado ni un lector de
-   pantalla llevan a una persona hasta él; autocomplete="off" evita que el navegador lo rellene por su cuenta. *@
+   pantalla llevan a una persona hasta él; autocomplete="off" evita que el navegador lo rellene por su cuenta. El sello
+   va atado al reto que se pinta con él: lo pinta RetoPruebaTrabajoFormulario, que le pasa su token. *@
 <div aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden">
     <label for="@IdCampoTrampa">@T["CampoTrampaEtiqueta"]</label>
     <input id="@IdCampoTrampa" type="text" name="@ServicioTrampasFormulario.NombreCampoTrampa" value="" tabindex="-1" autocomplete="off" />
@@ -15,7 +16,12 @@
 @code {
     private const string IdCampoTrampa = "alta-comprobacion-adicional";
 
+    /// <summary>Token del reto pintado en el mismo formulario; el sello solo valdrá con él.</summary>
+    [Parameter, EditorRequired]
+    public string TokenReto { get; set; } = string.Empty;
+
     private string _sello = string.Empty;
 
-    protected override void OnInitialized() => _sello = Servicio.EmitirSello();
+    // Un sello por pintado, como el reto: se emite una vez con el token recibido y no se rehace en cada render.
+    protected override void OnInitialized() => _sello = Servicio.EmitirSello(TokenReto);
 }

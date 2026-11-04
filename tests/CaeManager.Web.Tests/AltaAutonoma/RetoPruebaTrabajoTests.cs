@@ -107,7 +107,7 @@ public class RetoPruebaTrabajoTests
             new EphemeralDataProtectionProvider(), Options.Create(_opciones), _reloj, new RegistroRetosUsados(_reloj)).Emitir();
         _servicio.Verificar(ajeno.Token, Resolver(ajeno.Token, 8)).Should().Be(ResultadoVerificacionReto.Ilegible);
 
-        var sello = new ServicioTrampasFormulario(_proteccion, Options.Create(_opciones), _reloj).EmitirSello();
+        var sello = new ServicioTrampasFormulario(_proteccion, Options.Create(_opciones), _reloj, _usados).EmitirSello(ajeno.Token);
         _servicio.Verificar(sello, Resolver(sello, 8))
             .Should().Be(ResultadoVerificacionReto.Ilegible, "el sello del formulario usa otro propósito de Data Protection");
     }

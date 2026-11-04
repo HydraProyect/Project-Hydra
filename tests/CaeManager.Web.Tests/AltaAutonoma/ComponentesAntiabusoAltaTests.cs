@@ -68,7 +68,7 @@ public class ComponentesAntiabusoAltaTests : BunitContext
         contenedor.GetAttribute("data-texto-esperando").Should().NotBeNullOrWhiteSpace();
         contenedor.GetAttribute("data-texto-error").Should().NotBeNullOrWhiteSpace();
         corte.Find("noscript").TextContent.Should().Contain("JavaScript");
-        corte.FindAll("[tabindex], button, a").Should().BeEmpty("el reto no pide ninguna interacción");
+        corte.FindAll("[tabindex]:not([tabindex='-1']), button, a").Should().BeEmpty("el reto no pide ninguna interacción");
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ComponentesAntiabusoAltaTests : BunitContext
     [Fact]
     public void El_campo_trampa_queda_fuera_de_la_vista_del_teclado_y_del_lector_de_pantalla()
     {
-        var corte = Render<TrampasFormularioAlta>();
+        var corte = Render<TrampasFormularioAlta>(p => p.Add(c => c.TokenReto, "reto"));
 
         var trampa = corte.Find($"input[name={ServicioTrampasFormulario.NombreCampoTrampa}]");
         trampa.GetAttribute("type").Should().Be("text");
@@ -98,14 +98,31 @@ public class ComponentesAntiabusoAltaTests : BunitContext
     }
 
     [Fact]
-    public void El_sello_pintado_supera_la_trampa_de_tiempo_solo_pasados_tres_segundos()
+    public void El_formulario_del_reto_pinta_un_sello_atado_a_su_reto_que_solo_pasa_a_los_tres_segundos()
     {
-        var corte = Render<TrampasFormularioAlta>();
+        var corte = Render<RetoPruebaTrabajoFormulario>();
+        var token = corte.Find("[data-reto-prueba-trabajo]").GetAttribute("data-reto");
         var sello = corte.Find($"input[type=hidden][name={ServicioTrampasFormulario.NombreCampoSello}]").GetAttribute("value");
+        corte.FindAll($"input[name={ServicioTrampasFormulario.NombreCampoTrampa}]").Should().ContainSingle();
+        var otroReto = Render<RetoPruebaTrabajoFormulario>().Find("[data-reto-prueba-trabajo]").GetAttribute("data-reto");
         var servicio = Services.GetRequiredService<ServicioTrampasFormulario>();
 
-        servicio.Verificar(null, sello).Should().Be(ResultadoTrampasFormulario.EnvioDemasiadoRapido);
+        servicio.Verificar(null, sello, token).Should().Be(ResultadoTrampasFormulario.EnvioDemasiadoRapido);
         _reloj.Avanzar(TimeSpan.FromSeconds(3));
-        servicio.Verificar(null, sello).Should().Be(ResultadoTrampasFormulario.Superadas);
+        servicio.Verificar(null, sello, otroReto).Should().Be(ResultadoTrampasFormulario.SelloDeOtroReto);
+        servicio.Verificar(null, sello, token).Should().Be(ResultadoTrampasFormulario.Superadas);
+    }
+
+    [Theory]
+    [InlineData(5_000L, "1")]
+    [InlineData(29_985_000L, "2999")]
+    [InlineData(30_000_000L, "3000")]
+    public void La_espera_del_guion_se_redondea_hacia_arriba_y_nunca_se_adelanta_al_servidor(long ticks, string esperado)
+    {
+        _opciones.TiempoMinimoEnvio = TimeSpan.FromTicks(ticks);
+
+        var espera = Render<RetoPruebaTrabajoFormulario>().Find("[data-reto-prueba-trabajo]").GetAttribute("data-espera-minima-ms");
+
+        espera.Should().Be(esperado);
     }
 }

@@ -8,11 +8,14 @@
    tiene que ir por HTTP). wwwroot/js/reto-prueba-trabajo.js lo resuelve en un Web Worker nada más pintarse, sin que la
    persona haga nada, y deja el nonce en el campo oculto; si se envía antes de tener la solución o antes del tiempo
    mínimo de la trampa de tiempo (data-espera-minima-ms), retiene el envío y lo repite solo cuando se cumplen las dos.
-   El estado se anuncia en una región role="status" educada: no roba el foco ni interrumpe al lector de pantalla. *@
+   El estado se anuncia en una región role="status" educada: no roba el foco ni interrumpe al lector de pantalla.
+   Pinta también las trampas del formulario (TrampasFormularioAlta) con el sello atado a este reto: el formulario las
+   recibe juntas y no hay forma de emparejar un sello con otro reto. La espera se redondea hacia arriba: el guion nunca
+   suelta el envío antes de que el servidor acepte el sello. *@
 <div data-reto-prueba-trabajo
      data-reto="@_reto.Token"
      data-bits="@_reto.DificultadBits"
-     data-espera-minima-ms="@((long)Opciones.Value.TiempoMinimoEnvio.TotalMilliseconds)"
+     data-espera-minima-ms="@((long)Math.Ceiling(Opciones.Value.TiempoMinimoEnvio.TotalMilliseconds))"
      data-vigencia-ms="@((long)Opciones.Value.VigenciaRetoEnGuion.TotalMilliseconds)"
      data-trabajador="@Assets["js/reto-prueba-trabajo-worker.js"]"
      data-texto-listo="@T["RetoListo"]"
@@ -24,6 +27,7 @@
     <p role="status" aria-live="polite" data-reto-estado>@T["RetoComprobando"]</p>
     <noscript><p>@T["RetoSinJavaScript"]</p></noscript>
 </div>
+<TrampasFormularioAlta TokenReto="@_reto.Token" />
 
 @code {
     /// <summary>Nombre del campo del formulario con el token del reto.</summary>
