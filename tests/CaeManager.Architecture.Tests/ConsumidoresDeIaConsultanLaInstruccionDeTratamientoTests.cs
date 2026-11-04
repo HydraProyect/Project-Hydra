@@ -40,7 +40,7 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
     /// —comprobado antes de tocar la lista, porque un detector ampliado que no encuentra
     /// nada nuevo suele significar que la ampliación no funciona—.
     /// </summary>
-    private static readonly string[] PuertosDeIa =
+    internal static readonly string[] PuertosDeIa =
     [
         "IAsistenteIaService",
         "IDocumentAIRouterService",
@@ -54,6 +54,7 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
         "IDocumentAIProviderFactory",
         "IDocumentAIProvider",
         "IDecisionesCerradasAsistenteService",
+        "ISegundaOpinionCriticaIa",
     ];
 
     /// <summary>
