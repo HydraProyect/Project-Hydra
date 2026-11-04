@@ -32,7 +32,7 @@ public class RegistrarSuscripcionTenantCommandTests
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
             dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.SinNada(),
-            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso());
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(
             new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
@@ -58,7 +58,7 @@ public class RegistrarSuscripcionTenantCommandTests
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
             dbContext, new PaymentProviderFalso(), autorizacion,
-            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso());
+            new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", Guid.NewGuid()), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(
             new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
@@ -79,7 +79,7 @@ public class RegistrarSuscripcionTenantCommandTests
         dbContext.ListaTenants.Add(plataforma);
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(Guid.NewGuid(), "sub_123"), CancellationToken.None);
 
@@ -95,7 +95,7 @@ public class RegistrarSuscripcionTenantCommandTests
         dbContext.ListaTenants.Add(plataforma);
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(plataforma.Id, "sub_123"), CancellationToken.None);
 
@@ -116,7 +116,7 @@ public class RegistrarSuscripcionTenantCommandTests
             Result.Fallo<SuscripcionProveedorDto>(Error.Crear("PaymentProvider.ErrorApi", "no encontrada")));
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_inexistente"), CancellationToken.None);
 
@@ -142,7 +142,7 @@ public class RegistrarSuscripcionTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
 
@@ -166,12 +166,91 @@ public class RegistrarSuscripcionTenantCommandTests
             Result.Exito(new SuscripcionProveedorDto("sub_123", "cus_999", EstadoSuscripcionProveedor.Desconocida)));
 
         var handler = new RegistrarSuscripcionTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
 
         var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Comercial.EstadoNoReconocido");
         cliente.StripeSubscriptionId.Should().BeNull();
+    }
+
+    /// <summary>
+    /// El webhook resuelve el Tenant beneficiario por el Id de la Subscription: dos Tenants con
+    /// la misma harían que un evento cayera en cualquiera de los dos.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_una_suscripcion_ya_vinculada_a_otro_tenant_sin_consultar_a_Stripe()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        var otro = new Tenant("Otro");
+        otro.VincularSuscripcionStripe("cus_1", "sub_123", EstadoComercialTenant.Activa);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente, otro]);
+        var paymentProvider = new PaymentProviderFalso();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var handler = new RegistrarSuscripcionTenantCommandHandler(
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), transaccion, new BloqueoSuscripcionStripeFalso());
+
+        var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Comercial.SuscripcionYaVinculada");
+        cliente.StripeSubscriptionId.Should().BeNull();
+        paymentProvider.VecesConsultado.Should().Be(0);
+        transaccion.Deshechas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Dos altas concurrentes con la misma Subscription para Tenants distintos: la segunda
+    /// espera el candado de la Subscription y, al obtenerlo, ve el vínculo que la primera ya
+    /// confirmó. La comprobación tiene que ir DESPUÉS del candado.
+    /// </summary>
+    [Fact]
+    public async Task Comprueba_el_duplicado_despues_de_obtener_el_candado_de_la_suscripcion()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        var otro = new Tenant("Otro");
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente, otro]);
+        var bloqueo = new BloqueoSuscripcionStripeFalso
+        {
+            AlBloquearSuscripciones = () => otro.VincularSuscripcionStripe("cus_1", "sub_123", EstadoComercialTenant.Activa),
+        };
+
+        var handler = new RegistrarSuscripcionTenantCommandHandler(
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), bloqueo);
+
+        var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_123"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Comercial.SuscripcionYaVinculada");
+    }
+
+    /// <summary>
+    /// Re-vincular un Tenant a otra Subscription bloquea el Tenant primero y después la nueva
+    /// y la sustituida: así un webhook de la vieja no escribe sobre el Tenant ya re-vinculado.
+    /// </summary>
+    [Fact]
+    public async Task Al_revincular_bloquea_el_tenant_y_despues_la_suscripcion_nueva_y_la_sustituida()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        cliente.VincularSuscripcionStripe("cus_1", "sub_vieja", EstadoComercialTenant.Suspendida);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente]);
+        var bloqueo = new BloqueoSuscripcionStripeFalso();
+
+        var handler = new RegistrarSuscripcionTenantCommandHandler(
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), bloqueo);
+
+        var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_nueva"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        bloqueo.Eventos.Should().Equal("tenant", "suscripcion");
+        bloqueo.Tenants.Should().Equal(cliente.Id);
+        bloqueo.Suscripciones.Should().BeEquivalentTo(["sub_nueva", "sub_vieja"]);
+        cliente.StripeSubscriptionId.Should().Be("sub_nueva");
     }
 }

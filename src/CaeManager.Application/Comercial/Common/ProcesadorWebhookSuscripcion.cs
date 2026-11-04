@@ -1,10 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Comercial.Common;
 
-/// <summary>Qué hizo <see cref="ProcesadorWebhookSuscripcion"/> con un evento ya verificado.</summary>
+/// <summary>Qué hizo <see cref="IProcesadorWebhookSuscripcion"/> con un evento ya verificado.</summary>
 public enum ResultadoWebhookSuscripcion
 {
     /// <summary>Evento sin Subscription (factura, cliente…): no cambia el estado comercial.</summary>
@@ -22,8 +23,20 @@ public enum ResultadoWebhookSuscripcion
     /// <summary>No se pudo consultar el estado actual en Stripe: el webhook debe reintentarse.</summary>
     ProveedorNoDisponible,
 
+    /// <summary>El estado actual de la Subscription ya era el del Tenant: no se escribe nada.</summary>
+    SinCambios,
+
     /// <summary>Estado comercial actualizado con el estado actual de la Subscription.</summary>
     Aplicado,
+}
+
+/// <param name="CodigoError">Código del <see cref="Error"/> del proveedor cuando <see cref="Resultado"/> es <see cref="ResultadoWebhookSuscripcion.ProveedorNoDisponible"/>, para el log.</param>
+public record ProcesamientoWebhookSuscripcion(ResultadoWebhookSuscripcion Resultado, string? CodigoError = null);
+
+/// <summary>Frontera del endpoint de webhook con el procesamiento, para probar su traducción a HTTP aparte.</summary>
+public interface IProcesadorWebhookSuscripcion
+{
+    Task<ProcesamientoWebhookSuscripcion> ProcesarAsync(EventoWebhookProveedorDto evento, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -31,50 +44,98 @@ public enum ResultadoWebhookSuscripcion
 /// (<see cref="IPaymentProvider.VerificarYLeerWebhook"/>) y actualiza el estado comercial del
 /// Tenant beneficiario de esa Subscription.
 ///
-/// El estado NO se toma de la copia de la Subscription que trae el evento, sino de una
-/// consulta a Stripe en el momento de procesarlo (<see cref="IPaymentProvider.ObtenerSuscripcionAsync"/>).
-/// Stripe no garantiza el orden de entrega de los eventos y reintenta durante días los que
-/// fallaron: aplicar la copia del evento dejaría que un <c>customer.subscription.updated</c>
-/// atrasado (p. ej. <c>past_due</c>, entregado después del que volvió a <c>active</c>) devolviera
-/// a un Tenant ya regularizado a «aviso de impago», o a uno ya cancelado a «activa». Volver a
-/// consultar hace que cualquier evento, en cualquier orden y repetido cuantas veces sea, deje el
-/// mismo estado: el último que conoce Stripe. Es también lo que hace idempotente el endpoint sin
-/// guardar los Id de evento ya procesados.
+/// <para>
+/// Del evento solo se usa el Id de la Subscription. El estado NO sale de la copia que trae el
+/// evento, sino de una consulta a Stripe en el momento de procesarlo
+/// (<see cref="IPaymentProvider.ObtenerSuscripcionAsync"/>): Stripe no garantiza el orden de
+/// entrega y reintenta durante días, y aplicar la copia dejaba que un
+/// <c>customer.subscription.updated</c> atrasado devolviera a un Tenant ya regularizado a «aviso
+/// de impago», o reactivara uno cancelado.
+/// </para>
 ///
-/// El Tenant se busca ANTES de consultar a Stripe: una Subscription sin Tenant vinculado no
-/// gasta una llamada a la API.
+/// <para>
+/// La consulta y el guardado van dentro de una transacción con el candado de la Subscription
+/// (<see cref="IBloqueoSuscripcionStripe"/>), que comparten el alta manual y la
+/// resincronización. Así dos entregas concurrentes, o una entrega y un alta a medias, no
+/// pueden guardar en el orden contrario al que consultaron. Con eso, cualquier evento, en
+/// cualquier orden y repetido, deja el estado que Stripe reporta al último procesamiento. Si
+/// el estado no cambia no se escribe nada, ni siquiera
+/// <c>EstadoComercialActualizadoEnUtc</c>.
+/// </para>
+///
+/// <para>
+/// La consulta a Stripe se acota a <see cref="TiempoMaximoConsulta"/>: el candado está tomado
+/// mientras dura, y Stripe da por fallida una entrega que tarda demasiado. Un tiempo agotado
+/// cuenta como proveedor no disponible, y Stripe reintenta.
+/// </para>
 /// </summary>
 public class ProcesadorWebhookSuscripcion(
     ITenantsQueryContext dbContext,
     IPaymentProvider paymentProvider,
-    IUnitOfWork unitOfWork)
+    ITransaccionDeComando transaccion,
+    IBloqueoSuscripcionStripe bloqueo,
+    IUnitOfWork unitOfWork) : IProcesadorWebhookSuscripcion
 {
-    public async Task<ResultadoWebhookSuscripcion> ProcesarAsync(
+    public static readonly TimeSpan TiempoMaximoConsulta = TimeSpan.FromSeconds(10);
+
+    public async Task<ProcesamientoWebhookSuscripcion> ProcesarAsync(
         EventoWebhookProveedorDto evento, CancellationToken cancellationToken)
     {
         if (evento.Suscripcion is not { } suscripcionDelEvento)
-            return ResultadoWebhookSuscripcion.SinSuscripcion;
+            return new(ResultadoWebhookSuscripcion.SinSuscripcion);
 
-        var tenant = await dbContext.Tenants
-            .SingleOrDefaultAsync(t => t.StripeSubscriptionId == suscripcionDelEvento.IdSuscripcion, cancellationToken);
+        var idSuscripcion = suscripcionDelEvento.IdSuscripcion;
+        ProcesamientoWebhookSuscripcion procesamiento = new(ResultadoWebhookSuscripcion.SinSuscripcion);
 
+        // La operación puede ejecutarse más de una vez (estrategia de reintentos de
+        // ITransaccionDeComando): todo lo que decide se lee dentro.
+        await transaccion.EjecutarAsync(async ct =>
+        {
+            procesamiento = await ProcesarBajoCandadoAsync(idSuscripcion, ct);
+            return Result.Exito();
+        }, cancellationToken);
+
+        return procesamiento;
+    }
+
+    private async Task<ProcesamientoWebhookSuscripcion> ProcesarBajoCandadoAsync(string idSuscripcion, CancellationToken ct)
+    {
+        await bloqueo.BloquearSuscripcionesAsync([idSuscripcion], ct);
+
+        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.StripeSubscriptionId == idSuscripcion, ct);
         if (tenant is null)
-            return ResultadoWebhookSuscripcion.SinTenantVinculado;
+            return new(ResultadoWebhookSuscripcion.SinTenantVinculado);
 
         if (!tenant.EsSuscribible())
-            return ResultadoWebhookSuscripcion.TenantNoSuscribible;
+            return new(ResultadoWebhookSuscripcion.TenantNoSuscribible);
 
-        var actual = await paymentProvider.ObtenerSuscripcionAsync(suscripcionDelEvento.IdSuscripcion, cancellationToken);
+        Result<SuscripcionProveedorDto> actual;
+        using (var limite = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            limite.CancelAfter(TiempoMaximoConsulta);
+            try
+            {
+                actual = await paymentProvider.ObtenerSuscripcionAsync(idSuscripcion, limite.Token);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                return new(ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.TiempoAgotado");
+            }
+        }
+
         if (actual.EsFallido)
-            return ResultadoWebhookSuscripcion.ProveedorNoDisponible;
+            return new(ResultadoWebhookSuscripcion.ProveedorNoDisponible, actual.Error.Codigo);
 
         var nuevoEstado = MapeoEstadoComercialTenant.Desde(actual.Valor.Estado);
         if (nuevoEstado is null)
-            return ResultadoWebhookSuscripcion.EstadoNoReconocido;
+            return new(ResultadoWebhookSuscripcion.EstadoNoReconocido);
+
+        if (tenant.EstadoComercial == nuevoEstado.Value)
+            return new(ResultadoWebhookSuscripcion.SinCambios);
 
         tenant.ActualizarEstadoComercial(nuevoEstado.Value);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(ct);
 
-        return ResultadoWebhookSuscripcion.Aplicado;
+        return new(ResultadoWebhookSuscripcion.Aplicado);
     }
 }

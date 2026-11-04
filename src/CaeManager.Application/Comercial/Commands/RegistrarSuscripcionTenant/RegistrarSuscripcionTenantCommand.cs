@@ -25,6 +25,15 @@ namespace CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 /// llegar aquí; esta comprobación adicional es la misma "solo desde el
 /// tenant de plataforma" — sin ella, cualquier Administrador de cualquier
 /// tenant cliente podría vincular una suscripción a otro tenant.
+///
+/// La lectura del Tenant, la consulta a Stripe y el guardado van en una transacción con
+/// los candados de <see cref="IBloqueoSuscripcionStripe"/> (Tenant, y después la
+/// Subscription nueva y la que sustituye), que comparte con el webhook y la
+/// resincronización: un webhook que llegue a mitad del alta espera a que confirme y
+/// encuentra el vínculo, en vez de responder «sin Tenant» y perderse. Bajo esos mismos
+/// candados se rechaza una Subscription ya vinculada a otro Tenant: el webhook resuelve el
+/// Tenant por ese Id, y dos Tenants con la misma Subscription harían su resultado
+/// indeterminado.
 /// </summary>
 public record RegistrarSuscripcionTenantCommand(Guid TenantId, string StripeSubscriptionId) : ICommand;
 
@@ -47,7 +56,9 @@ public class RegistrarSuscripcionTenantCommandHandler(
     IPaymentProvider paymentProvider,
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITransaccionDeComando transaccion,
+    IBloqueoSuscripcionStripe bloqueo)
     : IRequestHandler<RegistrarSuscripcionTenantCommand, Result>
 {
     public async Task<Result> Handle(RegistrarSuscripcionTenantCommand request, CancellationToken cancellationToken)
@@ -64,7 +75,16 @@ public class RegistrarSuscripcionTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
 
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
+        // La operación puede ejecutarse más de una vez (estrategia de reintentos de
+        // ITransaccionDeComando): todo lo que decide se lee dentro.
+        return await transaccion.EjecutarAsync(ct => VincularBajoCandadoAsync(request, ct), cancellationToken);
+    }
+
+    private async Task<Result> VincularBajoCandadoAsync(RegistrarSuscripcionTenantCommand request, CancellationToken ct)
+    {
+        await bloqueo.BloquearTenantAsync(request.TenantId, ct);
+
+        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
         if (tenant is null)
             return Result.Fallo(Error.Crear("Comercial.TenantNoEncontrado", "No encontramos ese tenant."));
 
@@ -72,7 +92,20 @@ public class RegistrarSuscripcionTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.TenantPlataforma", "El tenant de plataforma no es un tenant suscriptor."));
 
-        var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(request.StripeSubscriptionId, cancellationToken);
+        var afectadas = tenant.StripeSubscriptionId is { } anterior
+            ? new[] { request.StripeSubscriptionId, anterior }
+            : [request.StripeSubscriptionId];
+        await bloqueo.BloquearSuscripcionesAsync(afectadas, ct);
+
+        // Bajo el candado de la Subscription nueva: otra alta concurrente con el mismo Id
+        // espera aquí y, al seguir, ve el vínculo ya confirmado.
+        var vinculadaAOtro = await dbContext.Tenants.AnyAsync(
+            t => t.Id != request.TenantId && t.StripeSubscriptionId == request.StripeSubscriptionId, ct);
+        if (vinculadaAOtro)
+            return Result.Fallo(Error.Crear(
+                "Comercial.SuscripcionYaVinculada", "Esa suscripción de Stripe ya está vinculada a otro tenant."));
+
+        var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(request.StripeSubscriptionId, ct);
         if (suscripcion.EsFallido)
             return Result.Fallo(suscripcion.Error);
 
@@ -82,7 +115,7 @@ public class RegistrarSuscripcionTenantCommandHandler(
                 "Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe."));
 
         tenant.VincularSuscripcionStripe(suscripcion.Valor.IdCliente, suscripcion.Valor.IdSuscripcion, estadoInicial.Value);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await unitOfWork.SaveChangesAsync(ct);
 
         return Result.Exito();
     }

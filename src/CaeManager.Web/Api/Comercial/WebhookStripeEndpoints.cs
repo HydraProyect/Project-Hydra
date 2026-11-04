@@ -18,10 +18,12 @@ namespace CaeManager.Web.Api.Comercial;
 ///
 /// A diferencia de los webhooks de Microsoft 365/WhatsApp, aquí SÍ se
 /// procesa de forma síncrona dentro del propio request en vez de encolar
-/// para un HostedService: el trabajo real es una escritura de una sola fila
-/// (<c>Tenant.ActualizarEstadoComercial</c>), no un pipeline de IA ni de
-/// ingesta de documentos — no hay nada que ganar aplazándolo, y Stripe
-/// tolera hasta varios segundos de respuesta.
+/// para un HostedService: el trabajo real es una consulta HTTPS a Stripe,
+/// acotada a <see cref="ProcesadorWebhookSuscripcion.TiempoMaximoConsulta"/>, y
+/// una escritura de una sola fila (<c>Tenant.ActualizarEstadoComercial</c>), bajo
+/// el candado de la Subscription — no un pipeline de IA ni de ingesta de
+/// documentos. Si la consulta falla o se agota, se responde 503 sin escribir
+/// nada y Stripe reintenta.
 ///
 /// No resuelve tenant por URL (a diferencia del webhook de Graph, una URL
 /// por conexión): identifica el tenant afectado buscando por
@@ -53,7 +55,7 @@ public static class WebhookStripeEndpoints
         grupo.MapPost("/", async (
             HttpRequest request,
             IPaymentProvider paymentProvider,
-            ProcesadorWebhookSuscripcion procesador,
+            IProcesadorWebhookSuscripcion procesador,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
         {
@@ -78,7 +80,7 @@ public static class WebhookStripeEndpoints
             var resultado = await procesador.ProcesarAsync(evento.Valor, cancellationToken);
             var idSuscripcion = evento.Valor.Suscripcion?.IdSuscripcion;
 
-            switch (resultado)
+            switch (resultado.Resultado)
             {
                 case ResultadoWebhookSuscripcion.SinTenantVinculado:
                     // Suscripción todavía sin vincular a ningún tenant: p. ej. el webhook de
@@ -112,13 +114,13 @@ public static class WebhookStripeEndpoints
                     // ProcesadorWebhookSuscripcion sobre por qué no vale la copia del evento).
                     // Un código no 2xx hace que Stripe reintente el evento más tarde.
                     logger.LogWarning(
-                        "Webhook de Stripe {TipoEvento} para {IdSuscripcion}: no se pudo consultar el estado actual en Stripe; se pide reintento.",
-                        evento.Valor.TipoEvento, idSuscripcion);
+                        "Webhook de Stripe {TipoEvento} para {IdSuscripcion}: no se pudo consultar el estado actual en Stripe ({CodigoError}); se pide reintento.",
+                        evento.Valor.TipoEvento, idSuscripcion, resultado.CodigoError);
                     return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
                 default:
                     // SinSuscripcion (eventos de factura o de cliente, reconocidos con 200 para que
-                    // Stripe no los reintente) y Aplicado.
+                    // Stripe no los reintente), SinCambios y Aplicado.
                     return Results.Ok();
             }
         });

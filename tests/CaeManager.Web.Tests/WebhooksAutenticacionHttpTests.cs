@@ -182,7 +182,11 @@ public class WebhooksAutenticacionHttpTests
         builder.Services.AddSingleton<IPaymentProvider>(servicios => new StripePaymentProvider(
             Options.Create(new StripeOptions { ApiKey = "sk_test_falsa", WebhookSecret = Secreto }),
             servicios.GetRequiredService<ILogger<StripePaymentProvider>>()));
-        builder.Services.AddSingleton<ProcesadorWebhookSuscripcion>();
+        builder.Services.AddSingleton<ITransaccionDeComando>(Crear<ITransaccionDeComando>(llamadas,
+            (metodo, _) => throw new InvalidOperationException($"Transacción prematura: {metodo}")));
+        builder.Services.AddSingleton<IBloqueoSuscripcionStripe>(Crear<IBloqueoSuscripcionStripe>(llamadas,
+            (metodo, _) => throw new InvalidOperationException($"Candado prematuro: {metodo}")));
+        builder.Services.AddSingleton<IProcesadorWebhookSuscripcion, ProcesadorWebhookSuscripcion>();
         await using var app = builder.Build();
         app.MapWebhookWhatsAppEndpoints();
         app.MapWebhookMicrosoft365Endpoints();

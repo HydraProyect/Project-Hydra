@@ -17,6 +17,11 @@ namespace CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTen
 /// dashboard de Stripe, ver el informe de esta fase). Misma consulta a
 /// Stripe y mismo mapeo que <c>RegistrarSuscripcionTenantCommand</c> — solo
 /// cambia que aquí el tenant ya tiene una suscripción vinculada.
+///
+/// Lectura, consulta y guardado van en una transacción con los candados del Tenant y de su
+/// Subscription (<see cref="IBloqueoSuscripcionStripe"/>), los mismos que el webhook y el
+/// alta: sin ellos, una resincronización y un webhook concurrentes podían guardar en el
+/// orden contrario al que consultaron Stripe. Si el estado no cambia no se escribe nada.
 /// </summary>
 public record ActualizarEstadoComercialTenantCommand(Guid TenantId) : ICommand;
 
@@ -33,7 +38,9 @@ public class ActualizarEstadoComercialTenantCommandHandler(
     IPaymentProvider paymentProvider,
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITransaccionDeComando transaccion,
+    IBloqueoSuscripcionStripe bloqueo)
     : IRequestHandler<ActualizarEstadoComercialTenantCommand, Result>
 {
     public async Task<Result> Handle(ActualizarEstadoComercialTenantCommand request, CancellationToken cancellationToken)
@@ -50,6 +57,15 @@ public class ActualizarEstadoComercialTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
 
+        // La operación puede ejecutarse más de una vez (estrategia de reintentos de
+        // ITransaccionDeComando): todo lo que decide se lee dentro.
+        return await transaccion.EjecutarAsync(ct => ResincronizarBajoCandadoAsync(request, ct), cancellationToken);
+    }
+
+    private async Task<Result> ResincronizarBajoCandadoAsync(ActualizarEstadoComercialTenantCommand request, CancellationToken cancellationToken)
+    {
+        await bloqueo.BloquearTenantAsync(request.TenantId, cancellationToken);
+
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
         if (tenant is null)
             return Result.Fallo(Error.Crear("Comercial.TenantNoEncontrado", "No encontramos ese tenant."));
@@ -62,6 +78,8 @@ public class ActualizarEstadoComercialTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.SinSuscripcionVinculada", "Este tenant todavía no tiene ninguna suscripción de Stripe vinculada."));
 
+        await bloqueo.BloquearSuscripcionesAsync([tenant.StripeSubscriptionId], cancellationToken);
+
         var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(tenant.StripeSubscriptionId, cancellationToken);
         if (suscripcion.EsFallido)
             return Result.Fallo(suscripcion.Error);
@@ -70,6 +88,9 @@ public class ActualizarEstadoComercialTenantCommandHandler(
         if (nuevoEstado is null)
             return Result.Fallo(Error.Crear(
                 "Comercial.EstadoNoReconocido", "Stripe devolvió un estado de suscripción que no reconocemos. Revisa la suscripción directamente en Stripe."));
+
+        if (tenant.EstadoComercial == nuevoEstado.Value)
+            return Result.Exito();
 
         tenant.ActualizarEstadoComercial(nuevoEstado.Value);
         await unitOfWork.SaveChangesAsync(cancellationToken);

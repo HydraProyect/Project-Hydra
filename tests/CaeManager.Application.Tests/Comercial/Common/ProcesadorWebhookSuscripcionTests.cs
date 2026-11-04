@@ -9,8 +9,14 @@ namespace CaeManager.Application.Tests.Comercial.Common;
 
 public class ProcesadorWebhookSuscripcionTests
 {
+    private readonly UnitOfWorkFalso unitOfWork = new();
+    private readonly TransaccionDeComandoFalsa transaccion = new();
+
     private static EventoWebhookProveedorDto Evento(string idSuscripcion, EstadoSuscripcionProveedor estadoEnElEvento) =>
         new("customer.subscription.updated", new SuscripcionProveedorDto(idSuscripcion, "cus_1", estadoEnElEvento));
+
+    private static PaymentProviderFalso StripeReporta(EstadoSuscripcionProveedor estado) =>
+        new(Result.Exito(new SuscripcionProveedorDto("sub_1", "cus_1", estado)));
 
     private static (Tenant Tenant, TenantsQueryContextFalso Db) TenantVinculado(EstadoComercialTenant estado)
     {
@@ -21,55 +27,101 @@ public class ProcesadorWebhookSuscripcionTests
         return (tenant, db);
     }
 
+    private ProcesadorWebhookSuscripcion Procesador(
+        TenantsQueryContextFalso db, PaymentProviderFalso proveedor, BloqueoSuscripcionStripeFalso? bloqueo = null) =>
+        new(db, proveedor, transaccion, bloqueo ?? new BloqueoSuscripcionStripeFalso(), unitOfWork);
+
     /// <summary>
     /// Stripe no garantiza el orden de entrega: un <c>past_due</c> atrasado que llega después
     /// de que la Subscription volviera a <c>active</c> no debe devolver al Tenant beneficiario a
-    /// «aviso de impago». Se aplica lo que Stripe reporta ahora, no la copia del evento.
+    /// «aviso de impago». Se aplica lo que Stripe reporta ahora, no la copia del evento; y como
+    /// eso coincide con lo guardado, no se escribe nada.
     /// </summary>
     [Fact]
-    public async Task Un_evento_atrasado_no_regresa_el_estado_aplica_el_estado_actual_de_Stripe()
+    public async Task Un_evento_atrasado_no_regresa_el_estado_ni_escribe()
     {
         var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
-        var proveedor = new PaymentProviderFalso(
-            Result.Exito(new SuscripcionProveedorDto("sub_1", "cus_1", EstadoSuscripcionProveedor.Activa)));
-        var unitOfWork = new UnitOfWorkFalso();
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Activa);
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.EnPeriodoGracia), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.Aplicado);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SinCambios);
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
         proveedor.UltimoIdConsultado.Should().Be("sub_1");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Un <c>updated</c> atrasado con <c>active</c> que llega cuando la Subscription ya está
+    /// cancelada en Stripe no reactiva al Tenant beneficiario suspendido.
+    /// </summary>
+    [Fact]
+    public async Task Un_evento_activo_atrasado_no_reactiva_una_suscripcion_cancelada()
+    {
+        var (tenant, db) = TenantVinculado(EstadoComercialTenant.Suspendida);
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Cancelada);
+
+        var resultado = await Procesador(db, proveedor)
+            .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), CancellationToken.None);
+
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SinCambios);
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Suspendida);
     }
 
     [Fact]
     public async Task Aplica_el_impago_cuando_Stripe_lo_confirma_al_consultar()
     {
         var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
-        var proveedor = new PaymentProviderFalso(
-            Result.Exito(new SuscripcionProveedorDto("sub_1", "cus_1", EstadoSuscripcionProveedor.Impagada)));
-        var unitOfWork = new UnitOfWorkFalso();
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Impagada);
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.Aplicado);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.Aplicado);
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SoloLectura);
         unitOfWork.VecesGuardado.Should().Be(1);
+        transaccion.Confirmadas.Should().Be(1);
+    }
+
+    /// <summary>
+    /// La carrera del alta a medias: el webhook llega mientras el alta manual tiene el
+    /// candado y todavía no ha confirmado el vínculo. El webhook debe buscar el Tenant
+    /// DESPUÉS de obtener el candado, cuando el alta ya confirmó; si lo buscara antes,
+    /// respondería «sin Tenant» con 200 y el cambio se perdería.
+    /// </summary>
+    [Fact]
+    public async Task Busca_el_tenant_despues_de_obtener_el_candado_de_la_suscripcion()
+    {
+        var tenant = new Tenant("Ibertec");
+        var db = new TenantsQueryContextFalso();
+        db.ListaTenants.Add(tenant);
+        var bloqueo = new BloqueoSuscripcionStripeFalso
+        {
+            AlBloquearSuscripciones = () => tenant.VincularSuscripcionStripe("cus_1", "sub_1", EstadoComercialTenant.Activa),
+        };
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Impagada);
+
+        var resultado = await Procesador(db, proveedor, bloqueo)
+            .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Impagada), CancellationToken.None);
+
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.Aplicado);
+        bloqueo.Suscripciones.Should().Equal("sub_1");
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.SoloLectura);
     }
 
     [Fact]
-    public async Task Si_Stripe_no_responde_no_escribe_nada_y_pide_reintento()
+    public async Task Si_Stripe_no_responde_no_escribe_nada_y_pide_reintento_con_el_codigo()
     {
         var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
         var proveedor = new PaymentProviderFalso(
             Result.Fallo<SuscripcionProveedorDto>(Error.Crear("PaymentProvider.ErrorApi", "caído")));
-        var unitOfWork = new UnitOfWorkFalso();
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Cancelada), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.ProveedorNoDisponible);
+        resultado.Should().Be(new ProcesamientoWebhookSuscripcion(
+            ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.ErrorApi"));
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
         unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -79,12 +131,11 @@ public class ProcesadorWebhookSuscripcionTests
     {
         var (_, db) = TenantVinculado(EstadoComercialTenant.Activa);
         var proveedor = new PaymentProviderFalso();
-        var unitOfWork = new UnitOfWorkFalso();
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_otra", EstadoSuscripcionProveedor.Activa), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.SinTenantVinculado);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SinTenantVinculado);
         proveedor.VecesConsultado.Should().Be(0);
         unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -97,14 +148,12 @@ public class ProcesadorWebhookSuscripcionTests
         plataforma.VincularSuscripcionStripe("cus_1", "sub_1", EstadoComercialTenant.Activa);
         var db = new TenantsQueryContextFalso();
         db.ListaTenants.Add(plataforma);
-        var proveedor = new PaymentProviderFalso(
-            Result.Exito(new SuscripcionProveedorDto("sub_1", "cus_1", EstadoSuscripcionProveedor.Cancelada)));
-        var unitOfWork = new UnitOfWorkFalso();
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Cancelada);
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Cancelada), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.TenantNoSuscribible);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.TenantNoSuscribible);
         plataforma.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
         proveedor.VecesConsultado.Should().Be(0);
     }
@@ -114,27 +163,26 @@ public class ProcesadorWebhookSuscripcionTests
     {
         var (_, db) = TenantVinculado(EstadoComercialTenant.Activa);
         var proveedor = new PaymentProviderFalso();
-        var unitOfWork = new UnitOfWorkFalso();
+        var bloqueo = new BloqueoSuscripcionStripeFalso();
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor, bloqueo)
             .ProcesarAsync(new EventoWebhookProveedorDto("invoice.paid", null), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.SinSuscripcion);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SinSuscripcion);
         proveedor.VecesConsultado.Should().Be(0);
+        bloqueo.Eventos.Should().BeEmpty();
     }
 
     [Fact]
     public async Task Un_estado_actual_no_reconocido_no_muta()
     {
         var (tenant, db) = TenantVinculado(EstadoComercialTenant.AvisoImpago);
-        var proveedor = new PaymentProviderFalso(
-            Result.Exito(new SuscripcionProveedorDto("sub_1", "cus_1", EstadoSuscripcionProveedor.Desconocida)));
-        var unitOfWork = new UnitOfWorkFalso();
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Desconocida);
 
-        var resultado = await new ProcesadorWebhookSuscripcion(db, proveedor, unitOfWork)
+        var resultado = await Procesador(db, proveedor)
             .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), CancellationToken.None);
 
-        resultado.Should().Be(ResultadoWebhookSuscripcion.EstadoNoReconocido);
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.EstadoNoReconocido);
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.AvisoImpago);
         unitOfWork.VecesGuardado.Should().Be(0);
     }

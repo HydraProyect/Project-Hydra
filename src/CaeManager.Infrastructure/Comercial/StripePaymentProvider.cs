@@ -46,8 +46,9 @@ public class StripePaymentProvider(IOptions<StripeOptions> opciones, ILogger<Str
             // evento — es el patrón documentado por Stripe para no fiarse de
             // un payload cuya firma no se ha comprobado todavía.
             //
-            // throwOnApiVersionMismatch: false — Hydra solo lee id/customer/
-            // status de la Subscription embebida, campos estables entre
+            // throwOnApiVersionMismatch: false — Hydra solo lee el tipo y el
+            // id/customer/status de la Subscription embebida (y del estado
+            // aplica el que reporta ObtenerSuscripcionAsync, no este), campos estables entre
             // versiones de la API de Stripe desde hace años; no hay motivo
             // para tumbar el procesamiento de un webhook legítimo por un
             // desajuste de versión que no afecta a nada de lo que se lee
