@@ -1,7 +1,33 @@
 using System.Threading.RateLimiting;
 using CaeManager.Web.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.AltaAutonoma.Antiabuso;
+
+/// <summary>
+/// Política <c>alta</c> tal como se registra en <c>AddRateLimiter</c>: reparte con <see cref="LimitadorAlta.Particion"/>
+/// y tiene su propio rechazo. El 429 tiene que salir vacío, y <c>UseStatusCodePagesWithReExecute("/not-found")</c>, que
+/// va antes del limitador, lo reejecutaría hacia la página de «no encontrado»: un POST de formulario acabaría en HTML de
+/// esa página, o en 400 si el reenvío choca con la antifalsificación. El rechazo apaga las páginas de estado para esta
+/// respuesta, como hace el presupuesto de memoria con su 503.
+/// </summary>
+public sealed class PoliticaLimitadorAlta(IOptions<OpcionesAntiabusoAlta> opciones) : IRateLimiterPolicy<string>
+{
+    public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; } = Rechazar;
+
+    public RateLimitPartition<string> GetPartition(HttpContext httpContext) =>
+        LimitadorAlta.Particion(httpContext, opciones.Value);
+
+    private static ValueTask Rechazar(OnRejectedContext contexto, CancellationToken _)
+    {
+        if (contexto.HttpContext.Features.Get<IStatusCodePagesFeature>() is { } paginasEstado)
+            paginasEstado.Enabled = false;
+
+        return ValueTask.CompletedTask;
+    }
+}
 
 /// <summary>
 /// Política de limitación <c>alta</c> (ASVS 4.0.3 V2.2.1 y V11.1.4): reparte por IP los inicios del alta autónoma con
@@ -24,7 +50,15 @@ public static class LimitadorAlta
 {
     public const string Politica = "alta";
 
-    public static RateLimitPartition<string> Particion(HttpContext contexto, OpcionesAntiabusoAlta opciones)
+    public static RateLimitPartition<string> Particion(HttpContext contexto, OpcionesAntiabusoAlta opciones) =>
+        Particion(contexto, opciones, TimeSpan.FromHours(1), TimeSpan.FromDays(1));
+
+    /// <summary>
+    /// La misma partición con ventanas a medida. Solo la usan las pruebas, para observar con ventanas de milisegundos
+    /// que el ciclo del limitador particionado repone las dos (el proyecto no abre sus internos a las pruebas).
+    /// </summary>
+    public static RateLimitPartition<string> Particion(
+        HttpContext contexto, OpcionesAntiabusoAlta opciones, TimeSpan ventanaCorta, TimeSpan ventanaLarga)
     {
         if (!HttpMethods.IsPost(contexto.Request.Method))
             return RateLimitPartition.GetNoLimiter("alta-sin-limite");
@@ -35,8 +69,8 @@ public static class LimitadorAlta
         return RateLimitPartition.Get(
             $"alta:{porHora}:{porDia}:{LimitadorApiPublica.IpDelCliente(contexto)}",
             _ => new LimitadorEncadenado(
-                VentanaFija(porHora, TimeSpan.FromHours(1)),
-                VentanaFija(porDia, TimeSpan.FromDays(1))));
+                VentanaFija(porHora, ventanaCorta),
+                VentanaFija(porDia, ventanaLarga)));
     }
 
     // Sin reposición automática: cada FixedWindowRateLimiter automático arma su propio temporizador, uno por IP y por

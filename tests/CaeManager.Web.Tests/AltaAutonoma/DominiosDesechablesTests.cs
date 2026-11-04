@@ -26,6 +26,12 @@ public class DominiosDesechablesTests
     [InlineData("alguien@buzon.guerrillamail.com")]
     [InlineData("a@b@10minutemail.com")]
     [InlineData("alguien@trashmail.de")]
+    // Separadores Unicode que IDNA convierte en punto, al final y en medio: el punto final que aparece tras la
+    // conversión no puede sacar el dominio de la lista.
+    [InlineData("alguien@mailinator.com。")]
+    [InlineData("alguien@mailinator.com．")]
+    [InlineData("alguien@mailinator.com｡")]
+    [InlineData("alguien@mailinator。com")]
     public void Un_dominio_desechable_o_un_subdominio_suyo_se_detecta(string correo)
     {
         Validador.EsDominioDesechable(correo).Should().BeTrue();

@@ -14,9 +14,9 @@ namespace CaeManager.Web.Tests.AltaAutonoma;
 
 /// <summary>
 /// Política <c>alta</c> del limitador (ASVS 4.0.3 V2.2.1 y V11.1.4): por IP, una ventana por hora y otra por día en
-/// serie, solo para POST. Las ventanas son de una hora y un día de reloj real, así que aquí se prueban los cupos, no su
-/// reposición. Que <c>Program.cs</c> registre la política con esta partición lo vigila
-/// <c>LimitadorAltaRegistradoEnProgramTests</c> (Architecture.Tests).
+/// serie, solo para POST. Las ventanas reales son de una hora y un día; la reposición se prueba con la misma partición y
+/// ventanas de milisegundos dentro del limitador particionado. Que <c>Program.cs</c> registre la política con
+/// <see cref="PoliticaLimitadorAlta"/> lo vigila <c>LimitadorAltaRegistradoEnProgramTests</c> (Architecture.Tests).
 /// </summary>
 public class LimitadorAltaTests
 {
@@ -79,6 +79,46 @@ public class LimitadorAltaTests
     }
 
     [Fact]
+    public async Task El_limitador_particionado_repone_las_dos_ventanas_en_su_ciclo()
+    {
+        // Ventanas de milisegundos sobre el PartitionedRateLimiter real: sin reposición automática propia, solo el
+        // ciclo del particionado (cada 100 ms) puede devolver el cupo, y lo hace a través de LimitadorEncadenado.
+        var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 2, IniciosPorDiaPorIp = 3 };
+        using var particionado = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
+            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(3)));
+        var contexto = Post("203.0.113.9");
+
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeFalse("la ventana corta está agotada");
+
+        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(2)))
+            .Should().BeTrue("el ciclo del particionado repone la ventana corta");
+
+        await Task.Delay(TimeSpan.FromMilliseconds(400));
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeFalse(
+            "con la corta repuesta, la larga lleva sus 3 permisos gastados y sigue cerrada");
+
+        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(6)))
+            .Should().BeTrue("el mismo ciclo repone también la ventana larga");
+    }
+
+    private static async Task<bool> HastaQueConceda(PartitionedRateLimiter<HttpContext> limitador, HttpContext contexto, TimeSpan plazo)
+    {
+        var limite = DateTime.UtcNow + plazo;
+        while (DateTime.UtcNow < limite)
+        {
+            using var concesion = limitador.AttemptAcquire(contexto);
+            if (concesion.IsAcquired)
+                return true;
+
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+
+        return false;
+    }
+
+    [Fact]
     public async Task Al_liberarse_suelta_las_dos_ventanas()
     {
         var limitador = Limitador(Post("203.0.113.9"), new OpcionesAntiabusoAlta());
@@ -116,15 +156,18 @@ public class LimitadorAltaTests
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.Configure<OpcionesAntiabusoAlta>(o => { o.IniciosPorHoraPorIp = 2; o.IniciosPorDiaPorIp = 20; });
         builder.Services.AddRateLimiter(opciones =>
         {
             opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            opciones.AddPolicy(LimitadorAlta.Politica, contexto =>
-                LimitadorAlta.Particion(contexto, new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 2, IniciosPorDiaPorIp = 20 }));
+            opciones.AddPolicy<string, PoliticaLimitadorAlta>(LimitadorAlta.Politica);
         });
 
         await using var app = builder.Build();
+        // Como en Program.cs: las páginas de estado van antes del limitador y reejecutarían el 429 hacia /not-found.
+        app.UseStatusCodePagesWithReExecute("/not-found");
         app.UseRateLimiter();
+        app.Map("/not-found", () => "pagina de no encontrado");
         app.MapPost("/alta", () => "ok").RequireRateLimiting(LimitadorAlta.Politica);
         app.MapGet("/alta", () => "formulario").RequireRateLimiting(LimitadorAlta.Politica);
         await app.StartAsync();

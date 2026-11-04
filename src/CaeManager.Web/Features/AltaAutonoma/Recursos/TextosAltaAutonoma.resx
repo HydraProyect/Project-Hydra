@@ -30,4 +30,7 @@
   <data name="CampoTrampaEtiqueta" xml:space="preserve">
     <value>Deja este campo vacío</value>
   </data>
+  <data name="RetoCaducado" xml:space="preserve">
+    <value>La comprobación ha caducado. Recarga la página para enviar el formulario.</value>
+  </data>
 </root>

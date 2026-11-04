@@ -174,7 +174,21 @@ public class RetoPruebaTrabajoTests
     [InlineData(29)]
     public void Una_dificultad_fuera_de_rango_invalida_las_opciones(int bits)
     {
-        new OpcionesAntiabusoAlta { DificultadBits = bits }.EsValida().Should().Be(bits is >= 8 and <= 28);
+        new OpcionesAntiabusoAlta { DificultadBits = bits, VigenciaReto = TimeSpan.FromHours(2) }.EsValida()
+            .Should().Be(bits is >= 8 and <= 23, "con 2 h de vigencia, el tope conjunto queda en 23 bits");
+    }
+
+    [Theory]
+    // 20 veces la búsqueda media a 24.000 hashes/s: 20 bits son 874 s y caben en 20 min; 21 bits son 1.748 s y no.
+    [InlineData(20, 20, true)]
+    [InlineData(21, 20, false)]
+    [InlineData(21, 30, true)]
+    [InlineData(16, 1, true)]
+    [InlineData(17, 1, false)]
+    public void La_vigencia_del_reto_tiene_que_cubrir_su_dificultad(int bits, int minutos, bool valida)
+    {
+        new OpcionesAntiabusoAlta { DificultadBits = bits, VigenciaReto = TimeSpan.FromMinutes(minutos) }.EsValida()
+            .Should().Be(valida);
     }
 
     [Fact]

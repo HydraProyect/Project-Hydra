@@ -15,13 +15,19 @@ public class LimitadorAltaRegistradoEnProgramTests
     [Fact]
     public void La_politica_alta_reparte_con_LimitadorAlta_y_las_opciones_configuradas()
     {
+        // PoliticaLimitadorAlta reparte con LimitadorAlta.Particion y las opciones configuradas, y lleva el rechazo que
+        // apaga las páginas de estado; su comportamiento lo prueba LimitadorAltaTests sobre el pipeline real.
         var politica = Regex.Match(ProgramSinComentarios(),
-            @"AddPolicy\([\w.]*LimitadorAlta\.Politica,.*?\);", RegexOptions.Singleline);
+            @"AddPolicy<string,\s*[\w.]*\bPoliticaLimitadorAlta>\(\s*[\w.]*LimitadorAlta\.Politica\s*\);", RegexOptions.Singleline);
 
-        politica.Success.Should().BeTrue("la política alta debe registrarse con la constante de LimitadorAlta");
-        politica.Value.Should().Contain("LimitadorAlta.Particion(")
-            .And.Contain("IOptions<CaeManager.Web.Features.AltaAutonoma.Antiabuso.OpcionesAntiabusoAlta>")
-            .And.NotContain(".User");
+        politica.Success.Should().BeTrue("la política alta debe registrarse con PoliticaLimitadorAlta y la constante de LimitadorAlta");
+    }
+
+    [Fact]
+    public void La_politica_alta_no_se_registra_ademas_con_un_repartidor_suelto()
+    {
+        // Un AddPolicy(LimitadorAlta.Politica, contexto => ...) perdería el rechazo propio y el 429 volvería a reejecutarse.
+        Regex.Matches(ProgramSinComentarios(), @"LimitadorAlta\.Politica\b").Count.Should().Be(1);
     }
 
     [Fact]

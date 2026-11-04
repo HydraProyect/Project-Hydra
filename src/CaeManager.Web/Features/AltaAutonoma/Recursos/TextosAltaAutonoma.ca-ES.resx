@@ -30,4 +30,7 @@
   <data name="CampoTrampaEtiqueta" xml:space="preserve">
     <value>Deixa aquest camp buit</value>
   </data>
+  <data name="RetoCaducado" xml:space="preserve">
+    <value>La comprovació ha caducat. Torna a carregar la pàgina per enviar el formulari.</value>
+  </data>
 </root>

@@ -32,11 +32,27 @@ public sealed class OpcionesAntiabusoAlta
     /// <summary>Vida del sello de tiempo del formulario.</summary>
     public TimeSpan VigenciaSelloFormulario { get; set; } = TimeSpan.FromHours(2);
 
+    /// <summary>Hashes por segundo medidos con Node 24 y <c>crypto.subtle</c> por lotes (ver <see cref="DificultadBits"/>).</summary>
+    public const double HashesPorSegundoMedidos = 24_000;
+
+    /// <summary>
+    /// Veces la búsqueda media que la vigencia del reto tiene que cubrir. La búsqueda es geométrica: la probabilidad de
+    /// pasar de k veces la media es e^-k, así que con 20 un reto caduca a medio resolver menos de una vez entre 400
+    /// millones al ritmo medido, y aún cubre de sobra un equipo varias veces más lento.
+    /// </summary>
+    public const int HolguraVigenciaSobreBusquedaMedia = 20;
+
+    /// <summary>Segundos de búsqueda media del reto al ritmo medido: 2^bits intentos entre los hashes por segundo.</summary>
+    public double SegundosBusquedaMedia => Math.Pow(2, DificultadBits) / HashesPorSegundoMedidos;
+
     public bool EsValida() =>
         IniciosPorHoraPorIp is >= 1 and <= 10_000
         && IniciosPorDiaPorIp >= IniciosPorHoraPorIp && IniciosPorDiaPorIp <= 100_000
         && DificultadBits is >= 8 and <= 28
         && VigenciaReto >= TimeSpan.FromMinutes(1) && VigenciaReto <= TimeSpan.FromHours(2)
+        // Dificultad y vigencia van juntas: un reto que tarda más en resolverse que en caducar deja el formulario
+        // esperando una solución que el servidor ya no aceptaría.
+        && VigenciaReto.TotalSeconds >= HolguraVigenciaSobreBusquedaMedia * SegundosBusquedaMedia
         && TiempoMinimoEnvio >= TimeSpan.Zero && TiempoMinimoEnvio <= TimeSpan.FromMinutes(1)
         && VigenciaSelloFormulario > TiempoMinimoEnvio && VigenciaSelloFormulario <= TimeSpan.FromHours(24);
 }

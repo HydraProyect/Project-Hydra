@@ -72,14 +72,18 @@ public sealed class ValidadorDominiosDesechables
 
     private static string? Normalizar(string dominio)
     {
-        dominio = dominio.Trim().TrimEnd('.');
+        // IDNA trata como punto los tres separadores Unicode equivalentes (U+3002, U+FF0E, U+FF61): se pasan a punto
+        // ASCII antes de quitar el final, y el final se quita otra vez tras GetAscii, para que «mailinator.com。» no se
+        // escape de la lista con un punto final que solo aparece tras la conversión.
+        dominio = dominio.Trim().Replace('。', '.').Replace('．', '.').Replace('｡', '.').TrimEnd('.');
         // 253 es el máximo de un nombre de dominio: más largo no es un dominio y no se normaliza.
         if (dominio.Length is 0 or > LongitudMaximaDominio)
             return null;
 
         try
         {
-            return Idn.GetAscii(dominio).ToLowerInvariant();
+            var ascii = Idn.GetAscii(dominio).TrimEnd('.').ToLowerInvariant();
+            return ascii.Length == 0 ? null : ascii;
         }
         catch (ArgumentException)
         {

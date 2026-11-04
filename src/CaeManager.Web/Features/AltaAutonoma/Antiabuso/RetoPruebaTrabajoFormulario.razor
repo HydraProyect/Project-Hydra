@@ -13,10 +13,12 @@
      data-reto="@_reto.Token"
      data-bits="@_reto.DificultadBits"
      data-espera-minima-ms="@((long)Opciones.Value.TiempoMinimoEnvio.TotalMilliseconds)"
+     data-vigencia-ms="@((long)Opciones.Value.VigenciaReto.TotalMilliseconds)"
      data-trabajador="@Assets["js/reto-prueba-trabajo-worker.js"]"
      data-texto-listo="@T["RetoListo"]"
      data-texto-esperando="@T["RetoEsperando"]"
-     data-texto-error="@T["RetoError"]">
+     data-texto-error="@T["RetoError"]"
+     data-texto-caducado="@T["RetoCaducado"]">
     <input type="hidden" name="@CampoReto" value="@_reto.Token" />
     <input type="hidden" name="@CampoSolucion" value="" data-reto-solucion />
     <p role="status" aria-live="polite" data-reto-estado>@T["RetoComprobando"]</p>

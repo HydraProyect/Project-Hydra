@@ -11,19 +11,20 @@ import { fileURLToPath } from 'node:url';
 const ruta = fileURLToPath(new URL('../../../src/CaeManager.Web/wwwroot/js/reto-prueba-trabajo.js', import.meta.url));
 const texto = readFileSync(ruta, 'utf8');
 
-function montarPagina({ conWorker = true, esperaMs = 3000 } = {}) {
+function montarPagina({ conWorker = true, esperaMs = 3000, vigenciaMs = 1200000 } = {}) {
     let reloj = 0;
     const temporizadores = [];
     const oyentesWindow = [];
     const trabajadores = [];
     const envios = [];
+    const oyentesBlazor = {};
 
     const aviso = { textContent: 'comprobando' };
     const campo = { value: 'x' };
     const atributos = {
-        'data-reto': 'token-del-reto', 'data-bits': '8', 'data-espera-minima-ms': String(esperaMs),
+        'data-reto': 'token-del-reto', 'data-bits': '8', 'data-espera-minima-ms': String(esperaMs), 'data-vigencia-ms': String(vigenciaMs),
         'data-trabajador': '/js/reto-prueba-trabajo-worker.js',
-        'data-texto-listo': 'listo', 'data-texto-esperando': 'esperando', 'data-texto-error': 'error',
+        'data-texto-listo': 'listo', 'data-texto-esperando': 'esperando', 'data-texto-error': 'error', 'data-texto-caducado': 'caducado',
     };
     const formulario = {
         querySelector: (s) => (s === '[data-reto-prueba-trabajo]' ? contenedor : null),
@@ -33,14 +34,17 @@ function montarPagina({ conWorker = true, esperaMs = 3000 } = {}) {
         getAttribute: (n) => atributos[n] ?? null,
         querySelector: (s) => (s === '[data-reto-solucion]' ? campo : s === '[data-reto-estado]' ? aviso : null),
         closest: () => formulario,
+        isConnected: true,
     };
+    const enDocumento = [contenedor];
 
     const window = {
         addEventListener: (tipo, fn, captura) => oyentesWindow.push({ tipo, fn, captura: !!captura }),
+        Blazor: { addEventListener: (tipo, fn) => { oyentesBlazor[tipo] = fn; } },
     };
     const document = {
         readyState: 'complete',
-        querySelectorAll: () => [contenedor],
+        querySelectorAll: () => enDocumento,
         addEventListener: () => {},
     };
     class TrabajadorFalso {
@@ -70,7 +74,13 @@ function montarPagina({ conWorker = true, esperaMs = 3000 } = {}) {
         for (const t of temporizadores.filter((t) => t.vence <= reloj)) { clearTimeout(t); t.fn(); }
     }
 
-    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar };
+    function navegarFuera() {
+        contenedor.isConnected = false;
+        enDocumento.length = 0;
+        oyentesBlazor.enhancedload();
+    }
+
+    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar, navegarFuera };
 }
 
 test('arranca el worker al montar con el reto y los bits, sin esperar a la persona', () => {
@@ -137,4 +147,45 @@ test('sin Web Worker se avisa del error y el formulario no queda retenido', () =
     const p = montarPagina({ conWorker: false });
     assert.equal(p.aviso.textContent, 'error');
     assert.equal(p.enviar().cancelado, false);
+});
+
+test('al caducar el reto se para el cálculo, se avisa y el envío deja de retenerse', () => {
+    const p = montarPagina({ vigenciaMs: 60000 });
+    p.avanzar(3500);
+    assert.equal(p.enviar().cancelado, true, 'sin solución, retenido');
+
+    p.avanzar(60000 - 10000 - 3500 - 1);
+    assert.equal(p.trabajadores[0].terminado, false, 'un instante antes del margen sigue calculando');
+    p.avanzar(1);
+
+    assert.ok(p.trabajadores[0].terminado, 'el worker se termina al caducar');
+    assert.equal(p.aviso.textContent, 'caducado');
+    assert.equal(p.envios.length, 0, 'el retenido no se repite con un reto caducado');
+
+    p.trabajadores[0].onmessage({ data: { nonce: '99' } });
+    assert.equal(p.campo.value, '', 'una solución tardía no se usa');
+    assert.equal(p.aviso.textContent, 'caducado');
+    assert.equal(p.enviar().cancelado, false, 'el siguiente envío sale y el servidor responde');
+});
+
+test('resuelto y retenido por la trampa de tiempo, caducar cancela la repetición pendiente', () => {
+    const p = montarPagina({ esperaMs: 3000, vigenciaMs: 12000 });
+    p.trabajadores[0].onmessage({ data: { nonce: '7' } });
+    assert.equal(p.enviar().cancelado, true);
+    p.avanzar(2000);
+
+    assert.equal(p.aviso.textContent, 'caducado', 'vigencia de 12 s menos el margen de 10 s');
+    p.avanzar(5000);
+    assert.equal(p.envios.length, 0);
+});
+
+test('al salir del formulario por navegación mejorada se termina su worker', () => {
+    const p = montarPagina();
+    assert.equal(p.trabajadores[0].terminado, false);
+
+    p.navegarFuera();
+
+    assert.ok(p.trabajadores[0].terminado, 'el worker del contenedor retirado no sigue calculando');
+    p.avanzar(1200000);
+    assert.equal(p.aviso.textContent, 'comprobando', 'tampoco queda vivo el temporizador de caducidad');
 });

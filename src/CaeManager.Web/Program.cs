@@ -517,10 +517,10 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy(LimitadorEntregaExtension.Politica, httpContext =>
         LimitadorEntregaExtension.ParticionPorUsuario(httpContext, rateLimitEntregaExtensionPorMinuto,
             httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
-    // Inicios del alta autónoma: por IP, 5 por hora y 20 por día por defecto (ver LimitadorAlta).
-    options.AddPolicy(CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.Politica, httpContext =>
-        CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.Particion(httpContext,
-            httpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Web.Features.AltaAutonoma.Antiabuso.OpcionesAntiabusoAlta>>().Value));
+    // Inicios del alta autónoma: por IP, 5 por hora y 20 por día por defecto (ver LimitadorAlta). La política lleva su
+    // propio rechazo, que impide que las páginas de estado reejecuten el 429 hacia /not-found.
+    options.AddPolicy<string, CaeManager.Web.Features.AltaAutonoma.Antiabuso.PoliticaLimitadorAlta>(
+        CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.Politica);
 });
 
 // Los enums viajan por JSON como CADENA, no como número. Sin esto salían
