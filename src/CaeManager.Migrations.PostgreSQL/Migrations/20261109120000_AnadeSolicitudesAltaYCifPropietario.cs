@@ -25,6 +25,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 maxLength: 20,
                 nullable: true);
 
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_Tenants_TipoTenant",
+                table: "Tenants",
+                sql: "\"TipoTenant\" IN ('GestionPropia', 'GestionExterna', 'OperadorCaeExterno')");
+
             migrationBuilder.CreateTable(
                 name: "SolicitudesAlta",
                 columns: table => new
@@ -45,6 +50,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RazonSocial = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     CifNif = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     DomicilioFiscal = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    Telefono = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
                     Tramo = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     Modalidad = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     DeclaraRepresentacion = table.Column<bool>(type: "boolean", nullable: false),
@@ -63,6 +69,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     table.CheckConstraint("CK_SolicitudesAlta_CompletadaConTenant", "(\"Estado\" <> 'Completada') OR (\"TenantIdCreado\" IS NOT NULL)");
                     table.CheckConstraint("CK_SolicitudesAlta_CorreoSalvoBorrado", "(\"Correo\" IS NOT NULL) OR (\"DatosPersonalesBorradosEnUtc\" IS NOT NULL)");
                     table.CheckConstraint("CK_SolicitudesAlta_Estado", "\"Estado\" IN ('Iniciada', 'CorreoVerificado', 'DerivadaAAcceso', 'DatosCompletos', 'PendientePago', 'Pagada', 'Completada', 'Reembolsada', 'Caducada', 'Bloqueada')");
+                    table.CheckConstraint("CK_SolicitudesAlta_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
+                    table.CheckConstraint("CK_SolicitudesAlta_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
                 });
 
             migrationBuilder.CreateTable(
@@ -105,6 +113,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 columns: new[] { "SolicitudAltaId", "Documento" },
                 unique: true);
 
+            migrationBuilder.CreateIndex(
+                name: "IX_SolicitudesAlta_Estado_CaducaEnUtc",
+                table: "SolicitudesAlta",
+                columns: new[] { "Estado", "CaducaEnUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SolicitudesAlta_HashTokenVerificacion",
+                table: "SolicitudesAlta",
+                column: "HashTokenVerificacion",
+                unique: true,
+                filter: "\"HashTokenVerificacion\" IS NOT NULL");
+
             // Solicitudes de alta autónoma: plano de Plataforma, sin TenantId (el Tenant propietario aún no
             // existe). Esta migración solo crea el almacén; la vía de acceso la abre el incremento del registro.
             //
@@ -116,7 +136,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // columna (OWASP ASVS 4.0.3 V4.1.3, V8.3.4).
             //
             // Compatible con la ranura anterior durante el relevo: solo añade tablas, columnas nullable y un
-            // índice parcial sobre una columna que la versión anterior no escribe.
+            // índice parcial y un CHECK sobre columnas que la versión anterior no escribe (todas nacen null).
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."SolicitudesAlta" ENABLE ROW LEVEL SECURITY;
@@ -140,6 +160,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             migrationBuilder.DropIndex(
                 name: "IX_Tenants_CifPropietario",
+                table: "Tenants");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_Tenants_TipoTenant",
                 table: "Tenants");
 
             migrationBuilder.DropColumn(

@@ -16,9 +16,9 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
     {
         builder.ToTable("SolicitudesAlta", t =>
         {
-            t.HasCheckConstraint("CK_SolicitudesAlta_Estado",
-                "\"Estado\" IN ('Iniciada', 'CorreoVerificado', 'DerivadaAAcceso', 'DatosCompletos', 'PendientePago', "
-                + "'Pagada', 'Completada', 'Reembolsada', 'Caducada', 'Bloqueada')");
+            t.HasCheckConstraint("CK_SolicitudesAlta_Estado", EnValoresDe<EstadoSolicitudAlta>("Estado"));
+            t.HasCheckConstraint("CK_SolicitudesAlta_Tramo", EnValoresDe<TramoTrabajadoresActivos>("Tramo"));
+            t.HasCheckConstraint("CK_SolicitudesAlta_Modalidad", EnValoresDe<ModalidadSuscripcionAlta>("Modalidad"));
             t.HasCheckConstraint("CK_SolicitudesAlta_CorreoSalvoBorrado",
                 "(\"Correo\" IS NOT NULL) OR (\"DatosPersonalesBorradosEnUtc\" IS NOT NULL)");
             t.HasCheckConstraint("CK_SolicitudesAlta_CompletadaConTenant",
@@ -36,6 +36,7 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
         builder.Property(s => s.RazonSocial).HasMaxLength(SolicitudAlta.LongitudMaximaRazonSocial);
         builder.Property(s => s.CifNif).HasMaxLength(SolicitudAlta.LongitudMaximaCifNif);
         builder.Property(s => s.DomicilioFiscal).HasMaxLength(SolicitudAlta.LongitudMaximaDomicilioFiscal);
+        builder.Property(s => s.Telefono).HasMaxLength(SolicitudAlta.LongitudMaximaTelefono);
         builder.Property(s => s.Tramo).HasConversion<string>().HasMaxLength(20);
         builder.Property(s => s.Modalidad).HasConversion<string>().HasMaxLength(20);
         builder.Property(s => s.CheckoutSessionId).HasMaxLength(SolicitudAlta.LongitudMaximaIdStripe);
@@ -44,6 +45,11 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
         builder.Property(s => s.Motivo).HasMaxLength(SolicitudAlta.LongitudMaximaMotivo);
         builder.Property(s => s.VersionFila).IsConcurrencyToken();
 
+        // El enlace de verificación busca por el hash del token (endpoint anónimo) y el trabajo de
+        // caducidad por estado y plazo: sin índice, los dos recorrerían la tabla entera.
+        builder.HasIndex(s => s.HashTokenVerificacion).IsUnique().HasFilter("\"HashTokenVerificacion\" IS NOT NULL");
+        builder.HasIndex(s => new { s.Estado, s.CaducaEnUtc });
+
         builder.HasMany(s => s.Aceptaciones).WithOne()
             .HasForeignKey(a => a.SolicitudAltaId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -51,6 +57,13 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
 
         // Sin HasQueryFilter: plano de Plataforma, no pertenece a un Tenant.
     }
+
+    /// <summary>
+    /// CHECK con los nombres del enum, que es como se guarda (<c>HasConversion&lt;string&gt;</c>). Un valor
+    /// nuevo del enum cambia el modelo y obliga a una migración, en vez de fallar solo al insertar.
+    /// </summary>
+    internal static string EnValoresDe<TEnum>(string columna) where TEnum : struct, Enum =>
+        $"\"{columna}\" IN ({string.Join(", ", Enum.GetNames<TEnum>().Select(n => $"'{n}'"))})";
 }
 
 public class AceptacionCondicionesAltaConfiguration : IEntityTypeConfiguration<AceptacionCondicionesAlta>
@@ -59,6 +72,9 @@ public class AceptacionCondicionesAltaConfiguration : IEntityTypeConfiguration<A
     {
         builder.ToTable("AceptacionesSolicitudAlta");
         builder.HasKey(a => a.Id);
+        // El Id lo asigna el dominio. Sin esto, una aceptación añadida a una Solicitud de alta ya
+        // cargada se clasificaría como Modified y SaveChanges intentaría un UPDATE de una fila inexistente.
+        builder.Property(a => a.Id).ValueGeneratedNever();
 
         builder.Property(a => a.Documento).IsRequired().HasMaxLength(AceptacionCondicionesAlta.LongitudMaximaDocumento);
         builder.Property(a => a.Version).IsRequired().HasMaxLength(AceptacionCondicionesAlta.LongitudMaximaVersion);

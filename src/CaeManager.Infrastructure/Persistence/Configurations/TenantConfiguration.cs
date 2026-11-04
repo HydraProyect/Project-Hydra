@@ -9,7 +9,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 {
     public void Configure(EntityTypeBuilder<Tenant> builder)
     {
-        builder.ToTable("Tenants");
+        builder.ToTable("Tenants", t => t.HasCheckConstraint(
+            "CK_Tenants_TipoTenant", SolicitudAltaConfiguration.EnValoresDe<TipoTenant>("TipoTenant")));
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre)

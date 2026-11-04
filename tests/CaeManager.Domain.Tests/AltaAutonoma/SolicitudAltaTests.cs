@@ -17,7 +17,7 @@ public class SolicitudAltaTests
         SolicitudAlta.Iniciar(" Ana@Ejemplo.es ", "AQAAAAIAAYagAAAAE-hash", Token, "203.0.113.7", "Navegador/1.0", Inicio);
 
     private static AceptacionDeclarada Aceptacion(string documento = "Condiciones generales") =>
-        new(documento, "2026-11-01", new string('a', 64), DeclaraFacultades: true, "203.0.113.7", Inicio.AddHours(2));
+        new(documento, "2026-11-01", new string('a', 64), DeclaraFacultades: true, "203.0.113.7", Inicio.AddHours(1));
 
     /// <summary>Lleva una Solicitud de alta nueva al estado pedido por su camino permitido.</summary>
     private static SolicitudAlta En(EstadoSolicitudAlta estado)
@@ -49,7 +49,7 @@ public class SolicitudAltaTests
             return s;
         }
 
-        s.CompletarDatos("Construcciones Ejemplo SL", CifEmpresa, "Calle Mayor 1, Tortosa", TramoTrabajadoresActivos.De11A40, true, false, t);
+        s.CompletarDatos("Construcciones Ejemplo SL", CifEmpresa, "Calle Mayor 1, Tortosa", TramoTrabajadoresActivos.De11A40, true, false, t, "+34 977 000 000");
         if (estado == EstadoSolicitudAlta.DatosCompletos)
             return s;
 
@@ -287,7 +287,7 @@ public class SolicitudAltaTests
         aceptacion.HashSha256.Should().Be(new string('a', 64));
         aceptacion.DeclaraFacultades.Should().BeTrue();
         aceptacion.Ip.Should().Be("203.0.113.7");
-        aceptacion.AceptadaEnUtc.Should().Be(Inicio.AddHours(2));
+        aceptacion.AceptadaEnUtc.Should().Be(Inicio.AddHours(1));
     }
 
     [Fact]
@@ -303,6 +303,63 @@ public class SolicitudAltaTests
 
         s.Estado.Should().Be(EstadoSolicitudAlta.DatosCompletos);
         s.Aceptaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_declaracion_de_facultades_o_con_una_aceptacion_futura_no_se_pasa_a_pago()
+    {
+        var s = En(EstadoSolicitudAlta.DatosCompletos);
+        var t = Inicio.AddHours(2);
+
+        ((Action)(() => s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual,
+            [Aceptacion() with { DeclaraFacultades = false }, Aceptacion("Política de privacidad") with { DeclaraFacultades = false }],
+            Sesion, t))).Should().Throw<ArgumentException>().WithMessage("*facultades*");
+        ((Action)(() => s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual,
+            [Aceptacion() with { AceptadaEnUtc = t.AddSeconds(1) }], Sesion, t))).Should().Throw<ArgumentException>().WithMessage("*posterior*");
+        s.Estado.Should().Be(EstadoSolicitudAlta.DatosCompletos);
+
+        s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual,
+            [Aceptacion(), Aceptacion("Política de privacidad") with { DeclaraFacultades = false, AceptadaEnUtc = t }], Sesion, t);
+        s.Estado.Should().Be(EstadoSolicitudAlta.PendientePago, "basta con que una aceptación declare facultades");
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("   ", null)]
+    [InlineData(" +34 977 123 456 ", "+34 977 123 456")]
+    [InlineData("(977) 12-34.56", "(977) 12-34.56")]
+    public void El_telefono_es_opcional_y_se_guarda_recortado(string? telefono, string? esperado)
+    {
+        var s = En(EstadoSolicitudAlta.CorreoVerificado);
+
+        s.CompletarDatos("Org", CifEmpresa, "Calle 1", TramoTrabajadoresActivos.De1A10, true, false, Inicio.AddHours(2), telefono);
+
+        s.Telefono.Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData("977abc123")]
+    [InlineData("+-() .")]
+    [InlineData("1234567890123456789012345678901")]
+    public void Un_telefono_con_otros_caracteres_sin_digitos_o_demasiado_largo_se_rechaza(string telefono)
+    {
+        var s = En(EstadoSolicitudAlta.CorreoVerificado);
+
+        var accion = () => s.CompletarDatos("Org", CifEmpresa, "Calle 1", TramoTrabajadoresActivos.De1A10, true, false, Inicio.AddHours(2), telefono);
+
+        accion.Should().Throw<ArgumentException>().WithParameterName("telefono");
+        s.Estado.Should().Be(EstadoSolicitudAlta.CorreoVerificado);
+    }
+
+    [Fact]
+    public void Completar_descarta_la_copia_del_hash_de_la_contrasena()
+    {
+        var s = En(EstadoSolicitudAlta.Pagada);
+        s.HashContrasena.Should().NotBeNull("guarda del instrumento: hasta Pagada el hash sigue en la Solicitud de alta");
+
+        s.Completar(Guid.NewGuid(), Inicio.AddHours(5));
+
+        s.HashContrasena.Should().BeNull();
     }
 
     [Fact]
@@ -479,9 +536,12 @@ public class SolicitudAltaTests
         s.Caducar(s.CaducaEnUtc);
         var borrado = s.CaducaEnUtc.AddDays(23);
 
+        s.Telefono.Should().NotBeNull("guarda del instrumento: el camino de la prueba guarda un teléfono");
+
         s.BorrarDatosPersonales(borrado);
 
         s.Correo.Should().BeNull();
+        s.Telefono.Should().BeNull();
         s.CorreoNormalizado.Should().BeNull();
         s.HashContrasena.Should().BeNull();
         s.HashTokenVerificacion.Should().BeNull();

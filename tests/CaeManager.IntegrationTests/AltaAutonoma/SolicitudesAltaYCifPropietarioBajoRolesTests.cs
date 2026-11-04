@@ -156,6 +156,42 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
         (await lectura.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
     }
 
+    /// <summary>
+    /// El camino real del registro: la Solicitud de alta ya está guardada en DatosCompletos, se carga,
+    /// pasa a pago con sus aceptaciones y se guarda. Las aceptaciones nuevas tienen que entrar como INSERT
+    /// (Id asignado por el dominio, ValueGeneratedNever), no como UPDATE de una fila inexistente.
+    /// </summary>
+    [Fact]
+    public async Task Pasar_a_pago_una_solicitud_cargada_inserta_sus_aceptaciones()
+    {
+        var solicitud = SolicitudAlta.Iniciar("luis@ejemplo.es", "hash", new string('u', 43), "203.0.113.8", "Navegador", Inicio);
+        solicitud.VerificarCorreo(new string('u', 43), Inicio.AddHours(1));
+        solicitud.CompletarDatos("Org", "B12345674", "Calle 1", TramoTrabajadoresActivos.De11A40, true, false, Inicio.AddHours(1), "+34 977 000 000");
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.SolicitudesAlta.Add(solicitud);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var cargada = await contexto.SolicitudesAlta.Include(s => s.Aceptaciones).SingleAsync(s => s.Id == solicitud.Id);
+            cargada.PasarAPendientePago(ModalidadSuscripcionAlta.Anual,
+                [new AceptacionDeclarada("Condiciones generales", "v1", new string('b', 64), true, "203.0.113.8", Inicio.AddHours(2))],
+                "cs_test_2", Inicio.AddHours(2));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            var leida = await contexto.SolicitudesAlta.Include(s => s.Aceptaciones).SingleAsync(s => s.Id == solicitud.Id);
+            leida.Estado.Should().Be(EstadoSolicitudAlta.PendientePago);
+            leida.Telefono.Should().Be("+34 977 000 000");
+            leida.Aceptaciones.Should().ContainSingle().Which.DeclaraFacultades.Should().BeTrue();
+        }
+    }
+
     [Fact]
     public async Task El_modelo_guarda_y_borra_una_solicitud_con_sus_aceptaciones()
     {

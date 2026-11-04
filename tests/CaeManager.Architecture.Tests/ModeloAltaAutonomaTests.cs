@@ -79,6 +79,44 @@ public class ModeloAltaAutonomaTests
             .Should().BeFalse("sin políticas: con FORCE, ni el rol que tuviera un permiso vería una fila");
     }
 
+    [Fact]
+    public void El_Id_de_una_aceptacion_lo_asigna_el_dominio()
+    {
+        Modelo.FindEntityType(typeof(AceptacionCondicionesAlta))!.FindProperty("Id")!.ValueGenerated
+            .Should().Be(ValueGenerated.Never,
+                "con ValueGeneratedOnAdd, una aceptación añadida a una Solicitud de alta ya cargada se guardaría como UPDATE");
+    }
+
+    [Theory]
+    [InlineData(typeof(SolicitudAlta), "CK_SolicitudesAlta_Estado", "Estado", typeof(EstadoSolicitudAlta))]
+    [InlineData(typeof(SolicitudAlta), "CK_SolicitudesAlta_Tramo", "Tramo", typeof(TramoTrabajadoresActivos))]
+    [InlineData(typeof(SolicitudAlta), "CK_SolicitudesAlta_Modalidad", "Modalidad", typeof(ModalidadSuscripcionAlta))]
+    [InlineData(typeof(Tenant), "CK_Tenants_TipoTenant", "TipoTenant", typeof(TipoTenant))]
+    public void Cada_enum_guardado_como_texto_tiene_un_CHECK_con_todos_sus_valores(
+        Type entidad, string restriccion, string columna, Type tipoEnum)
+    {
+        var sql = Modelo.FindEntityType(entidad)!.GetCheckConstraints()
+            .Should().ContainSingle(c => c.ModelName == restriccion).Subject.Sql;
+
+        sql.Should().Be($"\"{columna}\" IN ({string.Join(", ", Enum.GetNames(tipoEnum).Select(n => $"'{n}'"))})");
+        TextoUp().Should().Contain($"\"{restriccion}\"", "la migración crea la restricción")
+            .And.Contain(sql.Replace("\"", "\\\""), "con el mismo SQL que el modelo");
+    }
+
+    [Fact]
+    public void El_hash_del_token_y_la_caducidad_tienen_indice()
+    {
+        var solicitud = Modelo.FindEntityType(typeof(SolicitudAlta))!;
+
+        var token = solicitud.GetIndexes().Should().ContainSingle(
+            i => i.Properties.Select(p => p.Name).SequenceEqual(new[] { nameof(SolicitudAlta.HashTokenVerificacion) })).Subject;
+        token.IsUnique.Should().BeTrue("un hash de token identifica una sola Solicitud de alta");
+        token.GetFilter().Should().Be("\"HashTokenVerificacion\" IS NOT NULL");
+
+        solicitud.GetIndexes().Should().ContainSingle(i => i.Properties.Select(p => p.Name)
+            .SequenceEqual(new[] { nameof(SolicitudAlta.Estado), nameof(SolicitudAlta.CaducaEnUtc) }));
+    }
+
     private static string TextoUp()
     {
         var ruta = Path.Combine(Raiz(), "src", "CaeManager.Migrations.PostgreSQL", "Migrations", Migracion);

@@ -34,6 +34,7 @@ public class SolicitudAlta : Entity
     public const int LongitudMaximaRazonSocial = 200;
     public const int LongitudMaximaCifNif = 20;
     public const int LongitudMaximaDomicilioFiscal = 500;
+    public const int LongitudMaximaTelefono = 30;
     public const int LongitudMaximaIdStripe = 255;
     public const int LongitudMaximaMotivo = 500;
 
@@ -74,6 +75,9 @@ public class SolicitudAlta : Entity
     public string? CifNif { get; private set; }
 
     public string? DomicilioFiscal { get; private set; }
+
+    /// <summary>Teléfono de contacto de la organización, opcional.</summary>
+    public string? Telefono { get; private set; }
     public TramoTrabajadoresActivos? Tramo { get; private set; }
     public ModalidadSuscripcionAlta? Modalidad { get; private set; }
 
@@ -193,11 +197,12 @@ public class SolicitudAlta : Entity
     /// <summary>
     /// CorreoVerificado → DatosCompletos con los datos de la organización, cuando el CIF no tiene Tenant
     /// propietario (eso lo comprueba quien llama). Exige la declaración de representación (DA-3) y, si el
-    /// NIF es de persona física, la de actividad profesional (DA-11).
+    /// NIF es de persona física, la de actividad profesional (DA-11). El teléfono es opcional: si llega,
+    /// solo admite dígitos, espacios, «+», «-», «.» y paréntesis.
     /// </summary>
     public void CompletarDatos(
         string razonSocial, string cifNif, string domicilioFiscal, TramoTrabajadoresActivos tramo,
-        bool declaraRepresentacion, bool declaraActividadProfesional, DateTime ahoraUtc)
+        bool declaraRepresentacion, bool declaraActividadProfesional, DateTime ahoraUtc, string? telefono = null)
     {
         ExigirEstadoVigente(ahoraUtc, nameof(CompletarDatos), EstadoSolicitudAlta.CorreoVerificado);
 
@@ -214,6 +219,15 @@ public class SolicitudAlta : Entity
 
         var cif = NormalizarCifNif(cifNif);
 
+        var telefonoLimpio = string.IsNullOrWhiteSpace(telefono) ? null : telefono.Trim();
+        if (telefonoLimpio is not null
+            && (telefonoLimpio.Length > LongitudMaximaTelefono
+                || !telefonoLimpio.Any(char.IsAsciiDigit)
+                || !telefonoLimpio.All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '-' or '.' or '(' or ')')))
+            throw new ArgumentException(
+                $"El teléfono solo admite dígitos, espacios, «+», «-», «.» y paréntesis, hasta {LongitudMaximaTelefono} caracteres.",
+                nameof(telefono));
+
         if (!declaraRepresentacion)
             throw new ArgumentException("Hace falta declarar que se representa a la organización del CIF.", nameof(declaraRepresentacion));
 
@@ -225,6 +239,7 @@ public class SolicitudAlta : Entity
         RazonSocial = razonSocialLimpia;
         CifNif = cif;
         DomicilioFiscal = domicilioLimpio;
+        Telefono = telefonoLimpio;
         Tramo = tramo;
         DeclaraRepresentacion = true;
         DeclaraActividadProfesional = declaraActividadProfesional;
@@ -245,6 +260,8 @@ public class SolicitudAlta : Entity
 
     /// <summary>
     /// DatosCompletos → PendientePago: modalidad elegida, condiciones aceptadas y sesión de Checkout creada.
+    /// La declaración de facultades se hace en este paso (DA-3), así que al menos una aceptación la lleva.
+    /// Ninguna aceptación puede tener fecha posterior a <paramref name="ahoraUtc"/>.
     /// </summary>
     public void PasarAPendientePago(
         ModalidadSuscripcionAlta modalidad, IReadOnlyCollection<AceptacionDeclarada> aceptaciones,
@@ -262,6 +279,10 @@ public class SolicitudAlta : Entity
         var nuevas = aceptaciones.Select(a => new AceptacionCondicionesAlta(Id, a)).ToList();
         if (nuevas.Select(a => a.Documento).Distinct(StringComparer.Ordinal).Count() != nuevas.Count)
             throw new ArgumentException("Cada documento se acepta una sola vez.", nameof(aceptaciones));
+        if (!nuevas.Any(a => a.DeclaraFacultades))
+            throw new ArgumentException("Hace falta declarar facultades para contratar en nombre de la organización.", nameof(aceptaciones));
+        if (nuevas.Any(a => a.AceptadaEnUtc > ahoraUtc))
+            throw new ArgumentException("Una aceptación no puede ser posterior al paso a pago.", nameof(aceptaciones));
 
         var sesion = IdStripe(checkoutSessionId, nameof(checkoutSessionId));
 
@@ -300,7 +321,10 @@ public class SolicitudAlta : Entity
         CambiarEstado(EstadoSolicitudAlta.Pagada, ahoraUtc);
     }
 
-    /// <summary>Pagada → Completada: el Command del alta creó el Tenant propietario.</summary>
+    /// <summary>
+    /// Pagada → Completada: el Command del alta creó el Tenant propietario y la cuenta de su Administrador,
+    /// que ya lleva el hash de la contraseña; aquí se descarta la copia.
+    /// </summary>
     public void Completar(Guid tenantIdCreado, DateTime ahoraUtc)
     {
         ExigirUtc(ahoraUtc, nameof(ahoraUtc));
@@ -310,6 +334,7 @@ public class SolicitudAlta : Entity
             throw new ArgumentException("El Tenant creado es obligatorio.", nameof(tenantIdCreado));
 
         TenantIdCreado = tenantIdCreado;
+        HashContrasena = null;
         CambiarEstado(EstadoSolicitudAlta.Completada, ahoraUtc);
     }
 
@@ -356,6 +381,8 @@ public class SolicitudAlta : Entity
     /// Borra los datos personales de una Solicitud de alta <see cref="EstadoSolicitudAlta.Caducada"/>
     /// (DA-7): correo, hashes, IP, user-agent, datos de la organización, sesión de Checkout y
     /// aceptaciones. Quedan el estado, las fechas, el tramo y la modalidad. Repetirlo no cambia nada.
+    /// Las aceptaciones solo se borran si se cargaron con la Solicitud de alta (<c>Include</c>): sin ellas
+    /// la colección está vacía en memoria y sus filas, con la IP, seguirían en la base.
     /// </summary>
     public void BorrarDatosPersonales(DateTime ahoraUtc)
     {
@@ -375,6 +402,7 @@ public class SolicitudAlta : Entity
         RazonSocial = null;
         CifNif = null;
         DomicilioFiscal = null;
+        Telefono = null;
         CheckoutSessionId = null;
         _aceptaciones.Clear();
         DatosPersonalesBorradosEnUtc = ahoraUtc;

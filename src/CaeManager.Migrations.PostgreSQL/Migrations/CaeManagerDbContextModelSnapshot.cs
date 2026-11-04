@@ -26,7 +26,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.AltaAutonoma.AceptacionCondicionesAlta", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("AceptadaEnUtc")
@@ -147,6 +146,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<Guid?>("TenantIdCreado")
                         .HasColumnType("uuid");
 
@@ -170,6 +173,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("HashTokenVerificacion")
+                        .IsUnique()
+                        .HasFilter("\"HashTokenVerificacion\" IS NOT NULL");
+
+                    b.HasIndex("Estado", "CaducaEnUtc");
+
                     b.ToTable("SolicitudesAlta", null, t =>
                         {
                             t.HasCheckConstraint("CK_SolicitudesAlta_CompletadaConTenant", "(\"Estado\" <> 'Completada') OR (\"TenantIdCreado\" IS NOT NULL)");
@@ -177,6 +186,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             t.HasCheckConstraint("CK_SolicitudesAlta_CorreoSalvoBorrado", "(\"Correo\" IS NOT NULL) OR (\"DatosPersonalesBorradosEnUtc\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_SolicitudesAlta_Estado", "\"Estado\" IN ('Iniciada', 'CorreoVerificado', 'DerivadaAAcceso', 'DatosCompletos', 'PendientePago', 'Pagada', 'Completada', 'Reembolsada', 'Caducada', 'Bloqueada')");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
                         });
                 });
 
@@ -10554,7 +10567,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("StripeSubscriptionId")
                         .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
-                    b.ToTable("Tenants", (string)null);
+                    b.ToTable("Tenants", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Tenants_TipoTenant", "\"TipoTenant\" IN ('GestionPropia', 'GestionExterna', 'OperadorCaeExterno')");
+                        });
 
                     b.HasData(
                         new
