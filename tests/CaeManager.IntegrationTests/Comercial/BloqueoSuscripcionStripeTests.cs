@@ -177,6 +177,37 @@ public class BloqueoSuscripcionStripeTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Un webhook de la Subscription sustituida confirma «aviso de impago» mientras el alta
+    /// espera su candado. El alta vincula la nueva, activa según Stripe: tiene que escribir
+    /// «activa». Sin la relectura, EF compararía con el «activa» que leyó antes de esperar, no
+    /// marcaría el estado como modificado y quedaría el del webhook.
+    /// </summary>
+    [Fact]
+    public async Task El_alta_guarda_el_estado_de_Stripe_aunque_un_webhook_confirme_mientras_espera()
+    {
+        await using var circuito = CrearContexto();
+        await using var webhook = CrearContexto();
+        await using var transaccionWebhook = await webhook.Database.BeginTransactionAsync();
+        await new BloqueoSuscripcionStripe(webhook).BloquearSuscripcionesAsync(["sub_a"]);
+
+        var stripe = new StripeQueReporta(EstadoSuscripcionProveedor.Activa);
+        var alta = new RegistrarSuscripcionTenantCommandHandler(circuito, stripe, new AutorizacionClavesApiDePrueba(_tenant.Id), new ActorFijo(),
+                circuito, new TransaccionDeComando(circuito), new BloqueoSuscripcionStripe(circuito), circuito)
+            .Handle(new RegistrarSuscripcionTenantCommand(_tenant.Id, "sub_n"), CancellationToken.None);
+        (await EsperaElCandadoAsync(EspacioSuscripcion + "sub_a", alta)).Should().BeTrue("el alta bloquea también la sustituida");
+
+        (await webhook.Tenants.SingleAsync(t => t.Id == _tenant.Id)).ActualizarEstadoComercial(EstadoComercialTenant.AvisoImpago);
+        await webhook.SaveChangesAsync();
+        await transaccionWebhook.CommitAsync();
+
+        (await alta).EsExitoso.Should().BeTrue();
+        await using var lectura = CrearContexto();
+        var guardado = await lectura.Tenants.AsNoTracking().SingleAsync(t => t.Id == _tenant.Id);
+        guardado.StripeSubscriptionId.Should().Be("sub_n");
+        guardado.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+    }
+
+    /// <summary>
     /// Dos altas vinculan la misma Subscription a Tenants distintos a la vez: la segunda espera
     /// el candado de la Subscription y, al obtenerlo, ve el vínculo de la primera y se rechaza.
     /// </summary>
@@ -227,12 +258,13 @@ public class BloqueoSuscripcionStripeTests : IAsyncLifetime
         var procesador = new ProcesadorWebhookSuscripcion(peticion, stripe, new TransaccionDeComando(peticion),
             new BloqueoSuscripcionStripe(peticion), peticion, peticion);
 
-        var resultado = await procesador.ProcesarAsync(
+        var procesar = procesador.ProcesarAsync(
             new EventoWebhookProveedorDto("customer.subscription.updated",
                 new SuscripcionProveedorDto("sub_a", "cus_1", EstadoSuscripcionProveedor.Cancelada)),
             CancellationToken.None);
 
-        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SuscripcionOcupada);
+        (await Task.WhenAny(procesar, Task.Delay(TimeSpan.FromSeconds(10)))).Should().BeSameAs(procesar, "el webhook no espera el candado");
+        (await procesar).Resultado.Should().Be(ResultadoWebhookSuscripcion.SuscripcionOcupada);
         stripe.Consultadas.Should().BeEmpty();
         await transaccionAlta.RollbackAsync();
     }

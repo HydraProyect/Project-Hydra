@@ -157,9 +157,9 @@ public class ProcesadorWebhookSuscripcion(
 
         var consulta = paymentProvider.ObtenerSuscripcionAsync(idSuscripcion, limite.Token);
         var plazo = Task.Delay(Timeout.Infinite, limite.Token);
-        await Task.WhenAny(consulta, plazo);
-
-        if (!consulta.IsCompleted)
+        // Decide quién terminó primero, no el estado de la consulta un instante después: si
+        // venció el plazo, una respuesta que llegue justo detrás tampoco se aplica.
+        if (await Task.WhenAny(consulta, plazo) != consulta)
         {
             // Que su fallo tardío no quede como excepción no observada.
             _ = consulta.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
