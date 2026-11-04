@@ -31,8 +31,9 @@ namespace CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 /// los candados de <see cref="IBloqueoSuscripcionStripe"/> (Tenant, y después la
 /// Subscription nueva y la que sustituye), que comparte con el webhook y la
 /// resincronización: un webhook que llegue a mitad del alta no obtiene el candado y pide a
-/// Stripe que reintente; al reintentar encuentra el vínculo, en vez de responder «sin Tenant»
-/// y perderse. Bajo esos mismos
+/// Stripe que reintente. Al reintentar, uno de la Subscription nueva encuentra el vínculo (en
+/// vez de responder «sin Tenant» y perderse) y uno de la sustituida ya no encuentra ningún
+/// Tenant, así que no escribe sobre el re-vinculado. Bajo esos mismos
 /// candados se rechaza una Subscription ya vinculada a otro Tenant: el webhook resuelve el
 /// Tenant por ese Id, y dos Tenants con la misma Subscription harían su resultado
 /// indeterminado.
