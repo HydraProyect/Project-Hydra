@@ -14,8 +14,10 @@ namespace CaeManager.Application.Comercial.Common;
 /// Subscription la toman los tres, y el webhook solo esa, porque al llegar no sabe todavía
 /// de qué Tenant es. El alta toma la de la Subscription nueva y la de la que sustituye. Así,
 /// un webhook de la vieja no escribe sobre un Tenant ya re-vinculado, y uno de la nueva que
-/// llegue mientras el alta está a medias espera a que confirme y encuentra el vínculo. Las de
-/// Subscription se toman en orden de clave y siempre después de la de Tenant: no hay ciclo.
+/// llegue mientras el alta está a medias no consigue el candado (el webhook solo lo intenta,
+/// no espera) y pide a Stripe que reintente; al reintentar encuentra el vínculo confirmado.
+/// Las de Subscription se toman en orden de clave y siempre después de la de Tenant, y el
+/// webhook nunca espera: no hay ciclo.
 /// </para>
 ///
 /// <para>

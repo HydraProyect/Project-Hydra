@@ -121,4 +121,31 @@ public class ActualizarEstadoComercialTenantCommandTests
         bloqueo.Suscripciones.Should().Equal("sub_123");
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>La concesión revocada mientras se esperaba el candado del Tenant no resincroniza.</summary>
+    [Fact]
+    public async Task No_resincroniza_si_la_concesion_se_revoca_mientras_espera_el_candado()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        cliente.VincularSuscripcionStripe("cus_999", "sub_123", EstadoComercialTenant.Activa);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente]);
+        var paymentProvider = new PaymentProviderFalso(
+            CaeManager.Domain.Common.Result.Exito(new SuscripcionProveedorDto("sub_123", "cus_999", EstadoSuscripcionProveedor.Cancelada)));
+        var unitOfWork = new UnitOfWorkFalso();
+        var autorizacion = new AutorizacionRevocadaDuranteLaEsperaFalsa();
+
+        var handler = new ActualizarEstadoComercialTenantCommandHandler(
+            dbContext, paymentProvider, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
+
+        var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Comercial.NoAutorizado");
+        autorizacion.VecesConsultada.Should().Be(2);
+        paymentProvider.UltimoIdConsultado.Should().BeNull();
+        cliente.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
 }

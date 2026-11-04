@@ -253,6 +253,57 @@ public class ProcesadorWebhookSuscripcionTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// El SDK real espera entre reintentos sin atender el token: el límite tiene que cortar
+    /// igual, sin esperar a que la llamada termine.
+    /// </summary>
+    [Fact]
+    public async Task El_limite_corta_aunque_la_consulta_no_atienda_la_cancelacion()
+    {
+        var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var procesador = new ProcesadorWebhookSuscripcion(
+            db, new StripeQueIgnoraLaCancelacion(), transaccion, new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso(), unitOfWork)
+        {
+            LimiteConsulta = TimeSpan.FromMilliseconds(50),
+        };
+
+        var procesar = procesador.ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Cancelada), CancellationToken.None);
+
+        (await Task.WhenAny(procesar, Task.Delay(TimeSpan.FromSeconds(10)))).Should().BeSameAs(procesar, "el límite es de 50 ms");
+        (await procesar).Should().Be(new ProcesamientoWebhookSuscripcion(
+            ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.TiempoAgotado"));
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_cancelacion_de_quien_llama_se_propaga_aunque_la_consulta_no_la_atienda()
+    {
+        var (_, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var procesador = new ProcesadorWebhookSuscripcion(
+            db, new StripeQueIgnoraLaCancelacion(), transaccion, new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso(), unitOfWork);
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var procesar = procesador.ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), cancelacion.Token);
+
+        (await Task.WhenAny(procesar, Task.Delay(TimeSpan.FromSeconds(10)))).Should().BeSameAs(procesar, "la cancelación llega a los 50 ms");
+        await FluentActions.Awaiting(() => procesar).Should().ThrowAsync<OperationCanceledException>();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    private sealed class StripeQueIgnoraLaCancelacion : IPaymentProvider
+    {
+        private readonly TaskCompletionSource<Result<SuscripcionProveedorDto>> _nunca = new();
+
+        public string Codigo => "sorda";
+
+        public Result<EventoWebhookProveedorDto> VerificarYLeerWebhook(string payloadJson, string? firma) =>
+            throw new NotSupportedException();
+
+        public Task<Result<SuscripcionProveedorDto>> ObtenerSuscripcionAsync(string idSuscripcion, CancellationToken cancellationToken = default) =>
+            _nunca.Task;
+    }
+
     private sealed class StripeQueNoContesta : IPaymentProvider
     {
         public string Codigo => "cuelga";

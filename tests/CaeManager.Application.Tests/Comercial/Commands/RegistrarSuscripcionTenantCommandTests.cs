@@ -254,12 +254,40 @@ public class RegistrarSuscripcionTenantCommandTests
         cliente.StripeSubscriptionId.Should().Be("sub_nueva");
     }
 
+    /// <summary>La concesión revocada mientras se esperaba el candado del Tenant no vincula.</summary>
+    [Fact]
+    public async Task No_vincula_si_la_concesion_se_revoca_mientras_espera_el_candado()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente]);
+        var paymentProvider = new PaymentProviderFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var autorizacion = new AutorizacionRevocadaDuranteLaEsperaFalsa();
+
+        var handler = new RegistrarSuscripcionTenantCommandHandler(
+            dbContext, paymentProvider, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
+
+        var resultado = await handler.Handle(new RegistrarSuscripcionTenantCommand(cliente.Id, "sub_nueva"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Comercial.NoAutorizado");
+        autorizacion.VecesConsultada.Should().Be(2);
+        paymentProvider.UltimoIdConsultado.Should().BeNull();
+        cliente.StripeSubscriptionId.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     /// <summary>
-    /// La Subscription sustituida se lee tras el candado del Tenant: si mientras se esperaba otra
-    /// alta lo re-vinculó, la que se bloquea es la que confirmó esa alta, no la que había antes.
+    /// Documenta el caso; quien fija que la sustituida se lee tras el candado del Tenant es el
+    /// orden de <c>Eventos</c> en <see cref="Al_revincular_bloquea_el_tenant_y_despues_la_suscripcion_nueva_y_la_sustituida"/>
+    /// y, contra PostgreSQL, la integración
+    /// (<c>BloqueoSuscripcionStripeTests</c>): este doble devuelve la misma instancia que muta
+    /// el gancho, así que no distingue leer antes o después del candado.
     /// </summary>
     [Fact]
-    public async Task Bloquea_la_suscripcion_vinculada_al_tomar_el_candado_del_tenant_no_la_de_antes()
+    public async Task Bloquea_la_suscripcion_que_esta_vinculada_cuando_obtiene_el_candado_del_tenant()
     {
         var plataforma = CrearTenantPlataforma();
         var cliente = new Tenant("Ibertec");

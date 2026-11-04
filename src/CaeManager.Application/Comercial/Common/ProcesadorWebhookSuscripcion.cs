@@ -123,19 +123,9 @@ public class ProcesadorWebhookSuscripcion(
         if (!tenant.EsSuscribible())
             return new(ResultadoWebhookSuscripcion.TenantNoSuscribible);
 
-        Result<SuscripcionProveedorDto> actual;
-        using (var limite = CancellationTokenSource.CreateLinkedTokenSource(ct))
-        {
-            limite.CancelAfter(LimiteConsulta);
-            try
-            {
-                actual = await paymentProvider.ObtenerSuscripcionAsync(idSuscripcion, limite.Token);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                return new(ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.TiempoAgotado");
-            }
-        }
+        var actual = await ConsultarConLimiteAsync(idSuscripcion, ct);
+        if (actual is null)
+            return new(ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.TiempoAgotado");
 
         if (actual.EsFallido)
             return new(ResultadoWebhookSuscripcion.ProveedorNoDisponible, actual.Error.Codigo);
@@ -151,5 +141,39 @@ public class ProcesadorWebhookSuscripcion(
         await unitOfWork.SaveChangesAsync(ct);
 
         return new(ResultadoWebhookSuscripcion.Aplicado);
+    }
+
+    /// <summary>
+    /// La consulta a Stripe, o <c>null</c> si no termina dentro de <see cref="LimiteConsulta"/>.
+    /// No basta con cancelar el token: el SDK espera entre sus reintentos sin atenderlo. Por eso
+    /// se deja de esperar al vencer el plazo, aunque la llamada siga en curso; no usa el contexto
+    /// ni la transacción, así que abandonarla no deja nada a medias. La cancelación de quien
+    /// llama se propaga igual de rápido.
+    /// </summary>
+    private async Task<Result<SuscripcionProveedorDto>?> ConsultarConLimiteAsync(string idSuscripcion, CancellationToken ct)
+    {
+        using var limite = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limite.CancelAfter(LimiteConsulta);
+
+        var consulta = paymentProvider.ObtenerSuscripcionAsync(idSuscripcion, limite.Token);
+        var plazo = Task.Delay(Timeout.Infinite, limite.Token);
+        await Task.WhenAny(consulta, plazo);
+
+        if (!consulta.IsCompleted)
+        {
+            // Que su fallo tardío no quede como excepción no observada.
+            _ = consulta.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            ct.ThrowIfCancellationRequested();
+            return null;
+        }
+
+        try
+        {
+            return await consulta;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 }

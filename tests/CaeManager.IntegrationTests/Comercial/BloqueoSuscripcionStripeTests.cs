@@ -1,4 +1,5 @@
 using CaeManager.Application.Comercial.Commands.ActualizarEstadoComercialTenant;
+using CaeManager.Application.Comercial.Commands.RegistrarSuscripcionTenant;
 using CaeManager.Application.Comercial.Common;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
@@ -145,6 +146,95 @@ public class BloqueoSuscripcionStripeTests : IAsyncLifetime
 
         (await resincronizacion).EsExitoso.Should().BeTrue();
         stripe.Consultadas.Should().Equal("sub_a");
+    }
+
+    /// <summary>
+    /// Un webhook cambia el estado comercial mientras la resincronización espera el candado de
+    /// la Subscription. La resincronización tiene que comparar con lo que ese webhook confirmó,
+    /// no con lo que leyó antes de esperar: si no, vería «sin cambios» y dejaría el estado del webhook.
+    /// </summary>
+    [Fact]
+    public async Task La_resincronizacion_compara_con_lo_que_confirmo_un_webhook_mientras_esperaba()
+    {
+        await using var circuito = CrearContexto();
+        await using var webhook = CrearContexto();
+        await using var transaccionWebhook = await webhook.Database.BeginTransactionAsync();
+        await new BloqueoSuscripcionStripe(webhook).BloquearSuscripcionesAsync(["sub_a"]);
+
+        var stripe = new StripeQueReporta(EstadoSuscripcionProveedor.Activa);
+        var resincronizacion = Resincronizar(circuito, stripe);
+        (await EsperaElCandadoAsync(EspacioSuscripcion + "sub_a", resincronizacion)).Should().BeTrue();
+
+        var tenant = await webhook.Tenants.SingleAsync(t => t.Id == _tenant.Id);
+        tenant.ActualizarEstadoComercial(EstadoComercialTenant.AvisoImpago);
+        await webhook.SaveChangesAsync();
+        await transaccionWebhook.CommitAsync();
+
+        (await resincronizacion).EsExitoso.Should().BeTrue();
+        await using var lectura = CrearContexto();
+        (await lectura.Tenants.AsNoTracking().SingleAsync(t => t.Id == _tenant.Id)).EstadoComercial
+            .Should().Be(EstadoComercialTenant.Activa, "Stripe reporta activa al resincronizar");
+    }
+
+    /// <summary>
+    /// Dos altas vinculan la misma Subscription a Tenants distintos a la vez: la segunda espera
+    /// el candado de la Subscription y, al obtenerlo, ve el vínculo de la primera y se rechaza.
+    /// </summary>
+    [Fact]
+    public async Task Dos_altas_concurrentes_no_vinculan_la_misma_suscripcion_a_dos_tenants()
+    {
+        var otroTenant = new Tenant("Tenant B");
+        await using (var alta = CrearContexto())
+        {
+            alta.Tenants.Add(otroTenant);
+            await alta.SaveChangesAsync();
+        }
+
+        await using var primera = CrearContexto();
+        await using var transaccionPrimera = await primera.Database.BeginTransactionAsync();
+        await new BloqueoSuscripcionStripe(primera).BloquearSuscripcionesAsync(["sub_x"]);
+        (await primera.Tenants.SingleAsync(t => t.Id == _tenant.Id))
+            .VincularSuscripcionStripe("cus_1", "sub_x", EstadoComercialTenant.Activa);
+        await primera.SaveChangesAsync();
+
+        await using var segunda = CrearContexto();
+        var stripe = new StripeQueReporta(EstadoSuscripcionProveedor.Activa);
+        var segundaAlta = new RegistrarSuscripcionTenantCommandHandler(segunda, stripe, new AutorizacionClavesApiDePrueba(otroTenant.Id), new ActorFijo(),
+                segunda, new TransaccionDeComando(segunda), new BloqueoSuscripcionStripe(segunda), segunda)
+            .Handle(new RegistrarSuscripcionTenantCommand(otroTenant.Id, "sub_x"), CancellationToken.None);
+
+        (await EsperaElCandadoAsync(EspacioSuscripcion + "sub_x", segundaAlta)).Should().BeTrue();
+        await transaccionPrimera.CommitAsync();
+
+        var resultado = await segundaAlta;
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error!.Codigo.Should().Be("Comercial.SuscripcionYaVinculada");
+        stripe.Consultadas.Should().BeEmpty();
+        await using var lectura = CrearContexto();
+        (await lectura.Tenants.AsNoTracking().CountAsync(t => t.StripeSubscriptionId == "sub_x")).Should().Be(1);
+    }
+
+    /// <summary>Con el candado de la Subscription ocupado, el webhook real no espera: pide reintento sin consultar a Stripe.</summary>
+    [Fact]
+    public async Task El_webhook_con_el_candado_ocupado_pide_reintento_sin_esperar()
+    {
+        await using var alta = CrearContexto();
+        await using var transaccionAlta = await alta.Database.BeginTransactionAsync();
+        await new BloqueoSuscripcionStripe(alta).BloquearSuscripcionesAsync(["sub_a"]);
+
+        await using var peticion = CrearContexto();
+        var stripe = new StripeQueReporta(EstadoSuscripcionProveedor.Cancelada);
+        var procesador = new ProcesadorWebhookSuscripcion(peticion, stripe, new TransaccionDeComando(peticion),
+            new BloqueoSuscripcionStripe(peticion), peticion, peticion);
+
+        var resultado = await procesador.ProcesarAsync(
+            new EventoWebhookProveedorDto("customer.subscription.updated",
+                new SuscripcionProveedorDto("sub_a", "cus_1", EstadoSuscripcionProveedor.Cancelada)),
+            CancellationToken.None);
+
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SuscripcionOcupada);
+        stripe.Consultadas.Should().BeEmpty();
+        await transaccionAlta.RollbackAsync();
     }
 
     private Task<Result> Resincronizar(CaeManagerDbContext contexto, IPaymentProvider stripe) =>
