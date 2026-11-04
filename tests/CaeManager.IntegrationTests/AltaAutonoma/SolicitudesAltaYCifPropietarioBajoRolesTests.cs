@@ -192,6 +192,73 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// El trabajo de limpieza puede cargar la Solicitud de alta sin <c>Include</c>: AutoInclude trae las
+    /// aceptaciones igualmente, y el borrado elimina sus filas en la base.
+    /// </summary>
+    [Fact]
+    public async Task Borrar_datos_sin_Include_explicito_borra_tambien_las_filas_de_aceptaciones()
+    {
+        var solicitud = await GuardarPendientePagoAsync("marta@ejemplo.es", "cs_test_3");
+
+        await using (var contexto = CrearContexto())
+        {
+            var cargada = await contexto.SolicitudesAlta.SingleAsync(s => s.Id == solicitud.Id);
+            cargada.Aceptaciones.Should().ContainSingle("guarda del instrumento: AutoInclude las carga sin pedirlo");
+            cargada.Caducar(cargada.CaducaEnUtc);
+            cargada.BorrarDatosPersonales(cargada.CaducaEnUtc.AddDays(23));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto())
+        {
+            (await contexto.Set<AceptacionCondicionesAlta>().CountAsync(a => a.SolicitudAltaId == solicitud.Id)).Should().Be(0);
+        }
+    }
+
+    /// <summary>
+    /// Carrera entre el webhook de pago y el trabajo de caducidad: los dos cargan la misma Solicitud de
+    /// alta en PendientePago. El segundo en guardar choca con <c>VersionFila</c> y no pisa al primero.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_pago_y_la_caducidad_no_se_pisan(bool primeroElPago)
+    {
+        var solicitud = await GuardarPendientePagoAsync("pago" + primeroElPago + "@ejemplo.es", "cs_test_4");
+
+        await using var webhook = CrearContexto();
+        await using var limpieza = CrearContexto();
+        var paraPagar = await webhook.SolicitudesAlta.SingleAsync(s => s.Id == solicitud.Id);
+        var paraCaducar = await limpieza.SolicitudesAlta.SingleAsync(s => s.Id == solicitud.Id);
+        paraPagar.MarcarPagada("cs_test_4", "cus_4", "sub_4", paraPagar.CaducaEnUtc.AddMinutes(1));
+        paraCaducar.Caducar(paraCaducar.CaducaEnUtc.AddMinutes(1));
+
+        var (primero, segundo) = primeroElPago ? (webhook, limpieza) : (limpieza, webhook);
+        await primero.SaveChangesAsync();
+        var guardarSegundo = () => segundo.SaveChangesAsync();
+        await guardarSegundo.Should().ThrowAsync<DbUpdateConcurrencyException>();
+
+        await using var lectura = CrearContexto();
+        (await lectura.SolicitudesAlta.SingleAsync(s => s.Id == solicitud.Id)).Estado.Should().Be(
+            primeroElPago ? EstadoSolicitudAlta.Pagada : EstadoSolicitudAlta.Caducada);
+    }
+
+    private async Task<SolicitudAlta> GuardarPendientePagoAsync(string correo, string sesion)
+    {
+        var solicitud = SolicitudAlta.Iniciar(correo, "hash", new string('v', 43), "203.0.113.9", "Navegador", Inicio);
+        solicitud.VerificarCorreo(new string('v', 43), Inicio.AddHours(1));
+        solicitud.CompletarDatos("Org", "B12345674", "Calle 1", TramoTrabajadoresActivos.De1A10, true, false, Inicio.AddHours(1));
+        solicitud.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual,
+            [new AceptacionDeclarada("Condiciones generales", "v1", new string('c', 64), true, "203.0.113.9", Inicio.AddHours(1))],
+            sesion, Inicio.AddHours(1));
+
+        await using var contexto = CrearContexto();
+        contexto.SolicitudesAlta.Add(solicitud);
+        await contexto.SaveChangesAsync();
+        return solicitud;
+    }
+
     [Fact]
     public async Task El_modelo_guarda_y_borra_una_solicitud_con_sus_aceptaciones()
     {

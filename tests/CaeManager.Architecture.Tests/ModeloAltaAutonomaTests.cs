@@ -80,6 +80,30 @@ public class ModeloAltaAutonomaTests
             .Should().BeFalse("sin políticas: con FORCE, ni el rol que tuviera un permiso vería una fila");
     }
 
+    [Theory]
+    [InlineData(" Ana@Ejemplo.es ")]
+    [InlineData("josé@ejemplo.es")]
+    [InlineData("JOSÉ@ejemplo.es")]
+    [InlineData("straße@ejemplo.de")]
+    public void El_correo_normalizado_coincide_con_el_de_Identity(string correo)
+    {
+        var identity = new Microsoft.AspNetCore.Identity.UpperInvariantLookupNormalizer();
+
+        SolicitudAlta.NormalizarCorreo(correo.Trim()).Should().Be(identity.NormalizeEmail(correo.Trim()),
+            "la Solicitud de alta y la cuenta del Administrador tienen que comparar igual el mismo correo");
+    }
+
+    [Fact]
+    public void VersionFila_es_token_de_concurrencia_y_las_aceptaciones_se_cargan_siempre()
+    {
+        var solicitud = Modelo.FindEntityType(typeof(SolicitudAlta))!;
+
+        solicitud.FindProperty(nameof(SolicitudAlta.VersionFila))!.IsConcurrencyToken.Should().BeTrue(
+            "el webhook de pago y el trabajo de caducidad no pueden pisarse");
+        solicitud.FindNavigation(nameof(SolicitudAlta.Aceptaciones))!.IsEagerLoaded.Should().BeTrue(
+            "sin las aceptaciones cargadas, BorrarDatosPersonales dejaría sus filas con la IP");
+    }
+
     [Fact]
     public void El_Id_de_una_aceptacion_lo_asigna_el_dominio()
     {

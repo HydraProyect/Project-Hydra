@@ -363,18 +363,34 @@ public class SolicitudAltaTests
     }
 
     [Fact]
-    public void Un_pago_fallido_renueva_la_sesion_sin_salir_de_PendientePago()
+    public void Un_pago_rechazado_no_deja_el_agregado_a_medias()
     {
         var s = En(EstadoSolicitudAlta.PendientePago);
+        var version = s.VersionFila;
 
-        s.RenovarSesionCheckout("cs_test_2", Inicio.AddHours(3));
+        ((Action)(() => s.MarcarPagada("cs_otra", "cus_1", "sub_1", Inicio.AddHours(4)))).Should().Throw<ArgumentException>(
+            "solo se acepta la sesión de Checkout de esta Solicitud de alta");
+        ((Action)(() => s.MarcarPagada(Sesion, "cus_1", " ", Inicio.AddHours(4)))).Should().Throw<ArgumentException>()
+            .WithParameterName("stripeSubscriptionId");
 
         s.Estado.Should().Be(EstadoSolicitudAlta.PendientePago);
-        s.CheckoutSessionId.Should().Be("cs_test_2");
-        ((Action)(() => s.MarcarPagada(Sesion, "cus_1", "sub_1", Inicio.AddHours(4)))).Should().Throw<ArgumentException>(
-            "la sesión anterior ya no es la vigente");
-        s.MarcarPagada("cs_test_2", "cus_1", "sub_1", Inicio.AddHours(4));
+        s.StripeCustomerId.Should().BeNull("el customer válido no se asigna si la suscripción no lo es");
+        s.StripeSubscriptionId.Should().BeNull();
+        s.VersionFila.Should().Be(version);
+
+        s.MarcarPagada(Sesion, "cus_1", "sub_1", Inicio.AddHours(4));
         s.Estado.Should().Be(EstadoSolicitudAlta.Pagada);
+    }
+
+    [Fact]
+    public void El_correo_normalizado_sigue_el_criterio_de_Identity()
+    {
+        var compuesto = SolicitudAlta.Iniciar("josé@ejemplo.es", "hash", Token, "203.0.113.7", null, Inicio);
+        var descompuesto = SolicitudAlta.Iniciar("josé@ejemplo.es", "hash", Token, "203.0.113.7", null, Inicio);
+
+        descompuesto.CorreoNormalizado.Should().Be(compuesto.CorreoNormalizado, "dos formas Unicode del mismo correo son el mismo correo");
+        compuesto.CorreoNormalizado.Should().Be("JOSÉ@EJEMPLO.ES");
+        descompuesto.Correo.Should().Be("josé@ejemplo.es", "el original se guarda tal cual");
     }
 
     [Fact]
@@ -418,7 +434,6 @@ public class SolicitudAltaTests
         ["DerivarAAcceso"] = ([EstadoSolicitudAlta.CorreoVerificado], (s, t) => s.DerivarAAcceso(CifEmpresa, t)),
         ["PasarAPendientePago"] = ([EstadoSolicitudAlta.DatosCompletos],
             (s, t) => s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual, [Aceptacion("Otro documento")], "cs_test_9", t)),
-        ["RenovarSesionCheckout"] = ([EstadoSolicitudAlta.PendientePago], (s, t) => s.RenovarSesionCheckout("cs_test_9", t)),
         ["MarcarPagada"] = ([EstadoSolicitudAlta.PendientePago], (s, t) => s.MarcarPagada(Sesion, "cus_9", "sub_9", t)),
         ["Completar"] = ([EstadoSolicitudAlta.Pagada], (s, t) => s.Completar(Guid.NewGuid(), t)),
         ["Reembolsar"] = ([EstadoSolicitudAlta.Pagada], (s, t) => s.Reembolsar("motivo", t)),
@@ -506,7 +521,6 @@ public class SolicitudAltaTests
     [InlineData(EstadoSolicitudAlta.Iniciada)]
     [InlineData(EstadoSolicitudAlta.CorreoVerificado)]
     [InlineData(EstadoSolicitudAlta.DatosCompletos)]
-    [InlineData(EstadoSolicitudAlta.PendientePago)]
     public void Vencido_el_plazo_solo_admite_caducar_o_bloquearse(EstadoSolicitudAlta estado)
     {
         var s = En(estado);
@@ -516,8 +530,8 @@ public class SolicitudAltaTests
         {
             EstadoSolicitudAlta.Iniciada => () => s.VerificarCorreo(Token, vencida),
             EstadoSolicitudAlta.CorreoVerificado => () => s.CompletarDatos("Org", CifEmpresa, "Calle 1", TramoTrabajadoresActivos.De1A10, true, false, vencida),
-            EstadoSolicitudAlta.DatosCompletos => () => s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual, [Aceptacion()], Sesion, vencida),
-            _ => (Action)(() => s.RenovarSesionCheckout("cs_test_2", vencida)),
+            EstadoSolicitudAlta.DatosCompletos => (Action)(() => s.PasarAPendientePago(ModalidadSuscripcionAlta.Mensual, [Aceptacion()], Sesion, vencida)),
+            _ => throw new ArgumentOutOfRangeException(nameof(estado)),
         };
 
         avanzar.Should().Throw<InvalidOperationException>();

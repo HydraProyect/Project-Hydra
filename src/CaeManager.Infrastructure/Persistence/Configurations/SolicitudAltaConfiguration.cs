@@ -53,7 +53,10 @@ public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta
         builder.HasMany(s => s.Aceptaciones).WithOne()
             .HasForeignKey(a => a.SolicitudAltaId)
             .OnDelete(DeleteBehavior.Cascade);
-        builder.Navigation(s => s.Aceptaciones).HasField("_aceptaciones");
+        // AutoInclude: cargar una Solicitud de alta trae siempre sus aceptaciones. Sin ellas,
+        // BorrarDatosPersonales vaciaría una colección en memoria vacía, marcaría el borrado como hecho
+        // y dejaría en la base las filas con la IP.
+        builder.Navigation(s => s.Aceptaciones).HasField("_aceptaciones").AutoInclude();
 
         // Sin HasQueryFilter: plano de Plataforma, no pertenece a un Tenant.
     }

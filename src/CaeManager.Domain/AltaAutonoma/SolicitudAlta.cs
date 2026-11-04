@@ -129,7 +129,7 @@ public class SolicitudAlta : Entity
         {
             Estado = EstadoSolicitudAlta.Iniciada,
             Correo = correoLimpio,
-            CorreoNormalizado = correoLimpio.ToUpperInvariant(),
+            CorreoNormalizado = NormalizarCorreo(correoLimpio),
             HashContrasena = hashContrasena,
             HashTokenVerificacion = CalcularHashToken(tokenVerificacion),
             TokenVerificacionCaducaEnUtc = ahoraUtc + VigenciaTokenVerificacion,
@@ -292,21 +292,14 @@ public class SolicitudAlta : Entity
         CambiarEstado(EstadoSolicitudAlta.PendientePago, ahoraUtc);
     }
 
-    /// <summary>
-    /// PendientePago → PendientePago con otra sesión de Checkout, tras un pago fallido o una sesión caducada.
-    /// </summary>
-    public void RenovarSesionCheckout(string checkoutSessionId, DateTime ahoraUtc)
-    {
-        ExigirEstadoVigente(ahoraUtc, nameof(RenovarSesionCheckout), EstadoSolicitudAlta.PendientePago);
-
-        CheckoutSessionId = IdStripe(checkoutSessionId, nameof(checkoutSessionId));
-        UltimoCambioEstadoEnUtc = ahoraUtc;
-        VersionFila++;
-    }
+    // Sin renovación de la sesión de Checkout: sustituirla exige saber que la anterior ya no se puede
+    // pagar (expirarla en Stripe), y eso lo define la integración con Stripe, no este agregado. Hasta
+    // entonces, una Solicitud de alta tiene una sola sesión de Checkout.
 
     /// <summary>
     /// PendientePago → Pagada, con la sesión de Checkout que se pagó. No mira el plazo de caducidad: lo
-    /// pagado está pagado. Una sesión distinta de la vigente se rechaza.
+    /// pagado está pagado. Una sesión distinta de la vigente se rechaza. Todo se valida antes de asignar:
+    /// una llamada rechazada no deja el agregado a medias.
     /// </summary>
     public void MarcarPagada(string checkoutSessionId, string stripeCustomerId, string stripeSubscriptionId, DateTime ahoraUtc)
     {
@@ -316,8 +309,11 @@ public class SolicitudAlta : Entity
         if (!string.Equals(IdStripe(checkoutSessionId, nameof(checkoutSessionId)), CheckoutSessionId, StringComparison.Ordinal))
             throw new ArgumentException("La sesión de Checkout pagada no es la vigente de esta Solicitud de alta.", nameof(checkoutSessionId));
 
-        StripeCustomerId = IdStripe(stripeCustomerId, nameof(stripeCustomerId));
-        StripeSubscriptionId = IdStripe(stripeSubscriptionId, nameof(stripeSubscriptionId));
+        var customer = IdStripe(stripeCustomerId, nameof(stripeCustomerId));
+        var subscription = IdStripe(stripeSubscriptionId, nameof(stripeSubscriptionId));
+
+        StripeCustomerId = customer;
+        StripeSubscriptionId = subscription;
         CambiarEstado(EstadoSolicitudAlta.Pagada, ahoraUtc);
     }
 
@@ -381,8 +377,9 @@ public class SolicitudAlta : Entity
     /// Borra los datos personales de una Solicitud de alta <see cref="EstadoSolicitudAlta.Caducada"/>
     /// (DA-7): correo, hashes, IP, user-agent, datos de la organización, sesión de Checkout y
     /// aceptaciones. Quedan el estado, las fechas, el tramo y la modalidad. Repetirlo no cambia nada.
-    /// Las aceptaciones solo se borran si se cargaron con la Solicitud de alta (<c>Include</c>): sin ellas
-    /// la colección está vacía en memoria y sus filas, con la IP, seguirían en la base.
+    /// Las aceptaciones tienen que estar cargadas: la configuración de EF las incluye siempre
+    /// (<c>AutoInclude</c>). Con <c>IgnoreAutoIncludes</c> la colección estaría vacía en memoria y sus filas,
+    /// con la IP, seguirían en la base.
     /// </summary>
     public void BorrarDatosPersonales(DateTime ahoraUtc)
     {
@@ -408,6 +405,13 @@ public class SolicitudAlta : Entity
         DatosPersonalesBorradosEnUtc = ahoraUtc;
         VersionFila++;
     }
+
+    /// <summary>
+    /// El mismo criterio que <c>UpperInvariantLookupNormalizer</c> de Identity (forma Unicode C y luego
+    /// mayúsculas invariantes): un correo normalizado aquí compara igual que el <c>NormalizedEmail</c> de
+    /// la cuenta que lo use.
+    /// </summary>
+    public static string NormalizarCorreo(string correo) => correo.Normalize().ToUpperInvariant();
 
     /// <summary>¿Es un DNI o un NIE, es decir, el NIF de una persona física?</summary>
     public static bool EsPersonaFisica(string cifNifNormalizado) =>
