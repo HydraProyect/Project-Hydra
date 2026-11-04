@@ -12,9 +12,11 @@
 // las dos cosas. El estado se escribe en la región role="status" del componente, que el lector de pantalla anuncia sin
 // mover el foco.
 //
-// El reto caduca en el servidor (data-vigencia-ms desde su emisión). Este guion cuenta la vigencia desde que arranca,
-// que es algo después de la emisión, y por eso lo da por caducado un margen antes: entonces detiene el cálculo, deja de
-// retener y avisa de que hay que recargar la página, en vez de esperar una solución que el servidor ya no aceptaría.
+// El reto caduca en el servidor. data-vigencia-ms es ya la vigencia que cuenta este guion, la del servidor menos el
+// margen que cubre la latencia entre emitir y pintar (OpcionesAntiabusoAlta.MargenCaducidadGuion). Pasado ese plazo, el
+// guion detiene el cálculo, deja de retener y avisa de que hay que recargar la página. El plazo se comprueba con el
+// reloj en cada paso (solución, repetición, envío) y no solo con su temporizador: tras una pestaña congelada, los
+// temporizadores vencidos pueden dispararse en cualquier orden, y una repetición no puede mandar un reto caducado.
 //
 // La retención escucha submit en fase de captura sobre window, que corre antes que la captura sobre document de
 // acceso-doble-envio.js: un envío retenido no llega a marcarse como «enviando» ni a deshabilitar el botón, y la
@@ -25,8 +27,6 @@
     'use strict';
 
     var SELECTOR = '[data-reto-prueba-trabajo]';
-    // Margen entre la caducidad que cuenta el guion y la del servidor: cubre la latencia entre emitir el reto y pintarlo.
-    var MARGEN_CADUCIDAD_MS = 10000;
     var estados = new WeakMap();
     var activos = [];
 
@@ -48,6 +48,7 @@
         var espera = parseInt(contenedor.getAttribute('data-espera-minima-ms'), 10);
         var vigencia = parseInt(contenedor.getAttribute('data-vigencia-ms'), 10);
         var listoDesde = ahora() + (espera > 0 ? espera : 0);
+        var caducaEn = vigencia > 0 ? ahora() + vigencia : Infinity;
         var trabajador = null;
         var temporizador = null;
         var temporizadorCaducidad = null;
@@ -61,6 +62,7 @@
             caducado: false,
             retenido: null,
             puedeSalir: function () {
+                comprobarPlazo();
                 return estado.fallido || (estado.resuelto && ahora() >= listoDesde);
             },
             retener: function (boton) {
@@ -93,6 +95,7 @@
         }
 
         function repetir() {
+            if (comprobarPlazo()) return;
             var retenido = estado.retenido;
             var formulario = contenedor.closest('form');
             estado.retenido = null;
@@ -102,7 +105,7 @@
         }
 
         function terminar(nonce) {
-            if (estado.caducado) return;
+            if (comprobarPlazo()) return;
             if (trabajador) trabajador.terminate();
             trabajador = null;
             if (typeof nonce !== 'string') {
@@ -127,6 +130,14 @@
             avisar('data-texto-caducado');
         }
 
+        // Devuelve true si el reto ya ha caducado, y lo da por caducado la primera vez que lo ve.
+        function comprobarPlazo() {
+            if (estado.caducado) return true;
+            if (ahora() < caducaEn) return false;
+            caducar();
+            return true;
+        }
+
         estados.set(contenedor, estado);
         activos.push(estado);
 
@@ -135,7 +146,7 @@
             return;
         }
 
-        if (vigencia > 0) temporizadorCaducidad = setTimeout(caducar, Math.max(0, vigencia - MARGEN_CADUCIDAD_MS));
+        if (vigencia > 0) temporizadorCaducidad = setTimeout(comprobarPlazo, vigencia);
 
         try {
             trabajador = new Worker(contenedor.getAttribute('data-trabajador'));

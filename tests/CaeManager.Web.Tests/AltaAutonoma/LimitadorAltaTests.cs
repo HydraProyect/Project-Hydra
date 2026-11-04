@@ -78,29 +78,40 @@ public class LimitadorAltaTests
         limitador.IdleDuration.Should().BeNull();
     }
 
+    // Sobre el PartitionedRateLimiter real: las ventanas no se reponen solas, así que solo el ciclo del particionado
+    // (cada 100 ms) puede devolver el cupo, y lo hace a través de LimitadorEncadenado. En cada prueba, la ventana que no
+    // se observa dura una hora y no interviene; la observada dura 2 s, y lo único que depende del reloj es que dos
+    // llamadas seguidas no se separen 2 s. La espera de la reposición tiene un plazo holgado.
     [Fact]
-    public async Task El_limitador_particionado_repone_las_dos_ventanas_en_su_ciclo()
+    public async Task El_limitador_particionado_repone_la_ventana_corta_en_su_ciclo()
     {
-        // Ventanas de milisegundos sobre el PartitionedRateLimiter real: sin reposición automática propia, solo el
-        // ciclo del particionado (cada 100 ms) puede devolver el cupo, y lo hace a través de LimitadorEncadenado.
-        var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 2, IniciosPorDiaPorIp = 3 };
+        var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 1, IniciosPorDiaPorIp = 1000 };
         using var particionado = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
-            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(3)));
+            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromSeconds(2), TimeSpan.FromHours(1)));
         var contexto = Post("203.0.113.9");
 
         particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
-        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
         particionado.AttemptAcquire(contexto).IsAcquired.Should().BeFalse("la ventana corta está agotada");
 
-        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(2)))
+        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(15)))
             .Should().BeTrue("el ciclo del particionado repone la ventana corta");
+    }
 
-        await Task.Delay(TimeSpan.FromMilliseconds(400));
-        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeFalse(
-            "con la corta repuesta, la larga lleva sus 3 permisos gastados y sigue cerrada");
+    [Fact]
+    public async Task El_limitador_particionado_repone_la_ventana_larga_en_su_ciclo()
+    {
+        // El día con un permiso y la hora con mil: la configuración no lo admitiría (EsValida), pero la partición se
+        // construye aquí sin validar, para que solo el día pueda cerrar.
+        var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 1000, IniciosPorDiaPorIp = 1 };
+        using var particionado = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
+            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromHours(1), TimeSpan.FromSeconds(2)));
+        var contexto = Post("203.0.113.9");
 
-        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(6)))
-            .Should().BeTrue("el mismo ciclo repone también la ventana larga");
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
+        particionado.AttemptAcquire(contexto).IsAcquired.Should().BeFalse("la ventana larga está agotada");
+
+        (await HastaQueConceda(particionado, contexto, TimeSpan.FromSeconds(15)))
+            .Should().BeTrue("el ciclo del particionado repone también la ventana larga");
     }
 
     private static async Task<bool> HastaQueConceda(PartitionedRateLimiter<HttpContext> limitador, HttpContext contexto, TimeSpan plazo)

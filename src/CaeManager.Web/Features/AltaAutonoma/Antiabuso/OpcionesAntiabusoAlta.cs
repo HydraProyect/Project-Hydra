@@ -45,14 +45,24 @@ public sealed class OpcionesAntiabusoAlta
     /// <summary>Segundos de búsqueda media del reto al ritmo medido: 2^bits intentos entre los hashes por segundo.</summary>
     public double SegundosBusquedaMedia => Math.Pow(2, DificultadBits) / HashesPorSegundoMedidos;
 
+    /// <summary>
+    /// Cuánto antes que el servidor da el guion por caducado el reto: cubre la latencia entre emitirlo y pintarlo,
+    /// porque el guion cuenta la vigencia desde que arranca. El componente pinta ya la vigencia efectiva.
+    /// </summary>
+    public static readonly TimeSpan MargenCaducidadGuion = TimeSpan.FromSeconds(10);
+
+    /// <summary>Vigencia que cuenta el guion del navegador: la del servidor menos el margen.</summary>
+    public TimeSpan VigenciaRetoEnGuion => VigenciaReto - MargenCaducidadGuion;
+
     public bool EsValida() =>
         IniciosPorHoraPorIp is >= 1 and <= 10_000
         && IniciosPorDiaPorIp >= IniciosPorHoraPorIp && IniciosPorDiaPorIp <= 100_000
         && DificultadBits is >= 8 and <= 28
         && VigenciaReto >= TimeSpan.FromMinutes(1) && VigenciaReto <= TimeSpan.FromHours(2)
-        // Dificultad y vigencia van juntas: un reto que tarda más en resolverse que en caducar deja el formulario
-        // esperando una solución que el servidor ya no aceptaría.
-        && VigenciaReto.TotalSeconds >= HolguraVigenciaSobreBusquedaMedia * SegundosBusquedaMedia
         && TiempoMinimoEnvio >= TimeSpan.Zero && TiempoMinimoEnvio <= TimeSpan.FromMinutes(1)
+        // Dificultad, tiempo mínimo y vigencia van juntos: si el reto caduca en el navegador antes de poder resolverse
+        // y de pasar el tiempo mínimo, ningún envío es aceptable (la trampa de tiempo lo rechaza antes y el reto
+        // caducado después). Se suman, aunque corran a la vez, para quedar del lado seguro.
+        && VigenciaRetoEnGuion.TotalSeconds >= TiempoMinimoEnvio.TotalSeconds + HolguraVigenciaSobreBusquedaMedia * SegundosBusquedaMedia
         && VigenciaSelloFormulario > TiempoMinimoEnvio && VigenciaSelloFormulario <= TimeSpan.FromHours(24);
 }

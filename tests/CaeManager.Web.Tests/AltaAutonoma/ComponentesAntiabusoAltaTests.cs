@@ -38,6 +38,8 @@ public class ComponentesAntiabusoAltaTests : BunitContext
         var token = contenedor.GetAttribute("data-reto")!;
         contenedor.GetAttribute("data-bits").Should().Be("8");
         contenedor.GetAttribute("data-espera-minima-ms").Should().Be("3000", "el guion no repite un envío antes de la trampa de tiempo");
+        contenedor.GetAttribute("data-vigencia-ms").Should().Be("1190000", "20 min del servidor menos los 10 s de margen del guion");
+        contenedor.GetAttribute("data-texto-caducado").Should().NotBeNullOrWhiteSpace();
         contenedor.GetAttribute("data-trabajador").Should().EndWith("js/reto-prueba-trabajo-worker.js");
 
         corte.Find($"input[type=hidden][name={RetoPruebaTrabajoFormulario.CampoReto}]").GetAttribute("value").Should().Be(token);

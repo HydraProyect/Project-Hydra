@@ -71,7 +71,11 @@ function montarPagina({ conWorker = true, esperaMs = 3000, vigenciaMs = 1200000 
 
     function avanzar(ms) {
         reloj += ms;
-        for (const t of temporizadores.filter((t) => t.vence <= reloj)) { clearTimeout(t); t.fn(); }
+        // En orden de vencimiento, como un navegador al volver de una pestaña congelada: con un salto grande, vencen
+        // varios a la vez y el primero en dispararse es el que antes vencía.
+        for (const t of temporizadores.filter((t) => t.vence <= reloj).sort((a, b) => a.vence - b.vence)) {
+            if (temporizadores.includes(t)) { clearTimeout(t); t.fn(); }
+        }
     }
 
     function navegarFuera() {
@@ -80,7 +84,9 @@ function montarPagina({ conWorker = true, esperaMs = 3000, vigenciaMs = 1200000 
         oyentesBlazor.enhancedload();
     }
 
-    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar, navegarFuera };
+    function saltarReloj(ms) { reloj += ms; }
+
+    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar, navegarFuera, saltarReloj };
 }
 
 test('arranca el worker al montar con el reto y los bits, sin esperar a la persona', () => {
@@ -150,12 +156,12 @@ test('sin Web Worker se avisa del error y el formulario no queda retenido', () =
 });
 
 test('al caducar el reto se para el cálculo, se avisa y el envío deja de retenerse', () => {
-    const p = montarPagina({ vigenciaMs: 60000 });
+    const p = montarPagina({ vigenciaMs: 50000 });
     p.avanzar(3500);
     assert.equal(p.enviar().cancelado, true, 'sin solución, retenido');
 
-    p.avanzar(60000 - 10000 - 3500 - 1);
-    assert.equal(p.trabajadores[0].terminado, false, 'un instante antes del margen sigue calculando');
+    p.avanzar(50000 - 3500 - 1);
+    assert.equal(p.trabajadores[0].terminado, false, 'un instante antes de la vigencia sigue calculando');
     p.avanzar(1);
 
     assert.ok(p.trabajadores[0].terminado, 'el worker se termina al caducar');
@@ -169,12 +175,12 @@ test('al caducar el reto se para el cálculo, se avisa y el envío deja de reten
 });
 
 test('resuelto y retenido por la trampa de tiempo, caducar cancela la repetición pendiente', () => {
-    const p = montarPagina({ esperaMs: 3000, vigenciaMs: 12000 });
+    const p = montarPagina({ esperaMs: 3000, vigenciaMs: 2000 });
     p.trabajadores[0].onmessage({ data: { nonce: '7' } });
     assert.equal(p.enviar().cancelado, true);
     p.avanzar(2000);
 
-    assert.equal(p.aviso.textContent, 'caducado', 'vigencia de 12 s menos el margen de 10 s');
+    assert.equal(p.aviso.textContent, 'caducado', 'la vigencia del guion vence antes que la trampa de tiempo');
     p.avanzar(5000);
     assert.equal(p.envios.length, 0);
 });
@@ -188,4 +194,30 @@ test('al salir del formulario por navegación mejorada se termina su worker', ()
     assert.ok(p.trabajadores[0].terminado, 'el worker del contenedor retirado no sigue calculando');
     p.avanzar(1200000);
     assert.equal(p.aviso.textContent, 'comprobando', 'tampoco queda vivo el temporizador de caducidad');
+});
+test('tras una pestaña congelada, la repetición vencida no manda un reto caducado', () => {
+    const p = montarPagina({ esperaMs: 3000, vigenciaMs: 50000 });
+    p.trabajadores[0].onmessage({ data: { nonce: '7' } });
+    assert.equal(p.enviar().cancelado, true, 'resuelto pero antes de la trampa de tiempo: retenido');
+
+    // Un solo salto de 60 s: vencen la repetición (3 s) y la caducidad (50 s), y se dispara antes la repetición.
+    p.avanzar(60000);
+
+    assert.equal(p.envios.length, 0, 'la repetición ve el plazo vencido y no envía');
+    assert.equal(p.aviso.textContent, 'caducado');
+});
+
+test('una solución que llega después del plazo no se usa aunque su temporizador no haya corrido', () => {
+    const p = montarPagina({ vigenciaMs: 50000 });
+    p.avanzar(3500);
+    p.enviar();
+    p.avanzar(0);
+
+    // El reloj pasa del plazo sin que corra ningún temporizador, y el worker contesta antes que la caducidad.
+    p.saltarReloj(60000);
+    p.trabajadores[0].onmessage({ data: { nonce: '7' } });
+
+    assert.equal(p.campo.value, '', 'no se rellena una solución caducada');
+    assert.equal(p.envios.length, 0);
+    assert.equal(p.aviso.textContent, 'caducado');
 });

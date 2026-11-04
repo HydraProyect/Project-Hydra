@@ -179,16 +179,32 @@ public class RetoPruebaTrabajoTests
     }
 
     [Theory]
-    // 20 veces la búsqueda media a 24.000 hashes/s: 20 bits son 874 s y caben en 20 min; 21 bits son 1.748 s y no.
+    // Vigencia en el guion (la del servidor menos 10 s) frente a 3 s de tiempo mínimo más 20 veces la búsqueda media a
+    // 24.000 hashes/s: 20 bits piden 877 s y caben en 1.190 s; 21 bits piden 1.751 s y no; en 1 min (50 s en el
+    // guion) caben 15 bits (30 s) y no 16 (58 s).
     [InlineData(20, 20, true)]
     [InlineData(21, 20, false)]
     [InlineData(21, 30, true)]
-    [InlineData(16, 1, true)]
-    [InlineData(17, 1, false)]
+    [InlineData(15, 1, true)]
+    [InlineData(16, 1, false)]
     public void La_vigencia_del_reto_tiene_que_cubrir_su_dificultad(int bits, int minutos, bool valida)
     {
         new OpcionesAntiabusoAlta { DificultadBits = bits, VigenciaReto = TimeSpan.FromMinutes(minutos) }.EsValida()
             .Should().Be(valida);
+    }
+
+    [Theory]
+    // Con 8 bits la búsqueda es despreciable: en 1 min de vigencia (50 s en el guion) cabe un tiempo mínimo de 45 s,
+    // pero no uno de 50 s, que dejaría el reto caducado en el navegador justo cuando el envío empieza a valer.
+    [InlineData(45, true)]
+    [InlineData(50, false)]
+    [InlineData(60, false)]
+    public void El_tiempo_minimo_de_envio_tiene_que_caber_en_la_vigencia_del_guion(int segundos, bool valida)
+    {
+        new OpcionesAntiabusoAlta
+        {
+            DificultadBits = 8, VigenciaReto = TimeSpan.FromMinutes(1), TiempoMinimoEnvio = TimeSpan.FromSeconds(segundos),
+        }.EsValida().Should().Be(valida);
     }
 
     [Fact]
