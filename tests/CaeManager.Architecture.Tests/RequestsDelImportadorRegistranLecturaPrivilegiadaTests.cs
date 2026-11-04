@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Migrations.PostgreSQL.Migrations;
 using FluentAssertions;
@@ -49,6 +50,64 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             "una exclusión que ya no existe se retira de la lista");
     }
 
+    /// <summary>
+    /// Las páginas del Importador. Lo que envían es lo que el Actor de Plataforma TALVEG lee al
+    /// usarlo, venga del espacio de nombres que venga (p. ej. <c>ObtenerNombreCuentaQuery</c>).
+    /// </summary>
+    private static readonly string[] PaginasDelImportador =
+    [
+        "src/CaeManager.Web/Features/Importacion",
+        "src/CaeManager.Web/Features/Clientes/Pages/ImportarClientes.razor",
+        "src/CaeManager.Web/Features/Clientes/Pages/ImportarCombinado.razor",
+        "src/CaeManager.Web/Features/Documentos/Pages/ImportarDocumentos.razor",
+    ];
+
+    private static readonly Regex EnvioDeRequest = new(@"\.Send\(\s*new\s+(?<tipo>[A-Z]\w*)\s*\(", RegexOptions.Compiled);
+
+    [Fact]
+    public void Todo_request_que_envia_la_pagina_del_Importador_registra_la_lectura_en_Sesion_Privilegiada()
+    {
+        var raiz = BuscarRaizDelRepositorio();
+        var ficheros = PaginasDelImportador
+            .Select(r => Path.Combine(raiz, r.Replace('/', Path.DirectorySeparatorChar)))
+            .SelectMany(r => Directory.Exists(r)
+                ? Directory.EnumerateFiles(r, "*.razor*", SearchOption.AllDirectories)
+                : File.Exists(r) ? [r] : [])
+            .Where(f => f.EndsWith(".razor", StringComparison.Ordinal) || f.EndsWith(".razor.cs", StringComparison.Ordinal))
+            .ToList();
+        ficheros.Should().Contain(f => f.EndsWith("Importacion.razor.cs", StringComparison.Ordinal),
+            "el instrumento tiene que leer la página del Importador");
+
+        var enviados = ficheros
+            .SelectMany(f => EnvioDeRequest.Matches(File.ReadAllText(f)).Select(m => m.Groups["tipo"].Value))
+            .Distinct()
+            .ToList();
+        enviados.Should().Contain(["ObtenerHistorialImportacionesQuery", "ObtenerNombreCuentaQuery", "EjecutarImportacionCommand"],
+            "la expresión tiene que reconocer los envíos de la página");
+
+        var requestsPorNombre = typeof(ILecturaRegistradaEnSesionPrivilegiada).Assembly.GetTypes()
+            .Where(t => typeof(IBaseRequest).IsAssignableFrom(t))
+            .ToLookup(t => t.Name);
+
+        enviados.Where(n => !requestsPorNombre.Contains(n)).Should().BeEmpty(
+            "cada request enviado tiene que encontrarse en Application para poder comprobarlo");
+        enviados
+            .Where(n => !Excluidos.Contains(n))
+            .Where(n => !requestsPorNombre[n].All(t => typeof(ILecturaRegistradaEnSesionPrivilegiada).IsAssignableFrom(t)))
+            .Should().BeEmpty("lo que la página del Importador lee bajo Sesión Privilegiada deja fila (issue #2001)");
+    }
+
+    private static string BuscarRaizDelRepositorio()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        actual.Should().NotBeNull("los tests tienen que correr dentro del repositorio");
+        return actual!.FullName;
+    }
+
     private static string Up => new RegistraActividadSoportePorSesionPrivilegiada()
         .UpOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
 
@@ -67,9 +126,31 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .And.Contain("public.app_ctx_valido()")
             .And.Contain("s.\"TenantObjetivoId\" = v_tenant")
             .And.Contain("s.\"CerradaEnUtc\" IS NULL")
-            .And.Contain("s.\"ExpiraEnUtc\" > now()")
+            .And.Contain("s.\"InicioEnUtc\" <= v_ahora")
+            .And.Contain("s.\"ExpiraEnUtc\" > v_ahora")
             .And.Contain("c.\"UsuarioPlataformaId\" = v_actor")
-            .And.Contain("c.\"Estado\" = 'Vigente'");
+            .And.Contain("c.\"Estado\" = 'Vigente'")
+            .And.Contain("c.\"VigenciaDesde\" <= v_ahora")
+            .And.Contain("(c.\"VigenciaHasta\" IS NULL OR c.\"VigenciaHasta\" > v_ahora)")
+            .And.Contain("c.\"EsAlcanceGlobal\" OR EXISTS");
+    }
+
+    [Fact]
+    public void La_hora_es_la_del_reloj_y_no_la_del_inicio_de_la_transaccion()
+    {
+        // now() es la hora de inicio de la transacción: una transacción abierta antes de que la
+        // sesión o la concesión caducaran seguiría viéndolas vigentes.
+        Up.Should().Contain("v_ahora timestamptz := clock_timestamp();");
+        Up.Should().NotContain("now()");
+        Up.Should().Contain("p_detalle, v_ahora,", "la fila se fecha con la misma hora con la que se comprobó la sesión");
+    }
+
+    [Fact]
+    public void El_detalle_solo_admite_un_identificador_de_request()
+    {
+        Up.Should().Contain("OR p_detalle IS NULL OR length(p_detalle) > 200")
+            .And.Contain("OR p_detalle !~ '^[A-Za-z][A-Za-z0-9_.]*$' THEN");
+        Up.Should().NotContain("left(p_detalle", "el detalle ya no se recorta: o es un identificador o no se inserta");
     }
 
     [Fact]

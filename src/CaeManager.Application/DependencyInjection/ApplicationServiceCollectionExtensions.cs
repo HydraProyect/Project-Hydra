@@ -91,6 +91,8 @@ public static class ApplicationServiceCollectionExtensions
         // si un host resolviera una Sesión Privilegiada sin la implementación real de Infrastructure.
         services.TryAddScoped<CaeManager.Application.Plataforma.IRegistroLecturaSesionPrivilegiada,
             CaeManager.Application.Plataforma.RegistroLecturaSesionPrivilegiadaNoDisponible>();
+        services.TryAddScoped<CaeManager.Application.Plataforma.ICoordenadaSesionPrivilegiada,
+            CaeManager.Application.Plataforma.CoordenadaSesionPrivilegiadaAusente>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();

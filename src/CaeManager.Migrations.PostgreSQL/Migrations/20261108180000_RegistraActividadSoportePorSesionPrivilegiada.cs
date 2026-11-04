@@ -32,7 +32,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     usuario simulado), SesionPrivilegiadaId y OcurridaEnUtc los pone la función;
             //     DelegacionTenantId queda nulo (CK_RegistrosActividadSoporte_UnSoloAgrupador). Del
             //     llamador solo vienen el Id del registro (UUID v7 de la aplicación), el tipo (solo
-            //     'Lectura') y el detalle, recortado a 500 caracteres como la columna.
+            //     'Lectura') y el detalle, que solo puede ser un identificador de request (letra inicial,
+            //     letras, dígitos, '_' o '.', hasta 200): nunca texto libre ni datos leídos.
+            //   - Hora: clock_timestamp(), no now(). now() es la hora de inicio de la transacción, y una
+            //     transacción abierta antes de que la sesión o la concesión caducaran seguiría viéndolas
+            //     vigentes; la misma hora fecha la fila.
             // El propietario de la función es el rol de las migraciones: por eso el TenantId de la
             // fila sale del contexto firmado y no de un parámetro. Devuelve un código en vez de lanzar,
             // para que el repositorio falle en cerrado con el motivo en el registro. EXECUTE solo para
@@ -47,6 +51,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 DECLARE
                   v_actor uuid;
                   v_tenant uuid;
+                  v_ahora timestamptz := clock_timestamp();
                 BEGIN
                   IF NOT public.app_ctx_valido() THEN
                     RETURN 'contexto_no_valido';
@@ -57,7 +62,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'contexto_no_valido';
                   END IF;
 
-                  IF p_registro IS NULL OR p_tipo IS NULL OR p_tipo NOT IN ('Lectura') THEN
+                  IF p_registro IS NULL OR p_tipo IS NULL OR p_tipo NOT IN ('Lectura')
+                     OR p_detalle IS NULL OR length(p_detalle) > 200
+                     OR p_detalle !~ '^[A-Za-z][A-Za-z0-9_.]*$' THEN
                     RETURN 'valor_no_valido';
                   END IF;
 
@@ -67,12 +74,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   WHERE s."Id" = p_sesion
                     AND s."TenantObjetivoId" = v_tenant
                     AND s."CerradaEnUtc" IS NULL
-                    AND s."InicioEnUtc" <= now()
-                    AND s."ExpiraEnUtc" > now()
+                    AND s."InicioEnUtc" <= v_ahora
+                    AND s."ExpiraEnUtc" > v_ahora
                     AND c."UsuarioPlataformaId" = v_actor
                     AND c."Estado" = 'Vigente'
-                    AND c."VigenciaDesde" <= now()
-                    AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > now())
+                    AND c."VigenciaDesde" <= v_ahora
+                    AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora)
                     AND (c."EsAlcanceGlobal" OR EXISTS (
                         SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
                         WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant));
@@ -84,7 +91,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                       "Id", "UsuarioSoporteId", "Tipo", "DelegacionTenantId", "Detalle", "OcurridaEnUtc",
                       "TenantId", "SesionPrivilegiadaId")
                   VALUES (
-                      p_registro, v_actor, p_tipo, NULL, left(p_detalle, 500), now(),
+                      p_registro, v_actor, p_tipo, NULL, p_detalle, v_ahora,
                       v_tenant, p_sesion);
 
                   RETURN 'registrado';

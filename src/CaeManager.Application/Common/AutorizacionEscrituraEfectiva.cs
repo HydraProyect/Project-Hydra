@@ -56,7 +56,8 @@ public class AutorizacionEscrituraEfectiva(
         // de una Sesión Privilegiada lee bajo RLS acotada a ese Tenant. No abre escritura
         // (eso sigue exigiendo IComandoDeAprovisionamiento y la revalidación de arriba) ni
         // amplía lo que la sesión puede leer. Y no lee sin rastro (issue #2001): todo request
-        // del Importador es ILecturaRegistradaEnSesionPrivilegiada, y
+        // que envía la página del Importador (salvo el que solo escribe su historial) es
+        // ILecturaRegistradaEnSesionPrivilegiada, y
         // RegistroLecturaSesionPrivilegiadaBehavior deja la fila en RegistrosActividadSoporte
         // antes de que corra el handler, o no lo deja correr.
         var sesion = await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken);

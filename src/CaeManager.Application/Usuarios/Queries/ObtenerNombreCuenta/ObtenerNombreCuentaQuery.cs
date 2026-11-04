@@ -15,7 +15,13 @@ public interface ILectorNombreCuenta
     Task<NombreCuentaDto?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken);
 }
 
-public sealed record ObtenerNombreCuentaQuery(Guid UsuarioId) : IRequest<NombreCuentaDto?>;
+/// <summary>
+/// Marcada <see cref="Common.ILecturaRegistradaEnSesionPrivilegiada"/> porque la página del Importador
+/// la envía para pintar quién ejecutó cada carga del historial (issue #2001); fuera de una Sesión
+/// Privilegiada el marcador no cambia nada.
+/// </summary>
+public sealed record ObtenerNombreCuentaQuery(Guid UsuarioId)
+    : IRequest<NombreCuentaDto?>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public sealed class ObtenerNombreCuentaQueryHandler(ILectorNombreCuenta lector)
     : IRequestHandler<ObtenerNombreCuentaQuery, NombreCuentaDto?>

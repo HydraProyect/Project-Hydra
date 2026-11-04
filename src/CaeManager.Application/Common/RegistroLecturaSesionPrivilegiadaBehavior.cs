@@ -18,13 +18,18 @@ namespace CaeManager.Application.Common;
 /// la función respondería 42501. Va después de las autorizaciones: un request denegado no llega
 /// a leer y no se registra.
 ///
-/// Sin sesión resuelta no hay nada que registrar y el request sigue igual. Usa
-/// <see cref="ISesionPrivilegiadaActual.ObtenerAsync"/>: la vigencia la vuelve a comprobar la
-/// función en la base, de modo que una memo que siga nombrando una sesión ya cerrada o caducada
-/// no deja pasar la lectura — la función la rechaza y este behavior falla en cerrado.
+/// Sin Sesión Privilegiada seleccionada no hay nada que registrar y el request sigue igual. Con
+/// una seleccionada que ya no resuelve (cerrada, caducada, concesión revocada, otro Tenant) se
+/// falla en cerrado: la conexión sigue adoptando <c>cae_app_soporte</c> mientras el circuito la
+/// nombre (<see cref="ICoordenadaSesionPrivilegiada"/>, la coordenada en bruto), así que dejar
+/// pasar el request sería leer bajo la identidad de soporte sin fila. Y si resuelve, la vigencia
+/// la vuelve a comprobar la función en la base: una memo que siga nombrando una sesión ya
+/// cerrada o caducada no deja pasar la lectura — la función la rechaza y este behavior falla en
+/// cerrado.
 /// </summary>
 public class RegistroLecturaSesionPrivilegiadaBehavior<TRequest, TResponse>(
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    ICoordenadaSesionPrivilegiada coordenadaSesionPrivilegiada,
     IRegistroLecturaSesionPrivilegiada registroLectura)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
@@ -35,12 +40,17 @@ public class RegistroLecturaSesionPrivilegiadaBehavior<TRequest, TResponse>(
         if (request is not ILecturaRegistradaEnSesionPrivilegiada)
             return await next(cancellationToken);
 
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion)
-            return await next(cancellationToken);
-
         // El detalle nombra la operación, nunca los datos leídos (RegistroActividadSoporte:
         // este registro es también dato personal del empleado de soporte).
         var operacion = typeof(TRequest).Name;
+
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion)
+        {
+            if (coordenadaSesionPrivilegiada.HaySeleccionada)
+                throw new LecturaPrivilegiadaNoRegistradaException(operacion);
+            return await next(cancellationToken);
+        }
+
         if (!await registroLectura.RegistrarAsync(sesion.SesionId, operacion, cancellationToken))
             throw new LecturaPrivilegiadaNoRegistradaException(operacion);
 

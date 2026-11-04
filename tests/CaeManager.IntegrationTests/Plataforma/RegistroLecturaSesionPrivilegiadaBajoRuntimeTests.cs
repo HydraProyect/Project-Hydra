@@ -82,9 +82,24 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Si_la_sesion_simula_a_un_usuario_la_fila_nombra_al_actor_real()
     {
-        var sesion = await AbrirSesionDeSoporteLecturaAsync();
-        await EjecutarComoPropietarioAsync(
-            $@"UPDATE ""SesionesPrivilegiadas"" SET ""UsuarioSimuladoId"" = '{Guid.NewGuid()}' WHERE ""Id"" = @u;", sesion);
+        // Sesión de impersonación construida por el dominio (SesionPrivilegiada.Abrir solo admite
+        // Usuario simulado bajo una concesión de Impersonacion), sembrada como propietario.
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SobreTenants(
+            _tecnico, CapacidadPrivilegio.Impersonacion, [_tenantA],
+            ahora.AddMinutes(-10), ahora.AddHours(4), concedidaPorUsuarioId: _otroTecnico);
+        var impersonacion = SesionPrivilegiada.Abrir(
+            concesion, _tenantA, "Reproducir lo que ve el usuario", ahora.AddMinutes(-1), TimeSpan.FromMinutes(30),
+            usuarioSimuladoId: Guid.NewGuid());
+        await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
+        {
+            contexto.ConcesionesPrivilegio.Add(concesion);
+            contexto.SesionesPrivilegiadas.Add(impersonacion);
+            await contexto.SaveChangesAsync();
+        }
+
+        var sesion = impersonacion.Id;
+        impersonacion.UsuarioSimuladoId.Should().NotBeNull();
 
         (await RegistrarComoSoporteAsync(_tenantA, sesion, "AnalizarPlantillaCombinadaQuery")).Should().BeTrue();
 
@@ -103,6 +118,7 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
             new SesionFija(sesion, _tenantA),
+            new CoordenadaFija(true),
             new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
 
         var filasVistasPorLaLectura = -1;
@@ -127,6 +143,7 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
         // La memo de la aplicación todavía nombra la sesión: la función es la que la rechaza.
         var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
             new SesionFija(sesion, _tenantA),
+            new CoordenadaFija(true),
             new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
 
         var leyo = false;
@@ -139,6 +156,57 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
         await ejecutar.Should().ThrowAsync<LecturaPrivilegiadaNoRegistradaException>();
         leyo.Should().BeFalse("lo que no deja rastro no se sirve");
         (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Con las piezas reales de la aplicación: cerrada la sesión, <c>SesionPrivilegiadaActual</c>
+    /// deja de resolverla pero el circuito aún la nombra y la conexión sigue adoptando
+    /// <c>cae_app_soporte</c>. El behavior no deja pasar la lectura sin fila.
+    /// </summary>
+    [Fact]
+    public async Task Una_sesion_seleccionada_que_ya_no_resuelve_no_deja_leer_bajo_la_identidad_de_soporte()
+    {
+        var sesion = await AbrirSesionDeAprovisionamientoAsync([_tenantA]);
+
+        // Control positivo: la misma composición, con la sesión abierta, registra y lee.
+        (await LeerConPiezasRealesAsync(sesion)).Should().BeTrue();
+        (await LeerFilasAsync(sesion)).Should().ContainSingle();
+
+        await EjecutarComoPropietarioAsync(
+            @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;", sesion);
+
+        var leer = () => LeerConPiezasRealesAsync(sesion);
+
+        await leer.Should().ThrowAsync<LecturaPrivilegiadaNoRegistradaException>();
+        (await LeerFilasAsync(sesion)).Should().ContainSingle("la lectura rechazada no deja fila nueva");
+    }
+
+    /// <summary>
+    /// now() es la hora de inicio de la transacción. Una transacción abierta mientras la sesión
+    /// era vigente no puede seguir registrando lecturas después de que caduque.
+    /// </summary>
+    [Fact]
+    public async Task Una_transaccion_abierta_antes_de_caducar_la_sesion_no_registra_despues()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "Control")).Should().BeTrue("control positivo");
+
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync();
+            await contexto.Database.ExecuteSqlRawAsync("SELECT now();");
+            // La caducidad se fija DESPUÉS de empezar la transacción, desde otra conexión: now()
+            // dentro de ella queda por fuerza antes de ExpiraEnUtc, con cualquier carga de CI.
+            await EjecutarComoPropietarioAsync(
+                @"UPDATE ""SesionesPrivilegiadas"" SET ""ExpiraEnUtc"" = clock_timestamp() + interval '2 seconds' WHERE ""Id"" = @u;", sesion);
+            await Task.Delay(TimeSpan.FromSeconds(4));
+
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "TrasCaducar"))
+                .Should().Be("sesion_no_autorizada", "la ventana se comprueba con la hora del reloj, no con la de la transacción");
+            await transaccion.RollbackAsync();
+        }
+
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("Control");
     }
 
     // ── Cada precondición de la función, incumplida: no hay fila y el servicio da false ─
@@ -212,6 +280,17 @@ WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" 
     }
 
     [Fact]
+    public async Task Una_concesion_que_aun_no_es_vigente_no_registra_aunque_la_sesion_siga_abierta()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await EjecutarComoPropietarioAsync(@"
+UPDATE ""ConcesionesPrivilegio"" SET ""VigenciaDesde"" = now() + interval '5 minutes'
+WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);", sesion);
+
+        await NoRegistraAsync(_tenantA, sesion);
+    }
+
+    [Fact]
     public async Task Una_concesion_por_Tenant_que_ya_no_alcanza_el_Tenant_no_registra()
     {
         var sesion = await AbrirSesionDeAprovisionamientoAsync([_tenantA]);
@@ -238,6 +317,33 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         (await LeerFilasAsync(sesion)).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// El detalle solo puede nombrar el request: un llamador con EXECUTE no puede escribir texto
+    /// libre (ni datos leídos) en un registro que también es dato personal del técnico.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("Nombre con espacios")]
+    [InlineData("1EmpiezaPorDigito")]
+    [InlineData("Juan Pérez, DNI 12345678Z")]
+    [InlineData("Consulta;DROP")]
+    [InlineData("x\ny")]
+    public async Task La_funcion_rechaza_un_detalle_que_no_es_un_identificador_de_request(string detalle)
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
+                .Should().Be("registrado", "control positivo con un identificador válido");
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), detalle))
+                .Should().Be("valor_no_valido");
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), new string('A', 201)))
+                .Should().Be("valor_no_valido", "más de 200 caracteres no es un nombre de request");
+        }
+
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("EjecutarImportacionCommand");
+    }
+
     [Fact]
     public async Task Un_contexto_firmado_invalidado_no_registra()
     {
@@ -246,16 +352,16 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         await contexto.Database.OpenConnectionAsync();
 
         // Control positivo: la misma conexión y la misma sesión registran antes de invalidar el contexto.
-        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "control")).Should().Be("registrado");
+        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "Control")).Should().Be("registrado");
         await contexto.Database.ExecuteSqlRawAsync("SELECT set_config('app.contexto', '', false);");
 
-        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "tras invalidar"))
+        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "TrasInvalidar"))
             .Should().Be("contexto_no_valido");
         (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
-                .RegistrarAsync(sesion, "tras invalidar"))
+                .RegistrarAsync(sesion, "TrasInvalidar"))
             .Should().BeFalse();
 
-        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("control");
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("Control");
     }
 
     // ── Quién puede ejecutarla, y la tabla sin INSERT para la sesión ─────────
@@ -370,6 +476,34 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<SesionPrivilegiadaActiva?>(_sesion);
+    }
+
+    private sealed class CoordenadaFija(bool haySeleccionada) : ICoordenadaSesionPrivilegiada
+    {
+        public bool HaySeleccionada => haySeleccionada;
+    }
+
+    /// <summary>
+    /// El behavior con las piezas reales de la aplicación sobre un ámbito nuevo (la memo de
+    /// <c>SesionPrivilegiadaActual</c> es por ámbito): la sesión seleccionada en el circuito,
+    /// la conexión de esa sesión y el registro real. Devuelve si la lectura llegó a correr.
+    /// </summary>
+    private async Task<bool> LeerConPiezasRealesAsync(Guid sesion)
+    {
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var actual = new CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual(
+            contexto, new ClienteActivoSeleccionadoFalso(_tenantA, sesion), UsuarioTecnico());
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
+            actual, actual,
+            new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
+
+        var leyo = false;
+        await behavior.Handle(new LecturaMarcada(), _ =>
+        {
+            leyo = true;
+            return Task.FromResult(7);
+        }, CancellationToken.None);
+        return leyo;
     }
 
     private async Task NoRegistraAsync(Guid tenantDelContexto, Guid sesion, Guid? actor = null)

@@ -36,8 +36,10 @@ namespace CaeManager.Domain.Soporte;
 /// <c>app_registrar_actividad_soporte_por_sesion</c>, que pone actor real,
 /// Tenant objetivo y sesión desde el contexto RLS firmado. Hoy registra las
 /// lecturas (<see cref="TipoActividadSoporte.Lectura"/>) de los requests
-/// marcados <c>ILecturaRegistradaEnSesionPrivilegiada</c> —todas las
-/// lecturas del Importador—, en fallo cerrado: sin fila no se sirven los datos.
+/// marcados <c>ILecturaRegistradaEnSesionPrivilegiada</c> —los requests que
+/// envía la página del Importador, salvo el que solo escribe su historial—,
+/// en fallo cerrado: sin fila no se sirven los datos. Otras lecturas bajo
+/// Sesión Privilegiada solo se registran si su request lleva el marcador.
 ///
 /// Aviso: este registro es también dato personal del empleado de soporte
 /// (control de actividad laboral). Antes de activarlo hay que informarle,

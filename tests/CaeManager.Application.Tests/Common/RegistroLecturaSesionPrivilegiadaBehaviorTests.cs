@@ -28,7 +28,7 @@ public class RegistroLecturaSesionPrivilegiadaBehaviorTests
     {
         var sesion = new SesionContada(Sesion);
         var registro = new RegistroFalso(resultado: true);
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaSinMarcador, string>(sesion, registro);
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaSinMarcador, string>(sesion, new Coordenada(true), registro);
 
         var resultado = await behavior.Handle(new LecturaSinMarcador(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -38,10 +38,11 @@ public class RegistroLecturaSesionPrivilegiadaBehaviorTests
     }
 
     [Fact]
-    public async Task Un_request_marcado_sin_Sesion_Privilegiada_no_registra_y_sigue()
+    public async Task Un_request_marcado_sin_Sesion_Privilegiada_seleccionada_no_registra_y_sigue()
     {
         var registro = new RegistroFalso(resultado: false);
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(new SesionContada(null), registro);
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(
+            new SesionContada(null), new Coordenada(false), registro);
 
         var resultado = await behavior.Handle(new LecturaMarcada(), _ => Task.FromResult("ok"), CancellationToken.None);
 
@@ -50,10 +51,42 @@ public class RegistroLecturaSesionPrivilegiadaBehaviorTests
     }
 
     [Fact]
+    public async Task Una_Sesion_Privilegiada_seleccionada_que_ya_no_resuelve_falla_en_cerrado_sin_leer()
+    {
+        // Cerrada, caducada o con la concesión revocada: ObtenerAsync da null, pero el circuito aún
+        // la nombra y la conexión sigue adoptando cae_app_soporte.
+        var registro = new RegistroFalso(resultado: true);
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(
+            new SesionContada(null), new Coordenada(true), registro);
+        var leyo = false;
+
+        var ejecutar = () => behavior.Handle(new LecturaMarcada(), _ =>
+        {
+            leyo = true;
+            return Task.FromResult("datos");
+        }, CancellationToken.None);
+
+        (await ejecutar.Should().ThrowAsync<LecturaPrivilegiadaNoRegistradaException>())
+            .Which.Operacion.Should().Be(nameof(LecturaMarcada));
+        leyo.Should().BeFalse("bajo identidad de soporte no se lee sin fila");
+        registro.Llamadas.Should().BeEmpty("no hay sesión vigente que nombrar en la fila");
+    }
+
+    [Fact]
+    public void El_valor_por_defecto_de_la_coordenada_dice_que_no_hay_seleccion()
+    {
+        new CoordenadaSesionPrivilegiadaAusente().HaySeleccionada.Should().BeFalse();
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        servicios.Should().Contain(d => d.ServiceType == typeof(ICoordenadaSesionPrivilegiada)
+                                        && d.ImplementationType == typeof(CoordenadaSesionPrivilegiadaAusente));
+    }
+
+    [Fact]
     public async Task Bajo_Sesion_Privilegiada_registra_la_sesion_y_la_operacion_antes_de_leer()
     {
         var registro = new RegistroFalso(resultado: true);
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(new SesionContada(Sesion), registro);
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(new SesionContada(Sesion), new Coordenada(true), registro);
         var llamadasAlLeer = -1;
 
         var resultado = await behavior.Handle(new LecturaMarcada(), _ =>
@@ -71,7 +104,7 @@ public class RegistroLecturaSesionPrivilegiadaBehaviorTests
     public async Task Si_el_registro_no_se_escribe_el_handler_no_corre_y_lanza()
     {
         var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, string>(
-            new SesionContada(Sesion), new RegistroFalso(resultado: false));
+            new SesionContada(Sesion), new Coordenada(true), new RegistroFalso(resultado: false));
         var leyo = false;
 
         var ejecutar = () => behavior.Handle(new LecturaMarcada(), _ =>
@@ -125,6 +158,11 @@ public class RegistroLecturaSesionPrivilegiadaBehaviorTests
             Consultas++;
             return Task.FromResult(sesion);
         }
+    }
+
+    private sealed class Coordenada(bool haySeleccionada) : ICoordenadaSesionPrivilegiada
+    {
+        public bool HaySeleccionada => haySeleccionada;
     }
 
     private sealed class RegistroFalso(bool resultado) : IRegistroLecturaSesionPrivilegiada
