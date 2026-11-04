@@ -1,8 +1,10 @@
+using System.Reflection;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Migrations.PostgreSQL.Migrations;
 using FluentAssertions;
 using MediatR;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace CaeManager.Architecture.Tests;
@@ -64,6 +66,12 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
 
     private static readonly Regex EnvioDeRequest = new(@"\.Send\(\s*new\s+(?<tipo>[A-Z]\w*)\s*\(", RegexOptions.Compiled);
 
+    /// <summary>La misma forma, anclada a la posición donde empieza una llamada.</summary>
+    private static readonly Regex EnvioDeRequestAqui = new(@"\G\.Send\(\s*new\s+[A-Z]\w*\s*\(", RegexOptions.Compiled);
+
+    /// <summary>Cualquier llamada a <c>.Send(</c>, con o sin argumentos genéricos.</summary>
+    private static readonly Regex CualquierEnvio = new(@"\.Send\s*(<[^>(]*>)?\s*\(", RegexOptions.Compiled);
+
     [Fact]
     public void Todo_request_que_envia_la_pagina_del_Importador_registra_la_lectura_en_Sesion_Privilegiada()
     {
@@ -77,6 +85,22 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .ToList();
         ficheros.Should().Contain(f => f.EndsWith("Importacion.razor.cs", StringComparison.Ordinal),
             "el instrumento tiene que leer la página del Importador");
+
+        // Un envío que no es «.Send(new X(...))» (una variable, un método, un genérico) no lo puede
+        // nombrar este instrumento: se exige la forma literal para no dar por marcado lo que no ve.
+        var enviosOpacos = ficheros
+            .SelectMany(f =>
+            {
+                var texto = File.ReadAllText(f);
+                return CualquierEnvio.Matches(texto)
+                    .Where(m => !EnvioDeRequestAqui.IsMatch(texto, m.Index))
+                    .Select(m => $"{Path.GetFileName(f)}:{texto[..m.Index].Count(c => c == '\n') + 1}");
+            })
+            .ToList();
+        enviosOpacos.Should().BeEmpty(
+            "toda llamada a .Send( en una página del Importador tiene que ser «.Send(new Request(...))» para que " +
+            "este test pueda comprobar que el request lleva ILecturaRegistradaEnSesionPrivilegiada (issue #2001); " +
+            "si hace falta otra forma, amplía el instrumento antes");
 
         var enviados = ficheros
             .SelectMany(f => EnvioDeRequest.Matches(File.ReadAllText(f)).Select(m => m.Groups["tipo"].Value))
@@ -145,12 +169,56 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         Up.Should().Contain("p_detalle, v_ahora,", "la fila se fecha con la misma hora con la que se comprobó la sesión");
     }
 
+    private static readonly Regex ListaDeDetalles = new(@"p_detalle NOT IN \((?<lista>[^)]*)\)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// La función de la migración VIGENTE (la última que la crea o la reemplaza) solo admite como
+    /// detalle los nombres de los requests marcados, ni uno más ni uno menos: marcar un request
+    /// nuevo obliga a una migración nueva que amplíe la lista, y una lista con un nombre que ya no
+    /// es un request marcado se nota aquí.
+    /// </summary>
     [Fact]
-    public void El_detalle_solo_admite_un_identificador_de_request()
+    public void La_lista_cerrada_de_detalles_de_la_migracion_vigente_es_exactamente_la_de_los_requests_marcados()
     {
-        Up.Should().Contain("OR p_detalle IS NULL OR length(p_detalle) > 200")
-            .And.Contain("OR p_detalle !~ '^[A-Za-z][A-Za-z0-9_.]*$' THEN");
-        Up.Should().NotContain("left(p_detalle", "el detalle ya no se recorta: o es un identificador o no se inserta");
+        var vigente = typeof(RegistraActividadSoportePorSesionPrivilegiada).Assembly.GetTypes()
+            .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
+            .Select(t => (Id: t.GetCustomAttribute<MigrationAttribute>()?.Id, Tipo: t))
+            .Where(m => m.Id is not null)
+            .Select(m => (m.Id, Sql: string.Join("\n", ((Migration)Activator.CreateInstance(m.Tipo)!)
+                .UpOperations.OfType<SqlOperation>().Select(o => o.Sql))))
+            .Where(m => m.Sql.Contains("FUNCTION public.app_registrar_actividad_soporte_por_sesion(", StringComparison.Ordinal))
+            .OrderBy(m => m.Id, StringComparer.Ordinal)
+            .Last();
+
+        var coincidencias = ListaDeDetalles.Matches(vigente.Sql);
+        coincidencias.Should().ContainSingle("la función de {0} tiene que filtrar el detalle por lista cerrada", vigente.Id);
+        var admitidos = coincidencias[0].Groups["lista"].Value
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(v => v.Trim('\''))
+            .ToList();
+
+        var marcados = typeof(ILecturaRegistradaEnSesionPrivilegiada).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(ILecturaRegistradaEnSesionPrivilegiada).IsAssignableFrom(t))
+            .Select(t => t.Name)
+            .ToList();
+
+        marcados.Should().HaveCount(11, "el instrumento tiene que ver los requests marcados");
+        admitidos.Should().OnlyHaveUniqueItems();
+        admitidos.Should().BeEquivalentTo(marcados,
+            "el detalle de la función {0} es una lista cerrada con el nombre exacto de cada request marcado", vigente.Id);
+    }
+
+    [Fact]
+    public void La_funcion_solo_registra_en_READ_COMMITTED()
+    {
+        // Bajo REPEATABLE READ o SERIALIZABLE la función vería una instantánea anterior al cierre de
+        // la sesión o a la revocación de la concesión.
+        Up.Should().Contain("IF current_setting('transaction_isolation') <> 'read committed' THEN")
+            .And.Contain("RETURN 'aislamiento_no_admitido';");
+        Up.IndexOf("aislamiento_no_admitido", StringComparison.Ordinal).Should().BeLessThan(
+            Up.IndexOf("INSERT INTO", StringComparison.Ordinal), "el rechazo va antes de insertar");
+        Up.Should().NotContain("left(p_detalle").And.NotContain("p_detalle !~",
+            "el detalle no se recorta ni se acepta por patrón: o es un nombre de la lista o no se inserta");
     }
 
     [Fact]

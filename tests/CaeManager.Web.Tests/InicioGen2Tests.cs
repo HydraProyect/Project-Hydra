@@ -772,6 +772,27 @@ public class InicioGen2Tests : BunitContext
         mediador.IdNombreConsultado.Should().Be(id);
     }
 
+    /// <summary>
+    /// Issue #2001: bajo una Sesión Privilegiada cuya lectura no queda registrada, la consulta del
+    /// nombre falla en cerrado. El saludo se queda sin nombre de pila y el circuito sigue vivo.
+    /// </summary>
+    [Fact]
+    public void Si_la_lectura_privilegiada_del_nombre_no_queda_registrada_el_saludo_va_sin_nombre_y_el_circuito_sigue()
+    {
+        var id = Guid.NewGuid();
+        var mediador = new MediadorDeInicio
+        {
+            NombreCuenta = new NombreCuentaDto("Ramón Ibáñez", "ramon@example.test"),
+            NombreNoRegistrado = true,
+        };
+        var cut = Renderizar(mediador, autenticacion: new AutenticacionConId(id), rol: Roles.Cliente);
+
+        cut.WaitForAssertion(() => mediador.IdNombreConsultado.Should().Be(id));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Trabajadores activos", "el dashboard sigue pintado"));
+        cut.Markup.Should().NotContain(", Ramón");
+        Renderer.UnhandledException.IsCompleted.Should().BeFalse("la excepción la absorbe el saludo, no el circuito");
+    }
+
     private sealed class AutenticacionConId(Guid id) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
@@ -1405,6 +1426,8 @@ public class InicioGen2Tests : BunitContext
     private sealed class MediadorDeInicio(params ItemBandejaDto[] items) : IMediator
     {
         public NombreCuentaDto? NombreCuenta { get; init; }
+        /// <summary>La consulta del nombre falla en cerrado, como bajo una Sesión Privilegiada sin registro (#2001).</summary>
+        public bool NombreNoRegistrado { get; init; }
         public Guid? IdNombreConsultado { get; private set; }
         /// <summary>
         /// Tres mil novecientos ochenta y tres al día (3.812 vigentes + 71 próximos + 100 urgentes) de cuatro mil trescientos
@@ -1463,6 +1486,9 @@ public class InicioGen2Tests : BunitContext
             {
                 case ObtenerNombreCuentaQuery consulta:
                     IdNombreConsultado = consulta.UsuarioId;
+                    if (NombreNoRegistrado)
+                        return Task.FromException<TResponse>(
+                            new CaeManager.Application.Common.LecturaPrivilegiadaNoRegistradaException(nameof(ObtenerNombreCuentaQuery)));
                     return Task.FromResult((TResponse)(object?)NombreCuenta!);
                 case ObtenerPerfilVocabularioActualQuery:
                     return Task.FromResult((TResponse)(object)Perfil);

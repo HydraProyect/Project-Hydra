@@ -10,6 +10,32 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         /// <summary>Firma de la función, la misma en el GRANT, el REVOKE y el DROP.</summary>
         internal const string Firma = "public.app_registrar_actividad_soporte_por_sesion(uuid, uuid, text, text)";
 
+        /// <summary>
+        /// Los únicos detalles que la función admite: el nombre de cada request marcado
+        /// <c>ILecturaRegistradaEnSesionPrivilegiada</c> en el momento de esta migración. Es una
+        /// copia a propósito, no una referencia a Application: una migración aplicada no cambia.
+        /// <c>RequestsDelImportadorRegistranLecturaPrivilegiadaTests</c> exige que la lista de la
+        /// migración vigente coincida con los tipos marcados, así que marcar un request nuevo
+        /// obliga a una migración nueva que la amplíe.
+        /// </summary>
+        internal static readonly string[] OperacionesRegistradas =
+        [
+            "AnalizarImportacionExcelQuery",
+            "AnalizarPlantillaClientesQuery",
+            "AnalizarPlantillaCombinadaQuery",
+            "AnalizarPlantillaDocumentosQuery",
+            "AnalizarPlantillaMaestraQuery",
+            "EjecutarImportacionCombinadaCommand",
+            "EjecutarImportacionCommand",
+            "EjecutarImportacionMaestraCommand",
+            "ObtenerHistorialImportacionesQuery",
+            "ObtenerNombreCuentaQuery",
+            "PrevisualizarImportacionMaestraCommand",
+        ];
+
+        private static string ListaSql(string[] valores) =>
+            string.Join(", ", System.Array.ConvertAll(valores, v => "'" + v + "'"));
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -32,11 +58,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     usuario simulado), SesionPrivilegiadaId y OcurridaEnUtc los pone la función;
             //     DelegacionTenantId queda nulo (CK_RegistrosActividadSoporte_UnSoloAgrupador). Del
             //     llamador solo vienen el Id del registro (UUID v7 de la aplicación), el tipo (solo
-            //     'Lectura') y el detalle, que solo puede ser un identificador de request (letra inicial,
-            //     letras, dígitos, '_' o '.', hasta 200): nunca texto libre ni datos leídos.
+            //     'Lectura') y el detalle, que solo puede ser uno de los nombres de request de
+            //     OperacionesRegistradas (lista cerrada): nunca texto libre ni datos leídos.
             //   - Hora: clock_timestamp(), no now(). now() es la hora de inicio de la transacción, y una
             //     transacción abierta antes de que la sesión o la concesión caducaran seguiría viéndolas
             //     vigentes; la misma hora fecha la fila.
+            //   - Aislamiento: solo READ COMMITTED, donde cada sentencia toma una instantánea nueva. Bajo
+            //     REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
+            //     al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar.
             // El propietario de la función es el rol de las migraciones: por eso el TenantId de la
             // fila sale del contexto firmado y no de un parámetro. Devuelve un código en vez de lanzar,
             // para que el repositorio falle en cerrado con el motivo en el registro. EXECUTE solo para
@@ -62,9 +91,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'contexto_no_valido';
                   END IF;
 
+                  IF current_setting('transaction_isolation') <> 'read committed' THEN
+                    RETURN 'aislamiento_no_admitido';
+                  END IF;
+
                   IF p_registro IS NULL OR p_tipo IS NULL OR p_tipo NOT IN ('Lectura')
-                     OR p_detalle IS NULL OR length(p_detalle) > 200
-                     OR p_detalle !~ '^[A-Za-z][A-Za-z0-9_.]*$' THEN
+                     OR p_detalle IS NULL OR p_detalle NOT IN ({ListaSql(OperacionesRegistradas)}) THEN
                     RETURN 'valor_no_valido';
                   END IF;
 

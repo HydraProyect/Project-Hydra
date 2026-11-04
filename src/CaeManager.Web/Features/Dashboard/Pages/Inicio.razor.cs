@@ -249,7 +249,18 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         async Task<string?> ResolverNombreDeCuentaAsync()
         {
             var id = estadoAutenticacion.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var usuario = id is null ? null : await Mediator.Send(new ObtenerNombreCuentaQuery(Guid.Parse(id)), token);
+            NombreCuentaDto? usuario;
+            try
+            {
+                usuario = id is null ? null : await Mediator.Send(new ObtenerNombreCuentaQuery(Guid.Parse(id)), token);
+            }
+            catch (LecturaPrivilegiadaNoRegistradaException)
+            {
+                // Bajo una Sesión Privilegiada cuya lectura no quedó registrada (issue #2001) el
+                // nombre no se sirve: el saludo sin nombre de pila es un estado válido, y el
+                // circuito no se rompe por un saludo.
+                usuario = null;
+            }
             // Identity.Name es el email de acceso (mismo dato que usa el enlace "Mi
             // firma" del topbar), no un nombre para mostrar; NombreCompleto es el
             // campo real (mismo origen que PestanaHistorial usa para "quién hizo

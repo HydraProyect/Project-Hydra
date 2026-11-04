@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
 using CaeManager.Domain.Plataforma;
@@ -8,7 +9,6 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
-using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -116,21 +116,22 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
     {
         var sesion = await AbrirSesionDeAprovisionamientoAsync([_tenantA]);
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<ObtenerHistorialImportacionesQuery, IReadOnlyList<HistorialImportacionDto>>(
             new SesionFija(sesion, _tenantA),
             new CoordenadaFija(true),
             new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
 
+        IReadOnlyList<HistorialImportacionDto> leido = [];
         var filasVistasPorLaLectura = -1;
-        var resultado = await behavior.Handle(new LecturaMarcada(), async ct =>
+        var resultado = await behavior.Handle(new ObtenerHistorialImportacionesQuery(), async ct =>
         {
             filasVistasPorLaLectura = (await LeerFilasAsync(sesion)).Count;
-            return 7;
+            return leido;
         }, CancellationToken.None);
 
-        resultado.Should().Be(7);
+        resultado.Should().BeSameAs(leido, "el behavior devuelve lo que leyó la lectura");
         filasVistasPorLaLectura.Should().Be(1, "la fila existe antes de que la lectura corra");
-        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be(nameof(LecturaMarcada));
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be(nameof(ObtenerHistorialImportacionesQuery));
     }
 
     [Fact]
@@ -141,16 +142,16 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
             @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;", sesion);
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         // La memo de la aplicación todavía nombra la sesión: la función es la que la rechaza.
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<ObtenerHistorialImportacionesQuery, IReadOnlyList<HistorialImportacionDto>>(
             new SesionFija(sesion, _tenantA),
             new CoordenadaFija(true),
             new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
 
         var leyo = false;
-        var ejecutar = () => behavior.Handle(new LecturaMarcada(), _ =>
+        var ejecutar = () => behavior.Handle(new ObtenerHistorialImportacionesQuery(), _ =>
         {
             leyo = true;
-            return Task.FromResult(7);
+            return Task.FromResult<IReadOnlyList<HistorialImportacionDto>>([]);
         }, CancellationToken.None);
 
         await ejecutar.Should().ThrowAsync<LecturaPrivilegiadaNoRegistradaException>();
@@ -189,7 +190,7 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
     public async Task Una_transaccion_abierta_antes_de_caducar_la_sesion_no_registra_despues()
     {
         var sesion = await AbrirSesionDeSoporteLecturaAsync();
-        (await RegistrarComoSoporteAsync(_tenantA, sesion, "Control")).Should().BeTrue("control positivo");
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "ObtenerHistorialImportacionesQuery")).Should().BeTrue("control positivo");
 
         await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
         {
@@ -201,12 +202,12 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
                 @"UPDATE ""SesionesPrivilegiadas"" SET ""ExpiraEnUtc"" = clock_timestamp() + interval '2 seconds' WHERE ""Id"" = @u;", sesion);
             await Task.Delay(TimeSpan.FromSeconds(4));
 
-            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "TrasCaducar"))
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
                 .Should().Be("sesion_no_autorizada", "la ventana se comprueba con la hora del reloj, no con la de la transacción");
             await transaccion.RollbackAsync();
         }
 
-        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("Control");
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("ObtenerHistorialImportacionesQuery");
     }
 
     // ── Cada precondición de la función, incumplida: no hay fila y el servicio da false ─
@@ -309,7 +310,7 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         {
             foreach (var tipo in Enum.GetValues<TipoActividadSoporte>().Where(t => t != TipoActividadSoporte.Lectura))
             {
-                (await LlamarFuncionAsync(contexto, sesion, tipo.ToString(), "x"))
+                (await LlamarFuncionAsync(contexto, sesion, tipo.ToString(), "ObtenerHistorialImportacionesQuery"))
                     .Should().Be("valor_no_valido", $"{tipo} no es una lectura y la función no lo escribe");
             }
         }
@@ -318,8 +319,9 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     }
 
     /// <summary>
-    /// El detalle solo puede nombrar el request: un llamador con EXECUTE no puede escribir texto
-    /// libre (ni datos leídos) en un registro que también es dato personal del técnico.
+    /// El detalle es una lista cerrada con el nombre de cada request marcado: un llamador con EXECUTE
+    /// no puede escribir texto libre, datos leídos ni un valor fabricado con forma de identificador
+    /// en un registro que también es dato personal del técnico.
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -328,7 +330,12 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     [InlineData("Juan Pérez, DNI 12345678Z")]
     [InlineData("Consulta;DROP")]
     [InlineData("x\ny")]
-    public async Task La_funcion_rechaza_un_detalle_que_no_es_un_identificador_de_request(string detalle)
+    [InlineData("DNI_12345678Z")]
+    [InlineData("LecturaMarcada")]
+    [InlineData("ejecutarimportacioncommand")]
+    [InlineData("EjecutarImportacionCommand ")]
+    [InlineData("RegistrarHistorialImportacionCommand")]
+    public async Task La_funcion_rechaza_un_detalle_fuera_de_la_lista_cerrada(string detalle)
     {
         var sesion = await AbrirSesionDeSoporteLecturaAsync();
         await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
@@ -338,7 +345,121 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
             (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), detalle))
                 .Should().Be("valor_no_valido");
             (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), new string('A', 201)))
-                .Should().Be("valor_no_valido", "más de 200 caracteres no es un nombre de request");
+                .Should().Be("valor_no_valido", "más de 200 caracteres no es un nombre de la lista");
+        }
+
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("EjecutarImportacionCommand");
+    }
+
+    [Fact]
+    public async Task Un_nombre_con_forma_de_request_fuera_de_la_lista_no_deja_fila()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "DNI_12345678Z"))
+                .Should().Be("valor_no_valido");
+            (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
+                    .RegistrarAsync(sesion, "DNI_12345678Z"))
+                .Should().BeFalse("el servicio traduce el rechazo a false, y el behavior no sirve los datos");
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Control positivo de la lista cerrada contra la base migrada: cada request marcado
+    /// <see cref="ILecturaRegistradaEnSesionPrivilegiada"/> se registra con su nombre. Con la
+    /// igualdad que fija el test de arquitectura, ningún request marcado queda sin poder registrarse.
+    /// </summary>
+    [Fact]
+    public async Task Cada_request_marcado_se_registra_con_su_nombre()
+    {
+        var nombres = typeof(ILecturaRegistradaEnSesionPrivilegiada).Assembly.GetTypes()
+            .Where(t => t is { IsClass: true, IsAbstract: false } && typeof(ILecturaRegistradaEnSesionPrivilegiada).IsAssignableFrom(t))
+            .Select(t => t.Name)
+            .ToList();
+        nombres.Should().HaveCount(11, "el instrumento tiene que ver los requests marcados");
+
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            foreach (var nombre in nombres)
+            {
+                (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), nombre))
+                    .Should().Be("registrado", "{0} es un request marcado", nombre);
+            }
+        }
+
+        (await LeerFilasAsync(sesion)).Select(f => f.Detalle).Should().BeEquivalentTo(nombres);
+    }
+
+    // ── Aislamiento: solo READ COMMITTED, donde cada sentencia ve el estado actual ─
+
+    /// <summary>
+    /// Bajo REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
+    /// al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar,
+    /// también con la sesión vigente, y confirmar la transacción no deja fila.
+    /// </summary>
+    [Theory]
+    [InlineData(System.Data.IsolationLevel.RepeatableRead)]
+    [InlineData(System.Data.IsolationLevel.Serializable)]
+    public async Task Bajo_un_aislamiento_mas_fuerte_que_READ_COMMITTED_no_registra_aunque_la_sesion_este_vigente(System.Data.IsolationLevel aislamiento)
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(aislamiento);
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
+                .Should().Be("aislamiento_no_admitido");
+            (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
+                    .RegistrarAsync(sesion, "EjecutarImportacionCommand"))
+                .Should().BeFalse("el servicio traduce el rechazo a false, y el behavior no sirve los datos");
+            await transaccion.CommitAsync();
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty("ni confirmando la transacción queda fila");
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "ObtenerHistorialImportacionesQuery"))
+            .Should().BeTrue("control positivo: la misma sesión, fuera de esa transacción, registra");
+    }
+
+    /// <summary>
+    /// El caso que el rechazo por aislamiento cierra: la transacción REPEATABLE READ toma su
+    /// instantánea con la sesión abierta, otra conexión la cierra, y la función no la da por vigente.
+    /// </summary>
+    [Fact]
+    public async Task Una_transaccion_REPEATABLE_READ_con_instantanea_previa_al_cierre_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+            // La primera sentencia fija la instantánea de la transacción.
+            await contexto.Database.ExecuteSqlRawAsync("SELECT now();");
+            await EjecutarComoPropietarioAsync(
+                @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;", sesion);
+
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
+                .Should().Be("aislamiento_no_admitido");
+            await transaccion.CommitAsync();
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task En_una_transaccion_READ_COMMITTED_explicita_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
+                .Should().Be("registrado");
+            await transaccion.CommitAsync();
         }
 
         (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("EjecutarImportacionCommand");
@@ -352,16 +473,16 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         await contexto.Database.OpenConnectionAsync();
 
         // Control positivo: la misma conexión y la misma sesión registran antes de invalidar el contexto.
-        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "Control")).Should().Be("registrado");
+        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "ObtenerHistorialImportacionesQuery")).Should().Be("registrado");
         await contexto.Database.ExecuteSqlRawAsync("SELECT set_config('app.contexto', '', false);");
 
-        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "TrasInvalidar"))
+        (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
             .Should().Be("contexto_no_valido");
         (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
-                .RegistrarAsync(sesion, "TrasInvalidar"))
+                .RegistrarAsync(sesion, "EjecutarImportacionCommand"))
             .Should().BeFalse();
 
-        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("Control");
+        (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("ObtenerHistorialImportacionesQuery");
     }
 
     // ── Quién puede ejecutarla, y la tabla sin INSERT para la sesión ─────────
@@ -375,12 +496,12 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         // cae_app_runtime, que no tiene EXECUTE.
         await using (var contexto = CrearContexto(_tenantA))
         {
-            var ejecutar = async () => await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "x");
+            var ejecutar = async () => await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "ObtenerHistorialImportacionesQuery");
             (await ejecutar.Should().ThrowAsync<PostgresException>())
                 .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
 
             (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
-                    .RegistrarAsync(sesion, "x"))
+                    .RegistrarAsync(sesion, "ObtenerHistorialImportacionesQuery"))
                 .Should().BeFalse("el 42501 se traduce a false, que el behavior convierte en fallo cerrado");
         }
 
@@ -464,8 +585,6 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
 
     // ── Andamiaje ────────────────────────────────────────────────────────────
 
-    private sealed record LecturaMarcada : IRequest<int>, ILecturaRegistradaEnSesionPrivilegiada;
-
     private sealed class SesionFija(Guid sesionId, Guid tenantObjetivo) : ISesionPrivilegiadaActual
     {
         private readonly SesionPrivilegiadaActiva _sesion =
@@ -493,15 +612,15 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         var actual = new CaeManager.Infrastructure.Plataforma.SesionPrivilegiadaActual(
             contexto, new ClienteActivoSeleccionadoFalso(_tenantA, sesion), UsuarioTecnico());
-        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<LecturaMarcada, int>(
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<ObtenerHistorialImportacionesQuery, IReadOnlyList<HistorialImportacionDto>>(
             actual, actual,
             new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
 
         var leyo = false;
-        await behavior.Handle(new LecturaMarcada(), _ =>
+        await behavior.Handle(new ObtenerHistorialImportacionesQuery(), _ =>
         {
             leyo = true;
-            return Task.FromResult(7);
+            return Task.FromResult<IReadOnlyList<HistorialImportacionDto>>([]);
         }, CancellationToken.None);
         return leyo;
     }
@@ -510,7 +629,7 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     {
         await using (var contexto = CrearContexto(tenantDelContexto, sesionPrivilegiadaId: sesion, actor: actor))
         {
-            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "x"))
+            (await LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "ObtenerHistorialImportacionesQuery"))
                 .Should().Be("sesion_no_autorizada");
         }
 
