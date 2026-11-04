@@ -6,6 +6,7 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
@@ -95,7 +96,10 @@ public class ModeloAltaAutonomaTests
     public void Cada_enum_guardado_como_texto_tiene_un_CHECK_con_todos_sus_valores(
         Type entidad, string restriccion, string columna, Type tipoEnum)
     {
-        var sql = Modelo.FindEntityType(entidad)!.GetCheckConstraints()
+        // Los CHECK solo viven en el modelo de diseño: el de ejecución no los guarda.
+        using var contexto = CrearContextoSinConexion();
+        var modeloDiseno = contexto.GetService<IDesignTimeModel>().Model;
+        var sql = modeloDiseno.FindEntityType(entidad)!.GetCheckConstraints()
             .Should().ContainSingle(c => c.ModelName == restriccion).Subject.Sql;
 
         sql.Should().Be($"\"{columna}\" IN ({string.Join(", ", Enum.GetNames(tipoEnum).Select(n => $"'{n}'"))})");
