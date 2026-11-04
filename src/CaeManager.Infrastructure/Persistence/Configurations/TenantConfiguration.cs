@@ -52,6 +52,15 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasMaxLength(Tenant.LongitudLogoVersion)
             .IsConcurrencyToken();
 
+        // Tipo y CIF del Tenant propietario (alta autónoma). Null en los Tenants anteriores: no se
+        // rellenan. El índice único parcial aplica DM-5 en la base: un solo Tenant propietario por CIF
+        // entre todos los Tenants, y cualquier número de Tenants sin CIF declarado.
+        builder.Property(t => t.TipoTenant).HasConversion<string>().HasMaxLength(20);
+        builder.Property(t => t.CifPropietario).HasMaxLength(Tenant.LongitudMaximaCifPropietario);
+        builder.HasIndex(t => t.CifPropietario)
+            .IsUnique()
+            .HasFilter("\"CifPropietario\" IS NOT NULL");
+
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
 

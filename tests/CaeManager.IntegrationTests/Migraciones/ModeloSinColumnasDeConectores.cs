@@ -10,8 +10,8 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// <summary>
 /// Las pruebas de una migración antigua deshacen el esquema hasta ella y siembran con el modelo
 /// actual, que ya pide columnas de migraciones posteriores. Este modelo prescinde de las que añadió
-/// AnadeConexionesPlataformaCae y de las que añadieron CortesTenantYVentanaClaveApi y
-/// AnadeClavesIntegracionTenant, porque ninguna de esas pruebas las necesita y sin esto no podrían
+/// AnadeConexionesPlataformaCae y de las que añadieron CortesTenantYVentanaClaveApi,
+/// AnadeClavesIntegracionTenant y AnadeSolicitudesAltaYCifPropietario, porque ninguna de esas pruebas las necesita y sin esto no podrían
 /// insertar un Tenant ni leer un proveedor sobre el esquema antiguo.
 /// </summary>
 internal static class ModeloSinColumnasDeConectores
@@ -29,6 +29,8 @@ internal static class ModeloSinColumnasDeConectores
             modelBuilder.Entity<Tenant>().Ignore(t => t.AddOnSubidaAutomaticaActivo);
             modelBuilder.Entity<Tenant>().Ignore(t => t.ClavesApiValidasDesdeUtc);
             modelBuilder.Entity<Tenant>().Ignore(t => t.IntegracionHabilitada);
+            modelBuilder.Entity<Tenant>().Ignore(t => t.TipoTenant);
+            modelBuilder.Entity<Tenant>().Ignore(t => t.CifPropietario);
             modelBuilder.Entity<ProveedorPlataformaCae>().Ignore(p => p.ConectorApiActivo);
         }
     }
