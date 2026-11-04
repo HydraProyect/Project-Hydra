@@ -200,12 +200,22 @@ public class RetoPruebaTrabajoTests
     [InlineData(50, false)]
     [InlineData(60, false)]
     public void El_tiempo_minimo_de_envio_tiene_que_caber_en_la_vigencia_del_guion(int segundos, bool valida)
+        => OpcionesConTiempoMinimo(segundos).EsValida().Should().Be(valida);
+
+    [Theory]
+    [InlineData(3001, false)]
+    [InlineData(1_199_999, false)]
+    [InlineData(1_200_000, true)]
+    public void El_sello_de_tiempo_tiene_que_durar_al_menos_lo_que_el_reto(int milisegundos, bool valida)
     {
-        new OpcionesAntiabusoAlta
-        {
-            DificultadBits = 8, VigenciaReto = TimeSpan.FromMinutes(1), TiempoMinimoEnvio = TimeSpan.FromSeconds(segundos),
-        }.EsValida().Should().Be(valida);
+        new OpcionesAntiabusoAlta { VigenciaSelloFormulario = TimeSpan.FromMilliseconds(milisegundos) }.EsValida()
+            .Should().Be(valida, "el reto dura 20 min por defecto");
     }
+
+    private static OpcionesAntiabusoAlta OpcionesConTiempoMinimo(int segundos) => new()
+    {
+        DificultadBits = 8, VigenciaReto = TimeSpan.FromMinutes(1), TiempoMinimoEnvio = TimeSpan.FromSeconds(segundos),
+    };
 
     [Fact]
     public void Las_opciones_por_defecto_son_validas_y_las_del_plan()

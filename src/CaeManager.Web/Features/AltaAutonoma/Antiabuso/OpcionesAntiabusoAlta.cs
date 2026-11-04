@@ -64,5 +64,8 @@ public sealed class OpcionesAntiabusoAlta
         // y de pasar el tiempo mínimo, ningún envío es aceptable (la trampa de tiempo lo rechaza antes y el reto
         // caducado después). Se suman, aunque corran a la vez, para quedar del lado seguro.
         && VigenciaRetoEnGuion.TotalSeconds >= TiempoMinimoEnvio.TotalSeconds + HolguraVigenciaSobreBusquedaMedia * SegundosBusquedaMedia
-        && VigenciaSelloFormulario > TiempoMinimoEnvio && VigenciaSelloFormulario <= TimeSpan.FromHours(24);
+        // El sello de tiempo tiene que durar al menos lo que el reto: si caducara antes, el envío que el guion libera
+        // con el reto aún vigente lo rechazaría la trampa de tiempo.
+        && VigenciaSelloFormulario > TiempoMinimoEnvio && VigenciaSelloFormulario >= VigenciaReto
+        && VigenciaSelloFormulario <= TimeSpan.FromHours(24);
 }

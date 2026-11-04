@@ -54,10 +54,13 @@ function montarPagina({ conWorker = true, esperaMs = 3000, vigenciaMs = 1200000 
     }
     const setTimeout = (fn, ms) => { const t = { fn, vence: reloj + ms }; temporizadores.push(t); return t; };
     const clearTimeout = (t) => { const i = temporizadores.indexOf(t); if (i >= 0) temporizadores.splice(i, 1); };
+    // Reloj de pared: avanza con el monótono salvo en una suspensión, en la que solo avanza él.
+    let desfasePared = 0;
+    const Date = { now: () => 1_700_000_000_000 + reloj + desfasePared };
     const performance = { now: () => reloj };
 
-    new Function('window', 'document', 'Worker', 'performance', 'setTimeout', 'clearTimeout', texto)(
-        window, document, conWorker ? TrabajadorFalso : undefined, performance, setTimeout, clearTimeout);
+    new Function('window', 'document', 'Worker', 'performance', 'setTimeout', 'clearTimeout', 'Date', texto)(
+        window, document, conWorker ? TrabajadorFalso : undefined, performance, setTimeout, clearTimeout, Date);
 
     function enviar(boton = { id: 'boton' }) {
         const evento = {
@@ -85,8 +88,9 @@ function montarPagina({ conWorker = true, esperaMs = 3000, vigenciaMs = 1200000 
     }
 
     function saltarReloj(ms) { reloj += ms; }
+    function suspender(ms) { desfasePared += ms; }
 
-    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar, navegarFuera, saltarReloj };
+    return { oyentesWindow, trabajadores, envios, aviso, campo, enviar, avanzar, navegarFuera, saltarReloj, suspender };
 }
 
 test('arranca el worker al montar con el reto y los bits, sin esperar a la persona', () => {
@@ -218,6 +222,18 @@ test('una solución que llega después del plazo no se usa aunque su temporizado
     p.trabajadores[0].onmessage({ data: { nonce: '7' } });
 
     assert.equal(p.campo.value, '', 'no se rellena una solución caducada');
+    assert.equal(p.envios.length, 0);
+    assert.equal(p.aviso.textContent, 'caducado');
+});
+test('tras una suspensión que para el reloj monótono, el reloj de pared caduca el reto', () => {
+    const p = montarPagina({ vigenciaMs: 50000 });
+    p.avanzar(3500);
+    p.enviar();
+
+    p.suspender(60000);
+    p.trabajadores[0].onmessage({ data: { nonce: '7' } });
+
+    assert.equal(p.campo.value, '', 'no se rellena una solución caducada por el reloj de pared');
     assert.equal(p.envios.length, 0);
     assert.equal(p.aviso.textContent, 'caducado');
 });

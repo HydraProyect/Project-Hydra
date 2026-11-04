@@ -49,6 +49,9 @@
         var vigencia = parseInt(contenedor.getAttribute('data-vigencia-ms'), 10);
         var listoDesde = ahora() + (espera > 0 ? espera : 0);
         var caducaEn = vigencia > 0 ? ahora() + vigencia : Infinity;
+        // performance.now() puede pararse mientras el equipo está suspendido (Firefox en Linux y macOS); el reloj de
+        // pared sigue corriendo, así que el plazo vence con el primero de los dos que lo alcance.
+        var caducaEnPared = vigencia > 0 ? Date.now() + vigencia : Infinity;
         var trabajador = null;
         var temporizador = null;
         var temporizadorCaducidad = null;
@@ -133,7 +136,7 @@
         // Devuelve true si el reto ya ha caducado, y lo da por caducado la primera vez que lo ve.
         function comprobarPlazo() {
             if (estado.caducado) return true;
-            if (ahora() < caducaEn) return false;
+            if (ahora() < caducaEn && Date.now() < caducaEnPared) return false;
             caducar();
             return true;
         }
