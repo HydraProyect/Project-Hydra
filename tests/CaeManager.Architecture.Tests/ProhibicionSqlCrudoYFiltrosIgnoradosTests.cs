@@ -264,6 +264,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/RegistroAccesoDocumentoSensibleRepository.cs",
             ".SqlQuery<string>(")] = 1,
 
+        // Issue #2001: las lecturas bajo Sesión Privilegiada dejan fila en RegistrosActividadSoporte.
+        // Misma razón que la entrada anterior: la conexión lleva cae_app_soporte (solo SELECT sobre la
+        // tabla) y la única puerta es la función SECURITY DEFINER app_registrar_actividad_soporte_por_sesion
+        // (migración RegistraActividadSoportePorSesionPrivilegiada), que comprueba la sesión contra el
+        // contexto RLS firmado y pone actor real, Tenant objetivo y sesión. No lee filas: devuelve un
+        // código. Los cuatro valores van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/RegistroLecturaSesionPrivilegiada.cs",
+            ".SqlQuery<string>(")] = 1,
+
         // Incidentes de seguridad sospechados (plano de Plataforma): ningún rol de la
         // aplicación tiene INSERT ni UPDATE sobre IncidentesSeguridadSospechados, y quien
         // dispara la señal no puede leerlos para deduplicar. La única puerta es la función

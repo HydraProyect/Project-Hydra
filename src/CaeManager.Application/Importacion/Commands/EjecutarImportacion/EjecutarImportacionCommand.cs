@@ -49,7 +49,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacion;
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
 public record EjecutarImportacionCommand(PlanImportacionDto Plan)
-    : ICommand<ResultadoImportacionDto>, IComandoDeAprovisionamiento;
+    : ICommand<ResultadoImportacionDto>, IComandoDeAprovisionamiento, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public record ResultadoImportacionDto(
     int ClientesCreados,

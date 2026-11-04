@@ -706,13 +706,14 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         }
     }
 
-    private static string DescribirTipo(TipoActividadSoporte tipo) => tipo switch
+    private string DescribirTipo(TipoActividadSoporte tipo) => tipo switch
     {
         TipoActividadSoporte.AccesoConcedido => "Acceso concedido",
         TipoActividadSoporte.WorkspaceActivado => "Entró en la organización",
         TipoActividadSoporte.Navegacion => "Navegó a",
         TipoActividadSoporte.Interaccion => "Pulsó",
         TipoActividadSoporte.AccesoRevocado => "Acceso cerrado",
+        TipoActividadSoporte.Lectura => TextosAccesos["ActividadLectura"],
         _ => tipo.ToString()
     };
 

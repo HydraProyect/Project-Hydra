@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 
 /// <summary>Últimas importaciones ejecutadas, para el sidebar del wizard (Configuración → Importar datos).</summary>
-public record ObtenerHistorialImportacionesQuery(int Limite = 10) : IRequest<IReadOnlyList<HistorialImportacionDto>>;
+public record ObtenerHistorialImportacionesQuery(int Limite = 10) : IRequest<IReadOnlyList<HistorialImportacionDto>>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public record HistorialImportacionDto(
     Guid Id, string Plantilla, string NombreArchivo, DateTime EjecutadaEnUtc, Guid EjecutadaPorUsuarioId,

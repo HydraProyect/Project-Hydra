@@ -87,6 +87,10 @@ public static class ApplicationServiceCollectionExtensions
         // CaeManager.IntegrationTests que no tienen conexión que elevar.
         services.TryAddScoped<CaeManager.Application.Plataforma.IElevacionEscrituraPrivilegiada,
             CaeManager.Application.Plataforma.ElevacionEscrituraPrivilegiadaInerte>();
+        // Mismo patrón (issue #2001), pero el valor por defecto dice «no registrado»: fallo cerrado
+        // si un host resolviera una Sesión Privilegiada sin la implementación real de Infrastructure.
+        services.TryAddScoped<CaeManager.Application.Plataforma.IRegistroLecturaSesionPrivilegiada,
+            CaeManager.Application.Plataforma.RegistroLecturaSesionPrivilegiadaNoDisponible>();
         services.AddScoped<IAutorizacionEscrituraEfectiva, AutorizacionEscrituraEfectiva>();
         services.AddScoped<Importacion.RecorteDeAnalisisAlAmbito>();
         services.AddSingleton<CaeManager.Application.HerramientasPdf.IDisponibilidadHerramientasPdf, CaeManager.Application.HerramientasPdf.DisponibilidadHerramientasPdf>();
@@ -173,6 +177,10 @@ public static class ApplicationServiceCollectionExtensions
         // Queries, que aquel deja pasar por definición.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionSecretosDeTenantBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        // Issue #2001: la lectura bajo Sesión Privilegiada se registra después de autorizar y validar
+        // y ANTES de elevar: su función solo la ejecuta cae_app_soporte, el rol de la conexión fuera
+        // del ámbito de elevación. Sin fila, el handler no corre (fallo cerrado).
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(RegistroLecturaSesionPrivilegiadaBehavior<,>));
         // El ÚLTIMO de todos, a propósito (PD-A3): es el único que abre el rol
         // de escritura acotada de PostgreSQL, y reduce esa ventana al handler
         // solo — nada más externo en este pipeline debe correr elevado.
