@@ -23,10 +23,24 @@ namespace CaeManager.Application.Comercial.Common;
 /// <b>solo valen dentro de una</b> (<see cref="Application.Common.ITransaccionDeComando"/>):
 /// fuera de ella la implementación lanza.
 /// </para>
+///
+/// <para>
+/// Quien los toma descarta después el contexto (<see cref="Application.Common.IDescarteCambiosPendientes"/>)
+/// y relee: en Blazor Server el contexto vive lo que el circuito, y una consulta tras el
+/// candado devolvería la entidad que ya estaba seguida, con sus valores de entonces.
+/// </para>
 /// </summary>
 public interface IBloqueoSuscripcionStripe
 {
     Task BloquearTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
 
+    /// <summary>Espera los candados de esas Subscriptions; los toma en orden ordinal de Id, sea cual sea el de la lista.</summary>
     Task BloquearSuscripcionesAsync(IReadOnlyCollection<string> idsSuscripcion, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Intenta el candado de una Subscription sin esperar (<c>pg_try_advisory_xact_lock</c>).
+    /// Lo usa el webhook: si otro lo tiene, responde que reintente en vez de ocupar una conexión
+    /// del pool mientras espera.
+    /// </summary>
+    Task<bool> IntentarBloquearSuscripcionAsync(string idSuscripcion, CancellationToken cancellationToken = default);
 }

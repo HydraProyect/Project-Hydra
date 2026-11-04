@@ -33,6 +33,14 @@ public class BloqueoSuscripcionStripe(CaeManagerDbContext dbContext) : IBloqueoS
         }
     }
 
+    public async Task<bool> IntentarBloquearSuscripcionAsync(string idSuscripcion, CancellationToken cancellationToken = default)
+    {
+        ExigirTransaccion();
+        var clave = EspacioSuscripcion + idSuscripcion;
+        return (await dbContext.Database.SqlQuery<bool>(
+            $"SELECT pg_try_advisory_xact_lock(hashtextextended({clave}, 0)) AS \"Value\"").ToListAsync(cancellationToken)).Single();
+    }
+
     private void ExigirTransaccion()
     {
         if (dbContext.Database.CurrentTransaction is null)

@@ -29,7 +29,7 @@ public class ProcesadorWebhookSuscripcionTests
 
     private ProcesadorWebhookSuscripcion Procesador(
         TenantsQueryContextFalso db, PaymentProviderFalso proveedor, BloqueoSuscripcionStripeFalso? bloqueo = null) =>
-        new(db, proveedor, transaccion, bloqueo ?? new BloqueoSuscripcionStripeFalso(), unitOfWork);
+        new(db, proveedor, transaccion, bloqueo ??= new BloqueoSuscripcionStripeFalso(), bloqueo, unitOfWork);
 
     /// <summary>
     /// Stripe no garantiza el orden de entrega: un <c>past_due</c> atrasado que llega después
@@ -185,5 +185,85 @@ public class ProcesadorWebhookSuscripcionTests
         resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.EstadoNoReconocido);
         tenant.EstadoComercial.Should().Be(EstadoComercialTenant.AvisoImpago);
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Intenta el candado, descarta el contexto y solo entonces lee el Tenant.</summary>
+    [Fact]
+    public async Task Descarta_el_contexto_entre_el_candado_y_la_lectura()
+    {
+        var (_, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var bloqueo = new BloqueoSuscripcionStripeFalso();
+
+        await Procesador(db, StripeReporta(EstadoSuscripcionProveedor.Activa), bloqueo)
+            .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), CancellationToken.None);
+
+        bloqueo.Eventos.Should().Equal("intento", "descarte");
+    }
+
+    /// <summary>
+    /// Con el candado ocupado (otra entrega o un alta a medias) no se espera ocupando una
+    /// conexión: se pide reintento sin leer, consultar ni escribir.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_candado_ocupado_pide_reintento_sin_consultar_ni_escribir()
+    {
+        var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var proveedor = StripeReporta(EstadoSuscripcionProveedor.Impagada);
+
+        var resultado = await Procesador(db, proveedor, new BloqueoSuscripcionStripeFalso { Ocupada = true })
+            .ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Impagada), CancellationToken.None);
+
+        resultado.Resultado.Should().Be(ResultadoWebhookSuscripcion.SuscripcionOcupada);
+        proveedor.VecesConsultado.Should().Be(0);
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Stripe que no contesta: se agota el límite y se pide reintento con su código, sin escribir.</summary>
+    [Fact]
+    public async Task Si_Stripe_se_cuelga_agota_el_limite_y_pide_reintento_sin_escribir()
+    {
+        var (tenant, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var procesador = new ProcesadorWebhookSuscripcion(
+            db, new StripeQueNoContesta(), transaccion, new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso(), unitOfWork)
+        {
+            LimiteConsulta = TimeSpan.FromMilliseconds(50),
+        };
+
+        var resultado = await procesador.ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Cancelada), CancellationToken.None);
+
+        resultado.Should().Be(new ProcesamientoWebhookSuscripcion(
+            ResultadoWebhookSuscripcion.ProveedorNoDisponible, "PaymentProvider.TiempoAgotado"));
+        tenant.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>La cancelación de quien llama (petición abortada) no se disfraza de tiempo agotado: se propaga.</summary>
+    [Fact]
+    public async Task La_cancelacion_de_quien_llama_se_propaga()
+    {
+        var (_, db) = TenantVinculado(EstadoComercialTenant.Activa);
+        var procesador = new ProcesadorWebhookSuscripcion(
+            db, new StripeQueNoContesta(), transaccion, new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso(), unitOfWork);
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var procesar = () => procesador.ProcesarAsync(Evento("sub_1", EstadoSuscripcionProveedor.Activa), cancelacion.Token);
+
+        await procesar.Should().ThrowAsync<OperationCanceledException>();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    private sealed class StripeQueNoContesta : IPaymentProvider
+    {
+        public string Codigo => "cuelga";
+
+        public Result<EventoWebhookProveedorDto> VerificarYLeerWebhook(string payloadJson, string? firma) =>
+            throw new NotSupportedException();
+
+        public async Task<Result<SuscripcionProveedorDto>> ObtenerSuscripcionAsync(string idSuscripcion, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException("inalcanzable");
+        }
     }
 }

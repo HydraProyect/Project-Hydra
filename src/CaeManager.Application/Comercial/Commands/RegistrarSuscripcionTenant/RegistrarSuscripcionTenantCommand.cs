@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -58,7 +59,8 @@ public class RegistrarSuscripcionTenantCommandHandler(
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork,
     ITransaccionDeComando transaccion,
-    IBloqueoSuscripcionStripe bloqueo)
+    IBloqueoSuscripcionStripe bloqueo,
+    IDescarteCambiosPendientes descarte)
     : IRequestHandler<RegistrarSuscripcionTenantCommand, Result>
 {
     public async Task<Result> Handle(RegistrarSuscripcionTenantCommand request, CancellationToken cancellationToken)
@@ -77,14 +79,21 @@ public class RegistrarSuscripcionTenantCommandHandler(
 
         // La operación puede ejecutarse más de una vez (estrategia de reintentos de
         // ITransaccionDeComando): todo lo que decide se lee dentro.
-        return await transaccion.EjecutarAsync(ct => VincularBajoCandadoAsync(request, ct), cancellationToken);
+        return await transaccion.EjecutarAsync(ct => VincularBajoCandadoAsync(usuarioId.Value, request, ct), cancellationToken);
     }
 
-    private async Task<Result> VincularBajoCandadoAsync(RegistrarSuscripcionTenantCommand request, CancellationToken ct)
+    private async Task<Result> VincularBajoCandadoAsync(Guid usuarioId, RegistrarSuscripcionTenantCommand request, CancellationToken ct)
     {
         await bloqueo.BloquearTenantAsync(request.TenantId, ct);
 
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, ct);
+        // La concesión pudo revocarse mientras se esperaba el candado.
+        if (!await autorizacion.PuedeSobreTenantAsync(usuarioId, request.TenantId, ct))
+            return Result.Fallo(Error.Crear(
+                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
+
+        // Contexto limpio tras el candado: en Blazor Server el del circuito puede conservar el
+        // Tenant con la Subscription que tenía al cargarlo, y se bloquearía la que no es.
+        var tenant = await LeerTenantAsync(request.TenantId, ct);
         if (tenant is null)
             return Result.Fallo(Error.Crear("Comercial.TenantNoEncontrado", "No encontramos ese tenant."));
 
@@ -92,7 +101,8 @@ public class RegistrarSuscripcionTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.TenantPlataforma", "El tenant de plataforma no es un tenant suscriptor."));
 
-        var afectadas = tenant.StripeSubscriptionId is { } anterior
+        var anteriorVinculada = tenant.StripeSubscriptionId;
+        var afectadas = anteriorVinculada is { } anterior
             ? new[] { request.StripeSubscriptionId, anterior }
             : [request.StripeSubscriptionId];
         await bloqueo.BloquearSuscripcionesAsync(afectadas, ct);
@@ -104,6 +114,13 @@ public class RegistrarSuscripcionTenantCommandHandler(
         if (vinculadaAOtro)
             return Result.Fallo(Error.Crear(
                 "Comercial.SuscripcionYaVinculada", "Esa suscripción de Stripe ya está vinculada a otro tenant."));
+
+        // Releer bajo todos los candados: un webhook de la Subscription anterior pudo cambiar el
+        // estado comercial entre la primera lectura y su candado, y EF no marcaría como modificado
+        // un valor igual al original que tenía guardado. El vínculo no cambia: lo fija el candado del Tenant.
+        tenant = await LeerTenantAsync(request.TenantId, ct);
+        if (tenant is null || tenant.StripeSubscriptionId != anteriorVinculada)
+            throw new InvalidOperationException("El vínculo del Tenant cambió bajo su candado.");
 
         var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(request.StripeSubscriptionId, ct);
         if (suscripcion.EsFallido)
@@ -118,5 +135,11 @@ public class RegistrarSuscripcionTenantCommandHandler(
         await unitOfWork.SaveChangesAsync(ct);
 
         return Result.Exito();
+    }
+
+    private Task<Tenant?> LeerTenantAsync(Guid tenantId, CancellationToken ct)
+    {
+        descarte.DescartarCambiosPendientes();
+        return dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == tenantId, ct);
     }
 }

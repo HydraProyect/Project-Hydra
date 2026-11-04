@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +41,8 @@ public class ActualizarEstadoComercialTenantCommandHandler(
     ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork,
     ITransaccionDeComando transaccion,
-    IBloqueoSuscripcionStripe bloqueo)
+    IBloqueoSuscripcionStripe bloqueo,
+    IDescarteCambiosPendientes descarte)
     : IRequestHandler<ActualizarEstadoComercialTenantCommand, Result>
 {
     public async Task<Result> Handle(ActualizarEstadoComercialTenantCommand request, CancellationToken cancellationToken)
@@ -59,14 +61,21 @@ public class ActualizarEstadoComercialTenantCommandHandler(
 
         // La operación puede ejecutarse más de una vez (estrategia de reintentos de
         // ITransaccionDeComando): todo lo que decide se lee dentro.
-        return await transaccion.EjecutarAsync(ct => ResincronizarBajoCandadoAsync(request, ct), cancellationToken);
+        return await transaccion.EjecutarAsync(ct => ResincronizarBajoCandadoAsync(usuarioId.Value, request, ct), cancellationToken);
     }
 
-    private async Task<Result> ResincronizarBajoCandadoAsync(ActualizarEstadoComercialTenantCommand request, CancellationToken cancellationToken)
+    private async Task<Result> ResincronizarBajoCandadoAsync(Guid usuarioId, ActualizarEstadoComercialTenantCommand request, CancellationToken cancellationToken)
     {
         await bloqueo.BloquearTenantAsync(request.TenantId, cancellationToken);
 
-        var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == request.TenantId, cancellationToken);
+        // La concesión pudo revocarse mientras se esperaba el candado.
+        if (!await autorizacion.PuedeSobreTenantAsync(usuarioId, request.TenantId, cancellationToken))
+            return Result.Fallo(Error.Crear(
+                "Comercial.NoAutorizado", "No tienes autorización de plataforma sobre ese tenant."));
+
+        // Contexto limpio tras el candado: en Blazor Server el del circuito puede conservar el
+        // Tenant con la Subscription que tenía al cargarlo, y se consultaría la sustituida.
+        var tenant = await LeerTenantAsync(request.TenantId, cancellationToken);
         if (tenant is null)
             return Result.Fallo(Error.Crear("Comercial.TenantNoEncontrado", "No encontramos ese tenant."));
 
@@ -78,9 +87,17 @@ public class ActualizarEstadoComercialTenantCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Comercial.SinSuscripcionVinculada", "Este tenant todavía no tiene ninguna suscripción de Stripe vinculada."));
 
-        await bloqueo.BloquearSuscripcionesAsync([tenant.StripeSubscriptionId], cancellationToken);
+        var vinculada = tenant.StripeSubscriptionId;
+        await bloqueo.BloquearSuscripcionesAsync([vinculada], cancellationToken);
 
-        var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(tenant.StripeSubscriptionId, cancellationToken);
+        // Releer bajo los dos candados: un webhook pudo cambiar el estado comercial mientras se
+        // esperaba el de la Subscription, y compararíamos con el valor de antes. El vínculo no
+        // cambia: lo fija el candado del Tenant.
+        tenant = await LeerTenantAsync(request.TenantId, cancellationToken);
+        if (tenant is null || tenant.StripeSubscriptionId != vinculada)
+            throw new InvalidOperationException("El vínculo del Tenant cambió bajo su candado.");
+
+        var suscripcion = await paymentProvider.ObtenerSuscripcionAsync(vinculada, cancellationToken);
         if (suscripcion.EsFallido)
             return Result.Fallo(suscripcion.Error);
 
@@ -96,5 +113,11 @@ public class ActualizarEstadoComercialTenantCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
+    }
+
+    private Task<Tenant?> LeerTenantAsync(Guid tenantId, CancellationToken ct)
+    {
+        descarte.DescartarCambiosPendientes();
+        return dbContext.Tenants.SingleOrDefaultAsync(t => t.Id == tenantId, ct);
     }
 }

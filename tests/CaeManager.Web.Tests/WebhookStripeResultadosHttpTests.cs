@@ -16,14 +16,15 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Traducción a HTTP de cada resultado de <see cref="IProcesadorWebhookSuscripcion"/>, sobre el
-/// endpoint real: solo «proveedor no disponible» pide reintento a Stripe (no 2xx); el resto se
-/// reconoce con 200 porque reintentar no lo arreglaría. Y el endpoint pasa al procesador el
-/// evento que verificó, no otro.
+/// endpoint real: solo «proveedor no disponible» y «suscripción ocupada» piden reintento a Stripe
+/// (no 2xx); el resto se reconoce con 200 porque reintentar no lo arreglaría. Y el endpoint pasa
+/// al procesador el evento que verificó, no otro.
 /// </summary>
 public class WebhookStripeResultadosHttpTests
 {
     [Theory]
     [InlineData(ResultadoWebhookSuscripcion.ProveedorNoDisponible, HttpStatusCode.ServiceUnavailable)]
+    [InlineData(ResultadoWebhookSuscripcion.SuscripcionOcupada, HttpStatusCode.ServiceUnavailable)]
     [InlineData(ResultadoWebhookSuscripcion.Aplicado, HttpStatusCode.OK)]
     [InlineData(ResultadoWebhookSuscripcion.SinCambios, HttpStatusCode.OK)]
     [InlineData(ResultadoWebhookSuscripcion.SinSuscripcion, HttpStatusCode.OK)]

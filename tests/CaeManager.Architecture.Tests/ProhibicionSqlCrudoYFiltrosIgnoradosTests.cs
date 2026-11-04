@@ -510,6 +510,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Mismas razones que el de cartera: no toca filas y exige transacción.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+        // Intento sin espera del webhook (pg_try_advisory_xact_lock): devuelve un booleano, sin filas.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "return (await dbContext.Database.SqlQuery<bool>(")] = 1,
 
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,

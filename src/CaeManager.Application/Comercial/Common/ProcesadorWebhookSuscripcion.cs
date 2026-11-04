@@ -23,6 +23,9 @@ public enum ResultadoWebhookSuscripcion
     /// <summary>No se pudo consultar el estado actual en Stripe: el webhook debe reintentarse.</summary>
     ProveedorNoDisponible,
 
+    /// <summary>Otro procesamiento tiene el candado de la Subscription: el webhook debe reintentarse.</summary>
+    SuscripcionOcupada,
+
     /// <summary>El estado actual de la Subscription ya era el del Tenant: no se escribe nada.</summary>
     SinCambios,
 
@@ -64,9 +67,11 @@ public interface IProcesadorWebhookSuscripcion
 /// </para>
 ///
 /// <para>
-/// La consulta a Stripe se acota a <see cref="TiempoMaximoConsulta"/>: el candado está tomado
-/// mientras dura, y Stripe da por fallida una entrega que tarda demasiado. Un tiempo agotado
-/// cuenta como proveedor no disponible, y Stripe reintenta.
+/// El candado se intenta sin esperar: si otro procesamiento lo tiene (otra entrega de la misma
+/// Subscription, o un alta a medias), se pide reintento a Stripe en vez de ocupar una conexión
+/// del pool esperando. La consulta a Stripe se acota a <see cref="LimiteConsulta"/>: el
+/// candado está tomado mientras dura, y Stripe da por fallida una entrega que tarda demasiado.
+/// Un tiempo agotado cuenta como proveedor no disponible, y Stripe reintenta.
 /// </para>
 /// </summary>
 public class ProcesadorWebhookSuscripcion(
@@ -74,9 +79,13 @@ public class ProcesadorWebhookSuscripcion(
     IPaymentProvider paymentProvider,
     ITransaccionDeComando transaccion,
     IBloqueoSuscripcionStripe bloqueo,
+    IDescarteCambiosPendientes descarte,
     IUnitOfWork unitOfWork) : IProcesadorWebhookSuscripcion
 {
     public static readonly TimeSpan TiempoMaximoConsulta = TimeSpan.FromSeconds(10);
+
+    /// <summary><see cref="TiempoMaximoConsulta"/> salvo en los tests, que no esperan diez segundos.</summary>
+    public TimeSpan LimiteConsulta { get; init; } = TiempoMaximoConsulta;
 
     public async Task<ProcesamientoWebhookSuscripcion> ProcesarAsync(
         EventoWebhookProveedorDto evento, CancellationToken cancellationToken)
@@ -100,7 +109,12 @@ public class ProcesadorWebhookSuscripcion(
 
     private async Task<ProcesamientoWebhookSuscripcion> ProcesarBajoCandadoAsync(string idSuscripcion, CancellationToken ct)
     {
-        await bloqueo.BloquearSuscripcionesAsync([idSuscripcion], ct);
+        if (!await bloqueo.IntentarBloquearSuscripcionAsync(idSuscripcion, ct))
+            return new(ResultadoWebhookSuscripcion.SuscripcionOcupada);
+
+        // Contexto limpio tras el candado: si el Tenant ya estuviera seguido, la consulta
+        // devolvería esa copia y no lo que confirmó quien tenía el candado.
+        descarte.DescartarCambiosPendientes();
 
         var tenant = await dbContext.Tenants.SingleOrDefaultAsync(t => t.StripeSubscriptionId == idSuscripcion, ct);
         if (tenant is null)
@@ -112,7 +126,7 @@ public class ProcesadorWebhookSuscripcion(
         Result<SuscripcionProveedorDto> actual;
         using (var limite = CancellationTokenSource.CreateLinkedTokenSource(ct))
         {
-            limite.CancelAfter(TiempoMaximoConsulta);
+            limite.CancelAfter(LimiteConsulta);
             try
             {
                 actual = await paymentProvider.ObtenerSuscripcionAsync(idSuscripcion, limite.Token);

@@ -39,7 +39,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(plataforma.Id), CancellationToken.None);
 
@@ -60,7 +60,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         dbContext.ListaTenants.Add(cliente);
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
@@ -85,7 +85,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso());
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
@@ -112,12 +112,12 @@ public class ActualizarEstadoComercialTenantCommandTests
         var bloqueo = new BloqueoSuscripcionStripeFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), bloqueo);
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), bloqueo, bloqueo);
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        bloqueo.Eventos.Should().Equal("tenant", "suscripcion");
+        bloqueo.Eventos.Should().Equal("tenant", "descarte", "suscripcion", "descarte");
         bloqueo.Suscripciones.Should().Equal("sub_123");
         unitOfWork.VecesGuardado.Should().Be(0);
     }

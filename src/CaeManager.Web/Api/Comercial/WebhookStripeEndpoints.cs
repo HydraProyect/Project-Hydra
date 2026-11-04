@@ -22,8 +22,8 @@ namespace CaeManager.Web.Api.Comercial;
 /// acotada a <see cref="ProcesadorWebhookSuscripcion.TiempoMaximoConsulta"/>, y
 /// una escritura de una sola fila (<c>Tenant.ActualizarEstadoComercial</c>), bajo
 /// el candado de la Subscription — no un pipeline de IA ni de ingesta de
-/// documentos. Si la consulta falla o se agota, se responde 503 sin escribir
-/// nada y Stripe reintenta.
+/// documentos. Si la consulta falla o se agota, o el candado lo tiene otro, se
+/// responde 503 sin escribir nada y Stripe reintenta.
 ///
 /// No resuelve tenant por URL (a diferencia del webhook de Graph, una URL
 /// por conexión): identifica el tenant afectado buscando por
@@ -116,6 +116,15 @@ public static class WebhookStripeEndpoints
                     logger.LogWarning(
                         "Webhook de Stripe {TipoEvento} para {IdSuscripcion}: no se pudo consultar el estado actual en Stripe ({CodigoError}); se pide reintento.",
                         evento.Valor.TipoEvento, idSuscripcion, resultado.CodigoError);
+                    return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+
+                case ResultadoWebhookSuscripcion.SuscripcionOcupada:
+                    // Otra entrega de la misma Subscription, o un alta manual a medias, tiene el
+                    // candado. Esperarlo ocuparía una conexión del pool; Stripe reintenta el evento
+                    // y, cuando llegue, quien tenía el candado ya habrá confirmado.
+                    logger.LogInformation(
+                        "Webhook de Stripe {TipoEvento} para {IdSuscripcion}: la suscripción se está procesando; se pide reintento.",
+                        evento.Valor.TipoEvento, idSuscripcion);
                     return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
 
                 default:

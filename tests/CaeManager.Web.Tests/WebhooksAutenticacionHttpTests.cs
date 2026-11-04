@@ -186,6 +186,8 @@ public class WebhooksAutenticacionHttpTests
             (metodo, _) => throw new InvalidOperationException($"Transacción prematura: {metodo}")));
         builder.Services.AddSingleton<IBloqueoSuscripcionStripe>(Crear<IBloqueoSuscripcionStripe>(llamadas,
             (metodo, _) => throw new InvalidOperationException($"Candado prematuro: {metodo}")));
+        builder.Services.AddSingleton<IDescarteCambiosPendientes>(Crear<IDescarteCambiosPendientes>(llamadas,
+            (metodo, _) => throw new InvalidOperationException($"Descarte prematuro: {metodo}")));
         builder.Services.AddSingleton<IProcesadorWebhookSuscripcion, ProcesadorWebhookSuscripcion>();
         await using var app = builder.Build();
         app.MapWebhookWhatsAppEndpoints();
