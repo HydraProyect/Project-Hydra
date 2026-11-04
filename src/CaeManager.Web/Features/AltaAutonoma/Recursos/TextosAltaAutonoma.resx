@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RetoComprobando" xml:space="preserve">
+    <value>Comprobando que el envío lo hace una persona…</value>
+  </data>
+  <data name="RetoListo" xml:space="preserve">
+    <value>Comprobación completada.</value>
+  </data>
+  <data name="RetoEsperando" xml:space="preserve">
+    <value>Terminando la comprobación antes de enviar…</value>
+  </data>
+  <data name="RetoError" xml:space="preserve">
+    <value>No se ha podido completar la comprobación. Recarga la página y vuelve a intentarlo.</value>
+  </data>
+  <data name="RetoSinJavaScript" xml:space="preserve">
+    <value>Para enviar este formulario hace falta activar JavaScript.</value>
+  </data>
+  <data name="CampoTrampaEtiqueta" xml:space="preserve">
+    <value>Deja este campo vacío</value>
+  </data>
+</root>

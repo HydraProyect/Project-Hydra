@@ -1,0 +1,21 @@
+@using CaeManager.Web.Features.AltaAutonoma.Recursos
+@using Microsoft.Extensions.Localization
+@inject ServicioTrampasFormulario Servicio
+@inject IStringLocalizer<TextosAltaAutonoma> T
+
+@* Honeypot y sello de tiempo (ver ServicioTrampasFormulario). El campo trampa queda fuera de la vista, fuera del orden
+   de tabulación y fuera del árbol de accesibilidad (aria-hidden), así que ni la vista ni el teclado ni un lector de
+   pantalla llevan a una persona hasta él; autocomplete="off" evita que el navegador lo rellene por su cuenta. *@
+<div aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden">
+    <label for="@IdCampoTrampa">@T["CampoTrampaEtiqueta"]</label>
+    <input id="@IdCampoTrampa" type="text" name="@ServicioTrampasFormulario.NombreCampoTrampa" value="" tabindex="-1" autocomplete="off" />
+</div>
+<input type="hidden" name="@ServicioTrampasFormulario.NombreCampoSello" value="@_sello" />
+
+@code {
+    private const string IdCampoTrampa = "alta-comprobacion-adicional";
+
+    private string _sello = string.Empty;
+
+    protected override void OnInitialized() => _sello = Servicio.EmitirSello();
+}
