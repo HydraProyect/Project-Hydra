@@ -33,19 +33,7 @@ public class ClientesDeIaConResilienciaPropiaTests
     /// siempre en el registro (algunos van cualificados con su espacio de
     /// nombres en la interfaz, otros no llevan interfaz).
     /// </summary>
-    private static readonly string[] ImplementacionesDeIa =
-    [
-        "AnthropicAsistenteIaService",
-        "AnthropicExtraccionTrabajadoresIaService",
-        "AnthropicDeteccionVisitaCorreoService",
-        "AnthropicDeteccionGestionCorreoService",
-        "AnthropicDeteccionRelevanciaCaeService",
-        "AnthropicDeteccionIntencionCaeService",
-        "AnthropicRedaccionRespuestaIaService",
-        "AnthropicSegundaOpinionCriticaIa",
-        "AnthropicDocumentAIProvider",
-        "AnthropicDecisionesCerradasService",
-    ];
+    private static readonly string[] ImplementacionesDeIa = ClientesDeIaDelProveedor.Nombres;
 
     [Fact]
     public void Todo_cliente_de_un_proveedor_de_ia_usa_el_pipeline_de_reintento_restringido()
