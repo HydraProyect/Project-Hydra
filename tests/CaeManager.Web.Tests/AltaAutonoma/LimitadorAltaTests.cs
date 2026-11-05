@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.Web.Tests.AltaAutonoma;
@@ -86,8 +87,9 @@ public class LimitadorAltaTests
     public async Task El_limitador_particionado_repone_la_ventana_corta_en_su_ciclo()
     {
         var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 1, IniciosPorDiaPorIp = 1000 };
+        using var cupo = CupoDe(opciones);
         using var particionado = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
-            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromSeconds(2), TimeSpan.FromHours(1)));
+            LimitadorAlta.Particion(contexto, opciones, cupo, TimeSpan.FromSeconds(2)));
         var contexto = Post("203.0.113.9");
 
         particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
@@ -103,8 +105,10 @@ public class LimitadorAltaTests
         // El día con un permiso y la hora con mil: la configuración no lo admitiría (EsValida), pero la partición se
         // construye aquí sin validar, para que solo el día pueda cerrar.
         var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 1000, IniciosPorDiaPorIp = 1 };
+        // El día lo repone el ciclo del limitador particionado del cupo compartido, no el de la partición por hora.
+        using var cupo = new CupoDiarioAlta(opciones.IniciosPorDiaPorIp, TimeSpan.FromSeconds(2));
         using var particionado = PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
-            LimitadorAlta.Particion(contexto, opciones, TimeSpan.FromHours(1), TimeSpan.FromSeconds(2)));
+            LimitadorAlta.Particion(contexto, opciones, cupo, TimeSpan.FromHours(1)));
         var contexto = Post("203.0.113.9");
 
         particionado.AttemptAcquire(contexto).IsAcquired.Should().BeTrue();
@@ -168,6 +172,7 @@ public class LimitadorAltaTests
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.Configure<OpcionesAntiabusoAlta>(o => { o.IniciosPorHoraPorIp = 2; o.IniciosPorDiaPorIp = 20; });
+        builder.Services.AddSingleton(sp => new CupoDiarioAlta(sp.GetRequiredService<IOptions<OpcionesAntiabusoAlta>>()));
         builder.Services.AddRateLimiter(opciones =>
         {
             opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -212,12 +217,41 @@ public class LimitadorAltaTests
         return contexto;
     }
 
-    private static RateLimiter Limitador(HttpContext contexto, OpcionesAntiabusoAlta opciones)
+    private static RateLimiter Limitador(HttpContext contexto, OpcionesAntiabusoAlta opciones, CupoDiarioAlta? cupo = null)
     {
-        var particion = LimitadorAlta.Particion(contexto, opciones);
+        var particion = LimitadorAlta.Particion(contexto, opciones, cupo ?? CupoDe(opciones));
         return particion.Factory(particion.PartitionKey);
     }
 
+    private static CupoDiarioAlta CupoDe(OpcionesAntiabusoAlta opciones) => new(Options.Create(opciones));
+
     private static string Clave(HttpContext contexto, OpcionesAntiabusoAlta opciones) =>
-        LimitadorAlta.Particion(contexto, opciones).PartitionKey;
+        LimitadorAlta.Particion(contexto, opciones, CupoDe(opciones)).PartitionKey;
+
+    [Fact]
+    public void La_hora_cuenta_por_64_y_el_dia_por_48()
+    {
+        var opciones = new OpcionesAntiabusoAlta { IniciosPorHoraPorIp = 2, IniciosPorDiaPorIp = 3 };
+        using var cupo = CupoDe(opciones);
+        using var primero = Limitador(Post("2001:db8:1:1::1"), opciones, cupo);
+        using var segundo = Limitador(Post("2001:db8:1:2::1"), opciones, cupo);
+        using var tercero = Limitador(Post("2001:db8:1:3::1"), opciones, cupo);
+        using var otro48 = Limitador(Post("2001:db8:2:1::1"), opciones, cupo);
+
+        primero.AttemptAcquire().IsAcquired.Should().BeTrue();
+        primero.AttemptAcquire().IsAcquired.Should().BeTrue();
+        primero.AttemptAcquire().IsAcquired.Should().BeFalse("la hora de ese /64 está agotada");
+        segundo.AttemptAcquire().IsAcquired.Should().BeTrue("otro /64 tiene su propia hora");
+        tercero.AttemptAcquire().IsAcquired.Should().BeFalse("los /64 del mismo /48 comparten el día, ya agotado");
+        otro48.AttemptAcquire().IsAcquired.Should().BeTrue("otro /48 tiene su propio día");
+    }
+
+    [Fact]
+    public void El_prefijo_diario_es_la_IPv4_o_el_48()
+    {
+        LimitadorAlta.PrefijoDiario(Post("203.0.113.9")).Should().Be("203.0.113.9");
+        LimitadorAlta.PrefijoDiario(Post("::ffff:203.0.113.9")).Should().Be("203.0.113.9");
+        LimitadorAlta.PrefijoDiario(Post("2001:db8:1:ffff::9")).Should().Be(LimitadorAlta.PrefijoDiario(Post("2001:db8:1:2::1")));
+        LimitadorAlta.PrefijoDiario(Post("2001:db8:1:2::1")).Should().Be("2001:db8:1::/48");
+    }
 }

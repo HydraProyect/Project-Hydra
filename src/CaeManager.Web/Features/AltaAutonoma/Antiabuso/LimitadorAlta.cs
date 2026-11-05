@@ -13,12 +13,12 @@ namespace CaeManager.Web.Features.AltaAutonoma.Antiabuso;
 /// esa página, o en 400 si el reenvío choca con la antifalsificación. El rechazo apaga las páginas de estado para esta
 /// respuesta, como hace el presupuesto de memoria con su 503.
 /// </summary>
-public sealed class PoliticaLimitadorAlta(IOptions<OpcionesAntiabusoAlta> opciones) : IRateLimiterPolicy<string>
+public sealed class PoliticaLimitadorAlta(IOptions<OpcionesAntiabusoAlta> opciones, CupoDiarioAlta cupoDiario) : IRateLimiterPolicy<string>
 {
     public Func<OnRejectedContext, CancellationToken, ValueTask>? OnRejected { get; } = Rechazar;
 
     public RateLimitPartition<string> GetPartition(HttpContext httpContext) =>
-        LimitadorAlta.Particion(httpContext, opciones.Value);
+        LimitadorAlta.Particion(httpContext, opciones.Value, cupoDiario);
 
     private static ValueTask Rechazar(OnRejectedContext contexto, CancellationToken _)
     {
@@ -41,41 +41,66 @@ public sealed class PoliticaLimitadorAlta(IOptions<OpcionesAntiabusoAlta> opcion
 /// </para>
 ///
 /// <para>
-/// La IP es la del proxy de borde ya resuelta, agrupando IPv6 por /64 (<see cref="LimitadorApiPublica"/>). Los
-/// contadores viven en memoria por instancia y se reinician con cada despliegue; con dos ranuras sirviendo a la vez,
-/// cada una lleva su cupo. El 429 sale sin cuerpo ni cabeceras que digan qué ventana se agotó.
+/// La IP es la del proxy de borde ya resuelta. La ventana por hora se cuenta por IPv4 o por prefijo IPv6 /64
+/// (<see cref="LimitadorApiPublica"/>) y la diaria por IPv4 o por prefijo /48 (<see cref="PrefijoDiario"/>), en un
+/// cupo que comparten todos los /64 de ese /48 (<see cref="CupoDiarioAlta"/>): con una partición diaria por cada /64,
+/// quien dispone de un /48 tendría 65.536 cupos de día. Los contadores viven en memoria por instancia y se reinician
+/// con cada despliegue; con dos ranuras sirviendo a la vez, cada una lleva su cupo. El 429 sale sin cuerpo ni
+/// cabeceras que digan qué ventana se agotó.
 /// </para>
 /// </summary>
 public static class LimitadorAlta
 {
     public const string Politica = "alta";
 
-    public static RateLimitPartition<string> Particion(HttpContext contexto, OpcionesAntiabusoAlta opciones) =>
-        Particion(contexto, opciones, TimeSpan.FromHours(1), TimeSpan.FromDays(1));
+    public static RateLimitPartition<string> Particion(HttpContext contexto, OpcionesAntiabusoAlta opciones, CupoDiarioAlta cupoDiario) =>
+        Particion(contexto, opciones, cupoDiario, TimeSpan.FromHours(1));
 
     /// <summary>
-    /// La misma partición con ventanas a medida. Solo la usan las pruebas, para observar con ventanas de milisegundos
-    /// que el ciclo del limitador particionado repone las dos (el proyecto no abre sus internos a las pruebas).
+    /// La misma partición con la ventana corta a medida. Solo la usan las pruebas, para observar con ventanas de
+    /// milisegundos que el ciclo del limitador particionado la repone; la diaria la fija <see cref="CupoDiarioAlta"/>.
     /// </summary>
     public static RateLimitPartition<string> Particion(
-        HttpContext contexto, OpcionesAntiabusoAlta opciones, TimeSpan ventanaCorta, TimeSpan ventanaLarga)
+        HttpContext contexto, OpcionesAntiabusoAlta opciones, CupoDiarioAlta cupoDiario, TimeSpan ventanaCorta)
     {
         if (!HttpMethods.IsPost(contexto.Request.Method))
             return RateLimitPartition.GetNoLimiter("alta-sin-limite");
 
         var porHora = opciones.IniciosPorHoraPorIp;
-        var porDia = opciones.IniciosPorDiaPorIp;
+        var prefijoDiario = PrefijoDiario(contexto);
 
         return RateLimitPartition.Get(
-            $"alta:{porHora}:{porDia}:{LimitadorApiPublica.IpDelCliente(contexto)}",
+            $"alta:{porHora}:{LimitadorApiPublica.IpDelCliente(contexto)}",
             _ => new LimitadorEncadenado(
                 VentanaFija(porHora, ventanaCorta),
-                VentanaFija(porDia, ventanaLarga)));
+                new VentanaCompartida(cupoDiario.Limitador, prefijoDiario)));
+    }
+
+    /// <summary>
+    /// IP del cliente para el cupo diario: una IPv4 tal cual (también la mapeada en IPv6) y una IPv6 por su prefijo /48,
+    /// lo que un proveedor suele asignar a un solo cliente.
+    /// </summary>
+    public static string PrefijoDiario(HttpContext contexto)
+    {
+        var ip = contexto.Connection.RemoteIpAddress;
+        if (ip is null)
+            return "desconocida";
+
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
+
+        if (ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6)
+            return ip.ToString();
+
+        Span<byte> octetos = stackalloc byte[16];
+        ip.TryWriteBytes(octetos, out _);
+        octetos[6..].Clear();
+        return $"{new System.Net.IPAddress(octetos)}/48";
     }
 
     // Sin reposición automática: cada FixedWindowRateLimiter automático arma su propio temporizador, uno por IP y por
     // ventana durante hasta un día. Así los repone el temporizador único del limitador particionado (TryReplenish).
-    private static FixedWindowRateLimiter VentanaFija(int permisos, TimeSpan ventana) => new(new FixedWindowRateLimiterOptions
+    internal static FixedWindowRateLimiter VentanaFija(int permisos, TimeSpan ventana) => new(new FixedWindowRateLimiterOptions
     {
         PermitLimit = permisos,
         Window = ventana,
@@ -188,4 +213,51 @@ internal sealed class LimitadorEncadenado(ReplenishingRateLimiter primero, Reple
             base.Dispose(disposing);
         }
     }
+}
+
+/// <summary>
+/// Cupo diario de la política <c>alta</c>, compartido por todas las particiones por hora: una ventana fija de un día por
+/// cada IPv4 o prefijo IPv6 /48 (<see cref="LimitadorAlta.PrefijoDiario"/>). Singleton; su limitador particionado repone
+/// las ventanas en su propio ciclo y retira las que llevan tiempo enteras.
+/// </summary>
+public sealed class CupoDiarioAlta : IDisposable
+{
+    public CupoDiarioAlta(IOptions<OpcionesAntiabusoAlta> opciones)
+        : this(opciones.Value.IniciosPorDiaPorIp, TimeSpan.FromDays(1))
+    {
+    }
+
+    /// <summary>Con la ventana a medida: solo para las pruebas.</summary>
+    public CupoDiarioAlta(int permisosPorDia, TimeSpan ventana) =>
+        Limitador = PartitionedRateLimiter.Create<string, string>(clave =>
+            RateLimitPartition.Get(clave, _ => LimitadorAlta.VentanaFija(permisosPorDia, ventana)));
+
+    public PartitionedRateLimiter<string> Limitador { get; }
+
+    public void Dispose() => Limitador.Dispose();
+}
+
+/// <summary>
+/// Ventana de <see cref="CupoDiarioAlta"/> vista desde una partición por hora: pide y consulta el permiso en el cupo
+/// compartido con su clave. No guarda estado propio, así que retirar la partición por hora no devuelve cupo de día, y
+/// liberarla no libera el cupo compartido.
+/// </summary>
+internal sealed class VentanaCompartida(PartitionedRateLimiter<string> compartido, string clave) : ReplenishingRateLimiter
+{
+    // La repone el ciclo del limitador compartido, no el de la partición por hora.
+    public override bool IsAutoReplenishing => true;
+
+    public override TimeSpan ReplenishmentPeriod => TimeSpan.MaxValue;
+
+    public override bool TryReplenish() => false;
+
+    // Siempre «inactiva»: la inactividad de la partición por hora la decide solo su propia ventana.
+    public override TimeSpan? IdleDuration => TimeSpan.MaxValue;
+
+    public override RateLimiterStatistics? GetStatistics() => compartido.GetStatistics(clave);
+
+    protected override RateLimitLease AttemptAcquireCore(int permitCount) => compartido.AttemptAcquire(clave, permitCount);
+
+    protected override ValueTask<RateLimitLease> AcquireAsyncCore(int permitCount, CancellationToken cancellationToken) =>
+        compartido.AcquireAsync(clave, permitCount, cancellationToken);
 }

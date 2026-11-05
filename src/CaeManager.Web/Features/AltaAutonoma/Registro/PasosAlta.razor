@@ -1,0 +1,22 @@
+@using CaeManager.Web.Features.AltaAutonoma.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAltaAutonoma> T
+
+@* Los cinco pasos del alta (maqueta A0: Cuenta, Empresa, Plan, Condiciones, Pago). A3 solo pinta el primero como
+   actual; el detalle dice en qué punto de ese paso está la persona. *@
+<nav class="alta-pasos" aria-label="@T["PasosEtiqueta"]">
+    <ol>
+        <li aria-current="step"><span>1</span> @T["PasoCuenta"] <span class="alta-paso-oculto">@T["PasoActual"]</span></li>
+        <li><span>2</span> @T["PasoEmpresa"]</li>
+        <li><span>3</span> @T["PasoPlan"]</li>
+        <li><span>4</span> @T["PasoCondiciones"]</li>
+        <li><span>5</span> @T["PasoPago"]</li>
+    </ol>
+    <p class="alta-paso-detalle">@Detalle</p>
+</nav>
+
+@code {
+    /// <summary>Texto bajo los pasos, como «Paso 1 de 5: Cuenta».</summary>
+    [Parameter, EditorRequired]
+    public string Detalle { get; set; } = string.Empty;
+}

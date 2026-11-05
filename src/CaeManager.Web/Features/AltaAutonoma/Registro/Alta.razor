@@ -1,0 +1,181 @@
+@page "/alta"
+@layout CaeManager.Web.Components.Layout.AccesoLayout
+@attribute [AllowAnonymous]
+@attribute [EnableRateLimiting(LimitadorAlta.Politica)]
+@using System.Net
+@using CaeManager.Application.AltaAutonoma
+@using CaeManager.Domain.AltaAutonoma
+@using CaeManager.Web.Features.AltaAutonoma.Antiabuso
+@using CaeManager.Web.Features.AltaAutonoma.Recursos
+@using CaeManager.Web.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.RateLimiting
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Options
+@inject IOptions<AltaAutonomaOptions> OpcionesAlta
+@inject IOptions<IdentityOptions> OpcionesIdentity
+@inject IStringLocalizer<TextosAltaAutonoma> T
+@inject ServicioRetoPruebaTrabajo Reto
+@inject ServicioTrampasFormulario Trampas
+@inject ValidadorDominiosDesechables Desechables
+@inject IPreparacionContrasenaAlta Contrasenas
+@inject ColaRegistroAlta Cola
+@inject EnlacesPublicos Enlaces
+@inject NavigationManager Navigation
+
+@* Paso 1 del alta autónoma (maqueta A0, artboards Main y CorreoEnviado). Formulario SSR estático: el envío va por
+   HTTP para que actúe la política «alta» del limitador (LimitadorAlta). El POST verifica primero el reto de prueba de
+   trabajo y después las trampas, para que el sello solo se gaste tras el trabajo. Validado el formulario, la
+   contraseña se convierte en hash aquí y el resto (¿existe ya la cuenta?, Solicitud de alta, envío) lo hace
+   ColaRegistroAlta fuera de la petición: la respuesta y su tiempo son los mismos exista o no el correo. *@
+
+<PageTitle>@T["AltaTituloPagina"] — @Marca.Nombre</PageTitle>
+
+@if (_habilitada)
+{
+    <div class="acceso-tarjeta">
+        <CabeceraAcceso />
+        @if (_correoEnviadoA is null)
+        {
+            <PasosAlta Detalle="@T["PasoCuentaDetalle"]" />
+            <h2 class="acceso-titulo">@T["CrearCuentaTitulo"]</h2>
+            <p class="acceso-explica">@T["CrearCuentaExplica"]</p>
+
+            @if (_error is not null)
+            {
+                <p class="acceso-alerta" role="alert">@_error</p>
+            }
+
+            <EditForm Model="Entrada" method="post" OnSubmit="Registrar" FormName="alta-registro" novalidate>
+                <div class="acceso-campo">
+                    <label for="alta-correo">@T["CorreoEtiqueta"]</label>
+                    <InputText id="alta-correo" @bind-Value="Entrada!.Correo" type="email" autocomplete="email" aria-describedby="alta-correo-ayuda" />
+                    <p id="alta-correo-ayuda" class="acceso-nota">@T["CorreoAyuda"]</p>
+                </div>
+
+                <div class="acceso-campo">
+                    <label for="alta-contrasena">@T["ContrasenaEtiqueta"]</label>
+                    <InputText id="alta-contrasena" @bind-Value="Entrada!.Contrasena" type="password" autocomplete="new-password" aria-describedby="alta-contrasena-requisito" />
+                    <p id="alta-contrasena-requisito" class="acceso-nota">@T["ContrasenaRequisito", OpcionesIdentity.Value.Password.RequiredLength]</p>
+                </div>
+
+                <RetoPruebaTrabajoFormulario />
+
+                <button type="submit" class="acceso-entrar">@T["CrearCuentaBoton"]</button>
+            </EditForm>
+
+            <p class="acceso-explica">@T["AvisoCondiciones"] <a href="/legal/privacidad">@T["PoliticaPrivacidad"]</a>.</p>
+            <p class="acceso-olvido"><a href="/cuenta/iniciar-sesion">@T["YaTengoCuenta"]</a></p>
+        }
+        else
+        {
+            <PasosAlta Detalle="@T["PasoConfirmarCorreoDetalle"]" />
+            <h2 class="acceso-titulo">@T["RevisaCorreoTitulo"]</h2>
+            <p class="acceso-explica">@T["EnviadoA", _correoEnviadoA]</p>
+            <p class="acceso-explica">@T["MiraNoDeseado"]</p>
+            <p class="acceso-olvido"><a href="/alta">@T["UsarOtroCorreo"]</a></p>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromForm(FormName = "alta-registro")]
+    private DatosEntrada? Entrada { get; set; }
+
+    private bool _habilitada;
+    private string? _error;
+    private string? _correoEnviadoA;
+
+    protected override void OnInitialized()
+    {
+        // DA-10: con la bandera apagada la ruta no existe, ni para pintar ni para enviar.
+        _habilitada = OpcionesAlta.Value.Habilitada;
+        if (!_habilitada)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        Entrada ??= new DatosEntrada();
+    }
+
+    private async Task Registrar()
+    {
+        if (!_habilitada || Entrada is null || HttpContext is null)
+            return;
+
+        var formulario = HttpContext.Request.Form;
+        var tokenReto = formulario[RetoPruebaTrabajoFormulario.CampoReto].ToString();
+
+        // Primero el reto: el sello de las trampas solo se gasta tras el trabajo de la prueba.
+        if (Reto.Verificar(tokenReto, formulario[RetoPruebaTrabajoFormulario.CampoSolucion].ToString()) != ResultadoVerificacionReto.Valido)
+        {
+            _error = T["ErrorComprobacion"];
+            return;
+        }
+
+        var trampas = Trampas.Verificar(
+            formulario[ServicioTrampasFormulario.NombreCampoTrampa].ToString(),
+            formulario[ServicioTrampasFormulario.NombreCampoSello].ToString(),
+            tokenReto);
+        if (trampas == ResultadoTrampasFormulario.CampoTrampaRelleno)
+        {
+            // A quien rellena el campo oculto se le enseña la pantalla de éxito, sin crear ni enviar nada.
+            _correoEnviadoA = Entrada.Correo.Trim();
+            return;
+        }
+
+        if (trampas != ResultadoTrampasFormulario.Superadas)
+        {
+            _error = T["ErrorComprobacion"];
+            return;
+        }
+
+        var correo = Entrada.Correo.Trim();
+        if (!CorreoValido(correo))
+        {
+            _error = T["ErrorCorreoInvalido"];
+            return;
+        }
+
+        if (Desechables.EsDominioDesechable(correo))
+        {
+            _error = T["ErrorDominioDesechable"];
+            return;
+        }
+
+        var hash = await Contrasenas.ValidarYHashearAsync(correo, Entrada.Contrasena);
+        if (hash is null)
+        {
+            _error = T["ErrorContrasena", OpcionesIdentity.Value.Password.RequiredLength];
+            return;
+        }
+
+        var basePublica = Enlaces.ObtenerBase(Navigation.BaseUri);
+        var ip = HttpContext.Connection.RemoteIpAddress;
+        if (basePublica is not null && ip is not null)
+        {
+            var ipTexto = (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).ToString();
+            var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+            Cola.Encolar(new DatosRegistroAlta(correo, hash, ipTexto, userAgent), SolicitudAlta.NormalizarCorreo(correo), basePublica);
+        }
+
+        _correoEnviadoA = correo;
+    }
+
+    /// <summary>Mismo criterio que SolicitudAlta.Iniciar: longitud, forma de dirección y, normalizado, que quepa.</summary>
+    internal static bool CorreoValido(string correo) =>
+        correo.Length is > 0 and <= SolicitudAlta.LongitudMaximaCorreo
+        && new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(correo)
+        && System.Net.Mail.MailAddress.TryCreate(correo, out var direccion) && direccion.Address == correo
+        && SolicitudAlta.NormalizarCorreo(correo).Length <= SolicitudAlta.LongitudMaximaCorreo;
+
+    private sealed class DatosEntrada
+    {
+        public string Correo { get; set; } = string.Empty;
+        public string Contrasena { get; set; } = string.Empty;
+    }
+}

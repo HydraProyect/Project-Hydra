@@ -313,6 +313,8 @@ CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, bu
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 // Antiabuso del alta autónoma: reto de prueba de trabajo, trampas del formulario y dominios desechables.
 CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExtensions.AddAntiabusoAlta(builder.Services, builder.Configuration);
+// Registro y verificación del correo del alta autónoma: cola en segundo plano y remitente (a fichero en Development).
+CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();

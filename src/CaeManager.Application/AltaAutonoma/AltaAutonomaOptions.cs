@@ -13,4 +13,10 @@ public class AltaAutonomaOptions
 
     /// <summary>Con false, el valor por defecto, ninguna parte del alta autónoma atiende peticiones.</summary>
     public bool Habilitada { get; set; }
+
+    /// <summary>
+    /// Directorio donde el remitente de desarrollo escribe los correos del alta (solo <c>Development</c>). Vacío:
+    /// <c>talveg-correo-alta</c> en el directorio temporal del sistema.
+    /// </summary>
+    public string? DirectorioCorreoDesarrollo { get; set; }
 }

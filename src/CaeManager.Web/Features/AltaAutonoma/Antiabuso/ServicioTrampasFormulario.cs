@@ -119,7 +119,8 @@ public sealed class ServicioTrampasFormulario
         if (transcurrido < opciones.TiempoMinimoEnvio)
             return ResultadoTrampasFormulario.EnvioDemasiadoRapido;
 
-        // Caduca en el mismo instante en que el registro puede olvidar su nonce, como el reto: nunca vale tras purgarse.
+        // Caduca antes de que el registro pueda olvidar su nonce (RegistroRetosUsados.MargenPurga), como el reto: nunca
+        // vale tras purgarse, ni siquiera para quien leyó la hora justo antes de caducar.
         var caduca = pintado + opciones.VigenciaSelloFormulario;
         if (ahora >= caduca)
             return ResultadoTrampasFormulario.SelloCaducado;
