@@ -939,9 +939,11 @@ public class BloqueoRespuestaSugeridaTests
     }
 
     /// <summary>
-    /// Una sugerencia sin revisar con el mismo texto, confirmada por otra conexión después de abrir la instantánea (aquí, a
-    /// mitad de la lectura de los textos), no se ve: es el límite aceptado, igual que un cambio posterior al envío. La
-    /// confirmada antes de abrirla sí bloquea, y la misma sugerencia vista en una comprobación posterior también.
+    /// Una sugerencia sin revisar con el mismo texto, confirmada por otra conexión después de abrir la instantánea (aquí,
+    /// en la primera consulta, ya dentro), no se ve: es el límite aceptado, igual que un cambio posterior al envío. Es
+    /// sensible a la instantánea: sin ella el doble no congelaría la lista, la candidata nueva entraría en la lectura y
+    /// bloquearía. La misma sugerencia vista en una comprobación posterior sí bloquea. La semántica real de REPEATABLE READ
+    /// la cubren los tests de integración; el doble solo congela qué sugerencias hay.
     /// </summary>
     [Fact]
     public async Task Por_buzon_una_sin_revisar_confirmada_despues_de_abrir_la_instantanea_no_se_ve_y_una_anterior_si()
@@ -953,7 +955,8 @@ public class BloqueoRespuestaSugeridaTests
         var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
         _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
         {
-            if (lectura == antes + 2)
+            // En la primera lectura, ya dentro de la instantánea: sin ella (lista sin congelar) la candidata nueva se vería y bloquearía.
+            if (lectura == antes + 1)
                 Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.SinRevisar);
         };
 
