@@ -729,7 +729,9 @@ public class BloqueoRespuestaSugeridaTests
 
     /// <summary>
     /// Los textos se leen por lotes y la coincidencia cae en el último: 120 sugerencias sin parecido van por delante, con Id
-    /// menores. Con 121 candidatas hay 1 lectura ligera y 3 de textos (50, 50 y 21).
+    /// menores, y la consulta ordena por Id (la comprobación de orden es la del propio test). Con 121 candidatas hay 1
+    /// lectura ligera y 3 de textos (50, 50 y 21). Como ninguna de las 120 anteriores contiene el cuerpo, que bloquee solo
+    /// puede ser porque se leyó y comparó el tercer lote, que es el único donde está la candidata 121.
     /// </summary>
     [Fact]
     public async Task Por_buzon_con_muchas_sugerencias_detecta_la_coincidencia_en_el_ultimo_lote()
@@ -779,6 +781,110 @@ public class BloqueoRespuestaSugeridaTests
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
+    private Conversacion HiloAnclado(ConexionIntegracion conexion, Guid? clienteId, Guid? empresaId)
+    {
+        var conversacion = new Conversacion("Documentación", clienteId, empresaId: empresaId);
+        conversacion.AsociarConexion(conexion.Id, "hilo-" + Guid.NewGuid());
+        conversacion.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "ana@contrata.test", "<p>Adjunto</p>", mensajeExternoId: "msg-1");
+        _conversaciones.Agregar(conversacion);
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        return conversacion;
+    }
+
+    /// <summary>Lo que la consulta de candidatas tiene como origen: los hilos del buzón que deja pasar el filtro de alcance.</summary>
+    private async Task<IReadOnlyList<Guid>> HilosQueEntranEnLaConsulta(ConexionIntegracion conexion, IAlcanceDatosService alcance)
+    {
+        var filtro = await BloqueoRespuestaSugerida.HilosVisiblesDelBuzonAsync(alcance, conexion.Id, CancellationToken.None);
+        return filtro is null ? [] : _comunicaciones.Conversaciones.Where(filtro).Select(c => c.Id).ToList();
+    }
+
+    /// <summary>
+    /// El filtro de la consulta es la regla de <c>ConversacionVisibleAsync</c> y no otra: se comparan sobre los mismos hilos
+    /// (Cliente empresarial visible y no visible, sin ancla, Empresa contraparte en cartera y fuera de ella) con alcance
+    /// total, con cartera, con cartera vacía y con el buzón no visible.
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_por_buzon_decide_igual_que_ConversacionVisibleAsync()
+    {
+        var conexion = Buzon();
+        var clienteVisible = Guid.NewGuid();
+        var empresaEnCartera = Guid.NewGuid();
+        var hilos = new[]
+        {
+            HiloAnclado(conexion, clienteVisible, null),
+            HiloAnclado(conexion, Guid.NewGuid(), null),
+            HiloAnclado(conexion, null, null),
+            HiloAnclado(conexion, null, empresaEnCartera),
+            HiloAnclado(conexion, null, Guid.NewGuid())
+        };
+        var alcances = new Dictionary<string, IAlcanceDatosService>
+        {
+            ["total"] = new AlcanceDatosServiceFalso(),
+            ["cartera"] = new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible], empresaIdsParaGestion: [empresaEnCartera]),
+            ["vacia"] = new AlcanceDatosServiceFalso(tieneAccesoTotal: false),
+            ["buzon no visible"] = new AlcanceDatosServiceFalso(conexionIntegracionVisible: false)
+        };
+
+        foreach (var (nombre, alcance) in alcances)
+        {
+            var esperados = new List<Guid>();
+            foreach (var hilo in hilos)
+            {
+                if (await alcance.ConversacionVisibleAsync(hilo, CancellationToken.None))
+                    esperados.Add(hilo.Id);
+            }
+
+            (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().BeEquivalentTo(esperados, nombre);
+        }
+
+        // Control de que la comparación no es vacía: con cartera entran el Cliente visible, el hilo sin ancla y la Empresa en cartera.
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["cartera"])).Should()
+            .BeEquivalentTo([hilos[0].Id, hilos[2].Id, hilos[3].Id]);
+        (await HilosQueEntranEnLaConsulta(conexion, alcances["buzon no visible"])).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Por_buzon_un_hilo_anclado_a_una_Empresa_fuera_de_cartera_no_aporta_candidatas_ni_bloquea()
+    {
+        var conexion = Buzon();
+        var fuera = HiloAnclado(conexion, null, Guid.NewGuid());
+        Sugerencia(fuera, EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: [Guid.NewGuid()]);
+
+        (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().BeEmpty();
+        (await PorBuzon(conexion, TextoSugerido, alcance)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>", alcance)).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Por_buzon_un_hilo_anclado_a_una_Empresa_en_cartera_bloquea()
+    {
+        var conexion = Buzon();
+        var empresa = Guid.NewGuid();
+        Sugerencia(HiloAnclado(conexion, null, empresa), EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsParaGestion: [empresa]);
+
+        (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().HaveCount(1);
+        (await PorBuzon(conexion, TextoSugerido, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>", alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task Por_buzon_con_el_buzon_no_visible_no_hay_candidatas_ni_se_lee_ninguna_sugerencia()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceDatosServiceFalso(conexionIntegracionVisible: false);
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+
+        (await PorBuzon(conexion, TextoSugerido, alcance)).EsExitoso.Should().BeTrue();
+
+        (await HilosQueEntranEnLaConsulta(conexion, alcance)).Should().BeEmpty();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(0);
+    }
+
     /// <summary>
     /// El trabajo no depende de lo que haya en un hilo ajeno: con la sugerencia solo en un hilo que quien envía no ve, un
     /// cuerpo que la contiene y uno que no hacen exactamente las mismas lecturas (la ligera, y ninguna de textos).
@@ -800,6 +906,7 @@ public class BloqueoRespuestaSugeridaTests
 
         conCoincidencia.Should().Be(1);
         sinCoincidencia.Should().Be(1);
+        (await HilosQueEntranEnLaConsulta(conexion, sinVer)).Should().BeEmpty();
     }
 
     [Fact]

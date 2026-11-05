@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
@@ -74,40 +75,48 @@ public static class BloqueoRespuestaSugerida
     /// cuerpo, porque no se sabe en qué hilo caerá y una sola sin revisar frenaría todo el buzón.
     ///
     /// <para>
-    /// Cómo, por orden: (1) una consulta ligera, sin el texto ni el cuerpo, trae todas las sugerencias candidatas de los
-    /// hilos del buzón: las <see cref="EstadoRespuestaSugerida.Propuesta"/> y <see cref="EstadoRespuestaSugerida.SinRevisar"/>
-    /// de cualquier edad y las que contestan al último entrante de su hilo, que es lo que aplica una conversación.
-    /// (2) Se decide qué hilos puede ver quien envía, con la misma regla que cualquier hilo
-    /// (<see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>),
-    /// una vez por cada ancla distinta (Cliente empresarial o Empresa contraparte) de las candidatas. (3) Solo entonces se
-    /// compara, y solo las candidatas de hilos visibles: hash y, para las no revisadas, los textos por lotes de
-    /// <see cref="LoteTextosPorBuzon"/>, que se descartan tras compararlos.
+    /// Cómo, por orden: (1) se resuelve el alcance de quien envía, una sola vez y sin mirar el cuerpo
+    /// (<see cref="HilosVisiblesDelBuzonAsync"/>): si el buzón no es visible no hay candidatas, y si lo es, los conjuntos
+    /// memoizados de Clientes empresariales visibles y de Empresas para gestión pasan a ser un filtro. (2) Una única
+    /// consulta, sin el texto ni el cuerpo, trae las sugerencias candidatas de los hilos del buzón que cumplen ese filtro:
+    /// las <see cref="EstadoRespuestaSugerida.Propuesta"/> y <see cref="EstadoRespuestaSugerida.SinRevisar"/> de cualquier
+    /// edad y las que contestan al último entrante de su hilo, que es lo que aplica una conversación. (3) Se compara con el
+    /// cuerpo: hash y, para las no revisadas, los textos por lotes de <see cref="LoteTextosPorBuzon"/>, que se descartan
+    /// tras compararlos. Una Revisada se busca por (hash, mensaje de origen) en un conjunto del hilo, en tiempo constante.
     /// </para>
     ///
     /// <para>
-    /// Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese texto existe. Una
-    /// sugerencia de un hilo no visible no bloquea ni desbloquea. Tampoco se nota por el tiempo: el paso (2) no depende del
-    /// cuerpo y el (3) no recibe ninguna candidata de un hilo no visible, así que el trabajo de la comprobación (consultas
-    /// y lecturas de texto) es el mismo con o sin coincidencia en un hilo ajeno. Solo cambia, y es ya lo que ve quien envía,
-    /// si hay coincidencia en uno visible.
+    /// Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese texto existe. El filtro de
+    /// alcance es parte de la consulta de candidatas, así que el hilo, su ancla y su visibilidad salen de la misma lectura
+    /// (una reasignación del hilo no deja una visibilidad obsoleta), y un hilo no visible no llega nunca a memoria: no
+    /// bloquea, no desbloquea y no provoca ninguna lectura de texto, con o sin coincidencia. Por eso tampoco se nota por el
+    /// tiempo. El filtro es la regla de
+    /// <see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>
+    /// traducida a una expresión: buzón visible, y con Empresa contraparte que esté en la cartera de gestión; sin ella, que
+    /// no haya Cliente empresarial (triage compartido) o que esté entre los visibles; un conjunto nulo es acceso total.
+    /// Un test compara ambas sobre los mismos casos para que no diverjan.
     /// </para>
     ///
     /// <para>
     /// Sin tope de volumen y sin fallo en cerrado por cantidad: una Revisada o una Descartada del último entrante siguen
     /// siendo candidatas mientras la contraparte no conteste, y un tope las contaría como pendientes y cerraría el buzón
-    /// a los mensajes nuevos sin que quien envía pudiera arreglarlo. La memoria no crece con el buzón (lotes), pero el
-    /// coste de las consultas sí crece con el historial de sugerencias del buzón, porque no hay filtro por hash: un buzón
-    /// con miles de hilos con sugerencia lee miles de filas ligeras y descarga los textos de las no revisadas de hilos visibles.
+    /// a los mensajes nuevos sin que quien envía pudiera arreglarlo. Coste: una consulta de candidatas (una fila ligera por
+    /// sugerencia de hilo visible) más un acceso por lote de textos de las no revisadas, y el trabajo en memoria es lineal;
+    /// ambos crecen con el historial de sugerencias del buzón, porque no hay filtro por hash. La memoria no crece con el
+    /// buzón (lotes).
     /// </para>
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
         this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, string cuerpo,
         CancellationToken cancellationToken)
     {
-        var todas = await (
+        var hilosVisibles = await HilosVisiblesDelBuzonAsync(alcanceDatos, conexionIntegracionId, cancellationToken);
+        if (hilosVisibles is null)
+            return Result.Exito();
+
+        var candidatas = await (
             from respuesta in comunicaciones.RespuestasSugeridas
-            join conversacion in comunicaciones.Conversaciones on respuesta.ConversacionId equals conversacion.Id
-            where conversacion.ConexionIntegracionId == conexionIntegracionId
+            join conversacion in comunicaciones.Conversaciones.Where(hilosVisibles) on respuesta.ConversacionId equals conversacion.Id
             let ultimoEntrante = comunicaciones.Mensajes
                 .Where(m => m.ConversacionId == conversacion.Id && m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico)
                 .OrderByDescending(m => m.FechaUtc)
@@ -117,20 +126,9 @@ public static class BloqueoRespuestaSugerida
                   respuesta.MensajeOrigenId == ultimoEntrante
             orderby respuesta.Id
             select new CandidataDeBuzon(
-                respuesta.Id, conversacion.Id, conversacion.ClienteId, conversacion.EmpresaId,
-                respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
+                respuesta.Id, conversacion.Id, respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
-
-        // El alcance se decide antes de mirar el cuerpo ni los textos: lo que hay en un hilo ajeno no se toca.
-        var visibilidad = new Dictionary<(Guid? Cliente, Guid? Empresa), bool>();
-        foreach (var ancla in todas.Select(c => (c.ClienteId, c.EmpresaId)).Distinct())
-        {
-            visibilidad[ancla] = await alcanceDatos.ConversacionVisibleAsync(
-                ancla.ClienteId, ancla.EmpresaId, conexionIntegracionId, cancellationToken);
-        }
-
-        var candidatas = todas.Where(c => visibilidad[(c.ClienteId, c.EmpresaId)]).ToList();
 
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
         var coinciden = candidatas.Where(c => c.TextoHash == hash).Select(c => c.Id).ToHashSet();
@@ -162,13 +160,46 @@ public static class BloqueoRespuestaSugerida
         return Result.Exito();
     }
 
+    /// <summary>
+    /// Los hilos de un buzón que quien envía puede ver, como filtro para la consulta de candidatas; <c>null</c> si el
+    /// buzón no es visible. Es la regla de <c>ConversacionVisibleAsync</c>: buzón visible (una vez, es el mismo para todos
+    /// los hilos); con Empresa contraparte, que esté en <see cref="IAlcanceDatosService.ObtenerEmpresaIdsParaGestionAsync"/>;
+    /// sin ella, que no tenga Cliente empresarial (triage compartido) o que esté en
+    /// <see cref="IAlcanceDatosService.ObtenerClienteIdsVisiblesAsync"/>. Un conjunto nulo es acceso total. Los dos
+    /// conjuntos están memoizados por petición: no hay una consulta por hilo.
+    /// </summary>
+    internal static async Task<Expression<Func<Conversacion, bool>>?> HilosVisiblesDelBuzonAsync(
+        IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, CancellationToken cancellationToken)
+    {
+        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexionIntegracionId, cancellationToken))
+            return null;
+
+        var carteraDeClientes = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var carteraDeEmpresas = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        var todosLosClientes = carteraDeClientes is null;
+        var todasLasEmpresas = carteraDeEmpresas is null;
+        var clientes = carteraDeClientes?.ToList() ?? [];
+        var empresas = carteraDeEmpresas?.ToList() ?? [];
+
+        return c => c.ConexionIntegracionId == conexionIntegracionId &&
+                    (c.EmpresaId != null
+                        ? todasLasEmpresas || empresas.Contains(c.EmpresaId.Value)
+                        : c.ClienteId == null || todosLosClientes || clientes.Contains(c.ClienteId.Value));
+    }
+
     private static bool HayCoincidenciaSinRevisar(
-        IReadOnlyCollection<SugerenciaComparable> sugerencias, Func<SugerenciaComparable, bool> coincide) =>
-        sugerencias.Any(p =>
+        IReadOnlyCollection<SugerenciaComparable> sugerencias, Func<SugerenciaComparable, bool> coincide)
+    {
+        var revisadas = sugerencias
+            .Where(r => r.Estado == EstadoRespuestaSugerida.Revisada)
+            .Select(r => (r.TextoHash, r.MensajeOrigenId))
+            .ToHashSet();
+
+        return sugerencias.Any(p =>
             p.Estado is EstadoRespuestaSugerida.Propuesta or EstadoRespuestaSugerida.Descartada &&
             coincide(p) &&
-            !sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.Revisada &&
-                                  r.TextoHash == p.TextoHash && r.MensajeOrigenId == p.MensajeOrigenId));
+            !revisadas.Contains((p.TextoHash, p.MensajeOrigenId)));
+    }
 
     private static bool ContieneElTexto(string cuerpoNormalizado, string texto)
     {
@@ -181,6 +212,5 @@ public static class BloqueoRespuestaSugerida
         EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash, string? Texto = null, Guid Id = default);
 
     private sealed record CandidataDeBuzon(
-        Guid Id, Guid ConversacionId, Guid? ClienteId, Guid? EmpresaId, EstadoRespuestaSugerida Estado, Guid MensajeOrigenId,
-        string TextoHash);
+        Guid Id, Guid ConversacionId, EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash);
 }
