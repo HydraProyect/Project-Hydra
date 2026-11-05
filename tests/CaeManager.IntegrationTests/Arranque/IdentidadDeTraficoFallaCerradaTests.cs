@@ -72,9 +72,9 @@ public class IdentidadDeTraficoFallaCerradaTests
     [Fact]
     public void En_desarrollo_se_conserva_la_caida_al_rol_propietario()
     {
-        // El desarrollo local (docker compose up) arranca con
-        // ASPNETCORE_ENVIRONMENT=Development y define solo
-        // ConnectionStrings__CaeManagerDb. Si esta caída desapareciera, el fallo
+        // El desarrollo local (dotnet run en Development contra el PostgreSQL de
+        // docker-compose.yml) solo tiene la cadena propietaria de
+        // appsettings.json. Si esta caída desapareciera, el fallo
         // cerrado habría dejado de proteger para pasar a estorbar. El arnés E2E
         // (WebAppFixture) ya no depende de ella: desde la mejora 1.7 del harness
         // define también ConnectionStrings__CaeManagerDbRuntime.

@@ -32,7 +32,8 @@ namespace CaeManager.E2ETests;
 /// <b>La única salida es <see cref="MotivoTraficoComoPropietario"/></b>, y es
 /// auditable: la guarda de arquitectura <c>IdentidadDeTraficoDeE2ETests</c> congela
 /// qué fixtures la sobrescriben y prohíbe escribir las variables de conexión fuera
-/// de este fichero. Las ayudas de la propia fixture (<see cref="EjecutarSqlAsync(string, (string Nombre, string Valor)[])"/>
+/// de esta clase (tampoco en las subclases de este mismo fichero). Cada arranque
+/// comprueba además que hay conexiones como runtime. Las ayudas de la propia fixture (<see cref="EjecutarSqlAsync(string, (string Nombre, string Valor)[])"/>
 /// y compañía) siguen usando la cadena propietaria a propósito: preparan estados que
 /// la interfaz no fabrica, no son tráfico de la aplicación.
 /// </para>
@@ -210,6 +211,10 @@ public class WebAppFixture : IAsyncLifetime
         // vez lo necesita.
         infoInicio.Environment["Logging__RutaArchivo"] = $"App_Data/logs/log-{tipoFixture}-.txt";
 
+        if (MotivoTraficoComoPropietario is { } motivo && string.IsNullOrWhiteSpace(motivo))
+            throw new InvalidOperationException(
+                $"{tipoFixture} sobrescribe MotivoTraficoComoPropietario sin motivo: escríbelo o deja el tráfico como {RolDeRuntime}.");
+
         if (TraficoBajoRuntime)
         {
             await DarLoginAlRolDeRuntimeAsync();
@@ -265,6 +270,14 @@ public class WebAppFixture : IAsyncLifetime
         _proceso.BeginErrorReadLine();
 
         await EsperarArranqueAsync();
+
+        // Control positivo del instrumento, en cada fixture: /salud responde por la
+        // conexión del tráfico, así que tras su 200 hay al menos una conexión de
+        // runtime en el pool. Cero significa que el tráfico cayó a la cadena
+        // propietaria y ningún test de esta colección observaría RLS.
+        if (TraficoBajoRuntime && await ConexionesComoRuntimeAsync() == 0)
+            throw new InvalidOperationException(
+                $"{tipoFixture}: la aplicación arrancó y ninguna conexión autentica como {RolDeRuntime}; el tráfico no corre bajo RLS.");
 
         _playwright = await Playwright.CreateAsync();
         Browser = await LanzarChromiumAsync();
