@@ -117,8 +117,9 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Dos_confirmaciones_simultaneas_del_mismo_enlace_verifican_una_sola_vez()
+    public async Task Cuatro_confirmaciones_simultaneas_del_mismo_enlace_verifican_una_sola_vez()
     {
+        const int confirmaciones = 4;
         var token = ServicioRegistroAlta.NuevoToken();
         var solicitud = Nueva(token);
         await using (var conexion = await AbrirComoRuntimeFirmadoAsync())
@@ -132,7 +133,33 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
             return await new AccesoSolicitudesAlta(contexto).VerificarCorreoAsync(token, CancellationToken.None);
         }
 
-        var resultados = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(ConfirmarAsync)));
+        // Solape determinista: el propietario retiene la fila con FOR UPDATE, las cuatro confirmaciones quedan esperando
+        // ese bloqueo (en el FOR UPDATE de la función o, si alguien lo quitara, en su UPDATE) y se sueltan a la vez.
+        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
+        await retenedor.OpenAsync();
+        await using var transaccion = await retenedor.BeginTransactionAsync();
+        await using (var bloqueo = new NpgsqlCommand(
+            $"SELECT 1 FROM \"SolicitudesAlta\" WHERE \"Id\" = '{solicitud.Id}' FOR UPDATE", retenedor, transaccion))
+            await bloqueo.ExecuteScalarAsync();
+
+        var tareas = Enumerable.Range(0, confirmaciones).Select(_ => Task.Run(ConfirmarAsync)).ToArray();
+
+        await using (var observador = new NpgsqlConnection(_cadenaConexion))
+        {
+            await observador.OpenAsync();
+            await using var esperando = new NpgsqlCommand(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND usename = 'cae_app_runtime' AND wait_event_type = 'Lock'",
+                observador);
+            var limite = DateTime.UtcNow.AddSeconds(30);
+            while ((long)(await esperando.ExecuteScalarAsync())! < confirmaciones)
+            {
+                DateTime.UtcNow.Should().BeBefore(limite, "las cuatro confirmaciones deben quedar esperando el bloqueo de la fila");
+                await Task.Delay(25);
+            }
+        }
+
+        await transaccion.CommitAsync();
+        var resultados = await Task.WhenAll(tareas);
 
         resultados.Count(r => r == ResultadoVerificacionCorreoAlta.Verificado).Should().Be(1, "el enlace es de un solo uso también en carrera");
         resultados.Where(r => r != ResultadoVerificacionCorreoAlta.Verificado).Should().AllBeEquivalentTo(ResultadoVerificacionCorreoAlta.NoValido);

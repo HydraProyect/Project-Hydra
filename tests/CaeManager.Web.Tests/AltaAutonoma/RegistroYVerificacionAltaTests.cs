@@ -15,8 +15,8 @@ namespace CaeManager.Web.Tests.AltaAutonoma;
 /// <summary>
 /// Antienumeración y uso único del registro del alta autónoma (A3), en la parte que vive en la Web:
 /// <list type="bullet">
-/// <item>la cola procesa igual el registro de un correo con cuenta que el de uno sin ella, y corta en tres por correo
-/// y hora sin decirlo a quien registra;</item>
+/// <item>la cola corta en tres registros por correo y hora sin decirlo a quien registra (<c>Encolar</c> no devuelve
+/// nada), y el cupo de un correo no toca el de otro;</item>
 /// <item>abrir el enlace de verificación (GET) no verifica: solo pinta el botón, y el token viaja en el formulario.</item>
 /// </list>
 /// </summary>
@@ -53,7 +53,7 @@ public class RegistroYVerificacionAltaTests : BunitContext
     }
 
     [Fact]
-    public async Task La_cola_procesa_igual_con_y_sin_cuenta_y_corta_en_tres_por_correo_sin_avisar()
+    public async Task La_cola_corta_en_tres_por_correo_sin_decirlo_a_quien_registra()
     {
         var procesados = new ConcurrentQueue<string>();
         var cola = new ColaRegistroAlta(

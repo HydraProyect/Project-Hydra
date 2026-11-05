@@ -558,6 +558,8 @@ builder.Services.AddOpenApi("v1", options =>
 // Identity, cierra el hallazgo P0-2 de Project-Hydra-Negocio/MATURITY_REVIEW.md
 // (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
 // límite frena el barrido de muchas cuentas distintas desde una misma IP.
+// El POST que confirma el correo del alta autónoma (/alta/verificar) tiene el
+// mismo techo anónimo, en su propia partición (ver el bloque más abajo).
 // Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
 // cargar la página, y limitarlo también castigaba tráfico legítimo: un
 // runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
