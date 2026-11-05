@@ -58,6 +58,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     cambiaría el token y app_contexto_validado, que leen todas las políticas RLS). Para
             //     que la fila no pueda atribuirse a otra sesión del mismo actor, la función rechaza
             //     ('sesion_ambigua') si el actor real tiene más de una sesión vigente sobre el Tenant.
+            //     Antes de contar toma LOCK TABLE "SesionesPrivilegiadas" IN SHARE MODE: SHARE choca con
+            //     el INSERT y el UPDATE de la tabla, así que una sesión que se esté abriendo se confirma
+            //     antes (y la cuenta la ve) o espera a que la función termine; dos registros no se
+            //     esperan entre sí, y en READ COMMITTED la cuenta toma su instantánea después del
+            //     candado. La espera la acota SET lock_timeout TO '5s': si vence, la llamada falla con
+            //     55P03, el repositorio devuelve false y los datos no se sirven. El propietario de la
+            //     función (rol de las migraciones) es el propietario de la tabla, lo que basta para
+            //     LOCK ... IN SHARE MODE.
             //   - Fila: TenantId (el Tenant objetivo), UsuarioSoporteId (el actor real, nunca el
             //     usuario simulado), SesionPrivilegiadaId y OcurridaEnUtc los pone la función;
             //     DelegacionTenantId queda nulo (CK_RegistrosActividadSoporte_UnSoloAgrupador). Del
@@ -80,6 +88,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     p_sesion uuid, p_registro uuid, p_tipo text, p_detalle text) RETURNS text
                     LANGUAGE plpgsql SECURITY DEFINER
                     SET search_path TO 'pg_catalog', 'pg_temp'
+                    SET lock_timeout TO '5s'
                     AS $$
                 DECLARE
                   v_actor uuid;
@@ -105,6 +114,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                      OR p_detalle IS NULL OR p_detalle NOT IN ({ListaSql(OperacionesRegistradas)}) THEN
                     RETURN 'valor_no_valido';
                   END IF;
+
+                  -- SHARE choca con el INSERT y el UPDATE de SesionesPrivilegiadas (ROW EXCLUSIVE): una
+                  -- sesión que se esté abriendo o cerrando, o se confirma antes (y la cuenta la ve) o
+                  -- espera a que esta transacción termine, así que no puede aparecer entre la cuenta y el
+                  -- INSERT. Dos registros no se esperan entre sí (SHARE no choca con SHARE). En READ
+                  -- COMMITTED la cuenta toma su instantánea después del candado. lock_timeout acota la
+                  -- espera: si vence (55P03), no se registra y los datos no se sirven.
+                  LOCK TABLE public."SesionesPrivilegiadas" IN SHARE MODE;
 
                   -- Todas las sesiones vigentes del actor real sobre el Tenant del contexto, y cuántas
                   -- de ellas son la nombrada.

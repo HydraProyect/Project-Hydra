@@ -69,6 +69,16 @@ public class RegistroLecturaSesionPrivilegiada(
                 operacion, sesionPrivilegiadaId);
             return false;
         }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.LockNotAvailable)
+        {
+            // La función espera como mucho lock_timeout el candado SHARE sobre la tabla de sesiones
+            // privilegiadas (una sesión abriéndose o cerrándose a la vez): sin la cuenta, no se registra.
+            logger.LogError(ex,
+                "No se pudo registrar la lectura {Operacion} en la Sesión Privilegiada {SesionId}: venció la espera " +
+                "del candado sobre las Sesiones Privilegiadas. Los datos no se sirven.",
+                operacion, sesionPrivilegiadaId);
+            return false;
+        }
 
         if (codigo == Registrado)
             return true;

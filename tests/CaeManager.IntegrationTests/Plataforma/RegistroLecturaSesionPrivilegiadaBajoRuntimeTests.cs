@@ -587,19 +587,123 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         (await RegistrarComoSoporteAsync(_tenantA, sesion, "EjecutarImportacionCommand")).Should().BeTrue();
     }
 
-    /// <summary>Segunda sesión vigente, sembrada como propietario con el dominio.</summary>
-    private async Task<Guid> SembrarOtraSesionVigenteAsync(Guid tenantObjetivo, Guid? actor = null)
+    /// <summary>
+    /// La carrera que cierra el candado SHARE: la función nombra A mientras otra conexión tiene sin
+    /// confirmar una segunda sesión B vigente del mismo actor sobre el Tenant. La función espera el
+    /// candado (lo que se comprueba en pg_locks, no por tiempo), B se confirma, y la cuenta, tomada
+    /// después del candado, ve las dos: 'sesion_ambigua' y ninguna fila atribuida a A.
+    /// </summary>
+    [Fact]
+    public async Task Una_segunda_sesion_que_se_confirma_mientras_la_funcion_espera_el_candado_la_hace_ambigua()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using var propietario = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
+        await using var transaccionB = await propietario.Database.BeginTransactionAsync();
+        AnadirOtraSesionVigente(propietario, _tenantA);
+        await propietario.SaveChangesAsync();
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+        var llamada = LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand");
+
+        (await EsperaElCandadoAsync(llamada)).Should().BeTrue("la función espera el candado SHARE mientras B no se confirma");
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        llamada.IsCompleted.Should().BeFalse("sigue esperando a que B termine");
+
+        await transaccionB.CommitAsync();
+
+        (await llamada).Should().Be("sesion_ambigua");
+        (await LeerFilasAsync(sesion)).Should().BeEmpty("la fila no queda atribuida a A con otra sesión vigente");
+    }
+
+    [Fact]
+    public async Task Si_la_segunda_sesion_se_deshace_mientras_la_funcion_espera_el_candado_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using var propietario = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
+        await using var transaccionB = await propietario.Database.BeginTransactionAsync();
+        AnadirOtraSesionVigente(propietario, _tenantA);
+        await propietario.SaveChangesAsync();
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+        var llamada = LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand");
+
+        (await EsperaElCandadoAsync(llamada)).Should().BeTrue("la función espera el candado SHARE mientras B no termina");
+        await transaccionB.RollbackAsync();
+
+        (await llamada).Should().Be("registrado");
+        (await LeerFilasAsync(sesion)).Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// LOCK ... IN SHARE MODE exige UPDATE, DELETE o TRUNCATE sobre la tabla, y dentro de una función
+    /// SECURITY DEFINER se comprueba con el propietario de la función (el rol de las migraciones).
+    /// </summary>
+    [Fact]
+    public async Task El_propietario_de_la_funcion_puede_bloquear_SesionesPrivilegiadas_en_SHARE()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = $"""
+            SELECT pg_get_userbyid(p.proowner) = pg_get_userbyid(c.relowner),
+                   has_table_privilege(p.proowner, c.oid, 'UPDATE')
+                   OR has_table_privilege(p.proowner, c.oid, 'DELETE')
+                   OR has_table_privilege(p.proowner, c.oid, 'TRUNCATE')
+              FROM pg_proc p, pg_class c
+             WHERE p.proname = '{Funcion}' AND p.pronamespace = 'public'::regnamespace
+               AND c.oid = 'public."SesionesPrivilegiadas"'::regclass;
+            """;
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue("la función existe tras migrar");
+        lector.GetBoolean(0).Should().BeTrue("las migraciones crean la tabla y la función con el mismo rol");
+        lector.GetBoolean(1).Should().BeTrue("el propietario de la función puede tomar el candado SHARE");
+    }
+
+    /// <summary>
+    /// Espera, hasta 10 s, a ver en pg_locks un candado no concedido sobre SesionesPrivilegiadas
+    /// mientras la llamada sigue en curso. False si la llamada termina antes o no llega a esperar.
+    /// </summary>
+    private async Task<bool> EsperaElCandadoAsync(Task llamada)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        for (var intento = 0; intento < 100 && !llamada.IsCompleted; intento++)
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText =
+                "SELECT count(*) FROM pg_locks WHERE NOT granted AND relation = 'public.\"SesionesPrivilegiadas\"'::regclass;";
+            if ((long)(await comando.ExecuteScalarAsync())! > 0)
+                return true;
+            await Task.Delay(100);
+        }
+
+        return false;
+    }
+
+    /// <summary>Segunda sesión vigente del actor (por defecto el técnico), sin guardar.</summary>
+    private Guid AnadirOtraSesionVigente(CaeManagerDbContext contexto, Guid tenantObjetivo, Guid? actor = null)
     {
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             actor ?? _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _otroTecnico);
         var otra = SesionPrivilegiada.Abrir(
             concesion, tenantObjetivo, "Segunda sesión en paralelo", ahora.AddMinutes(-1), TimeSpan.FromMinutes(30));
-        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
         contexto.ConcesionesPrivilegio.Add(concesion);
         contexto.SesionesPrivilegiadas.Add(otra);
-        await contexto.SaveChangesAsync();
         return otra.Id;
+    }
+
+    /// <summary>Segunda sesión vigente, sembrada y confirmada como propietario con el dominio.</summary>
+    private async Task<Guid> SembrarOtraSesionVigenteAsync(Guid tenantObjetivo, Guid? actor = null)
+    {
+        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
+        var otra = AnadirOtraSesionVigente(contexto, tenantObjetivo, actor);
+        await contexto.SaveChangesAsync();
+        return otra;
     }
 
     [Fact]

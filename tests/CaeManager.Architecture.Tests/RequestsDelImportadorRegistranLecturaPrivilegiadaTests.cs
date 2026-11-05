@@ -69,8 +69,8 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     /// llamada a <c>Send</c> tolerando espacios y genéricos, y la forma literal <c>.Send(new X(</c>
     /// anclada a donde empieza esa llamada.
     /// </summary>
-    private static readonly Regex CualquierEnvioRazor = new(@"\.\s*Send\s*(<[^>(]*>)?\s*\(", RegexOptions.Compiled);
-    private static readonly Regex EnvioLiteralRazor = new(@"\G\.\s*Send\s*\(\s*new\s+(?<tipo>[A-Za-z_][\w.]*)\s*\(", RegexOptions.Compiled);
+    private static readonly Regex CualquierEnvioRazor = new(@"\.\s*@?Send\s*(<[^>(]*>)?\s*\(", RegexOptions.Compiled);
+    private static readonly Regex EnvioLiteralRazor = new(@"\G\.\s*@?Send\s*\(\s*new\s+(?<tipo>[A-Za-z_][\w.]*)\s*\(", RegexOptions.Compiled);
 
     /// <summary>
     /// Los envíos de un fuente de página: <c>(tipo, null)</c> si el argumento es <c>new X(...)</c> y
@@ -163,6 +163,7 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     [InlineData("class P { async Task F() { await Mediator.Send<int>(consulta); } }")]
     [InlineData("class P { async Task F() { await Mediator.Send(new(1)); } }")]
     [InlineData("class P { async Task F() { await Mediator?.Send(consulta); } }")]
+    [InlineData("class P { async Task F() { await Mediator.@Send(consulta); } }")]
     public void El_detector_ve_como_opaco_un_envio_que_no_es_new_X_en_cualquier_forma(string fuente)
     {
         Envios("Pagina.razor.cs", fuente).Should().ContainSingle().Which.Opaco.Should().NotBeNull();
@@ -180,6 +181,8 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     [InlineData("@code { async Task F() { await Mediator. Send(consulta); } }", null)]
     [InlineData("@code { async Task F() { await Mediator.Send /*c*/ (consulta); } }", null)]
     [InlineData("@code { async Task F() { await Mediator . Send ( new ObtenerHistorialImportacionesQuery() ); } }", "ObtenerHistorialImportacionesQuery")]
+    [InlineData("@code { async Task F() { await Mediator.@Send(consulta); } }", null)]
+    [InlineData("@code { async Task F() { await Mediator.@Send(new ObtenerHistorialImportacionesQuery()); } }", "ObtenerHistorialImportacionesQuery")]
     public void En_un_razor_el_detector_tolera_espacios_y_comentarios(string fuente, string? tipo)
     {
         var envio = Envios("Pagina.razor", fuente).Should().ContainSingle().Subject;
@@ -309,7 +312,48 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         cuerpo.Should().BeGreaterThan(-1);
         var cierre = ultima.Sql.IndexOf("$$;", cuerpo + 2, StringComparison.Ordinal);
         cierre.Should().BeGreaterThan(cuerpo, "la definición cierra su cuerpo");
-        return (ultima.Id, ultima.Sql[definicion.Index..(cierre + 3)]);
+        return (ultima.Id, SinComentariosSql(ultima.Sql[definicion.Index..(cierre + 3)]));
+    }
+
+    /// <summary>
+    /// Quita los comentarios SQL (<c>--</c> hasta fin de línea y <c>/* */</c>) respetando los literales
+    /// entre comillas simples (con <c>''</c> como comilla escapada): una lista que solo aparece en un
+    /// comentario no es la lista que la función aplica.
+    /// </summary>
+    internal static string SinComentariosSql(string sql)
+    {
+        var salida = new System.Text.StringBuilder(sql.Length);
+        var i = 0;
+        while (i < sql.Length)
+        {
+            if (sql[i] == '\'')
+            {
+                var fin = i + 1;
+                while (fin < sql.Length && !(sql[fin] == '\'' && (fin + 1 >= sql.Length || sql[fin + 1] != '\'')))
+                    fin += sql[fin] == '\'' ? 2 : 1;
+                fin = Math.Min(fin + 1, sql.Length);
+                salida.Append(sql, i, fin - i);
+                i = fin;
+            }
+            else if (sql[i] == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
+            {
+                while (i < sql.Length && sql[i] != '\n')
+                    i++;
+            }
+            else if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
+            {
+                var fin = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                i = fin < 0 ? sql.Length : fin + 2;
+                salida.Append(' ');
+            }
+            else
+            {
+                salida.Append(sql[i]);
+                i++;
+            }
+        }
+
+        return salida.ToString();
     }
 
     [Fact]
@@ -322,6 +366,17 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         // Dos definiciones en la misma migración: cuenta la última, y el texto de fuera no entra.
         var dos = DefinicionVigente([("1", vieja + "\n" + nueva + "\nSELECT 'p_detalle NOT IN (''Fuera'')';")]);
         ListaDeDetalles.Matches(dos.Sql).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+
+        // Una lista que solo aparece en un comentario del cuerpo no es la lista que se aplica.
+        const string soloComentarioLinea = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN\n  -- IF p_detalle NOT IN ('Comentada') THEN\n  RETURN 'x';\nEND; $$;";
+        const string soloComentarioBloque = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN /* p_detalle NOT IN ('Comentada') */ RETURN 'x'; END; $$;";
+        ListaDeDetalles.Matches(DefinicionVigente([("1", soloComentarioLinea)]).Sql).Should().BeEmpty("la lista solo está en un comentario --");
+        ListaDeDetalles.Matches(DefinicionVigente([("1", soloComentarioBloque)]).Sql).Should().BeEmpty("la lista solo está en un comentario /* */");
+
+        // Un literal con «--» o «/*» dentro no se confunde con un comentario.
+        const string conLiteral = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN IF x = 'a--b/*c''' OR p_detalle NOT IN ('Real') THEN END IF; END; $$;";
+        ListaDeDetalles.Matches(DefinicionVigente([("1", conLiteral)]).Sql).Should().ContainSingle()
+            .Which.Groups["lista"].Value.Should().Be("'Real'");
 
         // Una migración posterior que solo toca GRANT no es una definición.
         DefinicionVigente([("1", nueva), ("2", grant)]).Id.Should().Be("1");
@@ -347,6 +402,29 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .And.Contain("RETURN 'sesion_ambigua';");
         Up.IndexOf("sesion_ambigua", StringComparison.Ordinal).Should().BeLessThan(
             Up.IndexOf("INSERT INTO", StringComparison.Ordinal), "el rechazo va antes de insertar");
+    }
+
+    /// <summary>
+    /// Sin candado, otra Sesión Privilegiada del mismo actor podía confirmarse entre la cuenta y el
+    /// INSERT. SHARE choca con el INSERT y el UPDATE de la tabla, y tiene que tomarse antes de contar.
+    /// </summary>
+    [Fact]
+    public void La_cuenta_de_sesiones_va_detras_de_un_candado_SHARE_con_espera_acotada()
+    {
+        var definicion = SinComentariosSql(Up);
+        var cabecera = definicion[..definicion.IndexOf("AS $$", StringComparison.Ordinal)];
+        cabecera.Should().Contain("SET lock_timeout TO '5s'", "la espera del candado está acotada en la propia función");
+
+        var candado = definicion.IndexOf("LOCK TABLE public.\"SesionesPrivilegiadas\" IN SHARE MODE;", StringComparison.Ordinal);
+        var cuenta = definicion.IndexOf("SELECT count(*), count(*) FILTER", StringComparison.Ordinal);
+        candado.Should().BeGreaterThan(-1, "la función bloquea SesionesPrivilegiadas en SHARE");
+        cuenta.Should().BeGreaterThan(-1);
+        candado.Should().BeLessThan(cuenta, "el candado se toma antes de contar, no después");
+
+        var servicio = File.ReadAllText(Path.Combine(BuscarRaizDelRepositorio(),
+            "src", "CaeManager.Infrastructure", "Plataforma", "RegistroLecturaSesionPrivilegiada.cs"));
+        servicio.Should().Contain("ex.SqlState == PostgresErrorCodes.LockNotAvailable",
+            "si vence lock_timeout (55P03), el servicio devuelve false: fallo cerrado, sin servir datos");
     }
 
     [Fact]
