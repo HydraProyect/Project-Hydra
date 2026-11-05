@@ -918,6 +918,27 @@ public class BloqueoRespuestaSugeridaTests
         (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(1);
     }
 
+    /// <summary>
+    /// El atajo: una Propuesta exacta (hay coincidencia por hash sin confirmar) cuya Revisada, con el mismo hash y el mismo
+    /// mensaje de origen, la desbloquea. Con ella sin confirmar no se bloquearía, así que no se paga la lectura de
+    /// confirmación: exactamente 1 lectura, la de candidatas. Sin el atajo, la confirmación de la exacta sería una segunda
+    /// lectura aunque el resultado no pudiera ser un bloqueo.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_una_exacta_desbloqueada_por_su_revisada_no_bloquea_y_no_paga_la_confirmacion()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+
+        (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
+
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(1);
+    }
+
     [Fact]
     public async Task Por_buzon_un_hilo_anclado_a_una_Empresa_fuera_de_cartera_no_aporta_candidatas_ni_bloquea()
     {
