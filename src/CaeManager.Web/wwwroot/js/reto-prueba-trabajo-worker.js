@@ -6,11 +6,14 @@
 // esperar una a una deja la CPU ociosa; dentro del lote se recorre en orden, así que el resultado es el primer nonce
 // válido y no depende del tamaño del lote. Corre fuera del hilo principal: la página sigue respondiendo.
 //
-// Mensaje de entrada: { reto: string, bits: number }. Respuesta: { nonce: string } o { error: true }.
+// Mensaje de entrada: { reto: string, bits: number }, con la forma que exige mensajeValido; cualquier otro se ignora sin
+// responder. Respuesta: { nonce: string } o { error: true }.
 'use strict';
 
 var LOTE = 512;
 var BITS_MAXIMOS = 32;
+var LONGITUD_MAXIMA_RETO = 1024;
+var FORMA_RETO = /^[A-Za-z0-9_-]+$/;
 
 function bitsCeroIniciales(octetos) {
     var ceros = 0;
@@ -45,11 +48,37 @@ async function resolverReto(reto, bits, sutil) {
     throw new Error('sin solución');
 }
 
+// Valida la forma exacta del mensaje que envía reto-prueba-trabajo.js: un objeto plano con solo «reto» (el token
+// base64url del servidor, de 1 a 1024 caracteres) y «bits» (entero de 0 a BITS_MAXIMOS). A un worker dedicado solo le
+// puede escribir la página que lo creó, y su event.origin llega vacío, así que comprobar el origen no aporta nada; lo que
+// sí acota el manejador es no atender nada que no tenga esa forma.
+function mensajeValido(datos) {
+    if (datos === null || typeof datos !== 'object' || Object.getPrototypeOf(datos) !== Object.prototype) {
+        return false;
+    }
+    var claves = Object.keys(datos);
+    if (claves.length !== 2 || !Object.prototype.hasOwnProperty.call(datos, 'reto')
+        || !Object.prototype.hasOwnProperty.call(datos, 'bits')) {
+        return false;
+    }
+    return typeof datos.reto === 'string' && datos.reto.length <= LONGITUD_MAXIMA_RETO && FORMA_RETO.test(datos.reto)
+        && typeof datos.bits === 'number' && Number.isInteger(datos.bits) && datos.bits >= 0 && datos.bits <= BITS_MAXIMOS;
+}
+
+// Un mensaje que no encaja se ignora sin responder: no hay error que devolver a quien no es la página.
+function atenderMensaje(evento, responder, sutil) {
+    var datos = evento ? evento.data : undefined;
+    if (!mensajeValido(datos)) {
+        return false;
+    }
+    resolverReto(datos.reto, datos.bits, sutil).then(
+        function (nonce) { responder({ nonce: nonce }); },
+        function () { responder({ error: true }); });
+    return true;
+}
+
 if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
     self.addEventListener('message', function (evento) {
-        var datos = evento.data || {};
-        resolverReto(datos.reto, Number(datos.bits), self.crypto.subtle).then(
-            function (nonce) { self.postMessage({ nonce: nonce }); },
-            function () { self.postMessage({ error: true }); });
+        atenderMensaje(evento, function (respuesta) { self.postMessage(respuesta); }, self.crypto.subtle);
     });
 }
