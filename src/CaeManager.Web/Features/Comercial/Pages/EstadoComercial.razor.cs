@@ -25,9 +25,9 @@ namespace CaeManager.Web.Features.Comercial.Pages;
 /// paga (el Pagador TALVEG) es el Customer de Stripe: TALVEG solo guarda su
 /// identificador (<c>StripeCustomerId</c>), no lo pinta y nunca lo deduce del
 /// tenant. El agregado <c>Tenant</c> no lleva plan, importe ni fecha de
-/// renovación, y no existe ninguna entidad Producto Contratado —solo el valor
-/// <c>OrigenInstruccionTratamientoIa.ProductoContratado</c>, que la anticipa—:
-/// la pantalla no inventa ninguno de esos datos.
+/// renovación. La entidad <c>ProductoContratado</c> (alta autónoma, A5b) existe,
+/// pero ningún flujo la crea todavía y esta pantalla no la lee: no inventa
+/// ninguno de esos datos.
 /// </para>
 ///
 /// <para>
