@@ -6,6 +6,20 @@ namespace CaeManager.Domain.Tests.Common;
 
 public class ValidadorIdentificacionTests
 {
+    /// <summary>
+    /// Solo dígitos ASCII: con <c>\d</c>, un dígito arábigo-índico (U+0660 a U+0669) pasaba el patrón y el
+    /// cálculo de control, y el mismo CIF escrito con otros dígitos se guardaba como una cadena distinta,
+    /// fuera del alcance de cualquier índice único.
+    /// </summary>
+    [Theory]
+    [InlineData("B١٢٣4٥674")]
+    [InlineData("١٢٣٤٥٦٧٨Z")]
+    [InlineData("X١٢٣٤٥٦٧L")]
+    public void Un_documento_con_digitos_que_no_son_ASCII_no_es_valido(string documento)
+    {
+        ValidadorIdentificacion.EsIdentificacionFiscalValida(ValidadorIdentificacion.Normalizar(documento)).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(" 12.345-678 z\t", "12345678Z")]
     [InlineData("1 233 443-e", "01233443E")]

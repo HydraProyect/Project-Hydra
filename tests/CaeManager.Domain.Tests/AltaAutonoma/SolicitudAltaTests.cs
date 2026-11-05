@@ -254,6 +254,7 @@ public class SolicitudAltaTests
 
     [Theory]
     [InlineData("B12345675")]
+    [InlineData("B١٢٣4٥674")]
     [InlineData("12345678A")]
     [InlineData("ABC123456")]
     [InlineData("")]

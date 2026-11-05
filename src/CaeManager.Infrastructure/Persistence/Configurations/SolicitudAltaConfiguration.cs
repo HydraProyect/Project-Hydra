@@ -7,8 +7,9 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// <summary>
 /// Solicitud de alta autónoma (DA-2): plano de Plataforma, sin <c>TenantId</c> y sin HasQueryFilter.
 /// La migración que crea las dos tablas les pone RLS con FORCE, ninguna política y ningún permiso para
-/// los roles de la aplicación: hasta que el incremento del registro abra su vía de acceso, solo el rol
-/// propietario de las tablas (migraciones e identidad de arranque) las lee o escribe.
+/// los roles de la aplicación: hasta que el incremento del registro abra su vía de acceso, solo una
+/// identidad que evite la RLS (superusuario o <c>BYPASSRLS</c>) las lee o escribe. Con FORCE, el rol
+/// propietario de las tablas sin esa marca tampoco ve ninguna fila.
 /// </summary>
 public class SolicitudAltaConfiguration : IEntityTypeConfiguration<SolicitudAlta>
 {

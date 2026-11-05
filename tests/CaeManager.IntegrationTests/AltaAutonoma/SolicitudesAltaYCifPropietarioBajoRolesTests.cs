@@ -18,8 +18,9 @@ namespace CaeManager.IntegrationTests.AltaAutonoma;
 /// sin restricción por Tenant (DA-11: el NIF de una persona física es un dato personal).</item>
 /// <item><c>SolicitudesAlta</c>, <c>AceptacionesSolicitudAlta</c> y <c>CifsPropietarioTenant</c> están
 /// cerradas: RLS con FORCE, sin políticas y sin ningún privilegio para los roles de la aplicación. Cada rol
-/// intenta de verdad SELECT, INSERT, UPDATE y DELETE y la base se lo niega. Solo el rol propietario (el de
-/// esta conexión, el de las migraciones) las lee y escribe.</item>
+/// intenta de verdad SELECT, INSERT, UPDATE y DELETE y la base se lo niega. Solo una identidad que evita la
+/// RLS las lee y escribe: aquí la conexión de pruebas, que es superusuario (con FORCE, un propietario
+/// ordinario sin BYPASSRLS tampoco vería filas).</item>
 /// </list>
 /// </summary>
 public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
@@ -235,7 +236,7 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
 
         await using var propietario = CrearContexto();
         (await propietario.CifsPropietarioTenant.CountAsync(c => c.TenantId == tenant.Id)).Should().Be(1,
-            "guarda del instrumento: la fila seguía ahí y el rol propietario sí la ve");
+            "guarda del instrumento: la fila seguía ahí y la conexión de pruebas, que evita la RLS, sí la ve");
     }
 
     /// <summary>

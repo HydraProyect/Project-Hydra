@@ -8,7 +8,8 @@ namespace CaeManager.Domain.Tenants;
 /// Vive en su propia tabla y no en <c>Tenants</c>: el NIF de una persona física es un dato personal
 /// (DA-11) y <c>Tenants</c> la leen sin restricción por Tenant los tres roles de la aplicación. La tabla
 /// está cerrada (RLS con FORCE, sin políticas y sin ningún privilegio para los roles de la aplicación):
-/// solo el rol propietario la lee o la escribe hasta que el alta autónoma abra su vía de acceso.
+/// solo una identidad que evite la RLS (superusuario o <c>BYPASSRLS</c>) la lee o la escribe hasta que el
+/// alta autónoma abra su vía de acceso. Con FORCE, el rol propietario sin esa marca tampoco ve ninguna fila.
 /// </para>
 /// <para>
 /// Una fila por Tenant (<see cref="TenantId"/> es la clave) y un CIF por Tenant entre todos los Tenants

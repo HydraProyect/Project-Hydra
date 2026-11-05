@@ -8,7 +8,8 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 /// CIF o NIF del Tenant propietario (alta autónoma), en su propia tabla y no en <c>Tenants</c>, que leen
 /// los tres roles de la aplicación: el NIF de una persona física es un dato personal (DA-11). La migración
 /// que la crea le pone RLS con FORCE, ninguna política y ningún permiso para los roles de la aplicación,
-/// como <c>SolicitudesAlta</c>: solo el rol propietario de las tablas la lee o la escribe.
+/// como <c>SolicitudesAlta</c>: solo una identidad que evite la RLS (superusuario o <c>BYPASSRLS</c>) la lee
+/// o la escribe; con FORCE, el rol propietario sin esa marca tampoco.
 /// <para>
 /// El índice único sobre <c>Cif</c> aplica DM-5 en la base: un solo Tenant propietario por CIF entre
 /// todos los Tenants. Un Tenant sin fila no tiene CIF declarado y no compite por la unicidad.

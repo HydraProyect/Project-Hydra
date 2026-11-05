@@ -67,6 +67,8 @@ public class TenantTipoYCifPropietarioTests
     [InlineData("ABC123456")]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("B١٢٣4٥674")]
+    [InlineData("١٢٣٤٥٦٧٨Z")]
     public void Un_CIF_invalido_se_rechaza(string cif)
     {
         var accion = () => CifPropietarioTenant.Declarar(Guid.NewGuid(), cif);

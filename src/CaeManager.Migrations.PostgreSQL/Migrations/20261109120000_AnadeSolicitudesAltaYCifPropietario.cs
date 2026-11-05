@@ -142,8 +142,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //
             // Las tres tablas, cerradas por defecto: RLS + FORCE sin ninguna política, y REVOKE ALL a PUBLIC
             // y a los tres roles de la aplicación, que ALTER DEFAULT PRIVILEGES de la línea base dejaría con
-            // CRUD (runtime) y SELECT (soporte). Ningún rol de la aplicación las lee ni las escribe: solo el
-            // rol propietario de las tablas (migraciones e identidad de arranque). Guardan el hash de la
+            // CRUD (runtime) y SELECT (soporte). Ningún rol de la aplicación las lee ni las escribe: solo una
+            // identidad que evite la RLS (superusuario o BYPASSRLS); con FORCE, el rol propietario de las tablas
+            // sin esa marca tampoco ve ninguna fila. Guardan el hash de la
             // contraseña y del token de verificación, el correo, la IP y el NIF de una persona física:
             // Soporte TALVEG no lee ninguna columna (OWASP ASVS 4.0.3 V4.1.3, V8.3.4). El borrado en cascada
             // desde Tenants lo ejecuta PostgreSQL como propietario de la tabla, sin someterlo a la RLS.
