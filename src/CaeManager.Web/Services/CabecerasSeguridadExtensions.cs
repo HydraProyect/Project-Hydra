@@ -60,6 +60,18 @@ public static class CabecerasSeguridadExtensions
         });
     }
 
+    /// <summary>
+    /// Los identificadores de cliente o documento viajan en la ruta: no deben salir del sistema en el Referer de un
+    /// enlace externo (<c>strict-origin-when-cross-origin</c>). El alta autónoma lleva además secretos en la consulta
+    /// (el token de <c>/alta/verificar</c>), y esa política sí manda la URL entera a los recursos del mismo origen
+    /// (hojas de estilo, scripts, el propio POST), con lo que el token acabaría en los registros del proxy: ahí no se
+    /// manda Referer. Pública, sin <c>InternalsVisibleTo</c>, para probarla directamente.
+    /// </summary>
+    public static string PoliticaReferer(HttpRequest peticion) =>
+        peticion.Path.StartsWithSegments("/alta", StringComparison.OrdinalIgnoreCase)
+            ? "no-referrer"
+            : "strict-origin-when-cross-origin";
+
     internal static void AplicarCabecerasSeguridad(HttpContext contexto)
     {
         var cabeceras = contexto.Response.Headers;
@@ -72,9 +84,7 @@ public static class CabecerasSeguridadExtensions
         // Ninguna pantalla necesita estas capacidades; negarlas evita que
         // una inyección futura las pida en nombre del usuario.
         cabeceras["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
-        // Los identificadores de cliente/documento viajan en la ruta: no
-        // deben salir del sistema en el Referer de un enlace externo.
-        cabeceras["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        cabeceras["Referrer-Policy"] = PoliticaReferer(contexto.Request);
 
         // Por defecto nada se cachea: todo lo que no pasa por aquí como
         // caso especial va contra MediatR con datos de tenant y no debe

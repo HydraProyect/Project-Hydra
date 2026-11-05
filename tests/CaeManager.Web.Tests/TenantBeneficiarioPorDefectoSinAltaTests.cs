@@ -83,6 +83,19 @@ public class TenantBeneficiarioPorDefectoSinAltaTests
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
     }
 
+    [Theory]
+    [InlineData("/alta/verificar", "no-referrer")]
+    [InlineData("/ALTA/verificar", "no-referrer")]
+    [InlineData("/alta", "no-referrer")]
+    [InlineData("/altas", "strict-origin-when-cross-origin")]
+    [InlineData("/", "strict-origin-when-cross-origin")]
+    public void La_pagina_del_alta_no_manda_Referer_ni_siquiera_al_mismo_origen(string ruta, string politica)
+    {
+        // Con strict-origin-when-cross-origin, las hojas de estilo y el POST de /alta/verificar?token=… llevarían la
+        // URL entera, con el token, en el Referer.
+        CabecerasSeguridadExtensions.PoliticaReferer(NavegacionConSesion(ruta, "?token=secreto").Request).Should().Be(politica);
+    }
+
     [Fact]
     public async Task El_control_fuera_del_alta_si_busca_el_Tenant_por_defecto()
     {
