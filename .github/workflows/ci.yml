@@ -1265,16 +1265,79 @@ jobs:
       # 2026-08-16: el primer triage real (los tres runs previos de este
       # mismo workflow, 2026-08-15) dio 0 hallazgos CRITICAL/HIGH — no había
       # nada pendiente que este cambio convirtiera en bloqueante de golpe.
-      # Si una vulnerabilidad nueva aparece y se decide que es aceptable
-      # (falso positivo, sin parche disponible todavía), se documenta con
-      # un .trivyignore en vez de volver a exit-code 0 para todo el escaneo.
-      - name: Escanear vulnerabilidades de la imagen (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      #
+      # POLÍTICA (mejora 1.6 de la evaluación del harness, 2026-11-05). Del 11-02
+      # al 11-05 cuatro PR cayeron solo aquí por un CVE de `apt` de la imagen
+      # base SIN corrección publicada: nada que ninguna PR pudiera arreglar, y
+      # un mismo SHA pasaba de verde a rojo según la base de CVE del momento.
+      #   - `--ignore-unfixed`: bloquea solo lo que tiene corrección. Lo que no
+      #     la tiene lo lista el escaneo nocturno sin filtro (trivy-nocturno.yml).
+      #   - `.trivyignore` de la raíz: un CVE CON corrección que se acepta no
+      #     aplicar, siempre con `exp:` y `# motivo:`. La guarda de abajo falla si
+      #     alguna entrada caducó o no los lleva.
+      #   - Base de CVE fijada por DÍA (UTC): caché `trivy-db-<fecha>` con clave
+      #     exacta y `--skip-db-update`, así un mismo SHA da el mismo veredicto
+      #     durante toda la jornada. La primera ejecución del día la descarga y
+      #     la guarda; el nocturno la siembra temprano en el ámbito de `main`,
+      #     que leen todas las PR (una PR que llegue antes guarda la suya, en su
+      #     propio ámbito y con la misma clave).
+      - name: Comprobar las caducidades del .trivyignore
+        run: node .github/vigilancia/trivyignore.js .trivyignore
+
+      # Misma versión de Trivy (v0.70.0) que instalaba la trivy-action v0.36.0
+      # y que usan deploy.yml y vigilancia-imagenes.yml.
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
-          image-ref: caemanager:ci
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: "1"
+          version: v0.70.0
+          cache: true
+
+      - name: Fecha de la base de CVE
+        id: fecha-cve
+        run: echo "fecha=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Recuperar la base de CVE del día
+        id: cache-cve
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
+
+      - name: Descargar la base de CVE del día
+        if: steps.cache-cve.outputs.cache-hit != 'true'
+        env:
+          CACHE_TRIVY: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          for intento in 1 2 3; do
+            if trivy image --download-db-only --no-progress --cache-dir "$CACHE_TRIVY"; then
+              exit 0
+            fi
+            echo "::warning::No se pudo descargar la base de CVE (intento $intento)."
+            [ "$intento" -lt 3 ] && sleep $((intento * 30))
+          done
+          echo "::error::Sin base de CVE no hay escaneo: el job falla en vez de dar «sin hallazgos»."
+          exit 1
+
+      - name: Guardar la base de CVE del día
+        if: steps.cache-cve.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
+
+      - name: Escanear vulnerabilidades de la imagen (Trivy)
+        env:
+          CACHE_TRIVY: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          actualizada="$(trivy version --format json --cache-dir "$CACHE_TRIVY" | jq -r '.VulnerabilityDB.UpdatedAt // "desconocida"')"
+          echo "Base de CVE usada: $actualizada"
+          echo "Base de CVE usada por el gate de Trivy: \`$actualizada\`" >> "$GITHUB_STEP_SUMMARY"
+          trivy image --skip-db-update --no-progress \
+            --cache-dir "$CACHE_TRIVY" \
+            --severity CRITICAL,HIGH --ignore-unfixed --ignorefile .trivyignore \
+            --format table --exit-code 1 caemanager:ci
 
   bunit-tests:
     name: Tests de componentes (bUnit)

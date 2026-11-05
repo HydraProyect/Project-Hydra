@@ -542,11 +542,14 @@ jobs:
     # OWASP Top 10 A06). ci.yml escanea `caemanager:ci`, que es otro build del
     # mismo SHA; lo que arrancan staging y producción es el artefacto firmado
     # del job `imagen`, y ese no lo escaneaba nadie. Misma acción, fijada por
-    # el mismo SHA, misma versión de Trivy y misma configuración que el paso
-    # Trivy de ci.yml: CRITICAL/HIGH, bloqueante y sin `ignore-unfixed`. Una
-    # excepción aceptada se documenta en un .trivyignore, como dice el
-    # comentario de ci.yml, no relajando esto; por eso se trae el código del
-    # SHA: Trivy lee el .trivyignore del directorio de trabajo (hoy no hay).
+    # el mismo SHA, misma versión de Trivy y misma política que el gate Trivy
+    # de ci.yml: CRITICAL/HIGH, bloqueante, con `ignore-unfixed` (desde el
+    # 2026-11-05, mejora 1.6: un CVE sin corrección publicada no bloquea ni la
+    # PR ni el despliegue; lo lista trivy-nocturno.yml) y con el .trivyignore
+    # del SHA. Una excepción aceptada se documenta ahí, con `exp:` y motivo, no
+    # relajando esto; por eso se trae el código del SHA: Trivy lee el
+    # .trivyignore del directorio de trabajo. A diferencia de ci.yml, aquí la
+    # base de CVE es la del momento del despliegue, no la fijada del día.
     #
     # Job propio y no un paso de `imagen`, a propósito: `imagen` tiene
     # `id-token: write` y acceso al demonio Docker ANTES de exportar y firmar,
@@ -616,6 +619,8 @@ jobs:
           image-ref: caemanager:${{ env.SHA_DESPLEGADO }}
           format: table
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          trivyignores: .trivyignore
           exit-code: "1"
           skip-setup-trivy: true
   staging:
