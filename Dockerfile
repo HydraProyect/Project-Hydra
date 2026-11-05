@@ -94,9 +94,24 @@ LABEL es.talveg.guarda-correo="1"
 # con CVE ya parcheada en el archivo de Ubuntu (CVE-2026-84782, Trivy, 2026-09-30).
 # Nombrarlos aquí hace que apt los actualice al instalar; sin ello el escaneo de Trivy
 # (CRITICAL,HIGH, exit-code 1) pone en rojo todas las PRs hasta el siguiente digest.
+#
+# apt y libapt-pkg6.0t64 se purgan al final de esta misma capa: la imagen solo usa
+# apt para construirse, y nada de lo que corre en el contenedor (la app,
+# docker-entrypoint.sh, soffice, gosu, curl) lo invoca ni depende de él. Así la
+# imagen no lleva gestor de paquetes en ejecución y un CVE de apt deja de bloquear
+# el escaneo (CVE-2026-109518, Trivy, 2026-11-05). Va sin --force-*: si una imagen
+# base futura marca apt como esencial o protegido, o algo instalado pasa a depender
+# de él, dpkg se niega y la construcción falla en vez de dejar la imagen rota. Si la
+# base renombra la biblioteca (libapt-pkg7.0…), dpkg solo avisa del nombre viejo; por
+# eso la última orden comprueba que no queda instalado ningún apt ni libapt-pkg*.
+# dpkg sigue en la imagen (es esencial); para depurar un contenedor en marcha,
+# instala lo que haga falta en una imagen derivada, no dentro del contenedor.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && dpkg --purge apt libapt-pkg6.0t64 \
+    && rm -rf /var/cache/apt /var/log/apt /var/lib/apt \
+    && if dpkg -l apt 'libapt-pkg*' 2>/dev/null | grep -q '^.i'; then echo "apt o libapt-pkg siguen instalados" >&2; exit 1; fi
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
 RUN mkdir -p /app/temporales-conversion-word && chown "$APP_UID:$APP_UID" /app/temporales-conversion-word
