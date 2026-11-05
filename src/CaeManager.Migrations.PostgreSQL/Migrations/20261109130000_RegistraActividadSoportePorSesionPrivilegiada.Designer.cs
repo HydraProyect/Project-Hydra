@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261108180000_RegistraActividadSoportePorSesionPrivilegiada")]
+    [Migration("20261109130000_RegistraActividadSoportePorSesionPrivilegiada")]
     partial class RegistraActividadSoportePorSesionPrivilegiada
     {
         /// <inheritdoc />
@@ -25,6 +25,176 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("CaeManager.Domain.AltaAutonoma.AceptacionCondicionesAlta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AceptadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DeclaraFacultades")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Documento")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Ip")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<Guid>("SolicitudAltaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SolicitudAltaId", "Documento")
+                        .IsUnique();
+
+                    b.ToTable("AceptacionesSolicitudAlta", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AltaAutonoma.SolicitudAlta", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CaducaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CheckoutSessionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("CifNif")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Correo")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("CorreoNormalizado")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime?>("CorreoVerificadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DatosPersonalesBorradosEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("DeclaraActividadProfesional")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DeclaraRepresentacion")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DomicilioFiscal")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("HashContrasena")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("HashTokenVerificacion")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("IpOrigen")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Modalidad")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RazonSocial")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("TenantIdCreado")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("TokenVerificacionCaducaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Tramo")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UltimoCambioEstadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgentOrigen")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("VersionFila")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HashTokenVerificacion")
+                        .IsUnique()
+                        .HasFilter("\"HashTokenVerificacion\" IS NOT NULL");
+
+                    b.HasIndex("Estado", "CaducaEnUtc");
+
+                    b.ToTable("SolicitudesAlta", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SolicitudesAlta_CompletadaConTenant", "(\"Estado\" <> 'Completada') OR (\"TenantIdCreado\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_CorreoSalvoBorrado", "(\"Correo\" IS NOT NULL) OR (\"DatosPersonalesBorradosEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_Estado", "\"Estado\" IN ('Iniciada', 'CorreoVerificado', 'DerivadaAAcceso', 'DatosCompletos', 'PendientePago', 'Pagada', 'Completada', 'Reembolsada', 'Caducada', 'Bloqueada')");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
+
+                            t.HasCheckConstraint("CK_SolicitudesAlta_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
+                        });
+                });
 
             modelBuilder.Entity("CaeManager.Domain.ApiKeys.ClaveApi", b =>
                 {
@@ -10136,6 +10306,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AsignacionesOperadorDelegado", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Tenants.CifPropietarioTenant", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cif")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex("Cif")
+                        .IsUnique();
+
+                    b.ToTable("CifsPropietarioTenant", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Tenants.ContactoSeguridadTenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10383,12 +10571,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("TipoTenant")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("StripeSubscriptionId")
                         .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
-                    b.ToTable("Tenants", (string)null);
+                    b.ToTable("Tenants", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Tenants_TipoTenant", "\"TipoTenant\" IN ('GestionPropia', 'GestionExterna', 'OperadorCaeExterno')");
+                        });
 
                     b.HasData(
                         new
@@ -11242,6 +11437,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AltaAutonoma.AceptacionCondicionesAlta", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AltaAutonoma.SolicitudAlta", null)
+                        .WithMany("Aceptaciones")
+                        .HasForeignKey("SolicitudAltaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Asignaciones.Asignacion", b =>
@@ -12227,6 +12431,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Tenants.CifPropietarioTenant", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Tenants.Tenant", null)
+                        .WithOne()
+                        .HasForeignKey("CaeManager.Domain.Tenants.CifPropietarioTenant", "TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Tenants.EncargoAdministracion", b =>
                 {
                     b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
@@ -12374,6 +12587,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AltaAutonoma.SolicitudAlta", b =>
+                {
+                    b.Navigation("Aceptaciones");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.AsistenteIa.TareaAsistente", b =>
