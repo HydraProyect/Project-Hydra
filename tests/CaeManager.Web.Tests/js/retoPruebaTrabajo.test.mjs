@@ -87,3 +87,36 @@ test('un mensaje con otra forma se ignora sin responder ni buscar', async () => 
     assert.equal(mensajeValido({ reto: 'A'.repeat(1024), bits: 32 }), true, 'control: los límites incluidos valen');
     assert.equal(mensajeValido({ reto: 'Ab0_-', bits: 0 }), true, 'control: todo el alfabeto base64url vale');
 });
+
+// Engancha el worker de verdad a un «self» falso para probar el manejador de message tal cual, origen incluido.
+function engancharWorker() {
+    const enviados = [];
+    const falso = {
+        location: { origin: 'https://app.ejemplo.test' },
+        crypto: { subtle: crypto.subtle },
+        postMessage: (m) => enviados.push(m),
+        addEventListener: (tipo, manejador) => { if (tipo === 'message') falso.manejador = manejador; },
+    };
+    new Function('self', readFileSync(ruta, 'utf8'))(falso);
+    return { manejador: falso.manejador, enviados };
+}
+
+async function esperarRespuesta(enviados, ms) {
+    for (let t = 0; t < ms && enviados.length === 0; t += 10) await new Promise((listo) => setTimeout(listo, 10));
+}
+
+test('el manejador ignora un mensaje con un origen ajeno y atiende el vacío del worker dedicado y el propio', async () => {
+    const mensaje = { reto: VECTOR_RETO, bits: VECTOR_BITS };
+
+    const ajeno = engancharWorker();
+    ajeno.manejador({ origin: 'https://otro.ejemplo.test', data: mensaje });
+    await new Promise((listo) => setTimeout(listo, 200));
+    assert.deepEqual(ajeno.enviados, [], 'a un origen ajeno no se le responde');
+
+    for (const origen of ['', 'https://app.ejemplo.test']) {
+        const propio = engancharWorker();
+        propio.manejador({ origin: origen, data: mensaje });
+        await esperarRespuesta(propio.enviados, 30_000);
+        assert.deepEqual(propio.enviados, [{ nonce: VECTOR_NONCE }], `control: con origen «${origen}» responde`);
+    }
+});

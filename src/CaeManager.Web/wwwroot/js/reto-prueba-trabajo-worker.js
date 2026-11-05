@@ -79,6 +79,9 @@ function atenderMensaje(evento, responder, sutil) {
 
 if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') {
     self.addEventListener('message', function (evento) {
+        // En un worker dedicado event.origin llega vacío y esto no cambia nada; si algún día llegara un origen, solo vale el
+        // propio.
+        if (evento.origin !== '' && evento.origin !== self.location.origin) return;
         atenderMensaje(evento, function (respuesta) { self.postMessage(respuesta); }, self.crypto.subtle);
     });
 }
