@@ -22,7 +22,7 @@ public static class BloqueoRespuestaSugerida
 
     /// <summary>
     /// Sugerencias cuyos textos se tienen a la vez en memoria al comparar por buzón: un texto admite hasta 1 MiB, y sin lote
-    /// la memoria crecería con el número de sugerencias del buzón. Con el lote es la misma sea cual sea ese número.
+    /// la memoria de los textos crecería con el número de sugerencias del buzón. Con el lote es la misma sea cual sea ese número.
     /// </summary>
     private const int LoteTextosPorBuzon = 50;
 
@@ -102,8 +102,15 @@ public static class BloqueoRespuestaSugerida
     /// siendo candidatas mientras la contraparte no conteste, y un tope las contaría como pendientes y cerraría el buzón
     /// a los mensajes nuevos sin que quien envía pudiera arreglarlo. Coste: una consulta de candidatas (una fila ligera por
     /// sugerencia de hilo visible) más un acceso por lote de textos de las no revisadas, y el trabajo en memoria es lineal;
-    /// ambos crecen con el historial de sugerencias del buzón, porque no hay filtro por hash. La memoria no crece con el
-    /// buzón (lotes).
+    /// ambos crecen con el historial de sugerencias del buzón, porque no hay filtro por hash. También la memoria crece con
+    /// ese historial, incluidas las Revisadas: las filas ligeras de todas las candidatas están a la vez en memoria (decenas
+    /// de bytes de Id, estado y hash por sugerencia, más el conjunto de Revisadas de cada hilo). Lo que los lotes mantienen
+    /// constante es la memoria de los textos, que son lo grande: como mucho <see cref="LoteTextosPorBuzon"/> a la vez.
+    /// </para>
+    ///
+    /// <para>
+    /// Los textos se leen con el mismo filtro de alcance que las candidatas, además de por Id: un hilo reasignado a un ancla
+    /// fuera de la cartera entre las dos lecturas sale del lote, y su texto no se lee ni se compara.
     /// </para>
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
@@ -139,9 +146,13 @@ public static class BloqueoRespuestaSugerida
         foreach (var lote in porComparar.Chunk(LoteTextosPorBuzon))
         {
             var ids = lote.Select(c => c.Id).ToList();
-            var textos = await comunicaciones.RespuestasSugeridas
-                .Where(r => ids.Contains(r.Id))
-                .Select(r => new { r.Id, r.Texto })
+            // El mismo filtro de alcance que en la consulta de candidatas: un hilo reasignado entre las dos lecturas a un
+            // ancla fuera de la cartera sale del lote, y su texto ni se lee ni se compara.
+            var textos = await (
+                from r in comunicaciones.RespuestasSugeridas
+                where ids.Contains(r.Id)
+                join c in comunicaciones.Conversaciones.Where(hilosVisibles) on r.ConversacionId equals c.Id
+                select new { r.Id, r.Texto })
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 

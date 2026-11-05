@@ -845,6 +845,36 @@ public class BloqueoRespuestaSugeridaTests
         (await HilosQueEntranEnLaConsulta(conexion, alcances["buzon no visible"])).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Un hilo reasignado a un ancla fuera de la cartera entre la consulta de candidatas (lectura 1) y la de los textos
+    /// (lectura 2) no se compara: su texto sale del lote. Sin el filtro de alcance en la consulta de textos, que solo
+    /// mirara el Id, esa lectura devolvería el texto de un hilo que ya no es visible, la contención lo marcaría como
+    /// coincidente y el envío se bloquearía por un hilo ajeno: el control sin reasignación sí bloquea, así que lo único
+    /// que distingue los dos resultados es ese filtro.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_un_hilo_reasignado_fuera_de_cartera_entre_las_dos_lecturas_ni_bloquea_ni_se_compara()
+    {
+        var conexion = Buzon();
+        var clienteEnCartera = Guid.NewGuid();
+        var hilo = HiloAnclado(conexion, clienteEnCartera, null);
+        Sugerencia(hilo, EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]);
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+
+        (await PorBuzon(conexion, cuerpo, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
+        {
+            if (lectura == antes + 2)
+                hilo.AsignarCliente(Guid.NewGuid());
+        };
+
+        (await PorBuzon(conexion, cuerpo, alcance)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
+    }
+
     [Fact]
     public async Task Por_buzon_un_hilo_anclado_a_una_Empresa_fuera_de_cartera_no_aporta_candidatas_ni_bloquea()
     {

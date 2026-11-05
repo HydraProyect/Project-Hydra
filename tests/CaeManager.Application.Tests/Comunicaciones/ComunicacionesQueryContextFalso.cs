@@ -37,11 +37,15 @@ public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
     public List<RespuestaSugerida> ListaRespuestasSugeridas { get; } = [];
     public int LecturasDeRespuestasSugeridas { get; private set; }
 
+    /// <summary>Se invoca al empezar cada lectura de sugerencias, con su número de orden (1 la primera): permite cambiar los datos entre dos lecturas.</summary>
+    public Action<int>? AlLeerRespuestasSugeridas { get; set; }
+
     public IQueryable<RespuestaSugerida> RespuestasSugeridas
     {
         get
         {
             LecturasDeRespuestasSugeridas++;
+            AlLeerRespuestasSugeridas?.Invoke(LecturasDeRespuestasSugeridas);
             return new TestAsyncQueryable<RespuestaSugerida>(ListaRespuestasSugeridas.AsQueryable());
         }
     }
