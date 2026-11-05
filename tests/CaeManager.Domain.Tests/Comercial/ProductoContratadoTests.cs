@@ -41,6 +41,7 @@ public class ProductoContratadoTests
     [InlineData("cus\tTabulador")]
     [InlineData("cus-guion")]
     [InlineData("cus_ñ")]
+    [InlineData("cus_X\n")]
     public void El_Pagador_TALVEG_solo_admite_el_alfabeto_de_los_Id_de_Stripe(string pagador)
     {
         var contratar = () => Contratar(pagador);

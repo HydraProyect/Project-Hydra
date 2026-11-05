@@ -21,10 +21,9 @@ public enum OrigenInstruccionTratamientoIa
 
     /// <summary>
     /// Derivada automáticamente de la activación de un Producto Contratado
-    /// (ADR-011 § 2.6) que cubra tratamiento con IA. No usado: la entidad
-    /// existe desde A5b, pero ni tiene líneas que cubran IA ni hay flujo que
-    /// derive de ella la instrucción — declarado aquí para que el día que se construya no
-    /// haga falta abrir el enum, ver decisiones a elevar del RETURN PACKAGE
+    /// (ADR-011 § 2.6) que cubra tratamiento con IA. No usado: ningún flujo
+    /// deriva esta instrucción de un Producto Contratado — declarado aquí para
+    /// que el día que se construya esa derivación no haga falta abrir el enum, ver decisiones a elevar del RETURN PACKAGE
     /// de HO-035-02.
     /// </summary>
     ProductoContratado,

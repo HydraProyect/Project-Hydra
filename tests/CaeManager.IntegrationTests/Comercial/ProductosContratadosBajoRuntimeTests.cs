@@ -140,6 +140,8 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "' cus_X '", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "E'\\t\\t'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'cus-X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'cus_ñ'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "E'cus_X\\n'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Linea", "'Vigente'", "NULL", "'cus_X'", "'Inbound'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Tramo", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De301'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Modalidad", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Trimestral'")]
