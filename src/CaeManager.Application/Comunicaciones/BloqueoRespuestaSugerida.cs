@@ -110,7 +110,12 @@ public static class BloqueoRespuestaSugerida
     ///
     /// <para>
     /// Los textos se leen con el mismo filtro de alcance que las candidatas, además de por Id: un hilo reasignado a un ancla
-    /// fuera de la cartera entre las dos lecturas sale del lote, y su texto no se lee ni se compara.
+    /// fuera de la cartera entre las dos lecturas sale del lote, y su texto no se lee ni se compara. Lo mismo vale para las
+    /// coincidencias exactas por hash: ninguna coincidencia, exacta o por contención, decide un bloqueo sin haber pasado por
+    /// una lectura filtrada posterior a la de candidatas. Las exactas se confirman, solo por Id, y solo si sin confirmar
+    /// bloquearían (bloquear solo crece al añadir coincidencias): el caso sin coincidencias no paga ninguna lectura más.
+    /// Lo único que se decide con datos de la primera lectura es qué desbloquea (una Revisada del mismo hilo, mismo hash y
+    /// mismo mensaje), que no depende de la visibilidad: el hilo de una coincidencia confirmada es el de su Revisada.
     /// </para>
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
@@ -138,11 +143,14 @@ public static class BloqueoRespuestaSugerida
             .ToListAsync(cancellationToken);
 
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
-        var coinciden = candidatas.Where(c => c.TextoHash == hash).Select(c => c.Id).ToHashSet();
         var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
 
-        // Una Revisada solo desbloquea a las demás: su texto no hace falta para decidir si coincide.
-        var porComparar = candidatas.Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && !coinciden.Contains(c.Id)).ToList();
+        // Coincidencias confirmadas: solo entran las que han pasado por una lectura filtrada con hilosVisibles posterior a la
+        // de candidatas. Una Revisada solo desbloquea a las demás y no coincide nunca: su texto no hace falta.
+        var coinciden = new HashSet<Guid>();
+        var porHash = candidatas
+            .Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && c.TextoHash == hash).Select(c => c.Id).ToHashSet();
+        var porComparar = candidatas.Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && !porHash.Contains(c.Id)).ToList();
         foreach (var lote in porComparar.Chunk(LoteTextosPorBuzon))
         {
             var ids = lote.Select(c => c.Id).ToList();
@@ -160,16 +168,37 @@ public static class BloqueoRespuestaSugerida
                 coinciden.Add(texto.Id);
         }
 
-        foreach (var hilo in candidatas.GroupBy(c => c.ConversacionId))
+        var hilos = candidatas
+            .GroupBy(c => c.ConversacionId)
+            .Select(hilo => hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList())
+            .ToList();
+
+        // Las coincidencias exactas no necesitan el texto, pero sí una lectura posterior filtrada antes de decidir. Bloquear
+        // solo crece al añadir coincidencias: si ni con todas las exactas sin confirmar se bloquea, no hace falta más
+        // lectura; si se bloquearía, se confirman con una lectura de Id (sin texto) y se decide con las confirmadas.
+        if (!Bloquea(hilos, coinciden, porHash))
+            return Result.Exito();
+
+        if (porHash.Count > 0)
         {
-            var sugerencias = hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList();
-            if (sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar && coinciden.Contains(r.Id)) ||
-                HayCoincidenciaSinRevisar(sugerencias, r => coinciden.Contains(r.Id)))
-                return Result.Fallo(SugerenciaSinRevisar);
+            var confirmadas = await (
+                from r in comunicaciones.RespuestasSugeridas
+                where porHash.Contains(r.Id)
+                join c in comunicaciones.Conversaciones.Where(hilosVisibles) on r.ConversacionId equals c.Id
+                select r.Id)
+                .ToListAsync(cancellationToken);
+            coinciden.UnionWith(confirmadas);
         }
 
-        return Result.Exito();
+        return Bloquea(hilos, coinciden, new HashSet<Guid>()) ? Result.Fallo(SugerenciaSinRevisar) : Result.Exito();
     }
+
+    private static bool Bloquea(
+        IReadOnlyList<List<SugerenciaComparable>> hilos, HashSet<Guid> confirmadas, IReadOnlySet<Guid> sinConfirmar) =>
+        hilos.Any(sugerencias =>
+            sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar &&
+                                 (confirmadas.Contains(r.Id) || sinConfirmar.Contains(r.Id))) ||
+            HayCoincidenciaSinRevisar(sugerencias, r => confirmadas.Contains(r.Id) || sinConfirmar.Contains(r.Id)));
 
     /// <summary>
     /// Los hilos de un buzón que quien envía puede ver, como filtro para la consulta de candidatas; <c>null</c> si el

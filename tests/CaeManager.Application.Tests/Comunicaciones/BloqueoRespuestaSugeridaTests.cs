@@ -875,6 +875,49 @@ public class BloqueoRespuestaSugeridaTests
         (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
     }
 
+    /// <summary>
+    /// Una coincidencia exacta por hash tampoco decide sin una lectura filtrada posterior a la de candidatas. El hilo de
+    /// triage compartido (visible para el Gestor CAE) tiene la sugerencia exacta; otra candidata de otro hilo obliga a una
+    /// segunda lectura (la de los textos), y entre las dos otro usuario asigna el hilo de triage a un Cliente empresarial
+    /// fuera de la cartera. Si el hash se diera por bueno desde la primera lectura, el envío se bloquearía por un hilo que
+    /// ya no es visible: el control sin reasignar bloquea, y lo que cambia es la confirmación de la coincidencia exacta.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_una_coincidencia_exacta_en_un_hilo_reasignado_fuera_de_cartera_entre_las_lecturas_no_bloquea()
+    {
+        var conexion = Buzon();
+        var clienteEnCartera = Guid.NewGuid();
+        var triage = HiloAnclado(conexion, null, null);
+        Sugerencia(triage, EstadoRespuestaSugerida.Propuesta);
+        var otro = HiloAnclado(conexion, clienteEnCartera, null);
+        Sugerencia(otro, EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]);
+
+        (await PorBuzon(conexion, TextoSugerido, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
+        {
+            if (lectura == antes + 2)
+                triage.AsignarCliente(Guid.NewGuid());
+        };
+
+        (await PorBuzon(conexion, TextoSugerido, alcance)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
+    }
+
+    /// <summary>La confirmación de las exactas no cuesta nada cuando no hay coincidencia: una sola lectura, la de candidatas.</summary>
+    [Fact]
+    public async Task Por_buzon_sin_coincidencia_exacta_no_paga_lecturas_de_confirmacion()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Revisada);
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+
+        (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(1);
+    }
+
     [Fact]
     public async Task Por_buzon_un_hilo_anclado_a_una_Empresa_fuera_de_cartera_no_aporta_candidatas_ni_bloquea()
     {
