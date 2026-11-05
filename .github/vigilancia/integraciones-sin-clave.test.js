@@ -146,6 +146,53 @@ test('aplicar crea la etiqueta si falta, abre la issue con ella y anota fecha y 
   assert.match(llamadas[2][2], new RegExp(`${FECHA}.*${URL.replace(/[/.]/g, '\\$&')}`));
 });
 
+test('aplicar actualizar edita el cuerpo y deja fecha y ejecución en un comentario', async () => {
+  const { github, llamadas } = clienteSimulado();
+  const plan = s.planificar({ existentes: [issue(7, 'open', cuerpoCon(['CI_STRIPE_TEST_API_KEY']))], medidas: { anthropic: 'false', stripe: 'false' } });
+  await s.aplicar({ github, owner: 'o', repo: 'r', plan, fecha: FECHA, urlEjecucion: URL });
+  assert.deepEqual(llamadas.map((l) => l.slice(0, 2)), [['update', 7], ['comment', 7]]);
+  assert.match(llamadas[1][2], new RegExp(FECHA));
+  assert.ok(llamadas[1][2].includes(URL));
+});
+
+test('aplicar reabrir abre la issue y comenta con fecha y ejecución', async () => {
+  const { github, llamadas } = clienteSimulado();
+  const plan = s.planificar({ existentes: [issue(5, 'closed', s.MARCADOR)], medidas: { anthropic: 'false', stripe: 'true' } });
+  await s.aplicar({ github, owner: 'o', repo: 'r', plan, fecha: FECHA, urlEjecucion: URL });
+  assert.deepEqual(llamadas[0], ['update', 5, 'open']);
+  assert.equal(llamadas[1][0], 'comment');
+  assert.ok(llamadas[1][2].includes(FECHA) && llamadas[1][2].includes(URL));
+});
+
+test('aplicar cerrar comenta antes de cerrar y cierra también las duplicadas como completadas', async () => {
+  const { github, llamadas } = clienteSimulado();
+  const cerradas = [];
+  const update = github.rest.issues.update;
+  github.rest.issues.update = async (a) => {
+    cerradas.push([a.issue_number, a.state, a.state_reason]);
+    return update(a);
+  };
+  const plan = s.planificar({
+    existentes: [issue(4, 'open', s.MARCADOR), issue(9, 'open', s.MARCADOR)],
+    medidas: { anthropic: 'true', stripe: 'true' },
+  });
+  await s.aplicar({ github, owner: 'o', repo: 'r', plan, fecha: FECHA, urlEjecucion: URL });
+  assert.deepEqual(llamadas.map((l) => l.slice(0, 2)), [['comment', 4], ['update', 4], ['comment', 9], ['update', 9]]);
+  assert.deepEqual(cerradas, [
+    [4, 'closed', 'completed'],
+    [9, 'closed', 'completed'],
+  ]);
+});
+
+test('aplicar con la acción nada o silenciada no llama a la API', async () => {
+  const { github, llamadas } = clienteSimulado();
+  const nada = s.planificar({ existentes: [issue(7, 'open', cuerpoCon(['CI_ANTHROPIC_API_KEY']))], medidas: { anthropic: 'false', stripe: 'true' } });
+  const silenciada = s.planificar({ existentes: [issue(4, 'closed', s.MARCADOR, { state_reason: 'not_planned' })], medidas: { anthropic: 'false', stripe: 'true' } });
+  await s.aplicar({ github, owner: 'o', repo: 'r', plan: nada, fecha: FECHA, urlEjecucion: URL });
+  await s.aplicar({ github, owner: 'o', repo: 'r', plan: silenciada, fecha: FECHA, urlEjecucion: URL });
+  assert.deepEqual(llamadas, []);
+});
+
 test('una URL de ejecución que no es https no entra en el comentario', async () => {
   const { github, llamadas } = clienteSimulado();
   const plan = s.planificar({ existentes: [], medidas: { anthropic: 'false', stripe: 'false' } });
