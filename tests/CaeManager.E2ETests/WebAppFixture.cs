@@ -222,6 +222,9 @@ public class WebAppFixture : IAsyncLifetime
             {
                 Username = RolDeRuntime,
                 Password = ContrasenaRuntimeDePruebas,
+                // El control positivo de abajo cuenta conexiones vivas del pool: sin pool
+                // (un Pooling=false heredado de CAEMANAGER_TESTS_PG) daría un falso cero.
+                Pooling = true,
             }.ConnectionString;
         }
         else
