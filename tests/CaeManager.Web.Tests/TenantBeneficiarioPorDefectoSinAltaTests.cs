@@ -97,6 +97,26 @@ public class TenantBeneficiarioPorDefectoSinAltaTests
     }
 
     [Fact]
+    public void Una_pagina_de_error_reejecutada_desde_el_alta_tampoco_manda_Referer()
+    {
+        // El navegador sigue en /alta/verificar?token=…; la reejecución solo cambia la ruta en el servidor.
+        var noEncontrada = NavegacionConSesion("/not-found", "");
+        noEncontrada.Features.Set<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>(
+            new Microsoft.AspNetCore.Diagnostics.StatusCodeReExecuteFeature { OriginalPath = "/alta/verificar", OriginalQueryString = "?token=secreto" });
+        CabecerasSeguridadExtensions.PoliticaReferer(noEncontrada.Request).Should().Be("no-referrer");
+
+        var error = NavegacionConSesion("/Error", "");
+        error.Features.Set<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>(
+            new Microsoft.AspNetCore.Diagnostics.ExceptionHandlerFeature { Path = "/alta/verificar", Error = new InvalidOperationException() });
+        CabecerasSeguridadExtensions.PoliticaReferer(error.Request).Should().Be("no-referrer");
+
+        var otra = NavegacionConSesion("/not-found", "");
+        otra.Features.Set<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>(
+            new Microsoft.AspNetCore.Diagnostics.StatusCodeReExecuteFeature { OriginalPath = "/empresas" });
+        CabecerasSeguridadExtensions.PoliticaReferer(otra.Request).Should().Be("strict-origin-when-cross-origin");
+    }
+
+    [Fact]
     public async Task El_control_fuera_del_alta_si_busca_el_Tenant_por_defecto()
     {
         var (_, siguienteLlamado, consultas) = await InvocarAsync("/", "?token=secreto");

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Diagnostics;
 
 namespace CaeManager.Web.Services;
 
@@ -65,12 +66,22 @@ public static class CabecerasSeguridadExtensions
     /// enlace externo (<c>strict-origin-when-cross-origin</c>). El alta autónoma lleva además secretos en la consulta
     /// (el token de <c>/alta/verificar</c>), y esa política sí manda la URL entera a los recursos del mismo origen
     /// (hojas de estilo, scripts, el propio POST), con lo que el token acabaría en los registros del proxy: ahí no se
-    /// manda Referer. Pública, sin <c>InternalsVisibleTo</c>, para probarla directamente.
+    /// manda Referer. Una página de error reejecutada (<c>/not-found</c>, <c>/Error</c>) se sirve en el documento de la
+    /// URL original, con su token: cuenta la ruta original. Pública, sin <c>InternalsVisibleTo</c>, para probarla
+    /// directamente.
     /// </summary>
-    public static string PoliticaReferer(HttpRequest peticion) =>
-        peticion.Path.StartsWithSegments("/alta", StringComparison.OrdinalIgnoreCase)
+    public static string PoliticaReferer(HttpRequest peticion)
+    {
+        var caracteristicas = peticion.HttpContext.Features;
+        var rutaOriginal = caracteristicas.Get<IStatusCodeReExecuteFeature>()?.OriginalPath
+                           ?? caracteristicas.Get<IExceptionHandlerPathFeature>()?.Path;
+
+        return EsDelAlta(peticion.Path) || (rutaOriginal is not null && EsDelAlta(new PathString(rutaOriginal)))
             ? "no-referrer"
             : "strict-origin-when-cross-origin";
+
+        static bool EsDelAlta(PathString ruta) => ruta.StartsWithSegments("/alta", StringComparison.OrdinalIgnoreCase);
+    }
 
     internal static void AplicarCabecerasSeguridad(HttpContext contexto)
     {

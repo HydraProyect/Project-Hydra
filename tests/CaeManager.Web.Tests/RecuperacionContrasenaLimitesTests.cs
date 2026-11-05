@@ -95,20 +95,42 @@ public class RecuperacionContrasenaLimitesTests
     }
 
     [Fact]
-    public void El_estado_tiene_techo_y_lo_libera_al_vencer_la_ventana()
+    public void Con_el_techo_lleno_un_correo_nuevo_entra_y_sale_la_ventana_mas_antigua()
     {
         var reloj = new Reloj();
         var limite = new LimiteSolicitudesPorCuenta(reloj);
-        for (var i = 0; i < LimiteSolicitudesPorCuenta.MaximoCuentas; i++)
+        for (var i = 0; i < LimiteSolicitudesPorCuenta.MaximoPorVentana; i++)
+            limite.Consumir("PRIMERO@EXAMPLE.TEST");
+        reloj.Ahora += TimeSpan.FromMinutes(1);
+        for (var i = 1; i < LimiteSolicitudesPorCuenta.MaximoCuentas; i++)
             limite.Consumir($"C{i}");
 
-        limite.CuentasEnMemoria.Should().BeLessThanOrEqualTo(LimiteSolicitudesPorCuenta.MaximoCuentas);
-        limite.HayCupo("NUEVO@EXAMPLE.TEST").Should().BeFalse("con el techo lleno de ventanas vivas se descarta, como con la cola llena");
-        limite.HayCupo("C7").Should().BeTrue("un correo ya presente sigue con su cupo");
+        limite.CuentasEnMemoria.Should().Be(LimiteSolicitudesPorCuenta.MaximoCuentas);
+        limite.HayCupo("PRIMERO@EXAMPLE.TEST").Should().BeFalse();
 
-        reloj.Ahora += LimiteSolicitudesPorCuenta.Ventana;
-        limite.HayCupo("NUEVO@EXAMPLE.TEST").Should().BeTrue("las ventanas vencidas se purgan");
-        limite.CuentasEnMemoria.Should().Be(0);
+        // Negar al nuevo dejaría a todo el mundo sin enlace mientras alguien mantenga el techo lleno.
+        limite.HayCupo("NUEVO@EXAMPLE.TEST").Should().BeTrue();
+        limite.Consumir("NUEVO@EXAMPLE.TEST");
+
+        limite.CuentasEnMemoria.Should().Be(LimiteSolicitudesPorCuenta.MaximoCuentas);
+        limite.HayCupo("PRIMERO@EXAMPLE.TEST").Should().BeTrue("su ventana, la más antigua, es la que sale");
+        limite.HayCupo("C7").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Las_ventanas_vencidas_salen_sin_esperar_al_techo()
+    {
+        var reloj = new Reloj();
+        var limite = new LimiteSolicitudesPorCuenta(reloj);
+        for (var i = 0; i < 2_000; i++)
+            limite.Consumir($"C{i}");
+        reloj.Ahora += TimeSpan.FromMinutes(30);
+        limite.Consumir("RECIENTE@EXAMPLE.TEST");
+
+        reloj.Ahora += TimeSpan.FromMinutes(30);
+        limite.Consumir("OTRO@EXAMPLE.TEST");
+
+        limite.CuentasEnMemoria.Should().Be(2, "solo quedan las dos ventanas abiertas en la última hora");
     }
 
     [Fact]

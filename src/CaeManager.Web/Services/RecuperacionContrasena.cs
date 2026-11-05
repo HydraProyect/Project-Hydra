@@ -20,10 +20,12 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// El estado crece con los correos distintos de la última hora y se purga de entradas vencidas al doblar su tamaño. Solo
-/// entra un correo cuya solicitud ya ocupó plaza en la cola acotada, y tiene un techo de <see cref="MaximoCuentas"/>
-/// entradas vivas (unos 16 MB): alcanzarlo exige ese número de solicitudes aceptadas con correos distintos en una hora,
-/// y su efecto es el mismo que el de la cola llena, descartar en silencio el correo nuevo hasta que venzan ventanas.
+/// El estado guarda los correos con ventana abierta en la última hora, en el orden en que la abrieron: como las ventanas
+/// vencen en ese mismo orden, cada llamada retira por delante las vencidas en tiempo amortizado constante, sin barrer
+/// el diccionario. Tiene un techo de <see cref="MaximoCuentas"/> entradas (unos 16 MB). Al llegar, un correo nuevo no se
+/// niega, porque negarlo dejaría a todo el mundo sin enlace mientras alguien mantenga el techo lleno: se retira la ventana
+/// más antigua. El coste lo paga ese correo, que recupera su cupo antes de la hora, y solo si alguien sostiene ese
+/// número de correos distintos aceptados en una hora.
 /// Solo se usa bajo el cerrojo de quien lo posee.
 /// </para>
 /// </summary>
@@ -33,54 +35,61 @@ public sealed class LimiteSolicitudesPorCuenta(TimeProvider reloj)
     public const int MaximoPorVentana = 3;
     public static readonly TimeSpan Ventana = TimeSpan.FromHours(1);
 
-    private const int MinimoAntesDePurgar = 1024;
-
     private readonly record struct Huella(UInt128 Alta, UInt128 Baja);
 
     private record struct Cupo(long InicioTicks, int Solicitudes);
 
     private readonly Dictionary<Huella, Cupo> _cupos = [];
-    private int _purgarAlLlegarA = MinimoAntesDePurgar;
 
-    /// <summary>Entradas en memoria, vencidas o no; para pruebas.</summary>
+    // Ventanas en el orden en que se abrieron. Un elemento cuyo inicio ya no coincide con el de su entrada (porque la
+    // ventana se reabrió o se retiró) se descarta al llegar al frente.
+    private readonly Queue<(Huella Huella, long InicioTicks)> _orden = new();
+
+    /// <summary>Entradas en memoria; para pruebas.</summary>
     public int CuentasEnMemoria => _cupos.Count;
 
     public bool HayCupo(string correoNormalizado)
     {
-        var huella = HuellaDe(correoNormalizado);
         var ahora = reloj.GetUtcNow().UtcTicks;
-        if (_cupos.TryGetValue(huella, out var cupo))
-            return Caducado(cupo, ahora) || cupo.Solicitudes < MaximoPorVentana;
-
-        if (_cupos.Count >= MaximoCuentas)
-            PurgarCaducados(ahora);
-
-        return _cupos.Count < MaximoCuentas;
+        RetirarVencidas(ahora);
+        return !_cupos.TryGetValue(HuellaDe(correoNormalizado), out var cupo)
+               || Caducado(cupo, ahora)
+               || cupo.Solicitudes < MaximoPorVentana;
     }
 
     public void Consumir(string correoNormalizado)
     {
         var huella = HuellaDe(correoNormalizado);
         var ahora = reloj.GetUtcNow().UtcTicks;
-        var cupo = _cupos.TryGetValue(huella, out var actual) && !Caducado(actual, ahora) ? actual : new Cupo(ahora, 0);
-        if (cupo.Solicitudes < MaximoPorVentana)
-            cupo.Solicitudes++;
-        _cupos[huella] = cupo;
+        RetirarVencidas(ahora);
 
-        if (_cupos.Count >= _purgarAlLlegarA)
+        if (_cupos.TryGetValue(huella, out var cupo) && !Caducado(cupo, ahora))
         {
-            PurgarCaducados(ahora);
-            _purgarAlLlegarA = Math.Max(MinimoAntesDePurgar, _cupos.Count * 2);
+            if (cupo.Solicitudes < MaximoPorVentana)
+                _cupos[huella] = cupo with { Solicitudes = cupo.Solicitudes + 1 };
+            return;
         }
+
+        if (!_cupos.ContainsKey(huella))
+        {
+            while (_cupos.Count >= MaximoCuentas && _orden.TryDequeue(out var masAntigua))
+                RetirarSiSigueAbierta(masAntigua);
+        }
+
+        _cupos[huella] = new Cupo(ahora, 1);
+        _orden.Enqueue((huella, ahora));
     }
 
-    private void PurgarCaducados(long ahoraTicks)
+    private void RetirarVencidas(long ahoraTicks)
     {
-        foreach (var (huella, cupo) in _cupos)
-        {
-            if (Caducado(cupo, ahoraTicks))
-                _cupos.Remove(huella);
-        }
+        while (_orden.TryPeek(out var frente) && ahoraTicks - frente.InicioTicks >= Ventana.Ticks)
+            RetirarSiSigueAbierta(_orden.Dequeue());
+    }
+
+    private void RetirarSiSigueAbierta((Huella Huella, long InicioTicks) ventana)
+    {
+        if (_cupos.TryGetValue(ventana.Huella, out var cupo) && cupo.InicioTicks == ventana.InicioTicks)
+            _cupos.Remove(ventana.Huella);
     }
 
     private static bool Caducado(Cupo cupo, long ahoraTicks) => ahoraTicks - cupo.InicioTicks >= Ventana.Ticks;
