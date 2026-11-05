@@ -18,7 +18,8 @@ namespace CaeManager.Domain.Comercial;
 /// </para>
 /// <para>
 /// Invariantes: los valores de enumeración son de la lista; el Pagador TALVEG no está vacío y solo lleva
-/// <c>[A-Za-z0-9_]</c>; el fin de la vigencia se registra cuando ya ha ocurrido, nunca por adelantado;
+/// <c>[A-Za-z0-9_]</c>; el inicio y el fin de la vigencia se registran cuando ya han ocurrido, nunca por
+/// adelantado, así que el estado coincide siempre con <see cref="EstaVigenteEn"/> en el instante actual;
 /// <see cref="VigenteDesdeUtc"/> y <see cref="VigenteHastaUtc"/> van en UTC;
 /// <see cref="EstadoProductoContratado.Vigente"/> no tiene fecha de fin y
 /// <see cref="EstadoProductoContratado.Finalizado"/> la tiene, no anterior al inicio; lo contratado
@@ -57,13 +58,19 @@ public class ProductoContratado : EntidadBase
 
     public EstadoProductoContratado Estado { get; private set; }
 
-    /// <summary>Contrata un Producto Contratado, vigente desde <paramref name="vigenteDesdeUtc"/> y sin fecha de fin.</summary>
+    /// <summary>
+    /// Contrata un Producto Contratado, vigente desde <paramref name="vigenteDesdeUtc"/> y sin fecha de fin. El
+    /// inicio no puede ser posterior a <paramref name="ahoraUtc"/>: un inicio futuro dejaría
+    /// <see cref="EstadoProductoContratado.Vigente"/> algo que aún no está en vigor, y cómo se representa una
+    /// contratación con inicio diferido no está decidido.
+    /// </summary>
     public static ProductoContratado Contratar(
         LineaProductoContratado linea,
         string pagadorStripeCustomerId,
         TramoTrabajadoresActivos tramo,
         ModalidadSuscripcionAlta modalidad,
-        DateTime vigenteDesdeUtc)
+        DateTime vigenteDesdeUtc,
+        DateTime ahoraUtc)
     {
         if (!Enum.IsDefined(linea))
             throw new ArgumentOutOfRangeException(nameof(linea), linea, "Línea de producto desconocida.");
@@ -80,6 +87,10 @@ public class ProductoContratado : EntidadBase
                 $"El Customer de Stripe del Pagador TALVEG no puede pasar de {LongitudMaximaPagadorStripeCustomerId} caracteres.",
                 nameof(pagadorStripeCustomerId));
         ExigirUtc(vigenteDesdeUtc, nameof(vigenteDesdeUtc));
+        ExigirUtc(ahoraUtc, nameof(ahoraUtc));
+        if (vigenteDesdeUtc > ahoraUtc)
+            throw new ArgumentOutOfRangeException(nameof(vigenteDesdeUtc), vigenteDesdeUtc,
+                "El inicio de la vigencia no puede ser futuro.");
 
         return new ProductoContratado
         {

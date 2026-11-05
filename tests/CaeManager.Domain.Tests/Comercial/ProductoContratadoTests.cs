@@ -13,7 +13,9 @@ public class ProductoContratadoTests
     private static ProductoContratado Contratar(string pagador = Pagador, DateTime? desde = null) =>
         ProductoContratado.Contratar(
             LineaProductoContratado.OutboundGestionPropia, pagador, TramoTrabajadoresActivos.De11A40,
-            ModalidadSuscripcionAlta.Anual, desde ?? Desde);
+            ModalidadSuscripcionAlta.Anual, desde ?? Desde, Ahora);
+
+    private static readonly DateTime Ahora = Desde.AddYears(10);
 
     [Fact]
     public void Contratar_deja_lo_contratado_vigente_y_sin_fecha_de_fin()
@@ -61,11 +63,11 @@ public class ProductoContratadoTests
     public void Rechaza_valores_fuera_de_las_enumeraciones()
     {
         var linea = () => ProductoContratado.Contratar((LineaProductoContratado)99, Pagador,
-            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, Desde);
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, Desde, Desde);
         var tramo = () => ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
-            (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Mensual, Desde);
+            (TramoTrabajadoresActivos)99, ModalidadSuscripcionAlta.Mensual, Desde, Desde);
         var modalidad = () => ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
-            TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99, Desde);
+            TramoTrabajadoresActivos.De1A10, (ModalidadSuscripcionAlta)99, Desde, Desde);
 
         linea.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("linea");
         tramo.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("tramo");
@@ -115,6 +117,26 @@ public class ProductoContratadoTests
         finalizar.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("vigenteHastaUtc");
         anterior.Estado.Should().Be(EstadoProductoContratado.Vigente, "un rechazo no cambia nada");
         anterior.VigenteHastaUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void El_inicio_se_registra_cuando_ha_ocurrido_y_nunca_por_adelantado()
+    {
+        var ahora = Desde;
+        Contratar(desde: ahora.AddDays(-1)).EstaVigenteEn(ahora).Should().BeTrue("inicio pasado");
+
+        var simultaneo = ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, ahora, ahora);
+        simultaneo.Estado.Should().Be(EstadoProductoContratado.Vigente);
+        simultaneo.EstaVigenteEn(ahora).Should().BeTrue("el inicio incluye su instante");
+
+        var futuro = () => ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, ahora.AddTicks(1), ahora);
+        futuro.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("vigenteDesdeUtc");
+
+        var ahoraNoUtc = () => ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, Pagador,
+            TramoTrabajadoresActivos.De1A10, ModalidadSuscripcionAlta.Mensual, ahora, DateTime.SpecifyKind(ahora, DateTimeKind.Unspecified));
+        ahoraNoUtc.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("ahoraUtc");
     }
 
     [Fact]

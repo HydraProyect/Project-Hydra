@@ -46,7 +46,7 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
 
         await using var siembra = CrearContexto(_tenantA, _cadenaConexion);
         var producto = ProductoContratado.Contratar(LineaProductoContratado.OutboundGestionPropia, "cus_PagadorA",
-            TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Mensual, Desde);
+            TramoTrabajadoresActivos.De41A80, ModalidadSuscripcionAlta.Mensual, Desde, ahoraUtc: Desde);
         siembra.ProductosContratados.Add(producto);
         await siembra.SaveChangesAsync();
         _productoA = producto.Id;
