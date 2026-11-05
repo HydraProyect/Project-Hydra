@@ -25,7 +25,9 @@ namespace CaeManager.E2ETests;
 /// ningún E2E podía observar una política. El rol lo crea
 /// <c>deploy/bootstrap/roles-de-cluster.sql</c> como <c>NOLOGIN</c> (ci.yml lo
 /// ejecuta antes de los E2E); la fixture le da LOGIN con la contraseña fija de
-/// pruebas (<see cref="DarLoginAlRolDeRuntimeAsync"/>).
+/// pruebas (<see cref="DarLoginAlRolDeRuntimeAsync"/>), y solo en un clúster local
+/// declarado desechable con <c>CAEMANAGER_TESTS_CLUSTER_DESECHABLE</c>
+/// (<see cref="GuardaClusterDePruebas"/>).
 /// </para>
 ///
 /// <para>
@@ -412,7 +414,10 @@ public class WebAppFixture : IAsyncLifetime
     /// Si el rol ya entra con la contraseña de pruebas, no se toca. Con cualquier otra
     /// credencial (LOGIN con otra contraseña, o NOLOGIN que conserva una) el clúster no es
     /// uno de pruebas recién preparado y el arranque falla sin sobrescribirla ni
-    /// reactivar el rol (revisión de Codex en la PR #2032). Dos <c>ALTER ROLE</c>
+    /// reactivar el rol (revisión de Codex en la PR #2032). Y como ese estado virgen
+    /// es también el de un staging o una producción recién preparados, antes del
+    /// <c>ALTER ROLE</c> el clúster tiene que estar declarado desechable y ser local
+    /// (<see cref="GuardaClusterDePruebas"/>); si no, falla sin tocar el rol. Dos <c>ALTER ROLE</c>
     /// simultáneos sobre la misma fila de <c>pg_authid</c> fallan con «tuple
     /// concurrently updated», así que se serializa dentro del proceso (semáforo) y
     /// entre procesos (bloqueo consultivo de transacción). Si el rol no existe, el
@@ -472,6 +477,14 @@ public class WebAppFixture : IAsyncLifetime
                         "que no es la de pruebas. La fixture no la sobrescribe ni reactiva el rol: apunta CAEMANAGER_TESTS_PG a un " +
                         "clúster de pruebas recién preparado con deploy/bootstrap/roles-de-cluster.sql.");
             }
+
+            // El estado virgen del rol no identifica un clúster de pruebas: es también el que deja el bootstrap en
+            // staging o producción. Antes de tocar el rol, el clúster tiene que estar declarado desechable y ser local.
+            string? identificadorDelCluster;
+            await using (var identificador = new Npgsql.NpgsqlCommand(GuardaClusterDePruebas.ConsultaIdentificador, conexion, transaccion))
+                identificadorDelCluster = (await identificador.ExecuteScalarAsync()) as string;
+            GuardaClusterDePruebas.ExigirClusterDesechable(
+                Environment.GetEnvironmentVariable(GuardaClusterDePruebas.VariableDeEntorno), CadenaConexion, identificadorDelCluster);
 
             await using (var alter = new Npgsql.NpgsqlCommand(
                              $"ALTER ROLE {RolDeRuntime} LOGIN PASSWORD '{ContrasenaRuntimeDePruebas}';", conexion, transaccion))
