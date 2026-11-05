@@ -103,15 +103,24 @@ LABEL es.talveg.guarda-correo="1"
 # base futura marca apt como esencial o protegido, o algo instalado pasa a depender
 # de él, dpkg se niega y la construcción falla en vez de dejar la imagen rota. Si la
 # base renombra la biblioteca (libapt-pkg7.0…), dpkg solo avisa del nombre viejo; por
-# eso la última orden comprueba que no queda instalado ningún apt ni libapt-pkg*.
+# eso la última orden falla si queda apt-get o algún apt o libapt-pkg* en un estado
+# distinto de not-installed (instalado, desempaquetado, a medias o con config-files).
 # dpkg sigue en la imagen (es esencial); para depurar un contenedor en marcha,
 # instala lo que haga falta en una imagen derivada, no dentro del contenedor.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
+#
+# Purgar apt no protege la construcción, que sigue usando el apt de la base. El
+# CVE-2026-109518 exige que apt reintente descargas (Acquire::Retries, 3 por
+# defecto en Ubuntu 24.04): un atacante en la ruta HTTP o un espejo malicioso cuela
+# un paquete no verificado en un reintento. Con Acquire::Retries=0 no se reintenta
+# ninguna descarga y la vulnerabilidad no es explotable (ubuntu.com/blog/apt-vulnerability-fixes-available).
+# Se mantiene aunque una base futura traiga apt corregido: cuesta un fallo de red
+# más visible a cambio de no depender de qué versión de apt trae el digest.
+RUN apt-get -o Acquire::Retries=0 update \
+    && apt-get -o Acquire::Retries=0 install -y --no-install-recommends libreoffice-writer curl ca-certificates gosu tzdata libssl3t64 openssl \
     && rm -rf /var/lib/apt/lists/* \
     && dpkg --purge apt libapt-pkg6.0t64 \
     && rm -rf /var/cache/apt /var/log/apt /var/lib/apt \
-    && if dpkg -l apt 'libapt-pkg*' 2>/dev/null | grep -q '^.i'; then echo "apt o libapt-pkg siguen instalados" >&2; exit 1; fi
+    && if dpkg-query -W -f='${db:Status-Status}\n' apt 'libapt-pkg*' 2>/dev/null | grep -qvx 'not-installed' || [ -e /usr/bin/apt-get ]; then echo "apt o libapt-pkg siguen en la imagen" >&2; exit 1; fi
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
 RUN mkdir -p /app/temporales-conversion-word && chown "$APP_UID:$APP_UID" /app/temporales-conversion-word
