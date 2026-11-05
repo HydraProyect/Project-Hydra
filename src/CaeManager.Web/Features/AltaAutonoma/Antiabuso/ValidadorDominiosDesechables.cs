@@ -57,7 +57,7 @@ public sealed class ValidadorDominiosDesechables
             return false;
 
         // El dominio y cada uno de sus padres, cortando por puntos: a.b.c → a.b.c, b.c, c.
-        for (var resto = dominio; ; )
+        for (var resto = dominio; ;)
         {
             if (_dominios.Contains(resto))
                 return true;

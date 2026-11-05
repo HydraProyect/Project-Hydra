@@ -214,7 +214,9 @@ public class RetoPruebaTrabajoTests
 
     private static OpcionesAntiabusoAlta OpcionesConTiempoMinimo(int segundos) => new()
     {
-        DificultadBits = 8, VigenciaReto = TimeSpan.FromMinutes(1), TiempoMinimoEnvio = TimeSpan.FromSeconds(segundos),
+        DificultadBits = 8,
+        VigenciaReto = TimeSpan.FromMinutes(1),
+        TiempoMinimoEnvio = TimeSpan.FromSeconds(segundos),
     };
 
     [Fact]
