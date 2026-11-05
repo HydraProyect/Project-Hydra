@@ -164,13 +164,21 @@ public sealed class RegistroRetosUsados(TimeProvider reloj)
         return _usados.TryAdd(id, caduca);
     }
 
+    /// <summary>
+    /// Cuánto sobrevive un id en el registro después de su caducidad. Quien verifica lee la hora antes de registrar: un
+    /// envío que la leyó un instante antes de caducar puede llegar a <see cref="Registrar"/> ya pasada. Si la purga
+    /// borrase el id justo en la caducidad, ese envío y otro anterior con el mismo reto se aceptarían los dos.
+    /// </summary>
+    public static readonly TimeSpan MargenPurga = TimeSpan.FromMinutes(5);
+
     public void PurgarCaducados()
     {
-        // Retirar un id caducado no reabre su reto: la verificación rechaza la caducidad antes de consultar el registro.
+        // Retirar un id caducado no reabre su reto: la verificación rechaza la caducidad antes de consultar el registro,
+        // y el margen cubre a quien la comprobó justo antes de caducar y registra después.
         var ahora = reloj.GetUtcNow();
         foreach (var (id, caduca) in _usados)
         {
-            if (caduca <= ahora)
+            if (caduca + MargenPurga <= ahora)
                 _usados.TryRemove(id, out _);
         }
     }

@@ -66,6 +66,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> NoSonIdDeEntidad = new()
     {
+        // Nombre del fichero .html que el remitente de correo de desarrollo del alta autónoma escribe en disco: solo
+        // evita colisiones entre dos correos del mismo milisegundo.
+        ["src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs"] = 1,
         // Identificador de instancia del componente que fija el título de la pestaña: etiqueta efímera en memoria
         // del circuito para que el módulo JS (único por documento) distinga qué instancia libera qué.
         ["src/CaeManager.Web/Components/DesignSystem/TituloDePaginaSinPrerender.razor"] = 1,

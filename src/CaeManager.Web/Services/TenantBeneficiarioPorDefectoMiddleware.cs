@@ -96,6 +96,10 @@ public class TenantBeneficiarioPorDefectoMiddleware(RequestDelegate siguiente)
                // Las páginas de cuenta (inicio y cierre de sesión, 2FA, cambio de
                // contraseña) no dependen del Tenant activo.
                && !peticion.Path.StartsWithSegments("/cuenta", StringComparison.OrdinalIgnoreCase)
+               // El alta autónoma tampoco, y además lleva secretos en la consulta (el token de
+               // /alta/verificar): la redirección los copiaría en Location, y de ahí al historial,
+               // a los registros del proxy y al Referer.
+               && !peticion.Path.StartsWithSegments("/alta", StringComparison.OrdinalIgnoreCase)
                && NavegacionDePagina.Es(peticion);
     }
 

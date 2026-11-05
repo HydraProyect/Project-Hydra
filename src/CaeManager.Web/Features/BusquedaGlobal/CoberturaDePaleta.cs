@@ -126,6 +126,7 @@ public static class CoberturaDePaleta
     /// <item><description><c>not-found</c> — se llega sin quererlo (404), nadie la busca a propósito.</description></item>
     /// <item><description><c>legal</c> (<c>/legal/privacidad</c>, <c>/legal/terminos</c>) — tiene su puerta natural en el pie de página.</description></item>
     /// <item><description><c>cuenta</c> (<c>/cuenta/...</c>) — tiene su puerta natural en el menú de usuario.</description></item>
+    /// <item><description><c>alta</c> (<c>/alta</c>, <c>/alta/verificar</c>) — registro anónimo del alta autónoma, sin sesión: quien abre la paleta ya tiene cuenta, y se llega por la web pública o por el enlace del correo.</description></item>
     /// </list>
     /// </remarks>
     public static readonly IReadOnlyCollection<string> SegmentosExcluidosDeLaPaleta =
@@ -134,5 +135,6 @@ public static class CoberturaDePaleta
         "not-found",
         "legal",
         "cuenta",
+        "alta",
     ];
 }

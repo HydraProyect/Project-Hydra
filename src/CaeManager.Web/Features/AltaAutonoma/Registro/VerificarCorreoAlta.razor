@@ -1,0 +1,96 @@
+@page "/alta/verificar"
+@layout CaeManager.Web.Components.Layout.AccesoLayout
+@attribute [AllowAnonymous]
+@using CaeManager.Application.AltaAutonoma
+@using CaeManager.Web.Components.Account
+@using CaeManager.Web.Features.AltaAutonoma.Recursos
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Options
+@inject IOptions<AltaAutonomaOptions> OpcionesAlta
+@inject IStringLocalizer<TextosAltaAutonoma> T
+@inject ServicioRegistroAlta Registro
+@inject NavigationManager Navigation
+
+@* Enlace de verificación del correo (maqueta A0, artboards CorreoConfirmado y EnlaceCaducado). Abrir el enlace no
+   verifica: pinta un botón que envía el token por POST. Los antivirus y las vistas previas de los gestores de correo
+   abren los enlaces por su cuenta, y con un GET que verificase gastarían el enlace de un solo uso antes que la
+   persona. El token viaja en la consulta y vuelve en un campo oculto; la base solo guarda su SHA-256. *@
+
+<PageTitle>@T["VerificarTituloPagina"] — @Marca.Nombre</PageTitle>
+
+@if (_habilitada)
+{
+    <div class="acceso-tarjeta">
+        <CabeceraAcceso />
+        @switch (_resultado)
+        {
+            case null:
+                <PasosAlta Detalle="@T["PasoConfirmarCorreoDetalle"]" />
+                <h2 class="acceso-titulo">@T["ConfirmarCorreoTitulo"]</h2>
+                <p class="acceso-explica">@T["ConfirmarCorreoExplica"]</p>
+                <EditForm Model="Entrada" method="post" OnSubmit="VerificarAsync" FormName="alta-verificar">
+                    <InputText type="hidden" @bind-Value="Entrada!.Token" />
+                    <button type="submit" class="acceso-entrar">@T["ConfirmarCorreoBoton"]</button>
+                </EditForm>
+                break;
+            case ResultadoVerificacionCorreoAlta.Verificado:
+                <PasosAlta Detalle="@T["PasoCorreoConfirmadoDetalle"]" />
+                <h2 class="acceso-titulo">@T["CorreoConfirmadoTitulo"]</h2>
+                <p class="acceso-explica">@T["CorreoConfirmadoExplica"]</p>
+                break;
+            case ResultadoVerificacionCorreoAlta.EnlaceCaducado:
+                <h2 class="acceso-titulo">@T["EnlaceCaducadoTitulo"]</h2>
+                <p class="acceso-explica">@T["EnlaceCaducadoExplica"]</p>
+                <p class="acceso-olvido"><a href="/alta">@T["VolverAEmpezar"]</a></p>
+                break;
+            case ResultadoVerificacionCorreoAlta.SolicitudCaducada:
+                <h2 class="acceso-titulo">@T["SolicitudCaducadaTitulo"]</h2>
+                <p class="acceso-explica">@T["SolicitudCaducadaExplica"]</p>
+                <p class="acceso-olvido"><a href="/alta">@T["VolverAEmpezar"]</a></p>
+                <p class="acceso-explica">@T["AyudaSoporte"]</p>
+                break;
+            default:
+                <h2 class="acceso-titulo">@T["EnlaceNoValidoTitulo"]</h2>
+                <p class="acceso-explica">@T["EnlaceNoValidoExplica"]</p>
+                <p class="acceso-olvido"><a href="/alta">@T["VolverAEmpezar"]</a></p>
+                break;
+        }
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")]
+    private string? TokenConsulta { get; set; }
+
+    [SupplyParameterFromForm(FormName = "alta-verificar")]
+    private DatosEntrada? Entrada { get; set; }
+
+    private bool _habilitada;
+    private ResultadoVerificacionCorreoAlta? _resultado;
+
+    protected override void OnInitialized()
+    {
+        _habilitada = OpcionesAlta.Value.Habilitada;
+        if (!_habilitada)
+        {
+            Navigation.NotFound();
+            return;
+        }
+
+        Entrada ??= new DatosEntrada { Token = TokenConsulta ?? string.Empty };
+    }
+
+    private async Task VerificarAsync()
+    {
+        if (!_habilitada || Entrada is null)
+            return;
+
+        _resultado = await Registro.VerificarCorreoAsync(Entrada.Token, CancellationToken.None);
+    }
+
+    private sealed class DatosEntrada
+    {
+        public string Token { get; set; } = string.Empty;
+    }
+}
