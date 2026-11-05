@@ -145,17 +145,8 @@ public class CaeManagerDbContext(
     private void AplicarFiltroTenant<TEntidad>(ModelBuilder builder) where TEntidad : EntidadConTenant =>
         builder.Entity<TEntidad>().HasQueryFilter(e => e.TenantId == tenantActual.TenantId);
 
-    private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase
-    {
-        // MUTACION TEMPORAL M1 (PR #2032, harness 1.7): Empresa sin filtro de Tenant de EF; solo RLS aisla. NO FUSIONAR.
-        if (typeof(TEntidad) == typeof(CaeManager.Domain.Empresas.Empresa))
-        {
-            builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado);
-            return;
-        }
-
+    private void AplicarFiltroTenantConSoftDelete<TEntidad>(ModelBuilder builder) where TEntidad : EntidadBase =>
         builder.Entity<TEntidad>().HasQueryFilter(e => !e.EstaEliminado && e.TenantId == tenantActual.TenantId);
-    }
 
     /// <summary>Mismo criterio de compatibilidad legada que DiskFileStorageService.AbrirAsync: un valor que no descifra con el protector actual es un payload guardado en claro antes de que existiera este cifrado.</summary>
     private string DescifrarPayloadWebhookConCompatibilidadLegado(string valorCifrado)
