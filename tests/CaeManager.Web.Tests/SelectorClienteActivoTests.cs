@@ -97,6 +97,8 @@ public class SelectorClienteActivoTests : BunitContext
         Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++, () => _participaEnIncorporacion));
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioFalso>();
+        // El Tenant efectivo es el seleccionado, como en la composición real: entra en la clave de la presentación.
+        Services.AddScoped<ITenantActual>(sp => sp.GetRequiredService<IClienteActivoSeleccionado>() as ITenantActual ?? new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorPendientesSelectorTenant(TimeProvider.System));
         Services.AddScoped<ILectorRecientesSelectorTenant>(_ => new RecientesFalsos(() => _recientes));
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
