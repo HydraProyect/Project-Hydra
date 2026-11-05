@@ -906,9 +906,9 @@ public class BloqueoRespuestaSugeridaTests
         (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
     }
 
-    /// <summary>La confirmación de las exactas no cuesta nada cuando no hay coincidencia: una sola lectura, la de candidatas.</summary>
+    /// <summary>(c) Sin ningún nominado no hay lectura final: una sola lectura, la de candidatas.</summary>
     [Fact]
-    public async Task Por_buzon_sin_coincidencia_exacta_no_paga_lecturas_de_confirmacion()
+    public async Task Por_buzon_sin_ningun_nominado_hay_una_sola_lectura()
     {
         var conexion = Buzon();
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Revisada);
@@ -919,13 +919,12 @@ public class BloqueoRespuestaSugeridaTests
     }
 
     /// <summary>
-    /// El atajo: una Propuesta exacta (hay coincidencia por hash sin confirmar) cuya Revisada, con el mismo hash y el mismo
-    /// mensaje de origen, la desbloquea. Con ella sin confirmar no se bloquearía, así que no se paga la lectura de
-    /// confirmación: exactamente 1 lectura, la de candidatas. Sin el atajo, la confirmación de la exacta sería una segunda
-    /// lectura aunque el resultado no pudiera ser un bloqueo.
+    /// Ya no hay atajo que decida con la primera lectura: una Propuesta exacta se nomina por hash y la decide la lectura
+    /// final, que ve también su Revisada (mismo hash y mensaje de origen) y la desbloquea. Exactamente 2 lecturas: la de
+    /// candidatas y la final.
     /// </summary>
     [Fact]
-    public async Task Por_buzon_una_exacta_desbloqueada_por_su_revisada_no_bloquea_y_no_paga_la_confirmacion()
+    public async Task Por_buzon_una_exacta_desbloqueada_por_su_revisada_la_decide_la_lectura_final()
     {
         var conexion = Buzon();
         var conversacion = HiloDeCorreo(conexion);
@@ -936,7 +935,66 @@ public class BloqueoRespuestaSugeridaTests
 
         (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
 
-        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(1);
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
+    }
+
+    /// <summary>
+    /// (a) Una coincidencia por contención en un hilo de triage compartido (visible para el Gestor CAE) se nomina en la
+    /// lectura de textos; el hilo se asigna a un Cliente empresarial fuera de la cartera durante la lectura final (la 3.ª),
+    /// que lo deja fuera: no bloquea. El control sin reasignar bloquea. Sin la lectura final como única decisión, la
+    /// coincidencia por contención ya estaría dada por buena desde la lectura de textos (solo se confirmaban las exactas) y
+    /// el envío se bloquearía por un hilo que ya no es visible.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_una_contencion_en_triage_reasignado_fuera_de_cartera_en_la_lectura_final_no_bloquea()
+    {
+        var conexion = Buzon();
+        var clienteEnCartera = Guid.NewGuid();
+        var triage = HiloAnclado(conexion, null, null);
+        Sugerencia(triage, EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]);
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+
+        (await PorBuzon(conexion, cuerpo, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
+        {
+            if (lectura == antes + 3)
+                triage.AsignarCliente(Guid.NewGuid());
+        };
+
+        (await PorBuzon(conexion, cuerpo, alcance)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
+    }
+
+    /// <summary>
+    /// (b) La Propuesta exacta tiene una Revisada antigua con su mismo hash y mensaje de origen, que la desbloquea con los
+    /// datos de la primera lectura. Mientras se leen los textos de otra candidata, la Propuesta pasa a SinRevisar (se
+    /// inserta en el borrador): la lectura final la ve así y bloquea. El control, sin ese cambio, no bloquea. Con la
+    /// primera lectura decidiendo (el atajo), el resultado sería «no bloquea» por el estado antiguo.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_una_propuesta_que_pasa_a_sin_revisar_entre_las_lecturas_bloquea_pese_a_su_revisada_antigua()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var entrante = EntranteDePersona(conversacion);
+        var propuesta = Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
+
+        (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
+        {
+            if (lectura == antes + 2)
+                propuesta.Insertar();
+        };
+
+        (await PorBuzon(conexion, TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
     }
 
     [Fact]
