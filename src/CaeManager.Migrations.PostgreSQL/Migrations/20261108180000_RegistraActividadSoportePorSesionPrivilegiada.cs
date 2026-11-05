@@ -72,9 +72,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //   - Aislamiento: solo READ COMMITTED, donde cada sentencia toma una instantánea nueva. Bajo
             //     REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
             //     al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar.
-            //     Una transacción READ COMMITTED explícita no se distingue aquí del autocommit (con el
-            //     protocolo extendido, statement_timestamp() cambia en cada mensaje Parse/Bind/Execute y
-            //     nunca coincide con transaction_timestamp()); esa guarda la pone el repositorio.
+            //     Transacción: la fila solo es duradera en autocommit, y la guarda no está aquí sino en el
+            //     repositorio (rechaza con una transacción de EF o ambiente abierta) más el trinquete
+            //     SinTransaccionesAbiertasPorSqlCrudoTests (ninguna cadena de src abre una transacción
+            //     con BEGIN o START TRANSACTION). No se hace en SQL porque la función no puede distinguir
+            //     una transacción READ COMMITTED explícita del autocommit: con el protocolo extendido de
+            //     Npgsql, statement_timestamp() se fija en cada mensaje Parse/Bind/Execute y
+            //     transaction_timestamp() en el primero, así que no coinciden tampoco en autocommit.
             // El propietario de la función es el rol de las migraciones: por eso el TenantId de la
             // fila sale del contexto firmado y no de un parámetro. Devuelve un código en vez de lanzar,
             // para que el repositorio falle en cerrado con el motivo en el registro. EXECUTE solo para

@@ -453,7 +453,8 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     /// La función no distingue una transacción READ COMMITTED explícita del autocommit: con el
     /// protocolo extendido de Npgsql, statement_timestamp() se fija en cada Parse/Bind/Execute y no
     /// coincide con transaction_timestamp() ni en autocommit. La guarda contra la transacción
-    /// explícita es la del servicio (los tests siguientes).
+    /// explícita es la del servicio (los tests siguientes) más el trinquete de arquitectura
+    /// SinTransaccionesAbiertasPorSqlCrudoTests.
     /// </summary>
     [Fact]
     public async Task En_una_transaccion_READ_COMMITTED_explicita_registra()
