@@ -248,6 +248,7 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         EscanerSql.IndiceEnCodigo(cuerpo, "RETURN 'sesion_no_autorizada';").Should().BeLessThan(
             EscanerSql.IndiceEnCodigo(cuerpo, "INSERT INTO"), "la sesión se valida antes de insertar");
         EscanerSql.IndiceEnCodigo(cuerpo, "LOCK TABLE").Should().Be(-1, "la función no bloquea tablas");
+        // Decisión: sin lock_timeout. Esperar a quien tenga modificada la fila acaba, como mucho, en el CommandTimeout, que falla en cerrado; no es una fuga.
         EscanerSql.IndiceEnCodigo(cabecera, "lock_timeout").Should().Be(-1);
         EscanerSql.IndiceEnCodigo(cuerpo, "lock_timeout").Should().Be(-1);
     }
@@ -256,10 +257,12 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
 
     /// <summary>
     /// La hora es una sola lectura de clock_timestamp(), hecha dentro de la sentencia que valida la
-    /// sesión (evaluada al ejecutarla, con sus candados ya adquiridos), que la misma sentencia usa en
-    /// todas las condiciones de ventana y vigencia y que fecha la fila. now() es la hora de inicio de
-    /// la transacción; una hora tomada antes de la sentencia podría quedarse vieja si la sentencia
-    /// espera un candado.
+    /// sesión, que la misma sentencia usa en todas las condiciones de ventana y vigencia y que fecha
+    /// la fila. Se lee al ejecutar esa sentencia: después de que GetCachedPlan haya tomado los
+    /// candados de tabla de su plan y después de las sentencias FOR SHARE anteriores, que ya tienen
+    /// bloqueadas la fila de la sesión, la de la concesión y la del alcance (la propia sentencia de
+    /// validación no bloquea filas). now() es la hora de inicio de la transacción; una hora tomada
+    /// antes de esperar un candado podría quedarse vieja.
     /// </summary>
     [Fact]
     public void La_hora_es_una_sola_lectura_del_reloj_dentro_de_la_sentencia_que_valida_la_sesion()

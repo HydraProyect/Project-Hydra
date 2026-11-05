@@ -77,45 +77,53 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     public void Nadie_en_src_abre_una_transaccion_sobre_la_conexion_sin_pasar_por_EF()
     {
         var src = Path.Combine(BuscarRaizDelRepositorio(), "src");
-        var deEf = 0;
-        var infractoras = new List<string>();
+        var ficheros = FicherosDeSrc().ToList();
+        var infractoras = new SortedSet<string>(StringComparer.Ordinal);
         var permitidasUsadas = new HashSet<string>();
 
-        // Solo se compilan los proyectos con algún fichero que nombre uno de los métodos (en
-        // sintaxis, no en comentarios); se compila el proyecto entero para que sus propios tipos
-        // resuelvan.
-        var porProyecto = FicherosDeSrc()
-            .Where(f => NombraMetodoDeTransaccion(CSharpSyntaxTree.ParseText(f.Fuente)))
-            .GroupBy(f => ProyectoDe(Path.Combine(src, f.Relativa)))
-            .ToList();
-        porProyecto.Should().NotBeEmpty("src abre transacciones de EF, y el instrumento tiene que verlas");
-
-        foreach (var proyecto in porProyecto)
+        // Cada configuración del SDK por separado: lo que está bajo #if DEBUG solo existe en una y lo
+        // que está bajo #else en la otra. El filtro y la compilación parsean con las mismas opciones.
+        foreach (var (configuracion, opciones) in Configuraciones)
         {
-            var (compilacion, arboles) = CompilacionDelProyecto(proyecto.Key);
-            var relevantes = proyecto.Select(f => Path.GetFullPath(Path.Combine(src, f.Relativa))).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var arbol in arboles.Where(a => relevantes.Contains(Path.GetFullPath(a.FilePath))))
-            {
-                var relativa = Path.GetRelativePath(src, arbol.FilePath).Replace('\\', '/');
-                foreach (var llamada in LlamadasDeTransaccion(compilacion, arbol))
-                {
-                    if (llamada.Tipo == TipoDeLlamada.DeEf)
-                    {
-                        deEf++;
-                        continue;
-                    }
+            var deEf = 0;
 
-                    if (llamada.Tipo == TipoDeLlamada.FueraDeEf && ConexionesPermitidas.ContainsKey(relativa))
-                        permitidasUsadas.Add(relativa);
-                    else
-                        infractoras.Add($"{relativa}:{llamada.Linea} {llamada.Tipo} {llamada.Simbolo}");
+            // Solo se compilan los proyectos con algún fichero que nombre uno de los métodos (en
+            // sintaxis, no en comentarios); se compila el proyecto entero para que sus propios
+            // tipos resuelvan.
+            var porProyecto = ficheros
+                .Where(f => NombraMetodoDeTransaccion(CSharpSyntaxTree.ParseText(f.Fuente, opciones)))
+                .GroupBy(f => ProyectoDe(Path.Combine(src, f.Relativa)))
+                .ToList();
+            porProyecto.Should().NotBeEmpty("src abre transacciones de EF, y el instrumento tiene que verlas");
+
+            foreach (var proyecto in porProyecto)
+            {
+                var (compilacion, arboles) = CompilacionDelProyecto(proyecto.Key, opciones);
+                var relevantes = proyecto.Select(f => Path.GetFullPath(Path.Combine(src, f.Relativa))).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var arbol in arboles.Where(a => relevantes.Contains(Path.GetFullPath(a.FilePath))))
+                {
+                    var relativa = Path.GetRelativePath(src, arbol.FilePath).Replace('\\', '/');
+                    foreach (var llamada in LlamadasDeTransaccion(compilacion, arbol))
+                    {
+                        if (llamada.Tipo == TipoDeLlamada.DeEf)
+                        {
+                            deEf++;
+                            continue;
+                        }
+
+                        if (llamada.Tipo == TipoDeLlamada.FueraDeEf && ConexionesPermitidas.ContainsKey(relativa))
+                            permitidasUsadas.Add(relativa);
+                        else
+                            infractoras.Add($"{configuracion} {relativa}:{llamada.Linea} {llamada.Tipo} {llamada.Simbolo}");
+                    }
                 }
             }
+
+            salida.WriteLine($"{configuracion}: proyectos compilados: {porProyecto.Count}; llamadas de EF: {deEf}");
+            deEf.Should().BeGreaterThan(5, $"el instrumento tiene que resolver las transacciones de EF de src en {configuracion}");
         }
 
-        salida.WriteLine($"Proyectos compilados: {porProyecto.Count}; llamadas de EF: {deEf}; " +
-                         $"fuera de EF en la lista cerrada: {permitidasUsadas.Count}; infractoras: {infractoras.Count}");
-        deEf.Should().BeGreaterThan(5, "el instrumento tiene que resolver las transacciones de EF de src");
+        salida.WriteLine($"Fuera de EF en la lista cerrada: {permitidasUsadas.Count}; infractoras: {infractoras.Count}");
         infractoras.Should().BeEmpty(
             "una transacción abierta sobre la conexión no fija Database.CurrentTransaction y la guarda del " +
             "registro de lecturas en Sesión Privilegiada no la ve; ábrela con Database.BeginTransaction de EF " +
@@ -256,15 +264,33 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         }
     }
 
-    private static readonly CSharpParseOptions OpcionesDeAnalisis = CSharpParseOptions.Default
+    /// <summary>
+    /// Las dos configuraciones: Debug (DEBUG y TRACE) y Release (TRACE, y RELEASE por si algún fuente
+    /// lo usa), sobre los símbolos de net10.0. Se analizan las dos para que nada se esconda tras un
+    /// <c>#if DEBUG</c> ni tras su <c>#else</c>.
+    /// </summary>
+    internal static readonly IReadOnlyList<(string Nombre, CSharpParseOptions Opciones)> Configuraciones =
+    [
+        ("Debug", OpcionesDeAnalisis("DEBUG", "TRACE")),
+        ("Release", OpcionesDeAnalisis("RELEASE", "TRACE")),
+    ];
+
+    private static CSharpParseOptions OpcionesDeAnalisis(params string[] simbolosDeConfiguracion) => CSharpParseOptions.Default
         .WithLanguageVersion(LanguageVersion.Preview)
-        .WithPreprocessorSymbols("NET", "NETCOREAPP", "NET10_0", "NET10_0_OR_GREATER", "RELEASE");
+        .WithPreprocessorSymbols((string[])
+        [
+            "NET", "NETCOREAPP", "NET10_0",
+            .. Enumerable.Range(5, 6).Select(v => $"NET{v}_0_OR_GREATER"),
+            "NETCOREAPP1_0_OR_GREATER", "NETCOREAPP1_1_OR_GREATER", "NETCOREAPP2_0_OR_GREATER",
+            "NETCOREAPP2_1_OR_GREATER", "NETCOREAPP2_2_OR_GREATER", "NETCOREAPP3_0_OR_GREATER", "NETCOREAPP3_1_OR_GREATER",
+            .. simbolosDeConfiguracion,
+        ]);
 
     /// <summary>
     /// Los usings implícitos de Microsoft.NET.Sdk (ImplicitUsings=enable en Directory.Build.props) más los
     /// <c>&lt;Using Include&gt;</c> del propio .csproj.
     /// </summary>
-    private static SyntaxTree UsingsGlobales(string csproj)
+    private static SyntaxTree UsingsGlobales(string csproj, CSharpParseOptions opciones)
     {
         var espacios = new List<string>
         {
@@ -274,7 +300,7 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         espacios.AddRange(Regex.Matches(File.ReadAllText(csproj), @"<Using\s+Include=""(?<n>[^""]+)""\s*/>")
             .Select(m => m.Groups["n"].Value));
         return CSharpSyntaxTree.ParseText(
-            string.Concat(espacios.Distinct().Select(e => $"global using global::{e};\n")), OpcionesDeAnalisis, path: "UsingsGlobales.g.cs");
+            string.Concat(espacios.Distinct().Select(e => $"global using global::{e};\n")), opciones, path: "UsingsGlobales.g.cs");
     }
 
     /// <summary>
@@ -322,28 +348,29 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
     /// existe generado no resuelve, y una llamada de transacción que dependa de ello sale como
     /// SinResolver y hace fallar el trinquete, nunca pasar.
     /// </summary>
-    private static (CSharpCompilation Compilacion, IReadOnlyList<SyntaxTree> Arboles) CompilacionDelProyecto(string csproj)
+    private static (CSharpCompilation Compilacion, IReadOnlyList<SyntaxTree> Arboles) CompilacionDelProyecto(
+        string csproj, CSharpParseOptions opciones)
     {
         var directorio = Path.GetDirectoryName(csproj)!;
         var separador = Path.DirectorySeparatorChar;
         var arboles = Directory.EnumerateFiles(directorio, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{separador}obj{separador}", StringComparison.Ordinal)
                         && !f.Contains($"{separador}bin{separador}", StringComparison.Ordinal))
-            .Select(f => CSharpSyntaxTree.ParseText(File.ReadAllText(f), OpcionesDeAnalisis, path: f))
+            .Select(f => CSharpSyntaxTree.ParseText(File.ReadAllText(f), opciones, path: f))
             .ToList();
         var ensamblado = Path.GetFileNameWithoutExtension(csproj);
         var compilacion = CSharpCompilation.Create(
             ensamblado + ".AnalisisDeTransacciones",
-            [.. arboles, UsingsGlobales(csproj)],
+            [.. arboles, UsingsGlobales(csproj, opciones)],
             Referencias.Value.Where(r => !string.Equals(r.Nombre, ensamblado, StringComparison.OrdinalIgnoreCase)).Select(r => r.Referencia),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable, allowUnsafe: true));
         return (compilacion, arboles);
     }
 
     /// <summary>Compilación de un fuente suelto contra las mismas referencias, para los casos del detector.</summary>
-    internal static (CSharpCompilation Compilacion, SyntaxTree Arbol) CompilacionDeEjemplo(string fuente)
+    internal static (CSharpCompilation Compilacion, SyntaxTree Arbol) CompilacionDeEjemplo(string fuente, CSharpParseOptions? opciones = null)
     {
-        var arbol = CSharpSyntaxTree.ParseText(fuente, OpcionesDeAnalisis, path: "Ejemplo.cs");
+        var arbol = CSharpSyntaxTree.ParseText(fuente, opciones ?? Configuraciones[0].Opciones, path: "Ejemplo.cs");
         var compilacion = CSharpCompilation.Create(
             "Ejemplo",
             [arbol],
@@ -482,6 +509,44 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
             "condicional, EnlistTransaction (también el de EF), el grupo de métodos y un tipo propio llamado Database");
         llamadas.Where(l => l.Tipo == TipoDeLlamada.SinResolver).Select(l => l.Linea).Should().Equal(
             [27], "lo que no resuelve no se da por bueno");
+    }
+
+    /// <summary>
+    /// Una transacción sobre la conexión escondida tras <c>#if DEBUG</c> (o tras su <c>#else</c>) en un
+    /// fichero que no nombra esos métodos en ningún otro sitio: el filtro la ve en la configuración
+    /// donde existe y la compilación de esa configuración la clasifica como fuera de EF.
+    /// </summary>
+    [Fact]
+    public void El_detector_ve_una_transaccion_escondida_tras_if_DEBUG_o_su_else()
+    {
+        const string fuente = """
+            using System.Data.Common;
+            class C
+            {
+                void F(DbConnection conexion)
+                {
+                    #if DEBUG
+                    conexion.BeginTransaction();
+                    #else
+                    conexion.BeginTransaction(System.Data.IsolationLevel.Serializable);
+                    #endif
+                }
+            }
+            """;
+
+        var vistas = new List<(string Configuracion, int Linea, TipoDeLlamada Tipo)>();
+        foreach (var (configuracion, opciones) in Configuraciones)
+        {
+            var (compilacion, arbol) = CompilacionDeEjemplo(fuente, opciones);
+            NombraMetodoDeTransaccion(arbol).Should().BeTrue($"el filtro de {configuracion} tiene que ver el fichero");
+            vistas.AddRange(LlamadasDeTransaccion(compilacion, arbol).Select(l => (configuracion, l.Linea, l.Tipo)));
+        }
+
+        vistas.Should().Equal(("Debug", 7, TipoDeLlamada.FueraDeEf), ("Release", 9, TipoDeLlamada.FueraDeEf));
+
+        // Sin el símbolo DEBUG (lo que hacía el filtro antes), la rama de Debug no existe para el análisis.
+        var sinSimbolos = CSharpSyntaxTree.ParseText(fuente.Replace("#else", "#endif\n#if NUNCA"));
+        NombraMetodoDeTransaccion(sinSimbolos).Should().BeFalse("el caso es sensible a los símbolos de preprocesador");
     }
 
     [Fact]
