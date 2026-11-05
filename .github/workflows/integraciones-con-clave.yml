@@ -23,9 +23,11 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 #     Environments), con «Deployment branches: Selected branches → main»; NUNCA
 #     secretos de repositorio ni de organización;
 #   - cada job que las cita declara `environment: ci-integraciones`;
-#   - el disparo es `push` a `main` (una ejecución por fusión, que además acota
-#     el gasto) o `workflow_dispatch` — que solo sirve sobre `main`, porque la
-#     política deniega cualquier otra rama. Un `merge_group` se descartó a
+#   - el disparo es `schedule` diario (corre siempre sobre `main`, la rama por
+#     defecto; una ejecución al día acota el gasto) o `workflow_dispatch` — que
+#     solo sirve sobre `main`, porque la política deniega cualquier otra rama.
+#     Hasta el 2026-11-05 era `push` a `main`, una ejecución por fusión (mejora
+#     1.5 de la evaluación del harness). Un `merge_group` se descartó a
 #     propósito: no se ha podido comprobar cómo trata la política de ramas del
 #     environment a las ramas temporales de la cola de fusión, y un `main` a
 #     secas no deja esa duda;
@@ -38,17 +40,23 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # ESTE WORKFLOW NO ES UN CHECK OBLIGATORIO de la protección de `main`: en rojo
 # se ve pero no bloquea la cola. Convertirlo en obligatorio es una decisión del
 # propietario (un proveedor caído bloquearía todas las fusiones). Como corre
-# DESPUÉS de fusionar, detecta una regresión de prompts, no la impide.
+# una vez al día sobre lo ya fusionado, detecta una regresión de prompts, no la
+# impide.
 #
-# SIN CLAVE: en `push` a `main` el job termina en ROJO y dice qué secreto falta.
-# La solución es crear el secreto en el environment `ci-integraciones`; relanzar
-# no lo arregla. Hasta el 2026-10-10 terminaba en verde con un aviso, y así
-# estuvo sin ejecutar nada sin que nadie lo viera (en siete ejecuciones de main
-# muestreadas desde el 2026-09-20, el paso de tests figura omitido en todas).
-# En cualquier otro caso —otra rama, donde la política del environment no
-# entrega el secreto, o un `workflow_dispatch` manual sobre `main`— sigue en
-# verde y DECLARA, con un aviso (`::warning`) y un resumen, que los tests NO se
-# ejecutaron: ese verde no es cobertura. El banco de modelos, que solo corre a
+# SIN CLAVE: el job termina en VERDE, DECLARA con un aviso (`::warning`) y un
+# resumen que los tests NO se ejecutaron (ese verde no es cobertura) y el job
+# `aviso-sin-clave` abre —o actualiza, si ya está abierta— UNA sola issue,
+# «Integraciones con clave sin ejecutar», con la etiqueta `CI: integraciones con
+# clave` y la lista de secretos que faltan; cuando las dos claves vuelven a
+# llegar, la cierra sola. La solución es crear el secreto en el environment
+# `ci-integraciones`; relanzar no lo arregla.
+# Historia: hasta el 2026-10-10 terminaba en verde con un aviso y nadie lo vio
+# (en siete ejecuciones de main muestreadas desde el 2026-09-20 el paso de tests
+# figura omitido en todas); del 2026-10-10 al 2026-11-05 terminaba en ROJO en
+# cada `push` a `main`, y 60 de 60 ejecuciones salieron en rojo por la misma
+# ausencia: un rojo permanente enseña a ignorar los rojos. La issue es la señal
+# que no se pierde ni se normaliza (mejora 1.5 de la evaluación del harness).
+# El banco de modelos, que solo corre a
 # petición, sale en rojo sin clave en cualquier caso. Con clave, un test que se
 # salte igualmente (variable mal nombrada, filtro que no casa) hace fallar el
 # job: se cuenta sobre el .trx, no sobre el código de salida de `dotnet test`.
@@ -64,7 +72,7 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 #
 # BANCO DE MODELOS DE IA (job `banco-modelos-ia`). Mide, con modelo real, las
 # siete rutas Anthropic del producto por niveles de complejidad
-# (tests/CaeManager.Web.Tests/BancoModelosIa). NO corre en cada fusión: solo
+# (tests/CaeManager.Web.Tests/BancoModelosIa). NO corre en la ejecución diaria: solo
 # cuando este workflow se lanza A MANO con la entrada `banco_modelos`, porque
 # cada combinación de modelo y esfuerzo gasta dinero de la clave de CI. Una
 # sola orden mide un modelo nuevo:
@@ -78,8 +86,9 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # job en rojo; sí lo pone un instrumento que no midió lo pedido (la API rechaza
 # casos, o el modelo o el esfuerzo pedidos no viajan en la petición).
 on:
-  push:
-    branches: [main]
+  # Una vez al día. `schedule` solo corre desde la rama por defecto (`main`).
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch:
     inputs:
       banco_modelos:
@@ -104,7 +113,7 @@ permissions:
   contents: read
 
 # Cada ejecución del banco va en su propio grupo: si compartiera el de la
-# vigilancia, una fusión a main que llegara mientras el banco espera turno lo
+# vigilancia, la ejecución diaria que llegara mientras el banco espera turno lo
 # sustituiría en la cola y la medición se cancelaría sin aviso.
 concurrency:
   group: integraciones-con-clave-${{ github.ref }}-${{ inputs.banco_modelos != '' && github.run_id || 'vigilancia' }}
@@ -118,9 +127,13 @@ jobs:
   regresion-prompts-ia:
     name: Regresión de prompts de IA (Anthropic, clave de CI)
     # Una ejecución lanzada para el banco de modelos solo mide el banco.
-    if: github.event_name == 'push' || inputs.banco_modelos == ''
+    if: github.event_name == 'schedule' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Para `aviso-sin-clave`: 'true' o 'false' según llegue la clave. Vacío si el
+    # job no llegó a medirla (y entonces no se cierra ninguna issue).
+    outputs:
+      hay_clave: ${{ steps.clave.outputs.hay_clave }}
     permissions:
       contents: read
       packages: read
@@ -170,12 +183,8 @@ jobs:
               echo ""
               echo "**Solución:** crear el secreto \`CI_ANTHROPIC_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
-            # En `push` a main la ausencia del secreto es un rojo; en el resto, un aviso
+            # Aviso y no rojo: la señal duradera es la issue de `aviso-sin-clave`
             # (ver «SIN CLAVE» en la cabecera).
-            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
-              echo "::error title=Falta el secreto CI_ANTHROPIC_API_KEY::La regresión de prompts de IA NO se ha ejecutado en main. Solución: crear el secreto CI_ANTHROPIC_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
-              exit 1
-            fi
             exit 0
           fi
           # Una clave de administración de Anthropic puede crear y borrar claves
@@ -400,10 +409,12 @@ jobs:
   stripe-modo-prueba:
     name: Stripe en modo prueba (clave de CI)
     # Una ejecución lanzada para el banco de modelos solo mide el banco.
-    if: github.event_name == 'push' || inputs.banco_modelos == ''
+    if: github.event_name == 'schedule' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ci-integraciones
+    outputs:
+      hay_clave: ${{ steps.clave.outputs.hay_clave }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -425,12 +436,8 @@ jobs:
               echo ""
               echo "**Solución:** crear el secreto \`CI_STRIPE_TEST_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
-            # En `push` a main la ausencia del secreto es un rojo; en el resto, un aviso
+            # Aviso y no rojo: la señal duradera es la issue de `aviso-sin-clave`
             # (ver «SIN CLAVE» en la cabecera).
-            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
-              echo "::error title=Falta el secreto CI_STRIPE_TEST_API_KEY::Los tests de Stripe contra la API real NO se han ejecutado en main. Solución: crear el secreto CI_STRIPE_TEST_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
-              exit 1
-            fi
             exit 0
           fi
           # Rechazo de producción ANTES de que ningún paso posterior use la clave.
@@ -488,3 +495,52 @@ jobs:
             exit 1
           fi
           echo "### ✅ Stripe en modo prueba — 2 tests de la API real ejecutados y pasados" >> "$GITHUB_STEP_SUMMARY"
+
+  # Issue única «Integraciones con clave sin ejecutar» (ver «SIN CLAVE» en la
+  # cabecera; reglas y pruebas en .github/vigilancia/integraciones-sin-clave.js).
+  # NO declara el environment ni lee ningún secreto: solo recibe de los dos jobs
+  # anteriores si su clave llegó ('true'/'false'). Por eso su texto no nombra
+  # los secretos (scripts/verificar-secretos-de-ci.sh exigiría el environment a
+  # cualquier job que los cite): los nombres viven en el módulo.
+  aviso-sin-clave:
+    name: Aviso de integraciones sin clave (issue única)
+    needs: [regresion-prompts-ia, stripe-modo-prueba]
+    # `always()`: también cuando uno de los dos falla con clave; el módulo no
+    # cierra nada si algún job no llegó a medir su clave. Solo sobre `main`, en
+    # la ejecución diaria o en una manual sin banco.
+    if: >-
+      always() && github.ref == 'refs/heads/main'
+      && (github.event_name == 'schedule' || inputs.banco_modelos == '')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Abrir, actualizar o cerrar la issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          MEDIDA_ANTHROPIC: ${{ needs.regresion-prompts-ia.outputs.hay_clave }}
+          MEDIDA_STRIPE: ${{ needs.stripe-modo-prueba.outputs.hay_clave }}
+          URL_EJECUCION: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const path = require('path');
+            const s = require(path.join(process.env.GITHUB_WORKSPACE, '.github/vigilancia/integraciones-sin-clave.js'));
+            const { owner, repo } = context.repo;
+            const fecha = new Date().toISOString().slice(0, 10);
+            const medidas = { anthropic: process.env.MEDIDA_ANTHROPIC, stripe: process.env.MEDIDA_STRIPE };
+            const existentes = await s.listarExistentes({ github, owner, repo });
+            const plan = s.planificar({ existentes, medidas, fecha, urlEjecucion: process.env.URL_EJECUCION });
+            const numero = await s.aplicar({ github, owner, repo, plan, fecha });
+            const faltan = plan.faltan.map((i) => i.secreto).join(', ') || 'ninguno';
+            const sinMedir = plan.sinMedir.map((i) => i.job).join(', ') || 'ninguno';
+            core.summary
+              .addHeading('Integraciones con clave: aviso', 3)
+              .addRaw(`Secretos ausentes: ${faltan}. Jobs sin medir: ${sinMedir}. Issue: ${plan.accion}${numero ? ` (#${numero})` : ''}.`, true);
+            await core.summary.write();
+            if (plan.faltan.length > 0) core.warning(`Faltan secretos de CI (${faltan}): issue ${plan.accion}${numero ? ` #${numero}` : ''}.`);
