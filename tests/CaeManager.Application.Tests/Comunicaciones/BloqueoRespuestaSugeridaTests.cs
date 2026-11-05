@@ -606,13 +606,161 @@ public class BloqueoRespuestaSugeridaTests
         sinVer.EsExitoso.Should().BeTrue();
     }
 
+    private const string CuerpoSinRelacion = "<p>Cuerpo sin relación alguna con ninguna sugerencia.</p>";
+
+    private Task<Result> PorBuzon(ConexionIntegracion conexion, string cuerpo, IAlcanceDatosService? alcance = null) =>
+        _comunicaciones.ComprobarEnvioPorBuzonAsync(alcance ?? new AlcanceDatosServiceFalso(), conexion.Id, cuerpo, CancellationToken.None);
+
+    [Theory]
+    [InlineData(EstadoRespuestaSugerida.Propuesta)]
+    [InlineData(EstadoRespuestaSugerida.SinRevisar)]
+    public async Task Por_buzon_copiar_la_sugerencia_y_anadir_una_firma_no_elude_el_bloqueo(EstadoRespuestaSugerida estado)
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), estado);
+
+        (await EnviarNuevo(conexion, TextoSugerido + "<p>Un saludo, Marta</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        _graph.VecesEnviado.Should().Be(0);
+        (await PorBuzon(conexion, "<p>Buenos días.</p>" + TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await PorBuzon(conexion, "Hola. Estimada Ana: Ya hemos recibido su documentación. Un saludo."))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
     [Fact]
-    public async Task Por_buzon_solo_se_compara_el_hash_y_un_texto_contenido_no_bloquea()
+    public async Task Por_buzon_la_misma_sugerencia_revisada_no_bloquea_ni_con_firma()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+
+        (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo, Marta</p>")).EsExitoso.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(EstadoRespuestaSugerida.Propuesta)]
+    [InlineData(EstadoRespuestaSugerida.Descartada)]
+    public async Task Por_buzon_confirmar_ese_texto_para_ese_mensaje_desbloquea_tambien_con_firma(EstadoRespuestaSugerida estado)
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var entrante = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, estado, origen: entrante);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
+
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Por_buzon_la_descartada_del_ultimo_entrante_con_firma_bloquea_y_la_de_uno_anterior_no()
+    {
+        var conexion = Buzon();
+        var conversacion = HiloDeCorreo(conexion);
+        var anterior = EntranteDePersona(conversacion);
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: anterior);
+        var ultimo = EntranteDePersona(conversacion);
+
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: ultimo);
+
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Fact]
+    public async Task Por_buzon_el_texto_contenido_de_un_hilo_que_quien_envia_no_ve_no_bloquea_ni_delata()
+    {
+        var conexion = Buzon();
+        var ajeno = HiloDeCorreo(conexion);
+        Sugerencia(ajeno, EstadoRespuestaSugerida.Propuesta);
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+        var sinVer = new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
+
+        (await PorBuzon(conexion, cuerpo, sinVer)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, cuerpo)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>La visibilidad se decide hilo a hilo: lo que hay en un hilo ajeno ni bloquea ni desbloquea el visible.</summary>
+    [Fact]
+    public async Task Por_buzon_un_hilo_ajeno_no_desbloquea_ni_bloquea_al_visible()
+    {
+        var conexion = Buzon();
+        var visible = HiloDeCorreo(conexion);
+        var ajeno = HiloDeCorreo(conexion);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [visible.ClienteId!.Value]);
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+        var origen = Guid.NewGuid();
+
+        Sugerencia(ajeno, EstadoRespuestaSugerida.Propuesta, origen: origen);
+        (await PorBuzon(conexion, cuerpo, alcance)).EsExitoso.Should().BeTrue();
+
+        Sugerencia(visible, EstadoRespuestaSugerida.Propuesta, origen: origen);
+        Sugerencia(ajeno, EstadoRespuestaSugerida.Revisada, origen: origen);
+        (await PorBuzon(conexion, cuerpo, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    [Theory]
+    [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido - 1, true)]
+    [InlineData(BloqueoRespuestaSugerida.LongitudMinimaTextoContenido, false)]
+    public async Task Por_buzon_un_texto_corto_solo_bloquea_por_igualdad(int longitud, bool sale)
+    {
+        var conexion = Buzon();
+        var texto = new string('a', longitud);
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, texto);
+
+        (await PorBuzon(conexion, texto + " Un saludo")).EsExitoso.Should().Be(sale);
+        (await PorBuzon(conexion, texto)).EsExitoso.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Por_buzon_un_texto_escrito_a_mano_o_una_edicion_por_dentro_si_sale()
     {
         var conexion = Buzon();
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
 
-        (await EnviarNuevo(conexion, TextoSugerido + "<p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, EscritoAMano)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>")).EsExitoso.Should().BeTrue();
+    }
+
+    /// <summary>La coincidencia en un lote que no es el primero también se detecta: los textos se leen por lotes.</summary>
+    [Fact]
+    public async Task Por_buzon_con_muchas_sugerencias_detecta_la_coincidencia_en_cualquier_lote()
+    {
+        var conexion = Buzon();
+        for (var i = 0; i < 120; i++)
+            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+
+        (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>Con el tope alcanzado no se compara a medias: ni se deja pasar ni se confunde con una sugerencia sin revisar.</summary>
+    [Fact]
+    public async Task Por_buzon_con_el_tope_superado_falla_en_cerrado()
+    {
+        var conexion = Buzon();
+        for (var i = 0; i < BloqueoRespuestaSugerida.TopeSugerenciasPorBuzon + 1; i++)
+            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
+
+        var resultado = await PorBuzon(conexion, CuerpoSinRelacion);
+
+        resultado.Error.Should().Be(BloqueoRespuestaSugerida.DemasiadasSugerenciasEnElBuzon);
+        (await EnviarNuevo(conexion, CuerpoSinRelacion)).Error.Should().Be(BloqueoRespuestaSugerida.DemasiadasSugerenciasEnElBuzon);
+        _graph.VecesEnviado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Por_buzon_con_justo_el_tope_compara_con_normalidad()
+    {
+        var conexion = Buzon();
+        for (var i = 0; i < BloqueoRespuestaSugerida.TopeSugerenciasPorBuzon; i++)
+            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
+
+        (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, "<p>Sugerencia número 7 sin parecido alguno.</p><p>Un saludo</p>"))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
     [Fact]

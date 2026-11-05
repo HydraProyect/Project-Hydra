@@ -220,7 +220,7 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task El_bloqueo_compara_en_SQL_por_hash_tambien_por_buzon_y_con_el_texto_descartado()
+    public async Task El_bloqueo_compara_tambien_por_buzon_y_con_el_texto_descartado()
     {
         var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón</p>");
         await using (var runtime = CrearRuntime())
@@ -254,6 +254,23 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
 
         await using var despues = CrearRuntime();
         (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Texto descartado", CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Por buzón el texto contenido también bloquea: copiar la propuesta y añadir una firma cambia el hash, y la comparación
+    /// por contención se hace en memoria sobre las candidatas que devuelve SQL. Un texto sin relación sigue saliendo.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_la_propuesta_con_una_firma_anadida_bloquea_y_un_texto_distinto_no()
+    {
+        var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón con la documentación.</p>");
+        await using var runtime = CrearRuntime();
+
+        (await runtime.ComprobarEnvioPorBuzonAsync(
+                Alcance(runtime), conexion, "<p>Texto del buzón con la documentación.</p><p>Un saludo, Marta</p>", CancellationToken.None))
+            .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Otro texto distinto del anterior", CancellationToken.None))
             .EsExitoso.Should().BeTrue();
     }
 

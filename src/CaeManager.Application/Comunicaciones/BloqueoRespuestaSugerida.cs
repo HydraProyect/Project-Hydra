@@ -19,8 +19,26 @@ public static class BloqueoRespuestaSugerida
     /// </summary>
     public const int LongitudMinimaTextoContenido = 12;
 
+    /// <summary>
+    /// Tope de sugerencias candidatas que <see cref="ComprobarEnvioPorBuzonAsync"/> acepta comparar. Las activas son como
+    /// mucho una por hilo (índice único parcial) y las demás solo cuentan si contestan al último entrante, así que el
+    /// número crece con los hilos de un buzón que alguien dejó con una sugerencia a medias, no con su historial: 500 está
+    /// muy por encima de un buzón de piloto. La consulta que lo aplica no trae el texto (unos cientos de bytes por fila).
+    /// </summary>
+    public const int TopeSugerenciasPorBuzon = 500;
+
+    /// <summary>
+    /// Sugerencias cuyos textos se tienen a la vez en memoria al comparar por buzón: un texto admite hasta 1 MiB, y sin lote
+    /// el peor caso del tope sería de cientos de MiB.
+    /// </summary>
+    private const int LoteTextosPorBuzon = 50;
+
     public static readonly Error SugerenciaSinRevisar = Error.Crear(
         "Respuesta.SugerenciaSinRevisar", "Revisa la respuesta sugerida antes de enviar: confírmala, edítala o descártala.");
+
+    public static readonly Error DemasiadasSugerenciasEnElBuzon = Error.Crear(
+        "Respuesta.DemasiadasSugerenciasEnElBuzon",
+        "Este buzón tiene demasiadas respuestas sugeridas pendientes para comprobar el envío. Descarta las que ya no uses e inténtalo de nuevo.");
 
     /// <summary>
     /// Falla si la conversación tiene una sugerencia en <see cref="EstadoRespuestaSugerida.SinRevisar"/>, o si
@@ -61,18 +79,33 @@ public static class BloqueoRespuestaSugerida
     /// <summary>
     /// Para un mensaje nuevo: el proveedor decide después de enviarlo si cae en un hilo ya existente, y solo puede ser un
     /// hilo de este buzón. Antes de enviar no se sabe cuál, así que se aplican a los hilos del buzón las mismas reglas que a
-    /// una conversación, pero en SQL y solo por hash: un texto contenido no se detecta aquí, porque exigiría descargar los
-    /// textos de todo el buzón. Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese
-    /// texto existe.
+    /// una conversación y la misma coincidencia que en <see cref="ComprobarEnvioAsync"/>: el mismo texto o un cuerpo que lo
+    /// contiene entero (misma normalización, mismo umbral <see cref="LongitudMinimaTextoContenido"/>), de modo que añadir una
+    /// firma o un saludo tampoco eluda el bloqueo. Una diferencia con la conversación: allí cualquier sugerencia
+    /// <see cref="EstadoRespuestaSugerida.SinRevisar"/> bloquea el hilo entero; aquí solo bloquea la que coincide con el
+    /// cuerpo, porque no se sabe en qué hilo caerá y una sola sin revisar frenaría todo el buzón.
+    ///
+    /// <para>
+    /// Cómo: una consulta ligera, sin el texto, trae las sugerencias candidatas de los hilos del buzón (las del
+    /// <see cref="EstadoRespuestaSugerida.Propuesta"/> y <see cref="EstadoRespuestaSugerida.SinRevisar"/> de cualquier edad,
+    /// más las que contestan al último entrante de su hilo, que es lo que aplica una conversación). Los textos de las que
+    /// no están revisadas se descargan por lotes de <see cref="LoteTextosPorBuzon"/> y se descartan tras compararlos, para que la
+    /// memoria no crezca con el buzón. Si hay más de <see cref="TopeSugerenciasPorBuzon"/> candidatas no se compara a medias:
+    /// falla en cerrado con <see cref="DemasiadasSugerenciasEnElBuzon"/>.
+    /// </para>
+    ///
+    /// <para>
+    /// Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese texto existe. Una
+    /// sugerencia de un hilo no visible no bloquea ni desbloquea. El tope sí se aplica antes de mirar la visibilidad, por lo
+    /// que lo puede alcanzar un buzón con muchos hilos ajenos; el error no revela ningún texto ni hilo.
+    /// </para>
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
         this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, string cuerpo,
         CancellationToken cancellationToken)
     {
-        var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
-        var coincidencias = await (
+        var candidatas = await (
             from respuesta in comunicaciones.RespuestasSugeridas
-            where respuesta.TextoHash == hash
             join conversacion in comunicaciones.Conversaciones on respuesta.ConversacionId equals conversacion.Id
             where conversacion.ConexionIntegracionId == conexionIntegracionId
             let ultimoEntrante = comunicaciones.Mensajes
@@ -82,17 +115,49 @@ public static class BloqueoRespuestaSugerida
                 .FirstOrDefault()
             where respuesta.Estado == EstadoRespuestaSugerida.Propuesta || respuesta.Estado == EstadoRespuestaSugerida.SinRevisar ||
                   respuesta.MensajeOrigenId == ultimoEntrante
-            select new { Conversacion = conversacion, respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash })
+            orderby respuesta.Id
+            select new CandidataDeBuzon(
+                respuesta.Id, conversacion.Id, respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
+            .Take(TopeSugerenciasPorBuzon + 1)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        foreach (var hilo in coincidencias.GroupBy(c => c.Conversacion.Id))
-        {
-            var sugerencias = hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash)).ToList();
-            var bloquea = sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar) ||
-                          HayCoincidenciaSinRevisar(sugerencias, _ => true);
+        if (candidatas.Count > TopeSugerenciasPorBuzon)
+            return Result.Fallo(DemasiadasSugerenciasEnElBuzon);
 
-            if (bloquea && await alcanceDatos.ConversacionVisibleAsync(hilo.First().Conversacion, cancellationToken))
+        var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
+        var coinciden = candidatas.Where(c => c.TextoHash == hash).Select(c => c.Id).ToHashSet();
+        var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
+
+        // Una Revisada solo desbloquea a las demás: su texto no hace falta para decidir si coincide.
+        var porComparar = candidatas.Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && !coinciden.Contains(c.Id)).ToList();
+        foreach (var lote in porComparar.Chunk(LoteTextosPorBuzon))
+        {
+            var ids = lote.Select(c => c.Id).ToList();
+            var textos = await comunicaciones.RespuestasSugeridas
+                .Where(r => ids.Contains(r.Id))
+                .Select(r => new { r.Id, r.Texto })
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            foreach (var texto in textos.Where(t => ContieneElTexto(cuerpoNormalizado, t.Texto)))
+                coinciden.Add(texto.Id);
+        }
+
+        foreach (var hilo in candidatas.GroupBy(c => c.ConversacionId))
+        {
+            var sugerencias = hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList();
+            var bloquea = sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar && coinciden.Contains(r.Id)) ||
+                          HayCoincidenciaSinRevisar(sugerencias, r => coinciden.Contains(r.Id));
+
+            // Solo los hilos que bloquean pagan la lectura del hilo y la comprobación de alcance.
+            if (!bloquea)
+                continue;
+
+            var conversacion = await comunicaciones.Conversaciones
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == hilo.Key, cancellationToken);
+            if (conversacion is not null && await alcanceDatos.ConversacionVisibleAsync(conversacion, cancellationToken))
                 return Result.Fallo(SugerenciaSinRevisar);
         }
 
@@ -115,5 +180,8 @@ public static class BloqueoRespuestaSugerida
     }
 
     private sealed record SugerenciaComparable(
-        EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash, string? Texto = null);
+        EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash, string? Texto = null, Guid Id = default);
+
+    private sealed record CandidataDeBuzon(
+        Guid Id, Guid ConversacionId, EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash);
 }
