@@ -8,6 +8,7 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Xunit;
 
@@ -24,6 +25,9 @@ public class ModeloProductoContratadoTests
     private const string Migracion = "20261109150000_AnadeProductosContratados.cs";
 
     private static readonly IModel Modelo = CrearContextoSinConexion().Model;
+
+    /// <summary>Los CHECK solo constan en el modelo de diseño, no en el optimizado para leer.</summary>
+    private static readonly IModel ModeloDiseno = CrearContextoSinConexion().GetService<IDesignTimeModel>().Model;
 
     [Fact]
     public void Es_una_entidad_del_Tenant_beneficiario_con_filtro_de_Tenant()
@@ -74,7 +78,7 @@ public class ModeloProductoContratadoTests
     [InlineData("CK_ProductosContratados_Estado", typeof(EstadoProductoContratado), "Estado")]
     public void Cada_enumeracion_tiene_un_CHECK_con_todos_sus_nombres_y_la_migracion_lo_crea(string restriccion, Type enumeracion, string columna)
     {
-        var check = Modelo.FindEntityType(typeof(ProductoContratado))!.GetCheckConstraints()
+        var check = ModeloDiseno.FindEntityType(typeof(ProductoContratado))!.GetCheckConstraints()
             .Should().ContainSingle(c => c.ModelName == restriccion).Subject;
 
         var esperado = $"\"{columna}\" IN ({string.Join(", ", Enum.GetNames(enumeracion).Select(n => $"'{n}'"))})";
@@ -85,7 +89,7 @@ public class ModeloProductoContratadoTests
     [Fact]
     public void La_base_ata_el_estado_a_la_vigencia()
     {
-        var check = Modelo.FindEntityType(typeof(ProductoContratado))!.GetCheckConstraints()
+        var check = ModeloDiseno.FindEntityType(typeof(ProductoContratado))!.GetCheckConstraints()
             .Should().ContainSingle(c => c.ModelName == "CK_ProductosContratados_EstadoYVigencia").Subject;
 
         check.Sql.Should().Contain("'Vigente' AND \"VigenteHastaUtc\" IS NULL")
