@@ -48,18 +48,31 @@ function evaluar(medidas) {
   return { faltan, sinMedir };
 }
 
-function cuerpo({ faltan, fecha, urlEjecucion }) {
-  const filas = faltan.map((i) => `| \`${i.secreto}\` | ${i.job} |`).join('\n');
-  const url = /^https:\/\/[^\s<>()"'`]+$/.test(String(urlEjecucion || '')) ? urlEjecucion : '';
+function urlSegura(url) {
+  return /^https:\/\/[^\s<>()"'`]+$/.test(String(url || '')) ? url : '';
+}
+
+function enlaceEjecucion(url) {
+  const segura = urlSegura(url);
+  return segura ? ` ([ejecución](${segura}))` : '';
+}
+
+// Cuerpo ESTABLE: sin fecha ni URL de la ejecución, para que la issue solo se edite
+// cuando cambia el estado de algún secreto (la fecha y el enlace van en comentarios).
+// Un secreto que esta ejecución no llegó a medir se declara «sin medir», no se borra:
+// no haber mirado no es haber comprobado que ya está.
+function cuerpo({ faltan, sinMedir = [] }) {
+  const filas = [
+    ...faltan.map((i) => `| \`${i.secreto}\` | falta | ${i.job} |`),
+    ...sinMedir.map((i) => `| \`${i.secreto}\` | sin medir en la última ejecución (el job no llegó a comprobarlo) | ${i.job} |`),
+  ].join('\n');
   return [
     MARCADOR,
     'Los tests de integración con clave real **no se están ejecutando**: falta al menos un secreto en el environment `ci-integraciones`.',
     '',
-    '| Secreto que falta | Tests que no corren |',
-    '| --- | --- |',
+    '| Secreto | Estado | Tests afectados |',
+    '| --- | --- | --- |',
     filas,
-    '',
-    `Última comprobación: ${fecha}${url ? ` ([ejecución](${url}))` : ''}.`,
     '',
     '**Solución:** crear el secreto en Settings → Environments → `ci-integraciones` (solo el propietario). Relanzar el workflow no lo arregla.',
     '',
@@ -68,7 +81,7 @@ function cuerpo({ faltan, fecha, urlEjecucion }) {
 }
 
 // existentes: issues con la etiqueta (abiertas y cerradas): { number, state, state_reason, title, body }.
-function planificar({ existentes, medidas, fecha, urlEjecucion }) {
+function planificar({ existentes, medidas }) {
   const { faltan, sinMedir } = evaluar(medidas);
   const propias = existentes.filter((i) => String(i.body || '').includes(MARCADOR));
   const abiertas = propias.filter((i) => i.state === 'open').sort((a, b) => a.number - b.number);
@@ -76,15 +89,18 @@ function planificar({ existentes, medidas, fecha, urlEjecucion }) {
   const plan = { accion: 'nada', number: null, titulo: TITULO, cuerpo: null, duplicadas: [], faltan, sinMedir };
 
   if (faltan.length > 0) {
-    plan.cuerpo = cuerpo({ faltan, fecha, urlEjecucion });
+    plan.cuerpo = cuerpo({ faltan, sinMedir });
     if (abiertas.length > 0) {
       const [principal, ...sobrantes] = abiertas;
       plan.number = principal.number;
       plan.accion = principal.title !== TITULO || principal.body !== plan.cuerpo ? 'actualizar' : 'nada';
       plan.duplicadas = sobrantes.map((d) => ({ number: d.number, de: principal.number }));
     } else if (cerradas.length > 0) {
-      plan.number = cerradas[0].number;
-      plan.accion = cerradas[0].state_reason === 'not_planned' ? 'silenciada' : 'reabrir';
+      // Cualquiera cerrada a mano como «no planificada» silencia el aviso, aunque haya
+      // otra más reciente cerrada como duplicada («completada») por este mismo job.
+      const silenciada = cerradas.find((i) => i.state_reason === 'not_planned');
+      plan.number = silenciada ? silenciada.number : cerradas[0].number;
+      plan.accion = silenciada ? 'silenciada' : 'reabrir';
     } else {
       plan.accion = 'crear';
     }
@@ -121,26 +137,30 @@ async function asegurarEtiqueta({ github, owner, repo }) {
   }
 }
 
-async function aplicar({ github, owner, repo, plan, fecha }) {
+async function aplicar({ github, owner, repo, plan, fecha, urlEjecucion }) {
   const { accion, number, titulo } = plan;
+  const enlace = enlaceEjecucion(urlEjecucion);
   if (accion === 'crear') {
     await asegurarEtiqueta({ github, owner, repo });
     const r = await github.rest.issues.create({ owner, repo, title: titulo, body: plan.cuerpo, labels: [ETIQUETA] });
-    return r && r.data ? r.data.number : null;
+    const nuevo = r && r.data ? r.data.number : null;
+    if (nuevo) await github.rest.issues.createComment({ owner, repo, issue_number: nuevo, body: `Detectado el ${fecha}${enlace}.` });
+    return nuevo;
   }
   if (accion === 'actualizar') {
     await github.rest.issues.update({ owner, repo, issue_number: number, title: titulo, body: plan.cuerpo });
+    await github.rest.issues.createComment({ owner, repo, issue_number: number, body: `Cambia el estado de los secretos el ${fecha}${enlace}.` });
   }
   if (accion === 'reabrir') {
     await github.rest.issues.update({ owner, repo, issue_number: number, state: 'open', title: titulo, body: plan.cuerpo });
-    await github.rest.issues.createComment({ owner, repo, issue_number: number, body: `Vuelve a faltar un secreto el ${fecha}: se reabre.` });
+    await github.rest.issues.createComment({ owner, repo, issue_number: number, body: `Vuelve a faltar un secreto el ${fecha}${enlace}: se reabre.` });
   }
   if (accion === 'cerrar') {
     await github.rest.issues.createComment({
       owner,
       repo,
       issue_number: number,
-      body: `El ${fecha} las dos claves de CI llegaron a sus jobs: se cierra.`,
+      body: `El ${fecha} las dos claves de CI llegaron a sus jobs${enlace}: se cierra.`,
     });
     await github.rest.issues.update({ owner, repo, issue_number: number, state: 'closed', state_reason: 'completed' });
   }

@@ -535,8 +535,8 @@ jobs:
             const fecha = new Date().toISOString().slice(0, 10);
             const medidas = { anthropic: process.env.MEDIDA_ANTHROPIC, stripe: process.env.MEDIDA_STRIPE };
             const existentes = await s.listarExistentes({ github, owner, repo });
-            const plan = s.planificar({ existentes, medidas, fecha, urlEjecucion: process.env.URL_EJECUCION });
-            const numero = await s.aplicar({ github, owner, repo, plan, fecha });
+            const plan = s.planificar({ existentes, medidas });
+            const numero = await s.aplicar({ github, owner, repo, plan, fecha, urlEjecucion: process.env.URL_EJECUCION });
             const faltan = plan.faltan.map((i) => i.secreto).join(', ') || 'ninguno';
             const sinMedir = plan.sinMedir.map((i) => i.job).join(', ') || 'ninguno';
             core.summary
