@@ -1582,10 +1582,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<int>("OrigenTexto")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Remitente")
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
+
+                    b.Property<Guid?>("RespuestaSugeridaId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -1596,12 +1602,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("FechaUtc");
 
+                    b.HasIndex("RespuestaSugeridaId", "TenantId")
+                        .HasDatabaseName("IX_Mensajes_RespuestaSugeridaId_TenantId")
+                        .HasFilter("\"RespuestaSugeridaId\" IS NOT NULL");
+
                     b.HasIndex("TenantId", "ConversacionId");
 
                     b.HasIndex("TenantId", "MensajeExternoId")
                         .IsUnique();
 
-                    b.ToTable("Mensajes", (string)null);
+                    b.ToTable("Mensajes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Mensajes_OrigenTextoSegunSugerencia", "(\"OrigenTexto\" = 0 AND \"RespuestaSugeridaId\" IS NULL) OR (\"OrigenTexto\" IN (1, 2) AND \"RespuestaSugeridaId\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.NotaInternaConversacion", b =>

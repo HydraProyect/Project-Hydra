@@ -107,6 +107,7 @@ public class EnviarMensajeNuevoCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, conexion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
+        var origenTexto = bloqueo.Valor;
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
@@ -151,7 +152,8 @@ public class EnviarMensajeNuevoCommandHandler(
 
         var mensaje = conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, request.CuerpoHtml,
-            mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+            mensajeExternoId: envioResultado.Valor.MensajeExternoId,
+            origenTexto: origenTexto.Origen, respuestaSugeridaId: origenTexto.RespuestaSugeridaId);
         // Los destinatarios (Para) y las copias (Cc) son participantes del hilo igual: cambia solo el rol.
         foreach (var (destinatario, rol) in request.Destinatarios.Select(d => (d, RolParticipante.Para))
                      .Concat((request.Copia ?? []).Select(c => (c, RolParticipante.Cc))))

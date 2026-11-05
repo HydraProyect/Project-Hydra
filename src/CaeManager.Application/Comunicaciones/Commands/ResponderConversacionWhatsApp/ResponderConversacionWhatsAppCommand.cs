@@ -90,6 +90,7 @@ public class ResponderConversacionWhatsAppCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.Texto, cancellationToken);
         if (bloqueo.EsFallido)
             return bloqueo;
+        var origenTexto = bloqueo.Valor;
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.RespuestaWhatsApp, conexion.Id, [conversacion.TelefonoContacto], copia: null, adjuntos: null, cancellationToken);
 
@@ -99,7 +100,8 @@ public class ResponderConversacionWhatsAppCommandHandler(
             return Result.Fallo(envio.Error);
 
         var mensaje = conversacion.AgregarMensaje(
-            DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor);
+            DireccionMensaje.Saliente, conversacion.Canal, linea.NumeroTelefono, request.Texto, mensajeExternoId: envio.Valor,
+            origenTexto: origenTexto.Origen, respuestaSugeridaId: origenTexto.RespuestaSugeridaId);
         mensaje.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
 
         try

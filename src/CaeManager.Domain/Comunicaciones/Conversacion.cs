@@ -181,10 +181,12 @@ public class Conversacion : EntidadBase
     /// </summary>
     public Mensaje AgregarMensaje(
         DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
-        DateTime? fechaUtc = null, string? mensajeExternoId = null, bool esAutomatico = false)
+        DateTime? fechaUtc = null, string? mensajeExternoId = null, bool esAutomatico = false,
+        OrigenTextoMensaje origenTexto = OrigenTextoMensaje.Persona, Guid? respuestaSugeridaId = null)
     {
         var fecha = fechaUtc ?? DateTime.UtcNow;
-        var mensaje = new Mensaje(Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId, esAutomatico);
+        var mensaje = new Mensaje(
+            Id, direccion, canal, remitente, cuerpoHtml, fecha, mensajeExternoId, esAutomatico, origenTexto, respuestaSugeridaId);
         _mensajes.Add(mensaje);
 
         if (fecha > FechaUltimoMensajeUtc)

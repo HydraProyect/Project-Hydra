@@ -75,13 +75,14 @@ public class ResponderConversacionCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return bloqueo;
+        var origenTexto = bloqueo.Valor;
 
         Mensaje mensajeCreado;
         var huboEnvioReal = false;
 
         if (conversacion.ConexionIntegracionId is { } conexionId)
         {
-            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, request.Adjuntos, cancellationToken);
+            var envioResultado = await EnviarPorGraphAsync(conversacion, conexionId, request.CuerpoHtml, request.Adjuntos, origenTexto, cancellationToken);
             if (envioResultado.EsFallido)
                 return Result.Fallo(envioResultado.Error);
             mensajeCreado = envioResultado.Valor;
@@ -89,7 +90,9 @@ public class ResponderConversacionCommandHandler(
         }
         else if (opcionesRemitente.Value.PermitirRemitenteSimulado)
         {
-            mensajeCreado = conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, RemitenteSimuladoEmail, request.CuerpoHtml);
+            mensajeCreado = conversacion.AgregarMensaje(
+                DireccionMensaje.Saliente, conversacion.Canal, RemitenteSimuladoEmail, request.CuerpoHtml,
+                origenTexto: origenTexto.Origen, respuestaSugeridaId: origenTexto.RespuestaSugeridaId);
         }
         else
         {
@@ -133,7 +136,8 @@ public class ResponderConversacionCommandHandler(
     }
 
     private async Task<Result<Mensaje>> EnviarPorGraphAsync(
-        Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
+        Conversacion conversacion, Guid conexionId, string cuerpoHtml, IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos,
+        OrigenTextoEnvio origenTexto, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
         if (conexion is null || conexion.Estado != EstadoConexionIntegracion.Habilitada)
@@ -165,6 +169,8 @@ public class ResponderConversacionCommandHandler(
         // Sent Items no está en el recurso vigilado por la suscripción (solo
         // Inbox) — un mensaje Saliente propio nunca vuelve por webhook, así
         // que no necesita MensajeExternoId para idempotencia.
-        return Result.Exito(conversacion.AgregarMensaje(DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, cuerpoHtml));
+        return Result.Exito(conversacion.AgregarMensaje(
+            DireccionMensaje.Saliente, conversacion.Canal, conexion.BuzonEmail, cuerpoHtml,
+            origenTexto: origenTexto.Origen, respuestaSugeridaId: origenTexto.RespuestaSugeridaId));
     }
 }

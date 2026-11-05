@@ -8,7 +8,12 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
 {
     public void Configure(EntityTypeBuilder<Mensaje> builder)
     {
-        builder.ToTable("Mensajes");
+        // La misma invariante que el constructor de Mensaje, también en base: una fila que parte de una sugerencia revisada
+        // la nombra, y una de persona no (0 = Persona, 1 = MacroRevisada, 2 = IaRevisada).
+        builder.ToTable("Mensajes", t =>
+            t.HasCheckConstraint(
+                "CK_Mensajes_OrigenTextoSegunSugerencia",
+                "(\"OrigenTexto\" = 0 AND \"RespuestaSugeridaId\" IS NULL) OR (\"OrigenTexto\" IN (1, 2) AND \"RespuestaSugeridaId\" IS NOT NULL)"));
         builder.HasKey(m => m.Id);
 
         // El Id lo asigna el constructor de Entity, no la base, y aquí hay que
@@ -33,6 +38,13 @@ public class MensajeConfiguration : IEntityTypeConfiguration<Mensaje>
         builder.Property(m => m.CuerpoHtml).IsRequired();
         builder.Property(m => m.MensajeExternoId).HasMaxLength(Mensaje.LongitudMaximaMensajeExternoId);
         builder.Property(m => m.ErrorEntrega).HasMaxLength(Mensaje.LongitudMaximaErrorEntrega);
+
+        // Sin relación en el modelo a propósito, como RespuestaSugerida hacia Conversaciones y Mensajes: la FK compuesta con
+        // el Tenant hacia RespuestasSugeridas la crea en SQL la migración AnadeOrigenTextoMensaje. El índice parcial responde
+        // «qué mensajes partieron de esta sugerencia» sin recorrer los que escribió una persona.
+        builder.HasIndex(m => new { m.RespuestaSugeridaId, m.TenantId })
+            .HasFilter("\"RespuestaSugeridaId\" IS NOT NULL")
+            .HasDatabaseName("IX_Mensajes_RespuestaSugeridaId_TenantId");
 
         builder.HasIndex(m => m.ConversacionId);
         builder.HasIndex(m => m.FechaUtc);

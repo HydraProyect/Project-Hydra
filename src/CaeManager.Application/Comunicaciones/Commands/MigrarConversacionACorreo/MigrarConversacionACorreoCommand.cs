@@ -72,6 +72,7 @@ public class MigrarConversacionACorreoCommandHandler(
         var bloqueo = await comunicaciones.ComprobarEnvioAsync(conversacion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return bloqueo;
+        var origenTexto = bloqueo.Valor;
 
         // GestorPropietarioId != null excluido a propósito — ver el mismo
         // comentario en EnviarReclamacionCommand: un buzón personal también
@@ -111,7 +112,8 @@ public class MigrarConversacionACorreoCommandHandler(
 
         conversacion.AgregarMensaje(
             DireccionMensaje.Saliente, CanalConversacion.Correo, conexion.BuzonEmail, request.CuerpoHtml,
-            mensajeExternoId: envioResultado.Valor.MensajeExternoId);
+            mensajeExternoId: envioResultado.Valor.MensajeExternoId,
+            origenTexto: origenTexto.Origen, respuestaSugeridaId: origenTexto.RespuestaSugeridaId);
         var (tipoOrigen, entidadRelacionadaId) = await resolucionParticipante.ResolverAsync(
             request.EmailDestino, conversacion.ClienteId, cancellationToken);
         conversacion.AgregarParticipante(request.EmailDestino, RolParticipante.Para, tipoOrigen, entidadRelacionadaId);

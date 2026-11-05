@@ -332,6 +332,110 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("42501");
     }
 
+    /// <summary>Control positivo: el Mensaje saliente guarda el origen del texto y la sugerencia que nombra, bajo RLS.</summary>
+    [Fact]
+    public async Task Un_mensaje_saliente_persiste_el_origen_del_texto_y_la_sugerencia_que_nombra()
+    {
+        Guid mensajeId;
+        await using (var runtime = CrearRuntime())
+        {
+            var mensaje = new Mensaje(
+                _conversacionPropia, DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@example.test", "<p>Borrador</p>", DateTime.UtcNow,
+                origenTexto: OrigenTextoMensaje.IaRevisada, respuestaSugeridaId: _sugerenciaPropia);
+            runtime.Mensajes.Add(mensaje);
+            await runtime.SaveChangesAsync();
+            mensajeId = mensaje.Id;
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var fila = await comprobacion.Mensajes.IgnoreQueryFilters().SingleAsync(m => m.Id == mensajeId);
+        fila.OrigenTexto.Should().Be(OrigenTextoMensaje.IaRevisada);
+        fila.RespuestaSugeridaId.Should().Be(_sugerenciaPropia);
+        (await comprobacion.Mensajes.IgnoreQueryFilters().SingleAsync(m => m.Id == _mensajePropio))
+            .OrigenTexto.Should().Be(OrigenTextoMensaje.Persona, "una fila sin la marca nace como escrita por una persona");
+    }
+
+    /// <summary>La base sostiene la invariante del dominio: ninguna escritura directa la salta.</summary>
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    public async Task La_base_rechaza_un_origen_incoherente_con_la_sugerencia(int origen, bool conSugerencia)
+    {
+        await using var runtime = CrearRuntime();
+        Guid? sugerenciaId = conSugerencia ? _sugerenciaPropia : null;
+
+        var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Mensajes" SET "OrigenTexto" = {origen}, "RespuestaSugeridaId" = {sugerenciaId} WHERE "Id" = {_mensajePropio}"""));
+
+        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("23514", "CK_Mensajes_OrigenTextoSegunSugerencia");
+    }
+
+    /// <summary>La FK es compuesta con el Tenant: un mensaje no puede nombrar la sugerencia de otro Tenant.</summary>
+    [Fact]
+    public async Task La_base_rechaza_nombrar_la_sugerencia_de_otro_Tenant_y_admite_la_propia()
+    {
+        await using (var runtime = CrearRuntime())
+        {
+            var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Mensajes" SET "OrigenTexto" = 2, "RespuestaSugeridaId" = {_sugerenciaAjena} WHERE "Id" = {_mensajePropio}"""));
+
+            excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("23503", "FK_Mensajes_RespuestasSugeridas_Tenant");
+        }
+
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Mensajes" SET "OrigenTexto" = 2, "RespuestaSugeridaId" = {_sugerenciaPropia} WHERE "Id" = {_mensajePropio}"""))
+                .Should().Be(1, "control positivo: la misma orden con la sugerencia del propio Tenant sí entra");
+        }
+    }
+
+    /// <summary>
+    /// Traduce a SQL la elección del origen: por conversación (último entrante) y por buzón (hash, hilos visibles) desde la
+    /// sugerencia que una persona revisó, y Persona cuando el texto no es el de ninguna.
+    /// </summary>
+    [Fact]
+    public async Task El_origen_del_envio_sale_de_la_sugerencia_revisada_por_conversacion_y_por_buzon()
+    {
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.ComprobarEnvioAsync(_conversacionPropia, "Escrito a mano", CancellationToken.None))
+                .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar, "control: sin revisar sigue bloqueando");
+            (await Resolver(runtime).Handle(new ResolverRespuestaSugeridaCommand(_sugerenciaPropia, AccionRespuestaSugerida.Confirmar), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using (var runtime = CrearRuntime())
+        {
+            (await runtime.ComprobarEnvioAsync(_conversacionPropia, "<p>Borrador</p>", CancellationToken.None)).Valor
+                .Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.IaRevisada, _sugerenciaPropia));
+            (await runtime.ComprobarEnvioAsync(_conversacionPropia, "Escrito a mano", CancellationToken.None)).Valor
+                .Should().Be(OrigenTextoEnvio.DePersona);
+        }
+
+        var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón</p>");
+        Guid sugerenciaDelBuzon;
+        await using (var comprobacion = CrearPropietarioLimpio())
+        {
+            var conversacionDelBuzon = await ConversacionDelBuzonAsync(conexion);
+            sugerenciaDelBuzon = await comprobacion.RespuestasSugeridas.IgnoreQueryFilters()
+                .Where(r => r.ConversacionId == conversacionDelBuzon).Select(r => r.Id).SingleAsync();
+        }
+
+        foreach (var accion in new[] { AccionRespuestaSugerida.Insertar, AccionRespuestaSugerida.Confirmar })
+        {
+            await using var runtime = CrearRuntime();
+            (await Resolver(runtime).Handle(new ResolverRespuestaSugeridaCommand(sugerenciaDelBuzon, accion), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using var despues = CrearRuntime();
+        (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Texto del buzón", CancellationToken.None)).Valor
+            .Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.IaRevisada, sugerenciaDelBuzon));
+        (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Otro texto", CancellationToken.None)).Valor
+            .Should().Be(OrigenTextoEnvio.DePersona);
+    }
     private async Task DescartarLaSembradaAsync()
     {
         await using var runtime = CrearRuntime();

@@ -30,7 +30,9 @@ public enum EstadoRespuestaSugerida
 /// Texto propuesto para contestar al último entrante de una conversación: una macro rellenada o una redacción de Vega.
 /// Nunca se envía sola y no se puede enviar por error: una persona revisa y envía siempre. Quien impide el envío en
 /// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/>, <see cref="TextoHash"/> y, dentro de una
-/// conversación, <see cref="Texto"/>.
+/// conversación, <see cref="Texto"/>. El Mensaje saliente que parte de una sugerencia revisada guarda su Id y
+/// <see cref="OrigenTextoMensaje.IaRevisada"/> (si el <see cref="Origen"/> es Vega) o <see cref="OrigenTextoMensaje.MacroRevisada"/>,
+/// para poder demostrar después qué contenido saliente nació de la IA.
 ///
 /// <para>
 /// Vive en el Tenant propietario de la conversación. Sin navegación desde <see cref="Conversacion"/>, como

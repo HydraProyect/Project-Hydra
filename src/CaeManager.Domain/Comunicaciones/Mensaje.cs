@@ -53,6 +53,21 @@ public class Mensaje : EntidadConTenant
     /// como respuesta de una persona.
     /// </summary>
     public bool EsAutomatico { get; private set; }
+
+    /// <summary>
+    /// De dónde partió el texto: <see cref="OrigenTextoMensaje.Persona"/> por defecto (entrantes, filas anteriores a la
+    /// marca y salientes automáticos), o la macro o la redacción de Vega que una persona revisó antes de enviar. Lo fija
+    /// el servidor desde la <see cref="RespuestaSugerida"/> persistida, nunca un valor del cliente.
+    /// </summary>
+    public OrigenTextoMensaje OrigenTexto { get; private set; }
+
+    /// <summary>
+    /// La sugerencia revisada de la que partió el texto. Obligatoria con <see cref="OrigenTextoMensaje.MacroRevisada"/> y
+    /// <see cref="OrigenTextoMensaje.IaRevisada"/>, nula con <see cref="OrigenTextoMensaje.Persona"/>. Sin navegación: la
+    /// integridad con la tabla de sugerencias la sostiene una FK compuesta con el Tenant creada en SQL por la migración.
+    /// </summary>
+    public Guid? RespuestaSugeridaId { get; private set; }
+
     public string? MensajeExternoId { get; private set; }
 
     /// <summary>Estado que reporta el webhook statuses[] de WhatsApp — solo mensajes salientes de ese canal; null en el resto.</summary>
@@ -69,7 +84,8 @@ public class Mensaje : EntidadConTenant
 
     public Mensaje(
         Guid conversacionId, DireccionMensaje direccion, CanalConversacion canal, string remitente, string cuerpoHtml,
-        DateTime fechaUtc, string? mensajeExternoId = null, bool esAutomatico = false)
+        DateTime fechaUtc, string? mensajeExternoId = null, bool esAutomatico = false,
+        OrigenTextoMensaje origenTexto = OrigenTextoMensaje.Persona, Guid? respuestaSugeridaId = null)
     {
         if (conversacionId == Guid.Empty)
             throw new ArgumentException("El mensaje debe pertenecer a una conversación.", nameof(conversacionId));
@@ -79,6 +95,7 @@ public class Mensaje : EntidadConTenant
             throw new ArgumentException("El mensaje no puede estar vacío.", nameof(cuerpoHtml));
         if (mensajeExternoId is not null && mensajeExternoId.Length > LongitudMaximaMensajeExternoId)
             throw new ArgumentException($"El Id externo no puede superar {LongitudMaximaMensajeExternoId} caracteres.", nameof(mensajeExternoId));
+        ValidarOrigenTexto(direccion, origenTexto, respuestaSugeridaId);
 
         ConversacionId = conversacionId;
         Direccion = direccion;
@@ -87,7 +104,33 @@ public class Mensaje : EntidadConTenant
         CuerpoHtml = cuerpoHtml.Length > LongitudMaximaCuerpoHtml ? cuerpoHtml[..LongitudMaximaCuerpoHtml] : cuerpoHtml;
         FechaUtc = fechaUtc;
         EsAutomatico = esAutomatico;
+        OrigenTexto = origenTexto;
+        RespuestaSugeridaId = respuestaSugeridaId;
         MensajeExternoId = mensajeExternoId;
+    }
+
+    /// <summary>
+    /// Una macro o una redacción de Vega revisadas exigen la sugerencia de la que parten, y un texto de persona no puede
+    /// nombrar ninguna. Solo un saliente nace de una sugerencia: la sugerencia contesta a un entrante.
+    /// </summary>
+    private static void ValidarOrigenTexto(DireccionMensaje direccion, OrigenTextoMensaje origenTexto, Guid? respuestaSugeridaId)
+    {
+        if (!Enum.IsDefined(origenTexto))
+            throw new ArgumentException("El origen del texto no es válido.", nameof(origenTexto));
+        if (respuestaSugeridaId == Guid.Empty)
+            throw new ArgumentException("La sugerencia de origen no puede ser un Id vacío.", nameof(respuestaSugeridaId));
+
+        if (origenTexto == OrigenTextoMensaje.Persona)
+        {
+            if (respuestaSugeridaId is not null)
+                throw new ArgumentException("Un texto escrito por una persona no puede nombrar una sugerencia.", nameof(respuestaSugeridaId));
+            return;
+        }
+
+        if (respuestaSugeridaId is null)
+            throw new ArgumentException("Un texto que parte de una sugerencia revisada debe nombrarla.", nameof(respuestaSugeridaId));
+        if (direccion != DireccionMensaje.Saliente)
+            throw new ArgumentException("Solo un mensaje saliente puede partir de una sugerencia.", nameof(origenTexto));
     }
 
     /// <summary>
