@@ -405,12 +405,17 @@ public class WebAppFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Da LOGIN al rol de runtime, una vez por proceso de test. El rol es un objeto de
-    /// clúster: dos <c>ALTER ROLE</c> simultáneos sobre la misma fila de <c>pg_authid</c>
-    /// fallan con «tuple concurrently updated», así que se serializa dentro del proceso
-    /// (semáforo) y entre procesos (bloqueo consultivo de transacción). Si el rol no
-    /// existe, el clúster no se preparó con <c>deploy/bootstrap/roles-de-cluster.sql</c>
-    /// y el arranque falla en voz alta: no se cae a la cadena propietaria.
+    /// Da LOGIN al rol de runtime, una vez por proceso de test, sin pisar nunca una
+    /// credencial ajena. El rol es un objeto de clúster, así que el cambio alcanza a
+    /// todas las bases del clúster: solo se hace sobre el estado que deja
+    /// <c>deploy/bootstrap/roles-de-cluster.sql</c> (<c>NOLOGIN</c>). Si el rol ya entra
+    /// con la contraseña de pruebas, no se toca. Si ya tiene LOGIN con otra contraseña,
+    /// el clúster no es uno de pruebas preparado así y el arranque falla sin
+    /// sobrescribirla (revisión de Codex en la PR #2032). Dos <c>ALTER ROLE</c>
+    /// simultáneos sobre la misma fila de <c>pg_authid</c> fallan con «tuple
+    /// concurrently updated», así que se serializa dentro del proceso (semáforo) y
+    /// entre procesos (bloqueo consultivo de transacción). Si el rol no existe, el
+    /// arranque falla en voz alta: no se cae a la cadena propietaria.
     /// </summary>
     private async Task DarLoginAlRolDeRuntimeAsync()
     {
@@ -419,19 +424,40 @@ public class WebAppFixture : IAsyncLifetime
         {
             if (_loginRuntimeConcedido) return;
 
+            if (await RuntimeEntraConLaContrasenaDePruebasAsync())
+            {
+                _loginRuntimeConcedido = true;
+                return;
+            }
+
             await using var conexion = new Npgsql.NpgsqlConnection(CadenaDeMantenimiento());
             await conexion.OpenAsync();
             await using var transaccion = await conexion.BeginTransactionAsync();
             await using (var bloqueo = new Npgsql.NpgsqlCommand($"SELECT pg_advisory_xact_lock({ClaveBloqueoAlterRole});", conexion, transaccion))
                 await bloqueo.ExecuteNonQueryAsync();
 
-            await using (var existe = new Npgsql.NpgsqlCommand("SELECT count(*) FROM pg_roles WHERE rolname = @rol;", conexion, transaccion))
+            await using (var estado = new Npgsql.NpgsqlCommand("SELECT rolcanlogin FROM pg_roles WHERE rolname = @rol;", conexion, transaccion))
             {
-                existe.Parameters.AddWithValue("rol", RolDeRuntime);
-                if ((long)(await existe.ExecuteScalarAsync())! != 1)
-                    throw new InvalidOperationException(
-                        $"El clúster de pruebas no tiene el rol {RolDeRuntime}: ejecuta deploy/bootstrap/roles-de-cluster.sql " +
-                        "con un superusuario antes de los E2E (ci.yml lo hace en «Bootstrap de roles de clúster»).");
+                estado.Parameters.AddWithValue("rol", RolDeRuntime);
+                switch (await estado.ExecuteScalarAsync())
+                {
+                    case null:
+                        throw new InvalidOperationException(
+                            $"El clúster de pruebas no tiene el rol {RolDeRuntime}: ejecuta deploy/bootstrap/roles-de-cluster.sql " +
+                            "con un superusuario antes de los E2E (ci.yml lo hace en «Bootstrap de roles de clúster»).");
+                    case true:
+                        // Comprobado bajo el bloqueo: otro proceso pudo concederlo mientras se esperaba.
+                        if (await RuntimeEntraConLaContrasenaDePruebasAsync())
+                        {
+                            _loginRuntimeConcedido = true;
+                            return;
+                        }
+
+                        throw new InvalidOperationException(
+                            $"El rol {RolDeRuntime} ya tiene LOGIN con otra contraseña en este clúster. La fixture no la " +
+                            "sobrescribe: apunta CAEMANAGER_TESTS_PG a un clúster de pruebas preparado con " +
+                            "deploy/bootstrap/roles-de-cluster.sql.");
+                }
             }
 
             await using (var alter = new Npgsql.NpgsqlCommand(
@@ -444,6 +470,27 @@ public class WebAppFixture : IAsyncLifetime
         finally
         {
             CandadoLoginRuntime.Release();
+        }
+    }
+
+    /// <summary>Si el rol de runtime ya abre sesión con la contraseña de pruebas (contra la base <c>postgres</c>).</summary>
+    private async Task<bool> RuntimeEntraConLaContrasenaDePruebasAsync()
+    {
+        var cadena = new Npgsql.NpgsqlConnectionStringBuilder(CadenaDeMantenimiento())
+        {
+            Username = RolDeRuntime,
+            Password = ContrasenaRuntimeDePruebas,
+        }.ConnectionString;
+        try
+        {
+            await using var conexion = new Npgsql.NpgsqlConnection(cadena);
+            await conexion.OpenAsync();
+            return true;
+        }
+        catch (Npgsql.PostgresException ex) when (ex.SqlState is "28P01" or "28000")
+        {
+            // 28P01: contraseña distinta; 28000: el rol no puede abrir sesión (NOLOGIN).
+            return false;
         }
     }
 
