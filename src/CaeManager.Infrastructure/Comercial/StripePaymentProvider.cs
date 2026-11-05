@@ -46,8 +46,9 @@ public class StripePaymentProvider(IOptions<StripeOptions> opciones, ILogger<Str
             // evento — es el patrón documentado por Stripe para no fiarse de
             // un payload cuya firma no se ha comprobado todavía.
             //
-            // throwOnApiVersionMismatch: false — Hydra solo lee id/customer/
-            // status de la Subscription embebida, campos estables entre
+            // throwOnApiVersionMismatch: false — Hydra solo lee el tipo y el
+            // id/customer/status de la Subscription embebida (y del estado
+            // aplica el que reporta ObtenerSuscripcionAsync, no este), campos estables entre
             // versiones de la API de Stripe desde hace años; no hay motivo
             // para tumbar el procesamiento de un webhook legítimo por un
             // desajuste de versión que no afecta a nada de lo que se lee
@@ -104,7 +105,10 @@ public class StripePaymentProvider(IOptions<StripeOptions> opciones, ILogger<Str
 
         try
         {
-            var servicio = new SubscriptionService(new StripeClient(config.ApiKey));
+            var cliente = ManejadorHttp is null
+                ? new StripeClient(config.ApiKey)
+                : new StripeClient(config.ApiKey, httpClient: new SystemNetHttpClient(new HttpClient(ManejadorHttp)));
+            var servicio = new SubscriptionService(cliente);
             var suscripcion = await servicio.GetAsync(idSuscripcion, cancellationToken: cancellationToken);
             return Result.Exito(AConDto(suscripcion));
         }
@@ -114,7 +118,18 @@ public class StripePaymentProvider(IOptions<StripeOptions> opciones, ILogger<Str
             return Result.Fallo<SuscripcionProveedorDto>(Error.Crear(
                 "PaymentProvider.ErrorApi", "No pudimos consultar esa suscripción en Stripe. Comprueba el Id e inténtalo de nuevo."));
         }
+        catch (HttpRequestException ex)
+        {
+            // El SDK relanza el fallo de transporte tras agotar sus reintentos. Es un fallo
+            // controlado del proveedor, no un error del servidor: el webhook pide reintento (503).
+            logger.LogError(ex, "Stripe no respondió al consultar la suscripción {IdSuscripcion}.", idSuscripcion);
+            return Result.Fallo<SuscripcionProveedorDto>(Error.Crear(
+                "PaymentProvider.NoDisponible", "Stripe no responde ahora mismo. Inténtalo de nuevo en unos minutos."));
+        }
     }
+
+    /// <summary>Solo para los tests: sustituye el transporte HTTP del SDK de Stripe.</summary>
+    internal HttpMessageHandler? ManejadorHttp { get; init; }
 
     private static SuscripcionProveedorDto AConDto(Subscription suscripcion) =>
         new(suscripcion.Id, suscripcion.CustomerId, MapearEstado(suscripcion.Status));

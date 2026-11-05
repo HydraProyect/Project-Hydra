@@ -311,6 +311,8 @@ _ = CaeManager.Domain.Common.DiaDeNegocio.Zona;
 // El arnés E2E (solo Development) registra aquí un reloj desplazado; es el último AddSingleton de TimeProvider y por eso gana a los TryAdd anteriores: ver RelojDesplazadoPorFichero.
 CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, builder.Configuration, builder.Environment);
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
+// Antiabuso del alta autónoma: reto de prueba de trabajo, trampas del formulario y dominios desechables.
+CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExtensions.AddAntiabusoAlta(builder.Services, builder.Configuration);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
@@ -515,6 +517,10 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy(LimitadorEntregaExtension.Politica, httpContext =>
         LimitadorEntregaExtension.ParticionPorUsuario(httpContext, rateLimitEntregaExtensionPorMinuto,
             httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()));
+    // Inicios del alta autónoma: por IP, 5 por hora y 20 por día por defecto (ver LimitadorAlta). La política lleva su
+    // propio rechazo, que impide que las páginas de estado reejecuten el 429 hacia /not-found.
+    options.AddPolicy<string, CaeManager.Web.Features.AltaAutonoma.Antiabuso.PoliticaLimitadorAlta>(
+        CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.Politica);
 });
 
 // Los enums viajan por JSON como CADENA, no como número. Sin esto salían

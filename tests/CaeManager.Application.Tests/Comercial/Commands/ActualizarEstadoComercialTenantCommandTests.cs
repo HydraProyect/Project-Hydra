@@ -39,7 +39,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(plataforma.Id), CancellationToken.None);
 
@@ -60,7 +60,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         dbContext.ListaTenants.Add(cliente);
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso());
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
@@ -85,7 +85,7 @@ public class ActualizarEstadoComercialTenantCommandTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new ActualizarEstadoComercialTenantCommandHandler(
-            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork);
+            dbContext, paymentProvider, AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
 
         var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
 
@@ -93,5 +93,59 @@ public class ActualizarEstadoComercialTenantCommandTests
         cliente.EstadoComercial.Should().Be(EstadoComercialTenant.Suspendida);
         paymentProvider.UltimoIdConsultado.Should().Be("sub_123");
         unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Mismos candados que el webhook, en el orden que evita el ciclo con el alta: Tenant y
+    /// después su Subscription. Y si Stripe confirma el estado guardado, no se escribe nada.
+    /// </summary>
+    [Fact]
+    public async Task Bloquea_tenant_y_suscripcion_y_no_escribe_si_el_estado_no_cambia()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        cliente.VincularSuscripcionStripe("cus_999", "sub_123", EstadoComercialTenant.Activa);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.Add(plataforma);
+        dbContext.ListaTenants.Add(cliente);
+        var unitOfWork = new UnitOfWorkFalso();
+        var bloqueo = new BloqueoSuscripcionStripeFalso();
+
+        var handler = new ActualizarEstadoComercialTenantCommandHandler(
+            dbContext, new PaymentProviderFalso(), AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), bloqueo, bloqueo);
+
+        var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        bloqueo.Eventos.Should().Equal("tenant", "descarte", "suscripcion", "descarte");
+        bloqueo.Suscripciones.Should().Equal("sub_123");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>La concesión revocada mientras se esperaba el candado del Tenant no resincroniza.</summary>
+    [Fact]
+    public async Task No_resincroniza_si_la_concesion_se_revoca_mientras_espera_el_candado()
+    {
+        var plataforma = CrearTenantPlataforma();
+        var cliente = new Tenant("Ibertec");
+        cliente.VincularSuscripcionStripe("cus_999", "sub_123", EstadoComercialTenant.Activa);
+        var dbContext = new TenantsQueryContextFalso();
+        dbContext.ListaTenants.AddRange([plataforma, cliente]);
+        var paymentProvider = new PaymentProviderFalso(
+            CaeManager.Domain.Common.Result.Exito(new SuscripcionProveedorDto("sub_123", "cus_999", EstadoSuscripcionProveedor.Cancelada)));
+        var unitOfWork = new UnitOfWorkFalso();
+        var autorizacion = new AutorizacionRevocadaDuranteLaEsperaFalsa();
+
+        var handler = new ActualizarEstadoComercialTenantCommandHandler(
+            dbContext, paymentProvider, autorizacion, new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador", plataforma.Id), unitOfWork, new TransaccionDeComandoFalsa(), new BloqueoSuscripcionStripeFalso(), new DescarteCambiosPendientesFalso());
+
+        var resultado = await handler.Handle(new ActualizarEstadoComercialTenantCommand(cliente.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Comercial.NoAutorizado");
+        autorizacion.VecesConsultada.Should().Be(2);
+        paymentProvider.UltimoIdConsultado.Should().BeNull();
+        cliente.EstadoComercial.Should().Be(EstadoComercialTenant.Activa);
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 }

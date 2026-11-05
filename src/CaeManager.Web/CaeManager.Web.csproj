@@ -9,6 +9,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\Fonts\DejaVuSans.ttf" />
     <EmbeddedResource Include="Resources\Fonts\DejaVuSans-Bold.ttf" />
+    <EmbeddedResource Include="Features\AltaAutonoma\Antiabuso\DominiosDesechables.txt" LogicalName="CaeManager.Web.AltaAutonoma.DominiosDesechables.txt" />
   </ItemGroup>
 
   <ItemGroup>

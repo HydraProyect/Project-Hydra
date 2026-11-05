@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RetoComprobando" xml:space="preserve">
+    <value>Comprovant que l'enviament el fa una persona…</value>
+  </data>
+  <data name="RetoListo" xml:space="preserve">
+    <value>Comprovació completada.</value>
+  </data>
+  <data name="RetoEsperando" xml:space="preserve">
+    <value>Acabant la comprovació abans d'enviar…</value>
+  </data>
+  <data name="RetoError" xml:space="preserve">
+    <value>No s'ha pogut completar la comprovació. Torna a carregar la pàgina i torna-ho a provar.</value>
+  </data>
+  <data name="RetoSinJavaScript" xml:space="preserve">
+    <value>Per enviar aquest formulari cal activar JavaScript.</value>
+  </data>
+  <data name="CampoTrampaEtiqueta" xml:space="preserve">
+    <value>Deixa aquest camp buit</value>
+  </data>
+  <data name="RetoCaducado" xml:space="preserve">
+    <value>La comprovació ha caducat. Torna a carregar la pàgina per enviar el formulari.</value>
+  </data>
+</root>

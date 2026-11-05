@@ -202,21 +202,21 @@ public static partial class ValidadorIdentificacion
         return digitoControlUsuario == digitoCalculadoTexto || digitoControlUsuario == letraCalculada;
     }
 
-    [GeneratedRegex(@"^\d{8}[A-Z]$")]
+    [GeneratedRegex(@"^[0-9]{8}[A-Z]$")]
     private static partial Regex RegexDni();
 
-    [GeneratedRegex(@"^[XYZ]\d{7}[A-Z]$")]
+    [GeneratedRegex(@"^[XYZ][0-9]{7}[A-Z]$")]
     private static partial Regex RegexNie();
 
-    [GeneratedRegex(@"^[ABCDEFGHJUVNPQRSW]\d{7}[A-Z0-9]$")]
+    [GeneratedRegex(@"^[ABCDEFGHJUVNPQRSW][0-9]{7}[A-Z0-9]$")]
     private static partial Regex RegexNifEmpresa();
 
-    [GeneratedRegex(@"^[A-Z]{3}\d{6}$")]
+    [GeneratedRegex(@"^[A-Z]{3}[0-9]{6}$")]
     private static partial Regex RegexTieSoporte();
 
-    [GeneratedRegex(@"^(\d{7,8})[A-Z]?$")]
+    [GeneratedRegex(@"^([0-9]{7,8})[A-Z]?$")]
     private static partial Regex RegexParteNumericaDni();
 
-    [GeneratedRegex(@"^[XYZ](\d{7})[A-Z]?$")]
+    [GeneratedRegex(@"^[XYZ]([0-9]{7})[A-Z]?$")]
     private static partial Regex RegexParteNumericaNie();
 }

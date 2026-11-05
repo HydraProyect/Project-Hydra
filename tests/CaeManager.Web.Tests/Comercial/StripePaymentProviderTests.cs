@@ -174,4 +174,29 @@ public class StripePaymentProviderTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("PaymentProvider.NoConfigurado");
     }
+
+    /// <summary>
+    /// Un fallo de red no sale como excepción (el webhook respondería 500), sino como fallo
+    /// controlado del proveedor, que el webhook traduce a 503 para que Stripe reintente.
+    /// </summary>
+    [Fact]
+    public async Task ObtenerSuscripcionAsync_convierte_un_fallo_de_red_en_proveedor_no_disponible()
+    {
+        var proveedor = new StripePaymentProvider(
+            Options.Create(new StripeOptions { ApiKey = ApiKey, WebhookSecret = WebhookSecret }), NullLogger<StripePaymentProvider>.Instance)
+        {
+            ManejadorHttp = new RedCaida(),
+        };
+
+        var resultado = await proveedor.ObtenerSuscripcionAsync("sub_123");
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("PaymentProvider.NoDisponible");
+    }
+
+    private sealed class RedCaida : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("conexión rechazada");
+    }
 }

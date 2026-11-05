@@ -36,8 +36,10 @@ public interface IPaymentProvider
     /// <summary>
     /// Consulta el estado actual de una Subscription directamente en Stripe
     /// — usado tanto en el alta manual (para no dar de alta a ciegas lo que
-    /// el operador tecleó, ver RegistrarSuscripcionTenantCommand) como en la
-    /// resincronización manual desde el panel de plataforma.
+    /// el operador tecleó, ver RegistrarSuscripcionTenantCommand), en la
+    /// resincronización manual desde el panel de plataforma y en cada webhook
+    /// de Subscription (<see cref="ProcesadorWebhookSuscripcion"/>), que aplica
+    /// este estado y no la copia que trae el evento.
     /// </summary>
     Task<Result<SuscripcionProveedorDto>> ObtenerSuscripcionAsync(string idSuscripcion, CancellationToken cancellationToken = default);
 }

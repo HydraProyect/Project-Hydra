@@ -9,7 +9,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 {
     public void Configure(EntityTypeBuilder<Tenant> builder)
     {
-        builder.ToTable("Tenants");
+        builder.ToTable("Tenants", t => t.HasCheckConstraint(
+            "CK_Tenants_TipoTenant", SolicitudAltaConfiguration.EnValoresDe<TipoTenant>("TipoTenant")));
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre)
@@ -36,11 +37,12 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
 
         // Búsqueda del tenant dueño de una Subscription al procesar un
-        // webhook de Stripe (ver WebhookStripeEndpoints) — filtrado, no
-        // único: la mayoría de tenants no tienen ninguna suscripción
-        // vinculada (NULL, ver StripeSubscriptionId) y Postgres no exige
-        // unicidad entre NULLs de todas formas, pero el filtro deja fuera
-        // esas filas del índice sin necesidad de pensarlo.
+        // webhook de Stripe (ver WebhookStripeEndpoints), filtrado: la
+        // mayoría de tenants no tienen ninguna suscripción vinculada (NULL).
+        // El índice NO es único todavía: que una Subscription no se vincule a
+        // dos Tenants lo garantiza RegistrarSuscripcionTenantCommand bajo el
+        // candado de la Subscription (IBloqueoSuscripcionStripe), no la base.
+        // Hacerlo único exige una migración propia.
         builder.HasIndex(t => t.StripeSubscriptionId)
             .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 
@@ -51,6 +53,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.LogoVersion)
             .HasMaxLength(Tenant.LongitudLogoVersion)
             .IsConcurrencyToken();
+
+        // Tipo de Tenant (alta autónoma). Null en los Tenants anteriores: no se rellenan. El CIF del
+        // Tenant propietario no va en esta tabla, que leen todos los roles: vive en CifsPropietarioTenant
+        // (CifPropietarioTenantConfiguration), cerrada.
+        builder.Property(t => t.TipoTenant).HasConversion<string>().HasMaxLength(20);
 
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).

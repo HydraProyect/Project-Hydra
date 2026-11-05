@@ -2003,6 +2003,13 @@ jobs:
       - name: trazaSoporte.js (node --test)
         run: node --test tests/CaeManager.Web.Tests/js/trazaSoporte.test.mjs
 
+      # Reto de prueba de trabajo del alta autónoma: el Web Worker, con el mismo
+      # vector que RetoPruebaTrabajoTests (C#) para que navegador y servidor
+      # calculen el mismo hash, y el guion de página que retiene y repite el
+      # envío. bUnit no ejecuta JavaScript.
+      - name: reto-prueba-trabajo (node --test)
+        run: node --test tests/CaeManager.Web.Tests/js/retoPruebaTrabajo.test.mjs tests/CaeManager.Web.Tests/js/retoPruebaTrabajoPagina.test.mjs
+
       # P1-F1: vuelta atrás a una imagen caemanager:<sha> retenida, sin
       # reconstruir ni deshacer esquema, con docker falso. Incluye su prueba de
       # sensibilidad (mutaciones sobre /salud, la imagen en marcha y el

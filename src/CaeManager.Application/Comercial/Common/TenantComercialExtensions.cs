@@ -8,9 +8,9 @@ namespace CaeManager.Application.Comercial.Common;
 /// RegistrarSuscripcionTenantCommand y ObtenerEstadoComercialTenantsQuery.
 /// Vive aquí, en Application, porque UsosDeEsPlataformaCongeladosTests
 /// congela a cero las apariciones del flag en el ensamblado de
-/// CaeManager.Web: el webhook de Stripe necesita el mismo criterio sin
-/// cruzar esa frontera, así que llama a este método en vez de leer la
-/// propiedad directamente.
+/// CaeManager.Web. El webhook de Stripe aplica este criterio en
+/// <see cref="ProcesadorWebhookSuscripcion"/> y la resincronización en su
+/// Command, los dos a través de este método.
 /// </summary>
 public static class TenantComercialExtensions
 {

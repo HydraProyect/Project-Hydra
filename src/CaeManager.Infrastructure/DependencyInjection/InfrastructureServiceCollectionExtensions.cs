@@ -513,6 +513,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
@@ -741,6 +742,10 @@ public static class InfrastructureServiceCollectionExtensions
         // configuración, no en el código (ver RetencionDatosOptions).
         services.Configure<RetencionDatosOptions>(
             configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
+
+        // Alta autónoma (DA-10): apagada por defecto en todos los entornos (ver AltaAutonomaOptions).
+        services.Configure<CaeManager.Application.AltaAutonoma.AltaAutonomaOptions>(
+            configuration.GetSection(CaeManager.Application.AltaAutonoma.AltaAutonomaOptions.SeccionConfiguracion));
 
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
