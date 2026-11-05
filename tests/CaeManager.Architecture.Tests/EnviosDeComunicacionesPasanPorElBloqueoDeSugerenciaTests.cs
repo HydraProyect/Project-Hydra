@@ -106,6 +106,18 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             LlamadasSinTextoDeUnaPersona, "una llamada de más en un fichero exceptuado es un envío nuevo sin bloqueo");
     }
 
+    [GeneratedRegex(@"origenTexto:\s*(\w+)\.Origen\b")]
+    private static partial Regex ArgumentoOrigenTexto();
+
+    [GeneratedRegex(@"respuestaSugeridaId:\s*(\w+)\.RespuestaSugeridaId\b")]
+    private static partial Regex ArgumentoRespuestaSugerida();
+
+    [GeneratedRegex(@"var\s+(\w+)\s*=\s*(\w+)\.Valor\s*;")]
+    private static partial Regex ResultadoDelBloqueoLeido();
+
+    [GeneratedRegex(@"var\s+(\w+)\s*=\s*await\s+\w+\.(ComprobarEnvioAsync|ComprobarEnvioPorBuzonAsync)\(")]
+    private static partial Regex ResultadoDelBloqueoObtenido();
+
     [Fact]
     public void Todo_mensaje_saliente_de_Application_fija_el_origen_del_texto_desde_el_bloqueo()
     {
@@ -114,16 +126,28 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
         var automaticos = new Dictionary<string, int>();
         var sinOrigen = new List<string>();
         var fijanElOrigen = new List<string>();
-        var origenSinBloqueo = new List<string>();
+        var origenNoViene = new List<string>();
         var origenCodificadoAMano = new List<string>();
+        var sentenciaSinCierre = new List<string>();
         foreach (var fichero in FicherosDeCodigo(raiz))
         {
             var ruta = "CaeManager.Application/" + Path.GetRelativePath(raiz, fichero).Replace('\\', '/');
             var texto = File.ReadAllText(fichero);
-            var salientes = LlamadaAAgregarMensaje().Matches(texto)
-                .Select(llamada => texto[llamada.Index..(texto.IndexOf(';', llamada.Index) + 1)])
-                .Where(sentencia => sentencia.Contains("DireccionMensaje.Saliente", StringComparison.Ordinal))
-                .ToList();
+            var salientes = new List<string>();
+            foreach (Match llamada in LlamadaAAgregarMensaje().Matches(texto))
+            {
+                var cierre = texto.IndexOf(';', llamada.Index);
+                if (cierre < 0)
+                {
+                    sentenciaSinCierre.Add($"{ruta} (posición {llamada.Index})");
+                    continue;
+                }
+
+                var sentencia = texto[llamada.Index..(cierre + 1)];
+                if (sentencia.Contains("DireccionMensaje.Saliente", StringComparison.Ordinal))
+                    salientes.Add(sentencia);
+            }
+
             if (salientes.Count == 0)
                 continue;
 
@@ -134,8 +158,8 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             if (conOrigen > 0)
             {
                 fijanElOrigen.Add(ruta);
-                if (!LlamadaAlBloqueo().IsMatch(texto))
-                    origenSinBloqueo.Add(ruta);
+                if (!ElOrigenVieneDelBloqueo(texto, salientes.Where(s => s.Contains("origenTexto:", StringComparison.Ordinal))))
+                    origenNoViene.Add(ruta);
             }
 
             if (conOrigen == salientes.Count)
@@ -147,16 +171,41 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
                 sinOrigen.Add(ruta);
         }
 
+        sentenciaSinCierre.Should().BeEmpty(
+            "control del instrumento: cada AgregarMensaje debe cerrar con ';' para delimitar sus argumentos; sin él el ratchet no puede mirarlo");
         fijanElOrigen.Should().HaveCountGreaterThanOrEqualTo(4, "control del instrumento: los cuatro comandos de hoy fijan el origen");
         sinOrigen.Should().BeEmpty("un Mensaje saliente con texto de una persona lleva el origen que dio el bloqueo; si es automático, se declara");
         automaticos.Should().BeEquivalentTo(
             SalientesAutomaticosSinOrigenDeTexto, "una llamada de más en un fichero exceptuado es un saliente nuevo sin origen");
-        origenSinBloqueo.Should().BeEmpty("el origen sale del resultado del bloqueo, no de otra fuente");
+        origenNoViene.Should().BeEmpty(
+            "origenTexto: y respuestaSugeridaId: se toman de la misma variable, que es el .Valor del resultado del bloqueo; otra expresión no sirve");
         origenCodificadoAMano.Should().BeEmpty("el origen nunca se escribe a mano: lo decide la sugerencia revisada que encontró el bloqueo");
     }
 
+    /// <summary>
+    /// Ambos argumentos salen de la misma variable <c>X</c>, y <c>X</c> es <c>R.Valor</c> con <c>R</c> el resultado de
+    /// <c>ComprobarEnvio*</c>. Otra variable, un literal o un valor de la petición no cumplen.
+    /// </summary>
+    private static bool ElOrigenVieneDelBloqueo(string texto, IEnumerable<string> sentenciasConOrigen)
+    {
+        var resultados = ResultadoDelBloqueoObtenido().Matches(texto).Select(m => m.Groups[1].Value).ToHashSet();
+        var valores = ResultadoDelBloqueoLeido().Matches(texto)
+            .Where(m => resultados.Contains(m.Groups[2].Value))
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+
+        return sentenciasConOrigen.All(sentencia =>
+        {
+            var origen = ArgumentoOrigenTexto().Match(sentencia);
+            var sugerencia = ArgumentoRespuestaSugerida().Match(sentencia);
+            return origen.Success && sugerencia.Success
+                   && origen.Groups[1].Value == sugerencia.Groups[1].Value
+                   && valores.Contains(origen.Groups[1].Value);
+        });
+    }
+
     [Fact]
-    public void Ningun_comando_recibe_el_origen_del_texto_del_cliente()
+    public void Ningun_comando_recibe_el_origen_del_texto_ni_la_sugerencia_del_cliente()
     {
         var comandos = typeof(OrigenTextoEnvio).Assembly.GetTypes()
             .Where(tipo => typeof(ICommandBase).IsAssignableFrom(tipo) && !tipo.IsInterface)
@@ -166,6 +215,13 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
         comandos.Where(tipo => tipo.GetProperties().Any(p => p.PropertyType == typeof(OrigenTextoMensaje) || p.PropertyType == typeof(OrigenTextoMensaje?)))
             .Select(tipo => tipo.FullName)
             .Should().BeEmpty("el origen del texto lo fija el servidor desde la sugerencia persistida");
+
+        // Un envío que recibiera el Id de la sugerencia del cliente podría atribuirse una que no revisó nadie. Solo resolver
+        // una sugerencia (insertar, confirmar o descartar) la nombra, y ahí no es un envío.
+        comandos.Where(tipo => tipo.GetProperties().Any(p => p.Name == "RespuestaSugeridaId"))
+            .Select(tipo => tipo.Name)
+            .Should().BeEquivalentTo(["ResolverRespuestaSugeridaCommand"],
+                "ningún comando de envío recibe la sugerencia de origen: la encuentra el servidor al comprobar el envío");
     }
     private static IEnumerable<string> FicherosDeCodigo(string raiz) =>
         Directory.EnumerateFiles(raiz, "*.cs", SearchOption.AllDirectories)

@@ -171,6 +171,12 @@ public sealed record OrigenTextoEnvio(OrigenTextoMensaje Origen, Guid? Respuesta
     /// <summary>Sin sugerencia revisada detrás: el texto lo escribió una persona.</summary>
     public static OrigenTextoEnvio DePersona { get; } = new(OrigenTextoMensaje.Persona, null);
 
+    /// <summary>Un origen de sugerencia que no se contempla aquí lanza: nunca cae en silencio en otro origen del texto.</summary>
     public static OrigenTextoEnvio DeSugerencia(Guid respuestaSugeridaId, OrigenRespuestaSugerida origen) =>
-        new(origen == OrigenRespuestaSugerida.Vega ? OrigenTextoMensaje.IaRevisada : OrigenTextoMensaje.MacroRevisada, respuestaSugeridaId);
+        new(origen switch
+        {
+            OrigenRespuestaSugerida.Vega => OrigenTextoMensaje.IaRevisada,
+            OrigenRespuestaSugerida.Macro => OrigenTextoMensaje.MacroRevisada,
+            _ => throw new ArgumentOutOfRangeException(nameof(origen), origen, "Origen de sugerencia no contemplado.")
+        }, respuestaSugeridaId);
 }

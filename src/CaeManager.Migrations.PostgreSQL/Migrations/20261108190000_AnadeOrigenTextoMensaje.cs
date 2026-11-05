@@ -39,8 +39,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             // FK compuesta con el Tenant, como las de RespuestasSugeridas hacia Conversaciones y Mensajes: un mensaje solo
             // puede nombrar una sugerencia de su propio Tenant. Hace falta la clave única (Id, TenantId) que la tabla no
-            // tenía. Sin ON DELETE: la aplicación nunca borra sugerencias, y el borrado de una conversación se lleva ambas
-            // tablas en la misma sentencia. Sin concesiones nuevas: Mensajes ya concede SELECT a cae_app_soporte a nivel de
+            // tenía. Sin ON DELETE y DEFERRABLE INITIALLY DEFERRED: con las FK de RespuestasSugeridas hacia Conversaciones y
+            // Mensajes (ambas en cascada) forma un ciclo, y borrar una conversación se lleva mensajes y sugerencias en la
+            // misma sentencia; comprobada al confirmar, el orden en que se ejecutan los disparadores de integridad deja de
+            // importar. Borrar solo el entrante de origen sigue fallando (23503) al confirmar, porque arrastra la sugerencia
+            // que un saliente nombra: la procedencia no se borra en silencio. EF no modela FK diferibles, así que va solo en
+            // SQL y el snapshot no cambia. Sin concesiones nuevas: Mensajes ya concede SELECT a cae_app_soporte a nivel de
             // tabla y INSERT a cae_app_runtime, y la RLS de Mensajes no cambia.
             migrationBuilder.Sql("""
                 ALTER TABLE public."RespuestasSugeridas"
@@ -49,7 +53,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 ALTER TABLE public."Mensajes"
                     ADD CONSTRAINT "FK_Mensajes_RespuestasSugeridas_Tenant"
                         FOREIGN KEY ("RespuestaSugeridaId", "TenantId")
-                        REFERENCES public."RespuestasSugeridas"("Id", "TenantId");
+                        REFERENCES public."RespuestasSugeridas"("Id", "TenantId")
+                        DEFERRABLE INITIALLY DEFERRED;
+
+                -- La procedencia de un texto no se reescribe: el origen y la sugerencia que se guardan al enviar son la prueba
+                -- de qué contenido partió de una sugerencia. El disparador corre como quien actualiza y no lee nada.
+                CREATE FUNCTION public.impedir_cambio_origen_texto_mensaje() RETURNS trigger
+                LANGUAGE plpgsql
+                SET search_path TO 'pg_catalog', 'pg_temp'
+                AS $$
+                BEGIN
+                    RAISE EXCEPTION 'El origen del texto de un mensaje y su sugerencia no cambian' USING ERRCODE = 'check_violation';
+                END
+                $$;
+                REVOKE ALL ON FUNCTION public.impedir_cambio_origen_texto_mensaje() FROM PUBLIC;
+
+                CREATE TRIGGER impedir_cambio_origen_texto_mensaje
+                    BEFORE UPDATE OF "OrigenTexto", "RespuestaSugeridaId" ON public."Mensajes"
+                    FOR EACH ROW WHEN (OLD."OrigenTexto" IS DISTINCT FROM NEW."OrigenTexto"
+                                       OR OLD."RespuestaSugeridaId" IS DISTINCT FROM NEW."RespuestaSugeridaId")
+                    EXECUTE FUNCTION public.impedir_cambio_origen_texto_mensaje();
                 """);
         }
 
@@ -57,6 +80,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("""
+                DROP TRIGGER impedir_cambio_origen_texto_mensaje ON public."Mensajes";
+                DROP FUNCTION public.impedir_cambio_origen_texto_mensaje();
                 ALTER TABLE public."Mensajes" DROP CONSTRAINT "FK_Mensajes_RespuestasSugeridas_Tenant";
                 ALTER TABLE public."RespuestasSugeridas" DROP CONSTRAINT "UQ_RespuestasSugeridas_Id_TenantId";
                 """);

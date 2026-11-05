@@ -286,21 +286,61 @@ public class OrigenTextoDelEnvioTests
         mensaje.RespuestaSugeridaId.Should().BeNull();
     }
 
+    /// <summary>
+    /// Se envía el texto exacto de la sugerencia descartada, de un entrante anterior (el del último no sale, lo impide el
+    /// bloqueo): si el origen mirase también las descartadas, este mensaje saldría marcado.
+    /// </summary>
     [Fact]
-    public async Task Una_sugerencia_descartada_nunca_da_origen()
+    public async Task Una_sugerencia_descartada_nunca_da_origen_aunque_se_envie_su_texto_exacto()
     {
         var escenario = Preparar(Via.ResponderPorCorreo);
-        var descartada = RespuestaSugerida.DeVega(
-            escenario.Hilo.Id, UltimoEntrante(escenario.Hilo), TextoSugerido, Guid.NewGuid(), DateTime.UtcNow);
+        var anterior = UltimoEntrante(escenario.Hilo);
+        var siguiente = escenario.Hilo.AgregarMensaje(
+            DireccionMensaje.Entrante, CanalConversacion.Correo, "ana@contrata.test", "<p>Otra cosa</p>", DateTime.UtcNow.AddMinutes(1),
+            "msg-siguiente");
+        _comunicaciones.ListaMensajes.Add(siguiente);
+        var descartada = RespuestaSugerida.DeVega(escenario.Hilo.Id, anterior, TextoSugerido, Guid.NewGuid(), DateTime.UtcNow);
         descartada.Descartar();
         _comunicaciones.ListaRespuestasSugeridas.Add(descartada);
 
-        var mensaje = await escenario.Enviar(EscritoAMano);
+        var mensaje = await escenario.Enviar(TextoSugerido);
 
         mensaje.OrigenTexto.Should().Be(OrigenTextoMensaje.Persona);
         mensaje.RespuestaSugeridaId.Should().BeNull();
     }
 
+    /// <summary>
+    /// Dos candidatas contenidas en el cuerpo, ninguna idéntica: gana la de texto más largo aunque la corta se revisara más
+    /// tarde, de modo que el desempate por fecha no puede explicar el resultado.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_contenidas_gana_la_de_texto_mas_largo_aunque_la_corta_se_revisara_mas_tarde()
+    {
+        var escenario = Preparar(Via.ResponderPorCorreo);
+        var ahora = DateTime.UtcNow;
+        var larga = Revisada(escenario.Hilo, OrigenRespuestaSugerida.Vega, TextoSugerido, revisadaEnUtc: ahora.AddMinutes(-10));
+        Revisada(escenario.Hilo, OrigenRespuestaSugerida.Macro, "<p>Ya hemos recibido su documentación.</p>", revisadaEnUtc: ahora);
+
+        var mensaje = await escenario.Enviar("<p>Buenos días.</p>" + TextoSugerido + "<p>Un saludo, Marta</p>");
+
+        mensaje.OrigenTexto.Should().Be(OrigenTextoMensaje.IaRevisada);
+        mensaje.RespuestaSugeridaId.Should().Be(larga.Id);
+    }
+
+    /// <summary>Entre dos hilos visibles del buzón con el mismo texto revisado, la sugerencia revisada más tarde da el origen.</summary>
+    [Fact]
+    public async Task Por_buzon_gana_la_revisada_mas_tarde_entre_dos_hilos_visibles()
+    {
+        var conexion = Buzon();
+        var ahora = DateTime.UtcNow;
+        Revisada(HiloDeCorreo(conexion), OrigenRespuestaSugerida.Vega, revisadaEnUtc: ahora.AddMinutes(-10));
+        var reciente = Revisada(HiloDeCorreo(conexion), OrigenRespuestaSugerida.Macro, revisadaEnUtc: ahora);
+
+        var resultado = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
+            new AlcanceDatosServiceFalso(), conexion.Id, TextoSugerido, CancellationToken.None);
+
+        resultado.Valor.Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.MacroRevisada, reciente.Id));
+    }
     [Fact]
     public async Task El_origen_por_buzon_ignora_una_sugerencia_revisada_de_un_hilo_que_quien_envia_no_ve()
     {
@@ -337,5 +377,13 @@ public class OrigenTextoDelEnvioTests
         OrigenTextoEnvio.DeSugerencia(id, OrigenRespuestaSugerida.Vega).Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.IaRevisada, id));
         OrigenTextoEnvio.DeSugerencia(id, OrigenRespuestaSugerida.Macro).Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.MacroRevisada, id));
         OrigenTextoEnvio.DePersona.Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.Persona, null));
+    }
+
+    [Fact]
+    public void Un_origen_de_sugerencia_no_contemplado_lanza_en_vez_de_caer_en_otro_origen()
+    {
+        var traducir = () => OrigenTextoEnvio.DeSugerencia(Guid.NewGuid(), (OrigenRespuestaSugerida)99);
+
+        traducir.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("origen");
     }
 }

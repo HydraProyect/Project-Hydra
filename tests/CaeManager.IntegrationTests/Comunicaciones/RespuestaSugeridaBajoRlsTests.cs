@@ -355,42 +355,125 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
             .OrigenTexto.Should().Be(OrigenTextoMensaje.Persona, "una fila sin la marca nace como escrita por una persona");
     }
 
-    /// <summary>La base sostiene la invariante del dominio: ninguna escritura directa la salta.</summary>
+    /// <summary>
+    /// La base sostiene la invariante del dominio: una inserción que la salte (aquí forzando los valores por EF, porque el
+    /// constructor no lo permite) la rechaza el CHECK. Por INSERT y no por UPDATE: el disparador de inmutabilidad también
+    /// da 23514 en un UPDATE y no se distinguiría cuál de los dos actuó.
+    /// </summary>
     [Theory]
-    [InlineData(2, false)]
-    [InlineData(1, false)]
-    [InlineData(0, true)]
-    public async Task La_base_rechaza_un_origen_incoherente_con_la_sugerencia(int origen, bool conSugerencia)
+    [InlineData(OrigenTextoMensaje.IaRevisada, false)]
+    [InlineData(OrigenTextoMensaje.MacroRevisada, false)]
+    [InlineData(OrigenTextoMensaje.Persona, true)]
+    public async Task La_base_rechaza_un_origen_incoherente_con_la_sugerencia(OrigenTextoMensaje origen, bool conSugerencia)
     {
         await using var runtime = CrearRuntime();
-        Guid? sugerenciaId = conSugerencia ? _sugerenciaPropia : null;
+        var mensaje = new Mensaje(
+            _conversacionPropia, DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@example.test", "<p>Texto</p>", DateTime.UtcNow);
+        runtime.Mensajes.Add(mensaje);
+        runtime.Entry(mensaje).Property(nameof(Mensaje.OrigenTexto)).CurrentValue = origen;
+        runtime.Entry(mensaje).Property(nameof(Mensaje.RespuestaSugeridaId)).CurrentValue = conSugerencia ? _sugerenciaPropia : null;
 
-        var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync(
-            $"""UPDATE "Mensajes" SET "OrigenTexto" = {origen}, "RespuestaSugeridaId" = {sugerenciaId} WHERE "Id" = {_mensajePropio}"""));
+        var excepcion = await Record.ExceptionAsync(() => runtime.SaveChangesAsync());
 
-        excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("23514", "CK_Mensajes_OrigenTextoSegunSugerencia");
+        var postgres = PostgresDe(excepcion);
+        postgres.Should().NotBeNull("la inserción debe fallar en la base: {0}", excepcion);
+        postgres!.SqlState.Should().Be("23514");
+        postgres.ConstraintName.Should().Be("CK_Mensajes_OrigenTextoSegunSugerencia");
     }
 
     /// <summary>La FK es compuesta con el Tenant: un mensaje no puede nombrar la sugerencia de otro Tenant.</summary>
     [Fact]
-    public async Task La_base_rechaza_nombrar_la_sugerencia_de_otro_Tenant_y_admite_la_propia()
+    public async Task La_base_rechaza_por_insercion_nombrar_la_sugerencia_de_otro_Tenant()
     {
-        await using (var runtime = CrearRuntime())
-        {
-            var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlInterpolatedAsync(
-                $"""UPDATE "Mensajes" SET "OrigenTexto" = 2, "RespuestaSugeridaId" = {_sugerenciaAjena} WHERE "Id" = {_mensajePropio}"""));
+        await using var runtime = CrearRuntime();
+        runtime.Mensajes.Add(new Mensaje(
+            _conversacionPropia, DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@example.test", "<p>Borrador</p>", DateTime.UtcNow,
+            origenTexto: OrigenTextoMensaje.IaRevisada, respuestaSugeridaId: _sugerenciaAjena));
 
-            excepcion.Should().BeOfType<PostgresException>().Which.SqlState.Should().Be("23503", "FK_Mensajes_RespuestasSugeridas_Tenant");
-        }
+        var excepcion = await Record.ExceptionAsync(() => runtime.SaveChangesAsync());
 
-        await using (var runtime = CrearRuntime())
-        {
-            (await runtime.Database.ExecuteSqlInterpolatedAsync(
-                $"""UPDATE "Mensajes" SET "OrigenTexto" = 2, "RespuestaSugeridaId" = {_sugerenciaPropia} WHERE "Id" = {_mensajePropio}"""))
-                .Should().Be(1, "control positivo: la misma orden con la sugerencia del propio Tenant sí entra");
-        }
+        var postgres = PostgresDe(excepcion);
+        postgres.Should().NotBeNull("la inserción debe fallar en la base: {0}", excepcion);
+        postgres!.SqlState.Should().Be("23503");
+        postgres.ConstraintName.Should().Be("FK_Mensajes_RespuestasSugeridas_Tenant");
     }
 
+    /// <summary>La procedencia no se reescribe: el disparador rechaza cambiar el origen o la sugerencia, y deja el resto de cambios.</summary>
+    [Theory]
+    [InlineData("""UPDATE "Mensajes" SET "OrigenTexto" = 0, "RespuestaSugeridaId" = NULL WHERE "Id" = {0}""")]
+    [InlineData("""UPDATE "Mensajes" SET "OrigenTexto" = 1 WHERE "Id" = {0}""")]
+    [InlineData("""UPDATE "Mensajes" SET "RespuestaSugeridaId" = NULL WHERE "Id" = {0}""")]
+    public async Task La_procedencia_de_un_mensaje_no_se_reescribe(string orden)
+    {
+        var mensajeId = await SembrarSalienteIaRevisadaAsync();
+        await using var runtime = CrearRuntime();
+
+        var excepcion = await Record.ExceptionAsync(() => runtime.Database.ExecuteSqlRawAsync(orden, mensajeId));
+
+        var postgres = PostgresDe(excepcion);
+        postgres.Should().NotBeNull("el UPDATE debe fallar en la base: {0}", excepcion);
+        postgres!.SqlState.Should().Be("23514");
+        postgres.MessageText.Should().Contain("no cambian", "es el disparador, no el CHECK, quien actúa");
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var fila = await comprobacion.Mensajes.IgnoreQueryFilters().SingleAsync(m => m.Id == mensajeId);
+        fila.OrigenTexto.Should().Be(OrigenTextoMensaje.IaRevisada);
+        fila.RespuestaSugeridaId.Should().Be(_sugerenciaPropia);
+    }
+
+    /// <summary>Controles positivos del disparador: cambiar otra columna, o reescribir los mismos valores, sí entra.</summary>
+    [Fact]
+    public async Task El_disparador_de_procedencia_deja_pasar_lo_que_no_la_cambia()
+    {
+        var mensajeId = await SembrarSalienteIaRevisadaAsync();
+        await using var runtime = CrearRuntime();
+
+        (await runtime.Database.ExecuteSqlInterpolatedAsync($"""UPDATE "Mensajes" SET "ErrorEntrega" = 'fallo' WHERE "Id" = {mensajeId}"""))
+            .Should().Be(1);
+        (await runtime.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Mensajes" SET "OrigenTexto" = 2, "RespuestaSugeridaId" = {_sugerenciaPropia} WHERE "Id" = {mensajeId}"""))
+            .Should().Be(1);
+    }
+
+    /// <summary>
+    /// La FK Mensajes→RespuestasSugeridas es diferible: borrar una conversación se lleva mensajes y sugerencias en la misma
+    /// sentencia sin importar el orden de los disparadores de integridad, con un saliente que nombra su sugerencia.
+    /// </summary>
+    [Fact]
+    public async Task Borrar_una_conversacion_con_un_saliente_que_nombra_su_sugerencia_borra_todo_sin_error()
+    {
+        await SembrarSalienteIaRevisadaAsync();
+        await using var propietario = CrearPropietarioLimpio();
+
+        await propietario.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM "Conversaciones" WHERE "Id" = {_conversacionPropia}""");
+
+        (await propietario.Mensajes.IgnoreQueryFilters().CountAsync(m => m.ConversacionId == _conversacionPropia)).Should().Be(0);
+        (await propietario.RespuestasSugeridas.IgnoreQueryFilters().CountAsync(r => r.ConversacionId == _conversacionPropia)).Should().Be(0);
+        (await propietario.Mensajes.IgnoreQueryFilters().CountAsync(m => m.ConversacionId == _conversacionAjena)).Should().Be(1,
+            "control: la conversación de otro Tenant no se toca");
+        (await propietario.RespuestasSugeridas.IgnoreQueryFilters().CountAsync(r => r.ConversacionId == _conversacionAjena)).Should().Be(1);
+    }
+
+    /// <summary>
+    /// Esperado, no un fallo: borrar solo el entrante de origen arrastra la sugerencia por cascada, y un saliente la nombra.
+    /// La comprobación diferida falla al confirmar (23503) y no se borra nada: la procedencia no se pierde en silencio.
+    /// </summary>
+    [Fact]
+    public async Task Borrar_solo_el_entrante_de_origen_falla_al_confirmar_porque_un_saliente_nombra_su_sugerencia()
+    {
+        await SembrarSalienteIaRevisadaAsync();
+        await using var propietario = CrearPropietarioLimpio();
+
+        var excepcion = await Record.ExceptionAsync(() =>
+            propietario.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM "Mensajes" WHERE "Id" = {_mensajePropio}"""));
+
+        var postgres = PostgresDe(excepcion);
+        postgres.Should().NotBeNull("el borrado debe fallar en la base: {0}", excepcion);
+        postgres!.SqlState.Should().Be("23503");
+        postgres.ConstraintName.Should().Be("FK_Mensajes_RespuestasSugeridas_Tenant");
+        (await propietario.Mensajes.IgnoreQueryFilters().CountAsync(m => m.ConversacionId == _conversacionPropia)).Should().Be(2);
+        (await propietario.RespuestasSugeridas.IgnoreQueryFilters().CountAsync(r => r.Id == _sugerenciaPropia)).Should().Be(1);
+    }
     /// <summary>
     /// Traduce a SQL la elección del origen: por conversación (último entrante) y por buzón (hash, hilos visibles) desde la
     /// sugerencia que una persona revisó, y Persona cuando el texto no es el de ninguna.
@@ -435,6 +518,25 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
             .Should().Be(new OrigenTextoEnvio(OrigenTextoMensaje.IaRevisada, sugerenciaDelBuzon));
         (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Otro texto", CancellationToken.None)).Valor
             .Should().Be(OrigenTextoEnvio.DePersona);
+    }
+    private async Task<Guid> SembrarSalienteIaRevisadaAsync()
+    {
+        await using var runtime = CrearRuntime();
+        var mensaje = new Mensaje(
+            _conversacionPropia, DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@example.test", "<p>Borrador</p>", DateTime.UtcNow,
+            origenTexto: OrigenTextoMensaje.IaRevisada, respuestaSugeridaId: _sugerenciaPropia);
+        runtime.Mensajes.Add(mensaje);
+        await runtime.SaveChangesAsync();
+        return mensaje.Id;
+    }
+
+    /// <summary>El error de Postgres, venga directo o envuelto por EF o por el commit.</summary>
+    private static PostgresException? PostgresDe(Exception? excepcion)
+    {
+        while (excepcion is not null and not PostgresException)
+            excepcion = excepcion.InnerException;
+
+        return excepcion as PostgresException;
     }
     private async Task DescartarLaSembradaAsync()
     {

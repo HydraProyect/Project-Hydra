@@ -111,7 +111,8 @@ public class Mensaje : EntidadConTenant
 
     /// <summary>
     /// Una macro o una redacción de Vega revisadas exigen la sugerencia de la que parten, y un texto de persona no puede
-    /// nombrar ninguna. Solo un saliente nace de una sugerencia: la sugerencia contesta a un entrante.
+    /// nombrar ninguna. Además, solo un Mensaje Saliente puede nombrar una sugerencia. No impone unicidad: varios mensajes
+    /// pueden nombrar la misma sugerencia (un reintento, o la migración a correo del mismo texto).
     /// </summary>
     private static void ValidarOrigenTexto(DireccionMensaje direccion, OrigenTextoMensaje origenTexto, Guid? respuestaSugeridaId)
     {
@@ -130,7 +131,7 @@ public class Mensaje : EntidadConTenant
         if (respuestaSugeridaId is null)
             throw new ArgumentException("Un texto que parte de una sugerencia revisada debe nombrarla.", nameof(respuestaSugeridaId));
         if (direccion != DireccionMensaje.Saliente)
-            throw new ArgumentException("Solo un mensaje saliente puede partir de una sugerencia.", nameof(origenTexto));
+            throw new ArgumentException("Solo un mensaje saliente puede nombrar una sugerencia.", nameof(origenTexto));
     }
 
     /// <summary>
