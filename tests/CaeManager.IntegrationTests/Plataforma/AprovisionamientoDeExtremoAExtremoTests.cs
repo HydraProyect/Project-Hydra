@@ -101,6 +101,21 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
 
         resultado.EsExitoso.Should().BeTrue(
             resultado.EsFallido ? $"código: {resultado.Error!.Codigo}" : string.Empty);
+
+        // Issue #2001: la lectura bajo Sesión Privilegiada dejó su fila, con el Actor real y el
+        // Tenant objetivo, por el pipeline completo (antes de la elevación a Aprovisionamiento).
+        await using var conexion = new Npgsql.NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """
+            SELECT count(*) FROM "RegistrosActividadSoporte"
+             WHERE "SesionPrivilegiadaId" = @s AND "Tipo" = 'Lectura' AND "Detalle" = 'EjecutarImportacionCommand'
+               AND "UsuarioSoporteId" = @a AND "TenantId" = @t;
+            """;
+        comando.Parameters.AddWithValue("s", _sesionId);
+        comando.Parameters.AddWithValue("a", _admin);
+        comando.Parameters.AddWithValue("t", _tenantObjetivo);
+        ((long)(await comando.ExecuteScalarAsync())!).Should().Be(1);
     }
 
     /// <summary>
@@ -164,6 +179,10 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
             sp.GetRequiredService<IPlataformaQueryContext>(), clienteActivoSeleccionado, currentUser));
         servicios.AddSingleton<IElevacionEscrituraPrivilegiada>(sp =>
             new ElevacionEscrituraPrivilegiada(sp.GetRequiredService<CaeManagerDbContext>()));
+        // Issue #2001: la coordenada y el registro de lecturas reales, como en producción.
+        servicios.AddSingleton<ICoordenadaSesionPrivilegiada>(sp =>
+            (SesionPrivilegiadaActual)sp.GetRequiredService<ISesionPrivilegiadaActual>());
+        servicios.AddSingleton<IRegistroLecturaSesionPrivilegiada, RegistroLecturaSesionPrivilegiada>();
 
         servicios.AddSingleton<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IAsignacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

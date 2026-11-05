@@ -2,7 +2,7 @@ using MediatR;
 
 namespace CaeManager.Application.Importacion.Queries;
 
-public record AnalizarImportacionExcelQuery(byte[] ContenidoArchivo) : IRequest<PlanImportacionDto>;
+public record AnalizarImportacionExcelQuery(byte[] ContenidoArchivo) : IRequest<PlanImportacionDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public class AnalizarImportacionExcelQueryHandler(IExcelImportacionParser parser, RecorteDeAnalisisAlAmbito recorte)
     : IRequestHandler<AnalizarImportacionExcelQuery, PlanImportacionDto>

@@ -63,4 +63,7 @@
   <data name="SinTicket" xml:space="preserve">
     <value>—</value>
   </data>
+  <data name="ActividadLectura" xml:space="preserve">
+    <value>Consultó</value>
+  </data>
 </root>

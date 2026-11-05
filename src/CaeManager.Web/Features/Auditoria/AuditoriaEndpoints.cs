@@ -152,8 +152,7 @@ public static class AuditoriaEndpoints
             }
             else if (!usuariosPorId.TryGetValue(registro.UsuarioId.Value, out nombreUsuario!))
             {
-                var usuario = await mediator.Send(new ObtenerNombreCuentaQuery(registro.UsuarioId.Value), cancellationToken);
-                nombreUsuario = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                nombreUsuario = await NombreDeCuentaAsync(mediator, registro.UsuarioId.Value, cancellationToken);
                 usuariosPorId[registro.UsuarioId.Value] = nombreUsuario;
             }
 
@@ -192,6 +191,24 @@ public static class AuditoriaEndpoints
             stream,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "auditoria.xlsx");
+    }
+
+    /// <summary>
+    /// Nombre para la columna «Usuario» de la exportación. Bajo una Sesión Privilegiada cuya
+    /// lectura no quedó registrada (issue #2001) el nombre no se sirve: la celda queda vacía en vez
+    /// de tumbar la exportación con un 500. Pública para poder probarla (sin InternalsVisibleTo).
+    /// </summary>
+    public static async Task<string> NombreDeCuentaAsync(IMediator mediator, Guid usuarioId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var usuario = await mediator.Send(new ObtenerNombreCuentaQuery(usuarioId), cancellationToken);
+            return usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+        }
+        catch (LecturaPrivilegiadaNoRegistradaException)
+        {
+            return string.Empty;
+        }
     }
 
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)

@@ -31,7 +31,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra
 /// es una decisión de autorización que este incremento no toma.
 /// </summary>
 public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
-    : ICommand<ResultadoImportacionMaestraDto>;
+    : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 /// <summary>
 /// Vista previa SIN escribir (es un comando para pasar por la misma tubería de autorización que confirmar): devuelve exactamente lo que confirmar haría con este plan y este modo (cuántos campos se
@@ -39,7 +39,7 @@ public record EjecutarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, 
 /// personales: pasa por la misma autorización que el comando.
 /// </summary>
 public record PrevisualizarImportacionMaestraCommand(PlanImportacionMaestraDto Plan, bool ReemplazarExistentes)
-    : ICommand<ResultadoImportacionMaestraDto>;
+    : ICommand<ResultadoImportacionMaestraDto>, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 /// <param name="CamposRellenados">Campos que estaban vacíos y se rellenan (en cualquiera de los dos modos).</param>
 /// <param name="ValoresSobrescritos">Solo en Reemplazar: un elemento por cada valor no vacío que el archivo sustituye.</param>

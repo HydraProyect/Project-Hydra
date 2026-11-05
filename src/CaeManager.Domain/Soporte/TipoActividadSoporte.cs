@@ -16,5 +16,12 @@ public enum TipoActividadSoporte
     Interaccion,
 
     /// <summary>Se cerró el acceso, por revocación o por caducidad.</summary>
-    AccesoRevocado
+    AccesoRevocado,
+
+    /// <summary>
+    /// Lectura de datos del Tenant objetivo bajo una Sesión Privilegiada (issue #2001). La escribe
+    /// solo la función <c>app_registrar_actividad_soporte_por_sesion</c>; el detalle nombra la
+    /// operación que leyó, nunca los datos leídos.
+    /// </summary>
+    Lectura
 }

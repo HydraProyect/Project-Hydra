@@ -434,6 +434,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
         services.AddScoped<IOrdenCajasFichaRepository, OrdenCajasFichaRepository>();
         services.AddScoped<IRegistroActividadSoporteRepository, RegistroActividadSoporteRepository>();
+        // Issue #2001: sustituye al valor por defecto de AddApplication (que dice «no registrado»).
+        services.AddScoped<CaeManager.Application.Plataforma.IRegistroLecturaSesionPrivilegiada,
+            CaeManager.Infrastructure.Plataforma.RegistroLecturaSesionPrivilegiada>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleRepository, RegistroAccesoDocumentoSensibleRepository>();
         services.AddScoped<IRegistroAccesoDatoSensibleRepository, RegistroAccesoDatoSensibleRepository>();
         services.AddScoped<CaeManager.Domain.Retencion.ISolicitudPurgaRepository, SolicitudPurgaRepository>();

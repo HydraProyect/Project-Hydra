@@ -35,7 +35,7 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionCombina
 /// inicial — ver <c>AutorizacionEscrituraBehavior</c>.
 /// </summary>
 public record EjecutarImportacionCombinadaCommand(PlanImportacionCombinadaDto Plan, bool ReemplazarExistentes)
-    : ICommand<ResultadoImportacionCombinadaDto>, IComandoDeAprovisionamiento;
+    : ICommand<ResultadoImportacionCombinadaDto>, IComandoDeAprovisionamiento, Common.ILecturaRegistradaEnSesionPrivilegiada;
 
 public record ResultadoImportacionCombinadaDto(
     int ClientesCreados,

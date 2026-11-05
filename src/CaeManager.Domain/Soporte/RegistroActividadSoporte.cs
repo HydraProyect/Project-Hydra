@@ -30,6 +30,17 @@ namespace CaeManager.Domain.Soporte;
 /// (<c>RegistroActividadSoporteConfiguration</c>) — las dos capas, no solo la
 /// base, siguiendo el precedente de REC-101 para <c>Documento</c>.
 ///
+/// <b>Vía de Sesión Privilegiada (issue #2001).</b> Esa conexión lleva
+/// <c>cae_app_soporte</c>, que solo tiene <c>SELECT</c> sobre la tabla: sus
+/// filas no pasan por este agregado ni por EF, sino por la función
+/// <c>app_registrar_actividad_soporte_por_sesion</c>, que pone actor real,
+/// Tenant objetivo y sesión desde el contexto RLS firmado. Hoy registra las
+/// lecturas (<see cref="TipoActividadSoporte.Lectura"/>) de los requests
+/// marcados <c>ILecturaRegistradaEnSesionPrivilegiada</c> —los requests que
+/// envía la página del Importador, salvo el que solo escribe su historial—,
+/// en fallo cerrado: sin fila no se sirven los datos. Otras lecturas bajo
+/// Sesión Privilegiada solo se registran si su request lleva el marcador.
+///
 /// Aviso: este registro es también dato personal del empleado de soporte
 /// (control de actividad laboral). Antes de activarlo hay que informarle,
 /// según LOPDGDD arts. 87-90 y ET art. 20.3. Esa es la razón por la que este
