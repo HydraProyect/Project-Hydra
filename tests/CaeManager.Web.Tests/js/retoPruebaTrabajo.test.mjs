@@ -46,21 +46,24 @@ test('un reto vacío o una dificultad fuera de rango se rechazan sin buscar', as
 });
 
 test('el manejador atiende la forma exacta que envía la página y responde con el nonce', async () => {
-    const respuestas = [];
-    assert.equal(atenderMensaje({ data: { reto: VECTOR_RETO, bits: VECTOR_BITS } }, (r) => respuestas.push(r), crypto.subtle), true);
-    await new Promise((listo) => setTimeout(listo, 50));
-    assert.deepEqual(respuestas, [{ nonce: VECTOR_NONCE }]);
+    let limite;
+    const respuesta = await Promise.race([
+        new Promise((responder) => {
+            assert.equal(atenderMensaje({ data: { reto: VECTOR_RETO, bits: VECTOR_BITS } }, responder, crypto.subtle), true);
+        }),
+        new Promise((_, fallar) => { limite = setTimeout(() => fallar(new Error('el worker no respondió en 30 s')), 30_000); }),
+    ]);
+    clearTimeout(limite);
+    assert.deepEqual(respuesta, { nonce: VECTOR_NONCE });
 });
 
 test('un mensaje con otra forma se ignora sin responder ni buscar', async () => {
     const respuestas = [];
-    const sutilEspia = { digest: () => { throw new Error('no debía buscar'); } };
+    let llamadasDigest = 0;
+    const sutilEspia = { digest: () => { llamadasDigest++; throw new Error('no debía buscar'); } };
     const largo = 'A'.repeat(1025);
-    const conPrototipo = Object.create({ heredado: 1 });
-    conPrototipo.reto = 'abc';
-    conPrototipo.bits = 8;
     const malos = [
-        undefined, null, 'abc', 42, [], ['abc', 8], conPrototipo,
+        undefined, null, 'abc', 42, [], ['abc', 8],
         {}, { reto: 'abc' }, { bits: 8 }, { reto: 'abc', bits: 8, extra: true },
         { reto: '', bits: 8 }, { reto: 'a:b', bits: 8 }, { reto: 'a b', bits: 8 }, { reto: 'a=', bits: 8 }, { reto: largo, bits: 8 },
         { reto: 123, bits: 8 }, { reto: 'abc', bits: '8' }, { reto: 'abc', bits: 8.5 }, { reto: 'abc', bits: -1 },
@@ -73,6 +76,14 @@ test('un mensaje con otra forma se ignora sin responder ni buscar', async () => 
     assert.equal(atenderMensaje(undefined, (r) => respuestas.push(r), sutilEspia), false);
     await new Promise((listo) => setTimeout(listo, 20));
     assert.deepEqual(respuestas, [], 'a un mensaje que no encaja no se le responde');
+    assert.equal(llamadasDigest, 0, 'ni se empieza a buscar');
+
+    // Defensa en profundidad del validador: postMessage entrega objetos planos (la clonación estructurada no conserva
+    // prototipos), así que esto no lo puede enviar la página; se prueba solo el validador.
+    const conPrototipo = Object.create({ heredado: 1 });
+    conPrototipo.reto = 'abc';
+    conPrototipo.bits = 8;
+    assert.equal(mensajeValido(conPrototipo), false);
     assert.equal(mensajeValido({ reto: 'A'.repeat(1024), bits: 32 }), true, 'control: los límites incluidos valen');
     assert.equal(mensajeValido({ reto: 'Ab0_-', bits: 0 }), true, 'control: todo el alfabeto base64url vale');
 });
