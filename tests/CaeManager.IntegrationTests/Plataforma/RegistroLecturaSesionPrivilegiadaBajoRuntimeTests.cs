@@ -465,6 +465,143 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("EjecutarImportacionCommand");
     }
 
+    // ── Transacción explícita: la fila no puede deshacerse después de servir los datos ─
+
+    /// <summary>
+    /// Dentro de una transacción explícita, aunque sea READ COMMITTED, la función registraría y un
+    /// ROLLBACK posterior borraría la fila de una lectura ya servida. El servicio no llega a
+    /// llamarla: devuelve false y el behavior no deja leer.
+    /// </summary>
+    [Fact]
+    public async Task Dentro_de_una_transaccion_explicita_el_servicio_no_registra_y_un_rollback_no_deja_lectura_sin_fila()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
+            (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
+                    .RegistrarAsync(sesion, "EjecutarImportacionCommand"))
+                .Should().BeFalse("con una transacción abierta la fila podría deshacerse");
+            await transaccion.CommitAsync();
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty("el servicio no llamó a la función, ni confirmando");
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "EjecutarImportacionCommand"))
+            .Should().BeTrue("control positivo: el mismo servicio, sin transacción, registra");
+    }
+
+    [Fact]
+    public async Task Dentro_de_una_transaccion_el_behavior_no_deja_leer()
+    {
+        var sesion = await AbrirSesionDeAprovisionamientoAsync([_tenantA]);
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var behavior = new RegistroLecturaSesionPrivilegiadaBehavior<ObtenerHistorialImportacionesQuery, IReadOnlyList<HistorialImportacionDto>>(
+            new SesionFija(sesion, _tenantA),
+            new CoordenadaFija(true),
+            new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance));
+
+        await using var transaccion = await contexto.Database.BeginTransactionAsync();
+        var leyo = false;
+        var ejecutar = () => behavior.Handle(new ObtenerHistorialImportacionesQuery(), _ =>
+        {
+            leyo = true;
+            return Task.FromResult<IReadOnlyList<HistorialImportacionDto>>([]);
+        }, CancellationToken.None);
+
+        await ejecutar.Should().ThrowAsync<LecturaPrivilegiadaNoRegistradaException>();
+        leyo.Should().BeFalse("lo que no deja rastro duradero no se sirve");
+        await transaccion.RollbackAsync();
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_una_transaccion_ambiente_el_servicio_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        using (new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled))
+        {
+            await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+            (await new RegistroLecturaSesionPrivilegiada(contexto, NullLogger<RegistroLecturaSesionPrivilegiada>.Instance)
+                    .RegistrarAsync(sesion, "EjecutarImportacionCommand"))
+                .Should().BeFalse("una transacción ambiente también podría deshacer la fila");
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    // ── Unicidad: el contexto firmado no nombra la sesión, así que no puede haber dos ─
+
+    /// <summary>
+    /// Con dos Sesiones Privilegiadas vigentes del mismo Actor real sobre el mismo Tenant, una
+    /// llamada directa podría atribuir la fila a la que no se usa: la función rechaza con las dos.
+    /// </summary>
+    [Fact]
+    public async Task Con_dos_sesiones_vigentes_del_mismo_actor_sobre_el_Tenant_no_registra_ninguna()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        var otra = await SembrarOtraSesionVigenteAsync(_tenantA);
+
+        foreach (var nombrada in new[] { sesion, otra })
+        {
+            await using (var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion))
+            {
+                (await LlamarFuncionAsync(contexto, nombrada, nameof(TipoActividadSoporte.Lectura), "EjecutarImportacionCommand"))
+                    .Should().Be("sesion_ambigua");
+            }
+
+            (await RegistrarComoSoporteAsync(_tenantA, nombrada, "EjecutarImportacionCommand"))
+                .Should().BeFalse("el servicio traduce el rechazo a false, y el behavior no sirve los datos");
+        }
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+        (await LeerFilasAsync(otra)).Should().BeEmpty();
+
+        // Cerrada la otra, la que queda vuelve a registrar.
+        await EjecutarComoPropietarioAsync(
+            @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;", otra);
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "EjecutarImportacionCommand")).Should().BeTrue();
+        (await LeerFilasAsync(sesion)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Una_segunda_sesion_sobre_otro_Tenant_o_ya_caducada_no_hace_ambigua_la_vigente()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await SembrarOtraSesionVigenteAsync(_tenantB);
+        var caducada = await SembrarOtraSesionVigenteAsync(_tenantA);
+        await EjecutarComoPropietarioAsync(
+            @"UPDATE ""SesionesPrivilegiadas"" SET ""ExpiraEnUtc"" = clock_timestamp() - interval '1 second' WHERE ""Id"" = @u;", caducada);
+
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "EjecutarImportacionCommand")).Should().BeTrue();
+        (await LeerFilasAsync(sesion)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task La_sesion_vigente_de_otro_actor_sobre_el_mismo_Tenant_no_hace_ambigua_la_propia()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await SembrarOtraSesionVigenteAsync(_tenantA, _otroTecnico);
+
+        (await RegistrarComoSoporteAsync(_tenantA, sesion, "EjecutarImportacionCommand")).Should().BeTrue();
+    }
+
+    /// <summary>Segunda sesión vigente, sembrada como propietario con el dominio.</summary>
+    private async Task<Guid> SembrarOtraSesionVigenteAsync(Guid tenantObjetivo, Guid? actor = null)
+    {
+        var ahora = DateTime.UtcNow;
+        var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
+            actor ?? _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _otroTecnico);
+        var otra = SesionPrivilegiada.Abrir(
+            concesion, tenantObjetivo, "Segunda sesión en paralelo", ahora.AddMinutes(-1), TimeSpan.FromMinutes(30));
+        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
+        contexto.ConcesionesPrivilegio.Add(concesion);
+        contexto.SesionesPrivilegiadas.Add(otra);
+        await contexto.SaveChangesAsync();
+        return otra.Id;
+    }
+
     [Fact]
     public async Task Un_contexto_firmado_invalidado_no_registra()
     {

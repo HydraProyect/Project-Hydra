@@ -54,6 +54,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     Tenant en TenantsAlcanzadosPorConcesion). Las mismas condiciones que
             //     SesionPrivilegiadaActual comprueba en la aplicación. No se filtra por capacidad:
             //     registrar una lectura no concede nada.
+            //   - Unicidad: el contexto firmado no lleva la Sesión Privilegiada seleccionada (añadirla
+            //     cambiaría el token y app_contexto_validado, que leen todas las políticas RLS). Para
+            //     que la fila no pueda atribuirse a otra sesión del mismo actor, la función rechaza
+            //     ('sesion_ambigua') si el actor real tiene más de una sesión vigente sobre el Tenant.
             //   - Fila: TenantId (el Tenant objetivo), UsuarioSoporteId (el actor real, nunca el
             //     usuario simulado), SesionPrivilegiadaId y OcurridaEnUtc los pone la función;
             //     DelegacionTenantId queda nulo (CK_RegistrosActividadSoporte_UnSoloAgrupador). Del
@@ -81,6 +85,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   v_actor uuid;
                   v_tenant uuid;
                   v_ahora timestamptz := clock_timestamp();
+                  v_vigentes integer;
+                  v_nombrada integer;
                 BEGIN
                   IF NOT public.app_ctx_valido() THEN
                     RETURN 'contexto_no_valido';
@@ -100,11 +106,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'valor_no_valido';
                   END IF;
 
-                  PERFORM 1
+                  -- Todas las sesiones vigentes del actor real sobre el Tenant del contexto, y cuántas
+                  -- de ellas son la nombrada.
+                  SELECT count(*), count(*) FILTER (WHERE s."Id" = p_sesion)
+                    INTO v_vigentes, v_nombrada
                   FROM public."SesionesPrivilegiadas" s
                   JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
-                  WHERE s."Id" = p_sesion
-                    AND s."TenantObjetivoId" = v_tenant
+                  WHERE s."TenantObjetivoId" = v_tenant
                     AND s."CerradaEnUtc" IS NULL
                     AND s."InicioEnUtc" <= v_ahora
                     AND s."ExpiraEnUtc" > v_ahora
@@ -115,8 +123,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AND (c."EsAlcanceGlobal" OR EXISTS (
                         SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
                         WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant));
-                  IF NOT FOUND THEN
+                  IF v_nombrada = 0 THEN
                     RETURN 'sesion_no_autorizada';
+                  END IF;
+                  -- El contexto firmado no lleva la Sesión Privilegiada seleccionada: con dos sesiones
+                  -- vigentes del mismo actor sobre el mismo Tenant, quien llama podría atribuir la fila
+                  -- a la que no usa. Se rechaza en vez de adivinar.
+                  IF v_vigentes > 1 THEN
+                    RETURN 'sesion_ambigua';
                   END IF;
 
                   INSERT INTO public."RegistrosActividadSoporte" (

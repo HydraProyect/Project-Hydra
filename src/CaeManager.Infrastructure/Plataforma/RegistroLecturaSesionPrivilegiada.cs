@@ -16,7 +16,8 @@ namespace CaeManager.Infrastructure.Plataforma;
 /// app_registrar_actividad_soporte_por_sesion (migración RegistraActividadSoportePorSesionPrivilegiada).
 /// Mismo patrón que RegistroAccesoDocumentoSensibleRepository.GuardarPorSesionPrivilegiadaAsync:
 /// valores parametrizados por EF, código de vuelta en vez de excepción, y false ante cualquier
-/// rechazo para que quien llama falle en cerrado.
+/// rechazo para que quien llama falle en cerrado. Solo registra fuera de una transacción explícita,
+/// para que un ROLLBACK posterior no borre la fila de una lectura ya servida.
 /// </remarks>
 public class RegistroLecturaSesionPrivilegiada(
     CaeManagerDbContext dbContext, ILogger<RegistroLecturaSesionPrivilegiada> logger)
@@ -32,6 +33,19 @@ public class RegistroLecturaSesionPrivilegiada(
             logger.LogError(
                 "No se pudo registrar la lectura {Operacion}: no se nombra la Sesión Privilegiada. Los datos no se sirven.",
                 operacion);
+            return false;
+        }
+
+        // La fila tiene que sobrevivir a la lectura que autoriza. Dentro de una transacción explícita
+        // (de EF o ambiente) el handler serviría los datos y un ROLLBACK posterior borraría la fila:
+        // solo se registra en autocommit. Ningún flujo actual lee bajo Sesión Privilegiada dentro de
+        // una transacción; si alguno llega a hacerlo, falla aquí en cerrado.
+        if (dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null)
+        {
+            logger.LogError(
+                "No se registra la lectura {Operacion} en la Sesión Privilegiada {SesionId}: hay una transacción " +
+                "abierta que podría deshacer la fila. Los datos no se sirven.",
+                operacion, sesionPrivilegiadaId);
             return false;
         }
 

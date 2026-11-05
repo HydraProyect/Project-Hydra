@@ -64,13 +64,57 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         "src/CaeManager.Web/Features/Documentos/Pages/ImportarDocumentos.razor",
     ];
 
-    private static readonly Regex EnvioDeRequest = new(@"\.Send\(\s*new\s+(?<tipo>[A-Z]\w*)\s*\(", RegexOptions.Compiled);
+    /// <summary>
+    /// En un <c>.razor</c> (sin comentarios, ver <see cref="LimpiadorDeComentarios"/>), cualquier
+    /// llamada a <c>Send</c> tolerando espacios y genéricos, y la forma literal <c>.Send(new X(</c>
+    /// anclada a donde empieza esa llamada.
+    /// </summary>
+    private static readonly Regex CualquierEnvioRazor = new(@"\.\s*Send\s*(<[^>(]*>)?\s*\(", RegexOptions.Compiled);
+    private static readonly Regex EnvioLiteralRazor = new(@"\G\.\s*Send\s*\(\s*new\s+(?<tipo>[A-Za-z_][\w.]*)\s*\(", RegexOptions.Compiled);
 
-    /// <summary>La misma forma, anclada a la posición donde empieza una llamada.</summary>
-    private static readonly Regex EnvioDeRequestAqui = new(@"\G\.Send\(\s*new\s+[A-Z]\w*\s*\(", RegexOptions.Compiled);
+    /// <summary>
+    /// Los envíos de un fuente de página: <c>(tipo, null)</c> si el argumento es <c>new X(...)</c> y
+    /// <c>(null, posición)</c> si es cualquier otra cosa, que este instrumento no sabe nombrar. Los
+    /// <c>.razor.cs</c> se recorren con Roslyn (InvocationExpression cuyo nombre es <c>Send</c>), así que
+    /// los espacios, los saltos y los comentarios entre el punto, el nombre y el paréntesis no lo ciegan.
+    /// </summary>
+    internal static IEnumerable<(string? Tipo, string? Opaco)> Envios(string ruta, string texto)
+    {
+        var nombre = Path.GetFileName(ruta);
+        if (ruta.EndsWith(".razor.cs", StringComparison.Ordinal) || ruta.EndsWith(".cs", StringComparison.Ordinal))
+        {
+            var raiz = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(texto).GetRoot();
+            foreach (var llamada in raiz.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
+            {
+                var metodo = llamada.Expression switch
+                {
+                    Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax m => m.Name.Identifier.ValueText,
+                    Microsoft.CodeAnalysis.CSharp.Syntax.MemberBindingExpressionSyntax b => b.Name.Identifier.ValueText,
+                    _ => null,
+                };
+                if (metodo != "Send")
+                    continue;
 
-    /// <summary>Cualquier llamada a <c>.Send(</c>, con o sin argumentos genéricos.</summary>
-    private static readonly Regex CualquierEnvio = new(@"\.Send\s*(<[^>(]*>)?\s*\(", RegexOptions.Compiled);
+                var linea = llamada.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                var primero = llamada.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+                if (primero is Microsoft.CodeAnalysis.CSharp.Syntax.ObjectCreationExpressionSyntax creacion)
+                    yield return (creacion.Type.ToString().Split('.')[^1].Trim(), null);
+                else
+                    yield return (null, $"{nombre}:{linea}");
+            }
+            yield break;
+        }
+
+        var limpio = LimpiadorDeComentarios.Quitar(texto, razor: true);
+        foreach (Match envio in CualquierEnvioRazor.Matches(limpio))
+        {
+            var literal = EnvioLiteralRazor.Match(limpio, envio.Index);
+            var linea = limpio[..envio.Index].Count(c => c == '\n') + 1;
+            yield return literal.Success
+                ? (literal.Groups["tipo"].Value.Split('.')[^1], null)
+                : (null, $"{nombre}:{linea}");
+        }
+    }
 
     [Fact]
     public void Todo_request_que_envia_la_pagina_del_Importador_registra_la_lectura_en_Sesion_Privilegiada()
@@ -86,28 +130,18 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         ficheros.Should().Contain(f => f.EndsWith("Importacion.razor.cs", StringComparison.Ordinal),
             "el instrumento tiene que leer la página del Importador");
 
-        // Un envío que no es «.Send(new X(...))» (una variable, un método, un genérico) no lo puede
+        var envios = ficheros.SelectMany(f => Envios(f, File.ReadAllText(f))).ToList();
+
+        // Un envío que no es «.Send(new X(...))» (una variable, un método, new() sin tipo) no lo puede
         // nombrar este instrumento: se exige la forma literal para no dar por marcado lo que no ve.
-        var enviosOpacos = ficheros
-            .SelectMany(f =>
-            {
-                var texto = File.ReadAllText(f);
-                return CualquierEnvio.Matches(texto)
-                    .Where(m => !EnvioDeRequestAqui.IsMatch(texto, m.Index))
-                    .Select(m => $"{Path.GetFileName(f)}:{texto[..m.Index].Count(c => c == '\n') + 1}");
-            })
-            .ToList();
-        enviosOpacos.Should().BeEmpty(
-            "toda llamada a .Send( en una página del Importador tiene que ser «.Send(new Request(...))» para que " +
+        envios.Where(e => e.Opaco is not null).Select(e => e.Opaco).Should().BeEmpty(
+            "toda llamada a Send en una página del Importador tiene que ser «.Send(new Request(...))» para que " +
             "este test pueda comprobar que el request lleva ILecturaRegistradaEnSesionPrivilegiada (issue #2001); " +
             "si hace falta otra forma, amplía el instrumento antes");
 
-        var enviados = ficheros
-            .SelectMany(f => EnvioDeRequest.Matches(File.ReadAllText(f)).Select(m => m.Groups["tipo"].Value))
-            .Distinct()
-            .ToList();
+        var enviados = envios.Where(e => e.Tipo is not null).Select(e => e.Tipo!).Distinct().ToList();
         enviados.Should().Contain(["ObtenerHistorialImportacionesQuery", "ObtenerNombreCuentaQuery", "EjecutarImportacionCommand"],
-            "la expresión tiene que reconocer los envíos de la página");
+            "el instrumento tiene que reconocer los envíos de la página");
 
         var requestsPorNombre = typeof(ILecturaRegistradaEnSesionPrivilegiada).Assembly.GetTypes()
             .Where(t => typeof(IBaseRequest).IsAssignableFrom(t))
@@ -119,6 +153,38 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .Where(n => !Excluidos.Contains(n))
             .Where(n => !requestsPorNombre[n].All(t => typeof(ILecturaRegistradaEnSesionPrivilegiada).IsAssignableFrom(t)))
             .Should().BeEmpty("lo que la página del Importador lee bajo Sesión Privilegiada deja fila (issue #2001)");
+    }
+
+    /// <summary>Sensibilidad del detector: las formas que la versión con expresión regular no veía.</summary>
+    [Theory]
+    [InlineData("class P { async Task F() { await Mediator. Send(consulta); } }")]
+    [InlineData("class P { async Task F() { await Mediator.Send /*c*/ (consulta); } }")]
+    [InlineData("class P { async Task F() { await Mediator\n    .Send(\n        Construir()); } }")]
+    [InlineData("class P { async Task F() { await Mediator.Send<int>(consulta); } }")]
+    [InlineData("class P { async Task F() { await Mediator.Send(new(1)); } }")]
+    [InlineData("class P { async Task F() { await Mediator?.Send(consulta); } }")]
+    public void El_detector_ve_como_opaco_un_envio_que_no_es_new_X_en_cualquier_forma(string fuente)
+    {
+        Envios("Pagina.razor.cs", fuente).Should().ContainSingle().Which.Opaco.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData("class P { async Task F() { await Mediator . Send ( new ObtenerHistorialImportacionesQuery ( ) ); } }")]
+    [InlineData("class P { async Task F() { await Mediator.Send(/*c*/ new Ns.ObtenerHistorialImportacionesQuery()); } }")]
+    public void El_detector_nombra_el_request_de_un_envio_new_X_con_espacios_y_comentarios(string fuente)
+    {
+        Envios("Pagina.razor.cs", fuente).Should().ContainSingle().Which.Tipo.Should().Be("ObtenerHistorialImportacionesQuery");
+    }
+
+    [Theory]
+    [InlineData("@code { async Task F() { await Mediator. Send(consulta); } }", null)]
+    [InlineData("@code { async Task F() { await Mediator.Send /*c*/ (consulta); } }", null)]
+    [InlineData("@code { async Task F() { await Mediator . Send ( new ObtenerHistorialImportacionesQuery() ); } }", "ObtenerHistorialImportacionesQuery")]
+    public void En_un_razor_el_detector_tolera_espacios_y_comentarios(string fuente, string? tipo)
+    {
+        var envio = Envios("Pagina.razor", fuente).Should().ContainSingle().Subject;
+        envio.Tipo.Should().Be(tipo);
+        (envio.Opaco is null).Should().Be(tipo is not null);
     }
 
     private static string BuscarRaizDelRepositorio()
@@ -180,16 +246,16 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     [Fact]
     public void La_lista_cerrada_de_detalles_de_la_migracion_vigente_es_exactamente_la_de_los_requests_marcados()
     {
-        var vigente = typeof(RegistraActividadSoportePorSesionPrivilegiada).Assembly.GetTypes()
+        var migraciones = typeof(RegistraActividadSoportePorSesionPrivilegiada).Assembly.GetTypes()
             .Where(t => typeof(Migration).IsAssignableFrom(t) && !t.IsAbstract)
             .Select(t => (Id: t.GetCustomAttribute<MigrationAttribute>()?.Id, Tipo: t))
             .Where(m => m.Id is not null)
-            .Select(m => (m.Id, Sql: string.Join("\n", ((Migration)Activator.CreateInstance(m.Tipo)!)
+            .Select(m => (Id: m.Id!, Sql: string.Join("\n", ((Migration)Activator.CreateInstance(m.Tipo)!)
                 .UpOperations.OfType<SqlOperation>().Select(o => o.Sql))))
-            .Where(m => m.Sql.Contains("FUNCTION public.app_registrar_actividad_soporte_por_sesion(", StringComparison.Ordinal))
             .OrderBy(m => m.Id, StringComparer.Ordinal)
-            .Last();
+            .ToList();
 
+        var vigente = DefinicionVigente(migraciones);
         var coincidencias = ListaDeDetalles.Matches(vigente.Sql);
         coincidencias.Should().ContainSingle("la función de {0} tiene que filtrar el detalle por lista cerrada", vigente.Id);
         var admitidos = coincidencias[0].Groups["lista"].Value
@@ -206,6 +272,81 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         admitidos.Should().OnlyHaveUniqueItems();
         admitidos.Should().BeEquivalentTo(marcados,
             "el detalle de la función {0} es una lista cerrada con el nombre exacto de cada request marcado", vigente.Id);
+    }
+
+    private static readonly Regex DefinicionDeLaFuncion = new(
+        @"CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+public\.app_registrar_actividad_soporte_por_sesion\s*\(",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex EliminacionDeLaFuncion = new(
+        @"DROP\s+FUNCTION\s+(IF\s+EXISTS\s+)?public\.app_registrar_actividad_soporte_por_sesion\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// La definición vigente: la ÚLTIMA <c>CREATE [OR REPLACE] FUNCTION</c> de la última migración que
+    /// la define, desde la cabecera hasta el cierre de su cuerpo (<c>$$;</c>). Una migración que solo
+    /// toque GRANT o DROP no cuenta como definición, y una migración posterior que la elimine sin
+    /// volver a crearla hace fallar el test (la lista ya no protegería nada).
+    /// </summary>
+    internal static (string Id, string Sql) DefinicionVigente(IReadOnlyList<(string Id, string Sql)> migraciones)
+    {
+        var definidoras = migraciones.Where(m => DefinicionDeLaFuncion.IsMatch(m.Sql)).ToList();
+        definidoras.Should().NotBeEmpty("alguna migración define la función");
+        var ultima = definidoras[^1];
+
+        var posteriores = migraciones.Where(m => string.CompareOrdinal(m.Id, ultima.Id) > 0)
+            .Where(m => EliminacionDeLaFuncion.IsMatch(m.Sql))
+            .Select(m => m.Id)
+            .ToList();
+        posteriores.Should().BeEmpty("una migración posterior a {0} elimina la función sin redefinirla", ultima.Id);
+
+        // Dentro de la propia migración, un DROP después de la última definición también la elimina.
+        var definicion = DefinicionDeLaFuncion.Matches(ultima.Sql)[^1];
+        EliminacionDeLaFuncion.Matches(ultima.Sql).Where(d => d.Index > definicion.Index)
+            .Should().BeEmpty("{0} elimina la función después de definirla", ultima.Id);
+
+        var cuerpo = ultima.Sql.IndexOf("$$", definicion.Index, StringComparison.Ordinal);
+        cuerpo.Should().BeGreaterThan(-1);
+        var cierre = ultima.Sql.IndexOf("$$;", cuerpo + 2, StringComparison.Ordinal);
+        cierre.Should().BeGreaterThan(cuerpo, "la definición cierra su cuerpo");
+        return (ultima.Id, ultima.Sql[definicion.Index..(cierre + 3)]);
+    }
+
+    [Fact]
+    public void La_definicion_vigente_es_la_ultima_CREATE_de_la_ultima_migracion_que_la_define()
+    {
+        const string vieja = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN IF p_detalle NOT IN ('Viejo') THEN END IF; END; $$;";
+        const string nueva = "CREATE OR REPLACE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN IF p_detalle NOT IN ('Nuevo') THEN END IF; END; $$;";
+        const string grant = "GRANT EXECUTE ON FUNCTION public.app_registrar_actividad_soporte_por_sesion(uuid) TO cae_app_soporte; -- p_detalle NOT IN ('Engano')";
+
+        // Dos definiciones en la misma migración: cuenta la última, y el texto de fuera no entra.
+        var dos = DefinicionVigente([("1", vieja + "\n" + nueva + "\nSELECT 'p_detalle NOT IN (''Fuera'')';")]);
+        ListaDeDetalles.Matches(dos.Sql).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+
+        // Una migración posterior que solo toca GRANT no es una definición.
+        DefinicionVigente([("1", nueva), ("2", grant)]).Id.Should().Be("1");
+
+        // Una posterior que la elimina hace fallar.
+        var eliminada = () => DefinicionVigente([("1", nueva), ("2", "DROP FUNCTION public.app_registrar_actividad_soporte_por_sesion(uuid);")]);
+        eliminada.Should().Throw<Exception>();
+
+        // Y un DROP tras la última definición dentro de la misma migración, también.
+        var mismaMigracion = () => DefinicionVigente([("1", nueva + "\nDROP FUNCTION IF EXISTS public.app_registrar_actividad_soporte_por_sesion;")]);
+        mismaMigracion.Should().Throw<Exception>();
+    }
+
+    [Fact]
+    public void La_funcion_rechaza_una_sesion_ambigua_del_mismo_actor_sobre_el_Tenant()
+    {
+        // El contexto firmado no lleva la Sesión Privilegiada seleccionada: con dos vigentes del
+        // mismo actor real sobre el Tenant, la fila podría atribuirse a la otra.
+        Up.Should().Contain("SELECT count(*), count(*) FILTER (WHERE s.\"Id\" = p_sesion)")
+            .And.Contain("INTO v_vigentes, v_nombrada")
+            .And.Contain("IF v_nombrada = 0 THEN")
+            .And.Contain("IF v_vigentes > 1 THEN")
+            .And.Contain("RETURN 'sesion_ambigua';");
+        Up.IndexOf("sesion_ambigua", StringComparison.Ordinal).Should().BeLessThan(
+            Up.IndexOf("INSERT INTO", StringComparison.Ordinal), "el rechazo va antes de insertar");
     }
 
     [Fact]
