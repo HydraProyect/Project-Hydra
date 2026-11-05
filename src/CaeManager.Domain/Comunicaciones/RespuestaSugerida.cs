@@ -29,8 +29,8 @@ public enum EstadoRespuestaSugerida
 /// <summary>
 /// Texto propuesto para contestar al último entrante de una conversación: una macro rellenada o una redacción de Vega.
 /// Nunca se envía sola y no se puede enviar por error: una persona revisa y envía siempre. Quien impide el envío en
-/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/>, <see cref="TextoHash"/> y, dentro de una
-/// conversación, <see cref="Texto"/>.
+/// servidor es <c>BloqueoRespuestaSugerida</c>, que mira <see cref="Estado"/>, <see cref="TextoHash"/> y <see cref="Texto"/>,
+/// tanto dentro de una conversación como por buzón.
 ///
 /// <para>
 /// Vive en el Tenant propietario de la conversación. Sin navegación desde <see cref="Conversacion"/>, como
@@ -62,7 +62,7 @@ public class RespuestaSugerida : EntidadBase
     /// <summary>Contenido con el mismo formato que el cuerpo que se enviaría; la auditoría lo enmascara.</summary>
     public string Texto { get; private set; } = string.Empty;
 
-    /// <summary><see cref="CalcularTextoHash"/> de <see cref="Texto"/>: compara con un envío sin descargar el contenido.</summary>
+    /// <summary><see cref="CalcularTextoHash"/> de <see cref="Texto"/>: compara con un envío sin descargar el contenido; la contención de un texto en otro sí necesita <see cref="Texto"/>.</summary>
     public string TextoHash { get; private set; } = string.Empty;
 
     public EstadoRespuestaSugerida Estado { get; private set; }

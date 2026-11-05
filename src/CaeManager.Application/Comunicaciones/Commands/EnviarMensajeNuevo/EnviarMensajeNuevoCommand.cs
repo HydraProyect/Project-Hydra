@@ -64,6 +64,7 @@ public class EnviarMensajeNuevoCommandHandler(
     IConversacionRepository conversacionRepositorio,
     IComunicacionesQueryContext comunicaciones,
     IAlcanceDatosService alcanceDatos,
+    IInvalidadorAlcance invalidadorAlcance,
     IMicrosoft365GraphClient graphClient,
     AccesoGraphService accesoGraph,
     IFileStorageService almacenamiento,
@@ -104,7 +105,7 @@ public class EnviarMensajeNuevoCommandHandler(
         if (request.EmpresaId is { } empresaId && !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.NoEncontrada", "No encontramos esta empresa."));
 
-        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, conexion.Id, request.CuerpoHtml, cancellationToken);
+        var bloqueo = await comunicaciones.ComprobarEnvioPorBuzonAsync(alcanceDatos, invalidadorAlcance, conexion.Id, request.CuerpoHtml, cancellationToken);
         if (bloqueo.EsFallido)
             return Result.Fallo<Guid>(bloqueo.Error);
         await registroSalida.RegistrarSalidaAsync(
