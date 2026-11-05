@@ -141,7 +141,18 @@ public class SiembraDemoDireccionAdministrativaPurasTests
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
-        var directorio = Directory.CreateTempSubdirectory("demo-direccion-").FullName;
+        // Directorio explícito bajo la salida del propio test (dentro del checkout, en disco), NO el
+        // temporal del sistema: si /tmp es tmpfs, un directorio de Directory.CreateTempSubdirectory
+        // está en memoria, pasa la precondición y el test deja de observar el rechazo.
+        var directorio = Path.Combine(AppContext.BaseDirectory, "siembra-demo-en-disco", Guid.NewGuid().ToString("N"));
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(directorio);
+        }
+        else
+        {
+            Directory.CreateDirectory(directorio, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
 
         try
         {
@@ -151,8 +162,12 @@ public class SiembraDemoDireccionAdministrativaPurasTests
                 new SiembraDemoDireccionAdministrativa.Opciones("ejemplo.es", directorio, "Production"),
                 Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
 
+            // El motivo, no solo el tipo: el directorio tiene modo 0700, así que en Linux la única
+            // precondición que puede fallar es la del sistema de ficheros.
+            var motivo = OperatingSystem.IsLinux() ? "*está en un sistema de ficheros*" : "*solo se escribe en Linux*";
             await llamada.Should().ThrowAsync<InvalidOperationException>(
-                "MEDIDO: un directorio temporal está en disco (o en un SO donde no se puede comprobar): la operación entera se niega");
+                    "MEDIDO: un directorio en disco (o en un SO donde no se puede comprobar) hace que la operación entera se niegue")
+                .WithMessage(motivo);
 
             await using var bootstrap = arnes.Servicios.GetRequiredService<FabricaContextoDeBootstrap>().Crear();
             (await bootstrap.Tenants.CountAsync(t => SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(t.Nombre)))
