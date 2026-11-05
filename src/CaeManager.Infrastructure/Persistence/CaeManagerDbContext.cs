@@ -249,6 +249,7 @@ public class CaeManagerDbContext(
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<CaeManager.Domain.AltaAutonoma.SolicitudAlta> SolicitudesAlta => Set<CaeManager.Domain.AltaAutonoma.SolicitudAlta>();
     public DbSet<CifPropietarioTenant> CifsPropietarioTenant => Set<CifPropietarioTenant>();
+    public DbSet<CaeManager.Domain.Comercial.ProductoContratado> ProductosContratados => Set<CaeManager.Domain.Comercial.ProductoContratado>();
     IQueryable<Tenant> ITenantsQueryContext.Tenants => Tenants;
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
     IQueryable<TarifaCliente> IFacturacionQueryContext.TarifasCliente => TarifasCliente;
@@ -433,6 +434,8 @@ public class CaeManagerDbContext(
     IQueryable<IntencionConversacion> IComunicacionesQueryContext.IntencionesConversacion => IntencionesConversacion;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
+    Task<T> IComunicacionesQueryContext.EnInstantaneaDeLecturaAsync<T>(Func<CancellationToken, Task<T>> lectura, CancellationToken cancellationToken) =>
+        InstantaneaDeLectura.EjecutarAsync(this, lectura, cancellationToken);
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<RegistroTiempoGestion> RegistrosTiempoGestion => Set<RegistroTiempoGestion>();

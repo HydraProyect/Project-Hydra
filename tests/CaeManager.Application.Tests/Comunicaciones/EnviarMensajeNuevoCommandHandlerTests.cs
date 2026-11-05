@@ -26,7 +26,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new EnviarMensajeNuevoCommandHandler(
-            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), new CaeManager.Application.Common.InvalidadorAlcanceInerte(), graphClient, accesoGraph,
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         return (handler, conversaciones, graphClient);
@@ -132,7 +132,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
 
         var handler = new EnviarMensajeNuevoCommandHandler(
-            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), graphClient, accesoGraph,
+            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), new CaeManager.Application.Common.InvalidadorAlcanceInerte(), graphClient, accesoGraph,
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), unitOfWork, new RegistroExportacionFalso());
 
         // 1. Enviar mensaje saliente
@@ -265,7 +265,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         var conversaciones = new ConversacionRepositorioFalso();
 
         var handler = new EnviarMensajeNuevoCommandHandler(
-            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), graphClient, accesoGraph,
+            conexionRepositorio, conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(conexionIntegracionVisible: false), new CaeManager.Application.Common.InvalidadorAlcanceInerte(), graphClient, accesoGraph,
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), new RegistroExportacionFalso());
 
         var resultado = await handler.Handle(

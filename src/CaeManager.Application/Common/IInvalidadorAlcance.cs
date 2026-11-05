@@ -9,7 +9,9 @@ namespace CaeManager.Application.Common;
 ///
 /// La invoca <see cref="InvalidacionAlcanceBehavior{TRequest,TResponse}"/> antes y después de cada Command, así
 /// que no hace falta una lista de los Commands que cambian el alcance: invalidar de más solo cuesta
-/// recalcular; invalidar de menos deja una visión obsoleta, que es el fallo que corrige. Solo la
+/// recalcular; invalidar de menos deja una visión obsoleta, que es el fallo que corrige. La invoca también
+/// <c>BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync</c> al abrir su instantánea de lectura, para que los
+/// conjuntos de cartera se calculen dentro de ella y no vengan memoizados de un momento anterior. Solo la
 /// memoización de esta instancia: no toca el ámbito de Tenant, la cartera ni la autorización.
 /// </summary>
 public interface IInvalidadorAlcance
