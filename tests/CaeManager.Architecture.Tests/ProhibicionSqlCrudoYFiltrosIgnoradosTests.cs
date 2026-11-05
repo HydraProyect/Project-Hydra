@@ -505,6 +505,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // D1 de cobros (2026-11-04): mismo candado de asesoramiento, por Tenant y por
+        // Subscription de Stripe, entre el webhook, el alta manual y la resincronización.
+        // Mismas razones que el de cartera: no toca filas y exige transacción.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+        // Intento sin espera del webhook (pg_try_advisory_xact_lock): devuelve un booleano, sin filas.
+        [("src/CaeManager.Infrastructure/Persistence/BloqueoSuscripcionStripe.cs", "return (await dbContext.Database.SqlQuery<bool>(")] = 1,
+
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 

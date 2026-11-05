@@ -36,11 +36,12 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.StripeSubscriptionId).HasMaxLength(100);
 
         // Búsqueda del tenant dueño de una Subscription al procesar un
-        // webhook de Stripe (ver WebhookStripeEndpoints) — filtrado, no
-        // único: la mayoría de tenants no tienen ninguna suscripción
-        // vinculada (NULL, ver StripeSubscriptionId) y Postgres no exige
-        // unicidad entre NULLs de todas formas, pero el filtro deja fuera
-        // esas filas del índice sin necesidad de pensarlo.
+        // webhook de Stripe (ver WebhookStripeEndpoints), filtrado: la
+        // mayoría de tenants no tienen ninguna suscripción vinculada (NULL).
+        // El índice NO es único todavía: que una Subscription no se vincule a
+        // dos Tenants lo garantiza RegistrarSuscripcionTenantCommand bajo el
+        // candado de la Subscription (IBloqueoSuscripcionStripe), no la base.
+        // Hacerlo único exige una migración propia.
         builder.HasIndex(t => t.StripeSubscriptionId)
             .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
 

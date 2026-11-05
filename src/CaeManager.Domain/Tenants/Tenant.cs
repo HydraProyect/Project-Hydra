@@ -71,6 +71,11 @@ public class Tenant : Entity
     /// <summary>Id de la Subscription en Stripe. Null hasta <see cref="VincularSuscripcionStripe"/>.</summary>
     public string? StripeSubscriptionId { get; private set; }
 
+    /// <summary>
+    /// Cuándo se escribió por última vez <see cref="EstadoComercial"/>. El webhook de Stripe y la
+    /// resincronización manual solo lo escriben cuando el estado cambia, así que es la fecha del
+    /// último cambio, no la de la última comprobación.
+    /// </summary>
     public DateTime? EstadoComercialActualizadoEnUtc { get; private set; }
 
     /// <summary>
