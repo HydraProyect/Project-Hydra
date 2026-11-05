@@ -91,14 +91,15 @@ test('un mensaje con otra forma se ignora sin responder ni buscar', async () => 
 // Engancha el worker de verdad a un «self» falso para probar el manejador de message tal cual, origen incluido.
 function engancharWorker() {
     const enviados = [];
+    const espia = { llamadas: 0 };
     const falso = {
         location: { origin: 'https://app.ejemplo.test' },
-        crypto: { subtle: crypto.subtle },
+        crypto: { subtle: { digest: (...a) => { espia.llamadas++; return crypto.subtle.digest(...a); } } },
         postMessage: (m) => enviados.push(m),
         addEventListener: (tipo, manejador) => { if (tipo === 'message') falso.manejador = manejador; },
     };
     new Function('self', readFileSync(ruta, 'utf8'))(falso);
-    return { manejador: falso.manejador, enviados };
+    return { manejador: falso.manejador, enviados, espia };
 }
 
 async function esperarRespuesta(enviados, ms) {
@@ -110,6 +111,7 @@ test('el manejador ignora un mensaje con un origen ajeno y atiende el vacío del
 
     const ajeno = engancharWorker();
     ajeno.manejador({ origin: 'https://otro.ejemplo.test', data: mensaje });
+    assert.equal(ajeno.espia.llamadas, 0, 'con un origen ajeno no se empieza a buscar');
     await new Promise((listo) => setTimeout(listo, 200));
     assert.deepEqual(ajeno.enviados, [], 'a un origen ajeno no se le responde');
 
