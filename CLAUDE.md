@@ -59,17 +59,19 @@ Bucle completo, evidencia y cierre: skill `protocolo-hydra-autonomia`.
 
 ## Antes de tocar código
 
-- Primera orden: `git fetch origin` y `git log --oneline origin/main..HEAD` en PowerShell, para confirmar que la rama sale de `origin/main`. Toda rama se corta de `origin/main`, para no heredar trabajo ajeno. `scripts/estado-ramas.sh` se usará cuando exista su versión PowerShell; la herramienta Bash está denegada en `~/.claude/settings.json`.
+- Primera orden: `bash scripts/estado-ramas.sh`. Toda rama se corta de `origin/main`, para no heredar trabajo ajeno.
 - Si el cambio toca un DTO, una API, el esquema o la autorización, carga `protocolo-hydra-contratos` antes de editar.
 - Si cambias una regla, corrige en el mismo incremento el contrato, documento o comentario normativo que la describía.
 
 ## Antes de abrir una PR
 
-- Revisión previa con el agente `revisor-puente`, pidiéndole refutarlo. Si toca autorización, RLS, multi-tenancy, criptografía o auditoría, o hay duda, la segunda opinión es obligatoria y la da un modelo distinto del que escribió el código: solo se encola con el veredicto FUSIONABLE de Codex sobre la cabeza actual; sin cuota, la PR no se fusiona hasta que Chris lo decida.
-- El cuerpo lleva `## Revisión Codex` con `Revisor:`, `Refutación:` y el veredicto, cada uno en una línea y sin marcadores; si toca `deploy/bootstrap/roles-de-cluster.sql`, también `## Paso operativo en servidores` con staging y producción. Lo comprueba `scripts/verificar-gobernanza-pr.sh`, que es la autoridad, y solo comprueba la forma.
-- `gh pr create` con `--label "Type: …" --label "Priority: …" --milestone "…"`; sin ellos la PR queda en rojo.
-- Tras el tercer ciclo de revisión, reevalúa el enfoque. Un hallazgo que se repite en dos PRs se convierte en un check automático o en una issue.
-- Procedimiento completo, con comandos: skill `abrir-pr-hydra`. Si la PR sale de la cola: skill `fallo-de-cola`.
+- Revisión previa con el agente `revisor-puente`, pidiéndole refutarlo. Codex, con cuota, como segunda opinión; un agente que no sea Claude usa Codex. Es superficie sensible si toca autorización, RLS, multi-tenancy, criptografía, registro o auditoría, secretos, despliegue, webhooks anónimos o textos legales. Ante la duda, cuenta como sensible: no lo decide solo quien escribe el cambio. En superficie sensible la segunda opinión es obligatoria y la da un modelo distinto del que escribió el código (Codex si lo escribió Claude), porque un revisor del mismo modelo comparte sus puntos ciegos: la PR solo se encola (auto-merge o cola de fusión) con el veredicto FUSIONABLE de Codex, es decir, sin hallazgos abiertos de gravedad alta o media, sobre la cabeza actual de la PR (`headRefOid`). Sin cuota, se pega en la sección de revisión el error real de la herramienta, la PR se abre sin auto-merge y no se mergea hasta que Chris lo decida.
+- El cuerpo lleva una sección titulada exactamente `## Revisión Codex` con el resultado real y tres líneas, cada una entera en una sola línea (admiten viñeta, cita, negrita o comillas invertidas): `Revisor: revisor-puente` o `Revisor: Codex`; `Refutación: <qué se intentó romper: vías de abuso, rutas alternativas, estados degradados>`, también cuando el resultado es «sin hallazgos»; y el veredicto, «sin hallazgos» o «aceptados N, rechazados M» (con números, en cualquier orden). Sin marcadores («pendiente», «TODO»). Lo comprueba `scripts/verificar-gobernanza-pr.sh` (check no `required`, pero visible en rojo), y solo la forma: que las líneas existan con contenido, no que el revisor revisara de verdad ni que la refutación fuera real. Eso lo verifica quien revisa la PR.
+- Un ciclo es una pasada de revisión más la corrección empujada. Tras el tercero, reevalúa el enfoque en vez de seguir parcheando; el límite sirve para dejar de parchear, no para ignorar un hallazgo real que aparezca después. Las re-revisiones miran el diff nuevo, salvo en superficie sensible, donde se repasa de nuevo el inventario completo de rutas afectadas.
+- Un hallazgo que se repite en dos PRs se convierte en un check automático (test de invariante, ratchet o lint), en esa segunda PR si cabe; si no cabe, en una issue que lo nombre.
+- Si toca `deploy/bootstrap/roles-de-cluster.sql`, añade `## Paso operativo en servidores` nombrando staging y producción: ningún adaptador de despliegue ejecuta ese fichero.
+- Crea la PR con `gh pr create --label "Type: …" --label "Priority: …" --milestone "…"`; sin milestone ni etiquetas la PR queda en rojo y bloqueada. Milestones: `gh api repos/HydraProyect/Project-Hydra/milestones --jq '.[].title'`.
+- Procedimiento paso a paso, con comandos: skill `abrir-pr-hydra`; si la PR sale de la cola de fusión, skill `fallo-de-cola`. Sin esas skills, este apartado basta.
 
 ## Skills
 
