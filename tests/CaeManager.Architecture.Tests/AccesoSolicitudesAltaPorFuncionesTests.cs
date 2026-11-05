@@ -63,7 +63,7 @@ public class AccesoSolicitudesAltaPorFuncionesTests
         cuerpo.Should().Contain("p_id, 'Iniciada',")
             .And.Contain("'^[0-9a-f]{64}$'", "el token llega como SHA-256, nunca en claro")
             .And.Contain("interval '24 hours'")
-            .And.Contain("interval '7 days'")
+            .And.Contain("interval '168 hours'")
             .And.NotContain("UPDATE ")
             .And.NotContain("DELETE ");
     }

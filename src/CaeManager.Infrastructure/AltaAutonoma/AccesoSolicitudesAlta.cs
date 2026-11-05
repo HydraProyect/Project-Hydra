@@ -12,11 +12,6 @@ using Microsoft.Extensions.Options;
 namespace CaeManager.Infrastructure.AltaAutonoma;
 
 /// <summary>
-/// <see cref="IAccesoSolicitudesAlta"/> sobre las funciones <c>SECURITY DEFINER</c> de la migración
-/// <c>AccesoSolicitudesAltaPorFunciones</c>. No pasa por el <c>DbSet</c>: <c>SolicitudesAlta</c> está cerrada a
-/// <c>cae_app_runtime</c> y así sigue.
-/// </summary>
-/// <summary>
 /// <see cref="IPreparacionContrasenaAlta"/> con los validadores y el hasher de Identity de la aplicación (longitud,
 /// mayúscula, minúscula y dígito). La cuenta candidata no existe: ningún validador consulta la base.
 /// </summary>
@@ -38,6 +33,11 @@ public sealed class PreparacionContrasenaAlta(UserManager<ApplicationUser> usuar
     }
 }
 
+/// <summary>
+/// <see cref="IAccesoSolicitudesAlta"/> sobre las funciones <c>SECURITY DEFINER</c> de la migración
+/// <c>AccesoSolicitudesAltaPorFunciones</c>. No pasa por el <c>DbSet</c>: <c>SolicitudesAlta</c> está cerrada a
+/// <c>cae_app_runtime</c> y así sigue.
+/// </summary>
 public sealed class AccesoSolicitudesAlta(CaeManagerDbContext contexto) : IAccesoSolicitudesAlta
 {
     public async Task IniciarAsync(SolicitudAlta solicitud, CancellationToken cancellationToken)
@@ -120,5 +120,5 @@ public sealed class RemitenteCorreoAltaDesarrollo(
 public sealed class RemitenteCorreoAltaPorCanal(IEmailService correo) : IRemitenteCorreoAlta
 {
     public Task<Result> EnviarAsync(string destinatario, string asunto, string cuerpoHtml, CancellationToken cancellationToken) =>
-        correo.EnviarAsync(destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Seguridad, cancellationToken: cancellationToken);
+        correo.EnviarAsync(destinatario, asunto, cuerpoHtml, TipoAvisoCorreo.Transaccional, cancellationToken: cancellationToken);
 }

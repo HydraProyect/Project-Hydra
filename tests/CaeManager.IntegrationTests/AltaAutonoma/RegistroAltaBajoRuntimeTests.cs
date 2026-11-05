@@ -93,6 +93,52 @@ public class RegistroAltaBajoRuntimeTests : IAsyncLifetime
         (await LeerAsync(solicitud.Id)).Estado.Should().Be("Iniciada", "caducado, el enlace no verifica");
     }
 
+    [Theory]
+    [InlineData("Bloqueada")]
+    [InlineData("Caducada")]
+    public async Task Fuera_de_Iniciada_el_enlace_no_verifica_aunque_conserve_el_hash(string estado)
+    {
+        var token = ServicioRegistroAlta.NuevoToken();
+        var solicitud = Nueva(token);
+        await using (var conexion = await AbrirComoRuntimeFirmadoAsync())
+        await using (var contexto = ContextoSobre(conexion))
+            await new AccesoSolicitudesAlta(contexto).IniciarAsync(solicitud, CancellationToken.None);
+
+        await EjecutarComoPropietarioAsync($"UPDATE \"SolicitudesAlta\" SET \"Estado\" = '{estado}' WHERE \"Id\" = '{solicitud.Id}'");
+
+        await using (var conexion = await AbrirComoRuntimeFirmadoAsync())
+        await using (var contexto = ContextoSobre(conexion))
+            (await new AccesoSolicitudesAlta(contexto).VerificarCorreoAsync(token, CancellationToken.None))
+                .Should().Be(ResultadoVerificacionCorreoAlta.NoValido);
+
+        var fila = await LeerAsync(solicitud.Id);
+        fila.Estado.Should().Be(estado, "solo una Solicitud de alta Iniciada pasa a CorreoVerificado");
+        fila.Version.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Dos_confirmaciones_simultaneas_del_mismo_enlace_verifican_una_sola_vez()
+    {
+        var token = ServicioRegistroAlta.NuevoToken();
+        var solicitud = Nueva(token);
+        await using (var conexion = await AbrirComoRuntimeFirmadoAsync())
+        await using (var contexto = ContextoSobre(conexion))
+            await new AccesoSolicitudesAlta(contexto).IniciarAsync(solicitud, CancellationToken.None);
+
+        async Task<ResultadoVerificacionCorreoAlta> ConfirmarAsync()
+        {
+            await using var conexion = await AbrirComoRuntimeFirmadoAsync();
+            await using var contexto = ContextoSobre(conexion);
+            return await new AccesoSolicitudesAlta(contexto).VerificarCorreoAsync(token, CancellationToken.None);
+        }
+
+        var resultados = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(ConfirmarAsync)));
+
+        resultados.Count(r => r == ResultadoVerificacionCorreoAlta.Verificado).Should().Be(1, "el enlace es de un solo uso también en carrera");
+        resultados.Where(r => r != ResultadoVerificacionCorreoAlta.Verificado).Should().AllBeEquivalentTo(ResultadoVerificacionCorreoAlta.NoValido);
+        (await LeerAsync(solicitud.Id)).Version.Should().Be(1, "la fila se actualiza una sola vez");
+    }
+
     [Fact]
     public async Task Sin_contexto_firmado_las_funciones_no_responden()
     {

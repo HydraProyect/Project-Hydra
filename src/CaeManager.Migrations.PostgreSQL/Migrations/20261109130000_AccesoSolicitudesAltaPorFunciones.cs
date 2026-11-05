@@ -48,7 +48,7 @@ public partial class AccesoSolicitudesAltaPorFunciones : Migration
                 -- Mismos plazos que el dominio como techo: el enlace dura hasta 24 h y la Solicitud de alta hasta 7 días.
                 IF p_creada_en < pg_catalog.now() - interval '5 minutes' OR p_creada_en > pg_catalog.now() + interval '5 minutes'
                    OR p_token_caduca_en IS NULL OR p_token_caduca_en <= p_creada_en OR p_token_caduca_en > p_creada_en + interval '24 hours'
-                   OR p_caduca_en IS NULL OR p_caduca_en <= p_creada_en OR p_caduca_en > p_creada_en + interval '7 days' THEN
+                   OR p_caduca_en IS NULL OR p_caduca_en <= p_creada_en OR p_caduca_en > p_creada_en + interval '168 hours' THEN
                     RAISE EXCEPTION 'Plazos del registro fuera de rango' USING ERRCODE = '22023';
                 END IF;
 
