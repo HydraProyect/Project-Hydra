@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261109130000_RegistraActividadSoportePorSesionPrivilegiada")]
+    [Migration("20261109140000_RegistraActividadSoportePorSesionPrivilegiada")]
     partial class RegistraActividadSoportePorSesionPrivilegiada
     {
         /// <inheritdoc />
