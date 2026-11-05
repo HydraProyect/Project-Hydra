@@ -145,7 +145,7 @@ public class TrampasFormularioAltaTests
         _reloj.Avanzar(TimeSpan.FromSeconds(3));
         _servicio.Verificar(null, sello, reto).Should().Be(ResultadoTrampasFormulario.Superadas);
 
-        _reloj.Avanzar(_opciones.VigenciaSelloFormulario);
+        _reloj.Avanzar(_opciones.VigenciaSelloFormulario + RegistroRetosUsados.MargenPurga);
         _usados.PurgarCaducados();
 
         _usados.Cantidad.Should().Be(0, "control: el nonce ya se ha olvidado");

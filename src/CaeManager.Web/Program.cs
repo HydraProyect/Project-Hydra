@@ -313,6 +313,8 @@ CaeManager.Web.Services.RelojDesplazadoPorFichero.Registrar(builder.Services, bu
 Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(builder.Services, TimeProvider.System);
 // Antiabuso del alta autónoma: reto de prueba de trabajo, trampas del formulario y dominios desechables.
 CaeManager.Web.Features.AltaAutonoma.Antiabuso.AntiabusoAltaServiceCollectionExtensions.AddAntiabusoAlta(builder.Services, builder.Configuration);
+// Registro y verificación del correo del alta autónoma: cola en segundo plano y remitente (a fichero en Development).
+CaeManager.Web.Features.AltaAutonoma.Registro.RegistroAltaServiceCollectionExtensions.AddRegistroAlta(builder.Services, builder.Environment);
 builder.Services.AddScoped<CaeManager.Web.Services.ActividadUsuarioService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<BusquedaGlobalService>();
@@ -556,6 +558,8 @@ builder.Services.AddOpenApi("v1", options =>
 // Identity, cierra el hallazgo P0-2 de Project-Hydra-Negocio/MATURITY_REVIEW.md
 // (fuerza bruta sin fricción): el lockout protege cada cuenta concreta, este
 // límite frena el barrido de muchas cuentas distintas desde una misma IP.
+// El POST que confirma el correo del alta autónoma (/alta/verificar) tiene el
+// mismo techo anónimo, en su propia partición (ver el bloque más abajo).
 // Solo se limitan los POST — un GET a /cuenta/iniciar-sesion es simplemente
 // cargar la página, y limitarlo también castigaba tráfico legítimo: un
 // runner de CI (o un usuario real detrás de un NAT/proxy compartido) hace
@@ -594,6 +598,13 @@ builder.Services.AddRateLimiter(opciones =>
 
         var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
             && contexto.Request.Path.StartsWithSegments("/cuenta");
+
+        // El POST anónimo que confirma el correo del alta autónoma abre conexión con contexto firmado y bloquea una fila
+        // por cada intento: mismo techo por IP que los POST anónimos de /cuenta, en su propia partición para no gastar
+        // el cupo del inicio de sesión. Adivinar el token (256 bits) no es el riesgo; martillear la base sí.
+        if (CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.ParticionVerificar(contexto, limiteCuentaAnonimo)
+            is { } particionVerificarAlta)
+            return particionVerificarAlta;
 
         if (!esPostDeCuenta)
             return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");

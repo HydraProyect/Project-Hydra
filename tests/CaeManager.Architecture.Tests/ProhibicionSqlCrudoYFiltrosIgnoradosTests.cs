@@ -215,6 +215,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs",
             "(await db.Database.SqlQuery<EstadoCuentaEmisora>(")] = 1,
 
+        // Alta autónoma (A3): SolicitudesAlta está cerrada (RLS con FORCE, sin políticas, sin privilegios para los roles
+        // de la aplicación). El registro anónimo solo llega por dos funciones SECURITY DEFINER acotadas (migración
+        // AccesoSolicitudesAltaPorFunciones): una inserta en Iniciada y la otra verifica el correo con el hash del token.
+        // La existencia de una cuenta con el correo reutiliza la función de unicidad de AlmacenUsuarios, sin cuenta
+        // propia (Guid.Empty). Solo devuelven sí/no o el resultado; todos los parámetros van por EF.
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            "await contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            """.SqlQuery<string>($"SELECT public.app_alta_verificar_correo({hash}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/AltaAutonoma/AccesoSolicitudesAlta.cs",
+            """.SqlQuery<bool>($"SELECT app_correo_en_uso_por_otra_cuenta({correoNormalizado}, {Guid.Empty}) AS \"Value\"")""")] = 1,
+
         // ADR-011 § 8.7, punto 3: Soporte TALVEG restablece la 2FA del Administrador único
         // desde una Sesión Privilegiada. Esa conexión lleva cae_app_soporte (solo
         // SELECT), así que Identity no puede escribir: la única puerta es la

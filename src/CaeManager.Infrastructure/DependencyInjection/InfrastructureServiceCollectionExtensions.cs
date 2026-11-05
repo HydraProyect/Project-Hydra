@@ -749,6 +749,12 @@ public static class InfrastructureServiceCollectionExtensions
         // Alta autónoma (DA-10): apagada por defecto en todos los entornos (ver AltaAutonomaOptions).
         services.Configure<CaeManager.Application.AltaAutonoma.AltaAutonomaOptions>(
             configuration.GetSection(CaeManager.Application.AltaAutonoma.AltaAutonomaOptions.SeccionConfiguracion));
+        // Registro y verificación del correo (A3): SolicitudesAlta sigue cerrada y se llega a ella por funciones
+        // SECURITY DEFINER acotadas. El remitente depende del entorno y lo registra la capa Web.
+        services.AddScoped<CaeManager.Application.AltaAutonoma.IAccesoSolicitudesAlta, AltaAutonoma.AccesoSolicitudesAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.IExistenciaCuentaPorCorreo, AltaAutonoma.ExistenciaCuentaPorCorreo>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.ServicioRegistroAlta>();
+        services.AddScoped<CaeManager.Application.AltaAutonoma.IPreparacionContrasenaAlta, AltaAutonoma.PreparacionContrasenaAlta>();
 
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta

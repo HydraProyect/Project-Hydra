@@ -148,11 +148,29 @@ public class RetoPruebaTrabajoTests
         _servicio.Verificar(reto.Token, nonce).Should().Be(ResultadoVerificacionReto.Valido);
         _usados.Cantidad.Should().Be(1);
 
-        _reloj.Avanzar(_opciones.VigenciaReto);
+        _reloj.Avanzar(_opciones.VigenciaReto + RegistroRetosUsados.MargenPurga);
         _usados.PurgarCaducados();
 
         _usados.Cantidad.Should().Be(0);
         _servicio.Verificar(reto.Token, nonce).Should().Be(ResultadoVerificacionReto.Caducado);
+    }
+
+    [Fact]
+    public void Un_id_recien_caducado_sigue_registrado_durante_el_margen_de_purga()
+    {
+        var reto = _servicio.Emitir();
+        var nonce = Resolver(reto.Token, 8);
+        _servicio.Verificar(reto.Token, nonce).Should().Be(ResultadoVerificacionReto.Valido);
+
+        // Recién pasada la caducidad, dentro del margen: un reloj algo desfasado entre comprobación y purga no puede
+        // reabrir la ventana de reutilización.
+        _reloj.Avanzar(_opciones.VigenciaReto + TimeSpan.FromMinutes(1));
+        _usados.PurgarCaducados();
+        _usados.Cantidad.Should().Be(1);
+
+        _reloj.Avanzar(RegistroRetosUsados.MargenPurga);
+        _usados.PurgarCaducados();
+        _usados.Cantidad.Should().Be(0);
     }
 
     [Fact]

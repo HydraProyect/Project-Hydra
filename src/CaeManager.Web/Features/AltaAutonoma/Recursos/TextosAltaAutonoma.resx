@@ -33,4 +33,133 @@
   <data name="RetoCaducado" xml:space="preserve">
     <value>La comprobación ha caducado. Recarga la página para enviar el formulario.</value>
   </data>
+  <data name="AltaTituloPagina" xml:space="preserve">
+    <value>Crear cuenta</value>
+  </data>
+  <data name="VerificarTituloPagina" xml:space="preserve">
+    <value>Confirmar correo</value>
+  </data>
+  <data name="PasosEtiqueta" xml:space="preserve">
+    <value>Pasos del alta</value>
+  </data>
+  <data name="PasoCuenta" xml:space="preserve">
+    <value>Cuenta</value>
+  </data>
+  <data name="PasoEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="PasoPlan" xml:space="preserve">
+    <value>Plan</value>
+  </data>
+  <data name="PasoCondiciones" xml:space="preserve">
+    <value>Condiciones</value>
+  </data>
+  <data name="PasoPago" xml:space="preserve">
+    <value>Pago</value>
+  </data>
+  <data name="PasoActual" xml:space="preserve">
+    <value>(paso actual)</value>
+  </data>
+  <data name="PasoCuentaDetalle" xml:space="preserve">
+    <value>Paso 1 de 5: Cuenta</value>
+  </data>
+  <data name="PasoConfirmarCorreoDetalle" xml:space="preserve">
+    <value>Paso 1 de 5: Cuenta, confirmar correo</value>
+  </data>
+  <data name="PasoCorreoConfirmadoDetalle" xml:space="preserve">
+    <value>Paso 1 de 5: Cuenta, correo confirmado</value>
+  </data>
+  <data name="CrearCuentaTitulo" xml:space="preserve">
+    <value>Crea tu cuenta</value>
+  </data>
+  <data name="CrearCuentaExplica" xml:space="preserve">
+    <value>Para empresas que gestionan su propia coordinación de actividades empresariales. Te enviaremos un enlace para confirmar el correo.</value>
+  </data>
+  <data name="CorreoEtiqueta" xml:space="preserve">
+    <value>Correo profesional</value>
+  </data>
+  <data name="CorreoAyuda" xml:space="preserve">
+    <value>Usa el correo de tu empresa. Será el del Administrador de la cuenta.</value>
+  </data>
+  <data name="ContrasenaEtiqueta" xml:space="preserve">
+    <value>Contraseña</value>
+  </data>
+  <data name="ContrasenaRequisito" xml:space="preserve">
+    <value>Mínimo {0} caracteres, con mayúscula, minúscula y número.</value>
+  </data>
+  <data name="CrearCuentaBoton" xml:space="preserve">
+    <value>Crear cuenta</value>
+  </data>
+  <data name="AvisoCondiciones" xml:space="preserve">
+    <value>Al crear la cuenta todavía no aceptas ningún contrato: las condiciones aparecen en el paso 4. Consulta la</value>
+  </data>
+  <data name="PoliticaPrivacidad" xml:space="preserve">
+    <value>Política de privacidad</value>
+  </data>
+  <data name="YaTengoCuenta" xml:space="preserve">
+    <value>Ya tengo cuenta</value>
+  </data>
+  <data name="ErrorCorreoInvalido" xml:space="preserve">
+    <value>Escribe un correo válido, por ejemplo nombre@empresa.es.</value>
+  </data>
+  <data name="ErrorDominioDesechable" xml:space="preserve">
+    <value>Usa el correo de tu empresa.</value>
+  </data>
+  <data name="ErrorContrasena" xml:space="preserve">
+    <value>Esta contraseña es demasiado fácil de adivinar. Elige otra de al menos {0} caracteres, con mayúscula, minúscula y número.</value>
+  </data>
+  <data name="ErrorComprobacion" xml:space="preserve">
+    <value>No hemos podido completar la comprobación de seguridad. Vuelve a intentarlo.</value>
+  </data>
+  <data name="RevisaCorreoTitulo" xml:space="preserve">
+    <value>Revisa tu correo</value>
+  </data>
+  <data name="EnviadoA" xml:space="preserve">
+    <value>Enviado a {0}. Abre el enlace del mensaje para confirmar tu correo. El enlace caduca a las 24 horas.</value>
+  </data>
+  <data name="MiraNoDeseado" xml:space="preserve">
+    <value>Si no lo ves en unos minutos, mira la carpeta de correo no deseado.</value>
+  </data>
+  <data name="UsarOtroCorreo" xml:space="preserve">
+    <value>Usar otro correo</value>
+  </data>
+  <data name="ConfirmarCorreoTitulo" xml:space="preserve">
+    <value>Confirma tu correo</value>
+  </data>
+  <data name="ConfirmarCorreoExplica" xml:space="preserve">
+    <value>Pulsa el botón para confirmar tu correo y seguir con el alta.</value>
+  </data>
+  <data name="ConfirmarCorreoBoton" xml:space="preserve">
+    <value>Confirmar mi correo</value>
+  </data>
+  <data name="CorreoConfirmadoTitulo" xml:space="preserve">
+    <value>Correo confirmado, continúa con tu empresa</value>
+  </data>
+  <data name="CorreoConfirmadoExplica" xml:space="preserve">
+    <value>Ya hemos verificado tu correo. El siguiente paso es indicar los datos de tu empresa.</value>
+  </data>
+  <data name="EnlaceCaducadoTitulo" xml:space="preserve">
+    <value>Este enlace ha caducado</value>
+  </data>
+  <data name="EnlaceCaducadoExplica" xml:space="preserve">
+    <value>Los enlaces de confirmación duran 24 horas. Vuelve a empezar y te enviaremos uno nuevo.</value>
+  </data>
+  <data name="SolicitudCaducadaTitulo" xml:space="preserve">
+    <value>Tu solicitud ha caducado</value>
+  </data>
+  <data name="SolicitudCaducadaExplica" xml:space="preserve">
+    <value>Las solicitudes de alta se conservan 7 días sin completar el pago. Como no se ha cobrado nada, solo tienes que empezar de nuevo.</value>
+  </data>
+  <data name="EnlaceNoValidoTitulo" xml:space="preserve">
+    <value>Este enlace ya no es válido</value>
+  </data>
+  <data name="EnlaceNoValidoExplica" xml:space="preserve">
+    <value>Puede que ya se haya usado o que esté incompleto. Si ya confirmaste tu correo, no tienes que hacer nada más con este enlace.</value>
+  </data>
+  <data name="VolverAEmpezar" xml:space="preserve">
+    <value>Volver a empezar</value>
+  </data>
+  <data name="AyudaSoporte" xml:space="preserve">
+    <value>Si necesitas ayuda, escribe a Soporte TALVEG.</value>
+  </data>
 </root>
