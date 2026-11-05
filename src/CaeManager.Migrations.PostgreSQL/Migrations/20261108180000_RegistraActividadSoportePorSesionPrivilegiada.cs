@@ -55,29 +55,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     SesionPrivilegiadaActual comprueba en la aplicación. No se filtra por capacidad:
             //     registrar una lectura no concede nada.
             //   - Unicidad: el contexto firmado no lleva la Sesión Privilegiada seleccionada (añadirla
-            //     cambiaría el token y app_contexto_validado, que leen todas las políticas RLS). Para
-            //     que la fila no pueda atribuirse a otra sesión del mismo actor, la función rechaza
-            //     ('sesion_ambigua') si el actor real tiene más de una sesión vigente sobre el Tenant.
-            //     Antes de contar toma LOCK TABLE "SesionesPrivilegiadas" IN SHARE MODE: SHARE choca con
-            //     el INSERT y el UPDATE de la tabla, así que una sesión que se esté abriendo se confirma
-            //     antes (y la cuenta la ve) o espera a que la función termine; dos registros no se
-            //     esperan entre sí, y en READ COMMITTED la cuenta toma su instantánea después del
-            //     candado. La espera la acota SET lock_timeout TO '5s': si vence, la llamada falla con
-            //     55P03, el repositorio devuelve false y los datos no se sirven. El propietario de la
-            //     función (rol de las migraciones) es el propietario de la tabla, lo que basta para
-            //     LOCK ... IN SHARE MODE.
+            //     cambiaría el token y app_contexto_validado, que leen todas las políticas RLS). Con dos
+            //     Sesiones Privilegiadas vigentes del mismo Actor real sobre el mismo Tenant, la fila se
+            //     atribuye a la que declara la petición; ambas son válidas por construcción
+            //     (comportamiento aceptado). Una sesión de otro actor, de otro Tenant, caducada o cerrada
+            //     no registra.
             //   - Fila: TenantId (el Tenant objetivo), UsuarioSoporteId (el actor real, nunca el
             //     usuario simulado), SesionPrivilegiadaId y OcurridaEnUtc los pone la función;
             //     DelegacionTenantId queda nulo (CK_RegistrosActividadSoporte_UnSoloAgrupador). Del
             //     llamador solo vienen el Id del registro (UUID v7 de la aplicación), el tipo (solo
             //     'Lectura') y el detalle, que solo puede ser uno de los nombres de request de
             //     OperacionesRegistradas (lista cerrada): nunca texto libre ni datos leídos.
-            //   - Hora: clock_timestamp(), no now(). now() es la hora de inicio de la transacción, y una
-            //     transacción abierta antes de que la sesión o la concesión caducaran seguiría viéndolas
-            //     vigentes; la misma hora fecha la fila.
+            //   - Hora: clock_timestamp(), no now(), tomada justo al validar la sesión. now() es la hora
+            //     de inicio de la transacción, y una transacción abierta antes de que la sesión o la
+            //     concesión caducaran seguiría viéndolas vigentes; la misma hora fecha la fila.
             //   - Aislamiento: solo READ COMMITTED, donde cada sentencia toma una instantánea nueva. Bajo
             //     REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
             //     al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar.
+            //     Una transacción READ COMMITTED explícita no se distingue aquí del autocommit (con el
+            //     protocolo extendido, statement_timestamp() cambia en cada mensaje Parse/Bind/Execute y
+            //     nunca coincide con transaction_timestamp()); esa guarda la pone el repositorio.
             // El propietario de la función es el rol de las migraciones: por eso el TenantId de la
             // fila sale del contexto firmado y no de un parámetro. Devuelve un código en vez de lanzar,
             // para que el repositorio falle en cerrado con el motivo en el registro. EXECUTE solo para
@@ -88,14 +85,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     p_sesion uuid, p_registro uuid, p_tipo text, p_detalle text) RETURNS text
                     LANGUAGE plpgsql SECURITY DEFINER
                     SET search_path TO 'pg_catalog', 'pg_temp'
-                    SET lock_timeout TO '5s'
                     AS $$
                 DECLARE
                   v_actor uuid;
                   v_tenant uuid;
-                  v_ahora timestamptz := clock_timestamp();
-                  v_vigentes integer;
-                  v_nombrada integer;
+                  v_ahora timestamptz;
                 BEGIN
                   IF NOT public.app_ctx_valido() THEN
                     RETURN 'contexto_no_valido';
@@ -115,21 +109,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'valor_no_valido';
                   END IF;
 
-                  -- SHARE choca con el INSERT y el UPDATE de SesionesPrivilegiadas (ROW EXCLUSIVE): una
-                  -- sesión que se esté abriendo o cerrando, o se confirma antes (y la cuenta la ve) o
-                  -- espera a que esta transacción termine, así que no puede aparecer entre la cuenta y el
-                  -- INSERT. Dos registros no se esperan entre sí (SHARE no choca con SHARE). En READ
-                  -- COMMITTED la cuenta toma su instantánea después del candado. lock_timeout acota la
-                  -- espera: si vence (55P03), no se registra y los datos no se sirven.
-                  LOCK TABLE public."SesionesPrivilegiadas" IN SHARE MODE;
-
-                  -- Todas las sesiones vigentes del actor real sobre el Tenant del contexto, y cuántas
-                  -- de ellas son la nombrada.
-                  SELECT count(*), count(*) FILTER (WHERE s."Id" = p_sesion)
-                    INTO v_vigentes, v_nombrada
+                  -- La sesión nombrada: abierta, en su ventana, sobre el Tenant del contexto y con una
+                  -- concesión vigente del actor real que alcanza ese Tenant. La hora se toma aquí.
+                  v_ahora := clock_timestamp();
+                  PERFORM 1
                   FROM public."SesionesPrivilegiadas" s
                   JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
-                  WHERE s."TenantObjetivoId" = v_tenant
+                  WHERE s."Id" = p_sesion
+                    AND s."TenantObjetivoId" = v_tenant
                     AND s."CerradaEnUtc" IS NULL
                     AND s."InicioEnUtc" <= v_ahora
                     AND s."ExpiraEnUtc" > v_ahora
@@ -140,14 +127,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     AND (c."EsAlcanceGlobal" OR EXISTS (
                         SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
                         WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant));
-                  IF v_nombrada = 0 THEN
+                  IF NOT FOUND THEN
                     RETURN 'sesion_no_autorizada';
-                  END IF;
-                  -- El contexto firmado no lleva la Sesión Privilegiada seleccionada: con dos sesiones
-                  -- vigentes del mismo actor sobre el mismo Tenant, quien llama podría atribuir la fila
-                  -- a la que no usa. Se rechaza en vez de adivinar.
-                  IF v_vigentes > 1 THEN
-                    RETURN 'sesion_ambigua';
                   END IF;
 
                   INSERT INTO public."RegistrosActividadSoporte" (

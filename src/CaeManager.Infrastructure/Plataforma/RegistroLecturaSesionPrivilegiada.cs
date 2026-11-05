@@ -17,7 +17,9 @@ namespace CaeManager.Infrastructure.Plataforma;
 /// Mismo patrón que RegistroAccesoDocumentoSensibleRepository.GuardarPorSesionPrivilegiadaAsync:
 /// valores parametrizados por EF, código de vuelta en vez de excepción, y false ante cualquier
 /// rechazo para que quien llama falle en cerrado. Solo registra fuera de una transacción explícita,
-/// para que un ROLLBACK posterior no borre la fila de una lectura ya servida.
+/// para que un ROLLBACK posterior no borre la fila de una lectura ya servida. Con dos Sesiones
+/// Privilegiadas vigentes del mismo Actor real sobre el mismo Tenant, la fila se atribuye a la que
+/// declara la petición; ambas son válidas por construcción (comportamiento aceptado).
 /// </remarks>
 public class RegistroLecturaSesionPrivilegiada(
     CaeManagerDbContext dbContext, ILogger<RegistroLecturaSesionPrivilegiada> logger)
@@ -39,7 +41,8 @@ public class RegistroLecturaSesionPrivilegiada(
         // La fila tiene que sobrevivir a la lectura que autoriza. Dentro de una transacción explícita
         // (de EF o ambiente) el handler serviría los datos y un ROLLBACK posterior borraría la fila:
         // solo se registra en autocommit. Ningún flujo actual lee bajo Sesión Privilegiada dentro de
-        // una transacción; si alguno llega a hacerlo, falla aquí en cerrado.
+        // una transacción; si alguno llega a hacerlo, falla aquí en cerrado. La función no puede
+        // distinguir por sí sola una transacción READ COMMITTED explícita del autocommit.
         if (dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null)
         {
             logger.LogError(
@@ -66,16 +69,6 @@ public class RegistroLecturaSesionPrivilegiada(
             // ejemplo, una conexión ya elevada a cae_app_aprovisionamiento.
             logger.LogError(ex,
                 "No se pudo registrar la lectura {Operacion} en la Sesión Privilegiada {SesionId}. Los datos no se sirven.",
-                operacion, sesionPrivilegiadaId);
-            return false;
-        }
-        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.LockNotAvailable)
-        {
-            // La función espera como mucho lock_timeout el candado SHARE sobre la tabla de sesiones
-            // privilegiadas (una sesión abriéndose o cerrándose a la vez): sin la cuenta, no se registra.
-            logger.LogError(ex,
-                "No se pudo registrar la lectura {Operacion} en la Sesión Privilegiada {SesionId}: venció la espera " +
-                "del candado sobre las Sesiones Privilegiadas. Los datos no se sirven.",
                 operacion, sesionPrivilegiadaId);
             return false;
         }

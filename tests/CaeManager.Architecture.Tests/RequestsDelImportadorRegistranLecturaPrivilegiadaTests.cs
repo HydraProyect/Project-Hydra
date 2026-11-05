@@ -210,32 +210,50 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     [Fact]
     public void La_funcion_es_SECURITY_DEFINER_con_search_path_fijo_y_valida_la_sesion_dentro()
     {
-        var inicio = Up.IndexOf("FUNCTION public.app_registrar_actividad_soporte_por_sesion(", StringComparison.Ordinal);
-        inicio.Should().BeGreaterThan(-1);
-        var cuerpo = Up[inicio..Up.IndexOf("$$;", inicio, StringComparison.Ordinal)];
+        string[] obligatorias =
+        [
+            "SECURITY DEFINER",
+            "SET search_path TO 'pg_catalog', 'pg_temp'",
+            "public.app_ctx_valido()",
+            "s.\"Id\" = p_sesion",
+            "s.\"TenantObjetivoId\" = v_tenant",
+            "s.\"CerradaEnUtc\" IS NULL",
+            "s.\"InicioEnUtc\" <= v_ahora",
+            "s.\"ExpiraEnUtc\" > v_ahora",
+            "c.\"UsuarioPlataformaId\" = v_actor",
+            "c.\"Estado\" = 'Vigente'",
+            "c.\"VigenciaDesde\" <= v_ahora",
+            "(c.\"VigenciaHasta\" IS NULL OR c.\"VigenciaHasta\" > v_ahora)",
+            "c.\"EsAlcanceGlobal\" OR EXISTS",
+            "IF NOT FOUND THEN",
+            "RETURN 'sesion_no_autorizada';",
+        ];
+        foreach (var construccion in obligatorias)
+            IndiceEnCodigo(Up, construccion).Should().BeGreaterThan(-1,
+                "la función tiene que contener «{0}» como código, no en un comentario ni dentro de un literal", construccion);
 
-        cuerpo.Should().Contain("SECURITY DEFINER")
-            .And.Contain("SET search_path TO 'pg_catalog', 'pg_temp'")
-            .And.Contain("public.app_ctx_valido()")
-            .And.Contain("s.\"TenantObjetivoId\" = v_tenant")
-            .And.Contain("s.\"CerradaEnUtc\" IS NULL")
-            .And.Contain("s.\"InicioEnUtc\" <= v_ahora")
-            .And.Contain("s.\"ExpiraEnUtc\" > v_ahora")
-            .And.Contain("c.\"UsuarioPlataformaId\" = v_actor")
-            .And.Contain("c.\"Estado\" = 'Vigente'")
-            .And.Contain("c.\"VigenciaDesde\" <= v_ahora")
-            .And.Contain("(c.\"VigenciaHasta\" IS NULL OR c.\"VigenciaHasta\" > v_ahora)")
-            .And.Contain("c.\"EsAlcanceGlobal\" OR EXISTS");
+        IndiceEnCodigo(Up, "RETURN 'sesion_no_autorizada';").Should().BeLessThan(IndiceEnCodigo(Up, "INSERT INTO"),
+            "la sesión se valida antes de insertar");
+        IndiceEnCodigo(Up, "LOCK TABLE").Should().Be(-1, "la función no bloquea tablas");
+        IndiceEnCodigo(Up, "lock_timeout").Should().Be(-1);
     }
 
     [Fact]
-    public void La_hora_es_la_del_reloj_y_no_la_del_inicio_de_la_transaccion()
+    public void La_hora_es_la_del_reloj_tomada_al_validar_y_no_la_del_inicio_de_la_transaccion()
     {
         // now() es la hora de inicio de la transacción: una transacción abierta antes de que la
-        // sesión o la concesión caducaran seguiría viéndolas vigentes.
-        Up.Should().Contain("v_ahora timestamptz := clock_timestamp();");
-        Up.Should().NotContain("now()");
-        Up.Should().Contain("p_detalle, v_ahora,", "la fila se fecha con la misma hora con la que se comprobó la sesión");
+        // sesión o la concesión caducaran seguiría viéndolas vigentes. La hora se toma justo antes
+        // de validar la sesión, sin nada que pueda esperar entre medias, y fecha la fila.
+        var asignacion = IndiceEnCodigo(Up, "v_ahora := clock_timestamp();");
+        asignacion.Should().BeGreaterThan(IndiceEnCodigo(Up, "RETURN 'valor_no_valido';"),
+            "la hora se toma tras las comprobaciones previas, en el punto de validar");
+        asignacion.Should().BeLessThan(IndiceEnCodigo(Up, "FROM public.\"SesionesPrivilegiadas\" s"),
+            "la hora se toma antes de buscar la sesión nombrada");
+        CoincidenciasEnCodigo(new Regex(@"v_ahora\s*(:=|=|timestamptz\s*:=|timestamptz\s+DEFAULT)"), Up)
+            .Should().ContainSingle("v_ahora se asigna una sola vez");
+        IndiceEnCodigo(Up, "now()").Should().Be(-1);
+        IndiceEnCodigo(Up, "p_detalle, v_ahora,").Should().BeGreaterThan(-1,
+            "la fila se fecha con la misma hora con la que se comprobó la sesión");
     }
 
     private static readonly Regex ListaDeDetalles = new(@"p_detalle NOT IN \((?<lista>[^)]*)\)", RegexOptions.Compiled);
@@ -259,7 +277,7 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .ToList();
 
         var vigente = DefinicionVigente(migraciones);
-        var coincidencias = ListaDeDetalles.Matches(vigente.Sql);
+        var coincidencias = CoincidenciasEnCodigo(ListaDeDetalles, vigente.Sql);
         coincidencias.Should().ContainSingle("la función de {0} tiene que filtrar el detalle por lista cerrada", vigente.Id);
         var admitidos = coincidencias[0].Groups["lista"].Value
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -316,23 +334,44 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     }
 
     /// <summary>
-    /// Quita los comentarios SQL (<c>--</c> hasta fin de línea y <c>/* */</c>) respetando los literales
-    /// entre comillas simples (con <c>''</c> como comilla escapada): una lista que solo aparece en un
+    /// Quita los comentarios SQL (<c>--</c> hasta fin de línea y <c>/* */</c>, que en PostgreSQL se
+    /// anidan) respetando los literales entre comillas simples (<c>'…'</c> con <c>''</c> como comilla
+    /// escapada, y <c>E'…'</c> con escapes de barra invertida): una lista que solo aparece en un
     /// comentario no es la lista que la función aplica.
     /// </summary>
-    internal static string SinComentariosSql(string sql)
+    internal static string SinComentariosSql(string sql) => Escanear(sql).Texto;
+
+    /// <summary>
+    /// El SQL sin comentarios y, para cada posición de ese texto, si cae dentro de un literal de
+    /// cadena (comillas incluidas). El cuerpo <c>$$ … $$</c> de la función no se trata como literal:
+    /// es el código que se busca.
+    /// </summary>
+    internal static (string Texto, bool[] EnLiteral) Escanear(string sql)
     {
         var salida = new System.Text.StringBuilder(sql.Length);
+        var enLiteral = new List<bool>(sql.Length);
         var i = 0;
         while (i < sql.Length)
         {
-            if (sql[i] == '\'')
+            var esE = (sql[i] is 'E' or 'e') && i + 1 < sql.Length && sql[i + 1] == '\''
+                      && (i == 0 || !(char.IsLetterOrDigit(sql[i - 1]) || sql[i - 1] == '_'));
+            if (sql[i] == '\'' || esE)
             {
-                var fin = i + 1;
-                while (fin < sql.Length && !(sql[fin] == '\'' && (fin + 1 >= sql.Length || sql[fin + 1] != '\'')))
-                    fin += sql[fin] == '\'' ? 2 : 1;
+                var inicio = i;
+                var fin = i + (esE ? 2 : 1);
+                while (fin < sql.Length)
+                {
+                    if (esE && sql[fin] == '\\') { fin += 2; continue; }
+                    if (sql[fin] == '\'')
+                    {
+                        if (fin + 1 < sql.Length && sql[fin + 1] == '\'') { fin += 2; continue; }
+                        break;
+                    }
+                    fin++;
+                }
                 fin = Math.Min(fin + 1, sql.Length);
-                salida.Append(sql, i, fin - i);
+                salida.Append(sql, inicio, fin - inicio);
+                for (var k = inicio; k < fin; k++) enLiteral.Add(true);
                 i = fin;
             }
             else if (sql[i] == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
@@ -342,19 +381,44 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             }
             else if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
             {
-                var fin = sql.IndexOf("*/", i + 2, StringComparison.Ordinal);
-                i = fin < 0 ? sql.Length : fin + 2;
+                var profundidad = 1;
+                i += 2;
+                while (i < sql.Length && profundidad > 0)
+                {
+                    if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*') { profundidad++; i += 2; }
+                    else if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/') { profundidad--; i += 2; }
+                    else i++;
+                }
                 salida.Append(' ');
+                enLiteral.Add(false);
             }
             else
             {
                 salida.Append(sql[i]);
+                enLiteral.Add(false);
                 i++;
             }
         }
 
-        return salida.ToString();
+        return (salida.ToString(), enLiteral.ToArray());
     }
+
+    /// <summary>
+    /// Las coincidencias del patrón en el SQL sin comentarios que empiezan fuera de un literal: un
+    /// <c>PERFORM 'p_detalle NOT IN (...)'</c> no es una comprobación que la función aplique.
+    /// </summary>
+    internal static IReadOnlyList<Match> CoincidenciasEnCodigo(Regex patron, string sql)
+    {
+        var (texto, enLiteral) = Escanear(sql);
+        return patron.Matches(texto).Where(m => !enLiteral[m.Index]).ToList();
+    }
+
+    /// <summary>
+    /// Posición (en el SQL sin comentarios) de la primera aparición de la construcción que empieza
+    /// fuera de un literal; -1 si solo aparece en comentarios o dentro de literales.
+    /// </summary>
+    internal static int IndiceEnCodigo(string sql, string construccion) =>
+        CoincidenciasEnCodigo(new Regex(Regex.Escape(construccion)), sql) is [var primera, ..] ? primera.Index : -1;
 
     [Fact]
     public void La_definicion_vigente_es_la_ultima_CREATE_de_la_ultima_migracion_que_la_define()
@@ -365,18 +429,31 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
 
         // Dos definiciones en la misma migración: cuenta la última, y el texto de fuera no entra.
         var dos = DefinicionVigente([("1", vieja + "\n" + nueva + "\nSELECT 'p_detalle NOT IN (''Fuera'')';")]);
-        ListaDeDetalles.Matches(dos.Sql).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+        CoincidenciasEnCodigo(ListaDeDetalles, dos.Sql).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+
+        const string cabecera = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN ";
+        IReadOnlyList<Match> Lista(string cuerpo) =>
+            CoincidenciasEnCodigo(ListaDeDetalles, DefinicionVigente([("1", cabecera + cuerpo + " END; $$;")]).Sql);
 
         // Una lista que solo aparece en un comentario del cuerpo no es la lista que se aplica.
-        const string soloComentarioLinea = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN\n  -- IF p_detalle NOT IN ('Comentada') THEN\n  RETURN 'x';\nEND; $$;";
-        const string soloComentarioBloque = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN /* p_detalle NOT IN ('Comentada') */ RETURN 'x'; END; $$;";
-        ListaDeDetalles.Matches(DefinicionVigente([("1", soloComentarioLinea)]).Sql).Should().BeEmpty("la lista solo está en un comentario --");
-        ListaDeDetalles.Matches(DefinicionVigente([("1", soloComentarioBloque)]).Sql).Should().BeEmpty("la lista solo está en un comentario /* */");
+        Lista("\n  -- IF p_detalle NOT IN ('Comentada') THEN\n  RETURN 'x';\n").Should().BeEmpty("la lista solo está en un comentario --");
+        Lista("/* p_detalle NOT IN ('Comentada') */ RETURN 'x';").Should().BeEmpty("la lista solo está en un comentario /* */");
+
+        // Los comentarios de bloque se anidan: el primer «*/» no cierra el exterior.
+        Lista("/* a /* b */ p_detalle NOT IN ('X') */ RETURN 'x';").Should().BeEmpty("la lista está dentro de un comentario anidado");
+
+        // Una lista dentro de un literal no es una comprobación que se aplique.
+        Lista("PERFORM 'p_detalle NOT IN (''X'')';").Should().BeEmpty("la lista solo está dentro de un literal");
+        Lista("PERFORM E'\\' p_detalle NOT IN (''X'')';").Should().BeEmpty("la lista solo está dentro de un literal E'…'");
 
         // Un literal con «--» o «/*» dentro no se confunde con un comentario.
-        const string conLiteral = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN IF x = 'a--b/*c''' OR p_detalle NOT IN ('Real') THEN END IF; END; $$;";
-        ListaDeDetalles.Matches(DefinicionVigente([("1", conLiteral)]).Sql).Should().ContainSingle()
+        Lista("IF x = 'a--b/*c''' OR p_detalle NOT IN ('Real') THEN END IF;").Should().ContainSingle()
             .Which.Groups["lista"].Value.Should().Be("'Real'");
+
+        // Lo mismo para las construcciones obligatorias.
+        IndiceEnCodigo("PERFORM 'IF NOT FOUND THEN'; /* IF NOT FOUND THEN */ -- IF NOT FOUND THEN", "IF NOT FOUND THEN")
+            .Should().Be(-1);
+        IndiceEnCodigo("x := '--'; IF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
 
         // Una migración posterior que solo toca GRANT no es una definición.
         DefinicionVigente([("1", nueva), ("2", grant)]).Id.Should().Be("1");
@@ -391,51 +468,15 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     }
 
     [Fact]
-    public void La_funcion_rechaza_una_sesion_ambigua_del_mismo_actor_sobre_el_Tenant()
-    {
-        // El contexto firmado no lleva la Sesión Privilegiada seleccionada: con dos vigentes del
-        // mismo actor real sobre el Tenant, la fila podría atribuirse a la otra.
-        Up.Should().Contain("SELECT count(*), count(*) FILTER (WHERE s.\"Id\" = p_sesion)")
-            .And.Contain("INTO v_vigentes, v_nombrada")
-            .And.Contain("IF v_nombrada = 0 THEN")
-            .And.Contain("IF v_vigentes > 1 THEN")
-            .And.Contain("RETURN 'sesion_ambigua';");
-        Up.IndexOf("sesion_ambigua", StringComparison.Ordinal).Should().BeLessThan(
-            Up.IndexOf("INSERT INTO", StringComparison.Ordinal), "el rechazo va antes de insertar");
-    }
-
-    /// <summary>
-    /// Sin candado, otra Sesión Privilegiada del mismo actor podía confirmarse entre la cuenta y el
-    /// INSERT. SHARE choca con el INSERT y el UPDATE de la tabla, y tiene que tomarse antes de contar.
-    /// </summary>
-    [Fact]
-    public void La_cuenta_de_sesiones_va_detras_de_un_candado_SHARE_con_espera_acotada()
-    {
-        var definicion = SinComentariosSql(Up);
-        var cabecera = definicion[..definicion.IndexOf("AS $$", StringComparison.Ordinal)];
-        cabecera.Should().Contain("SET lock_timeout TO '5s'", "la espera del candado está acotada en la propia función");
-
-        var candado = definicion.IndexOf("LOCK TABLE public.\"SesionesPrivilegiadas\" IN SHARE MODE;", StringComparison.Ordinal);
-        var cuenta = definicion.IndexOf("SELECT count(*), count(*) FILTER", StringComparison.Ordinal);
-        candado.Should().BeGreaterThan(-1, "la función bloquea SesionesPrivilegiadas en SHARE");
-        cuenta.Should().BeGreaterThan(-1);
-        candado.Should().BeLessThan(cuenta, "el candado se toma antes de contar, no después");
-
-        var servicio = File.ReadAllText(Path.Combine(BuscarRaizDelRepositorio(),
-            "src", "CaeManager.Infrastructure", "Plataforma", "RegistroLecturaSesionPrivilegiada.cs"));
-        servicio.Should().Contain("ex.SqlState == PostgresErrorCodes.LockNotAvailable",
-            "si vence lock_timeout (55P03), el servicio devuelve false: fallo cerrado, sin servir datos");
-    }
-
-    [Fact]
     public void La_funcion_solo_registra_en_READ_COMMITTED()
     {
         // Bajo REPEATABLE READ o SERIALIZABLE la función vería una instantánea anterior al cierre de
         // la sesión o a la revocación de la concesión.
-        Up.Should().Contain("IF current_setting('transaction_isolation') <> 'read committed' THEN")
-            .And.Contain("RETURN 'aislamiento_no_admitido';");
-        Up.IndexOf("aislamiento_no_admitido", StringComparison.Ordinal).Should().BeLessThan(
-            Up.IndexOf("INSERT INTO", StringComparison.Ordinal), "el rechazo va antes de insertar");
+        var comprobacion = IndiceEnCodigo(Up, "IF current_setting('transaction_isolation') <> 'read committed' THEN");
+        var rechazo = IndiceEnCodigo(Up, "RETURN 'aislamiento_no_admitido';");
+        comprobacion.Should().BeGreaterThan(-1);
+        rechazo.Should().BeGreaterThan(comprobacion);
+        rechazo.Should().BeLessThan(IndiceEnCodigo(Up, "INSERT INTO"), "el rechazo va antes de insertar");
         Up.Should().NotContain("left(p_detalle").And.NotContain("p_detalle !~",
             "el detalle no se recorta ni se acepta por patrón: o es un nombre de la lista o no se inserta");
     }
