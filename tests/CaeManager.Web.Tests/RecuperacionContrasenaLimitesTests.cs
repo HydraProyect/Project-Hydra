@@ -56,28 +56,59 @@ public class RecuperacionContrasenaLimitesTests
     }
 
     [Fact]
-    public void La_estructura_del_limite_no_se_llena_con_correos_distintos()
+    public void Muchos_correos_distintos_no_gastan_el_cupo_de_otro()
     {
         var limite = new LimiteSolicitudesPorCuenta(new Reloj());
-        var denegadas = 0;
         const int Distintos = 30_000; // por encima del antiguo tope de 10.000 cuentas
 
         for (var i = 0; i < Distintos; i++)
         {
             var correo = $"anonimo{i}@example.test".ToUpperInvariant();
-            if (!limite.HayCupo(correo)) denegadas++;
-            else limite.Consumir(correo);
+            for (var vez = 0; vez < LimiteSolicitudesPorCuenta.MaximoPorVentana; vez++)
+            {
+                limite.HayCupo(correo).Should().BeTrue();
+                limite.Consumir(correo);
+            }
         }
 
-        // Solo se niega por colisión de posición saturada (rara); nunca por "lleno".
-        denegadas.Should().BeLessThan(Distintos / 20);
+        limite.HayCupo("LEGITIMA@EXAMPLE.TEST").Should().BeTrue("ningún otro correo comparte su cupo");
+    }
 
-        // Una cuenta legítima cuya posición nadie ha usado sigue teniendo cupo.
-        var usadas = Enumerable.Range(0, Distintos)
-            .Select(i => LimiteSolicitudesPorCuenta.Posicion($"anonimo{i}@example.test".ToUpperInvariant())).ToHashSet();
-        var legitima = Enumerable.Range(0, 100_000).Select(i => $"legitima{i}@example.test".ToUpperInvariant())
-            .First(c => !usadas.Contains(LimiteSolicitudesPorCuenta.Posicion(c)));
-        limite.HayCupo(legitima).Should().BeTrue();
+    [Fact]
+    public void Dos_correos_que_coincidian_en_la_antigua_clave_de_16_bits_no_comparten_cupo()
+    {
+        // Colisión deliberada sobre los 16 primeros bits del SHA-256, la clave anterior: así se gastaba el cupo de una
+        // víctima con otro correo. Con la huella completa, cada uno tiene el suyo.
+        static int ClaveAntigua(string correo) =>
+            BitConverter.ToUInt16(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(correo)), 0);
+
+        const string Victima = "VICTIMA@EXAMPLE.TEST";
+        var atacante = Enumerable.Range(0, 2_000_000).Select(i => $"ATACANTE{i}@EXAMPLE.TEST")
+            .First(c => ClaveAntigua(c) == ClaveAntigua(Victima));
+
+        var limite = new LimiteSolicitudesPorCuenta(new Reloj());
+        for (var i = 0; i < LimiteSolicitudesPorCuenta.MaximoPorVentana; i++)
+            limite.Consumir(atacante);
+
+        limite.HayCupo(atacante).Should().BeFalse();
+        limite.HayCupo(Victima).Should().BeTrue("la víctima conserva sus tres plazas");
+    }
+
+    [Fact]
+    public void El_estado_tiene_techo_y_lo_libera_al_vencer_la_ventana()
+    {
+        var reloj = new Reloj();
+        var limite = new LimiteSolicitudesPorCuenta(reloj);
+        for (var i = 0; i < LimiteSolicitudesPorCuenta.MaximoCuentas; i++)
+            limite.Consumir($"C{i}");
+
+        limite.CuentasEnMemoria.Should().BeLessThanOrEqualTo(LimiteSolicitudesPorCuenta.MaximoCuentas);
+        limite.HayCupo("NUEVO@EXAMPLE.TEST").Should().BeFalse("con el techo lleno de ventanas vivas se descarta, como con la cola llena");
+        limite.HayCupo("C7").Should().BeTrue("un correo ya presente sigue con su cupo");
+
+        reloj.Ahora += LimiteSolicitudesPorCuenta.Ventana;
+        limite.HayCupo("NUEVO@EXAMPLE.TEST").Should().BeTrue("las ventanas vencidas se purgan");
+        limite.CuentasEnMemoria.Should().Be(0);
     }
 
     [Fact]

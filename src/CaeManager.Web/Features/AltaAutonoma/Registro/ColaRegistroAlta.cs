@@ -11,7 +11,8 @@ namespace CaeManager.Web.Features.AltaAutonoma.Registro;
 /// y el mismo tiempo exista o no una cuenta con ese correo: la búsqueda de la cuenta, la Solicitud de alta y el envío
 /// los hace <see cref="ServicioRegistroAlta"/> aquí, fuera de la petición. Mismo diseño que
 /// <see cref="RecuperacionContrasena"/>: cola acotada, sin esperar si está llena, y tres envíos por correo y hora
-/// (§ 4.1 del plan) con un estado de tamaño fijo que no crece con correos distintos.
+/// (§ 4.1 del plan) con <see cref="LimiteSolicitudesPorCuenta"/>: cupo propio por correo, sin colisiones prácticas,
+/// y un estado acotado.
 /// </summary>
 public sealed class ColaRegistroAlta(
     IServiceScopeFactory scopes, TimeProvider reloj, ILogger<ColaRegistroAlta> logger) : BackgroundService

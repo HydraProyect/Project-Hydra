@@ -602,15 +602,9 @@ builder.Services.AddRateLimiter(opciones =>
         // El POST anónimo que confirma el correo del alta autónoma abre conexión con contexto firmado y bloquea una fila
         // por cada intento: mismo techo por IP que los POST anónimos de /cuenta, en su propia partición para no gastar
         // el cupo del inicio de sesión. Adivinar el token (256 bits) no es el riesgo; martillear la base sí.
-        if (HttpMethods.IsPost(contexto.Request.Method) && contexto.Request.Path.StartsWithSegments("/alta/verificar"))
-            return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                $"alta-verificar:{contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida"}",
-                _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = limiteCuentaAnonimo,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0
-                });
+        if (CaeManager.Web.Features.AltaAutonoma.Antiabuso.LimitadorAlta.ParticionVerificar(contexto, limiteCuentaAnonimo)
+            is { } particionVerificarAlta)
+            return particionVerificarAlta;
 
         if (!esPostDeCuenta)
             return System.Threading.RateLimiting.RateLimitPartition.GetNoLimiter("sin-limite");

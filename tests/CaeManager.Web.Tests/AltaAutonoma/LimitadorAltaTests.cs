@@ -22,6 +22,54 @@ namespace CaeManager.Web.Tests.AltaAutonoma;
 public class LimitadorAltaTests
 {
     [Fact]
+    public void El_techo_de_verificar_agrupa_una_IPv6_por_su_64_y_la_IPv4_mapeada_con_la_IPv4()
+    {
+        static string ClaveVerificar(string ip)
+        {
+            var contexto = Post(ip);
+            contexto.Request.Path = "/alta/verificar";
+            return LimitadorAlta.ParticionVerificar(contexto, 10)!.Value.PartitionKey;
+        }
+
+        // Rotar los bits bajos de un /64 no da un techo nuevo: todas cuentan contra la misma partición.
+        ClaveVerificar("2001:db8:1:2::1").Should().Be(ClaveVerificar("2001:db8:1:2:ffff:ffff:ffff:fffe"));
+        ClaveVerificar("2001:db8:1:2::1").Should().NotBe(ClaveVerificar("2001:db8:1:3::1"), "otro /64 es otro cliente");
+        ClaveVerificar("::ffff:203.0.113.9").Should().Be(ClaveVerificar("203.0.113.9"));
+        ClaveVerificar("203.0.113.9").Should().NotBe(ClaveVerificar("203.0.113.10"));
+    }
+
+    [Fact]
+    public void El_techo_de_verificar_se_agota_para_todo_el_64()
+    {
+        var primero = Post("2001:db8:1:2::1");
+        primero.Request.Path = "/alta/verificar";
+        var particion = LimitadorAlta.ParticionVerificar(primero, 2)!.Value;
+        using var limitador = particion.Factory(particion.PartitionKey);
+
+        limitador.AttemptAcquire().IsAcquired.Should().BeTrue();
+        limitador.AttemptAcquire().IsAcquired.Should().BeTrue();
+
+        var otraDelMismo64 = Post("2001:db8:1:2:abcd::9");
+        otraDelMismo64.Request.Path = "/alta/verificar";
+        LimitadorAlta.ParticionVerificar(otraDelMismo64, 2)!.Value.PartitionKey.Should().Be(particion.PartitionKey,
+            "la segunda dirección cae en la partición ya agotada");
+        limitador.AttemptAcquire().IsAcquired.Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_techo_de_verificar_solo_aplica_al_POST_de_verificar()
+    {
+        var get = new DefaultHttpContext();
+        get.Request.Method = HttpMethods.Get;
+        get.Request.Path = "/alta/verificar";
+        LimitadorAlta.ParticionVerificar(get, 10).Should().BeNull();
+
+        var otraRuta = Post("203.0.113.9");
+        otraRuta.Request.Path = "/alta/registro";
+        LimitadorAlta.ParticionVerificar(otraRuta, 10).Should().BeNull();
+    }
+
+    [Fact]
     public void La_hora_corta_al_sexto_inicio_desde_la_misma_IP_con_los_valores_por_defecto()
     {
         using var limitador = Limitador(Post("203.0.113.9"), new OpcionesAntiabusoAlta());

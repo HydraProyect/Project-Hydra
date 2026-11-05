@@ -72,7 +72,7 @@ public partial class AccesoSolicitudesAltaPorFunciones : Migration
                 v_estado text;
                 v_token_caduca timestamp with time zone;
                 v_caduca timestamp with time zone;
-                v_ahora timestamp with time zone := pg_catalog.clock_timestamp();
+                v_ahora timestamp with time zone;
             BEGIN
                 PERFORM public.app_exigir_contexto_firmado();
                 IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
@@ -89,6 +89,10 @@ public partial class AccesoSolicitudesAltaPorFunciones : Migration
                   FROM public."SolicitudesAlta" s
                  WHERE s."HashTokenVerificacion" = p_hash_token
                    FOR UPDATE;
+
+                -- El reloj se lee con el bloqueo ya tomado: una petición que esperó a otra no verifica con la hora de antes
+                -- de la espera, cuando el enlace o la Solicitud de alta quizá ya han caducado.
+                v_ahora := pg_catalog.clock_timestamp();
 
                 IF NOT FOUND OR v_estado <> 'Iniciada' THEN
                     RETURN 'NoValido';

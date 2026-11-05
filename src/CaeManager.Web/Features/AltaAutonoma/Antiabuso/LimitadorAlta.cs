@@ -77,6 +77,28 @@ public static class LimitadorAlta
     }
 
     /// <summary>
+    /// Techo del limitador global para el POST anónimo de <c>/alta/verificar</c>, o <c>null</c> si la petición no lo es.
+    /// Cada confirmación abre conexión con contexto firmado y bloquea una fila (<c>app_alta_verificar_correo</c>): adivinar
+    /// el token (256 bits) no es el riesgo, martillear la base sí. Misma IP del cliente que la ventana por hora del alta
+    /// (<see cref="LimitadorApiPublica.IpDelCliente"/>): una IPv6 cuenta por su /64 y una IPv4 mapeada como la IPv4, para
+    /// que rotar los bits bajos de un /64 no dé un techo nuevo por dirección.
+    /// </summary>
+    public static RateLimitPartition<string>? ParticionVerificar(HttpContext contexto, int permisosPorMinuto)
+    {
+        if (!HttpMethods.IsPost(contexto.Request.Method) || !contexto.Request.Path.StartsWithSegments("/alta/verificar"))
+            return null;
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"alta-verificar:{LimitadorApiPublica.IpDelCliente(contexto)}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permisosPorMinuto,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            });
+    }
+
+    /// <summary>
     /// IP del cliente para el cupo diario: una IPv4 tal cual (también la mapeada en IPv6) y una IPv6 por su prefijo /48,
     /// lo que un proveedor suele asignar a un solo cliente.
     /// </summary>

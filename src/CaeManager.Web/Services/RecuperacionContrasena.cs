@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
@@ -9,46 +10,87 @@ using Microsoft.AspNetCore.WebUtilities;
 namespace CaeManager.Web.Services;
 
 /// <summary>
-/// Límite de solicitudes de recuperación por cuenta: tres por hora. La clave es un
-/// hash fijo del correo normalizado y el estado es un array de tamaño fijo, indexado
-/// por ese hash: no crece con el número de correos distintos que un anónimo pueda
-/// enviar y nunca rechaza "por lleno". Dos correos pueden compartir posición (1 entre
-/// 65.536); el efecto es compartir cupo de tres por hora, no una fuga ni un error.
+/// Límite de solicitudes por cuenta: tres por correo y hora. Lo comparten la recuperación de contraseña y el registro
+/// del alta autónoma.
+///
+/// <para>
+/// La clave es el SHA-256 completo del correo normalizado: dos correos distintos no comparten cupo en la práctica, así
+/// que nadie puede calcular otro correo que gaste el cupo de una víctima (con una clave de 16 bits bastaban unos cientos
+/// de intentos). Guardar la huella y no el correo evita retener direcciones en memoria durante la hora.
+/// </para>
+///
+/// <para>
+/// El estado crece con los correos distintos de la última hora y se purga de entradas vencidas al doblar su tamaño. Solo
+/// entra un correo cuya solicitud ya ocupó plaza en la cola acotada, y tiene un techo de <see cref="MaximoCuentas"/>
+/// entradas vivas (unos 16 MB): alcanzarlo exige ese número de solicitudes aceptadas con correos distintos en una hora,
+/// y su efecto es el mismo que el de la cola llena, descartar en silencio el correo nuevo hasta que venzan ventanas.
 /// Solo se usa bajo el cerrojo de quien lo posee.
+/// </para>
 /// </summary>
 public sealed class LimiteSolicitudesPorCuenta(TimeProvider reloj)
 {
-    public const int Posiciones = 1 << 16;
+    public const int MaximoCuentas = 1 << 18;
     public const int MaximoPorVentana = 3;
     public static readonly TimeSpan Ventana = TimeSpan.FromHours(1);
 
-    private readonly long[] _inicio = new long[Posiciones];
-    private readonly byte[] _solicitudes = new byte[Posiciones];
+    private const int MinimoAntesDePurgar = 1024;
 
-    public static int Posicion(string correoNormalizado) =>
-        BitConverter.ToUInt16(SHA256.HashData(Encoding.UTF8.GetBytes(correoNormalizado)), 0);
+    private readonly record struct Huella(UInt128 Alta, UInt128 Baja);
+
+    private record struct Cupo(long InicioTicks, int Solicitudes);
+
+    private readonly Dictionary<Huella, Cupo> _cupos = [];
+    private int _purgarAlLlegarA = MinimoAntesDePurgar;
+
+    /// <summary>Entradas en memoria, vencidas o no; para pruebas.</summary>
+    public int CuentasEnMemoria => _cupos.Count;
 
     public bool HayCupo(string correoNormalizado)
     {
-        var i = Posicion(correoNormalizado);
-        return Caducada(i, reloj.GetUtcNow().UtcTicks) || _solicitudes[i] < MaximoPorVentana;
+        var huella = HuellaDe(correoNormalizado);
+        var ahora = reloj.GetUtcNow().UtcTicks;
+        if (_cupos.TryGetValue(huella, out var cupo))
+            return Caducado(cupo, ahora) || cupo.Solicitudes < MaximoPorVentana;
+
+        if (_cupos.Count >= MaximoCuentas)
+            PurgarCaducados(ahora);
+
+        return _cupos.Count < MaximoCuentas;
     }
 
     public void Consumir(string correoNormalizado)
     {
-        var i = Posicion(correoNormalizado);
+        var huella = HuellaDe(correoNormalizado);
         var ahora = reloj.GetUtcNow().UtcTicks;
-        if (Caducada(i, ahora))
-        {
-            _inicio[i] = ahora;
-            _solicitudes[i] = 0;
-        }
+        var cupo = _cupos.TryGetValue(huella, out var actual) && !Caducado(actual, ahora) ? actual : new Cupo(ahora, 0);
+        if (cupo.Solicitudes < MaximoPorVentana)
+            cupo.Solicitudes++;
+        _cupos[huella] = cupo;
 
-        if (_solicitudes[i] < MaximoPorVentana) _solicitudes[i]++;
+        if (_cupos.Count >= _purgarAlLlegarA)
+        {
+            PurgarCaducados(ahora);
+            _purgarAlLlegarA = Math.Max(MinimoAntesDePurgar, _cupos.Count * 2);
+        }
     }
 
-    private bool Caducada(int i, long ahoraTicks) =>
-        _solicitudes[i] == 0 || ahoraTicks - _inicio[i] >= Ventana.Ticks;
+    private void PurgarCaducados(long ahoraTicks)
+    {
+        foreach (var (huella, cupo) in _cupos)
+        {
+            if (Caducado(cupo, ahoraTicks))
+                _cupos.Remove(huella);
+        }
+    }
+
+    private static bool Caducado(Cupo cupo, long ahoraTicks) => ahoraTicks - cupo.InicioTicks >= Ventana.Ticks;
+
+    private static Huella HuellaDe(string correoNormalizado)
+    {
+        Span<byte> hash = stackalloc byte[SHA256.HashSizeInBytes];
+        SHA256.HashData(Encoding.UTF8.GetBytes(correoNormalizado), hash);
+        return new Huella(BinaryPrimitives.ReadUInt128LittleEndian(hash), BinaryPrimitives.ReadUInt128LittleEndian(hash[16..]));
+    }
 }
 
 public sealed class RecuperacionContrasena(

@@ -80,5 +80,13 @@ public class AccesoSolicitudesAltaPorFuncionesTests
             .And.NotContain("DELETE ")
             .And.NotContain("INSERT ")
             .And.NotContain("\"HashContrasena\"", "verificar el correo no lee el hash de la contraseña");
+
+        // La caducidad se compara con la hora tomada tras el bloqueo, no con la de antes de esperar a otra petición.
+        var bloqueo = cuerpo.IndexOf("FOR UPDATE", StringComparison.Ordinal);
+        var reloj = cuerpo.IndexOf("v_ahora := pg_catalog.clock_timestamp()", StringComparison.Ordinal);
+        reloj.Should().BeGreaterThan(bloqueo, "el reloj se lee después de FOR UPDATE");
+        cuerpo.IndexOf("clock_timestamp", StringComparison.Ordinal).Should().Be(
+            cuerpo.LastIndexOf("clock_timestamp", StringComparison.Ordinal), "no hay otra lectura del reloj, tampoco antes del bloqueo");
+        cuerpo.IndexOf("v_ahora >=", StringComparison.Ordinal).Should().BeGreaterThan(reloj);
     }
 }
