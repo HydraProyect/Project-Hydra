@@ -704,6 +704,10 @@ public class UsosDeEsPlataformaCongeladosTests
         "CambiarIntegracionHabilitada",
         "IntegracionHabilitada",
         "CambiarPerfilVocabulario",
+        // Alta autónoma (A1): tipo de Tenant; solo toca su propia columna. El CIF del Tenant propietario
+        // vive fuera de Tenant, en CifPropietarioTenant.
+        "DeclararTipo",
+        "TipoTenant",
         "CreadoEnUtc",
         "DatosDemoCompletadosEnUtc",
         "EsPlataforma",

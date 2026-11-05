@@ -134,6 +134,13 @@ public class Tenant : Entity
 
     public DateTime? LogoActualizadoEnUtc { get; private set; }
 
+    /// <summary>
+    /// Tipo de Tenant propietario (P, E u O). Null = sin declarar: los Tenants creados antes del alta
+    /// autónoma y los que crean los Commands de alta de plataforma no lo llevan. Es dato comercial, no
+    /// autorización (ver <see cref="Domain.Tenants.TipoTenant"/>).
+    /// </summary>
+    public TipoTenant? TipoTenant { get; private set; }
+
     private Tenant()
     {
         // Requerido por EF Core.
@@ -171,6 +178,23 @@ public class Tenant : Entity
     /// interino que sustituye, que tampoco se revocaba).
     /// </summary>
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
+
+    /// <summary>
+    /// Declara el tipo de Tenant. Solo una vez: cambiar el tipo de un Tenant propietario ya declarado no
+    /// tiene regla de producto todavía. El CIF del Tenant propietario no vive aquí sino en
+    /// <see cref="CifPropietarioTenant"/>, en una tabla cerrada a los roles de la aplicación, porque el
+    /// NIF de una persona física es un dato personal y la tabla <c>Tenants</c> la leen todos (DA-11).
+    /// </summary>
+    public void DeclararTipo(TipoTenant tipo)
+    {
+        if (!Enum.IsDefined(tipo))
+            throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de Tenant desconocido.");
+
+        if (TipoTenant is not null)
+            throw new InvalidOperationException("El tipo del Tenant propietario ya está declarado.");
+
+        TipoTenant = tipo;
+    }
 
     public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;
 

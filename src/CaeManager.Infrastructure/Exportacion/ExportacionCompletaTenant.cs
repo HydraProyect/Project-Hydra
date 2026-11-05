@@ -106,6 +106,8 @@ public static class ExportacionCompletaTenant
         ["Adjuntos de mensajes, evidencias inbound, ficheros de tipos de documento de Centro y logo"] =
             "Sus filas se exportan con su clave de almacén; el binario solo se incluye para los Documentos.",
         ["Columnas cifradas en reposo, hash de claves de API y secretos de Identity"] = "Secretos: nunca se exportan.",
+        ["CIF o NIF del Tenant propietario (CifsPropietarioTenant)"] =
+            "Tabla cerrada a los roles de la aplicación (alta autónoma, A1); su exportación llega con la vía de acceso autorizada del alta (A4).",
     };
 
     private static readonly JsonSerializerOptions OpcionesJson = new()

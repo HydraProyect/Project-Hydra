@@ -743,6 +743,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<RetencionDatosOptions>(
             configuration.GetSection(RetencionDatosOptions.SeccionConfiguracion));
 
+        // Alta autónoma (DA-10): apagada por defecto en todos los entornos (ver AltaAutonomaOptions).
+        services.Configure<CaeManager.Application.AltaAutonoma.AltaAutonomaOptions>(
+            configuration.GetSection(CaeManager.Application.AltaAutonoma.AltaAutonomaOptions.SeccionConfiguracion));
+
         // Kill switch de la detección previa a clasificación de Documento
         // (ver DeteccionPreviaDocumentoOptions) — apagado por defecto hasta
         // que exista DPA de subencargado para datos de salud (P0-4 de

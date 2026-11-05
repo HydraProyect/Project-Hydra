@@ -9,7 +9,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
 {
     public void Configure(EntityTypeBuilder<Tenant> builder)
     {
-        builder.ToTable("Tenants");
+        builder.ToTable("Tenants", t => t.HasCheckConstraint(
+            "CK_Tenants_TipoTenant", SolicitudAltaConfiguration.EnValoresDe<TipoTenant>("TipoTenant")));
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre)
@@ -52,6 +53,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
         builder.Property(t => t.LogoVersion)
             .HasMaxLength(Tenant.LongitudLogoVersion)
             .IsConcurrencyToken();
+
+        // Tipo de Tenant (alta autónoma). Null en los Tenants anteriores: no se rellenan. El CIF del
+        // Tenant propietario no va en esta tabla, que leen todos los roles: vive en CifsPropietarioTenant
+        // (CifPropietarioTenantConfiguration), cerrada.
+        builder.Property(t => t.TipoTenant).HasConversion<string>().HasMaxLength(20);
 
         // Sin HasQueryFilter: Tenant no pertenece a ningún tenant (ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.1) y no tiene soft delete (ver Tenant.cs).
