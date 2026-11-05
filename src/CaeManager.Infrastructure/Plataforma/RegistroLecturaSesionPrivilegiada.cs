@@ -42,8 +42,8 @@ public class RegistroLecturaSesionPrivilegiada(
         // (de EF o ambiente) el handler serviría los datos y un ROLLBACK posterior borraría la fila:
         // solo se registra en autocommit. Ningún flujo actual lee bajo Sesión Privilegiada dentro de
         // una transacción; si alguno llega a hacerlo, falla aquí en cerrado. Una transacción abierta
-        // por SQL crudo (BEGIN, START TRANSACTION) no se ve aquí: la prohíbe en src el trinquete
-        // SinTransaccionesAbiertasPorSqlCrudoTests. La función de PostgreSQL no puede hacer esta
+        // por SQL crudo (BEGIN, START TRANSACTION) o directamente sobre la conexión, sin pasar por
+        // Database de EF, no se ve aquí: las prohíbe en src el trinquete SinTransaccionesFueraDeEfTests. La función de PostgreSQL no puede hacer esta
         // comprobación: con el protocolo extendido de Npgsql, statement_timestamp() se fija en cada
         // mensaje Parse/Bind/Execute y transaction_timestamp() en el primero, así que no coinciden
         // tampoco en autocommit.

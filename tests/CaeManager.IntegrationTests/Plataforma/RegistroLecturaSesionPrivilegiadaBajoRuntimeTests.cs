@@ -454,7 +454,7 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     /// protocolo extendido de Npgsql, statement_timestamp() se fija en cada Parse/Bind/Execute y no
     /// coincide con transaction_timestamp() ni en autocommit. La guarda contra la transacción
     /// explícita es la del servicio (los tests siguientes) más el trinquete de arquitectura
-    /// SinTransaccionesAbiertasPorSqlCrudoTests.
+    /// SinTransaccionesFueraDeEfTests.
     /// </summary>
     [Fact]
     public async Task En_una_transaccion_READ_COMMITTED_explicita_registra()

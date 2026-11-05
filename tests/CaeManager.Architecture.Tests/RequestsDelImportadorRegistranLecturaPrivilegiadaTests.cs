@@ -207,52 +207,85 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     private static string Down => new RegistraActividadSoportePorSesionPrivilegiada()
         .DownOperations.OfType<SqlOperation>().Should().ContainSingle().Subject.Sql;
 
+    /// <summary>Cabecera y cuerpo plpgsql de la función que crea Up.</summary>
+    private static (string Cabecera, string Cuerpo) Funcion
+    {
+        get
+        {
+            var definicion = EscanerSql.CoincidenciasEnCodigo(DefinicionDeLaFuncion, Up).Should().ContainSingle().Subject;
+            var (cabecera, cuerpo, _) = EscanerSql.PartesDeFuncion(Up, definicion.Index);
+            return (cabecera, cuerpo);
+        }
+    }
+
     [Fact]
     public void La_funcion_es_SECURITY_DEFINER_con_search_path_fijo_y_valida_la_sesion_dentro()
     {
+        var (cabecera, cuerpo) = Funcion;
+        EscanerSql.IndiceEnCodigo(cabecera, "SECURITY DEFINER").Should().BeGreaterThan(-1);
+        EscanerSql.IndiceEnCodigo(cabecera, "SET search_path TO 'pg_catalog', 'pg_temp'").Should().BeGreaterThan(-1);
+
         string[] obligatorias =
         [
-            "SECURITY DEFINER",
-            "SET search_path TO 'pg_catalog', 'pg_temp'",
             "public.app_ctx_valido()",
             "s.\"Id\" = p_sesion",
             "s.\"TenantObjetivoId\" = v_tenant",
             "s.\"CerradaEnUtc\" IS NULL",
-            "s.\"InicioEnUtc\" <= v_ahora",
-            "s.\"ExpiraEnUtc\" > v_ahora",
+            "s.\"InicioEnUtc\" <= reloj.ahora",
+            "s.\"ExpiraEnUtc\" > reloj.ahora",
             "c.\"UsuarioPlataformaId\" = v_actor",
             "c.\"Estado\" = 'Vigente'",
-            "c.\"VigenciaDesde\" <= v_ahora",
-            "(c.\"VigenciaHasta\" IS NULL OR c.\"VigenciaHasta\" > v_ahora)",
+            "c.\"VigenciaDesde\" <= reloj.ahora",
+            "(c.\"VigenciaHasta\" IS NULL OR c.\"VigenciaHasta\" > reloj.ahora)",
             "c.\"EsAlcanceGlobal\" OR EXISTS",
             "IF NOT FOUND THEN",
             "RETURN 'sesion_no_autorizada';",
         ];
         foreach (var construccion in obligatorias)
-            IndiceEnCodigo(Up, construccion).Should().BeGreaterThan(-1,
+            EscanerSql.IndiceEnCodigo(cuerpo, construccion).Should().BeGreaterThan(-1,
                 "la función tiene que contener «{0}» como código, no en un comentario ni dentro de un literal", construccion);
 
-        IndiceEnCodigo(Up, "RETURN 'sesion_no_autorizada';").Should().BeLessThan(IndiceEnCodigo(Up, "INSERT INTO"),
-            "la sesión se valida antes de insertar");
-        IndiceEnCodigo(Up, "LOCK TABLE").Should().Be(-1, "la función no bloquea tablas");
-        IndiceEnCodigo(Up, "lock_timeout").Should().Be(-1);
+        EscanerSql.IndiceEnCodigo(cuerpo, "RETURN 'sesion_no_autorizada';").Should().BeLessThan(
+            EscanerSql.IndiceEnCodigo(cuerpo, "INSERT INTO"), "la sesión se valida antes de insertar");
+        EscanerSql.IndiceEnCodigo(cuerpo, "LOCK TABLE").Should().Be(-1, "la función no bloquea tablas");
+        EscanerSql.IndiceEnCodigo(cabecera, "lock_timeout").Should().Be(-1);
+        EscanerSql.IndiceEnCodigo(cuerpo, "lock_timeout").Should().Be(-1);
     }
 
+    private static readonly Regex Comparacion = new(@"(<=|>=|<>|!=|<|>|=)", RegexOptions.Compiled);
+
+    /// <summary>
+    /// La hora es una sola lectura de clock_timestamp(), hecha dentro de la sentencia que valida la
+    /// sesión (evaluada al ejecutarla, con sus candados ya adquiridos), que la misma sentencia usa en
+    /// todas las condiciones de ventana y vigencia y que fecha la fila. now() es la hora de inicio de
+    /// la transacción; una hora tomada antes de la sentencia podría quedarse vieja si la sentencia
+    /// espera un candado.
+    /// </summary>
     [Fact]
-    public void La_hora_es_la_del_reloj_tomada_al_validar_y_no_la_del_inicio_de_la_transaccion()
+    public void La_hora_es_una_sola_lectura_del_reloj_dentro_de_la_sentencia_que_valida_la_sesion()
     {
-        // now() es la hora de inicio de la transacción: una transacción abierta antes de que la
-        // sesión o la concesión caducaran seguiría viéndolas vigentes. La hora se toma justo antes
-        // de validar la sesión, sin nada que pueda esperar entre medias, y fecha la fila.
-        var asignacion = IndiceEnCodigo(Up, "v_ahora := clock_timestamp();");
-        asignacion.Should().BeGreaterThan(IndiceEnCodigo(Up, "RETURN 'valor_no_valido';"),
-            "la hora se toma tras las comprobaciones previas, en el punto de validar");
-        asignacion.Should().BeLessThan(IndiceEnCodigo(Up, "FROM public.\"SesionesPrivilegiadas\" s"),
-            "la hora se toma antes de buscar la sesión nombrada");
-        CoincidenciasEnCodigo(new Regex(@"v_ahora\s*(:=|=|timestamptz\s*:=|timestamptz\s+DEFAULT)"), Up)
-            .Should().ContainSingle("v_ahora se asigna una sola vez");
-        IndiceEnCodigo(Up, "now()").Should().Be(-1);
-        IndiceEnCodigo(Up, "p_detalle, v_ahora,").Should().BeGreaterThan(-1,
+        var (_, cuerpo) = Funcion;
+        var codigo = EscanerSql.SoloCodigo(cuerpo);
+
+        var lecturas = EscanerSql.CoincidenciasEnCodigo(new Regex(@"clock_timestamp\s*\(\s*\)", RegexOptions.IgnoreCase), cuerpo);
+        lecturas.Should().ContainSingle("la hora se lee una sola vez");
+        EscanerSql.CoincidenciasEnCodigo(new Regex(@"\b(now|transaction_timestamp|statement_timestamp|current_timestamp|localtimestamp)\b", RegexOptions.IgnoreCase), cuerpo)
+            .Should().BeEmpty("ninguna otra hora entra en la validación");
+
+        var sentencia = EscanerSql.IndiceEnCodigo(cuerpo, "SELECT reloj.ahora INTO v_ahora");
+        sentencia.Should().BeGreaterThan(-1, "la sentencia de validación devuelve su propia hora");
+        var finDeSentencia = codigo.IndexOf(';', sentencia);
+        lecturas[0].Index.Should().BeInRange(sentencia, finDeSentencia, "el reloj se lee dentro de esa misma sentencia");
+        EscanerSql.IndiceEnCodigo(cuerpo, "(SELECT clock_timestamp() AS ahora) reloj").Should().BeInRange(sentencia, finDeSentencia);
+        codigo[sentencia..finDeSentencia].Should().Contain("LIMIT 1");
+        EscanerSql.IndiceEnCodigo(cuerpo, "IF NOT FOUND THEN").Should().BeGreaterThan(finDeSentencia);
+
+        EscanerSql.CoincidenciasEnCodigo(new Regex(@"\bv_ahora\s*:="), cuerpo).Should().BeEmpty("no hay asignación previa de la hora");
+        EscanerSql.CoincidenciasEnCodigo(new Regex(@"\bv_ahora\b"), cuerpo)
+            .Where(m => Comparacion.IsMatch(codigo.Substring(Math.Max(0, m.Index - 4), 4))
+                        || Comparacion.IsMatch(codigo.Substring(m.Index + m.Length, Math.Min(4, codigo.Length - m.Index - m.Length))))
+            .Should().BeEmpty("las condiciones usan la hora de la propia sentencia, no una variable anterior");
+        EscanerSql.IndiceEnCodigo(cuerpo, "p_detalle, v_ahora,").Should().BeGreaterThan(finDeSentencia,
             "la fila se fecha con la misma hora con la que se comprobó la sesión");
     }
 
@@ -277,7 +310,7 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             .ToList();
 
         var vigente = DefinicionVigente(migraciones);
-        var coincidencias = CoincidenciasEnCodigo(ListaDeDetalles, vigente.Sql);
+        var coincidencias = EscanerSql.CoincidenciasEnCodigo(ListaDeDetalles, vigente.Cuerpo);
         coincidencias.Should().ContainSingle("la función de {0} tiene que filtrar el detalle por lista cerrada", vigente.Id);
         var admitidos = coincidencias[0].Groups["lista"].Value
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
@@ -304,121 +337,31 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
-    /// La definición vigente: la ÚLTIMA <c>CREATE [OR REPLACE] FUNCTION</c> de la última migración que
-    /// la define, desde la cabecera hasta el cierre de su cuerpo (<c>$$;</c>). Una migración que solo
-    /// toque GRANT o DROP no cuenta como definición, y una migración posterior que la elimine sin
-    /// volver a crearla hace fallar el test (la lista ya no protegería nada).
+    /// La definición vigente: la ÚLTIMA <c>CREATE [OR REPLACE] FUNCTION</c> en código (no en un
+    /// comentario ni en un literal) de la última migración que la define, y el cuerpo plpgsql de esa
+    /// definición (su cadena con dólar). Una migración que solo toque GRANT o DROP no cuenta como
+    /// definición, y una migración posterior que la elimine sin volver a crearla hace fallar el test
+    /// (la lista ya no protegería nada).
     /// </summary>
-    internal static (string Id, string Sql) DefinicionVigente(IReadOnlyList<(string Id, string Sql)> migraciones)
+    internal static (string Id, string Cuerpo) DefinicionVigente(IReadOnlyList<(string Id, string Sql)> migraciones)
     {
-        var definidoras = migraciones.Where(m => DefinicionDeLaFuncion.IsMatch(m.Sql)).ToList();
+        var definidoras = migraciones.Where(m => EscanerSql.CoincidenciasEnCodigo(DefinicionDeLaFuncion, m.Sql).Count > 0).ToList();
         definidoras.Should().NotBeEmpty("alguna migración define la función");
         var ultima = definidoras[^1];
 
         var posteriores = migraciones.Where(m => string.CompareOrdinal(m.Id, ultima.Id) > 0)
-            .Where(m => EliminacionDeLaFuncion.IsMatch(m.Sql))
+            .Where(m => EscanerSql.CoincidenciasEnCodigo(EliminacionDeLaFuncion, m.Sql).Count > 0)
             .Select(m => m.Id)
             .ToList();
         posteriores.Should().BeEmpty("una migración posterior a {0} elimina la función sin redefinirla", ultima.Id);
 
         // Dentro de la propia migración, un DROP después de la última definición también la elimina.
-        var definicion = DefinicionDeLaFuncion.Matches(ultima.Sql)[^1];
-        EliminacionDeLaFuncion.Matches(ultima.Sql).Where(d => d.Index > definicion.Index)
+        var definicion = EscanerSql.CoincidenciasEnCodigo(DefinicionDeLaFuncion, ultima.Sql)[^1];
+        EscanerSql.CoincidenciasEnCodigo(EliminacionDeLaFuncion, ultima.Sql).Where(d => d.Index > definicion.Index)
             .Should().BeEmpty("{0} elimina la función después de definirla", ultima.Id);
 
-        var cuerpo = ultima.Sql.IndexOf("$$", definicion.Index, StringComparison.Ordinal);
-        cuerpo.Should().BeGreaterThan(-1);
-        var cierre = ultima.Sql.IndexOf("$$;", cuerpo + 2, StringComparison.Ordinal);
-        cierre.Should().BeGreaterThan(cuerpo, "la definición cierra su cuerpo");
-        return (ultima.Id, SinComentariosSql(ultima.Sql[definicion.Index..(cierre + 3)]));
+        return (ultima.Id, EscanerSql.PartesDeFuncion(ultima.Sql, definicion.Index).Cuerpo);
     }
-
-    /// <summary>
-    /// Quita los comentarios SQL (<c>--</c> hasta fin de línea y <c>/* */</c>, que en PostgreSQL se
-    /// anidan) respetando los literales entre comillas simples (<c>'…'</c> con <c>''</c> como comilla
-    /// escapada, y <c>E'…'</c> con escapes de barra invertida): una lista que solo aparece en un
-    /// comentario no es la lista que la función aplica.
-    /// </summary>
-    internal static string SinComentariosSql(string sql) => Escanear(sql).Texto;
-
-    /// <summary>
-    /// El SQL sin comentarios y, para cada posición de ese texto, si cae dentro de un literal de
-    /// cadena (comillas incluidas). El cuerpo <c>$$ … $$</c> de la función no se trata como literal:
-    /// es el código que se busca.
-    /// </summary>
-    internal static (string Texto, bool[] EnLiteral) Escanear(string sql)
-    {
-        var salida = new System.Text.StringBuilder(sql.Length);
-        var enLiteral = new List<bool>(sql.Length);
-        var i = 0;
-        while (i < sql.Length)
-        {
-            var esE = (sql[i] is 'E' or 'e') && i + 1 < sql.Length && sql[i + 1] == '\''
-                      && (i == 0 || !(char.IsLetterOrDigit(sql[i - 1]) || sql[i - 1] == '_'));
-            if (sql[i] == '\'' || esE)
-            {
-                var inicio = i;
-                var fin = i + (esE ? 2 : 1);
-                while (fin < sql.Length)
-                {
-                    if (esE && sql[fin] == '\\') { fin += 2; continue; }
-                    if (sql[fin] == '\'')
-                    {
-                        if (fin + 1 < sql.Length && sql[fin + 1] == '\'') { fin += 2; continue; }
-                        break;
-                    }
-                    fin++;
-                }
-                fin = Math.Min(fin + 1, sql.Length);
-                salida.Append(sql, inicio, fin - inicio);
-                for (var k = inicio; k < fin; k++) enLiteral.Add(true);
-                i = fin;
-            }
-            else if (sql[i] == '-' && i + 1 < sql.Length && sql[i + 1] == '-')
-            {
-                while (i < sql.Length && sql[i] != '\n')
-                    i++;
-            }
-            else if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*')
-            {
-                var profundidad = 1;
-                i += 2;
-                while (i < sql.Length && profundidad > 0)
-                {
-                    if (sql[i] == '/' && i + 1 < sql.Length && sql[i + 1] == '*') { profundidad++; i += 2; }
-                    else if (sql[i] == '*' && i + 1 < sql.Length && sql[i + 1] == '/') { profundidad--; i += 2; }
-                    else i++;
-                }
-                salida.Append(' ');
-                enLiteral.Add(false);
-            }
-            else
-            {
-                salida.Append(sql[i]);
-                enLiteral.Add(false);
-                i++;
-            }
-        }
-
-        return (salida.ToString(), enLiteral.ToArray());
-    }
-
-    /// <summary>
-    /// Las coincidencias del patrón en el SQL sin comentarios que empiezan fuera de un literal: un
-    /// <c>PERFORM 'p_detalle NOT IN (...)'</c> no es una comprobación que la función aplique.
-    /// </summary>
-    internal static IReadOnlyList<Match> CoincidenciasEnCodigo(Regex patron, string sql)
-    {
-        var (texto, enLiteral) = Escanear(sql);
-        return patron.Matches(texto).Where(m => !enLiteral[m.Index]).ToList();
-    }
-
-    /// <summary>
-    /// Posición (en el SQL sin comentarios) de la primera aparición de la construcción que empieza
-    /// fuera de un literal; -1 si solo aparece en comentarios o dentro de literales.
-    /// </summary>
-    internal static int IndiceEnCodigo(string sql, string construccion) =>
-        CoincidenciasEnCodigo(new Regex(Regex.Escape(construccion)), sql) is [var primera, ..] ? primera.Index : -1;
 
     [Fact]
     public void La_definicion_vigente_es_la_ultima_CREATE_de_la_ultima_migracion_que_la_define()
@@ -428,12 +371,16 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         const string grant = "GRANT EXECUTE ON FUNCTION public.app_registrar_actividad_soporte_por_sesion(uuid) TO cae_app_soporte; -- p_detalle NOT IN ('Engano')";
 
         // Dos definiciones en la misma migración: cuenta la última, y el texto de fuera no entra.
-        var dos = DefinicionVigente([("1", vieja + "\n" + nueva + "\nSELECT 'p_detalle NOT IN (''Fuera'')';")]);
-        CoincidenciasEnCodigo(ListaDeDetalles, dos.Sql).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+        var dos = DefinicionVigente([("1", vieja + "\n" + nueva + "\nSELECT 1 WHERE p_detalle NOT IN ('Fuera');")]);
+        EscanerSql.CoincidenciasEnCodigo(ListaDeDetalles, dos.Cuerpo).Should().ContainSingle().Which.Groups["lista"].Value.Should().Be("'Nuevo'");
+
+        // Una definición dentro de un comentario o de un literal no es una definición.
+        DefinicionVigente([("1", nueva + "\n/* " + vieja + " */\nSELECT '" + vieja.Replace("'", "''") + "';")]).Cuerpo
+            .Should().Contain("'Nuevo'");
 
         const string cabecera = "CREATE FUNCTION public.app_registrar_actividad_soporte_por_sesion(p uuid) AS $$ BEGIN ";
         IReadOnlyList<Match> Lista(string cuerpo) =>
-            CoincidenciasEnCodigo(ListaDeDetalles, DefinicionVigente([("1", cabecera + cuerpo + " END; $$;")]).Sql);
+            EscanerSql.CoincidenciasEnCodigo(ListaDeDetalles, DefinicionVigente([("1", cabecera + cuerpo + " END; $$;")]).Cuerpo);
 
         // Una lista que solo aparece en un comentario del cuerpo no es la lista que se aplica.
         Lista("\n  -- IF p_detalle NOT IN ('Comentada') THEN\n  RETURN 'x';\n").Should().BeEmpty("la lista solo está en un comentario --");
@@ -442,18 +389,26 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         // Los comentarios de bloque se anidan: el primer «*/» no cierra el exterior.
         Lista("/* a /* b */ p_detalle NOT IN ('X') */ RETURN 'x';").Should().BeEmpty("la lista está dentro de un comentario anidado");
 
-        // Una lista dentro de un literal no es una comprobación que se aplique.
+        // Una lista dentro de un literal, de una cadena con dólar o de un identificador no se aplica.
         Lista("PERFORM 'p_detalle NOT IN (''X'')';").Should().BeEmpty("la lista solo está dentro de un literal");
         Lista("PERFORM E'\\' p_detalle NOT IN (''X'')';").Should().BeEmpty("la lista solo está dentro de un literal E'…'");
+        Lista("PERFORM $texto$ p_detalle NOT IN ('X') $texto$;").Should().BeEmpty("la lista solo está dentro de una cadena con dólar");
+        Lista("PERFORM \"p_detalle NOT IN ('X')\";").Should().BeEmpty("la lista solo está dentro de un identificador");
 
-        // Un literal con «--» o «/*» dentro no se confunde con un comentario.
+        // Un literal con «--» o «/*» dentro no se confunde con un comentario. (Dentro de un cuerpo
+        // $$ … $$ no cabe un «$$»: PostgreSQL cierra el cuerpo en el primero, también entre comillas.)
         Lista("IF x = 'a--b/*c''' OR p_detalle NOT IN ('Real') THEN END IF;").Should().ContainSingle()
             .Which.Groups["lista"].Value.Should().Be("'Real'");
 
+        // Fuera de una cadena con dólar, un «$$» entre comillas es un literal y no abre ninguna.
+        EscanerSql.IndiceEnCodigo("x := '$$'; IF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
+
         // Lo mismo para las construcciones obligatorias.
-        IndiceEnCodigo("PERFORM 'IF NOT FOUND THEN'; /* IF NOT FOUND THEN */ -- IF NOT FOUND THEN", "IF NOT FOUND THEN")
+        EscanerSql.IndiceEnCodigo("PERFORM 'IF NOT FOUND THEN'; /* IF NOT FOUND THEN */ -- IF NOT FOUND THEN", "IF NOT FOUND THEN")
             .Should().Be(-1);
-        IndiceEnCodigo("x := '--'; IF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
+        EscanerSql.IndiceEnCodigo("PERFORM $texto$IF NOT FOUND THEN$texto$;", "IF NOT FOUND THEN").Should().Be(-1,
+            "una cadena con dólar no es código");
+        EscanerSql.IndiceEnCodigo("x := '--'; IF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
 
         // Una migración posterior que solo toca GRANT no es una definición.
         DefinicionVigente([("1", nueva), ("2", grant)]).Id.Should().Be("1");
@@ -472,11 +427,12 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
     {
         // Bajo REPEATABLE READ o SERIALIZABLE la función vería una instantánea anterior al cierre de
         // la sesión o a la revocación de la concesión.
-        var comprobacion = IndiceEnCodigo(Up, "IF current_setting('transaction_isolation') <> 'read committed' THEN");
-        var rechazo = IndiceEnCodigo(Up, "RETURN 'aislamiento_no_admitido';");
+        var (_, cuerpo) = Funcion;
+        var comprobacion = EscanerSql.IndiceEnCodigo(cuerpo, "IF current_setting('transaction_isolation') <> 'read committed' THEN");
+        var rechazo = EscanerSql.IndiceEnCodigo(cuerpo, "RETURN 'aislamiento_no_admitido';");
         comprobacion.Should().BeGreaterThan(-1);
         rechazo.Should().BeGreaterThan(comprobacion);
-        rechazo.Should().BeLessThan(IndiceEnCodigo(Up, "INSERT INTO"), "el rechazo va antes de insertar");
+        rechazo.Should().BeLessThan(EscanerSql.IndiceEnCodigo(cuerpo, "INSERT INTO"), "el rechazo va antes de insertar");
         Up.Should().NotContain("left(p_detalle").And.NotContain("p_detalle !~",
             "el detalle no se recorta ni se acepta por patrón: o es un nombre de la lista o no se inserta");
     }

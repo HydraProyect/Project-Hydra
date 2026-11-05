@@ -66,16 +66,29 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     llamador solo vienen el Id del registro (UUID v7 de la aplicación), el tipo (solo
             //     'Lectura') y el detalle, que solo puede ser uno de los nombres de request de
             //     OperacionesRegistradas (lista cerrada): nunca texto libre ni datos leídos.
-            //   - Hora: clock_timestamp(), no now(), tomada justo al validar la sesión. now() es la hora
-            //     de inicio de la transacción, y una transacción abierta antes de que la sesión o la
-            //     concesión caducaran seguiría viéndolas vigentes; la misma hora fecha la fila.
+            //   - Hora: clock_timestamp(), no now(). now() es la hora de inicio de la transacción, y una
+            //     transacción abierta antes de que la sesión o la concesión caducaran seguiría viéndolas
+            //     vigentes. Se lee una sola vez, dentro de la sentencia que valida la sesión
+            //     (subconsulta reloj), y esa misma lectura se usa en todas las condiciones de ventana y
+            //     vigencia y fecha la fila. Tomarla antes, en una asignación, la dejaría vieja si la
+            //     sentencia espera un candado (un ACCESS EXCLUSIVE de DDL o VACUUM FULL sobre las
+            //     tablas). Dentro de la sentencia se lee después de los candados: plpgsql ejecuta la
+            //     sentencia por SPI, y _SPI_execute_plan llama a GetCachedPlan (que, por
+            //     RevalidateCachedQuery/AcquirePlannerLocks o CheckCachedPlan/AcquireExecutorLocks,
+            //     vuelve «with sufficient locks to begin execution», plancache.c) y solo después toma
+            //     la instantánea y ejecuta (spi.c); clock_timestamp() se evalúa al ejecutar. La
+            //     subconsulta no se aplana en la consulta exterior porque su lista de salida tiene una
+            //     función volátil (is_simple_subquery, prepjointree.c), así que cada fila resultante
+            //     lleva la misma lectura con la que se comparó. Comprobado en el código de PostgreSQL
+            //     REL_17_STABLE y REL_18_STABLE (CI usa 18.6).
             //   - Aislamiento: solo READ COMMITTED, donde cada sentencia toma una instantánea nueva. Bajo
             //     REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
             //     al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar.
             //     Transacción: la fila solo es duradera en autocommit, y la guarda no está aquí sino en el
             //     repositorio (rechaza con una transacción de EF o ambiente abierta) más el trinquete
-            //     SinTransaccionesAbiertasPorSqlCrudoTests (ninguna cadena de src abre una transacción
-            //     con BEGIN o START TRANSACTION). No se hace en SQL porque la función no puede distinguir
+            //     SinTransaccionesFueraDeEfTests (ninguna cadena de src abre una transacción con BEGIN o
+            //     START TRANSACTION, y nadie llama a BeginTransaction sobre la conexión en vez de sobre
+            //     Database de EF, salvo una lista cerrada). No se hace en SQL porque la función no puede distinguir
             //     una transacción READ COMMITTED explícita del autocommit: con el protocolo extendido de
             //     Npgsql, statement_timestamp() se fija en cada mensaje Parse/Bind/Execute y
             //     transaction_timestamp() en el primero, así que no coinciden tampoco en autocommit.
@@ -114,23 +127,25 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   END IF;
 
                   -- La sesión nombrada: abierta, en su ventana, sobre el Tenant del contexto y con una
-                  -- concesión vigente del actor real que alcanza ese Tenant. La hora se toma aquí.
-                  v_ahora := clock_timestamp();
-                  PERFORM 1
-                  FROM public."SesionesPrivilegiadas" s
+                  -- concesión vigente del actor real que alcanza ese Tenant. La hora la lee esta misma
+                  -- sentencia al ejecutarse, después de adquirir sus candados (ver el comentario C#).
+                  SELECT reloj.ahora INTO v_ahora
+                  FROM (SELECT clock_timestamp() AS ahora) reloj
+                  CROSS JOIN public."SesionesPrivilegiadas" s
                   JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
                   WHERE s."Id" = p_sesion
                     AND s."TenantObjetivoId" = v_tenant
                     AND s."CerradaEnUtc" IS NULL
-                    AND s."InicioEnUtc" <= v_ahora
-                    AND s."ExpiraEnUtc" > v_ahora
+                    AND s."InicioEnUtc" <= reloj.ahora
+                    AND s."ExpiraEnUtc" > reloj.ahora
                     AND c."UsuarioPlataformaId" = v_actor
                     AND c."Estado" = 'Vigente'
-                    AND c."VigenciaDesde" <= v_ahora
-                    AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora)
+                    AND c."VigenciaDesde" <= reloj.ahora
+                    AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > reloj.ahora)
                     AND (c."EsAlcanceGlobal" OR EXISTS (
                         SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
-                        WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant));
+                        WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant))
+                  LIMIT 1;
                   IF NOT FOUND THEN
                     RETURN 'sesion_no_autorizada';
                   END IF;
