@@ -1334,6 +1334,12 @@ jobs:
           actualizada="$(trivy version --format json --cache-dir "$CACHE_TRIVY" | jq -r '.VulnerabilityDB.UpdatedAt // "desconocida"')"
           echo "Base de CVE usada: $actualizada"
           echo "Base de CVE usada por el gate de Trivy: \`$actualizada\`" >> "$GITHUB_STEP_SUMMARY"
+          # La caché del día congela la base del primer descargador: si el espejo la
+          # sirvió vieja, aviso visible (36 h, como vigilancia-imagenes.yml). No bloquea:
+          # la base vieja ve menos, nunca más, y se corrige con la caché del día siguiente.
+          if [ "$actualizada" = desconocida ] || [ $(( $(date -u +%s) - $(date -u -d "$actualizada" +%s) )) -gt $((36 * 3600)) ]; then
+            echo "::warning::La base de CVE ($actualizada) tiene más de 36 h o no se sabe su fecha."
+          fi
           trivy image --skip-db-update --no-progress \
             --cache-dir "$CACHE_TRIVY" \
             --severity CRITICAL,HIGH --ignore-unfixed --ignorefile .trivyignore \

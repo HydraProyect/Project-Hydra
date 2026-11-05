@@ -15,7 +15,13 @@ name: Trivy nocturno sin filtro
 #   - NO falla por hallazgos (informar es su función; la alarma con issue de lo ya
 #     desplegado es vigilancia-imagenes.yml). SÍ falla si no pudo escanear o si el
 #     `.trivyignore` tiene una entrada caducada o sin motivo: así una caducidad se ve
-#     aunque ese día no se abra ninguna PR.
+#     aunque ese día no se abra ninguna PR. Esa guarda no impide el escaneo: el informe
+#     se publica igual y el job falla al final.
+#
+# Esto cubre la imagen que saldría HOY de `main`. Lo realmente desplegado (imágenes de
+# terceros del compose de producción, base del Dockerfile y el artefacto
+# imagen-despliegue de producción y staging) lo escanea sin filtro, además de con él,
+# vigilancia-imagenes.yml: artefacto `vigilancia-sin-filtro` y resumen de su run.
 #
 # Base de CVE: la del día, con la misma caché `trivy-db-<fecha UTC>` que el gate de
 # ci.yml. Al correr temprano sobre `main` siembra esa caché en el ámbito de `main`,
@@ -47,7 +53,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Una excepción caducada no debe dejar la noche sin informe: la guarda corre, su
+      # resultado se guarda y el último paso hace fallar el job si falló.
       - name: Comprobar las caducidades del .trivyignore
+        id: guarda
+        continue-on-error: true
         run: node .github/vigilancia/trivyignore.js .trivyignore
 
       # La misma imagen que reconstruye el gate de ci.yml (mismo Dockerfile).
@@ -112,7 +122,9 @@ jobs:
           comunes=(--skip-db-update --no-progress --cache-dir "$CACHE_TRIVY" --scanners vuln
                    --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --ignorefile "$RUNNER_TEMP/sin-excepciones")
           trivy image "${comunes[@]}" --format json --output informe-trivy/trivy-nocturno.json caemanager:nocturno
-          trivy convert --format table --output informe-trivy/trivy-nocturno.txt informe-trivy/trivy-nocturno.json
+          # `convert` también filtra y por defecto leería el .trivyignore: mismo fichero vacío.
+          trivy convert --format table --ignorefile "$RUNNER_TEMP/sin-excepciones" \
+            --output informe-trivy/trivy-nocturno.txt informe-trivy/trivy-nocturno.json
           trivy version --format json --cache-dir "$CACHE_TRIVY" > informe-trivy/trivy-version.json
 
       - name: Publicar el resumen
@@ -121,6 +133,11 @@ jobs:
           json=informe-trivy/trivy-nocturno.json
           jq -e '.SchemaVersion' "$json" > /dev/null || { echo "::error::El informe no es un JSON de Trivy."; exit 1; }
           base="$(jq -r '.VulnerabilityDB.UpdatedAt // "desconocida"' informe-trivy/trivy-version.json)"
+          # La caché del día congela la base del primer descargador: si el espejo la
+          # sirvió vieja, se avisa (mismo umbral de 36 h que vigilancia-imagenes.yml).
+          if [ "$base" = desconocida ] || [ $(( $(date -u +%s) - $(date -u -d "$base" +%s) )) -gt $((36 * 3600)) ]; then
+            echo "::warning::La base de CVE ($base) tiene más de 36 h o no se sabe su fecha: el informe puede no listar lo último."
+          fi
           {
             echo "## Trivy nocturno sin filtro — \`caemanager\` de \`main\` (${GITHUB_SHA:0:7})"
             echo ""
@@ -130,10 +147,17 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Guardar el informe
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trivy-nocturno
           path: informe-trivy/
-          if-no-files-found: error
+          # Sin informe el job ya está en rojo por el paso que falló; no se suma otro error.
+          if-no-files-found: warn
           retention-days: 30
+
+      - name: Fallar si el .trivyignore tiene entradas caducadas o sin motivo
+        if: ${{ !cancelled() && steps.guarda.outcome == 'failure' }}
+        run: |
+          echo "::error::El .trivyignore no pasa la guarda (ver el paso «Comprobar las caducidades»): el informe se ha publicado igualmente."
+          exit 1

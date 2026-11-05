@@ -17,11 +17,13 @@ test('una entrada con motivo y caducidad vigente pasa', () => {
   assert.deepEqual(r.entradas.map((e) => [e.id, e.exp]), [['CVE-2026-109518', '2026-12-01']]);
 });
 
-test('caduca hoy: todavía vigente; caducó ayer: falla', () => {
-  assert.deepEqual(t.validar(`# motivo: x\nCVE-1 exp:${HOY}`, HOY).errores, []);
-  const r = t.validar('# motivo: x\nCVE-2026-1 exp:2026-11-04', HOY);
-  assert.equal(r.errores.length, 1);
-  assert.match(r.errores[0], /caducó el 2026-11-04/);
+test('caduca mañana: vigente; caduca hoy (Trivy ya no la aplica) o ayer: falla', () => {
+  assert.deepEqual(t.validar('# motivo: x\nCVE-1 exp:2026-11-06', HOY).errores, []);
+  for (const exp of [HOY, '2026-11-04']) {
+    const r = t.validar(`# motivo: x\nCVE-2026-1 exp:${exp}`, HOY);
+    assert.equal(r.errores.length, 1);
+    assert.match(r.errores[0], new RegExp(`caducó el ${exp}`));
+  }
 });
 
 test('una entrada sin exp: falla', () => {

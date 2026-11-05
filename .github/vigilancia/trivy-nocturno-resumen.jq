@@ -1,5 +1,5 @@
-# Resumen en Markdown del informe JSON de Trivy del escaneo nocturno sin filtro
-# (.github/workflows/trivy-nocturno.yml): recuento por severidad, con y sin
+# Resumen en Markdown de un informe JSON de Trivy sin filtro (trivy-nocturno.yml y
+# el informe sin filtro de vigilancia-imagenes.yml): recuento por severidad, con y sin
 # corrección, y la lista de CRITICAL y HIGH. Prueba en trivy-nocturno-resumen.test.js.
 #
 # Uso: jq -r -f .github/vigilancia/trivy-nocturno-resumen.jq informe.json

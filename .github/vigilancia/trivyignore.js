@@ -9,8 +9,8 @@
 //   # motivo: <por qué se acepta el riesgo>
 //   CVE-AAAA-NNNNN exp:AAAA-MM-DD
 //
-// - `exp:` es la caducidad NATIVA de Trivy: pasada la fecha, Trivy deja de ignorar la
-//   entrada y el gate vuelve a fallar solo;
+// - `exp:` es la caducidad NATIVA de Trivy: desde las 00:00 UTC de esa fecha, Trivy deja
+//   de ignorar la entrada y el gate vuelve a fallar solo (el día `exp` ya no la cubre);
 // - el comentario `# motivo:` va en la línea inmediatamente anterior y no puede ir vacío;
 // - esta guarda falla si alguna entrada no tiene `exp:` o motivo, si ya ha caducado
 //   (la entrada caducada no protege nada y engaña a quien lee el fichero) o si caduca
@@ -56,7 +56,9 @@ function validar(texto, hoy) {
     const anterior = i > 0 ? lineas[i - 1].trim() : '';
     const motivo = MOTIVO.exec(anterior);
     if (!motivo) errores.push(`línea ${n}: ${id} no va precedida de «# motivo: <por qué se acepta>».`);
-    if (exp < hoy) errores.push(`línea ${n}: ${id} caducó el ${exp}: corregir la vulnerabilidad o renovar la excepción con un motivo nuevo.`);
+    // Trivy lee `exp:` como las 00:00 UTC de ese día y deja de ignorar la entrada desde
+    // entonces: el propio día de `exp` ya cuenta como caducada.
+    if (exp <= hoy) errores.push(`línea ${n}: ${id} caducó el ${exp}: corregir la vulnerabilidad o renovar la excepción con un motivo nuevo.`);
     if (exp > limite) errores.push(`línea ${n}: ${id} caduca el ${exp}, a más de ${MAX_DIAS} días (límite ${limite}).`);
     entradas.push({ id, exp, motivo: motivo ? motivo[1].trim() : '', linea: n });
   });

@@ -191,7 +191,7 @@ function alertaDeImagenes(cve) {
     '',
     '- Imagen de terceros (compose de producción, base del `Dockerfile`): subir el digest fijado a una versión que traiga la corrección (Dependabot de `docker` suele proponerlo).',
     '- Paquete instalado por el `Dockerfile` o dependencia NuGet en la imagen de la aplicación: reconstruir y desplegar, o subir la versión del paquete.',
-    '- Si se acepta el riesgo (falso positivo, no aplicable), anotarlo en `.trivyignore` con su motivo: la issue se cerrará sola en el siguiente escaneo completo.',
+    '- Si se acepta el riesgo (falso positivo, no aplicable), anotarlo en `.trivyignore` en dos líneas, `# motivo: <por qué>` y debajo `<CVE> exp:AAAA-MM-DD` (caducidad obligatoria, a 90 días como mucho; lo comprueba `.github/vigilancia/trivyignore.js`): la issue se cerrará sola en el siguiente escaneo completo.',
     '',
     'Esta issue la mantiene el workflow: se actualiza si cambia lo afectado y se cierra sola cuando el CVE deja de aparecer. Cerrarla a mano como «completada» sin corregir nada la reabre en el siguiente escaneo; cerrarla como «no planificada» la deja cerrada.',
   ].join('\n');

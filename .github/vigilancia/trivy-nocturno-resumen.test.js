@@ -39,7 +39,7 @@ const INFORME = {
         vuln('CVE-2026-0002', 'MEDIUM', 'zlib1g', '1.2', ''),
       ],
     },
-    { Target: 'app/CaeManager.Web.deps.json', Vulnerabilities: [vuln('GHSA-x|y', 'HIGH', '@paquete<b>', '1.0', '1.1')] },
+    { Target: 'app/CaeManager.Web.deps.json', Vulnerabilities: [vuln('GHSA-x|y', 'HIGH', '@paquete<b>[x](u)`c`', '1.0', '1.1')] },
     { Target: 'sin vulnerabilidades' },
   ],
 };
@@ -67,7 +67,7 @@ test('el texto de terceros no rompe la tabla ni menciona a nadie', opciones, () 
   const md = resumir(INFORME);
   const fila = md.split('\n').find((l) => l.includes('GHSA'));
   assert.equal((fila.match(/\|/g) || []).length, 6);
-  assert.doesNotMatch(fila, /[@<>]/);
+  assert.doesNotMatch(fila, /[@<>[\]`]/);
 });
 
 test('sin vulnerabilidades graves dice «Ninguna.»', opciones, () => {
