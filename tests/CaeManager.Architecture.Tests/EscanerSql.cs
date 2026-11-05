@@ -7,8 +7,8 @@ namespace CaeManager.Architecture.Tests;
 /// sin base de datos. Recorre el texto una sola vez y clasifica cada posición:
 /// <list type="bullet">
 /// <item>literal <c>'…'</c> (con <c>''</c> como comilla escapada) y <c>E'…'</c> (además con barra invertida);</item>
-/// <item>cadena con dólar <c>$etiqueta$ … $etiqueta$</c> (la etiqueta puede ser vacía);</item>
-/// <item>comentario <c>--</c> hasta fin de línea y <c>/* */</c>, que en PostgreSQL se anida;</item>
+/// <item>cadena con dólar <c>$etiqueta$ … $etiqueta$</c> (la etiqueta puede ser vacía y llevar letras no ASCII);</item>
+/// <item>comentario <c>--</c> hasta <c>\n</c> o <c>\r</c> y <c>/* */</c>, que en PostgreSQL se anida;</item>
 /// <item>identificador entre comillas dobles <c>"…"</c> (con <c>""</c> escapada);</item>
 /// <item>el resto es código.</item>
 /// </list>
@@ -73,7 +73,8 @@ internal static class EscanerSql
             }
             else if (c == '-' && siguiente == '-')
             {
-                var fin = sql.IndexOf('\n', i);
+                // Como en scan.l (non_newline [^\n\r]): el comentario acaba en \n o en \r.
+                var fin = sql.IndexOfAny(['\n', '\r'], i);
                 fin = fin < 0 ? sql.Length : fin;
                 tokens.Add(new Token(Clase.Comentario, i, fin, i, fin, false));
                 i = fin;
@@ -117,7 +118,10 @@ internal static class EscanerSql
         return sql.Length;
     }
 
-    private static readonly Regex AperturaDolar = new(@"\G\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$", RegexOptions.Compiled);
+    // scan.l: dolq_start [A-Za-z\200-\377_] y dolq_cont [A-Za-z\200-\377_0-9]; los bytes \200-\377
+    // son los de cualquier carácter no ASCII en UTF-8, aquí \u0080 en adelante.
+    private static readonly Regex AperturaDolar = new(
+        @"\G\$(?:[A-Za-z\u0080-￿_][A-Za-z\u0080-￿_0-9]*)?\$", RegexOptions.Compiled);
 
     private static string? EtiquetaDolar(string sql, int i)
     {

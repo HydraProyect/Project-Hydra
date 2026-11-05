@@ -210,6 +210,168 @@ public class RegistroLecturaSesionPrivilegiadaBajoRuntimeTests : IAsyncLifetime
         (await LeerFilasAsync(sesion)).Should().ContainSingle().Which.Detalle.Should().Be("ObtenerHistorialImportacionesQuery");
     }
 
+    // ── Candado de fila: un cierre o una revocación en curso se espera y se ve ──
+    //
+    // Otra transacción modifica la fila y no confirma; la función llega y tiene que quedarse
+    // esperando su candado (FOR SHARE choca con el FOR NO KEY UPDATE del UPDATE), cosa que se ve en
+    // pg_locks. Sin el FOR SHARE la función no esperaría: leería la versión anterior y registraría,
+    // así que EsperarAQueLaFuncionEspereAsync fallaría. Al confirmar, la validación (sentencia
+    // posterior, instantánea nueva) ve el cambio.
+
+    private const string CerrarSesion =
+        @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;";
+
+    [Fact]
+    public async Task Un_cierre_confirmado_mientras_la_funcion_espera_su_candado_de_fila_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        (await LlamarMientrasOtraTransaccionRetieneLaFilaAsync(sesion, CerrarSesion, confirmar: true))
+            .Should().Be("sesion_no_autorizada", "el cierre se confirmó antes de que la función validara");
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_revocacion_confirmada_mientras_la_funcion_espera_su_candado_de_fila_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        (await LlamarMientrasOtraTransaccionRetieneLaFilaAsync(sesion, @"
+UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada'
+WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);", confirmar: true))
+            .Should().Be("sesion_no_autorizada", "la revocación se confirmó antes de que la función validara");
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_alcance_borrado_mientras_la_funcion_espera_su_candado_de_fila_no_registra()
+    {
+        var sesion = await AbrirSesionDeAprovisionamientoAsync([_tenantA]);
+
+        (await LlamarMientrasOtraTransaccionRetieneLaFilaAsync(sesion, @"
+DELETE FROM ""TenantsAlcanzadosPorConcesion""
+WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);", confirmar: true))
+            .Should().Be("sesion_no_autorizada", "el alcance desapareció antes de que la función validara");
+
+        (await LeerFilasAsync(sesion)).Should().BeEmpty();
+    }
+
+    /// <summary>Control: si quien retenía la fila deshace su cambio, la función registra al soltarse.</summary>
+    [Fact]
+    public async Task Si_quien_retiene_la_fila_deshace_el_cierre_la_funcion_registra_al_soltarse()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+
+        (await LlamarMientrasOtraTransaccionRetieneLaFilaAsync(sesion, CerrarSesion, confirmar: false))
+            .Should().Be("registrado");
+
+        (await LeerFilasAsync(sesion)).Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// FOR SHARE lo ejecuta el propietario de la función: tiene que poder bloquear las tres tablas
+    /// (privilegio UPDATE) y no quedar filtrado por FORCE ROW LEVEL SECURITY, que le dejaría sin
+    /// filas que bloquear y sin ningún error.
+    /// </summary>
+    [Fact]
+    public async Task El_propietario_de_la_funcion_evita_la_RLS_y_puede_bloquear_las_filas_que_valida()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = $"""
+            SELECT r.rolsuper OR r.rolbypassrls,
+                   has_table_privilege(p.proowner, 'public."SesionesPrivilegiadas"', 'UPDATE'),
+                   has_table_privilege(p.proowner, 'public."ConcesionesPrivilegio"', 'UPDATE'),
+                   has_table_privilege(p.proowner, 'public."TenantsAlcanzadosPorConcesion"', 'UPDATE')
+              FROM pg_proc p
+              JOIN pg_roles r ON r.oid = p.proowner
+             WHERE p.proname = '{Funcion}' AND p.pronamespace = 'public'::regnamespace;
+            """;
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue("la función existe tras migrar");
+
+        lector.GetBoolean(0).Should().BeTrue("el propietario evita la RLS");
+        lector.GetBoolean(1).Should().BeTrue("FOR SHARE sobre SesionesPrivilegiadas");
+        lector.GetBoolean(2).Should().BeTrue("FOR SHARE sobre ConcesionesPrivilegio");
+        lector.GetBoolean(3).Should().BeTrue("FOR SHARE sobre TenantsAlcanzadosPorConcesion");
+    }
+
+    /// <summary>
+    /// Abre como propietario una transacción que aplica <paramref name="sqlCambio"/> sin confirmar,
+    /// lanza la función desde la conexión de soporte, espera a verla bloqueada por esa transacción en
+    /// pg_locks, confirma o deshace, y devuelve lo que contestó la función.
+    /// </summary>
+    private async Task<string> LlamarMientrasOtraTransaccionRetieneLaFilaAsync(Guid sesion, string sqlCambio, bool confirmar)
+    {
+        await using var retenedora = new NpgsqlConnection(_cadenaConexion);
+        await retenedora.OpenAsync();
+        await using var transaccion = await retenedora.BeginTransactionAsync();
+        await using (var cambio = new NpgsqlCommand(sqlCambio, retenedora, transaccion))
+        {
+            cambio.Parameters.AddWithValue("u", sesion);
+            (await cambio.ExecuteNonQueryAsync()).Should().BeGreaterThan(0, "la preparación tiene que tocar la fila");
+        }
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+        var llamada = LlamarFuncionAsync(contexto, sesion, nameof(TipoActividadSoporte.Lectura), "ObtenerHistorialImportacionesQuery");
+
+        await EsperarAQueLaFuncionEspereAsync(retenedora.ProcessID, llamada);
+
+        if (confirmar)
+        {
+            await transaccion.CommitAsync();
+        }
+        else
+        {
+            await transaccion.RollbackAsync();
+        }
+
+        return await llamada.WaitAsync(TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>
+    /// Espera a que alguna sesión esté esperando (candado no concedido) el transactionid que tiene
+    /// concedido la transacción de <paramref name="pidRetenedor"/>: así espera un candado de fila
+    /// sobre una fila que esa transacción modificó.
+    /// </summary>
+    private async Task EsperarAQueLaFuncionEspereAsync(int pidRetenedor, Task<string> llamada)
+    {
+        await using var observadora = new NpgsqlConnection(_cadenaConexion);
+        await observadora.OpenAsync();
+        await using var comando = observadora.CreateCommand();
+        comando.CommandText = """
+            SELECT EXISTS (
+              SELECT 1
+                FROM pg_locks espera
+                JOIN pg_locks retiene
+                  ON retiene.locktype = 'transactionid'
+                 AND retiene.transactionid = espera.transactionid
+                 AND retiene.granted
+                 AND retiene.pid = @pid
+               WHERE espera.locktype = 'transactionid'
+                 AND NOT espera.granted);
+            """;
+        comando.Parameters.AddWithValue("pid", pidRetenedor);
+
+        for (var intento = 0; intento < 100; intento++)
+        {
+            llamada.IsCompleted.Should().BeFalse(
+                "la función tiene que esperar a la transacción que retiene la fila, no leer la versión anterior");
+            if ((bool)(await comando.ExecuteScalarAsync())!)
+            {
+                return;
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException("La función no llegó a esperar el candado de fila en 10 s.");
+    }
+
     // ── Cada precondición de la función, incumplida: no hay fila y el servicio da false ─
 
     [Fact]

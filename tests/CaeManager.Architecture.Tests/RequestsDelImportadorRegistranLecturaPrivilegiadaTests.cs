@@ -289,6 +289,49 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
             "la fila se fecha con la misma hora con la que se comprobó la sesión");
     }
 
+    /// <summary>
+    /// Antes de validar, la función bloquea con FOR SHARE la fila de la sesión nombrada, la de su
+    /// concesión y la del alcance, cada una en una sentencia anterior a la de validación: un cierre o
+    /// una revocación en curso se espera y la validación, con instantánea y hora posteriores al
+    /// candado, lo ve. La propia sentencia de validación no bloquea: en la recomprobación de una fila
+    /// (EvalPlanQual) la subconsulta reloj no se recalcula y la hora quedaría anterior al candado.
+    /// </summary>
+    [Fact]
+    public void La_sesion_la_concesion_y_el_alcance_se_bloquean_FOR_SHARE_antes_de_la_sentencia_que_valida()
+    {
+        var (_, cuerpo) = Funcion;
+        var codigo = EscanerSql.SoloCodigo(cuerpo);
+        var sinComentarios = EscanerSql.SinComentarios(cuerpo);
+        sinComentarios.Should().HaveLength(codigo.Length, "las dos vistas del escáner conservan las posiciones");
+        var validacion = EscanerSql.IndiceEnCodigo(cuerpo, "SELECT reloj.ahora INTO v_ahora");
+        validacion.Should().BeGreaterThan(-1);
+        var finDeValidacion = codigo.IndexOf(';', validacion);
+
+        string Sentencia(string candado)
+        {
+            var indice = EscanerSql.IndiceEnCodigo(cuerpo, candado);
+            indice.Should().BeGreaterThan(-1, $"«{candado}» tiene que estar en el código de la función");
+            indice.Should().BeLessThan(validacion, "el candado va en una sentencia anterior a la validación");
+            // Límites de sentencia en el código; el texto, sin comentarios pero con sus identificadores.
+            var inicio = codigo.LastIndexOf(';', indice) + 1;
+            return sinComentarios[inicio..(indice + candado.Length)];
+        }
+
+        Sentencia("FOR SHARE OF s, c;").Should()
+            .Contain("PERFORM 1").And.Contain("FROM public.\"SesionesPrivilegiadas\" s")
+            .And.Contain("JOIN public.\"ConcesionesPrivilegio\" c ON c.\"Id\" = s.\"ConcesionPrivilegioId\"")
+            .And.Contain("WHERE s.\"Id\" = p_sesion");
+        Sentencia("FOR SHARE OF t;").Should()
+            .Contain("PERFORM 1").And.Contain("FROM public.\"TenantsAlcanzadosPorConcesion\" t")
+            .And.Contain("WHERE s.\"Id\" = p_sesion").And.Contain("t.\"TenantId\" = v_tenant");
+
+        new Regex(@"\bFOR\s+(UPDATE|NO\s+KEY\s+UPDATE|SHARE|KEY\s+SHARE)\b|\bNOWAIT\b|\bSKIP\s+LOCKED\b", RegexOptions.IgnoreCase)
+            .IsMatch(codigo[validacion..finDeValidacion])
+            .Should().BeFalse("la sentencia de validación no bloquea: su hora no se recalcularía al recomprobar la fila");
+        EscanerSql.CoincidenciasEnCodigo(new Regex(@"\bNOWAIT\b|\bSKIP\s+LOCKED\b", RegexOptions.IgnoreCase), cuerpo)
+            .Should().BeEmpty("el candado espera: ni falla ni se salta la fila");
+    }
+
     private static readonly Regex ListaDeDetalles = new(@"p_detalle NOT IN \((?<lista>[^)]*)\)", RegexOptions.Compiled);
 
     /// <summary>
@@ -409,6 +452,13 @@ public class RequestsDelImportadorRegistranLecturaPrivilegiadaTests
         EscanerSql.IndiceEnCodigo("PERFORM $texto$IF NOT FOUND THEN$texto$;", "IF NOT FOUND THEN").Should().Be(-1,
             "una cadena con dólar no es código");
         EscanerSql.IndiceEnCodigo("x := '--'; IF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
+
+        // Como en PostgreSQL, «--» termina en \n o en \r.
+        EscanerSql.IndiceEnCodigo("PERFORM 1; -- x\rIF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
+        EscanerSql.IndiceEnCodigo("PERFORM 1; -- x\nIF NOT FOUND THEN", "IF NOT FOUND THEN").Should().BeGreaterThan(-1);
+
+        // Una etiqueta de dólar admite letras no ASCII (scan.l: dolq_start [A-Za-z\200-\377_]).
+        EscanerSql.IndiceEnCodigo("PERFORM $á$IF NOT FOUND THEN$á$;", "IF NOT FOUND THEN").Should().Be(-1);
 
         // Una migración posterior que solo toca GRANT no es una definición.
         DefinicionVigente([("1", nueva), ("2", grant)]).Id.Should().Be("1");

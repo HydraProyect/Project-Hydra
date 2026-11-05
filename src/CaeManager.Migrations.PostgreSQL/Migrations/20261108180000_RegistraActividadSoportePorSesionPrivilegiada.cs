@@ -81,14 +81,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     función volátil (is_simple_subquery, prepjointree.c), así que cada fila resultante
             //     lleva la misma lectura con la que se comparó. Comprobado en el código de PostgreSQL
             //     REL_17_STABLE y REL_18_STABLE (CI usa 18.6).
+            //   - Candado de fila: la instantánea de una sentencia es anterior a su hora, así que un
+            //     cierre de la sesión o una revocación de la concesión confirmados entre ambas no se
+            //     verían. Por eso hay dos sentencias. La primera bloquea con FOR SHARE OF s, c la fila
+            //     de la sesión nombrada y la de su concesión: si otra transacción las está modificando,
+            //     espera a que termine y, en READ COMMITTED, bloquea su última versión (documentación,
+            //     «Read Committed Isolation Level»). Desde ese momento ningún UPDATE ni DELETE de esas
+            //     filas puede confirmarse hasta que termine la transacción de la llamada (en autocommit,
+            //     la propia sentencia). La segunda sentencia toma una instantánea nueva (spi.c toma una
+            //     por sentencia en READ COMMITTED) y la hora, y valida: ve el último estado confirmado,
+            //     que ya no puede cambiar. No se valida con la hora en la misma sentencia del FOR SHARE
+            //     porque, al recomprobar la fila (EvalPlanQual), una subconsulta no bloqueada como reloj
+            //     no se recalcula: el planificador le da ROW_MARK_COPY (select_rowmark_type, planner.c)
+            //     y conservaría una hora anterior al candado. La fila de TenantsAlcanzadosPorConcesion
+            //     que da el alcance (si la concesión no es global) se bloquea igual, en una sentencia
+            //     aparte porque en la consulta de validación va en un EXISTS: el alcance solo se añade
+            //     al crear la concesión (AlcanceDeConcesionSoloEnSuCreacion), pero así un borrado
+            //     tampoco cabe entre la validación y el INSERT. El propietario de la función (rol de las
+            //     migraciones, que tiene que evitar la RLS: ComprobacionTenantClavesForaneas) es el
+            //     propietario de las tablas, así que FOR SHARE ni pide privilegios que no tenga ni lo
+            //     filtra FORCE ROW LEVEL SECURITY.
             //   - Aislamiento: solo READ COMMITTED, donde cada sentencia toma una instantánea nueva. Bajo
             //     REPEATABLE READ o SERIALIZABLE la función vería la sesión y la concesión como estaban
             //     al empezar la transacción, aunque después se cerraran o revocaran: rechaza sin insertar.
             //     Transacción: la fila solo es duradera en autocommit, y la guarda no está aquí sino en el
             //     repositorio (rechaza con una transacción de EF o ambiente abierta) más el trinquete
             //     SinTransaccionesFueraDeEfTests (ninguna cadena de src abre una transacción con BEGIN o
-            //     START TRANSACTION, y nadie llama a BeginTransaction sobre la conexión en vez de sobre
-            //     Database de EF, salvo una lista cerrada). No se hace en SQL porque la función no puede distinguir
+            //     START TRANSACTION, ni en un .razor, y toda transacción que se abre en C# resuelve, según
+            //     el modelo semántico de Roslyn, a Database de EF, salvo una lista cerrada). No se hace en
+            //     SQL porque la función no puede distinguir
             //     una transacción READ COMMITTED explícita del autocommit: con el protocolo extendido de
             //     Npgsql, statement_timestamp() se fija en cada mensaje Parse/Bind/Execute y
             //     transaction_timestamp() en el primero, así que no coinciden tampoco en autocommit.
@@ -126,9 +147,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'valor_no_valido';
                   END IF;
 
-                  -- La sesión nombrada: abierta, en su ventana, sobre el Tenant del contexto y con una
-                  -- concesión vigente del actor real que alcanza ese Tenant. La hora la lee esta misma
-                  -- sentencia al ejecutarse, después de adquirir sus candados (ver el comentario C#).
+                  -- Primero se bloquean (FOR SHARE) la fila de la sesión nombrada y la de su concesión:
+                  -- un cierre o una revocación en curso se espera, y uno posterior espera a que esta
+                  -- sentencia exterior termine (ver el comentario C#).
+                  PERFORM 1
+                  FROM public."SesionesPrivilegiadas" s
+                  JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
+                  WHERE s."Id" = p_sesion
+                    AND s."TenantObjetivoId" = v_tenant
+                    AND c."UsuarioPlataformaId" = v_actor
+                  FOR SHARE OF s, c;
+                  PERFORM 1
+                  FROM public."TenantsAlcanzadosPorConcesion" t
+                  JOIN public."SesionesPrivilegiadas" s ON s."ConcesionPrivilegioId" = t."ConcesionPrivilegioId"
+                  WHERE s."Id" = p_sesion
+                    AND t."TenantId" = v_tenant
+                  FOR SHARE OF t;
+
+                  -- Después, con una instantánea nueva y las filas ya bloqueadas: la sesión nombrada
+                  -- abierta, en su ventana, sobre el Tenant del contexto y con una concesión vigente del
+                  -- actor real que alcanza ese Tenant. La hora la lee esta misma sentencia.
                   SELECT reloj.ahora INTO v_ahora
                   FROM (SELECT clock_timestamp() AS ahora) reloj
                   CROSS JOIN public."SesionesPrivilegiadas" s
