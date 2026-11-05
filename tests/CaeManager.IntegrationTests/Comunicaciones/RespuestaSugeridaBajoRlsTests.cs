@@ -225,9 +225,9 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón</p>");
         await using (var runtime = CrearRuntime())
         {
-            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Texto del buzón", CancellationToken.None))
+            (await PorBuzon(runtime, conexion, "Texto del buzón", CancellationToken.None))
                 .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Otro texto", CancellationToken.None))
+            (await PorBuzon(runtime, conexion, "Otro texto", CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
 
@@ -246,14 +246,14 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto descartado</p>", descartada: true);
         await using (var runtime = CrearRuntime())
         {
-            (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Texto descartado", CancellationToken.None))
+            (await PorBuzon(runtime, conexion, "Texto descartado", CancellationToken.None))
                 .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
         }
 
         await SembrarEntranteAsync(_tenantSesion, await ConversacionDelBuzonAsync(conexion));
 
         await using var despues = CrearRuntime();
-        (await despues.ComprobarEnvioPorBuzonAsync(Alcance(despues), conexion, "Texto descartado", CancellationToken.None))
+        (await PorBuzon(despues, conexion, "Texto descartado", CancellationToken.None))
             .EsExitoso.Should().BeTrue();
     }
 
@@ -267,10 +267,9 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         var conexion = await SembrarHiloDeBuzonConPropuestaAsync("<p>Texto del buzón con la documentación.</p>");
         await using var runtime = CrearRuntime();
 
-        (await runtime.ComprobarEnvioPorBuzonAsync(
-                Alcance(runtime), conexion, "<p>Texto del buzón con la documentación.</p><p>Un saludo, Marta</p>", CancellationToken.None))
+        (await PorBuzon(runtime, conexion, "<p>Texto del buzón con la documentación.</p><p>Un saludo, Marta</p>", CancellationToken.None))
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (await runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime), conexion, "Otro texto distinto del anterior", CancellationToken.None))
+        (await PorBuzon(runtime, conexion, "Otro texto distinto del anterior", CancellationToken.None))
             .EsExitoso.Should().BeTrue();
     }
 
@@ -373,6 +372,12 @@ public class RespuestaSugeridaBajoRlsTests : IAsyncLifetime
         runtime, Alcance(runtime), PoliticaNotaInternaPruebas.Con(Roles.Administrador), new SesionPrivilegiadaAusente());
 
     private CurrentUserServiceFalso Usuario() => new(_usuarioId, Roles.Administrador, tenantOrigenId: _tenantSesion);
+
+    private Task<Result> PorBuzon(CaeManagerDbContext contexto, Guid conexion, string cuerpo, CancellationToken cancellationToken)
+    {
+        var alcance = Alcance(contexto);
+        return contexto.ComprobarEnvioPorBuzonAsync(alcance, alcance, conexion, cuerpo, cancellationToken);
+    }
 
     private AlcanceDatosService Alcance(CaeManagerDbContext contexto) => new(
         contexto, Usuario(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente());

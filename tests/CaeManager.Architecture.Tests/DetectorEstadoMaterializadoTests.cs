@@ -128,6 +128,7 @@ public class DetectorEstadoMaterializadoTests
             "ProcesadorColaEstadoMaterializado.cs",    // una transacción por pasada de la cola; solo escribe el propio estado y la cola
             "CambioDeDiaEstadoMaterializado.cs",       // cotejo nocturno: foto REPEATABLE READ de solo lectura, se deshace siempre
             "ExportacionCompletaTenant.cs",            // exportación de un Tenant: foto REPEATABLE READ de solo lectura, se deshace siempre
+            "InstantaneaDeLectura.cs",                 // foto REPEATABLE READ de solo lectura (la base lo hace cumplir): no puede escribir entradas del cálculo
             "PilotoOutboundSeeder.cs",                 // siembra (en el arranque y en el modo CLI, dentro del ámbito «sin recálculo», que encola sus Tenants al cerrar)
             "TrabajoAnalisisDocumentoRepository.cs",   // reclama un trabajo de IA; no toca entradas
             "EventoWebhookRepository.cs",              // registra un webhook; no toca entradas

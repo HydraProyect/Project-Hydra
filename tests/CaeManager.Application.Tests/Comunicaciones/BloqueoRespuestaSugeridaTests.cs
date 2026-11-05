@@ -109,7 +109,7 @@ public class BloqueoRespuestaSugeridaTests
 
     private Task<Result<Guid>> EnviarNuevo(ConexionIntegracion conexion, string cuerpo) =>
         new EnviarMensajeNuevoCommandHandler(
-                _conexiones, _conversaciones, _comunicaciones, new AlcanceDatosServiceFalso(), _graph,
+                _conexiones, _conversaciones, _comunicaciones, new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), _graph,
                 new AccesoGraphService(_credenciales, _graph), new FileStorageServiceFalso(),
                 new ResolucionParticipanteConversacionServiceFalso(), _unidad, _registro)
             .Handle(new EnviarMensajeNuevoCommand(conexion.Id, ["ana@contrata.test"], "Documentación", cuerpo), CancellationToken.None);
@@ -442,9 +442,9 @@ public class BloqueoRespuestaSugeridaTests
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
 
         var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
         var viendolo = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
 
         sinVer.EsExitoso.Should().BeTrue();
         viendolo.Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
@@ -601,15 +601,17 @@ public class BloqueoRespuestaSugeridaTests
         Sugerencia(conversacion, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conversacion));
 
         var sinVer = await _comunicaciones.ComprobarEnvioPorBuzonAsync(
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), conexion.Id, TextoSugerido, CancellationToken.None);
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false), new InvalidadorAlcanceInerte(), conexion.Id, TextoSugerido, CancellationToken.None);
 
         sinVer.EsExitoso.Should().BeTrue();
     }
 
     private const string CuerpoSinRelacion = "<p>Cuerpo sin relación alguna con ninguna sugerencia.</p>";
 
-    private Task<Result> PorBuzon(ConexionIntegracion conexion, string cuerpo, IAlcanceDatosService? alcance = null) =>
-        _comunicaciones.ComprobarEnvioPorBuzonAsync(alcance ?? new AlcanceDatosServiceFalso(), conexion.Id, cuerpo, CancellationToken.None);
+    private Task<Result> PorBuzon(
+        ConexionIntegracion conexion, string cuerpo, IAlcanceDatosService? alcance = null, IInvalidadorAlcance? invalidador = null) =>
+        _comunicaciones.ComprobarEnvioPorBuzonAsync(
+            alcance ?? new AlcanceDatosServiceFalso(), invalidador ?? new InvalidadorAlcanceInerte(), conexion.Id, cuerpo, CancellationToken.None);
 
     [Theory]
     [InlineData(EstadoRespuestaSugerida.Propuesta)]
@@ -846,11 +848,13 @@ public class BloqueoRespuestaSugeridaTests
     }
 
     /// <summary>
-    /// Un hilo reasignado a un ancla fuera de la cartera entre la consulta de candidatas (lectura 1) y la de los textos
-    /// (lectura 2) no se compara: su texto sale del lote. Sin el filtro de alcance en la consulta de textos, que solo
-    /// mirara el Id, esa lectura devolvería el texto de un hilo que ya no es visible, la contención lo marcaría como
-    /// coincidente y el envío se bloquearía por un hilo ajeno: el control sin reasignación sí bloquea, así que lo único
-    /// que distingue los dos resultados es ese filtro.
+    /// Defensa en profundidad: el filtro de alcance va también en la consulta de textos. Un hilo reasignado a un ancla fuera
+    /// de la cartera entre la consulta de candidatas (lectura 1) y la de los textos (lectura 2) no se compara: su texto sale
+    /// del lote. Con una instantánea real esa reasignación no se vería (la base sirve la misma foto), pero el doble en
+    /// memoria no modela los cambios de estado de las entidades, así que este test fija que la consulta de textos no se fía
+    /// de que el Id esté entre las candidatas: sin el filtro devolvería el texto de un hilo que ya no es visible, la
+    /// contención lo marcaría como coincidente y el envío se bloquearía por un hilo ajeno. El control sin reasignación sí
+    /// bloquea, así que lo único que distingue los dos resultados es ese filtro.
     /// </summary>
     [Fact]
     public async Task Por_buzon_un_hilo_reasignado_fuera_de_cartera_entre_las_dos_lecturas_ni_bloquea_ni_se_compara()
@@ -875,40 +879,9 @@ public class BloqueoRespuestaSugeridaTests
         (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
     }
 
-    /// <summary>
-    /// Una coincidencia exacta por hash tampoco decide sin una lectura filtrada posterior a la de candidatas. El hilo de
-    /// triage compartido (visible para el Gestor CAE) tiene la sugerencia exacta; otra candidata de otro hilo obliga a una
-    /// segunda lectura (la de los textos), y entre las dos otro usuario asigna el hilo de triage a un Cliente empresarial
-    /// fuera de la cartera. Si el hash se diera por bueno desde la primera lectura, el envío se bloquearía por un hilo que
-    /// ya no es visible: el control sin reasignar bloquea, y lo que cambia es la confirmación de la coincidencia exacta.
-    /// </summary>
+    /// <summary>Sin ninguna coincidencia no hay lote de textos: una sola lectura, la de candidatas.</summary>
     [Fact]
-    public async Task Por_buzon_una_coincidencia_exacta_en_un_hilo_reasignado_fuera_de_cartera_entre_las_lecturas_no_bloquea()
-    {
-        var conexion = Buzon();
-        var clienteEnCartera = Guid.NewGuid();
-        var triage = HiloAnclado(conexion, null, null);
-        Sugerencia(triage, EstadoRespuestaSugerida.Propuesta);
-        var otro = HiloAnclado(conexion, clienteEnCartera, null);
-        Sugerencia(otro, EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]);
-
-        (await PorBuzon(conexion, TextoSugerido, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-
-        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
-        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
-        {
-            if (lectura == antes + 2)
-                triage.AsignarCliente(Guid.NewGuid());
-        };
-
-        (await PorBuzon(conexion, TextoSugerido, alcance)).EsExitoso.Should().BeTrue();
-        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
-    }
-
-    /// <summary>(c) Sin ningún nominado no hay lectura final: una sola lectura, la de candidatas.</summary>
-    [Fact]
-    public async Task Por_buzon_sin_ningun_nominado_hay_una_sola_lectura()
+    public async Task Por_buzon_sin_coincidencias_ni_textos_por_comparar_hay_una_sola_lectura()
     {
         var conexion = Buzon();
         Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Revisada);
@@ -919,12 +892,11 @@ public class BloqueoRespuestaSugeridaTests
     }
 
     /// <summary>
-    /// Ya no hay atajo que decida con la primera lectura: una Propuesta exacta se nomina por hash y la decide la lectura
-    /// final, que ve también su Revisada (mismo hash y mensaje de origen) y la desbloquea. Exactamente 2 lecturas: la de
-    /// candidatas y la final.
+    /// La Propuesta exacta tiene su Revisada (mismo hash y mensaje de origen) entre las candidatas de la misma instantánea,
+    /// y la desbloquea sin más lecturas: la de candidatas y nada más.
     /// </summary>
     [Fact]
-    public async Task Por_buzon_una_exacta_desbloqueada_por_su_revisada_la_decide_la_lectura_final()
+    public async Task Por_buzon_una_exacta_desbloqueada_por_su_revisada_se_decide_con_la_lectura_de_candidatas()
     {
         var conexion = Buzon();
         var conversacion = HiloDeCorreo(conexion);
@@ -935,66 +907,155 @@ public class BloqueoRespuestaSugeridaTests
 
         (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
 
-        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(1);
     }
 
     /// <summary>
-    /// (a) Una coincidencia por contención en un hilo de triage compartido (visible para el Gestor CAE) se nomina en la
-    /// lectura de textos; el hilo se asigna a un Cliente empresarial fuera de la cartera durante la lectura final (la 3.ª),
-    /// que lo deja fuera: no bloquea. El control sin reasignar bloquea. Sin la lectura final como única decisión, la
-    /// coincidencia por contención ya estaría dada por buena desde la lectura de textos (solo se confirmaban las exactas) y
-    /// el envío se bloquearía por un hilo que ya no es visible.
+    /// Toda la comprobación va en una única instantánea: se abre una, ninguna consulta de Conversaciones, Mensajes o
+    /// sugerencias ocurre fuera de ella, y los conjuntos de alcance se descartan y se leen dentro (antes de la primera
+    /// lectura de datos). Se ejercitan las tres fases: candidatas, lote de textos y decisión.
     /// </summary>
     [Fact]
-    public async Task Por_buzon_una_contencion_en_triage_reasignado_fuera_de_cartera_en_la_lectura_final_no_bloquea()
+    public async Task Por_buzon_toda_la_comprobacion_se_ejecuta_dentro_de_una_unica_instantanea()
     {
         var conexion = Buzon();
-        var clienteEnCartera = Guid.NewGuid();
-        var triage = HiloAnclado(conexion, null, null);
-        Sugerencia(triage, EstadoRespuestaSugerida.Propuesta);
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]);
-        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        var alcance = new AlcanceMemoizadoConRegistro(_comunicaciones, new AlcanceDatosServiceFalso());
+        var instantaneasAntes = _comunicaciones.InstantaneasAbiertas;
+        var fueraAntes = _comunicaciones.ConsultasFueraDeInstantanea;
+        var lecturasAntes = _comunicaciones.LecturasDeRespuestasSugeridas;
 
-        (await PorBuzon(conexion, cuerpo, alcance)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>", alcance, alcance)).Error
+            .Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
 
-        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
-        _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
-        {
-            if (lectura == antes + 3)
-                triage.AsignarCliente(Guid.NewGuid());
-        };
-
-        (await PorBuzon(conexion, cuerpo, alcance)).EsExitoso.Should().BeTrue();
-        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
+        (_comunicaciones.InstantaneasAbiertas - instantaneasAntes).Should().Be(1);
+        (_comunicaciones.ConsultasFueraDeInstantanea - fueraAntes).Should().Be(0);
+        (_comunicaciones.LecturasDeRespuestasSugeridas - lecturasAntes).Should().BeGreaterThan(1, "hubo candidatas y lote de textos");
+        alcance.Invalidaciones.Should().Be(1);
+        alcance.CargasFueraDeInstantanea.Should().Be(0);
+        alcance.CargasDeCartera.Should().BeGreaterThan(0);
+        _comunicaciones.DentroDeInstantanea.Should().BeFalse("la instantánea se cierra al terminar la comprobación");
     }
 
     /// <summary>
-    /// (b) La Propuesta exacta tiene una Revisada antigua con su mismo hash y mensaje de origen, que la desbloquea con los
-    /// datos de la primera lectura. Mientras se leen los textos de otra candidata, la Propuesta pasa a SinRevisar (se
-    /// inserta en el borrador): la lectura final la ve así y bloquea. El control, sin ese cambio, no bloquea. Con la
-    /// primera lectura decidiendo (el atajo), el resultado sería «no bloquea» por el estado antiguo.
+    /// Una sugerencia sin revisar con el mismo texto, confirmada por otra conexión después de abrir la instantánea (aquí, a
+    /// mitad de la lectura de los textos), no se ve: es el límite aceptado, igual que un cambio posterior al envío. La
+    /// confirmada antes de abrirla sí bloquea, y la misma sugerencia vista en una comprobación posterior también.
     /// </summary>
     [Fact]
-    public async Task Por_buzon_una_propuesta_que_pasa_a_sin_revisar_entre_las_lecturas_bloquea_pese_a_su_revisada_antigua()
+    public async Task Por_buzon_una_sin_revisar_confirmada_despues_de_abrir_la_instantanea_no_se_ve_y_una_anterior_si()
     {
         var conexion = Buzon();
         var conversacion = HiloDeCorreo(conexion);
-        var entrante = EntranteDePersona(conversacion);
-        var propuesta = Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, origen: entrante);
-        Sugerencia(conversacion, EstadoRespuestaSugerida.Revisada, origen: entrante);
-        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
-
-        (await PorBuzon(conexion, TextoSugerido)).EsExitoso.Should().BeTrue();
-
+        Sugerencia(conversacion, EstadoRespuestaSugerida.Propuesta, "<p>Otra sugerencia que no se parece a nada de lo enviado.</p>");
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
         var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
         _comunicaciones.AlLeerRespuestasSugeridas = lectura =>
         {
             if (lectura == antes + 2)
-                propuesta.Insertar();
+                Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.SinRevisar);
         };
 
-        (await PorBuzon(conexion, TextoSugerido)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
-        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(3);
+        (await PorBuzon(conexion, cuerpo)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(2);
+
+        _comunicaciones.AlLeerRespuestasSugeridas = null;
+        _comunicaciones.ListaRespuestasSugeridas.Should().HaveCount(2);
+        (await PorBuzon(conexion, cuerpo)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>
+    /// La cartera revocada después de memoizarse se vuelve a leer dentro de la instantánea. El alcance de la petición ya se
+    /// había calculado (con el hilo en cartera) antes de abrirla, y entre tanto otra sesión retira al Gestor CAE esa
+    /// cartera. Con el invalidador inerte (la memoización de antes de abrir sigue valiendo) el hilo se ve y bloquea; con el
+    /// invalidador real, la cartera se recalcula dentro, el hilo ya no es visible y no bloquea ni delata nada.
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_la_cartera_revocada_tras_memoizarse_se_lee_de_nuevo_dentro_de_la_instantanea()
+    {
+        var conexion = Buzon();
+        var clienteEnCartera = Guid.NewGuid();
+        Sugerencia(HiloAnclado(conexion, clienteEnCartera, null), EstadoRespuestaSugerida.Propuesta);
+        var cuerpo = TextoSugerido + "<p>Un saludo</p>";
+
+        var alcance = new AlcanceMemoizadoConRegistro(
+            _comunicaciones, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [clienteEnCartera]));
+        await alcance.ObtenerClienteIdsVisiblesAsync();
+        await alcance.ObtenerEmpresaIdsParaGestionAsync();
+        alcance.Actual = new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
+
+        (await PorBuzon(conexion, cuerpo, alcance, new InvalidadorAlcanceInerte())).Error
+            .Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar, "la memoización anterior sigue valiendo");
+        (await PorBuzon(conexion, cuerpo, alcance, alcance)).EsExitoso.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Alcance cuyos conjuntos de cartera se memorizan hasta <see cref="Invalidar"/>, como el servicio real de la petición, y
+    /// que anota si se cargaron con una instantánea abierta.
+    /// </summary>
+    private sealed class AlcanceMemoizadoConRegistro(ComunicacionesQueryContextFalso comunicaciones, AlcanceDatosServiceFalso actual)
+        : IAlcanceDatosService, IInvalidadorAlcance
+    {
+        private IReadOnlyList<Guid>? _clientes;
+        private bool _clientesMemoizados;
+        private IReadOnlyList<Guid>? _empresas;
+        private bool _empresasMemoizadas;
+
+        public AlcanceDatosServiceFalso Actual { get; set; } = actual;
+        public int Invalidaciones { get; private set; }
+        public int CargasDeCartera { get; private set; }
+        public int CargasFueraDeInstantanea { get; private set; }
+
+        public void Invalidar()
+        {
+            Invalidaciones++;
+            _clientesMemoizados = false;
+            _empresasMemoizadas = false;
+        }
+
+        private void Cargar()
+        {
+            CargasDeCartera++;
+            if (!comunicaciones.DentroDeInstantanea)
+                CargasFueraDeInstantanea++;
+        }
+
+        public async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_clientesMemoizados)
+            {
+                Cargar();
+                _clientes = await Actual.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+                _clientesMemoizados = true;
+            }
+            return _clientes;
+        }
+
+        public async Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken cancellationToken = default)
+        {
+            if (!_empresasMemoizadas)
+            {
+                Cargar();
+                _empresas = await Actual.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+                _empresasMemoizadas = true;
+            }
+            return _empresas;
+        }
+
+        public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+            Actual.ConexionIntegracionVisibleAsync(conexionIntegracionId, cancellationToken);
+
+        public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Actual.TieneAccesoTotalAsync(cancellationToken);
+        public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) => Actual.OperaDesdeElLadoDeGestionAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default) => Actual.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default) => Actual.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default) => Actual.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken cancellationToken = default) => Actual.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default) => Actual.ObtenerSubcontrataIdsParaGestionAsync(cancellationToken);
+        public Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default) => Actual.SubcontrataEliminadaParaGestionVisibleAsync(subcontrataId, cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default) => Actual.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) => Actual.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
     }
 
     [Fact]

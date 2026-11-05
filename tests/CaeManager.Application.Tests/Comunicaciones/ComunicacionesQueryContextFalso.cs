@@ -7,9 +7,23 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
 {
     public List<Conversacion> ListaConversaciones { get; } = [];
-    public IQueryable<Conversacion> Conversaciones => new TestAsyncQueryable<Conversacion>(ListaConversaciones.AsQueryable());
+    public IQueryable<Conversacion> Conversaciones
+    {
+        get
+        {
+            ContarConsultaFueraDeInstantanea();
+            return new TestAsyncQueryable<Conversacion>(ListaConversaciones.AsQueryable());
+        }
+    }
     public List<Mensaje> ListaMensajes { get; } = [];
-    public IQueryable<Mensaje> Mensajes => new TestAsyncQueryable<Mensaje>(ListaMensajes.AsQueryable());
+    public IQueryable<Mensaje> Mensajes
+    {
+        get
+        {
+            ContarConsultaFueraDeInstantanea();
+            return new TestAsyncQueryable<Mensaje>(ListaMensajes.AsQueryable());
+        }
+    }
     public List<ParticipanteConversacion> ListaParticipantesConversacion { get; } = [];
     public IQueryable<ParticipanteConversacion> ParticipantesConversacion => new TestAsyncQueryable<ParticipanteConversacion>(ListaParticipantesConversacion.AsQueryable());
     public List<MacroRespuesta> ListaMacrosRespuesta { get; } = [];
@@ -35,6 +49,46 @@ public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
     public List<PropuestaRecordatorioConversacion> ListaPropuestasRecordatorioConversacion { get; } = [];
     public IQueryable<PropuestaRecordatorioConversacion> PropuestasRecordatorioConversacion => new TestAsyncQueryable<PropuestaRecordatorioConversacion>(ListaPropuestasRecordatorioConversacion.AsQueryable());
     public List<RespuestaSugerida> ListaRespuestasSugeridas { get; } = [];
+
+    /// <summary>Instantáneas de lectura abiertas (<see cref="EnInstantaneaDeLecturaAsync{T}"/>).</summary>
+    public int InstantaneasAbiertas { get; private set; }
+
+    public bool DentroDeInstantanea { get; private set; }
+
+    /// <summary>Consultas a Conversaciones, Mensajes o RespuestasSugeridas hechas sin instantánea abierta.</summary>
+    public int ConsultasFueraDeInstantanea { get; private set; }
+
+    private List<RespuestaSugerida>? _respuestasAlAbrirLaInstantanea;
+
+    private void ContarConsultaFueraDeInstantanea()
+    {
+        if (!DentroDeInstantanea)
+            ConsultasFueraDeInstantanea++;
+    }
+
+    /// <summary>
+    /// Modela la instantánea en lo que un doble en memoria puede: mientras está abierta, las sugerencias que se añaden a la
+    /// lista no se ven. No modela los cambios de estado de las entidades ya existentes (comparten referencia). Dentro de
+    /// otra instantánea (ambiente) ejecuta la lectura sin abrir una nueva, como la implementación real.
+    /// </summary>
+    public async Task<T> EnInstantaneaDeLecturaAsync<T>(Func<CancellationToken, Task<T>> lectura, CancellationToken cancellationToken = default)
+    {
+        if (DentroDeInstantanea)
+            return await lectura(cancellationToken);
+
+        InstantaneasAbiertas++;
+        _respuestasAlAbrirLaInstantanea = [.. ListaRespuestasSugeridas];
+        DentroDeInstantanea = true;
+        try
+        {
+            return await lectura(cancellationToken);
+        }
+        finally
+        {
+            DentroDeInstantanea = false;
+            _respuestasAlAbrirLaInstantanea = null;
+        }
+    }
     public int LecturasDeRespuestasSugeridas { get; private set; }
 
     /// <summary>Se invoca al empezar cada lectura de sugerencias, con su número de orden (1 la primera): permite cambiar los datos entre dos lecturas.</summary>
@@ -45,8 +99,10 @@ public class ComunicacionesQueryContextFalso : IComunicacionesQueryContext
         get
         {
             LecturasDeRespuestasSugeridas++;
+            ContarConsultaFueraDeInstantanea();
             AlLeerRespuestasSugeridas?.Invoke(LecturasDeRespuestasSugeridas);
-            return new TestAsyncQueryable<RespuestaSugerida>(ListaRespuestasSugeridas.AsQueryable());
+            // Dentro de la instantánea se lee la lista tal como estaba al abrirla: lo añadido después, no se ve.
+            return new TestAsyncQueryable<RespuestaSugerida>((_respuestasAlAbrirLaInstantanea ?? ListaRespuestasSugeridas).AsQueryable());
         }
     }
     public List<ClasificacionRuidoMensaje> ListaClasificacionesRuidoMensaje { get; } = [];

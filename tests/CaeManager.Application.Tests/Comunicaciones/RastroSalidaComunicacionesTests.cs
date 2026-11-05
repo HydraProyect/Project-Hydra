@@ -40,7 +40,7 @@ public class RastroSalidaComunicacionesTests
     {
         var (conexiones, acceso) = Dependencias();
         return new EnviarMensajeNuevoCommandHandler(
-            conexiones, _conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), _graph, acceso,
+            conexiones, _conversaciones, new ComunicacionesQueryContextFalso(), new AlcanceDatosServiceFalso(), new CaeManager.Application.Common.InvalidadorAlcanceInerte(), _graph, acceso,
             new FileStorageServiceFalso(), new ResolucionParticipanteConversacionServiceFalso(), new UnitOfWorkFalso(), registro);
     }
 

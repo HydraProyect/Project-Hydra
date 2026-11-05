@@ -75,22 +75,29 @@ public static class BloqueoRespuestaSugerida
     /// cuerpo, porque no se sabe en qué hilo caerá y una sola sin revisar frenaría todo el buzón.
     ///
     /// <para>
-    /// Estructura: las lecturas previas solo NOMINAN ids que podrían coincidir y la decisión se toma con una única lectura
-    /// final. (1) Se resuelve el alcance de quien envía, una sola vez y sin mirar el cuerpo (<see cref="HilosVisiblesDelBuzonAsync"/>):
-    /// si el buzón no es visible no hay candidatas, y si lo es, los conjuntos memoizados de Clientes empresariales visibles
-    /// y de Empresas para gestión pasan a ser un filtro. (2) Una consulta, sin el texto ni el cuerpo, trae las sugerencias
-    /// candidatas de los hilos del buzón que cumplen ese filtro: las <see cref="EstadoRespuestaSugerida.Propuesta"/> y
+    /// Instantánea: toda la comprobación se ejecuta dentro de una única transacción de solo lectura REPEATABLE READ
+    /// (<see cref="IComunicacionesQueryContext.EnInstantaneaDeLecturaAsync{T}"/>), que se abre al empezar y se confirma al
+    /// terminar, antes de enviar. Todas las consultas (el alcance de quien envía, las candidatas, los lotes de textos) ven
+    /// por tanto el mismo estado confirmado: una sugerencia creada, un cambio de estado o una reasignación de hilo
+    /// confirmados después de la primera consulta no se ven, y los datos que se comparan no pueden contradecirse entre sí.
+    /// Los conjuntos de alcance (cartera de Clientes empresariales y de Empresas para gestión) están memoizados por
+    /// petición, y una memoización anterior a la instantánea sería una lectura de otro momento: por eso se descartan
+    /// (<see cref="IInvalidadorAlcance.Invalidar"/>) al abrirla y se calculan dentro. Si el contexto ya tiene una
+    /// transacción (ambiente), la comprobación se ejecuta en ella y la instantánea es la suya: solo es estricta si ya era
+    /// REPEATABLE READ o superior (desde el Handler de <c>EnviarMensajeNuevo</c> no hay ninguna).
+    /// </para>
+    ///
+    /// <para>
+    /// Estructura, sobre esa instantánea: (1) se resuelve el alcance de quien envía, sin mirar el cuerpo
+    /// (<see cref="HilosVisiblesDelBuzonAsync"/>): si el buzón no es visible no hay candidatas, y si lo es, los conjuntos de
+    /// cartera pasan a ser un filtro. (2) Una consulta, sin el texto ni el cuerpo, trae las sugerencias candidatas de los
+    /// hilos del buzón que cumplen ese filtro: las <see cref="EstadoRespuestaSugerida.Propuesta"/> y
     /// <see cref="EstadoRespuestaSugerida.SinRevisar"/> de cualquier edad y las que contestan al último entrante de su hilo,
-    /// que es lo que aplica una conversación. (3) Se nominan: por hash, las no revisadas con el hash del cuerpo; por
-    /// contención, las demás no revisadas cuyo texto, leído por lotes de <see cref="LoteTextosPorBuzon"/> y descartado tras
-    /// compararlo, está contenido en el cuerpo. Ninguna de esas lecturas decide, ni para bloquear ni para desbloquear.
-    /// (4) Sin ningún nominado no se bloquea: es el único atajo, y no usa ningún dato previo para decidir un bloqueo. Con
-    /// nominados, una lectura final, con la misma consulta y el mismo filtro de alcance, restringida a las nominadas y a las
-    /// Revisadas de sus hilos, trae su estado actual (Id, hilo, estado, hash y mensaje de origen), y solo sobre ese
-    /// resultado se evalúa el bloqueo. Una nominada que ya no es visible o que ya no cumple la condición de candidata no
-    /// aparece y no bloquea; una Propuesta que pasó a SinRevisar se ve como tal; la Revisada que desbloquea es la actual.
-    /// La contención no se relee: el texto y su hash no cambian tras generarse la sugerencia, así que basta con que la
-    /// nominada siga en el resultado.
+    /// que es lo que aplica una conversación. (3) Coinciden con el cuerpo, por hash, las no revisadas con el hash del
+    /// cuerpo; por contención, las demás no revisadas cuyo texto, leído por lotes de <see cref="LoteTextosPorBuzon"/> y
+    /// descartado tras compararlo, está contenido en el cuerpo. (4) Sin ninguna coincidencia no se bloquea; con ellas se
+    /// evalúa el bloqueo sobre las mismas candidatas, con las reglas de la conversación: la Revisada que desbloquea es la
+    /// de esa misma instantánea. Como todas las lecturas son de la misma foto, no hay que releer ni volver a validar nada.
     /// </para>
     ///
     /// <para>
@@ -108,86 +115,77 @@ public static class BloqueoRespuestaSugerida
     /// Sin tope de volumen y sin fallo en cerrado por cantidad: una Revisada o una Descartada del último entrante siguen
     /// siendo candidatas mientras la contraparte no conteste, y un tope las contaría como pendientes y cerraría el buzón
     /// a los mensajes nuevos sin que quien envía pudiera arreglarlo. Coste: una consulta de candidatas (una fila ligera por
-    /// sugerencia de hilo visible), un acceso por lote de textos de las no revisadas y, si hay nominados, la lectura final
-    /// (filas ligeras de los hilos nominados); el trabajo en memoria es lineal. Crece con el historial de sugerencias del
-    /// buzón, porque no hay filtro por hash. También la memoria crece con ese historial, incluidas las Revisadas: las filas
-    /// ligeras de todas las candidatas están a la vez en memoria (decenas de bytes de Id, estado y hash por sugerencia).
-    /// Lo que los lotes mantienen constante es la memoria de los textos, que son lo grande: como mucho
-    /// <see cref="LoteTextosPorBuzon"/> a la vez.
+    /// sugerencia de hilo visible) y un acceso por lote de textos de las no revisadas; el trabajo en memoria es lineal.
+    /// Crece con el historial de sugerencias del buzón, porque no hay filtro por hash. También la memoria crece con ese
+    /// historial, incluidas las Revisadas: las filas ligeras de todas las candidatas están a la vez en memoria (decenas de
+    /// bytes de Id, estado y hash por sugerencia). Lo que los lotes mantienen constante es la memoria de los textos, que son
+    /// lo grande: como mucho <see cref="LoteTextosPorBuzon"/> a la vez. La transacción dura lo que dure esa lectura y no
+    /// toma bloqueos de escritura.
     /// </para>
     ///
     /// <para>
-    /// Límite aceptado: un cambio posterior a la lectura final (la reasignación de un hilo, un cambio de estado) entre la
-    /// decisión y el envío es inherente a cualquier comprobación previa al envío, y queda fuera de lo que esta garantiza.
+    /// Límite aceptado: la comprobación se hace sobre una instantánea REPEATABLE READ, y los cambios confirmados después de
+    /// ella (la reasignación de un hilo, un cambio de estado, una sugerencia nueva) entre la instantánea y el envío quedan
+    /// fuera de lo que esta garantiza: es inherente a cualquier comprobación previa al envío.
     /// </para>
     /// </summary>
-    public static async Task<Result> ComprobarEnvioPorBuzonAsync(
-        this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, string cuerpo,
-        CancellationToken cancellationToken)
-    {
-        var hilosVisibles = await HilosVisiblesDelBuzonAsync(alcanceDatos, conexionIntegracionId, cancellationToken);
-        if (hilosVisibles is null)
-            return Result.Exito();
-
-        var candidatas = await Candidatas(comunicaciones, hilosVisibles, null).ToListAsync(cancellationToken);
-
-        var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
-        var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
-
-        // Nominar: solo ids que podrían coincidir. Una Revisada solo desbloquea a las demás y no coincide nunca.
-        var nominadas = candidatas
-            .Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && c.TextoHash == hash).Select(c => c.Id).ToHashSet();
-        var porComparar = candidatas.Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && !nominadas.Contains(c.Id)).ToList();
-        foreach (var lote in porComparar.Chunk(LoteTextosPorBuzon))
+    public static Task<Result> ComprobarEnvioPorBuzonAsync(
+        this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, IInvalidadorAlcance invalidadorAlcance,
+        Guid conexionIntegracionId, string cuerpo, CancellationToken cancellationToken) =>
+        comunicaciones.EnInstantaneaDeLecturaAsync(async ct =>
         {
-            var ids = lote.Select(c => c.Id).ToList();
-            // El mismo filtro de alcance que en las demás consultas: un hilo reasignado fuera de la cartera sale del lote.
-            var textos = await (
-                from r in comunicaciones.RespuestasSugeridas
-                where ids.Contains(r.Id)
-                join c in comunicaciones.Conversaciones.Where(hilosVisibles) on r.ConversacionId equals c.Id
-                select new { r.Id, r.Texto })
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
+            // Dentro de la instantánea y antes de la primera lectura de alcance: sin la memoización de antes de abrirla.
+            invalidadorAlcance.Invalidar();
 
-            foreach (var texto in textos.Where(t => ContieneElTexto(cuerpoNormalizado, t.Texto)))
-                nominadas.Add(texto.Id);
-        }
+            var hilosVisibles = await HilosVisiblesDelBuzonAsync(alcanceDatos, conexionIntegracionId, ct);
+            if (hilosVisibles is null)
+                return Result.Exito();
 
-        if (nominadas.Count == 0)
-            return Result.Exito();
+            var candidatas = await Candidatas(comunicaciones, hilosVisibles).ToListAsync(ct);
 
-        // Decidir: una única lectura final, filtrada, de las nominadas y de las Revisadas de sus hilos.
-        var idsNominadas = nominadas.ToList();
-        var hilosNominados = candidatas.Where(c => nominadas.Contains(c.Id)).Select(c => c.ConversacionId).Distinct().ToList();
-        var finales = await Candidatas(
-                comunicaciones, hilosVisibles,
-                r => idsNominadas.Contains(r.Id) ||
-                     (r.Estado == EstadoRespuestaSugerida.Revisada && hilosNominados.Contains(r.ConversacionId)))
-            .ToListAsync(cancellationToken);
+            var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
+            var cuerpoNormalizado = RespuestaSugerida.NormalizarTexto(cuerpo);
 
-        var coinciden = finales.Where(f => nominadas.Contains(f.Id)).Select(f => f.Id).ToHashSet();
-        var hilos = finales
-            .GroupBy(c => c.ConversacionId)
-            .Select(hilo => hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList())
-            .ToList();
+            // Una Revisada solo desbloquea a las demás y no coincide nunca.
+            var coinciden = candidatas
+                .Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && c.TextoHash == hash).Select(c => c.Id).ToHashSet();
+            var porComparar = candidatas.Where(c => c.Estado != EstadoRespuestaSugerida.Revisada && !coinciden.Contains(c.Id)).ToList();
+            foreach (var lote in porComparar.Chunk(LoteTextosPorBuzon))
+            {
+                var ids = lote.Select(c => c.Id).ToList();
+                // El mismo filtro de alcance que en las demás consultas, aunque la instantánea ya lo garantice: un hilo
+                // oculto no debe llegar nunca a memoria.
+                var textos = await (
+                    from r in comunicaciones.RespuestasSugeridas
+                    where ids.Contains(r.Id)
+                    join c in comunicaciones.Conversaciones.Where(hilosVisibles) on r.ConversacionId equals c.Id
+                    select new { r.Id, r.Texto })
+                    .AsNoTracking()
+                    .ToListAsync(ct);
 
-        return Bloquea(hilos, coinciden) ? Result.Fallo(SugerenciaSinRevisar) : Result.Exito();
-    }
+                foreach (var texto in textos.Where(t => ContieneElTexto(cuerpoNormalizado, t.Texto)))
+                    coinciden.Add(texto.Id);
+            }
+
+            if (coinciden.Count == 0)
+                return Result.Exito();
+
+            var hilos = candidatas
+                .GroupBy(c => c.ConversacionId)
+                .Select(hilo => hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList())
+                .ToList();
+
+            return Bloquea(hilos, coinciden) ? Result.Fallo(SugerenciaSinRevisar) : Result.Exito();
+        }, cancellationToken);
 
     /// <summary>
     /// Las sugerencias candidatas de los hilos visibles del buzón (columnas ligeras, sin el texto), con la condición de
-    /// candidata de una conversación: activa, o que contesta al último entrante. <paramref name="ademas"/> restringe las
-    /// sugerencias antes de unirlas al hilo; el filtro de alcance va siempre.
+    /// candidata de una conversación: activa, o que contesta al último entrante. El filtro de alcance va siempre.
     /// </summary>
     private static IQueryable<CandidataDeBuzon> Candidatas(
-        IComunicacionesQueryContext comunicaciones, Expression<Func<Conversacion, bool>> hilosVisibles,
-        Expression<Func<RespuestaSugerida, bool>>? ademas)
-    {
-        var respuestas = ademas is null ? comunicaciones.RespuestasSugeridas : comunicaciones.RespuestasSugeridas.Where(ademas);
-
-        return (
-            from respuesta in respuestas
+        IComunicacionesQueryContext comunicaciones, Expression<Func<Conversacion, bool>> hilosVisibles) =>
+        (
+            from respuesta in comunicaciones.RespuestasSugeridas
             join conversacion in comunicaciones.Conversaciones.Where(hilosVisibles) on respuesta.ConversacionId equals conversacion.Id
             let ultimoEntrante = comunicaciones.Mensajes
                 .Where(m => m.ConversacionId == conversacion.Id && m.Direccion == DireccionMensaje.Entrante && !m.EsAutomatico)
@@ -200,7 +198,6 @@ public static class BloqueoRespuestaSugerida
             select new CandidataDeBuzon(
                 respuesta.Id, conversacion.Id, respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
             .AsNoTracking();
-    }
 
     private static bool Bloquea(IReadOnlyList<List<SugerenciaComparable>> hilos, HashSet<Guid> coinciden) =>
         hilos.Any(sugerencias =>

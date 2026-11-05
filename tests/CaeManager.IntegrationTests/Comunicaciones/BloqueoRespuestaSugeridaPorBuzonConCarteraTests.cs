@@ -1,3 +1,4 @@
+using System.Data;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Plataforma;
@@ -178,8 +179,65 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         }
     }
 
-    private Task<Result> Comprobar(CaeManagerDbContext runtime, ICurrentUserService usuario, string cuerpo) =>
-        runtime.ComprobarEnvioPorBuzonAsync(Alcance(runtime, usuario), _conexion, cuerpo, CancellationToken.None);
+    /// <summary>
+    /// La instantánea es REPEATABLE READ de verdad: una sugerencia que otra conexión confirma después de que la primera
+    /// consulta fijara la foto no se ve dentro (mismo recuento), y fuera, con una consulta nueva, sí. Es lo que el doble en
+    /// memoria no puede probar.
+    /// </summary>
+    [Fact]
+    public async Task La_instantanea_no_ve_lo_que_otra_conexion_confirma_despues_de_su_primera_consulta()
+    {
+        await using var runtime = CrearRuntime(UsuarioGestor());
+        IComunicacionesQueryContext comunicaciones = runtime;
+
+        var (antes, durante) = await comunicaciones.EnInstantaneaDeLecturaAsync(async ct =>
+        {
+            var primero = await runtime.RespuestasSugeridas.CountAsync(ct);
+            await SembrarConfirmadaPorOtraConexionAsync("Confirmada durante la instantánea");
+            return (primero, await runtime.RespuestasSugeridas.CountAsync(ct));
+        });
+
+        durante.Should().Be(antes, "la foto se fijó en la primera consulta");
+        (await runtime.RespuestasSugeridas.CountAsync()).Should().Be(antes + 1, "fuera de la instantánea la sugerencia confirmada ya se ve");
+    }
+
+    /// <summary>
+    /// De extremo a extremo, con la comprobación dentro de una transacción REPEATABLE READ ya abierta (ambiente: no abre
+    /// otra y comparte su foto): una sugerencia sin revisar con el mismo texto confirmada por otra conexión después de que la
+    /// foto se fijara no se ve y no bloquea (límite aceptado); la misma comprobación con una foto nueva, sí bloquea. El
+    /// control previo sin esa sugerencia no bloquea, así que el cambio de resultado viene de la sugerencia y no del texto.
+    /// </summary>
+    [Fact]
+    public async Task Una_sin_revisar_confirmada_despues_de_fijarse_la_foto_no_se_ve_y_con_una_foto_nueva_si()
+    {
+        await using var runtime = CrearRuntime(UsuarioGestor());
+        (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues)).EsExitoso.Should().BeTrue();
+
+        await using (var foto = await runtime.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead))
+        {
+            await runtime.RespuestasSugeridas.CountAsync();
+            await SembrarConfirmadaPorOtraConexionAsync("Confirmada tras fijarse la foto");
+
+            (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues + Firma)).EsExitoso.Should().BeTrue();
+        }
+
+        (await Comprobar(runtime, UsuarioGestor(), TextoConfirmadoDespues + Firma)).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>La confirma otra conexión (el propietario de la base, no la del Gestor CAE), en un hilo de triage compartido.</summary>
+    private async Task SembrarConfirmadaPorOtraConexionAsync(string asunto)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
+        await SembrarHiloAsync(asunto, null, null, TextoConfirmadoDespues, sinRevisar: true);
+    }
+
+    private const string TextoConfirmadoDespues = "<p>Texto confirmado por otra conexión después de abrir la instantánea, con su documentación.</p>";
+
+    private Task<Result> Comprobar(CaeManagerDbContext runtime, ICurrentUserService usuario, string cuerpo)
+    {
+        var alcance = Alcance(runtime, usuario);
+        return runtime.ComprobarEnvioPorBuzonAsync(alcance, alcance, _conexion, cuerpo, CancellationToken.None);
+    }
 
     private IEnumerable<Hilo> Todos() =>
         [_clienteDeLaCartera, _clienteFueraDeLaCartera, _empresaQueGestiona, _empresaQueNoGestiona, _triageCompartido];
@@ -233,7 +291,7 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
             "Triage compartido", null, null, "<p>Texto del hilo sin Cliente empresarial ni Empresa, en triage compartido, con su documentación.</p>");
     }
 
-    private async Task<Hilo> SembrarHiloAsync(string asunto, Guid? clienteId, Guid? empresaId, string texto)
+    private async Task<Hilo> SembrarHiloAsync(string asunto, Guid? clienteId, Guid? empresaId, string texto, bool sinRevisar = false)
     {
         var conversacion = new Conversacion(asunto, clienteId, empresaId: empresaId);
         conversacion.AsociarConexion(_conexion, "hilo-" + Guid.NewGuid());
@@ -243,7 +301,10 @@ public class BloqueoRespuestaSugeridaPorBuzonConCarteraTests : IAsyncLifetime
         _propietario.Mensajes.Add(mensaje);
         await _propietario.SaveChangesAsync();
 
-        _propietario.RespuestasSugeridas.Add(RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, texto, Guid.NewGuid(), DateTime.UtcNow));
+        var sugerencia = RespuestaSugerida.DeVega(conversacion.Id, mensaje.Id, texto, Guid.NewGuid(), DateTime.UtcNow);
+        if (sinRevisar)
+            sugerencia.Insertar();
+        _propietario.RespuestasSugeridas.Add(sugerencia);
         await _propietario.SaveChangesAsync();
         return new Hilo(conversacion.Id, texto);
     }

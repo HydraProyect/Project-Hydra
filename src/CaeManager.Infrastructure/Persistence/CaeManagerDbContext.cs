@@ -431,6 +431,8 @@ public class CaeManagerDbContext(
     IQueryable<IntencionConversacion> IComunicacionesQueryContext.IntencionesConversacion => IntencionesConversacion;
     public DbSet<ClasificacionRelevanciaCae> ClasificacionesRelevanciaCae => Set<ClasificacionRelevanciaCae>();
     IQueryable<ClasificacionRelevanciaCae> IComunicacionesQueryContext.ClasificacionesRelevanciaCae => ClasificacionesRelevanciaCae;
+    Task<T> IComunicacionesQueryContext.EnInstantaneaDeLecturaAsync<T>(Func<CancellationToken, Task<T>> lectura, CancellationToken cancellationToken) =>
+        InstantaneaDeLectura.EjecutarAsync(this, lectura, cancellationToken);
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
     public DbSet<RegistroTiempoGestion> RegistrosTiempoGestion => Set<RegistroTiempoGestion>();
