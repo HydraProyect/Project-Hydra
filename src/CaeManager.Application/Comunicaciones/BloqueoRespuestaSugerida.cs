@@ -20,25 +20,13 @@ public static class BloqueoRespuestaSugerida
     public const int LongitudMinimaTextoContenido = 12;
 
     /// <summary>
-    /// Tope de sugerencias candidatas que <see cref="ComprobarEnvioPorBuzonAsync"/> acepta comparar. Las activas son como
-    /// mucho una por hilo (índice único parcial) y las demás solo cuentan si contestan al último entrante, así que el
-    /// número crece con los hilos de un buzón que alguien dejó con una sugerencia a medias, no con su historial: 500 está
-    /// muy por encima de un buzón de piloto. La consulta que lo aplica no trae el texto (unos cientos de bytes por fila).
-    /// </summary>
-    public const int TopeSugerenciasPorBuzon = 500;
-
-    /// <summary>
     /// Sugerencias cuyos textos se tienen a la vez en memoria al comparar por buzón: un texto admite hasta 1 MiB, y sin lote
-    /// el peor caso del tope sería de cientos de MiB.
+    /// la memoria crecería con el número de sugerencias del buzón. Con el lote es la misma sea cual sea ese número.
     /// </summary>
     private const int LoteTextosPorBuzon = 50;
 
     public static readonly Error SugerenciaSinRevisar = Error.Crear(
         "Respuesta.SugerenciaSinRevisar", "Revisa la respuesta sugerida antes de enviar: confírmala, edítala o descártala.");
-
-    public static readonly Error DemasiadasSugerenciasEnElBuzon = Error.Crear(
-        "Respuesta.DemasiadasSugerenciasEnElBuzon",
-        "Este buzón tiene demasiadas respuestas sugeridas pendientes para comprobar el envío. Descarta las que ya no uses e inténtalo de nuevo.");
 
     /// <summary>
     /// Falla si la conversación tiene una sugerencia en <see cref="EstadoRespuestaSugerida.SinRevisar"/>, o si
@@ -86,25 +74,37 @@ public static class BloqueoRespuestaSugerida
     /// cuerpo, porque no se sabe en qué hilo caerá y una sola sin revisar frenaría todo el buzón.
     ///
     /// <para>
-    /// Cómo: una consulta ligera, sin el texto, trae las sugerencias candidatas de los hilos del buzón (las del
-    /// <see cref="EstadoRespuestaSugerida.Propuesta"/> y <see cref="EstadoRespuestaSugerida.SinRevisar"/> de cualquier edad,
-    /// más las que contestan al último entrante de su hilo, que es lo que aplica una conversación). Los textos de las que
-    /// no están revisadas se descargan por lotes de <see cref="LoteTextosPorBuzon"/> y se descartan tras compararlos, para que la
-    /// memoria no crezca con el buzón. Si hay más de <see cref="TopeSugerenciasPorBuzon"/> candidatas no se compara a medias:
-    /// falla en cerrado con <see cref="DemasiadasSugerenciasEnElBuzon"/>.
+    /// Cómo, por orden: (1) una consulta ligera, sin el texto ni el cuerpo, trae todas las sugerencias candidatas de los
+    /// hilos del buzón: las <see cref="EstadoRespuestaSugerida.Propuesta"/> y <see cref="EstadoRespuestaSugerida.SinRevisar"/>
+    /// de cualquier edad y las que contestan al último entrante de su hilo, que es lo que aplica una conversación.
+    /// (2) Se decide qué hilos puede ver quien envía, con la misma regla que cualquier hilo
+    /// (<see cref="AlcanceDatosServiceExtensions.ConversacionVisibleAsync(IAlcanceDatosService, Guid?, Guid?, Guid?, CancellationToken)"/>),
+    /// una vez por cada ancla distinta (Cliente empresarial o Empresa contraparte) de las candidatas. (3) Solo entonces se
+    /// compara, y solo las candidatas de hilos visibles: hash y, para las no revisadas, los textos por lotes de
+    /// <see cref="LoteTextosPorBuzon"/>, que se descartan tras compararlos.
     /// </para>
     ///
     /// <para>
     /// Solo cuentan los hilos que quien envía puede ver: un bloqueo sobre otro delataría que ese texto existe. Una
-    /// sugerencia de un hilo no visible no bloquea ni desbloquea. El tope sí se aplica antes de mirar la visibilidad, por lo
-    /// que lo puede alcanzar un buzón con muchos hilos ajenos; el error no revela ningún texto ni hilo.
+    /// sugerencia de un hilo no visible no bloquea ni desbloquea. Tampoco se nota por el tiempo: el paso (2) no depende del
+    /// cuerpo y el (3) no recibe ninguna candidata de un hilo no visible, así que el trabajo de la comprobación (consultas
+    /// y lecturas de texto) es el mismo con o sin coincidencia en un hilo ajeno. Solo cambia, y es ya lo que ve quien envía,
+    /// si hay coincidencia en uno visible.
+    /// </para>
+    ///
+    /// <para>
+    /// Sin tope de volumen y sin fallo en cerrado por cantidad: una Revisada o una Descartada del último entrante siguen
+    /// siendo candidatas mientras la contraparte no conteste, y un tope las contaría como pendientes y cerraría el buzón
+    /// a los mensajes nuevos sin que quien envía pudiera arreglarlo. La memoria no crece con el buzón (lotes), pero el
+    /// coste de las consultas sí crece con el historial de sugerencias del buzón, porque no hay filtro por hash: un buzón
+    /// con miles de hilos con sugerencia lee miles de filas ligeras y descarga los textos de las no revisadas de hilos visibles.
     /// </para>
     /// </summary>
     public static async Task<Result> ComprobarEnvioPorBuzonAsync(
         this IComunicacionesQueryContext comunicaciones, IAlcanceDatosService alcanceDatos, Guid conexionIntegracionId, string cuerpo,
         CancellationToken cancellationToken)
     {
-        var candidatas = await (
+        var todas = await (
             from respuesta in comunicaciones.RespuestasSugeridas
             join conversacion in comunicaciones.Conversaciones on respuesta.ConversacionId equals conversacion.Id
             where conversacion.ConexionIntegracionId == conexionIntegracionId
@@ -117,13 +117,20 @@ public static class BloqueoRespuestaSugerida
                   respuesta.MensajeOrigenId == ultimoEntrante
             orderby respuesta.Id
             select new CandidataDeBuzon(
-                respuesta.Id, conversacion.Id, respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
-            .Take(TopeSugerenciasPorBuzon + 1)
+                respuesta.Id, conversacion.Id, conversacion.ClienteId, conversacion.EmpresaId,
+                respuesta.Estado, respuesta.MensajeOrigenId, respuesta.TextoHash))
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        if (candidatas.Count > TopeSugerenciasPorBuzon)
-            return Result.Fallo(DemasiadasSugerenciasEnElBuzon);
+        // El alcance se decide antes de mirar el cuerpo ni los textos: lo que hay en un hilo ajeno no se toca.
+        var visibilidad = new Dictionary<(Guid? Cliente, Guid? Empresa), bool>();
+        foreach (var ancla in todas.Select(c => (c.ClienteId, c.EmpresaId)).Distinct())
+        {
+            visibilidad[ancla] = await alcanceDatos.ConversacionVisibleAsync(
+                ancla.ClienteId, ancla.EmpresaId, conexionIntegracionId, cancellationToken);
+        }
+
+        var candidatas = todas.Where(c => visibilidad[(c.ClienteId, c.EmpresaId)]).ToList();
 
         var hash = RespuestaSugerida.CalcularTextoHash(cuerpo);
         var coinciden = candidatas.Where(c => c.TextoHash == hash).Select(c => c.Id).ToHashSet();
@@ -147,17 +154,8 @@ public static class BloqueoRespuestaSugerida
         foreach (var hilo in candidatas.GroupBy(c => c.ConversacionId))
         {
             var sugerencias = hilo.Select(c => new SugerenciaComparable(c.Estado, c.MensajeOrigenId, c.TextoHash, Id: c.Id)).ToList();
-            var bloquea = sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar && coinciden.Contains(r.Id)) ||
-                          HayCoincidenciaSinRevisar(sugerencias, r => coinciden.Contains(r.Id));
-
-            // Solo los hilos que bloquean pagan la lectura del hilo y la comprobación de alcance.
-            if (!bloquea)
-                continue;
-
-            var conversacion = await comunicaciones.Conversaciones
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == hilo.Key, cancellationToken);
-            if (conversacion is not null && await alcanceDatos.ConversacionVisibleAsync(conversacion, cancellationToken))
+            if (sugerencias.Any(r => r.Estado == EstadoRespuestaSugerida.SinRevisar && coinciden.Contains(r.Id)) ||
+                HayCoincidenciaSinRevisar(sugerencias, r => coinciden.Contains(r.Id)))
                 return Result.Fallo(SugerenciaSinRevisar);
         }
 
@@ -183,5 +181,6 @@ public static class BloqueoRespuestaSugerida
         EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash, string? Texto = null, Guid Id = default);
 
     private sealed record CandidataDeBuzon(
-        Guid Id, Guid ConversacionId, EstadoRespuestaSugerida Estado, Guid MensajeOrigenId, string TextoHash);
+        Guid Id, Guid ConversacionId, Guid? ClienteId, Guid? EmpresaId, EstadoRespuestaSugerida Estado, Guid MensajeOrigenId,
+        string TextoHash);
 }

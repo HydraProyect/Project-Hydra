@@ -723,44 +723,83 @@ public class BloqueoRespuestaSugeridaTests
         (await PorBuzon(conexion, "<p>Estimada Ana:</p><p>Ya hemos recibido toda su documentación.</p>")).EsExitoso.Should().BeTrue();
     }
 
-    /// <summary>La coincidencia en un lote que no es el primero también se detecta: los textos se leen por lotes.</summary>
+    /// <summary>Fija el Id de la sugerencia: el orden de los lotes sale de él, y un Id al azar haría el test dependiente del azar.</summary>
+    private static void FijarId(RespuestaSugerida respuesta, int orden) =>
+        typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(respuesta, new Guid(orden, 0, 0, new byte[8]));
+
+    /// <summary>
+    /// Los textos se leen por lotes y la coincidencia cae en el último: 120 sugerencias sin parecido van por delante, con Id
+    /// menores. Con 121 candidatas hay 1 lectura ligera y 3 de textos (50, 50 y 21).
+    /// </summary>
     [Fact]
-    public async Task Por_buzon_con_muchas_sugerencias_detecta_la_coincidencia_en_cualquier_lote()
+    public async Task Por_buzon_con_muchas_sugerencias_detecta_la_coincidencia_en_el_ultimo_lote()
     {
         var conexion = Buzon();
-        for (var i = 0; i < 120; i++)
-            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
-        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        for (var i = 1; i <= 120; i++)
+            FijarId(Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>"), i);
+        var coincidente = Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        FijarId(coincidente, 1000);
 
+        _comunicaciones.ListaRespuestasSugeridas.OrderBy(r => r.Id).Last().Should().BeSameAs(coincidente);
+        _comunicaciones.ListaRespuestasSugeridas.Should().HaveCount(121);
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
         (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
+        (_comunicaciones.LecturasDeRespuestasSugeridas - antes).Should().Be(4);
+
         (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
     }
 
-    /// <summary>Con el tope alcanzado no se compara a medias: ni se deja pasar ni se confunde con una sugerencia sin revisar.</summary>
+    /// <summary>
+    /// El historial no cierra el buzón: Revisada y Descartada del último entrante siguen siendo candidatas mientras la
+    /// contraparte no contesta, y más de quinientas sin ninguna activa no impiden enviar. Una coincidencia real sigue bloqueando.
+    /// </summary>
     [Fact]
-    public async Task Por_buzon_con_el_tope_superado_falla_en_cerrado()
+    public async Task Por_buzon_el_historial_de_revisadas_y_descartadas_sin_activas_no_impide_enviar()
     {
         var conexion = Buzon();
-        for (var i = 0; i < BloqueoRespuestaSugerida.TopeSugerenciasPorBuzon + 1; i++)
-            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
-
-        var resultado = await PorBuzon(conexion, CuerpoSinRelacion);
-
-        resultado.Error.Should().Be(BloqueoRespuestaSugerida.DemasiadasSugerenciasEnElBuzon);
-        (await EnviarNuevo(conexion, CuerpoSinRelacion)).Error.Should().Be(BloqueoRespuestaSugerida.DemasiadasSugerenciasEnElBuzon);
-        _graph.VecesEnviado.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Por_buzon_con_justo_el_tope_compara_con_normalidad()
-    {
-        var conexion = Buzon();
-        for (var i = 0; i < BloqueoRespuestaSugerida.TopeSugerenciasPorBuzon; i++)
-            Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta, $"<p>Sugerencia número {i} sin parecido alguno.</p>");
+        for (var i = 0; i < 520; i++)
+        {
+            var hilo = HiloDeCorreo(conexion);
+            var estado = i % 2 == 0 ? EstadoRespuestaSugerida.Revisada : EstadoRespuestaSugerida.Descartada;
+            Sugerencia(hilo, estado, $"<p>Sugerencia número {i} sin parecido alguno.</p>", EntranteDePersona(hilo));
+        }
 
         (await PorBuzon(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
-        (await PorBuzon(conexion, "<p>Sugerencia número 7 sin parecido alguno.</p><p>Un saludo</p>"))
+        (await EnviarNuevo(conexion, CuerpoSinRelacion)).EsExitoso.Should().BeTrue();
+        _graph.VecesEnviado.Should().Be(1);
+
+        var conCoincidencia = HiloDeCorreo(conexion);
+        Sugerencia(conCoincidencia, EstadoRespuestaSugerida.Descartada, origen: EntranteDePersona(conCoincidencia));
+
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>")).Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+        // La 8 es una Revisada y nunca bloquea; la 9, una Descartada del último entrante, sí.
+        (await PorBuzon(conexion, "<p>Sugerencia número 8 sin parecido alguno.</p><p>Un saludo</p>")).EsExitoso.Should().BeTrue();
+        (await PorBuzon(conexion, "<p>Sugerencia número 9 sin parecido alguno.</p><p>Un saludo</p>"))
             .Error.Should().Be(BloqueoRespuestaSugerida.SugerenciaSinRevisar);
+    }
+
+    /// <summary>
+    /// El trabajo no depende de lo que haya en un hilo ajeno: con la sugerencia solo en un hilo que quien envía no ve, un
+    /// cuerpo que la contiene y uno que no hacen exactamente las mismas lecturas (la ligera, y ninguna de textos).
+    /// </summary>
+    [Fact]
+    public async Task Por_buzon_un_hilo_ajeno_no_provoca_lecturas_de_texto_ni_cambia_el_trabajo()
+    {
+        var conexion = Buzon();
+        Sugerencia(HiloDeCorreo(conexion), EstadoRespuestaSugerida.Propuesta);
+        var sinVer = new AlcanceDatosServiceFalso(tieneAccesoTotal: false);
+
+        var antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        (await PorBuzon(conexion, TextoSugerido + "<p>Un saludo</p>", sinVer)).EsExitoso.Should().BeTrue();
+        var conCoincidencia = _comunicaciones.LecturasDeRespuestasSugeridas - antes;
+
+        antes = _comunicaciones.LecturasDeRespuestasSugeridas;
+        (await PorBuzon(conexion, CuerpoSinRelacion, sinVer)).EsExitoso.Should().BeTrue();
+        var sinCoincidencia = _comunicaciones.LecturasDeRespuestasSugeridas - antes;
+
+        conCoincidencia.Should().Be(1);
+        sinCoincidencia.Should().Be(1);
     }
 
     [Fact]
