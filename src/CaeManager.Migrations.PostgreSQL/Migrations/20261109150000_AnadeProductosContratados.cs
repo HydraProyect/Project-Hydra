@@ -37,7 +37,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     table.CheckConstraint("CK_ProductosContratados_EstadoYVigencia", "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR (\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");
                     table.CheckConstraint("CK_ProductosContratados_Linea", "\"Linea\" IN ('OutboundGestionPropia')");
                     table.CheckConstraint("CK_ProductosContratados_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
-                    table.CheckConstraint("CK_ProductosContratados_PagadorNoVacio", "btrim(\"PagadorStripeCustomerId\") <> ''");
+                    table.CheckConstraint("CK_ProductosContratados_PagadorFormato", "\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'");
                     table.CheckConstraint("CK_ProductosContratados_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
                 });
 

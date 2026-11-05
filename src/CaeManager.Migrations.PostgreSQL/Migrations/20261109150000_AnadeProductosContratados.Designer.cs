@@ -1230,7 +1230,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                             t.HasCheckConstraint("CK_ProductosContratados_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
 
-                            t.HasCheckConstraint("CK_ProductosContratados_PagadorNoVacio", "btrim(\"PagadorStripeCustomerId\") <> ''");
+                            t.HasCheckConstraint("CK_ProductosContratados_PagadorFormato", "\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'");
 
                             t.HasCheckConstraint("CK_ProductosContratados_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
                         });

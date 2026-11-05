@@ -17,7 +17,8 @@ namespace CaeManager.Domain.Comercial;
 /// contratado sigue en vigor. Por eso no guarda la Subscription de Stripe ni su estado.
 /// </para>
 /// <para>
-/// Invariantes: los valores de enumeración son de la lista; el Pagador TALVEG no está vacío;
+/// Invariantes: los valores de enumeración son de la lista; el Pagador TALVEG no está vacío y solo lleva
+/// <c>[A-Za-z0-9_]</c>; el fin de la vigencia se registra cuando ya ha ocurrido, nunca por adelantado;
 /// <see cref="VigenteDesdeUtc"/> y <see cref="VigenteHastaUtc"/> van en UTC;
 /// <see cref="EstadoProductoContratado.Vigente"/> no tiene fecha de fin y
 /// <see cref="EstadoProductoContratado.Finalizado"/> la tiene, no anterior al inicio; lo contratado
@@ -70,10 +71,10 @@ public class ProductoContratado : EntidadBase
             throw new ArgumentOutOfRangeException(nameof(tramo), tramo, "Tramo desconocido.");
         if (!Enum.IsDefined(modalidad))
             throw new ArgumentOutOfRangeException(nameof(modalidad), modalidad, "Modalidad desconocida.");
-        if (string.IsNullOrWhiteSpace(pagadorStripeCustomerId))
-            throw new ArgumentException("El Customer de Stripe del Pagador TALVEG es obligatorio.", nameof(pagadorStripeCustomerId));
-        if (pagadorStripeCustomerId.Trim() != pagadorStripeCustomerId)
-            throw new ArgumentException("El Customer de Stripe del Pagador TALVEG no admite espacios al principio ni al final.", nameof(pagadorStripeCustomerId));
+        if (string.IsNullOrEmpty(pagadorStripeCustomerId) || !EsFormatoDeCustomerStripe(pagadorStripeCustomerId))
+            throw new ArgumentException(
+                "El Customer de Stripe del Pagador TALVEG es obligatorio y solo admite letras ASCII, dígitos y guion bajo.",
+                nameof(pagadorStripeCustomerId));
         if (pagadorStripeCustomerId.Length > LongitudMaximaPagadorStripeCustomerId)
             throw new ArgumentException(
                 $"El Customer de Stripe del Pagador TALVEG no puede pasar de {LongitudMaximaPagadorStripeCustomerId} caracteres.",
@@ -93,17 +94,24 @@ public class ProductoContratado : EntidadBase
     }
 
     /// <summary>
-    /// Termina la vigencia en <paramref name="vigenteHastaUtc"/>, que no puede ser anterior al inicio. Solo
-    /// desde <see cref="EstadoProductoContratado.Vigente"/>: un Producto Contratado finalizado no se reabre.
+    /// Registra que la vigencia terminó en <paramref name="vigenteHastaUtc"/>: no anterior al inicio ni
+    /// posterior a <paramref name="ahoraUtc"/>. Un fin futuro (por ejemplo, una baja al cierre del periodo
+    /// pagado) no se registra por adelantado: dejaría <see cref="EstadoProductoContratado.Finalizado"/> un
+    /// Producto Contratado que aún está en vigor, y cómo se programa una baja no está decidido. Solo desde
+    /// <see cref="EstadoProductoContratado.Vigente"/>: un Producto Contratado finalizado no se reabre.
     /// </summary>
-    public void Finalizar(DateTime vigenteHastaUtc)
+    public void Finalizar(DateTime vigenteHastaUtc, DateTime ahoraUtc)
     {
         if (Estado != EstadoProductoContratado.Vigente)
             throw new TransicionProductoContratadoNoPermitidaException(Estado, nameof(Finalizar));
         ExigirUtc(vigenteHastaUtc, nameof(vigenteHastaUtc));
+        ExigirUtc(ahoraUtc, nameof(ahoraUtc));
         if (vigenteHastaUtc < VigenteDesdeUtc)
             throw new ArgumentOutOfRangeException(nameof(vigenteHastaUtc), vigenteHastaUtc,
                 "El fin de la vigencia no puede ser anterior a su inicio.");
+        if (vigenteHastaUtc > ahoraUtc)
+            throw new ArgumentOutOfRangeException(nameof(vigenteHastaUtc), vigenteHastaUtc,
+                "El fin de la vigencia no puede ser futuro: se registra cuando ya ha ocurrido.");
 
         VigenteHastaUtc = vigenteHastaUtc;
         Estado = EstadoProductoContratado.Finalizado;
@@ -117,6 +125,21 @@ public class ProductoContratado : EntidadBase
     {
         ExigirUtc(instanteUtc, nameof(instanteUtc));
         return instanteUtc >= VigenteDesdeUtc && (VigenteHastaUtc is null || instanteUtc < VigenteHastaUtc);
+    }
+
+    /// <summary>
+    /// Mismo criterio que el CHECK <c>CK_ProductosContratados_PagadorFormato</c> de la base: solo
+    /// <c>[A-Za-z0-9_]</c>, el alfabeto de los Id de Stripe. Sin espacios, ni siquiera en los extremos.
+    /// </summary>
+    private static bool EsFormatoDeCustomerStripe(string valor)
+    {
+        foreach (var c in valor)
+        {
+            if (!(char.IsAsciiLetterOrDigit(c) || c == '_'))
+                return false;
+        }
+
+        return true;
     }
 
     private static void ExigirUtc(DateTime valor, string parametro)

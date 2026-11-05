@@ -96,7 +96,11 @@ public class ModeloProductoContratadoTests
             .And.Contain("'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL")
             .And.Contain("\"VigenteHastaUtc\" >= \"VigenteDesdeUtc\"");
         TextoUp().Should().Contain("\"CK_ProductosContratados_EstadoYVigencia\"")
-            .And.Contain("\"CK_ProductosContratados_PagadorNoVacio\"");
+            .And.Contain("\"CK_ProductosContratados_PagadorFormato\"");
+
+        ModeloDiseno.FindEntityType(typeof(ProductoContratado))!.GetCheckConstraints()
+            .Should().ContainSingle(c => c.ModelName == "CK_ProductosContratados_PagadorFormato").Which.Sql
+            .Should().Be("\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'", "el mismo alfabeto que valida el dominio");
     }
 
     [Fact]

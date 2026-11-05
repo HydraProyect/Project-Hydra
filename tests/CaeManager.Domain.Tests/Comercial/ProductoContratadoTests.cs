@@ -35,7 +35,11 @@ public class ProductoContratadoTests
     [InlineData("   ")]
     [InlineData(" cus_conEspacio")]
     [InlineData("cus_conEspacio ")]
-    public void El_Pagador_TALVEG_no_admite_vacio_ni_espacios_en_los_extremos(string pagador)
+    [InlineData("cus_con espacio")]
+    [InlineData("cus\tTabulador")]
+    [InlineData("cus-guion")]
+    [InlineData("cus_ñ")]
+    public void El_Pagador_TALVEG_solo_admite_el_alfabeto_de_los_Id_de_Stripe(string pagador)
     {
         var contratar = () => Contratar(pagador);
 
@@ -76,11 +80,13 @@ public class ProductoContratadoTests
         var fecha = DateTime.SpecifyKind(Desde, tipo);
 
         var contratar = () => Contratar(desde: fecha);
-        var finalizar = () => Contratar().Finalizar(fecha.AddDays(1));
+        var finalizar = () => Contratar().Finalizar(fecha.AddDays(1), Desde.AddYears(1));
+        var ahoraNoUtc = () => Contratar().Finalizar(Desde.AddDays(1), fecha.AddYears(1));
         var consultar = () => Contratar().EstaVigenteEn(fecha);
 
         contratar.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenteDesdeUtc");
         finalizar.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenteHastaUtc");
+        ahoraNoUtc.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("ahoraUtc");
         consultar.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("instanteUtc");
     }
 
@@ -90,7 +96,7 @@ public class ProductoContratadoTests
         var producto = Contratar();
         var hasta = Desde.AddMonths(12);
 
-        producto.Finalizar(hasta);
+        producto.Finalizar(hasta, ahoraUtc: hasta);
 
         producto.Estado.Should().Be(EstadoProductoContratado.Finalizado);
         producto.VigenteHastaUtc.Should().Be(hasta);
@@ -100,11 +106,11 @@ public class ProductoContratadoTests
     public void Finalizar_admite_un_fin_igual_al_inicio_pero_no_anterior()
     {
         var igual = Contratar();
-        igual.Finalizar(Desde);
+        igual.Finalizar(Desde, ahoraUtc: Desde);
         igual.Estado.Should().Be(EstadoProductoContratado.Finalizado);
 
         var anterior = Contratar();
-        var finalizar = () => anterior.Finalizar(Desde.AddTicks(-1));
+        var finalizar = () => anterior.Finalizar(Desde.AddTicks(-1), ahoraUtc: Desde);
 
         finalizar.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("vigenteHastaUtc");
         anterior.Estado.Should().Be(EstadoProductoContratado.Vigente, "un rechazo no cambia nada");
@@ -112,13 +118,36 @@ public class ProductoContratadoTests
     }
 
     [Fact]
+    public void El_fin_se_registra_cuando_ha_ocurrido_y_nunca_por_adelantado()
+    {
+        var ahora = Desde.AddMonths(3);
+
+        var futuro = Contratar();
+        var adelantado = () => futuro.Finalizar(ahora.AddTicks(1), ahora);
+        adelantado.Should().Throw<ArgumentOutOfRangeException>().Which.ParamName.Should().Be("vigenteHastaUtc");
+        futuro.Estado.Should().Be(EstadoProductoContratado.Vigente, "sigue en vigor hasta que el fin ocurra");
+        futuro.EstaVigenteEn(ahora).Should().BeTrue();
+
+        var simultaneo = Contratar();
+        simultaneo.Finalizar(ahora, ahora);
+        simultaneo.Estado.Should().Be(EstadoProductoContratado.Finalizado);
+        simultaneo.EstaVigenteEn(ahora).Should().BeFalse("el fin excluye su instante");
+
+        var pasado = Contratar();
+        pasado.Finalizar(ahora.AddDays(-1), ahora);
+        pasado.Estado.Should().Be(EstadoProductoContratado.Finalizado);
+        pasado.EstaVigenteEn(ahora.AddDays(-1).AddTicks(-1)).Should().BeTrue();
+        pasado.EstaVigenteEn(ahora).Should().BeFalse("Finalizado y no vigente ahora coinciden");
+    }
+
+    [Fact]
     public void Un_Producto_Contratado_finalizado_no_se_vuelve_a_finalizar()
     {
         var producto = Contratar();
         var hasta = Desde.AddDays(30);
-        producto.Finalizar(hasta);
+        producto.Finalizar(hasta, ahoraUtc: hasta);
 
-        var otraVez = () => producto.Finalizar(hasta.AddDays(1));
+        var otraVez = () => producto.Finalizar(hasta.AddDays(1), ahoraUtc: hasta.AddDays(1));
 
         otraVez.Should().Throw<TransicionProductoContratadoNoPermitidaException>()
             .Which.Desde.Should().Be(EstadoProductoContratado.Finalizado);
@@ -135,7 +164,7 @@ public class ProductoContratadoTests
         producto.EstaVigenteEn(Desde.AddYears(5)).Should().BeTrue("vigente y sin fecha de fin");
 
         var hasta = Desde.AddMonths(1);
-        producto.Finalizar(hasta);
+        producto.Finalizar(hasta, ahoraUtc: hasta);
 
         producto.EstaVigenteEn(hasta.AddTicks(-1)).Should().BeTrue("antes del fin seguía en vigor");
         producto.EstaVigenteEn(hasta).Should().BeFalse();

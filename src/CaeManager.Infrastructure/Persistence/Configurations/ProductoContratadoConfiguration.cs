@@ -26,7 +26,7 @@ public class ProductoContratadoConfiguration : IEntityTypeConfiguration<Producto
             t.HasCheckConstraint("CK_ProductosContratados_Tramo", SolicitudAltaConfiguration.EnValoresDe<TramoTrabajadoresActivos>("Tramo"));
             t.HasCheckConstraint("CK_ProductosContratados_Modalidad", SolicitudAltaConfiguration.EnValoresDe<ModalidadSuscripcionAlta>("Modalidad"));
             t.HasCheckConstraint("CK_ProductosContratados_Estado", SolicitudAltaConfiguration.EnValoresDe<EstadoProductoContratado>("Estado"));
-            t.HasCheckConstraint("CK_ProductosContratados_PagadorNoVacio", "btrim(\"PagadorStripeCustomerId\") <> ''");
+            t.HasCheckConstraint("CK_ProductosContratados_PagadorFormato", "\"PagadorStripeCustomerId\" ~ '^[A-Za-z0-9_]+$'");
             t.HasCheckConstraint("CK_ProductosContratados_EstadoYVigencia",
                 "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR " +
                 "(\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");

@@ -135,7 +135,11 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
     [InlineData("CK_ProductosContratados_EstadoYVigencia", "'Vigente'", "now()", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_EstadoYVigencia", "'Finalizado'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_EstadoYVigencia", "'Finalizado'", "now() - interval '1 day'", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
-    [InlineData("CK_ProductosContratados_PagadorNoVacio", "'Vigente'", "NULL", "'   '", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "''", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'   '", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "' cus_X '", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "E'\\t\\t'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
+    [InlineData("CK_ProductosContratados_PagadorFormato", "'Vigente'", "NULL", "'cus-X'", "'OutboundGestionPropia'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Linea", "'Vigente'", "NULL", "'cus_X'", "'Inbound'", "'De1A10'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Tramo", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De301'", "'Anual'")]
     [InlineData("CK_ProductosContratados_Modalidad", "'Vigente'", "NULL", "'cus_X'", "'OutboundGestionPropia'", "'De1A10'", "'Trimestral'")]
@@ -190,7 +194,7 @@ public class ProductosContratadosBajoRuntimeTests : IAsyncLifetime
         await using (var contexto = CrearContexto(_tenantA, _cadenaConexion))
         {
             var producto = await contexto.ProductosContratados.SingleAsync(p => p.Id == _productoA);
-            producto.Finalizar(hasta);
+            producto.Finalizar(hasta, ahoraUtc: hasta);
             await contexto.SaveChangesAsync();
         }
 
