@@ -480,11 +480,7 @@ public class WebAppFixture : IAsyncLifetime
 
             // El estado virgen del rol no identifica un clúster de pruebas: es también el que deja el bootstrap en
             // staging o producción. Antes de tocar el rol, el clúster tiene que estar declarado desechable y ser local.
-            string? identificadorDelCluster;
-            await using (var identificador = new Npgsql.NpgsqlCommand(GuardaClusterDePruebas.ConsultaIdentificador, conexion, transaccion))
-                identificadorDelCluster = (await identificador.ExecuteScalarAsync()) as string;
-            GuardaClusterDePruebas.ExigirClusterDesechable(
-                Environment.GetEnvironmentVariable(GuardaClusterDePruebas.VariableDeEntorno), CadenaConexion, identificadorDelCluster);
+            await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, transaccion);
 
             await using (var alter = new Npgsql.NpgsqlCommand(
                              $"ALTER ROLE {RolDeRuntime} LOGIN PASSWORD '{ContrasenaRuntimeDePruebas}';", conexion, transaccion))

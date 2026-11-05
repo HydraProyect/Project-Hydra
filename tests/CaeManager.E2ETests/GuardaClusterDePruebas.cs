@@ -25,8 +25,16 @@ namespace CaeManager.E2ETests;
 /// </para>
 ///
 /// <para>
-/// Sin declaración, con una que no coincide o con un anfitrión que no es local, se lanza antes de tocar el rol. No
-/// hay modo de saltarse la guarda: la variable no admite comodines.
+/// Sin declaración, con una que no coincide o con un anfitrión que no es local, se lanza antes de tocar el rol. La
+/// variable no admite comodines, y la fixture solo entrega la conexión sobre la que va a ejecutar el <c>ALTER ROLE</c>:
+/// la declaración, los anfitriones y el identificador los obtiene la guarda, no quien la llama.
+/// </para>
+///
+/// <para>
+/// <b>Lo que NO garantiza.</b> El <c>system_identifier</c> identifica el linaje del clúster, no la instancia: lo
+/// comparten sus copias físicas (<c>pg_basebackup</c>, réplicas, restauración de un volumen). Una copia local de un
+/// clúster real tiene su mismo identificador, y declararla desechable no la convierte en una de pruebas; la guarda
+/// protege del error (una cadena que apunta donde no debía), no de una declaración deliberada sobre esa copia.
 /// </para>
 /// </summary>
 internal static class GuardaClusterDePruebas
@@ -38,9 +46,24 @@ internal static class GuardaClusterDePruebas
     internal const string ConsultaIdentificador = "SELECT system_identifier::text FROM pg_control_system();";
 
     /// <summary>
+    /// Lanza salvo que la conexión vaya a un clúster local declarado desechable en <see cref="VariableDeEntorno"/>. Lee el
+    /// identificador por la misma <paramref name="conexion"/> (y <paramref name="transaccion"/>) sobre la que se va a
+    /// ejecutar el <c>ALTER ROLE</c>, y los anfitriones de su cadena.
+    /// </summary>
+    internal static async Task ExigirClusterDesechableAsync(Npgsql.NpgsqlConnection conexion, Npgsql.NpgsqlTransaction transaccion)
+    {
+        string? identificadorDelCluster;
+        await using (var consulta = new Npgsql.NpgsqlCommand(ConsultaIdentificador, conexion, transaccion))
+            identificadorDelCluster = await consulta.ExecuteScalarAsync() as string;
+
+        ExigirClusterDesechable(
+            Environment.GetEnvironmentVariable(VariableDeEntorno), conexion.ConnectionString, identificadorDelCluster);
+    }
+
+    /// <summary>
     /// Lanza <see cref="InvalidOperationException"/> salvo que <paramref name="declaracion"/> sea exactamente
     /// <paramref name="identificadorDelCluster"/> y todos los anfitriones de <paramref name="cadenaConexion"/> sean de
-    /// bucle local.
+    /// bucle local. Es la decisión pura, separada para poder probarla sin servidor.
     /// </summary>
     internal static void ExigirClusterDesechable(string? declaracion, string cadenaConexion, string? identificadorDelCluster)
     {
@@ -88,10 +111,14 @@ internal static class GuardaClusterDePruebas
         {
             var cierre = nombre.IndexOf(']');
             if (cierre < 0) return false;
+            var resto = nombre[(cierre + 1)..];
+            if (resto.Length > 0 && !(resto[0] == ':' && resto.Length > 1 && resto[1..].All(char.IsAsciiDigit))) return false;
             nombre = nombre[1..cierre];
         }
         else if (nombre.Count(c => c == ':') == 1)
         {
+            var puerto = nombre[(nombre.IndexOf(':') + 1)..];
+            if (puerto.Length == 0 || !puerto.All(char.IsAsciiDigit)) return false;
             nombre = nombre[..nombre.IndexOf(':')];
         }
 
