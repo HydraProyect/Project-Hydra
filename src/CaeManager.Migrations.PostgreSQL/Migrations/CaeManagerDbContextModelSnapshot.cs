@@ -1156,6 +1156,83 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Centros", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Comercial.ProductoContratado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Linea")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Modalidad")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PagadorStripeCustomerId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tramo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("VigenteDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VigenteHastaUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Estado")
+                        .HasDatabaseName("IX_ProductosContratados_TenantId_Estado");
+
+                    b.ToTable("ProductosContratados", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductosContratados_Estado", "\"Estado\" IN ('Vigente', 'Finalizado')");
+
+                            t.HasCheckConstraint("CK_ProductosContratados_EstadoYVigencia", "(\"Estado\" = 'Vigente' AND \"VigenteHastaUtc\" IS NULL) OR (\"Estado\" = 'Finalizado' AND \"VigenteHastaUtc\" IS NOT NULL AND \"VigenteHastaUtc\" >= \"VigenteDesdeUtc\")");
+
+                            t.HasCheckConstraint("CK_ProductosContratados_Linea", "\"Linea\" IN ('OutboundGestionPropia')");
+
+                            t.HasCheckConstraint("CK_ProductosContratados_Modalidad", "\"Modalidad\" IN ('Mensual', 'Anual')");
+
+                            t.HasCheckConstraint("CK_ProductosContratados_PagadorNoVacio", "btrim(\"PagadorStripeCustomerId\") <> ''");
+
+                            t.HasCheckConstraint("CK_ProductosContratados_Tramo", "\"Tramo\" IN ('De1A10', 'De11A40', 'De41A80', 'De81A150', 'De151A300')");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Comunicaciones.AdjuntoMensaje", b =>
                 {
                     b.Property<Guid>("Id")

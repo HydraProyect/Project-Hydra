@@ -249,6 +249,7 @@ public class CaeManagerDbContext(
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<CaeManager.Domain.AltaAutonoma.SolicitudAlta> SolicitudesAlta => Set<CaeManager.Domain.AltaAutonoma.SolicitudAlta>();
     public DbSet<CifPropietarioTenant> CifsPropietarioTenant => Set<CifPropietarioTenant>();
+    public DbSet<CaeManager.Domain.Comercial.ProductoContratado> ProductosContratados => Set<CaeManager.Domain.Comercial.ProductoContratado>();
     IQueryable<Tenant> ITenantsQueryContext.Tenants => Tenants;
     public DbSet<TarifaCliente> TarifasCliente => Set<TarifaCliente>();
     IQueryable<TarifaCliente> IFacturacionQueryContext.TarifasCliente => TarifasCliente;
