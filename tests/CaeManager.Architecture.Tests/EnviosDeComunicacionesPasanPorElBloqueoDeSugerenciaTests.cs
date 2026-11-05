@@ -52,6 +52,11 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
     [GeneratedRegex(@"\.AgregarMensaje\(")]
     private static partial Regex LlamadaAAgregarMensaje();
 
+    // Creación directa de un Mensaje, sin pasar por Conversacion.AgregarMensaje: con el constructor, con un `new(...)` de
+    // tipo objetivo asignado a un Mensaje, o devuelto desde un método que devuelve Mensaje. No ve un `new(...)` metido en
+    // una colección o pasado como argumento; para ese caso queda la prohibición de que Mensaje tenga fábricas (reflexión).
+    [GeneratedRegex(@"\bnew\s+Mensaje\s*\(|\bMensaje\??\s+\w+\s*(=|=>)\s*new\s*\(|\bMensaje\??\s+\w+\s*\([^)]*\)\s*(\{\s*return|=>)\s*new\s*\(")]
+    private static partial Regex CreacionDirectaDeMensaje();
     [GeneratedRegex(@"origenTexto:\s*OrigenTextoMensaje\.")]
     private static partial Regex OrigenCodificadoAMano();
 
@@ -223,6 +228,50 @@ public partial class EnviosDeComunicacionesPasanPorElBloqueoDeSugerenciaTests
             .Should().BeEquivalentTo(["ResolverRespuestaSugeridaCommand"],
                 "ningún comando de envío recibe la sugerencia de origen: la encuentra el servidor al comprobar el envío");
     }
+    /// <summary>
+    /// <c>Conversacion.AgregarMensaje</c> es la única puerta que fija el origen del texto. El constructor de Mensaje es
+    /// público, así que Application podría saltársela con <c>new Mensaje(...)</c>: se prohíbe, y el ratchet de arriba solo
+    /// ve las llamadas a <c>AgregarMensaje</c>.
+    /// </summary>
+    [Fact]
+    public void Application_no_crea_Mensajes_sin_pasar_por_AgregarMensaje()
+    {
+        var raiz = Path.Combine(BuscarRaizDelRepositorio(), "src", "CaeManager.Application");
+
+        var ficheros = FicherosDeCodigo(raiz).ToList();
+        var directos = ficheros
+            .Where(fichero => CreacionDirectaDeMensaje().IsMatch(File.ReadAllText(fichero)))
+            .Select(fichero => Path.GetRelativePath(raiz, fichero).Replace('\\', '/'))
+            .ToList();
+
+        ficheros.Should().HaveCountGreaterThan(100, "control del instrumento: se está leyendo Application entera");
+        directos.Should().BeEmpty("un Mensaje se crea con Conversacion.AgregarMensaje, que es donde se fija el origen del texto");
+    }
+
+    [Fact]
+    public void Mensaje_no_tiene_fabricas_estaticas_que_eviten_AgregarMensaje()
+    {
+        var fabricas = typeof(Mensaje).GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic
+                                                  | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly)
+            .Where(metodo => metodo.ReturnType == typeof(Mensaje))
+            .Select(metodo => metodo.Name);
+
+        typeof(Mensaje).GetConstructors().Should().ContainSingle("control del instrumento: el constructor público es el que el ratchet vigila");
+        fabricas.Should().BeEmpty("una fábrica de Mensaje abriría una vía de creación que el ratchet no vigila");
+    }
+
+    /// <summary>Casos negativos del detector: lo que debe cazar y lo que no.</summary>
+    [Theory]
+    [InlineData("var m = new Mensaje(id, d, c, r, cuerpo, fecha);", true)]
+    [InlineData("Mensaje m = new(id, d, c, r, cuerpo, fecha);", true)]
+    [InlineData("Mensaje? m = new (id, d, c, r, cuerpo, fecha);", true)]
+    [InlineData("private Mensaje Crear() => new(id, d, c, r, cuerpo, fecha);", true)]
+    [InlineData("private Mensaje Crear(Guid id) { return new(id, d, c, r, cuerpo, fecha); }", true)]
+    [InlineData("var m = conversacion.AgregarMensaje(DireccionMensaje.Saliente, c, r, cuerpo);", false)]
+    [InlineData("var m = new MensajeEnviadoGraphDto(id, hilo);", false)]
+    [InlineData("var m = new AdjuntoMensaje(id, nombre, tipo, tamano, url);", false)]
+    public void El_detector_de_creacion_directa_caza_lo_que_debe(string codigo, bool esperado) =>
+        CreacionDirectaDeMensaje().IsMatch(codigo).Should().Be(esperado);
     private static IEnumerable<string> FicherosDeCodigo(string raiz) =>
         Directory.EnumerateFiles(raiz, "*.cs", SearchOption.AllDirectories)
             .Where(fichero => !fichero.Split(Path.DirectorySeparatorChar).Any(parte => parte is "bin" or "obj"));
