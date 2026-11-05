@@ -1081,9 +1081,10 @@ public static class InfrastructureServiceCollectionExtensions
     ///
     /// <para>
     /// Si hay <c>CaeManagerDbRuntime</c>, esa. Si no, en desarrollo se cae al
-    /// rol propietario sin ceremonia —es el flujo de <c>docker compose up</c> y
-    /// del arnés E2E, que arranca con <c>ASPNETCORE_ENVIRONMENT=Development</c>
-    /// y solo define <c>ConnectionStrings__CaeManagerDb</c>—, y fuera de
+    /// rol propietario sin ceremonia —es el flujo de <c>docker compose up</c>, que
+    /// arranca con <c>ASPNETCORE_ENVIRONMENT=Development</c> y solo define
+    /// <c>ConnectionStrings__CaeManagerDb</c>; el arnés E2E define además la de
+    /// runtime y sirve el tráfico como <c>cae_app_runtime</c>—, y fuera de
     /// desarrollo hace falta decirlo a propósito con
     /// <see cref="ClaveDegradacionInsegura"/>; sin esa declaración, el arranque
     /// se niega. En Production la declaración tampoco vale: se niega siempre

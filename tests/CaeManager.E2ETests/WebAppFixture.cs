@@ -14,13 +14,47 @@ namespace CaeManager.E2ETests;
 /// un solo arranque (migraciones + siembra de ~2000 filas) para toda la
 /// suite, no uno por clase. Necesita un servidor PostgreSQL accesible (local
 /// o el servicio de CI, ver BaseDatosPostgresDePruebas).
+///
+/// <para>
+/// <b>El tráfico corre como <c>cae_app_runtime</c>, igual que en producción</b>
+/// (mejora 1.7 del harness, 2026-11-05). La aplicación recibe dos cadenas: la
+/// propietaria (<c>ConnectionStrings__CaeManagerDb</c>), con la que migra y
+/// siembra al arrancar, y la de runtime (<c>ConnectionStrings__CaeManagerDbRuntime</c>),
+/// con la que sirve cada petición. PostgreSQL no somete al propietario a RLS: hasta
+/// esta mejora todas las fixtures salvo una servían el tráfico como propietario y
+/// ningún E2E podía observar una política. El rol lo crea
+/// <c>deploy/bootstrap/roles-de-cluster.sql</c> como <c>NOLOGIN</c> (ci.yml lo
+/// ejecuta antes de los E2E); la fixture le da LOGIN con la contraseña fija de
+/// pruebas (<see cref="DarLoginAlRolDeRuntimeAsync"/>).
+/// </para>
+///
+/// <para>
+/// <b>La única salida es <see cref="MotivoTraficoComoPropietario"/></b>, y es
+/// auditable: la guarda de arquitectura <c>IdentidadDeTraficoDeE2ETests</c> congela
+/// qué fixtures la sobrescriben y prohíbe escribir las variables de conexión fuera
+/// de este fichero. Las ayudas de la propia fixture (<see cref="EjecutarSqlAsync(string, (string Nombre, string Valor)[])"/>
+/// y compañía) siguen usando la cadena propietaria a propósito: preparan estados que
+/// la interfaz no fabrica, no son tráfico de la aplicación.
+/// </para>
 /// </summary>
 public class WebAppFixture : IAsyncLifetime
 {
     private const string ExecutablePathChromium = "/opt/pw-browsers/chromium";
 
+    /// <summary>Rol de runtime de <c>deploy/bootstrap/roles-de-cluster.sql</c>.</summary>
+    public const string RolDeRuntime = "cae_app_runtime";
+
+    /// <summary>Misma contraseña fija que los tests de integración (<c>BootstrapDeClusterEnTests</c>); solo existe en clústeres de prueba.</summary>
+    private const string ContrasenaRuntimeDePruebas = "runtime-de-pruebas";
+
+    /// <summary>Clave de bloqueo consultivo con que se serializa el <c>ALTER ROLE</c> entre procesos sobre el mismo clúster.</summary>
+    private const long ClaveBloqueoAlterRole = 0x5441_4C56_4547_0107;
+
     private static readonly Lock CandadoInstalacion = new();
     private static bool _navegadoresInstalados;
+
+    private static readonly SemaphoreSlim CandadoLoginRuntime = new(1, 1);
+    private static bool _loginRuntimeConcedido;
 
     /// <summary>Las fixtures vivas, por su URL base: <see cref="Ayudas.IniciarSesionAsync"/> solo recibe la URL.</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, WebAppFixture> FixturesPorUrl =
@@ -65,11 +99,25 @@ public class WebAppFixture : IAsyncLifetime
         new Dictionary<string, string>();
 
     /// <summary>
-    /// Punto de extensión para preparar el clúster antes de arrancar el proceso
-    /// (ver <see cref="WebAppFixtureBajoRuntime"/>, que da LOGIN al rol
-    /// <c>cae_app_runtime</c>). Corre con <see cref="CadenaConexion"/> ya asignada.
+    /// Punto de extensión para preparar el entorno antes de arrancar el proceso
+    /// (ver <see cref="WebAppFixtureConRevalidacionRapida"/>). Corre con
+    /// <see cref="CadenaConexion"/> ya asignada y el LOGIN de runtime ya concedido.
     /// </summary>
     protected virtual Task PrepararAntesDeArrancarAsync() => Task.CompletedTask;
+
+    /// <summary>
+    /// <c>null</c> (siempre, salvo excepción congelada): el tráfico de la aplicación
+    /// conecta como <see cref="RolDeRuntime"/>, sometido a RLS y a los GRANT, como en
+    /// producción. Una fixture que de verdad necesite servir el tráfico como el rol
+    /// propietario —exento de RLS— lo sobrescribe con el motivo escrito, y entra en la
+    /// lista congelada de <c>IdentidadDeTraficoDeE2ETests</c> en el mismo commit. No es
+    /// la vía para un test que cruza Tenants: eso exige un contrato o una identidad que
+    /// lo permitan en la aplicación, no quitarle RLS al servidor entero.
+    /// </summary>
+    protected virtual string? MotivoTraficoComoPropietario => null;
+
+    /// <summary>Si el tráfico de esta fixture corre como <see cref="RolDeRuntime"/>.</summary>
+    public bool TraficoBajoRuntime => MotivoTraficoComoPropietario is null;
 
     /// <summary>La cadena propietaria de la base de esta fixture.</summary>
     protected string CadenaConexion => _cadenaConexion
@@ -161,6 +209,23 @@ public class WebAppFixture : IAsyncLifetime
         // adicionales para que una subclase pueda sobrescribirla si alguna
         // vez lo necesita.
         infoInicio.Environment["Logging__RutaArchivo"] = $"App_Data/logs/log-{tipoFixture}-.txt";
+
+        if (TraficoBajoRuntime)
+        {
+            await DarLoginAlRolDeRuntimeAsync();
+            infoInicio.Environment["ConnectionStrings__CaeManagerDbRuntime"] = new Npgsql.NpgsqlConnectionStringBuilder(_cadenaConexion)
+            {
+                Username = RolDeRuntime,
+                Password = ContrasenaRuntimeDePruebas,
+            }.ConnectionString;
+        }
+        else
+        {
+            // Auditable también en la salida del job: la excepción se dice en cada arranque.
+            Console.Error.WriteLine(
+                $"[{tipoFixture}] AVISO: el tráfico de esta fixture conecta como el rol propietario, exento de RLS. " +
+                $"Motivo declarado: {MotivoTraficoComoPropietario}");
+        }
 
         await PrepararAntesDeArrancarAsync();
         foreach (var (clave, valor) in VariablesDeEntornoAdicionales())
@@ -305,6 +370,69 @@ public class WebAppFixture : IAsyncLifetime
         return (await comando.ExecuteScalarAsync())?.ToString()
                ?? throw new InvalidOperationException($"La consulta no devolvió ninguna fila: {sql}");
     }
+
+    /// <summary>
+    /// Conexiones abiertas a la base de esta fixture autenticadas como
+    /// <see cref="RolDeRuntime"/>. Control positivo del instrumento: si el tráfico
+    /// hubiera caído a la cadena propietaria, sería cero.
+    /// </summary>
+    public async Task<long> ConexionesComoRuntimeAsync()
+    {
+        var baseDatos = new Npgsql.NpgsqlConnectionStringBuilder(CadenaConexion).Database;
+        await using var conexion = new Npgsql.NpgsqlConnection(CadenaDeMantenimiento());
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT count(*) FROM pg_stat_activity WHERE datname = @base AND usename = @rol;";
+        comando.Parameters.AddWithValue("base", baseDatos!);
+        comando.Parameters.AddWithValue("rol", RolDeRuntime);
+        return (long)(await comando.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>
+    /// Da LOGIN al rol de runtime, una vez por proceso de test. El rol es un objeto de
+    /// clúster: dos <c>ALTER ROLE</c> simultáneos sobre la misma fila de <c>pg_authid</c>
+    /// fallan con «tuple concurrently updated», así que se serializa dentro del proceso
+    /// (semáforo) y entre procesos (bloqueo consultivo de transacción). Si el rol no
+    /// existe, el clúster no se preparó con <c>deploy/bootstrap/roles-de-cluster.sql</c>
+    /// y el arranque falla en voz alta: no se cae a la cadena propietaria.
+    /// </summary>
+    private async Task DarLoginAlRolDeRuntimeAsync()
+    {
+        await CandadoLoginRuntime.WaitAsync();
+        try
+        {
+            if (_loginRuntimeConcedido) return;
+
+            await using var conexion = new Npgsql.NpgsqlConnection(CadenaDeMantenimiento());
+            await conexion.OpenAsync();
+            await using var transaccion = await conexion.BeginTransactionAsync();
+            await using (var bloqueo = new Npgsql.NpgsqlCommand($"SELECT pg_advisory_xact_lock({ClaveBloqueoAlterRole});", conexion, transaccion))
+                await bloqueo.ExecuteNonQueryAsync();
+
+            await using (var existe = new Npgsql.NpgsqlCommand("SELECT count(*) FROM pg_roles WHERE rolname = @rol;", conexion, transaccion))
+            {
+                existe.Parameters.AddWithValue("rol", RolDeRuntime);
+                if ((long)(await existe.ExecuteScalarAsync())! != 1)
+                    throw new InvalidOperationException(
+                        $"El clúster de pruebas no tiene el rol {RolDeRuntime}: ejecuta deploy/bootstrap/roles-de-cluster.sql " +
+                        "con un superusuario antes de los E2E (ci.yml lo hace en «Bootstrap de roles de clúster»).");
+            }
+
+            await using (var alter = new Npgsql.NpgsqlCommand(
+                             $"ALTER ROLE {RolDeRuntime} LOGIN PASSWORD '{ContrasenaRuntimeDePruebas}';", conexion, transaccion))
+                await alter.ExecuteNonQueryAsync();
+
+            await transaccion.CommitAsync();
+            _loginRuntimeConcedido = true;
+        }
+        finally
+        {
+            CandadoLoginRuntime.Release();
+        }
+    }
+
+    private string CadenaDeMantenimiento() =>
+        new Npgsql.NpgsqlConnectionStringBuilder(CadenaConexion) { Database = "postgres", Pooling = false }.ConnectionString;
 
     /// <summary>La fixture que sirve esa URL base, o <c>null</c> si no es ninguna de estas.</summary>
     internal static WebAppFixture? DeLaUrl(string baseUrl) => FixturesPorUrl.GetValueOrDefault(baseUrl);

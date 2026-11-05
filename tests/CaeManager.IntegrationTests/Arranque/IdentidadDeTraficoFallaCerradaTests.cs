@@ -72,10 +72,12 @@ public class IdentidadDeTraficoFallaCerradaTests
     [Fact]
     public void En_desarrollo_se_conserva_la_caida_al_rol_propietario()
     {
-        // El arnés E2E (WebAppFixture) arranca con ASPNETCORE_ENVIRONMENT=
-        // Development y define solo ConnectionStrings__CaeManagerDb. Si esta
-        // caída desapareciera, el fallo cerrado habría dejado de proteger para
-        // pasar a estorbar, y la suite E2E entera se caería por configuración.
+        // El desarrollo local (docker compose up) arranca con
+        // ASPNETCORE_ENVIRONMENT=Development y define solo
+        // ConnectionStrings__CaeManagerDb. Si esta caída desapareciera, el fallo
+        // cerrado habría dejado de proteger para pasar a estorbar. El arnés E2E
+        // (WebAppFixture) ya no depende de ella: desde la mejora 1.7 del harness
+        // define también ConnectionStrings__CaeManagerDbRuntime.
         var configuracion = Configuracion(("ConnectionStrings:CaeManagerDb", CadenaPropietario));
 
         InfrastructureServiceCollectionExtensions
