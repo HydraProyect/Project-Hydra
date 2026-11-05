@@ -1,0 +1,19 @@
+# Excepciones aceptadas del escaneo de vulnerabilidades de Trivy.
+#
+# Lo leen el gate de PR (ci.yml, job docker-build), el escaneo de la imagen firmada
+# (deploy.yml, job escanear-imagen) y la vigilancia diaria (vigilancia-imagenes.yml).
+# El escaneo nocturno sin filtro (trivy-nocturno.yml) NO lo lee: lista todo.
+#
+# Los CVE SIN corrección publicada no necesitan entrada: esos escaneos usan
+# --ignore-unfixed y no bloquean por ellos (los lista el nocturno). Aquí solo va un
+# CVE CON corrección que se decide no aplicar todavía, siempre con caducidad.
+#
+# Formato obligatorio (lo comprueba .github/vigilancia/trivyignore.js en ci.yml y en
+# el nocturno; falla si falta el motivo o la fecha, si caducó o si caduca a más de
+# 90 días):
+#
+#   # motivo: <por qué se acepta el riesgo y quién lo decidió>
+#   CVE-AAAA-NNNNN exp:AAAA-MM-DD
+#
+# `exp:` es la caducidad nativa de Trivy: pasada la fecha, Trivy deja de ignorar la
+# entrada. Hoy no hay ninguna excepción.

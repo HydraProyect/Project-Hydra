@@ -30,7 +30,9 @@ name: Vigilancia de imágenes desplegadas
 # Criterio de alerta: severidad HIGH o CRITICAL con corrección publicada
 # (`--ignore-unfixed`), respetando el `.trivyignore` de la raíz si existe (Trivy lo
 # lee por defecto del directorio de trabajo). Lo explotado sin parche es de otra
-# capa de vigilancia.
+# capa de vigilancia. Cada imagen se escanea además SIN FILTRO (todas las
+# severidades, sin `--ignore-unfixed` ni `.trivyignore`) solo para informar: resumen
+# del run y artefacto `vigilancia-sin-filtro`, sin issues (mejora 1.6, 2026-11-05).
 #
 # Alarma: una issue por CVE (agrupando todas las imágenes afectadas), con la
 # etiqueta `Seguridad: alerta` (se crea si falta) y un marcador invisible en el
@@ -96,8 +98,10 @@ jobs:
         with:
           persist-credentials: false
 
-      # El mismo instalador (y la misma versión de Trivy) que usa por dentro la
-      # trivy-action fijada en ci.yml y seguridad-codigo.yml (v0.36.0).
+      # El mismo instalador y la misma versión de Trivy que el gate de ci.yml
+      # (docker-build) y trivy-nocturno.yml, y que la que instala por dentro la
+      # trivy-action v0.36.0 fijada en deploy.yml y seguridad-codigo.yml. Al subir
+      # cualquiera de ellas, subir las demás.
       - name: Instalar Trivy
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
@@ -141,6 +145,12 @@ jobs:
           OBJETIVOS="$SALIDA/objetivos.tsv"
           : > "$OBJETIVOS"
           n=0
+          # Informe sin filtro (ver escanear): nombre<TAB>informe, informe vacío si falló.
+          mkdir -p "$SALIDA/sin-filtro"
+          SIN_FILTRO="$SALIDA/sin-filtro/objetivos.tsv"
+          : > "$SIN_FILTRO"
+          SIN_EXCEPCIONES="$SALIDA/sin-excepciones"
+          : > "$SIN_EXCEPCIONES"
 
           # Una línea por objetivo: nombre<TAB>estado<TAB>informe. estado: ok | fallo | ausente.
           escanear() {
@@ -159,6 +169,17 @@ jobs:
                    --format json --output "$informe" "$@"; then
                 printf '%s\tok\t%s\n' "$nombre" "$informe" >> "$OBJETIVOS"
                 echo "Escaneada: $nombre"
+                # Informe SIN FILTRO de la misma imagen (todas las severidades, también lo
+                # que no tiene corrección y lo del .trivyignore): solo informa, no abre
+                # issues ni cambia el criterio de alerta. Reutiliza las capas ya leídas.
+                if trivy image --skip-db-update --no-progress --scanners vuln \
+                     --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --ignorefile "$SIN_EXCEPCIONES" \
+                     --timeout 20m --format json --output "$SALIDA/sin-filtro/informe-$n.json" "$@"; then
+                  printf '%s\t%s\n' "$nombre" "$SALIDA/sin-filtro/informe-$n.json" >> "$SIN_FILTRO"
+                else
+                  printf '%s\t\n' "$nombre" >> "$SIN_FILTRO"
+                  echo "::warning::No se pudo hacer el informe sin filtro de $nombre (la alerta no cambia)."
+                fi
                 return 0
               fi
               echo "::warning::Intento $intento de escanear $nombre ha fallado."
@@ -277,7 +298,41 @@ jobs:
           fi
 
           echo "objetivos=$OBJETIVOS" >> "$GITHUB_OUTPUT"
+          echo "sin_filtro=$SALIDA/sin-filtro" >> "$GITHUB_OUTPUT"
           column -t -s $'\t' "$OBJETIVOS" || cat "$OBJETIVOS"
+
+      # Lo que el criterio de alerta deja fuera (sin corrección, .trivyignore, MEDIUM y
+      # menos) también se lista, por imagen desplegada. Solo informa.
+      - name: Publicar el informe sin filtro de lo desplegado
+        if: ${{ !cancelled() && steps.escaneo.outputs.sin_filtro != '' }}
+        env:
+          SIN_FILTRO: ${{ steps.escaneo.outputs.sin_filtro }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Sin filtro: imágenes desplegadas"
+            echo ""
+            echo "Todas las severidades, sin \`--ignore-unfixed\` y sin \`.trivyignore\`. No abre issues. Informe completo en el artefacto \`vigilancia-sin-filtro\`."
+            while IFS=$'\t' read -r nombre informe; do
+              echo ""
+              echo "### $(printf '%s' "$nombre" | tr -d '|<>@[]`')"
+              echo ""
+              if [ -n "$informe" ] && [ -s "$informe" ]; then
+                jq -r -f .github/vigilancia/trivy-nocturno-resumen.jq "$informe"
+              else
+                echo "No se pudo hacer el informe sin filtro de esta imagen."
+              fi
+            done < "$SIN_FILTRO/objetivos.tsv"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar el informe sin filtro
+        if: ${{ !cancelled() && steps.escaneo.outputs.sin_filtro != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vigilancia-sin-filtro
+          path: ${{ steps.escaneo.outputs.sin_filtro }}
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Abrir, actualizar y cerrar las issues de alerta
         id: conciliar

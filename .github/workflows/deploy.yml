@@ -541,12 +541,15 @@ jobs:
     # Escaneo de la imagen que se despliega (hallazgo S-D-5; ASVS V14.2.1,
     # OWASP Top 10 A06). ci.yml escanea `caemanager:ci`, que es otro build del
     # mismo SHA; lo que arrancan staging y producción es el artefacto firmado
-    # del job `imagen`, y ese no lo escaneaba nadie. Misma acción, fijada por
-    # el mismo SHA, misma versión de Trivy y misma configuración que el paso
-    # Trivy de ci.yml: CRITICAL/HIGH, bloqueante y sin `ignore-unfixed`. Una
-    # excepción aceptada se documenta en un .trivyignore, como dice el
-    # comentario de ci.yml, no relajando esto; por eso se trae el código del
-    # SHA: Trivy lee el .trivyignore del directorio de trabajo (hoy no hay).
+    # del job `imagen`, y ese no lo escaneaba nadie. Misma versión de Trivy y
+    # misma política que el gate Trivy de ci.yml (allí con setup-trivy y la
+    # orden directa, aquí con la trivy-action): CRITICAL/HIGH, bloqueante, con `ignore-unfixed` (desde el
+    # 2026-11-05, mejora 1.6: un CVE sin corrección publicada no bloquea ni la
+    # PR ni el despliegue; lo lista trivy-nocturno.yml) y con el .trivyignore
+    # del SHA. Una excepción aceptada se documenta ahí, con `exp:` y motivo, no
+    # relajando esto; por eso se trae el código del SHA: Trivy lee el
+    # .trivyignore del directorio de trabajo. A diferencia de ci.yml, aquí la
+    # base de CVE es la del momento del despliegue, no la fijada del día.
     #
     # Job propio y no un paso de `imagen`, a propósito: `imagen` tiene
     # `id-token: write` y acceso al demonio Docker ANTES de exportar y firmar,
@@ -597,8 +600,9 @@ jobs:
           docker image inspect "caemanager:$SHA_DESPLEGADO" > /dev/null
 
       - name: Instalar Trivy
-        # v0.70.0, la que instala por defecto la trivy-action v0.36.0 fijada
-        # (y por tanto la de ci.yml). El hash es el de trivy_0.70.0_checksums.txt
+        # v0.70.0, la que instala por defecto la trivy-action v0.36.0 fijada y la
+        # que fijan a mano ci.yml, trivy-nocturno.yml y vigilancia-imagenes.yml
+        # (setup-trivy): al subir una, subir todas. El hash es el de trivy_0.70.0_checksums.txt
         # de la release, que coincide con el digest del asset en la API de GitHub.
         run: |
           set -euo pipefail
@@ -616,6 +620,10 @@ jobs:
           image-ref: caemanager:${{ env.SHA_DESPLEGADO }}
           format: table
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          # Sin `trivyignores:` a propósito: Trivy lee por defecto el .trivyignore del
+          # directorio de trabajo si existe, y la acción fallaría con un SHA anterior
+          # a la mejora 1.6 que aún no lo trae.
           exit-code: "1"
           skip-setup-trivy: true
   staging:

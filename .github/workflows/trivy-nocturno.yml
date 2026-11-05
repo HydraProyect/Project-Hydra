@@ -1,0 +1,163 @@
+name: Trivy nocturno sin filtro
+
+# Escaneo nocturno SIN FILTRO de la imagen de la aplicación construida desde `main`
+# (mejora 1.6 de la evaluación del harness, 2026-11-05).
+#
+# Por qué existe: el gate de PR (ci.yml, job docker-build) y el del despliegue
+# (deploy.yml, escanear-imagen) usan `--ignore-unfixed` y el `.trivyignore`, para que
+# un CVE de la imagen base SIN corrección publicada no bloquee a nadie (del 11-02 al
+# 11-05 bloqueó cuatro PR sin culpa de ninguna). Lo que esos gates dejan pasar no
+# puede quedar sin mirar: este job lo LISTA todo, cada noche.
+#   - Sin `--ignore-unfixed`, sin `.trivyignore` (se pasa un fichero vacío) y con
+#     todas las severidades.
+#   - Publica el informe: tabla resumen en el resumen de la ejecución e informe
+#     completo (JSON y tabla) como artefacto de 30 días.
+#   - NO falla por hallazgos (informar es su función; la alarma con issue de lo ya
+#     desplegado es vigilancia-imagenes.yml). SÍ falla si no pudo escanear o si el
+#     `.trivyignore` tiene una entrada caducada o sin motivo: así una caducidad se ve
+#     aunque ese día no se abra ninguna PR. Esa guarda no impide el escaneo: el informe
+#     se publica igual y el job falla al final.
+#
+# Esto cubre la imagen que saldría HOY de `main`. Lo realmente desplegado (imágenes de
+# terceros del compose de producción, base del Dockerfile y el artefacto
+# imagen-despliegue de producción y staging) lo escanea sin filtro, además de con él,
+# vigilancia-imagenes.yml: artefacto `vigilancia-sin-filtro` y resumen de su run.
+#
+# Base de CVE: la del día, con la misma caché `trivy-db-<fecha UTC>` que el gate de
+# ci.yml. Al correr temprano sobre `main` siembra esa caché en el ámbito de `main`,
+# que todas las PR del día pueden leer: el gate y este informe ven la misma base.
+#
+# `schedule` solo corre desde la rama por defecto; a mano:
+#   gh workflow run trivy-nocturno.yml --ref main
+on:
+  schedule:
+    - cron: "11 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trivy-nocturno
+  cancel-in-progress: false
+
+jobs:
+  escanear:
+    name: Escaneo nocturno sin filtro (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # Una excepción caducada no debe dejar la noche sin informe: la guarda corre, su
+      # resultado se guarda y el último paso hace fallar el job si falló.
+      - name: Comprobar las caducidades del .trivyignore
+        id: guarda
+        continue-on-error: true
+        run: node .github/vigilancia/trivyignore.js .trivyignore
+
+      # La misma imagen que reconstruye el gate de ci.yml (mismo Dockerfile).
+      - name: Construir imagen Docker
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: caemanager:nocturno
+
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
+        with:
+          version: v0.70.0
+          cache: true
+
+      - name: Fecha de la base de CVE
+        id: fecha-cve
+        run: echo "fecha=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Recuperar la base de CVE del día
+        id: cache-cve
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
+
+      - name: Descargar la base de CVE del día
+        if: steps.cache-cve.outputs.cache-hit != 'true'
+        env:
+          CACHE_TRIVY: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          for intento in 1 2 3; do
+            if trivy image --download-db-only --no-progress --cache-dir "$CACHE_TRIVY"; then
+              exit 0
+            fi
+            echo "::warning::No se pudo descargar la base de CVE (intento $intento)."
+            [ "$intento" -lt 3 ] && sleep $((intento * 60))
+          done
+          echo "::error::Sin base de CVE no hay escaneo: el job falla en vez de dar «sin hallazgos»."
+          exit 1
+
+      - name: Guardar la base de CVE del día
+        if: steps.cache-cve.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-${{ steps.fecha-cve.outputs.fecha }}
+
+      - name: Escanear sin filtro
+        env:
+          CACHE_TRIVY: ${{ runner.temp }}/trivy-cache
+        run: |
+          set -euo pipefail
+          mkdir -p informe-trivy
+          # Fichero de excepciones VACÍO a propósito: sin él Trivy leería el .trivyignore
+          # de la raíz, y este informe debe listar también lo exceptuado.
+          : > "$RUNNER_TEMP/sin-excepciones"
+          comunes=(--skip-db-update --no-progress --cache-dir "$CACHE_TRIVY" --scanners vuln
+                   --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --ignorefile "$RUNNER_TEMP/sin-excepciones")
+          trivy image "${comunes[@]}" --format json --output informe-trivy/trivy-nocturno.json caemanager:nocturno
+          # `convert` también filtra y por defecto leería el .trivyignore: mismo fichero vacío.
+          trivy convert --format table --ignorefile "$RUNNER_TEMP/sin-excepciones" \
+            --output informe-trivy/trivy-nocturno.txt informe-trivy/trivy-nocturno.json
+          trivy version --format json --cache-dir "$CACHE_TRIVY" > informe-trivy/trivy-version.json
+
+      - name: Publicar el resumen
+        run: |
+          set -euo pipefail
+          json=informe-trivy/trivy-nocturno.json
+          jq -e '.SchemaVersion' "$json" > /dev/null || { echo "::error::El informe no es un JSON de Trivy."; exit 1; }
+          base="$(jq -r '.VulnerabilityDB.UpdatedAt // "desconocida"' informe-trivy/trivy-version.json)"
+          # La caché del día congela la base del primer descargador: si el espejo la
+          # sirvió vieja, se avisa (mismo umbral de 36 h que vigilancia-imagenes.yml).
+          if [ "$base" = desconocida ] || [ $(( $(date -u +%s) - $(date -u -d "$base" +%s) )) -gt $((36 * 3600)) ]; then
+            echo "::warning::La base de CVE ($base) tiene más de 36 h o no se sabe su fecha: el informe puede no listar lo último."
+          fi
+          {
+            echo "## Trivy nocturno sin filtro — \`caemanager\` de \`main\` (${GITHUB_SHA:0:7})"
+            echo ""
+            echo "Base de CVE: \`$base\`. Sin \`--ignore-unfixed\` y sin \`.trivyignore\`. Informe completo en el artefacto \`trivy-nocturno\`."
+            echo ""
+            jq -r -f .github/vigilancia/trivy-nocturno-resumen.jq "$json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar el informe
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-nocturno
+          path: informe-trivy/
+          # Sin informe el job ya está en rojo por el paso que falló; no se suma otro error.
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Fallar si el .trivyignore tiene entradas caducadas o sin motivo
+        if: ${{ !cancelled() && steps.guarda.outcome == 'failure' }}
+        run: |
+          echo "::error::El .trivyignore no pasa la guarda (ver el paso «Comprobar las caducidades»): el informe se ha publicado igualmente."
+          exit 1
