@@ -20,7 +20,8 @@ namespace CaeManager.Architecture.Tests;
 /// argumento de <c>new NpgsqlCommand(sql, conexion, …)</c>, y antes de él, en el mismo método, fuera de lambdas y en un
 /// bloque que lo contiene, hay una sentencia <c>await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, …)</c>
 /// sobre esa misma conexión. La guarda obtiene ella misma la declaración, los anfitriones y el identificador, así que
-/// quien la llama no puede pasarle argumentos que la anulen. Sin esta propiedad, la primera podría quedar en verde con
+/// quien la llama no puede pasarle argumentos que la anulen; y el texto del envoltorio asíncrono fija qué le pasa a la
+/// decisión pura, para que tampoco su cuerpo la vuelva tautológica. Sin esta propiedad, la primera podría quedar en verde con
 /// la llamada borrada o movida en la fixture.</item>
 /// </list>
 ///
@@ -132,6 +133,39 @@ public class GuardaClusterDePruebasTests
             "mismo método y en un bloque que lo contenga, la fixture hace await GuardaClusterDePruebas." +
             "ExigirClusterDesechableAsync(conexion, …) con esa misma conexión, para no abrir el rol en un clúster que no es " +
             "de pruebas");
+    }
+
+    /// <summary>
+    /// El envoltorio que llama la fixture no degrada la decisión pura: le pasa la variable de entorno, la cadena de la
+    /// conexión recibida y el identificador leído por esa misma conexión, sin capturar la excepción. Fijado por texto
+    /// normalizado porque sin servidor no se puede ejecutar.
+    /// </summary>
+    [Fact]
+    public void El_envoltorio_asincrono_pasa_a_la_decision_los_datos_del_cluster_conectado()
+    {
+        var guarda = AnalisisDeSuiteE2E.LeerE2E().Single(f => f.Ruta.EndsWith("GuardaClusterDePruebas.cs", StringComparison.Ordinal));
+        var metodo = CSharpSyntaxTree.ParseText(guarda.Texto).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(m => m.Identifier.ValueText == nameof(GuardaClusterDePruebas.ExigirClusterDesechableAsync));
+        string Normal(SyntaxNode n) => string.Concat(n.ToString().Where(c => !char.IsWhiteSpace(c)));
+
+        metodo.ParameterList.Parameters.Select(p => p.Identifier.ValueText).Should().Equal("conexion", "transaccion");
+        metodo.DescendantNodes().OfType<TryStatementSyntax>().Should().BeEmpty("la guarda no se traga su propia excepción");
+
+        var consulta = metodo.DescendantNodes().OfType<ObjectCreationExpressionSyntax>().Should().ContainSingle().Subject;
+        Normal(consulta).Should().Be("newNpgsql.NpgsqlCommand(ConsultaIdentificador,conexion,transaccion)",
+            "el identificador se lee por la misma conexión y transacción que el ALTER ROLE");
+
+        var asignacion = metodo.DescendantNodes().OfType<AssignmentExpressionSyntax>().Should().ContainSingle().Subject;
+        Normal(asignacion).Should().Be("identificadorDelCluster=awaitconsulta.ExecuteScalarAsync()asstring");
+
+        var decision = metodo.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Where(i => i.Expression is IdentifierNameSyntax { Identifier.ValueText: nameof(GuardaClusterDePruebas.ExigirClusterDesechable) })
+            .Should().ContainSingle().Subject;
+        Normal(decision.ArgumentList).Should().Be(
+            "(Environment.GetEnvironmentVariable(VariableDeEntorno),conexion.ConnectionString,identificadorDelCluster)",
+            "la declaración sale de la variable de entorno, los anfitriones de la conexión recibida y el identificador del " +
+            "clúster leído por ella: cualquier otra combinación puede volver tautológica la comprobación");
+        decision.Parent.Should().BeOfType<ExpressionStatementSyntax>();
     }
 
     /// <summary>Control del instrumento de la segunda propiedad: detecta cada forma de saltarse la guarda.</summary>

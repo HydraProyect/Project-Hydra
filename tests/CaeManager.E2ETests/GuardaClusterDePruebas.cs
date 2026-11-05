@@ -42,7 +42,7 @@ internal static class GuardaClusterDePruebas
     /// <summary>Variable de entorno con el <c>system_identifier</c> del clúster declarado desechable.</summary>
     internal const string VariableDeEntorno = "CAEMANAGER_TESTS_CLUSTER_DESECHABLE";
 
-    /// <summary>Consulta que devuelve el identificador del clúster conectado (necesita superusuario o <c>pg_monitor</c>).</summary>
+    /// <summary>Consulta que devuelve el identificador del clúster conectado (la conexión de mantenimiento es superusuario, como ya exige la lectura de <c>pg_authid</c>).</summary>
     internal const string ConsultaIdentificador = "SELECT system_identifier::text FROM pg_control_system();";
 
     /// <summary>
