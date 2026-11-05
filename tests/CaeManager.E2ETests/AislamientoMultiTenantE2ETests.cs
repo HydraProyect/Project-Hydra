@@ -39,6 +39,9 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
     [Fact]
     public async Task Una_empresa_creada_por_el_tenant_A_no_es_visible_para_el_tenant_B()
     {
+        // MUTACION TEMPORAL M2 (PR #2032, harness 1.7): RLS desactivada en Empresas. NO FUSIONAR.
+        await fixture.EjecutarSqlAsync("ALTER TABLE \"Empresas\" DISABLE ROW LEVEL SECURITY");
+
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var razonSocialEmpresa = $"Empresa Aislamiento E2E {sufijo}";
 
