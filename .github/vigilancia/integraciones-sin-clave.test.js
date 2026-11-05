@@ -9,6 +9,9 @@ const s = require('./integraciones-sin-clave.js');
 
 const FECHA = '2026-11-05';
 const URL = 'https://github.com/HydraProyect/Project-Hydra/actions/runs/1';
+// Literal dentro de una expresión regular, con todos los metacaracteres escapados.
+const literal = (texto) => texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const RE_URL = new RegExp(literal(URL));
 const issue = (number, state, body, extra = {}) => ({ number, state, state_reason: null, title: s.TITULO, body, ...extra });
 const porSecreto = (secretos) => s.INTEGRACIONES.filter((i) => secretos.includes(i.secreto));
 const cuerpoCon = (faltan, sinMedir = []) => s.cuerpo({ faltan: porSecreto(faltan), sinMedir: porSecreto(sinMedir) });
@@ -143,7 +146,7 @@ test('aplicar crea la etiqueta si falta, abre la issue con ella y anota fecha y 
     ['create', s.TITULO, [s.ETIQUETA]],
   ]);
   assert.equal(llamadas[2][0], 'comment');
-  assert.match(llamadas[2][2], new RegExp(`${FECHA}.*${URL.replace(/[/.]/g, '\\$&')}`));
+  assert.match(llamadas[2][2], new RegExp(`${literal(FECHA)}.*${literal(URL)}`));
 });
 
 test('aplicar actualizar edita el cuerpo y deja fecha y ejecución en un comentario', async () => {
@@ -152,7 +155,7 @@ test('aplicar actualizar edita el cuerpo y deja fecha y ejecución en un comenta
   await s.aplicar({ github, owner: 'o', repo: 'r', plan, fecha: FECHA, urlEjecucion: URL });
   assert.deepEqual(llamadas.map((l) => l.slice(0, 2)), [['update', 7], ['comment', 7]]);
   assert.match(llamadas[1][2], new RegExp(FECHA));
-  assert.ok(llamadas[1][2].includes(URL));
+  assert.match(llamadas[1][2], RE_URL);
 });
 
 test('aplicar reabrir abre la issue y comenta con fecha y ejecución', async () => {
@@ -161,7 +164,8 @@ test('aplicar reabrir abre la issue y comenta con fecha y ejecución', async () 
   await s.aplicar({ github, owner: 'o', repo: 'r', plan, fecha: FECHA, urlEjecucion: URL });
   assert.deepEqual(llamadas[0], ['update', 5, 'open']);
   assert.equal(llamadas[1][0], 'comment');
-  assert.ok(llamadas[1][2].includes(FECHA) && llamadas[1][2].includes(URL));
+  assert.ok(llamadas[1][2].includes(FECHA));
+  assert.match(llamadas[1][2], RE_URL);
 });
 
 test('aplicar cerrar comenta antes de cerrar y cierra también las duplicadas como completadas', async () => {
