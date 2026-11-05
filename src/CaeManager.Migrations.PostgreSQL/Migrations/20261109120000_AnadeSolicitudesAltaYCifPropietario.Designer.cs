@@ -10306,6 +10306,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AsignacionesOperadorDelegado", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Tenants.CifPropietarioTenant", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cif")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("TenantId");
+
+                    b.HasIndex("Cif")
+                        .IsUnique();
+
+                    b.ToTable("CifsPropietarioTenant", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Tenants.ContactoSeguridadTenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -10493,10 +10511,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("AddOnSubidaAutomaticaActivo")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("CifPropietario")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<DateTime?>("ClavesApiValidasDesdeUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -10562,10 +10576,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CifPropietario")
-                        .IsUnique()
-                        .HasFilter("\"CifPropietario\" IS NOT NULL");
 
                     b.HasIndex("StripeSubscriptionId")
                         .HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
@@ -12417,6 +12427,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "TipoDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Tenants.CifPropietarioTenant", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Tenants.Tenant", null)
+                        .WithOne()
+                        .HasForeignKey("CaeManager.Domain.Tenants.CifPropietarioTenant", "TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

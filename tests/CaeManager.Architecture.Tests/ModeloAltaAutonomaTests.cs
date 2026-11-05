@@ -24,30 +24,40 @@ public class ModeloAltaAutonomaTests
     private static readonly IModel Modelo = CrearContextoSinConexion().Model;
 
     [Fact]
-    public void El_CIF_propietario_tiene_un_indice_unico_global_parcial()
+    public void El_CIF_propietario_vive_fuera_de_Tenants_con_un_indice_unico_global()
     {
         var tenant = Modelo.FindEntityType(typeof(Tenant))!;
-        var indice = tenant.GetIndexes()
-            .Should().ContainSingle(i => i.Properties.Count == 1 && i.Properties[0].Name == nameof(Tenant.CifPropietario))
-            .Subject;
-
-        indice.IsUnique.Should().BeTrue("DM-5: un solo Tenant propietario por CIF");
-        indice.GetFilter().Should().Be("\"CifPropietario\" IS NOT NULL",
-            "los Tenants sin CIF declarado no compiten por la unicidad");
-        tenant.FindProperty(nameof(Tenant.CifPropietario))!.IsNullable.Should().BeTrue();
+        tenant.GetProperties().Select(p => p.Name).Should().NotContain(n => n.Contains("Cif"),
+            "Tenants la leen los tres roles de la aplicación sin restricción por Tenant (DA-11)");
         tenant.FindProperty(nameof(Tenant.TipoTenant))!.IsNullable.Should().BeTrue();
-        tenant.GetDeclaredQueryFilters().Should().BeEmpty();
+
+        var cif = Modelo.FindEntityType(typeof(CifPropietarioTenant))!;
+        cif.GetTableName().Should().Be("CifsPropietarioTenant");
+        cif.FindPrimaryKey()!.Properties.Select(p => p.Name).Should().Equal(nameof(CifPropietarioTenant.TenantId));
+        cif.FindProperty(nameof(CifPropietarioTenant.Cif))!.IsNullable.Should().BeFalse();
+        var indice = cif.GetIndexes()
+            .Should().ContainSingle(i => i.Properties.Count == 1 && i.Properties[0].Name == nameof(CifPropietarioTenant.Cif))
+            .Subject;
+        indice.IsUnique.Should().BeTrue("DM-5: un solo Tenant propietario por CIF entre todos los Tenants");
+        indice.GetFilter().Should().BeNull("un Tenant sin CIF declarado no tiene fila, así que no hace falta filtro");
+        cif.GetForeignKeys().Should().ContainSingle(f => f.PrincipalEntityType.ClrType == typeof(Tenant)
+            && f.DeleteBehavior == DeleteBehavior.Cascade, "borrar un Tenant no deja su NIF huérfano");
+        typeof(CifPropietarioTenant).IsAssignableTo(typeof(CaeManager.Domain.Common.EntidadConTenant)).Should().BeFalse(
+            "sin filtro de Tenant ni política de aislamiento: la tabla está cerrada a todos los roles de la aplicación");
+        cif.GetDeclaredQueryFilters().Should().BeEmpty();
     }
 
     [Fact]
-    public void La_migracion_crea_el_indice_unico_parcial()
+    public void La_migracion_crea_el_indice_unico_y_no_rellena_los_Tenants_existentes()
     {
         var up = TextoUp();
 
         Regex.IsMatch(up,
-                @"CreateIndex\(\s*name:\s*""IX_Tenants_CifPropietario"",\s*table:\s*""Tenants"",\s*column:\s*""CifPropietario"",\s*unique:\s*true,\s*filter:\s*""\\""CifPropietario\\"" IS NOT NULL""\)",
+                @"CreateIndex\(\s*name:\s*""IX_CifsPropietarioTenant_Cif"",\s*table:\s*""CifsPropietarioTenant"",\s*column:\s*""Cif"",\s*unique:\s*true\)",
                 RegexOptions.Singleline)
             .Should().BeTrue();
+        Regex.IsMatch(up, @"AddColumn<[^>]+>\(\s*name:\s*""Cif", RegexOptions.Singleline)
+            .Should().BeFalse("el CIF no entra en Tenants");
         up.Should().NotContain("migrationBuilder.UpdateData", "las filas existentes de Tenants no se rellenan");
     }
 
@@ -66,6 +76,7 @@ public class ModeloAltaAutonomaTests
     [Theory]
     [InlineData("SolicitudesAlta")]
     [InlineData("AceptacionesSolicitudAlta")]
+    [InlineData("CifsPropietarioTenant")]
     public void La_migracion_cierra_las_tablas_a_los_roles_de_la_aplicacion(string tabla)
     {
         var up = TextoUp();

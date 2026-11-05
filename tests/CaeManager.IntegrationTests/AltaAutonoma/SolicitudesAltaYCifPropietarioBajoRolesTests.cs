@@ -13,11 +13,13 @@ namespace CaeManager.IntegrationTests.AltaAutonoma;
 /// <summary>
 /// Lo que la base aplica del incremento A1 del alta autónoma:
 /// <list type="bullet">
-/// <item>DM-5 en la base: el índice único parcial de <c>Tenants.CifPropietario</c> rechaza un segundo Tenant
-/// propietario con el mismo CIF y admite cualquier número de Tenants sin CIF.</item>
-/// <item><c>SolicitudesAlta</c> y <c>AceptacionesSolicitudAlta</c> están cerradas: RLS con FORCE, sin
-/// políticas y sin ningún privilegio para los roles de la aplicación. Solo el rol propietario (el de esta
-/// conexión, el de las migraciones) las lee y escribe.</item>
+/// <item>DM-5 en la base: el índice único de <c>CifsPropietarioTenant.Cif</c> rechaza un segundo Tenant
+/// propietario con el mismo CIF. El CIF no está en <c>Tenants</c>, que leen los tres roles de la aplicación
+/// sin restricción por Tenant (DA-11: el NIF de una persona física es un dato personal).</item>
+/// <item><c>SolicitudesAlta</c>, <c>AceptacionesSolicitudAlta</c> y <c>CifsPropietarioTenant</c> están
+/// cerradas: RLS con FORCE, sin políticas y sin ningún privilegio para los roles de la aplicación. Cada rol
+/// intenta de verdad SELECT, INSERT, UPDATE y DELETE y la base se lo niega. Solo el rol propietario (el de
+/// esta conexión, el de las migraciones) las lee y escribe.</item>
 /// </list>
 /// </summary>
 public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
@@ -25,6 +27,14 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
     private static readonly DateTime Inicio = new(2026, 11, 4, 10, 0, 0, DateTimeKind.Utc);
     private static readonly string[] RolesDeLaAplicacion = ["cae_app_runtime", "cae_app_soporte", "cae_app_aprovisionamiento"];
     private static readonly string[] Privilegios = ["SELECT", "INSERT", "UPDATE", "DELETE"];
+
+    /// <summary>Una columna de cada tabla cerrada, para el intento de UPDATE.</summary>
+    private static readonly Dictionary<string, string> ColumnaDeCadaTabla = new()
+    {
+        ["SolicitudesAlta"] = "Estado",
+        ["AceptacionesSolicitudAlta"] = "Documento",
+        ["CifsPropietarioTenant"] = "Cif",
+    };
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
 
@@ -35,19 +45,18 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
     [Fact]
     public async Task Un_segundo_Tenant_propietario_con_el_mismo_CIF_lo_rechaza_la_base()
     {
+        var primero = new Tenant("Primero " + Guid.NewGuid());
+        var segundo = new Tenant("Segundo " + Guid.NewGuid());
         await using (var contexto = CrearContexto())
         {
-            var primero = new Tenant("Primero " + Guid.NewGuid());
-            primero.DeclararTipoYCifPropietario(TipoTenant.GestionPropia, "B12345674");
-            contexto.Tenants.Add(primero);
+            contexto.Tenants.AddRange(primero, segundo);
+            contexto.CifsPropietarioTenant.Add(CifPropietarioTenant.Declarar(primero.Id, "B12345674"));
             await contexto.SaveChangesAsync();
         }
 
         await using (var contexto = CrearContexto())
         {
-            var segundo = new Tenant("Segundo " + Guid.NewGuid());
-            segundo.DeclararTipoYCifPropietario(TipoTenant.GestionExterna, "b-1234567-4");
-            contexto.Tenants.Add(segundo);
+            contexto.CifsPropietarioTenant.Add(CifPropietarioTenant.Declarar(segundo.Id, "b-1234567-4"));
 
             var guardar = () => contexto.SaveChangesAsync();
 
@@ -58,15 +67,23 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Los_Tenants_sin_CIF_propietario_no_compiten_por_la_unicidad()
+    public async Task Borrar_un_Tenant_borra_su_CIF_propietario()
     {
-        await using var contexto = CrearContexto();
-        contexto.Tenants.Add(new Tenant("Sin CIF A " + Guid.NewGuid()));
-        contexto.Tenants.Add(new Tenant("Sin CIF B " + Guid.NewGuid()));
+        var tenant = new Tenant("Con CIF " + Guid.NewGuid());
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Tenants.Add(tenant);
+            contexto.CifsPropietarioTenant.Add(CifPropietarioTenant.Declarar(tenant.Id, "12345678Z"));
+            await contexto.SaveChangesAsync();
+        }
 
-        await contexto.SaveChangesAsync();
-
-        (await contexto.Tenants.CountAsync(t => t.CifPropietario == null)).Should().BeGreaterThanOrEqualTo(2);
+        await using (var contexto = CrearContexto())
+        {
+            (await contexto.CifsPropietarioTenant.CountAsync(c => c.TenantId == tenant.Id)).Should().Be(1, "guarda del instrumento");
+            await contexto.Tenants.Where(t => t.Id == tenant.Id).ExecuteDeleteAsync();
+            (await contexto.CifsPropietarioTenant.CountAsync(c => c.TenantId == tenant.Id)).Should().Be(0,
+                "el NIF de una persona física no queda huérfano en una tabla que nadie lee");
+        }
     }
 
     [Fact]
@@ -74,14 +91,28 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        (await contexto.Tenants.AnyAsync(t => t.TipoTenant != null || t.CifPropietario != null)).Should().BeFalse(
-            "la migración no rellena las filas existentes");
+        (await contexto.Tenants.AnyAsync(t => t.TipoTenant != null)).Should().BeFalse("la migración no rellena las filas existentes");
+        (await contexto.CifsPropietarioTenant.AnyAsync()).Should().BeFalse("la migración no crea CIF para los Tenants existentes");
         (await contexto.Tenants.AnyAsync()).Should().BeTrue("guarda del instrumento: la migración siembra el Tenant de plataforma");
+    }
+
+    [Fact]
+    public async Task Tenants_no_tiene_columna_de_CIF()
+    {
+        await using var conexion = await AbrirAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = """
+            SELECT count(*) FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'Tenants' AND column_name ILIKE '%cif%';
+            """;
+
+        ((long)(await comando.ExecuteScalarAsync())!).Should().Be(0, "Tenants la leen los tres roles de la aplicación (DA-11)");
     }
 
     [Theory]
     [InlineData("SolicitudesAlta")]
     [InlineData("AceptacionesSolicitudAlta")]
+    [InlineData("CifsPropietarioTenant")]
     public async Task Las_tablas_tienen_RLS_forzada_sin_politicas(string tabla)
     {
         await using var conexion = await AbrirAsync();
@@ -103,6 +134,7 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
     [Theory]
     [InlineData("SolicitudesAlta")]
     [InlineData("AceptacionesSolicitudAlta")]
+    [InlineData("CifsPropietarioTenant")]
     public async Task Ningun_rol_de_la_aplicacion_tiene_privilegio_sobre_las_tablas(string tabla)
     {
         await using var conexion = await AbrirAsync();
@@ -125,35 +157,85 @@ public class SolicitudesAltaYCifPropietarioBajoRolesTests : IAsyncLifetime
             columnas.CommandText = """
                 SELECT count(*) FROM information_schema.columns
                 WHERE table_schema = 'public' AND table_name = @tabla
-                  AND has_column_privilege(@rol, format('public.%I', @tabla::text), column_name, 'SELECT');
+                  AND has_column_privilege(@rol, format('public.%I', @tabla::text), column_name, 'SELECT,INSERT,UPDATE');
                 """;
             columnas.Parameters.AddWithValue("rol", rol);
             columnas.Parameters.AddWithValue("tabla", tabla);
             if ((long)(await columnas.ExecuteScalarAsync())! > 0)
-                concedidos.Add($"{rol} SELECT de columnas");
+                concedidos.Add($"{rol} privilegio de columnas");
         }
 
         concedidos.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task El_runtime_no_lee_ni_escribe_las_solicitudes_de_alta()
+    /// <summary>
+    /// No solo el catálogo: cada rol de la aplicación intenta de verdad leer, insertar, actualizar y borrar
+    /// en cada tabla cerrada, con una fila ya presente, y la base se lo niega. Cada intento va en su propia
+    /// transacción, porque el error aborta la que lo contiene.
+    /// </summary>
+    [Theory]
+    [InlineData("cae_app_runtime", "SolicitudesAlta")]
+    [InlineData("cae_app_runtime", "AceptacionesSolicitudAlta")]
+    [InlineData("cae_app_runtime", "CifsPropietarioTenant")]
+    [InlineData("cae_app_soporte", "SolicitudesAlta")]
+    [InlineData("cae_app_soporte", "AceptacionesSolicitudAlta")]
+    [InlineData("cae_app_soporte", "CifsPropietarioTenant")]
+    [InlineData("cae_app_aprovisionamiento", "SolicitudesAlta")]
+    [InlineData("cae_app_aprovisionamiento", "AceptacionesSolicitudAlta")]
+    [InlineData("cae_app_aprovisionamiento", "CifsPropietarioTenant")]
+    public async Task Ningun_rol_de_la_aplicacion_lee_ni_escribe_las_tablas_cerradas(string rol, string tabla)
     {
-        await using var conexion = await AbrirAsync();
-        await using var transaccion = await conexion.BeginTransactionAsync();
-        await using (var rol = conexion.CreateCommand())
+        await GuardarPendientePagoAsync($"{rol}.{tabla}@ejemplo.es", "cs_test_" + Guid.NewGuid().ToString("N"));
+        var tenant = new Tenant("Cerrada " + Guid.NewGuid());
+        await using (var contexto = CrearContexto())
         {
-            rol.Transaction = transaccion;
-            rol.CommandText = "SET LOCAL ROLE cae_app_runtime;";
-            await rol.ExecuteNonQueryAsync();
+            contexto.Tenants.Add(tenant);
+            contexto.CifsPropietarioTenant.Add(CifPropietarioTenant.Declarar(tenant.Id, "B12345674"));
+            await contexto.SaveChangesAsync();
         }
 
-        await using var leer = conexion.CreateCommand();
-        leer.Transaction = transaccion;
-        leer.CommandText = "SELECT count(*) FROM public.\"SolicitudesAlta\";";
-        var lectura = () => leer.ExecuteScalarAsync();
+        var columna = ColumnaDeCadaTabla[tabla];
+        var sentencias = new Dictionary<string, string>
+        {
+            ["SELECT"] = $"SELECT count(*) FROM public.\"{tabla}\";",
+            ["INSERT"] = $"INSERT INTO public.\"{tabla}\" DEFAULT VALUES;",
+            ["UPDATE"] = $"UPDATE public.\"{tabla}\" SET \"{columna}\" = \"{columna}\";",
+            ["DELETE"] = $"DELETE FROM public.\"{tabla}\";",
+        };
 
-        (await lectura.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        var permitidas = new List<string>();
+        await using var conexion = await AbrirAsync();
+        foreach (var (operacion, sql) in sentencias)
+        {
+            await using var transaccion = await conexion.BeginTransactionAsync();
+            await using (var cambiarRol = conexion.CreateCommand())
+            {
+                cambiarRol.Transaction = transaccion;
+                cambiarRol.CommandText = $"SET LOCAL ROLE {rol};";
+                await cambiarRol.ExecuteNonQueryAsync();
+            }
+
+            await using var intento = conexion.CreateCommand();
+            intento.Transaction = transaccion;
+            intento.CommandText = sql;
+            try
+            {
+                await intento.ExecuteNonQueryAsync();
+                permitidas.Add(operacion);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InsufficientPrivilege)
+            {
+                // Denegada: lo esperado.
+            }
+
+            await transaccion.RollbackAsync();
+        }
+
+        permitidas.Should().BeEmpty($"{rol} no tiene ninguna vía a {tabla} hasta que el alta abra la suya");
+
+        await using var propietario = CrearContexto();
+        (await propietario.CifsPropietarioTenant.CountAsync(c => c.TenantId == tenant.Id)).Should().Be(1,
+            "guarda del instrumento: la fila seguía ahí y el rol propietario sí la ve");
     }
 
     /// <summary>

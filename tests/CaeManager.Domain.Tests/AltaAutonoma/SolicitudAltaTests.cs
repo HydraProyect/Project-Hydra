@@ -123,6 +123,47 @@ public class SolicitudAltaTests
     }
 
     [Fact]
+    public void Iniciar_mide_la_longitud_del_correo_ya_normalizado()
+    {
+        // U+0958 es una exclusión de composición: la forma Unicode C la descompone en dos caracteres.
+        var correo = new string('क़', 200) + "@ejemplo.es";
+        correo.Length.Should().BeLessThanOrEqualTo(SolicitudAlta.LongitudMaximaCorreo, "guarda del instrumento: la entrada cabe");
+        SolicitudAlta.NormalizarCorreo(correo).Length.Should().BeGreaterThan(SolicitudAlta.LongitudMaximaCorreo,
+            "guarda del instrumento: la forma normalizada no cabe");
+
+        var accion = () => SolicitudAlta.Iniciar(correo, "hash", Token, "203.0.113.7", null, Inicio);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Iniciar_admite_un_correo_que_crece_al_normalizarse_si_aun_cabe()
+    {
+        var correo = new string('क़', 100) + "@ejemplo.es";
+
+        var s = SolicitudAlta.Iniciar(correo, "hash", Token, "203.0.113.7", null, Inicio);
+
+        s.CorreoNormalizado!.Length.Should().BeGreaterThan(correo.Length).And.BeLessThanOrEqualTo(SolicitudAlta.LongitudMaximaCorreo);
+    }
+
+    [Fact]
+    public void Las_aceptaciones_no_se_pueden_vaciar_desde_fuera()
+    {
+        var s = En(EstadoSolicitudAlta.PendientePago);
+        s.Aceptaciones.Should().NotBeEmpty("guarda del instrumento");
+
+        s.Aceptaciones.Should().NotBeAssignableTo<List<AceptacionCondicionesAlta>>();
+        var comoColeccion = s.Aceptaciones as ICollection<AceptacionCondicionesAlta>;
+        if (comoColeccion is not null)
+        {
+            comoColeccion.IsReadOnly.Should().BeTrue();
+            comoColeccion.Invoking(c => c.Clear()).Should().Throw<NotSupportedException>();
+        }
+
+        s.Aceptaciones.Should().NotBeEmpty();
+    }
+
+    [Fact]
     public void Iniciar_rechaza_un_token_corto_una_IP_invalida_un_hash_vacio_y_una_hora_que_no_es_UTC()
     {
         ((Action)(() => SolicitudAlta.Iniciar("a@b.es", "hash", "corto", "203.0.113.7", null, Inicio))).Should().Throw<ArgumentException>();

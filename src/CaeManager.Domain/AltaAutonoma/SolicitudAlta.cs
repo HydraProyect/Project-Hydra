@@ -87,7 +87,11 @@ public class SolicitudAlta : Entity
     /// <summary>DA-11: con un NIF de persona física, declara actuar en el ejercicio de su actividad profesional.</summary>
     public bool DeclaraActividadProfesional { get; private set; }
 
-    public IReadOnlyCollection<AceptacionCondicionesAlta> Aceptaciones => _aceptaciones;
+    /// <summary>
+    /// Vista de solo lectura: convertirla a <c>ICollection</c> no da acceso a la lista interna, así que
+    /// nadie vacía las aceptaciones sin pasar por <see cref="BorrarDatosPersonales"/> ni por <see cref="VersionFila"/>.
+    /// </summary>
+    public IReadOnlyCollection<AceptacionCondicionesAlta> Aceptaciones => _aceptaciones.AsReadOnly();
 
     public string? CheckoutSessionId { get; private set; }
     public string? StripeCustomerId { get; private set; }
@@ -122,6 +126,12 @@ public class SolicitudAlta : Entity
         if (string.IsNullOrEmpty(correoLimpio) || correoLimpio.Length > LongitudMaximaCorreo || !EsCorreoBienFormado(correoLimpio))
             throw new ArgumentException("El correo no es válido.", nameof(correo));
 
+        // La forma Unicode C puede alargar el texto (las exclusiones de composición se descomponen), así
+        // que la longitud se mide también sobre el valor que se guarda en CorreoNormalizado.
+        var correoNormalizado = NormalizarCorreo(correoLimpio);
+        if (correoNormalizado.Length > LongitudMaximaCorreo)
+            throw new ArgumentException("El correo no es válido.", nameof(correo));
+
         if (string.IsNullOrWhiteSpace(hashContrasena) || hashContrasena.Length > LongitudMaximaHashContrasena)
             throw new ArgumentException("El hash de la contraseña es obligatorio.", nameof(hashContrasena));
 
@@ -129,7 +139,7 @@ public class SolicitudAlta : Entity
         {
             Estado = EstadoSolicitudAlta.Iniciada,
             Correo = correoLimpio,
-            CorreoNormalizado = NormalizarCorreo(correoLimpio),
+            CorreoNormalizado = correoNormalizado,
             HashContrasena = hashContrasena,
             HashTokenVerificacion = CalcularHashToken(tokenVerificacion),
             TokenVerificacionCaducaEnUtc = ahoraUtc + VigenciaTokenVerificacion,

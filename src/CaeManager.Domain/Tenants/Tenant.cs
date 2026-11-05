@@ -129,23 +129,12 @@ public class Tenant : Entity
 
     public DateTime? LogoActualizadoEnUtc { get; private set; }
 
-    public const int LongitudMaximaCifPropietario = 20;
-
     /// <summary>
     /// Tipo de Tenant propietario (P, E u O). Null = sin declarar: los Tenants creados antes del alta
     /// autónoma y los que crean los Commands de alta de plataforma no lo llevan. Es dato comercial, no
     /// autorización (ver <see cref="Domain.Tenants.TipoTenant"/>).
     /// </summary>
     public TipoTenant? TipoTenant { get; private set; }
-
-    /// <summary>
-    /// CIF o NIF del Tenant propietario, normalizado con <see cref="ValidadorIdentificacion.Normalizar"/>.
-    /// La base lo hace único entre todos los Tenants cuando no es null (DM-5: un Tenant propietario por
-    /// CIF), con un índice único parcial. Null = sin declarar, como <see cref="TipoTenant"/>.
-    /// No es el CIF de ninguna Empresa del Tenant: el de la Empresa vive en <c>Empresa</c>, único solo
-    /// dentro de su Tenant.
-    /// </summary>
-    public string? CifPropietario { get; private set; }
 
     private Tenant()
     {
@@ -186,24 +175,20 @@ public class Tenant : Entity
     public void HabilitarComoOperadorCaeExterno() => PuedeActuarComoOperadorCaeExterno = true;
 
     /// <summary>
-    /// Declara el tipo de Tenant y el CIF del Tenant propietario. Solo una vez: cambiar el CIF de un
-    /// Tenant propietario ya declarado no tiene regla de producto todavía, y la unicidad por CIF la
-    /// aplica la base, no este método.
+    /// Declara el tipo de Tenant. Solo una vez: cambiar el tipo de un Tenant propietario ya declarado no
+    /// tiene regla de producto todavía. El CIF del Tenant propietario no vive aquí sino en
+    /// <see cref="CifPropietarioTenant"/>, en una tabla cerrada a los roles de la aplicación, porque el
+    /// NIF de una persona física es un dato personal y la tabla <c>Tenants</c> la leen todos (DA-11).
     /// </summary>
-    public void DeclararTipoYCifPropietario(TipoTenant tipo, string cifPropietario)
+    public void DeclararTipo(TipoTenant tipo)
     {
         if (!Enum.IsDefined(tipo))
             throw new ArgumentOutOfRangeException(nameof(tipo), tipo, "Tipo de Tenant desconocido.");
 
-        if (TipoTenant is not null || CifPropietario is not null)
-            throw new InvalidOperationException("El tipo y el CIF del Tenant propietario ya están declarados.");
-
-        var normalizado = ValidadorIdentificacion.Normalizar(cifPropietario);
-        if (normalizado is null || !ValidadorIdentificacion.EsIdentificacionFiscalValida(normalizado))
-            throw new ArgumentException("El CIF o NIF del Tenant propietario no es válido.", nameof(cifPropietario));
+        if (TipoTenant is not null)
+            throw new InvalidOperationException("El tipo del Tenant propietario ya está declarado.");
 
         TipoTenant = tipo;
-        CifPropietario = normalizado;
     }
 
     public void CambiarAddOnSubidaAutomatica(bool activo) => AddOnSubidaAutomaticaActivo = activo;

@@ -30,7 +30,6 @@ internal static class ModeloSinColumnasDeConectores
             modelBuilder.Entity<Tenant>().Ignore(t => t.ClavesApiValidasDesdeUtc);
             modelBuilder.Entity<Tenant>().Ignore(t => t.IntegracionHabilitada);
             modelBuilder.Entity<Tenant>().Ignore(t => t.TipoTenant);
-            modelBuilder.Entity<Tenant>().Ignore(t => t.CifPropietario);
             modelBuilder.Entity<ProveedorPlataformaCae>().Ignore(p => p.ConectorApiActivo);
         }
     }

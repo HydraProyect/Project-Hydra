@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -12,23 +12,29 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "CifPropietario",
-                table: "Tenants",
-                type: "character varying(20)",
-                maxLength: 20,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
                 name: "TipoTenant",
                 table: "Tenants",
                 type: "character varying(20)",
                 maxLength: 20,
                 nullable: true);
 
-            migrationBuilder.AddCheckConstraint(
-                name: "CK_Tenants_TipoTenant",
-                table: "Tenants",
-                sql: "\"TipoTenant\" IN ('GestionPropia', 'GestionExterna', 'OperadorCaeExterno')");
+            migrationBuilder.CreateTable(
+                name: "CifsPropietarioTenant",
+                columns: table => new
+                {
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Cif = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CifsPropietarioTenant", x => x.TenantId);
+                    table.ForeignKey(
+                        name: "FK_CifsPropietarioTenant_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
 
             migrationBuilder.CreateTable(
                 name: "SolicitudesAlta",
@@ -97,20 +103,24 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            // Sin UpdateData del Tenant sembrado: las dos columnas nuevas nacen null en todas las filas, también
-            // en esa, y el alta autónoma no rellena los Tenants existentes.
+            // Sin UpdateData del Tenant sembrado: la columna nueva nace null en todas las filas, también en
+            // esa, y el alta autónoma no rellena los Tenants existentes (tampoco les crea fila de CIF).
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Tenants_CifPropietario",
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_Tenants_TipoTenant",
                 table: "Tenants",
-                column: "CifPropietario",
-                unique: true,
-                filter: "\"CifPropietario\" IS NOT NULL");
+                sql: "\"TipoTenant\" IN ('GestionPropia', 'GestionExterna', 'OperadorCaeExterno')");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AceptacionesSolicitudAlta_SolicitudAltaId_Documento",
                 table: "AceptacionesSolicitudAlta",
                 columns: new[] { "SolicitudAltaId", "Documento" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CifsPropietarioTenant_Cif",
+                table: "CifsPropietarioTenant",
+                column: "Cif",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -126,17 +136,20 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 filter: "\"HashTokenVerificacion\" IS NOT NULL");
 
             // Solicitudes de alta autónoma: plano de Plataforma, sin TenantId (el Tenant propietario aún no
-            // existe). Esta migración solo crea el almacén; la vía de acceso la abre el incremento del registro.
+            // existe). CIF del Tenant propietario: fuera de Tenants, que leen los tres roles de la aplicación
+            // sin restricción por Tenant, porque el NIF de una persona física es un dato personal (DA-11).
+            // Esta migración solo crea el almacén; la vía de acceso la abre el incremento del registro.
             //
-            // Cerradas por defecto: RLS + FORCE sin ninguna política, y REVOKE ALL a PUBLIC y a los tres roles
-            // de la aplicación, que ALTER DEFAULT PRIVILEGES de la línea base dejaría con CRUD (runtime) y
-            // SELECT (soporte). Ningún rol de la aplicación las lee ni las escribe: solo el rol propietario de
-            // las tablas (migraciones e identidad de arranque). Guardan el hash de la contraseña y del token
-            // de verificación, el correo, la IP y el NIF de una persona física: Soporte TALVEG no lee ninguna
-            // columna (OWASP ASVS 4.0.3 V4.1.3, V8.3.4).
+            // Las tres tablas, cerradas por defecto: RLS + FORCE sin ninguna política, y REVOKE ALL a PUBLIC
+            // y a los tres roles de la aplicación, que ALTER DEFAULT PRIVILEGES de la línea base dejaría con
+            // CRUD (runtime) y SELECT (soporte). Ningún rol de la aplicación las lee ni las escribe: solo el
+            // rol propietario de las tablas (migraciones e identidad de arranque). Guardan el hash de la
+            // contraseña y del token de verificación, el correo, la IP y el NIF de una persona física:
+            // Soporte TALVEG no lee ninguna columna (OWASP ASVS 4.0.3 V4.1.3, V8.3.4). El borrado en cascada
+            // desde Tenants lo ejecuta PostgreSQL como propietario de la tabla, sin someterlo a la RLS.
             //
-            // Compatible con la ranura anterior durante el relevo: solo añade tablas, columnas nullable y un
-            // índice parcial y un CHECK sobre columnas que la versión anterior no escribe (todas nacen null).
+            // Compatible con la ranura anterior durante el relevo: solo añade tablas que la versión anterior
+            // no conoce, y en Tenants una columna nullable y un CHECK que no escribe (nace null).
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."SolicitudesAlta" ENABLE ROW LEVEL SECURITY;
@@ -146,6 +159,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 ALTER TABLE public."AceptacionesSolicitudAlta" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."AceptacionesSolicitudAlta" FORCE ROW LEVEL SECURITY;
                 REVOKE ALL ON TABLE public."AceptacionesSolicitudAlta" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
+
+                ALTER TABLE public."CifsPropietarioTenant" ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE ONLY public."CifsPropietarioTenant" FORCE ROW LEVEL SECURITY;
+                REVOKE ALL ON TABLE public."CifsPropietarioTenant" FROM PUBLIC, cae_app_runtime, cae_app_soporte, cae_app_aprovisionamiento;
                 """);
         }
 
@@ -156,18 +173,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 name: "AceptacionesSolicitudAlta");
 
             migrationBuilder.DropTable(
-                name: "SolicitudesAlta");
+                name: "CifsPropietarioTenant");
 
-            migrationBuilder.DropIndex(
-                name: "IX_Tenants_CifPropietario",
-                table: "Tenants");
+            migrationBuilder.DropTable(
+                name: "SolicitudesAlta");
 
             migrationBuilder.DropCheckConstraint(
                 name: "CK_Tenants_TipoTenant",
-                table: "Tenants");
-
-            migrationBuilder.DropColumn(
-                name: "CifPropietario",
                 table: "Tenants");
 
             migrationBuilder.DropColumn(
