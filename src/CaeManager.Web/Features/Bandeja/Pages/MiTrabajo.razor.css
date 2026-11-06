@@ -12,6 +12,16 @@
     letter-spacing: -0.01em;
 }
 
+/* La maqueta no define la cabecera en móvil: a 375px el selector de Empresa y «Añadir a mi cartera» no caben en una
+   fila y el segundo se recortaba ~32px. Solución mínima: las acciones pasan a la línea siguiente. Solo esta pantalla
+   (el componente de cabecera es compartido); Calendario hace lo mismo con su regla propia. */
+@media (max-width: 640px) {
+    .mi-trabajo ::deep .acciones-cabecera {
+        flex-wrap: wrap;
+        gap: var(--space-3);
+    }
+}
+
 /* Estado de error de la maqueta (vista «Error»): caja sin icono, h3 18/26, texto atenuado y «Reintentar» primario de 40px. */
 .mi-trabajo-error {
     display: flex;
