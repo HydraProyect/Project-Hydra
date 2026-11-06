@@ -1234,7 +1234,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
         Abierto().Should().BeTrue();
         cut.Find(".mi-trabajo-cartera-lista").HasAttribute("hidden").Should().BeFalse();
 
-        cut.Find(".mi-trabajo-cartera").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        // Escape con el foco en una fila de la lista: el evento burbujea hasta el contenedor.
+        cut.Find(".mi-trabajo-cartera-fila").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
         Abierto().Should().BeFalse();
 
         cut.Find(".mi-trabajo-cartera-resumen").Click();

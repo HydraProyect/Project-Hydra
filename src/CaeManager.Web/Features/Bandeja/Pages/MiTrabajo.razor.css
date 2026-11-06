@@ -173,6 +173,9 @@
 }
 
 .mi-trabajo-cartera-resumen {
+    /* Por encima del velo (z-index 19): el mismo botón alterna la lista abierta. */
+    position: relative;
+    z-index: 20;
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
