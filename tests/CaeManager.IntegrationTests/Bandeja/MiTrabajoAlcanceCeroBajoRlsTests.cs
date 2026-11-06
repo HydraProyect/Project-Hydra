@@ -30,7 +30,7 @@ namespace CaeManager.IntegrationTests.Bandeja;
 /// <summary>
 /// P2.3 de la demo a Dirección: Mi trabajo agregada marca por Tenant el
 /// alcance cero (<see cref="MiTrabajoTenantDto.AlcanceCero"/>) para que la
-/// pantalla no diga «Cartera al día» donde no hay nada que vigilar.
+/// pantalla no diga «La cola está vacía» donde no hay nada que vigilar.
 ///
 /// <para>
 /// A diferencia de los demás tests de Mi trabajo bajo RLS, aquí el alcance es

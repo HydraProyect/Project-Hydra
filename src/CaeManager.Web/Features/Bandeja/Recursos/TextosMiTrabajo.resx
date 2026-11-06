@@ -21,8 +21,14 @@
   <data name="AvisoSinAccesoTenant" xml:space="preserve">
     <value>Ya no tienes acceso a esa organización.</value>
   </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Control</value>
+  </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos consultar tu cartera</value>
+    <value>No pudimos cargar tu trabajo</value>
+  </data>
+  <data name="ErrorCargaReintentar" xml:space="preserve">
+    <value>Reintentar</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
     <value>Intenta nuevamente en unos segundos.</value>
@@ -106,13 +112,13 @@
     <value>{0}, al día</value>
   </data>
   <data name="AlDiaCartera" xml:space="preserve">
-    <value>Cartera al día</value>
+    <value>La cola está vacía</value>
   </data>
   <data name="AlDiaEmpresaDetalle" xml:space="preserve">
     <value>No queda ninguna gestión pendiente para los Clientes de {0}.</value>
   </data>
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
-    <value>Ninguna empresa de tu cartera tiene bloqueos, documentación pendiente ni vencimientos próximos.</value>
+    <value>No queda nada pendiente en tu cartera.</value>
   </data>
   <data name="SinCarteraTitulo" xml:space="preserve">
     <value>Sin Asignación de Cartera</value>
@@ -145,10 +151,10 @@
     <value>Ver toda mi cartera</value>
   </data>
   <data name="SinResultadosTitulo" xml:space="preserve">
-    <value>Sin resultados para este filtro</value>
+    <value>Nada con este filtro</value>
   </data>
   <data name="SinResultadosDetalle" xml:space="preserve">
-    <value>Hay trabajo pendiente en tu cartera, pero nada que coincida con la combinación de filtros activa.</value>
+    <value>Prueba con otro filtro o vuelve a «Todos».</value>
   </data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Quitar filtros</value>
@@ -181,7 +187,7 @@
     <value>d 'de' MMMM 'de' yyyy</value>
   </data>
   <data name="ChipTodas" xml:space="preserve">
-    <value>Todas</value>
+    <value>Todos</value>
   </data>
   <data name="ChipBloqueos" xml:space="preserve">
     <value>Bloqueos</value>

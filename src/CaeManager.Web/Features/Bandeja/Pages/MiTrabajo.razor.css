@@ -5,6 +5,37 @@
     color: var(--color-text);
 }
 
+/* Maqueta «Mi trabajo» (export 10-18): el h1 mide 26/32, peso 700 y ls -.01em también a 375px, no el 36/44 global.
+   ::deep porque el h1 lo pinta CabeceraPagina, un componente hijo. Mismo patrón que Calendario. */
+.mi-trabajo ::deep .titulo-pagina {
+    font: 700 26px/32px var(--font-family);
+    letter-spacing: -0.01em;
+}
+
+/* Estado de error de la maqueta (vista «Error»): caja sin icono, h3 18/26, texto atenuado y «Reintentar» primario de 40px. */
+.mi-trabajo-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-12) var(--space-6);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    text-align: center;
+}
+
+.mi-trabajo-error h3 {
+    margin: 0;
+    font: var(--font-h4);
+    color: var(--color-text);
+}
+
+.mi-trabajo-error p {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
 /* FS-07: una Empresa de la cartera no se pudo consultar; el resto sí se pinta. */
 .mi-trabajo-cartera-incompleta {
     display: flex;
@@ -49,7 +80,7 @@
 .mi-trabajo-chip {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 6px;
     height: 32px;
     padding: 0 var(--space-3);
     border-radius: var(--radius-full);
@@ -65,8 +96,8 @@
 }
 
 .mi-trabajo-chip-cuenta {
-    font: var(--font-body-sm);
-    font-weight: 700;
+    /* Maqueta: contador 11/14 peso 500, sin fondo. */
+    font: 500 11px/14px var(--font-family);
     opacity: 0.75;
 }
 
@@ -109,6 +140,26 @@
     .mi-trabajo-paneles,
     .mi-trabajo-paneles-sin-detalle {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* A 375px la cola va primero: «Mi cartera» (480px de alto) la empujaba a y=1098 de 1436. Solo orden visual:
+       el DOM conserva cartera, cola, detalle. */
+    .mi-trabajo-cola {
+        order: -2;
+    }
+
+    .mi-trabajo-detalle {
+        order: -1;
+    }
+
+    .mi-trabajo-filtro {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .mi-trabajo-barra-derecha {
+        margin-left: 0;
+        width: 100%;
     }
 }
 
@@ -281,10 +332,21 @@
     color: var(--color-text-muted);
 }
 
+/* Maqueta: cada tecla es una cápsula 11/14 peso 500, borde 1px, radio 6, relleno 1/5, sobre surface-subtle. */
 .mi-trabajo-atajos kbd {
-    font: var(--font-body-sm);
-    font-weight: 700;
+    font: 500 11px/14px var(--font-family);
+    padding: 1px 5px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
     color: var(--color-text);
+}
+
+/* En táctil no hay teclado: la pista «j k mover · ↵ abrir» sobra. */
+@media (pointer: coarse) {
+    .mi-trabajo-atajos {
+        display: none;
+    }
 }
 
 .mi-trabajo-grupo-cabecera {
@@ -320,8 +382,10 @@
     transform: rotate(-90deg);
 }
 
+/* Maqueta: título del grupo 16/24 peso 600 (la maqueta lo pinta con font-body-lg y 600), no el 18/26 de heading-sm. */
 .mi-trabajo-grupo-nombre {
-    font: var(--font-heading-sm);
+    font: var(--font-body-lg);
+    font-weight: 600;
 }
 
 .mi-trabajo-grupo-total {

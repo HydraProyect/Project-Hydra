@@ -403,8 +403,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("es-ES", "Mi trabajo", "Todas", "1 de octubre de 2026")]
-    [InlineData("ca-ES", "La meva feina", "Totes", "octubre de 2026")]
+    [InlineData("es-ES", "Mi trabajo", "Todos", "1 de octubre de 2026")]
+    [InlineData("ca-ES", "La meva feina", "Tots", "octubre de 2026")]
     public void Los_textos_y_la_fecha_siguen_la_cultura_de_la_interfaz(string cultura, string titulo, string chipTodas, string fecha)
     {
         var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
@@ -555,7 +555,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
 
         TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
-        (Cuenta("Todas"), Cuenta("Bloqueos"), Cuenta("Actuación"), Cuenta("Próximo"), Cuenta("Seguimiento"))
+        (Cuenta("Todos"), Cuenta("Bloqueos"), Cuenta("Actuación"), Cuenta("Próximo"), Cuenta("Seguimiento"))
             .Should().Be(("6", "3", "1", "1", "1"));
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("3 bloqueos que resolver hoy");
     }
@@ -756,7 +756,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
     {
         var cut = Renderizar(() => throw new InvalidOperationException("caída"));
 
-        cut.Markup.Should().Contain("No pudimos consultar tu cartera");
+        cut.Markup.Should().Contain("No pudimos cargar tu trabajo");
     }
 
     [Fact]
@@ -764,11 +764,11 @@ public partial class MiTrabajoGen2Tests : BunitContext
     {
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, [])]));
 
-        cut.Markup.Should().Contain("Cartera al día");
+        cut.Markup.Should().Contain("La cola está vacía");
         cut.Markup.Should().NotContain("Sin Asignación de Cartera");
     }
 
-    // P2.3 de la demo a Dirección: «Cartera al día» solo con alguna Empresa en
+    // P2.3 de la demo a Dirección: «La cola está vacía» solo con alguna Empresa en
     // cartera con alcance y ningún pendiente. Con alcance cero —un Gestor CAE
     // sin Asignación de Cartera vigente, o el Administrador que ve los Tenants
     // delegados sin cartera en ellos— no hay nada que vigilar, y decir «al día»
@@ -786,7 +786,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         var vacio = cut.Find(".mi-trabajo-cola");
         vacio.TextContent.Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Cartera al día").And.NotContain("Ningún bloqueo hoy");
+        cut.Markup.Should().NotContain("La cola está vacía").And.NotContain("Ningún bloqueo hoy");
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Nada que vigilar todavía");
         cut.FindAll(".mi-trabajo-cartera-sub").Select(e => e.TextContent)
             .Should().Contain("Sin Asignación de Cartera").And.NotContain("Sin trabajo pendiente");
@@ -836,7 +836,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(() => new MiTrabajoAgregadoDto([Tenant(TenantOrigen, "ArcoSPA", esOrigen: true, [])]));
 
         cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Sin Asignación de Cartera");
-        cut.Markup.Should().NotContain("Cartera al día");
+        cut.Markup.Should().NotContain("La cola está vacía");
     }
 
     [Fact]
@@ -848,7 +848,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             Tenant(TenantDexter, "Laboratorios Dexter", false, [], alcanceCero: true),
         ]));
 
-        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("Cartera al día").And.NotContain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().Contain("La cola está vacía").And.NotContain("Sin Asignación de Cartera");
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("Ningún bloqueo hoy");
     }
 
@@ -862,7 +862,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         ]));
 
         TitulosVisibles(cut).Should().Equal("Reconocimiento médico");
-        cut.Find(".mi-trabajo-cola").TextContent.Should().NotContain("Cartera al día").And.NotContain("Sin Asignación de Cartera");
+        cut.Find(".mi-trabajo-cola").TextContent.Should().NotContain("La cola está vacía").And.NotContain("Sin Asignación de Cartera");
     }
 
     [Fact]
@@ -899,7 +899,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Seguimiento")).Click();
 
-        cut.Markup.Should().Contain("Sin resultados para este filtro").And.NotContain("Cartera al día");
+        cut.Markup.Should().Contain("Nada con este filtro").And.NotContain("La cola está vacía");
     }
 
     /// <summary>
@@ -927,7 +927,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
             [], [new TenantNoConsultadoDto(Guid.NewGuid(), "Laboratorios Dexter", EsOrigen: false)]));
 
         cut.Find(".mi-trabajo-cartera-incompleta").TextContent.Should().Contain("Laboratorios Dexter");
-        cut.Markup.Should().NotContain("sin Asignación de Cartera").And.NotContain("Cartera al día")
+        cut.Markup.Should().NotContain("sin Asignación de Cartera").And.NotContain("La cola está vacía")
             .And.NotContain("Ningún bloqueo hoy");
         cut.Markup.Should().Contain("Lo consultado está al día");
     }
@@ -1142,7 +1142,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         var cut = Renderizar(url: "/mi-trabajo?severidad=no-existe&empresa=no-es-un-guid&agrupar=99&orden=xx");
 
         TitulosVisibles(cut).Should().HaveCount(4, "sin filtros reconocidos se ve toda la cola");
-        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todas");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todos");
     }
 
     [Fact]

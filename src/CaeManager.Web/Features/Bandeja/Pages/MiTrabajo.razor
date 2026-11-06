@@ -33,7 +33,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina mi-trabajo">
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["TodaMiCartera"]">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
         <Descripcion>
             @if (_vista is not null)
             {
@@ -55,15 +55,16 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
-            <Accion>
-                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
-            </Accion>
-        </EstadoVacio>
+        @* Maqueta, vista «Error»: caja sin icono con título, detalle y «Reintentar» (no el EstadoVacio compartido, que lleva icono). *@
+        <div class="mi-trabajo-error" role="alert">
+            <h3>@Textos["ErrorCargaTitulo"]</h3>
+            <p>@Textos["ErrorCargaDetalle"]</p>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ErrorCargaReintentar"]</Boton>
+        </div>
     }
     else if (_vista is null)
     {
-        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="7" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="5" />
     }
     else
     {
