@@ -33,7 +33,7 @@
 <TituloDePaginaSinPrerender Titulo="@($"{Textos["TituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina mi-trabajo">
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["TodaMiCartera"]">
+    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
         <Descripcion>
             @if (_vista is not null)
             {
@@ -41,6 +41,49 @@
             }
         </Descripcion>
         <Acciones>
+            @if (_vista is not null && !_errorCarga)
+            {
+                @* Maqueta: columna única. El ámbito de cartera (antes carril lateral) es un control compacto en la cabecera, donde la maqueta pone «Ordenar por». *@
+                <div class="mi-trabajo-cartera" role="group" aria-label="@Textos["MiCartera"]" @onkeydown="TeclaCartera">
+                    <button type="button" class="mi-trabajo-cartera-resumen" aria-expanded="@(_carteraAbierta ? "true" : "false")" aria-haspopup="true"
+                            @onclick="() => _carteraAbierta = !_carteraAbierta">
+                        <span class="mi-trabajo-cartera-etiqueta">@Textos["Empresa"]</span>
+                        <span class="mi-trabajo-cartera-actual">@(TenantFiltrado?.Nombre ?? Textos["TodaMiCartera"])</span>
+                        <span class="@("mi-trabajo-chevron" + (_carteraAbierta ? "" : " mi-trabajo-chevron-plegado"))" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                    </button>
+                    @if (_carteraAbierta)
+                    {
+                        <div class="mi-trabajo-cartera-fondo" aria-hidden="true" @onclick="() => _carteraAbierta = false"></div>
+                    }
+                    <div class="mi-trabajo-cartera-lista" hidden="@(!_carteraAbierta)">
+                        <div class="mi-trabajo-cartera-cabecera">
+                            <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
+                            <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
+                        </div>
+                        <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
+                                @onclick="() => CambiarTenant(null)">
+                            <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
+                            <span class="mi-trabajo-cartera-texto">
+                                <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
+                                <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
+                            </span>
+                            <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
+                        </button>
+                        @foreach (var tenant in _vista.Cartera)
+                        {
+                            <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
+                                    @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
+                                <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
+                                <span class="mi-trabajo-cartera-texto">
+                                    <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
+                                    <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
+                                </span>
+                                <span class="mi-trabajo-cartera-total">@tenant.Total</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
             @if (_puedeAnadirACartera)
             {
                 <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirDialogoCartera">@Textos["AnadirAMiCartera"]</Boton>
@@ -55,15 +98,16 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="@Textos["ErrorCargaTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
-            <Accion>
-                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ReintentarConsulta"]</Boton>
-            </Accion>
-        </EstadoVacio>
+        @* Maqueta, vista «Error»: caja sin icono con título, detalle y «Reintentar» (no el EstadoVacio compartido, que lleva icono). *@
+        <div class="mi-trabajo-error" role="alert">
+            <h3>@Textos["ErrorCargaTitulo"]</h3>
+            <p>@Textos["ErrorCargaDetalle"]</p>
+            <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["ErrorCargaReintentar"]</Boton>
+        </div>
     }
     else if (_vista is null)
     {
-        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="7" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="5" />
     }
     else
     {
@@ -116,12 +160,12 @@
             }
         </section>
 
-        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
+        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorTipo"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
-                <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
-                        aria-pressed="@(chip.Severidad == _severidad ? "true" : "false")"
-                        @onclick="() => CambiarSeveridad(chip.Severidad)">
+                <button type="button" class="@("mi-trabajo-chip" + (ChipActivo(chip) ? " mi-trabajo-chip-activo" : "") + (chip.Inerte ? " mi-trabajo-chip-inerte" : ""))"
+                        aria-pressed="@(ChipActivo(chip) ? "true" : "false")" disabled="@chip.Inerte"
+                        @onclick="() => CambiarTipo(chip.Tipo)">
                     @chip.Etiqueta <span class="mi-trabajo-chip-cuenta">@chip.Cantidad</span>
                 </button>
             }
@@ -133,34 +177,6 @@
            columna y la cola gana ese ancho. La pista de teclado ya está en la
            barra de la cola («j k mover · ↵ abrir»). *@
         <div class="@("mi-trabajo-paneles contenido-entra" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
-            <aside class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
-                <div class="mi-trabajo-cartera-cabecera">
-                    <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
-                    <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
-                </div>
-                <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
-                        @onclick="() => CambiarTenant(null)">
-                    <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
-                    <span class="mi-trabajo-cartera-texto">
-                        <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
-                        <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
-                    </span>
-                    <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
-                </button>
-                @foreach (var tenant in _vista.Cartera)
-                {
-                    <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
-                            @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
-                        <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
-                        <span class="mi-trabajo-cartera-texto">
-                            <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
-                            <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
-                        </span>
-                        <span class="mi-trabajo-cartera-total">@tenant.Total</span>
-                    </button>
-                }
-            </aside>
-
             <section class="mi-trabajo-cola" aria-label="@Textos["ColaDeTrabajo"]">
                 <div class="mi-trabajo-barra">
                     <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["AgruparPor"]">

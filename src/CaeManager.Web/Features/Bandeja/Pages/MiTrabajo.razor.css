@@ -5,6 +5,37 @@
     color: var(--color-text);
 }
 
+/* Maqueta «Mi trabajo» (export 10-18): el h1 mide 26/32, peso 700 y ls -.01em también a 375px, no el 36/44 global.
+   ::deep porque el h1 lo pinta CabeceraPagina, un componente hijo. Mismo patrón que Calendario. */
+.mi-trabajo ::deep .titulo-pagina {
+    font: 700 26px/32px var(--font-family);
+    letter-spacing: -0.01em;
+}
+
+/* Estado de error de la maqueta (vista «Error»): caja sin icono, h3 18/26, texto atenuado y «Reintentar» primario de 40px. */
+.mi-trabajo-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-12) var(--space-6);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    text-align: center;
+}
+
+.mi-trabajo-error h3 {
+    margin: 0;
+    font: var(--font-h4);
+    color: var(--color-text);
+}
+
+.mi-trabajo-error p {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
 /* FS-07: una Empresa de la cartera no se pudo consultar; el resto sí se pinta. */
 .mi-trabajo-cartera-incompleta {
     display: flex;
@@ -49,7 +80,7 @@
 .mi-trabajo-chip {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 6px;
     height: 32px;
     padding: 0 var(--space-3);
     border-radius: var(--radius-full);
@@ -60,13 +91,19 @@
     cursor: pointer;
 }
 
+/* Tipo sin fuente de datos (Gestiones): se pinta con 0 y no responde. */
+.mi-trabajo-chip-inerte {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .mi-trabajo-chip:hover {
     border-color: var(--color-border-strong);
 }
 
 .mi-trabajo-chip-cuenta {
-    font: var(--font-body-sm);
-    font-weight: 700;
+    /* Maqueta: contador 11/14 peso 500, sin fondo. */
+    font: 500 11px/14px var(--font-family);
     opacity: 0.75;
 }
 
@@ -81,38 +118,41 @@
     color: var(--color-primario-texto);
 }
 
+/* Maqueta «Mi trabajo»: columna única de ancho de lectura 1180. El detalle solo existe con una tarea abierta y entonces
+   comparte fila con la cola; el ámbito de cartera ya no es un carril lateral sino un control compacto de la cabecera. */
+.mi-trabajo.contenedor-pagina {
+    max-width: 1180px;
+}
+
 .mi-trabajo-paneles {
     display: grid;
-    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: var(--space-4);
     align-items: start;
 }
 
-/* Sin tarea abierta el detalle no se pinta y no reserva columna: la cola
-   gana esos 320px. Con tarea abierta vuelve la rejilla de tres. */
 .mi-trabajo-paneles-sin-detalle {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 @media (max-width: 1200px) {
-    .mi-trabajo-paneles,
-    .mi-trabajo-paneles-sin-detalle {
-        grid-template-columns: 240px minmax(0, 1fr);
-    }
-
-    .mi-trabajo-detalle {
-        grid-column: 1 / -1;
-    }
-}
-
-@media (max-width: 768px) {
-    .mi-trabajo-paneles,
-    .mi-trabajo-paneles-sin-detalle {
+    .mi-trabajo-paneles {
         grid-template-columns: minmax(0, 1fr);
     }
 }
 
-.mi-trabajo-cartera,
+@media (max-width: 768px) {
+    .mi-trabajo-filtro {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .mi-trabajo-barra-derecha {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
 .mi-trabajo-cola,
 .mi-trabajo-detalle {
     background: var(--color-surface);
@@ -120,11 +160,75 @@
     border-radius: var(--radius-lg);
 }
 
+/* Control compacto de ámbito: botón de 36px (como el «Ordenar por» de la maqueta) y lista flotante. */
 .mi-trabajo-cartera {
+    position: relative;
+}
+
+/* Cierre por clic fuera sin JS: un velo transparente bajo la lista y sobre el resto de la página. */
+.mi-trabajo-cartera-fondo {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+}
+
+.mi-trabajo-cartera-resumen {
+    /* Por encima del velo (z-index 19): el mismo botón alterna la lista abierta. */
+    position: relative;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    max-width: 280px;
+    padding: 0 10px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.mi-trabajo-cartera-etiqueta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-cartera-actual {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mi-trabajo-cartera-lista {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    right: 0;
+    z-index: 20;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    width: min(320px, calc(100vw - 2 * var(--space-4)));
+    max-height: 60vh;
+    overflow-y: auto;
     padding: var(--space-3);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+}
+
+.mi-trabajo-cartera-lista[hidden] {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* En móvil las acciones bajan a la segunda fila y el wrapper arranca a la izquierda: la lista se ancla a su borde izquierdo. */
+    .mi-trabajo-cartera-lista {
+        left: 0;
+        right: auto;
+    }
 }
 
 .mi-trabajo-cartera-cabecera {
@@ -281,10 +385,21 @@
     color: var(--color-text-muted);
 }
 
+/* Maqueta: cada tecla es una cápsula 11/14 peso 500, borde 1px, radio 6, relleno 1/5, sobre surface-subtle. */
 .mi-trabajo-atajos kbd {
-    font: var(--font-body-sm);
-    font-weight: 700;
+    font: 500 11px/14px var(--font-family);
+    padding: 1px 5px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
     color: var(--color-text);
+}
+
+/* En táctil no hay teclado: la pista «j k mover · ↵ abrir» sobra. */
+@media (pointer: coarse) {
+    .mi-trabajo-atajos {
+        display: none;
+    }
 }
 
 .mi-trabajo-grupo-cabecera {
@@ -320,8 +435,10 @@
     transform: rotate(-90deg);
 }
 
+/* Maqueta: título del grupo 16/24 peso 600 (la maqueta lo pinta con font-body-lg y 600), no el 18/26 de heading-sm. */
 .mi-trabajo-grupo-nombre {
-    font: var(--font-heading-sm);
+    font: var(--font-body-lg);
+    font-weight: 600;
 }
 
 .mi-trabajo-grupo-total {

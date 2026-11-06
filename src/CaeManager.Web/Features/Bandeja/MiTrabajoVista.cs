@@ -11,6 +11,12 @@ public enum AgruparMiTrabajo { Tenant, Severidad }
 public enum OrdenMiTrabajo { Prioridad, Cliente }
 
 /// <summary>
+/// Chips de la maqueta «Mi trabajo» (export 10-18), en su orden. Se derivan del Tipo y la severidad del ítem que la
+/// Query agregada ya devuelve; <see cref="Gestiones"/> no tiene fuente en esta Query y siempre cuenta cero.
+/// </summary>
+public enum TipoTareaMiTrabajo { Vencidos, Faltantes, Visitas, BloqueaCentro, RevisionIa, Detecciones, Gestiones }
+
+/// <summary>
 /// Una fila de la cola agregada. El Tenant propietario viaja aparte del ítem
 /// porque <see cref="ItemBandejaDto"/> no lo lleva: nunca se deduce de
 /// <c>EmpresaId</c>/<c>ClienteId</c> (contrato Gen2 § 7, regla dura).
@@ -25,7 +31,8 @@ public sealed record FiltroMiTrabajo(
     OrdenMiTrabajo Orden = OrdenMiTrabajo.Prioridad,
     IReadOnlySet<string>? Abiertos = null,
     IReadOnlySet<Guid>? TenantsAbiertos = null,
-    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null);
+    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null,
+    TipoTareaMiTrabajo? Tipo = null);
 
 /// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
 /// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
@@ -142,6 +149,46 @@ public sealed class MiTrabajoVista
     public IReadOnlyList<FilaMiTrabajo> Ambito(FiltroMiTrabajo filtro) =>
         _cartera.Where(f => (filtro.TenantId is null || f.TenantId == filtro.TenantId) && CoincideBusqueda(f, filtro.Busqueda)).ToList();
 
+    /// <summary>
+    /// Chip de tipo propio de la fila, sale solo del Tipo del ítem y no mira la severidad: un Vencido que además bloquea un
+    /// Centro sigue siendo «Vencidos». Null para lo que ningún chip de tipo nombra (por vencer, pendiente de envío, próximo,
+    /// seguimiento, rechazada de plataforma, urgente): solo «Todos» —y «Bloquea centro», si bloquea— lo alcanza.
+    /// </summary>
+    public static TipoTareaMiTrabajo? TipoDeTarea(FilaMiTrabajo fila) =>
+        fila.Item.Tipo switch
+        {
+            TipoItemBandeja.Vencido or TipoItemBandeja.PlataformaVencida => TipoTareaMiTrabajo.Vencidos,
+            TipoItemBandeja.Faltante => TipoTareaMiTrabajo.Faltantes,
+            TipoItemBandeja.SugerenciaVisitaUrgente or TipoItemBandeja.VisitaUrgente => TipoTareaMiTrabajo.Visitas,
+            TipoItemBandeja.RevisionIa => TipoTareaMiTrabajo.RevisionIa,
+            TipoItemBandeja.DeteccionPendiente => TipoTareaMiTrabajo.Detecciones,
+            _ => null
+        };
+
+    /// <summary>
+    /// El único chip de tipo en el que cae la fila: los chips son una partición de «Todos» (decisión de Chris, 2026-11-06,
+    /// «su tipo»), así que ninguna fila está en dos y la suma de los chips no pasa de «Todos». Manda el tipo propio del ítem
+    /// (<see cref="TipoDeTarea"/>): un Vencido, una PlataformaVencida, un Faltante o una SugerenciaVisitaUrgente que además
+    /// bloquea un Centro va a «Vencidos», «Faltantes» o «Visitas», no a «Bloquea centro». «Bloquea centro» recoge solo la
+    /// severidad Bloqueo de lo que no tiene chip de tipo propio (RequisitoPendiente, PlataformaRechazada que bloquea). Null
+    /// para lo que no tiene ningún chip (solo «Todos»); «Gestiones» no tiene fuente y no recibe ninguna fila.
+    /// </summary>
+    public static TipoTareaMiTrabajo? ChipDeTarea(FilaMiTrabajo fila) =>
+        TipoDeTarea(fila) ?? (fila.Severidad == SeveridadMiTrabajo.Bloqueo ? TipoTareaMiTrabajo.BloqueaCentro : null);
+
+    /// <summary>
+    /// Si la fila cae en el chip de tipo: pertenencia única (<see cref="ChipDeTarea"/>). El filtrado (<see cref="Alcance"/>) y
+    /// los recuentos (<see cref="ContarTipo"/>) usan esta misma función, así que lo que el chip cuenta es lo que enseña.
+    /// </summary>
+    public static bool EnChip(FilaMiTrabajo fila, TipoTareaMiTrabajo tipo) => ChipDeTarea(fila) == tipo;
+
+    /// <summary>Recuento de un chip de tipo sobre el ámbito (Empresa elegida y búsqueda), nunca sobre el propio chip.</summary>
+    public int ContarTipo(FiltroMiTrabajo filtro, TipoTareaMiTrabajo? tipo)
+    {
+        var ambito = Ambito(filtro);
+        return tipo is { } t ? ambito.Count(f => EnChip(f, t)) : ambito.Count;
+    }
+
     public int Contar(FiltroMiTrabajo filtro, SeveridadMiTrabajo? severidad)
     {
         var ambito = Ambito(filtro);
@@ -150,7 +197,7 @@ public sealed class MiTrabajoVista
 
     /// <summary>Filas que casan con todos los filtros, antes de aplicar ningún pliegue.</summary>
     public IReadOnlyList<FilaMiTrabajo> Alcance(FiltroMiTrabajo filtro) =>
-        Ambito(filtro).Where(f => filtro.Severidad is null || f.Severidad == filtro.Severidad).ToList();
+        Ambito(filtro).Where(f => (filtro.Severidad is null || f.Severidad == filtro.Severidad) && (filtro.Tipo is not { } tipo || EnChip(f, tipo))).ToList();
 
     /// <summary>
     /// Filas que se pintan, en orden de pantalla — la misma secuencia que
@@ -357,7 +404,7 @@ public sealed class MiTrabajoVista
 
     private static bool BusquedaActiva(FiltroMiTrabajo filtro) => !string.IsNullOrWhiteSpace(filtro.Busqueda);
 
-    private static bool PliegaCalendario(FiltroMiTrabajo filtro) => filtro.Severidad is null && !BusquedaActiva(filtro);
+    private static bool PliegaCalendario(FiltroMiTrabajo filtro) => filtro.Severidad is null && filtro.Tipo is null && !BusquedaActiva(filtro);
 
     private static bool CoincideBusqueda(FilaMiTrabajo fila, string busqueda)
     {

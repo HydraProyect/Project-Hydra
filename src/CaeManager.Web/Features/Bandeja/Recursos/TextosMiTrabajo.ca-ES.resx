@@ -21,8 +21,14 @@
   <data name="AvisoSinAccesoTenant" xml:space="preserve">
     <value>Ja no tens accés a aquesta organització.</value>
   </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Control</value>
+  </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No hem pogut consultar la teva cartera</value>
+    <value>No hem pogut carregar la teva feina</value>
+  </data>
+  <data name="ErrorCargaReintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
     <value>Torna-ho a provar d’aquí a uns segons.</value>
@@ -106,13 +112,13 @@
     <value>{0}, al dia</value>
   </data>
   <data name="AlDiaCartera" xml:space="preserve">
-    <value>Cartera al dia</value>
+    <value>La cua està buida</value>
   </data>
   <data name="AlDiaEmpresaDetalle" xml:space="preserve">
     <value>No queda cap gestió pendent per als Clients de {0}.</value>
   </data>
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
-    <value>Cap empresa de la teva cartera no té bloquejos, documentació pendent ni venciments propers.</value>
+    <value>No queda res pendent a la teva cartera.</value>
   </data>
   <data name="SinCarteraTitulo" xml:space="preserve">
     <value>Sense Assignació de Cartera</value>
@@ -145,10 +151,10 @@
     <value>Mostra tota la meva cartera</value>
   </data>
   <data name="SinResultadosTitulo" xml:space="preserve">
-    <value>Sense resultats per a aquest filtre</value>
+    <value>Res amb aquest filtre</value>
   </data>
   <data name="SinResultadosDetalle" xml:space="preserve">
-    <value>Hi ha feina pendent a la teva cartera, però res no coincideix amb la combinació de filtres activa.</value>
+    <value>Prova amb un altre filtre o torna a «Tots».</value>
   </data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
@@ -181,7 +187,7 @@
     <value>d MMMM 'de' yyyy</value>
   </data>
   <data name="ChipTodas" xml:space="preserve">
-    <value>Totes</value>
+    <value>Tots</value>
   </data>
   <data name="ChipBloqueos" xml:space="preserve">
     <value>Bloquejos</value>
@@ -454,5 +460,29 @@
   </data>
   <data name="RecuentoPendienteVarios" xml:space="preserve">
     <value>pendents</value>
+  </data>
+  <data name="ChipVencidos" xml:space="preserve">
+    <value>Vençuts</value>
+  </data>
+  <data name="ChipFaltantes" xml:space="preserve">
+    <value>Mancants</value>
+  </data>
+  <data name="ChipVisitas" xml:space="preserve">
+    <value>Visites</value>
+  </data>
+  <data name="ChipBloqueaCentro" xml:space="preserve">
+    <value>Bloqueja centre</value>
+  </data>
+  <data name="ChipRevisionIa" xml:space="preserve">
+    <value>Revisió IA</value>
+  </data>
+  <data name="ChipDetecciones" xml:space="preserve">
+    <value>Deteccions</value>
+  </data>
+  <data name="ChipGestiones" xml:space="preserve">
+    <value>Gestions</value>
+  </data>
+  <data name="FiltrarPorTipo" xml:space="preserve">
+    <value>Filtra per tipus de tasca</value>
   </data>
 </root>
