@@ -1,66 +1,21 @@
 using Microsoft.Playwright;
-using Npgsql;
 
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Arranca CaeManager.Web con el tráfico autenticando como <c>cae_app_runtime</c>
-/// (<c>ConnectionStrings:CaeManagerDbRuntime</c>), como producción. El resto de
-/// fixtures arranca solo con la cadena propietaria, a la que PostgreSQL nunca
-/// somete a RLS: ninguna de ellas puede observar una política.
-///
-/// <para>
-/// El rol lo crea <c>deploy/bootstrap/roles-de-cluster.sql</c> como
-/// <c>NOLOGIN</c>; en el clúster de pruebas se le da LOGIN con la misma
-/// contraseña fija que usan los tests de integración (ver
-/// <c>BootstrapDeClusterEnTests</c>). La revalidación de la cookie baja a 2 s
-/// para que el <c>SecurityStampValidator</c> —que lee la cuenta ANTES de que
-/// exista contexto de Tenant— corra dentro del test.
-/// </para>
+/// Instancia propia con la revalidación de la cookie a 2 s, para que el
+/// <c>SecurityStampValidator</c> —que lee la cuenta ANTES de que exista contexto de
+/// Tenant— corra dentro del test. El tráfico como <c>cae_app_runtime</c> ya no es
+/// propio de esta fixture: desde la mejora 1.7 del harness lo hereda de
+/// <see cref="WebAppFixture"/>, como todas las demás.
 /// </summary>
 public sealed class WebAppFixtureBajoRuntime : WebAppFixture
 {
-    private const string ContrasenaRuntimeDePruebas = "runtime-de-pruebas";
-
-    protected override async Task PrepararAntesDeArrancarAsync()
-    {
-        await using var conexion = new NpgsqlConnection(CadenaDeMantenimiento());
-        await conexion.OpenAsync();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = $"ALTER ROLE cae_app_runtime LOGIN PASSWORD '{ContrasenaRuntimeDePruebas}';";
-        await comando.ExecuteNonQueryAsync();
-    }
-
     protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
         new Dictionary<string, string>
         {
-            ["ConnectionStrings__CaeManagerDbRuntime"] = new NpgsqlConnectionStringBuilder(CadenaConexion)
-            {
-                Username = "cae_app_runtime",
-                Password = ContrasenaRuntimeDePruebas,
-            }.ConnectionString,
             ["Sesion__IntervaloRevalidacionSegundos"] = "2",
         };
-
-    /// <summary>
-    /// Conexiones abiertas a la base de esta fixture autenticadas como
-    /// <c>cae_app_runtime</c>. Control positivo del instrumento: si el tráfico
-    /// hubiera caído a la cadena propietaria, sería cero.
-    /// </summary>
-    internal async Task<long> ConexionesComoRuntimeAsync()
-    {
-        var baseDatos = new NpgsqlConnectionStringBuilder(CadenaConexion).Database;
-        await using var conexion = new NpgsqlConnection(CadenaDeMantenimiento());
-        await conexion.OpenAsync();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText =
-            "SELECT count(*) FROM pg_stat_activity WHERE datname = @base AND usename = 'cae_app_runtime';";
-        comando.Parameters.AddWithValue("base", baseDatos!);
-        return (long)(await comando.ExecuteScalarAsync())!;
-    }
-
-    private string CadenaDeMantenimiento() =>
-        new NpgsqlConnectionStringBuilder(CadenaConexion) { Database = "postgres", Pooling = false }.ConnectionString;
 }
 
 [CollectionDefinition("AppCollectionBajoRuntime")]

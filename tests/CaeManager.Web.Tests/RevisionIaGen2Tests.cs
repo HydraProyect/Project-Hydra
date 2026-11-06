@@ -128,11 +128,87 @@ public class RevisionIaGen2Tests : BunitContext
         var filas = cut.FindAll(".revision-ia-fila").ToList();
         filas.Should().ContainSingle("control positivo: hay una revisión seleccionable");
         var detalle = cut.Find(".revision-ia-detalle").TextContent;
-        detalle.Should().Contain("Introducida: 01/09/2026").And.Contain("Leída: 01/08/2026")
-            .And.Contain("Introducida: 01/09/2027").And.Contain("Leída: 01/08/2027")
-            .And.Contain("Leída: Detectada").And.Contain("Páginas del documento").And.Contain("3")
-            .And.Contain("Región de firma").And.Contain("No disponible en la extracción actual");
+        // Maqueta «Revision IA TALVEG.dc.html»: tabla con cabecera «Campo / Leído por la IA / Introducido al subir»,
+        // fechas en dd/MM/yyyy y el recuento de páginas en el enlace «Abrir PDF completo · página 1 de n».
+        var tabla = cut.Find(".revision-ia-comparacion");
+        tabla.QuerySelectorAll("thead th").Select(c => c.TextContent.Trim())
+            .Should().Equal("Campo", "Leído por la IA", "Introducido al subir");
+        var filasTabla = tabla.QuerySelectorAll("tbody tr").ToList();
+        filasTabla.Should().HaveCount(4, "tipo, emisión, vencimiento y firma");
+        var emision = filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).TextContent;
+        emision.Should().Contain("01/08/2026").And.Contain("01/09/2026").And.Contain("No coincide");
+        filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).ClassList
+            .Should().Contain("revision-ia-fila-discrepante", "la discrepancia tiñe la fila");
+        var vencimiento = filasTabla.Single(f => f.TextContent.Contains("Fecha de vencimiento")).TextContent;
+        vencimiento.Should().Contain("01/08/2027").And.Contain("01/09/2027");
+        filasTabla.Single(f => f.TextContent.Contains("Firma")).TextContent.Should().Contain("Detectada");
+        detalle.Should().Contain("Abrir PDF completo").And.Contain("página 1 de 3");
+        detalle.Should().Contain("Confianza de la extracción").And.Contain("Motivo de la revisión").And.Contain("Si aceptas la detección");
     }
+
+    [Fact]
+    public void La_tabla_de_comparacion_solo_afirma_coincidencia_cuando_hay_dos_valores_que_comparar()
+    {
+        var iguales = Revision("Iguales", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 8, 1)
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [iguales] });
+
+        var filasTabla = cut.Find(".revision-ia-comparacion").QuerySelectorAll("tbody tr").ToList();
+        filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).TextContent.Should().Contain("Coincide")
+            .And.NotContain("No coincide");
+        var vencimiento = filasTabla.Single(f => f.TextContent.Contains("Fecha de vencimiento"));
+        vencimiento.TextContent.Should().NotContain("Coincide", "sin fecha leída no hay nada que comparar");
+        vencimiento.TextContent.Should().Contain("—");
+    }
+
+    [Fact]
+    public void La_fila_de_tipo_no_afirma_coincidencia_sin_tipo_leido_y_marca_la_discrepancia_con_tipo_distinto()
+    {
+        var sinLectura = Revision("Sin tipo", 0, null, Guid.NewGuid()) with { TipoDetectado = null };
+        var distinto = Revision("Tipo distinto", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with { TipoDetectado = "Certificado médico" };
+        var enBlanco = Revision("Tipo en blanco", 40, null, Guid.NewGuid()) with { TipoDetectado = "  " };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [sinLectura, distinto, enBlanco] });
+
+        FilaTipo(cut).TextContent.Should().Contain("No determinado")
+            .And.NotContain("No coincide").And.NotContain("Coincide", "sin tipo leído no hay nada que comparar");
+
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Tipo en blanco")).Click();
+        FilaTipo(cut).TextContent.Should().Contain("No determinado", "un tipo en blanco es un tipo sin leer")
+            .And.NotContain("No coincide").And.NotContain("Coincide");
+
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Tipo distinto")).Click();
+        var fila = FilaTipo(cut);
+        fila.TextContent.Should().Contain("No coincide");
+        fila.ClassList.Should().Contain("revision-ia-fila-discrepante");
+    }
+
+    [Theory]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.Administrador, true)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.GestorCae, false)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae, false)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.DireccionCae, false)]
+    public void Los_enlaces_de_auditoria_y_lectura_ia_de_la_cabecera_son_solo_del_Administrador(string rol, bool visibles)
+    {
+        Registrar(new MediadorFalso());
+        AddAuthorization().SetAuthorized("usuario").SetRoles(rol);
+
+        var cut = Render<CaeManager.Web.Features.Documentos.Pages.RevisionIa>();
+
+        var enlaces = cut.FindAll(".revision-ia-enlaces a").Select(a => a.GetAttribute("href")).ToList();
+        if (visibles)
+        {
+            enlaces.Should().Equal("/auditoria-ia", "/configuracion/lectura-ia");
+        }
+        else
+        {
+            enlaces.Should().BeEmpty("las rutas destino exigen Administrador");
+        }
+    }
+
+    private static IElement FilaTipo(IRenderedComponent<RevisionIaTab> cut) => cut.Find(".revision-ia-comparacion")
+        .QuerySelectorAll("tbody tr").First();
 
     [Fact]
     public async Task Corregir_a_mano_envia_un_solo_command_con_la_fecha_y_cierra_la_revision()
