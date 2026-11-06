@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using CaeManager.E2ETests;
 using Npgsql;
 
 namespace CaeManager.IntegrationTests;
@@ -57,6 +58,18 @@ internal static class BootstrapDeClusterEnTests
 
         using var conexion = new NpgsqlConnection(cadena);
         conexion.Open();
+
+        // Antes de tocar NINGÚN rol —ni el guion, que converge atributos y
+        // membresías de los roles de clúster, ni el LOGIN de abajo—, el clúster
+        // al que de verdad está conectada esta conexión tiene que ser local y
+        // estar declarado desechable (CAEMANAGER_TESTS_CLUSTER_DESECHABLE, ver
+        // GuardaClusterDePruebas, compilada aquí por enlace desde E2ETests). Si
+        // no lo está, se lanza sin haber ejecutado nada: el inicializador de
+        // módulo falla y con él todo el ensamblado, así que ningún test de la
+        // suite llega a correr contra un clúster que no es de pruebas. Síncrona
+        // porque un inicializador de módulo no puede esperar.
+        GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, null);
+
         using var comando = new NpgsqlCommand(File.ReadAllText(guion), conexion);
         comando.ExecuteNonQuery();
 
@@ -73,8 +86,10 @@ internal static class BootstrapDeClusterEnTests
         // cada ejecución y le habría retirado el LOGIN de todas formas. Que esto
         // funcione hoy es una consecuencia directa de aquella corrección.
         //
-        // La contraseña es fija y está en claro porque no protege nada: este
-        // clúster ya usa postgres/postgres y no contiene datos reales.
+        // La contraseña es fija y está en claro porque no protege nada en un
+        // clúster de pruebas desechable, que es el único en el que la guarda de
+        // arriba deja llegar hasta aquí. En cualquier otro sería una contraseña
+        // pública sobre el rol de runtime: por eso la guarda va antes.
         using var habilitarLogin = new NpgsqlCommand(
             $"ALTER ROLE cae_app_runtime LOGIN PASSWORD '{BaseDatosPostgresDePruebas.ContrasenaRuntimeDePruebas}';",
             conexion);

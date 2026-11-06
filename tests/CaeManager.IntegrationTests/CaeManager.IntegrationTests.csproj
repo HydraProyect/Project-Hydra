@@ -33,6 +33,11 @@
          redefinir ni un atributo (ver BootstrapDeClusterEnTests). -->
     <None Include="../../deploy/bootstrap/roles-de-cluster.sql"
           Link="roles-de-cluster.sql" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- La guarda de clúster de pruebas desechable es la misma que la de E2E,
+         compilada por enlace y no copiada: el bootstrap de clúster no toca
+         ningún rol si el clúster no es local y declarado desechable. -->
+    <Compile Include="..\CaeManager.E2ETests\GuardaClusterDePruebas.cs" Link="GuardaClusterDePruebas.cs" />
   </ItemGroup>
 
   <ItemGroup>

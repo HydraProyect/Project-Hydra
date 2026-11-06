@@ -7,31 +7,47 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace CaeManager.Architecture.Tests;
 
 /// <summary>
-/// La fixture de E2E solo da LOGIN a <c>cae_app_runtime</c> (rol de clúster, contraseña de pruebas pública) en un
-/// clúster local declarado desechable (revisión de Codex en la PR #2032; ver <c>GuardaClusterDePruebas</c>, compilada
-/// aquí por enlace desde <c>tests/CaeManager.E2ETests</c>). Dos propiedades, por separado:
+/// Las suites de pruebas solo tocan roles de clúster —y en particular solo dan LOGIN a <c>cae_app_runtime</c> con la
+/// contraseña de pruebas pública— en un clúster local declarado desechable (revisión de Codex en la PR #2032; ver
+/// <c>GuardaClusterDePruebas</c>, que vive en <c>tests/CaeManager.E2ETests</c> y se compila aquí y en
+/// <c>tests/CaeManager.IntegrationTests</c> por enlace). Tres propiedades, por separado:
 ///
 /// <list type="number">
 /// <item><b>La guarda falla cerrada.</b> Sin declaración, con una declaración que no es el identificador del clúster
 /// conectado, o con un anfitrión que no es de bucle local, lanza. Solo pasa con declaración coincidente y anfitriones
 /// locales.</item>
-/// <item><b>Ningún <c>ALTER ROLE</c> de la suite E2E se ejecuta sin pasar antes por la guarda.</b> Cada literal que
-/// contiene <c>ALTER ROLE</c>, <c>ALTER USER</c> o <c>ALTER GROUP</c> (con cualquier espacio en medio) es el primer
-/// argumento de <c>new NpgsqlCommand(sql, conexion, …)</c>, y antes de él, en el mismo método, fuera de lambdas y en un
-/// bloque que lo contiene, hay una sentencia <c>await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, …)</c>
-/// sobre esa misma conexión. La guarda obtiene ella misma la declaración, los anfitriones y el identificador, así que
-/// quien la llama no puede pasarle argumentos que la anulen; y el texto del envoltorio asíncrono fija qué le pasa a la
-/// decisión pura, para que tampoco su cuerpo la vuelva tautológica. Sin esta propiedad, la primera podría quedar en verde con
-/// la llamada borrada o movida en la fixture.</item>
+/// <item><b>Ningún <c>ALTER ROLE</c> de las suites E2E y de integración se ejecuta sin pasar antes por la guarda.</b>
+/// Cada literal que contiene <c>ALTER ROLE</c>, <c>ALTER USER</c> o <c>ALTER GROUP</c> (con cualquier espacio en medio)
+/// es el primer argumento de <c>new NpgsqlCommand(sql, conexion, …)</c>, y antes de él, en el mismo método, fuera de
+/// lambdas y en un bloque que lo contiene, hay una sentencia <c>await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, …)</c>
+/// o <c>GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, …)</c> sobre esa misma conexión. La guarda
+/// obtiene ella misma la declaración, los anfitriones y el identificador, así que quien la llama no puede pasarle
+/// argumentos que la anulen; y el texto de los dos envoltorios fija qué le pasan a la decisión pura, para que tampoco
+/// su cuerpo la vuelva tautológica. Sin esta propiedad, la primera podría quedar en verde con la llamada borrada o
+/// movida.</item>
+/// <item><b>El bootstrap de integración pasa la guarda antes de ejecutar nada.</b> El inicializador de módulo
+/// <c>BootstrapDeClusterEnTests.Ejecutar</c> ejecuta además <c>deploy/bootstrap/roles-de-cluster.sql</c>, que converge
+/// roles sin ningún literal <c>ALTER ROLE</c> en C#: la guarda es una sentencia de primer nivel de su cuerpo y precede a
+/// todo <c>new NpgsqlCommand</c> del método.</item>
 /// </list>
 ///
 /// <para>
 /// <b>Contrato efectivo.</b> El análisis de la segunda es sintáctico y solo de los <c>.cs</c> de
-/// <c>tests/CaeManager.E2ETests</c>. NO ve un cambio de rol construido por concatenación de trozos que no contengan la
-/// orden entera, ni que la llamada a la guarda quede dentro de un <c>try</c> que se trague la excepción, ni que la
-/// variable de la conexión se reasigne entre la guarda y el <c>ALTER</c>, ni un <c>goto</c> que salte la guarda. Que la
-/// guarda se ejerce de verdad lo demuestra CI: cada job de E2E arranca con un clúster virgen, así que la primera fixture
-/// siempre pasa por el <c>ALTER ROLE</c> y, sin una declaración que coincida, el job falla.
+/// <c>tests/CaeManager.E2ETests</c> y <c>tests/CaeManager.IntegrationTests</c>. NO ve un cambio de rol construido por
+/// concatenación de trozos que no contengan la orden entera, ni SQL leído de un fichero (por eso la tercera propiedad),
+/// ni que la llamada a la guarda quede dentro de un <c>try</c> que se trague la excepción, ni que la variable de la
+/// conexión se reasigne entre la guarda y el <c>ALTER</c>, ni un <c>goto</c> que salte la guarda. Que la guarda se
+/// ejerce de verdad lo demuestra CI: cada job de E2E o de integración arranca con un clúster virgen, la primera fixture
+/// de E2E siempre pasa por el <c>ALTER ROLE</c> y el inicializador de módulo de integración corre siempre, así que, sin
+/// una declaración que coincida, el job falla.
+/// </para>
+///
+/// <para>
+/// <b>Excepción declarada.</b> <see cref="LiteralesExentosDeIntegracion"/> lista, por fichero y texto exacto, los
+/// literales que el análisis caza pero que no cambian un rol de clúster: hoy uno, el <c>ALTER ROLE … IN DATABASE … SET</c>
+/// con que <c>EquivalenciaDelClonConLaBaseMigradaTests</c> comprueba la sensibilidad de su huella sobre una base
+/// temporal que el propio test crea y elimina. No da LOGIN, no pone contraseña ni cambia atributos del rol, y su proceso
+/// ya pasó la guarda en el inicializador de módulo. Una exención que deja de existir hace fallar el test.
 /// </para>
 /// </summary>
 public class GuardaClusterDePruebasTests
@@ -128,24 +144,96 @@ public class GuardaClusterDePruebasTests
         // Control del instrumento: hoy hay exactamente uno, el de WebAppFixture.DarLoginAlRolDeRuntimeAsync.
         literales.Should().BeGreaterThan(0, "WebAppFixture da LOGIN a cae_app_runtime con un ALTER ROLE");
 
-        desvios.Should().BeEmpty(
+        desvios.Select(d => d.Ubicacion).Should().BeEmpty(
             "un ALTER ROLE cambia un objeto de clúster: va en un new NpgsqlCommand(sql, conexion, …) y, antes de él, en el " +
             "mismo método y en un bloque que lo contenga, la fixture hace await GuardaClusterDePruebas." +
             "ExigirClusterDesechableAsync(conexion, …) con esa misma conexión, para no abrir el rol en un clúster que no es " +
             "de pruebas");
     }
 
+    [Fact]
+    public void Ningun_ALTER_ROLE_de_la_suite_de_integracion_se_ejecuta_sin_pasar_antes_por_la_guarda()
+    {
+        var fuentes = LeerIntegracion()
+            .Select(f => (f.Ruta, Raiz: CSharpSyntaxTree.ParseText(f.Texto).GetRoot()))
+            .ToList();
+        fuentes.Should().HaveCountGreaterThan(50, "la suite de integración tiene más de cincuenta ficheros .cs");
+
+        var (literales, desvios) = AlterRoleSinGuardaPrevia(fuentes);
+
+        // Control del instrumento: hoy son cinco (el LOGIN del bootstrap, tres en ContratoDeRolesDeClusterTests y el
+        // exento de EquivalenciaDelClonConLaBaseMigradaTests).
+        literales.Should().BeGreaterThan(LiteralesExentosDeIntegracion.Count,
+            "BootstrapDeClusterEnTests da LOGIN a cae_app_runtime con un ALTER ROLE");
+
+        var exentosVistos = desvios.Where(d => LiteralesExentosDeIntegracion.Contains((d.Ruta, d.Texto))).ToList();
+        exentosVistos.Select(d => (d.Ruta, d.Texto)).Should().BeEquivalentTo(LiteralesExentosDeIntegracion,
+            "una exención que ya no corresponde a ningún literal sobra y se borra de la lista");
+
+        desvios.Except(exentosVistos).Select(d => d.Ubicacion).Should().BeEmpty(
+            "un ALTER ROLE cambia un objeto de clúster: va en un new NpgsqlCommand(sql, conexion, …) y, antes de él, en el " +
+            "mismo método y en un bloque que lo contenga, el test pasa por GuardaClusterDePruebas con esa misma conexión, " +
+            "para no tocar el rol en un clúster que no es de pruebas");
+    }
+
     /// <summary>
-    /// El envoltorio que llama la fixture no degrada la decisión pura: le pasa la variable de entorno, la cadena de la
-    /// conexión recibida y el identificador leído por esa misma conexión, sin capturar la excepción. Fijado por texto
-    /// normalizado porque sin servidor no se puede ejecutar.
+    /// El inicializador de módulo de integración ejecuta <c>roles-de-cluster.sql</c> (leído de un fichero, invisible para
+    /// el análisis de literales) y el <c>ALTER ROLE … LOGIN PASSWORD</c>: la guarda síncrona, sobre su conexión, es una
+    /// sentencia de primer nivel del método y va antes de cualquier <c>NpgsqlCommand</c>.
     /// </summary>
     [Fact]
-    public void El_envoltorio_asincrono_pasa_a_la_decision_los_datos_del_cluster_conectado()
+    public void El_bootstrap_de_integracion_pasa_la_guarda_antes_de_ejecutar_ningun_comando()
+    {
+        var bootstrap = LeerIntegracion().Single(f => f.Ruta == "tests/CaeManager.IntegrationTests/BootstrapDeClusterEnTests.cs");
+        var metodo = CSharpSyntaxTree.ParseText(bootstrap.Texto).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+            .Single(m => m.AttributeLists.SelectMany(a => a.Attributes).Any(a => a.Name.ToString() == "ModuleInitializer"));
+
+        DesviosDelBootstrap(metodo).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("sin guarda",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); using var g = new NpgsqlCommand(guion, c); g.ExecuteNonQuery(); }")]
+    [InlineData("guarda después del guion",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); using var g = new NpgsqlCommand(guion, c); g.ExecuteNonQuery(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); }")]
+    [InlineData("guarda dentro de un if",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); if (y) { GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); } using var g = new NpgsqlCommand(guion, c); }")]
+    [InlineData("guarda sobre otra conexión",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(otra, null); using var g = new NpgsqlCommand(guion, c); }")]
+    public void El_analisis_del_bootstrap_detecta_una_guarda_ausente_o_tardia(string caso, string metodo)
+    {
+        var declaracion = CSharpSyntaxTree.ParseText($"class B {{ {metodo} }}").GetRoot().DescendantNodes()
+            .OfType<MethodDeclarationSyntax>().Single();
+
+        DesviosDelBootstrap(declaracion).Should().NotBeEmpty(caso);
+    }
+
+    [Fact]
+    public void El_analisis_del_bootstrap_acepta_la_guarda_antes_del_primer_comando()
+    {
+        var declaracion = CSharpSyntaxTree.ParseText(
+                "class B { [ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); " +
+                "GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); " +
+                "g.ExecuteNonQuery(); using var l = new NpgsqlCommand(\"ALTER ROLE r LOGIN\", c); l.ExecuteNonQuery(); } }")
+            .GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>().Single();
+
+        DesviosDelBootstrap(declaracion).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Los dos envoltorios (el asíncrono que llaman la fixture de E2E y los tests de integración, y el síncrono del
+    /// inicializador de módulo) no degradan la decisión pura: le pasan la variable de entorno, la cadena de la conexión
+    /// recibida y el identificador leído por esa misma conexión, sin capturar la excepción. Fijado por texto normalizado
+    /// porque sin servidor no se puede ejecutar.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(GuardaClusterDePruebas.ExigirClusterDesechableAsync), "awaitconsulta.ExecuteScalarAsync()")]
+    [InlineData(nameof(GuardaClusterDePruebas.ExigirClusterDesechableSincrono), "consulta.ExecuteScalar()")]
+    public void El_envoltorio_pasa_a_la_decision_los_datos_del_cluster_conectado(string envoltorio, string lectura)
     {
         var guarda = AnalisisDeSuiteE2E.LeerE2E().Single(f => f.Ruta.EndsWith("GuardaClusterDePruebas.cs", StringComparison.Ordinal));
         var metodo = CSharpSyntaxTree.ParseText(guarda.Texto).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
-            .Single(m => m.Identifier.ValueText == nameof(GuardaClusterDePruebas.ExigirClusterDesechableAsync));
+            .Single(m => m.Identifier.ValueText == envoltorio);
         string Normal(SyntaxNode n) => string.Concat(n.ToString().Where(c => !char.IsWhiteSpace(c)));
 
         metodo.ParameterList.Parameters.Select(p => p.Identifier.ValueText).Should().Equal("conexion", "transaccion");
@@ -156,7 +244,7 @@ public class GuardaClusterDePruebasTests
             "el identificador se lee por la misma conexión y transacción que el ALTER ROLE");
 
         var asignacion = metodo.DescendantNodes().OfType<AssignmentExpressionSyntax>().Should().ContainSingle().Subject;
-        Normal(asignacion).Should().Be("identificadorDelCluster=awaitconsulta.ExecuteScalarAsync()asstring");
+        Normal(asignacion).Should().Be($"identificadorDelCluster={lectura}asstring");
 
         var decision = metodo.DescendantNodes().OfType<InvocationExpressionSyntax>()
             .Where(i => i.Expression is IdentifierNameSyntax { Identifier.ValueText: nameof(GuardaClusterDePruebas.ExigirClusterDesechable) })
@@ -188,8 +276,20 @@ public class GuardaClusterDePruebasTests
         "async Task M() { await GuardaClusterDePruebas.ExigirClusterDesechableAsync(con, tx); await Ejecutar(\"ALTER ROLE x\"); }", 1)]
     [InlineData("ALTER USER con espacios y salto de línea",
         "void M() { var c = new NpgsqlCommand(\"alter  \\n user x login\", con, tx); }", 1)]
+    [InlineData("guarda síncrona después del ALTER",
+        "void M() { var c = new NpgsqlCommand(\"ALTER ROLE x LOGIN\", con); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(con, null); }", 1)]
+    [InlineData("guarda síncrona sobre otra conexión",
+        "void M() { GuardaClusterDePruebas.ExigirClusterDesechableSincrono(otra, null); var c = new NpgsqlCommand(\"ALTER ROLE x LOGIN\", con); }", 1)]
+    [InlineData("guarda síncrona en una rama que no domina al ALTER",
+        "void M() { if (x) GuardaClusterDePruebas.ExigirClusterDesechableSincrono(con, null); var c = new NpgsqlCommand(\"ALTER ROLE x LOGIN\", con); }", 1)]
+    [InlineData("guarda asíncrona sin await, llamada como si fuera la síncrona",
+        "void M() { GuardaClusterDePruebas.ExigirClusterDesechableAsync(con, null); var c = new NpgsqlCommand(\"ALTER ROLE x LOGIN\", con); }", 1)]
+    [InlineData("guarda síncrona dentro de una función local",
+        "void M() { void G() { GuardaClusterDePruebas.ExigirClusterDesechableSincrono(con, null); } G(); var c = new NpgsqlCommand(\"ALTER ROLE x LOGIN\", con); }", 1)]
     [InlineData("correcto",
         "async Task M() { await GuardaClusterDePruebas.ExigirClusterDesechableAsync(con, tx); await using (var c = new Npgsql.NpgsqlCommand($\"ALTER ROLE {Rol} LOGIN\", con, tx)) await c.ExecuteNonQueryAsync(); }", 0)]
+    [InlineData("correcto síncrono",
+        "static void M() { using var con = new NpgsqlConnection(x); con.Open(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(con, null); using var c = new NpgsqlCommand($\"ALTER ROLE r LOGIN PASSWORD '{P}';\", con); c.ExecuteNonQuery(); }", 0)]
     public void El_analisis_detecta_un_ALTER_ROLE_sin_guarda_previa(string caso, string metodos, int desviosEsperados)
     {
         var raiz = CSharpSyntaxTree.ParseText($"class Fixture {{ {metodos} }}").GetRoot();
@@ -203,7 +303,32 @@ public class GuardaClusterDePruebasTests
     private static readonly System.Text.RegularExpressions.Regex CambioDeRol = new(
         @"\bALTER\s+(ROLE|USER|GROUP)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    private static (int Literales, List<string> Desvios) AlterRoleSinGuardaPrevia(IEnumerable<(string Ruta, SyntaxNode Raiz)> fuentes)
+    /// <summary>
+    /// Literales de la suite de integración que el análisis caza pero que no cambian un rol de clúster (ver «Excepción
+    /// declarada» en la cabecera). Por fichero y texto exacto: un literal nuevo, aunque se parezca, no hereda la exención.
+    /// </summary>
+    private static readonly HashSet<(string Ruta, string Texto)> LiteralesExentosDeIntegracion =
+    [
+        ("tests/CaeManager.IntegrationTests/EquivalenciaDelClonConLaBaseMigradaTests.cs",
+            "ALTER ROLE cae_app_runtime IN DATABASE {BASE} SET statement_timeout = '7s';"),
+    ];
+
+    /// <summary>Los <c>.cs</c> de <c>tests/CaeManager.IntegrationTests</c>, sin <c>bin/</c> ni <c>obj/</c>, con la ruta relativa a la raíz y <c>/</c>.</summary>
+    private static List<(string Ruta, string Texto)> LeerIntegracion()
+    {
+        var carpeta = Path.Combine(FuentesDeSrc.RaizDelRepositorio(), "tests", "CaeManager.IntegrationTests");
+        var s = Path.DirectorySeparatorChar;
+
+        return Directory.EnumerateFiles(carpeta, "*.cs", SearchOption.AllDirectories)
+            .Where(a => !a.Contains($"{s}obj{s}") && !a.Contains($"{s}bin{s}"))
+            .Select(a => (Ruta: FuentesDeSrc.Relativa(a), Texto: File.ReadAllText(a)))
+            .OrderBy(f => f.Ruta, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private sealed record Desvio(string Ruta, string Texto, string Ubicacion);
+
+    private static (int Literales, List<Desvio> Desvios) AlterRoleSinGuardaPrevia(IEnumerable<(string Ruta, SyntaxNode Raiz)> fuentes)
     {
         var literales = fuentes
             .SelectMany(f => f.Raiz.DescendantTokens()
@@ -211,20 +336,64 @@ public class GuardaClusterDePruebasTests
                 .Select(t => (f.Ruta, Token: t)))
             .ToList();
 
-        var desvios = new List<string>();
+        var desvios = new List<Desvio>();
         foreach (var (ruta, token) in literales)
         {
             if (!GuardaPreviaSobreLaMismaConexion(token))
-                desvios.Add($"{ruta}:{token.GetLocation().GetLineSpan().StartLinePosition.Line + 1}");
+                desvios.Add(new Desvio(ruta, token.ValueText, $"{ruta}:{token.GetLocation().GetLineSpan().StartLinePosition.Line + 1}"));
         }
 
         return (literales.Count, desvios);
     }
 
     /// <summary>
+    /// Desvíos del inicializador de módulo de integración: la guarda síncrona sobre su conexión tiene que ser una
+    /// sentencia de primer nivel del cuerpo y preceder a todo <c>new NpgsqlCommand</c> del método.
+    /// </summary>
+    private static List<string> DesviosDelBootstrap(MethodDeclarationSyntax metodo)
+    {
+        var desvios = new List<string>();
+        var comandos = metodo.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+            .Where(c => c.Type.ToString().EndsWith("NpgsqlCommand", StringComparison.Ordinal)
+                && c.ArgumentList?.Arguments.Count >= 2)
+            .ToList();
+        if (comandos.Count == 0) desvios.Add("el inicializador no crea ningún NpgsqlCommand: el análisis ya no lo reconoce");
+
+        var guardas = metodo.Body?.Statements.OfType<ExpressionStatementSyntax>()
+            .Where(s => s.Expression is InvocationExpressionSyntax
+            {
+                Expression: MemberAccessExpressionSyntax
+                {
+                    Expression: IdentifierNameSyntax { Identifier.ValueText: nameof(GuardaClusterDePruebas) },
+                    Name.Identifier.ValueText: nameof(GuardaClusterDePruebas.ExigirClusterDesechableSincrono),
+                },
+            })
+            .ToList() ?? [];
+        if (guardas.Count == 0)
+        {
+            desvios.Add("no hay una sentencia de primer nivel GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, …)");
+            return desvios;
+        }
+
+        foreach (var comando in comandos)
+        {
+            var conexion = (comando.ArgumentList!.Arguments[1].Expression as IdentifierNameSyntax)?.Identifier.ValueText;
+            var protegido = guardas.Any(g =>
+                g.Span.End <= comando.SpanStart
+                && ((InvocationExpressionSyntax)g.Expression).ArgumentList.Arguments is [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var c } }, ..]
+                && c == conexion);
+            if (!protegido)
+                desvios.Add($"línea {comando.GetLocation().GetLineSpan().StartLinePosition.Line + 1}: {comando} sin guarda previa sobre su conexión");
+        }
+
+        return desvios;
+    }
+
+    /// <summary>
     /// El literal es el primer argumento de <c>new NpgsqlCommand(sql, conexion, …)</c> y, en el mismo método y fuera de
     /// lambdas y funciones locales, una sentencia <c>await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, …)</c>
-    /// con esa misma conexión lo precede dentro de un bloque que lo contiene (la domina, sin saltos).
+    /// o <c>GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, …)</c> con esa misma conexión lo precede dentro
+    /// de un bloque que lo contiene (la domina, sin saltos).
     /// </summary>
     private static bool GuardaPreviaSobreLaMismaConexion(SyntaxToken literal)
     {
@@ -240,23 +409,36 @@ public class GuardaClusterDePruebasTests
         if (metodo is null or LambdaExpressionSyntax or LocalFunctionStatementSyntax) return false;
 
         return metodo.DescendantNodes().OfType<ExpressionStatementSyntax>().Any(sentencia =>
-            sentencia.Expression is AwaitExpressionSyntax
-            {
-                Expression: InvocationExpressionSyntax
-                {
-                    Expression: MemberAccessExpressionSyntax
-                    {
-                        Expression: IdentifierNameSyntax { Identifier.ValueText: nameof(GuardaClusterDePruebas) },
-                        Name.Identifier.ValueText: nameof(GuardaClusterDePruebas.ExigirClusterDesechableAsync),
-                    },
-                    ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var conexionDeLaGuarda } }, ..],
-                },
-            }
+            ConexionDeLaGuarda(sentencia.Expression) is { } conexionDeLaGuarda
             && conexionDeLaGuarda == conexion
             && sentencia.AncestorsAndSelf().FirstOrDefault(EsCuerpoEjecutable) == metodo
             && sentencia.Parent is BlockSyntax bloque
             && bloque.Span.Contains(literal.Span)
             && sentencia.Span.End <= literal.SpanStart);
+    }
+
+    /// <summary>
+    /// La conexión sobre la que la expresión de una sentencia pasa por la guarda, o <c>null</c> si no es una llamada a
+    /// la guarda: <c>await GuardaClusterDePruebas.ExigirClusterDesechableAsync(c, …)</c> o, sin <c>await</c>,
+    /// <c>GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, …)</c>. La asíncrona sin <c>await</c> no cuenta.
+    /// </summary>
+    private static string? ConexionDeLaGuarda(ExpressionSyntax expresion)
+    {
+        var (invocacion, esperada) = expresion is AwaitExpressionSyntax { Expression: InvocationExpressionSyntax i }
+            ? (i, nameof(GuardaClusterDePruebas.ExigirClusterDesechableAsync))
+            : (expresion as InvocationExpressionSyntax, nameof(GuardaClusterDePruebas.ExigirClusterDesechableSincrono));
+
+        return invocacion is
+        {
+            Expression: MemberAccessExpressionSyntax
+            {
+                Expression: IdentifierNameSyntax { Identifier.ValueText: nameof(GuardaClusterDePruebas) },
+                Name.Identifier.ValueText: var nombre,
+            },
+            ArgumentList.Arguments: [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var conexion } }, ..],
+        } && nombre == esperada
+            ? conexion
+            : null;
     }
 
     private static bool EsCuerpoEjecutable(SyntaxNode nodo) =>

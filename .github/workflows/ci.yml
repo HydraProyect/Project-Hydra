@@ -256,6 +256,24 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
           -f deploy/bootstrap/roles-de-cluster.sql
 
+      # El inicializador de módulo de CaeManager.IntegrationTests
+      # (BootstrapDeClusterEnTests) ejecuta roles-de-cluster.sql y da LOGIN a
+      # cae_app_runtime con una contraseña de pruebas pública, y solo lo hace en
+      # un clúster local declarado desechable: CAEMANAGER_TESTS_CLUSTER_DESECHABLE
+      # debe ser el system_identifier del clúster al que está conectado (ver
+      # GuardaClusterDePruebas). Este job crea el contenedor de servicio y lo
+      # tira al acabar, así que aquí sí puede declararlo. Va ANTES del reparto:
+      # el listado de tests ya carga el ensamblado y, sin la declaración, el
+      # inicializador fallaría y el descubrimiento saldría degradado en verde
+      # (ver el comentario del paso siguiente).
+      - name: Identificar el clúster de pruebas desechable
+        env:
+          PGPASSWORD: postgres
+        run: |
+          id=$(psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -tA -c "SELECT system_identifier FROM pg_control_system();")
+          test -n "$id"
+          echo "CAEMANAGER_TESTS_CLUSTER_DESECHABLE=$id" >> "$GITHUB_ENV"
+
       # El reparto vive en scripts/repartir-clases-de-test.sh, no aqui: asi
       # tiene sus propios tests (repartir-clases-de-test.tests.sh) y no hay
       # que escapar una expresion regular dentro de YAML dentro de shell.
