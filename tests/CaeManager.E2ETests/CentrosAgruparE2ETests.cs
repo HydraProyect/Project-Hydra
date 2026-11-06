@@ -48,7 +48,7 @@ public class CentrosAgruparE2ETests(WebAppFixture fixture)
         await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
         await Expect(Grupos(page)).Not.ToHaveCountAsync(0);
         await Expect(Filas(page)).ToHaveCountAsync(0);
-        await Grupos(page).EvaluateAllAsync("grupos => grupos[0].click()"); // abre el primer grupo sin localizador posicional
+        await Grupos(page).EvaluateAllAsync<bool>("grupos => { grupos[0].click(); return true; }"); // abre el primer grupo sin localizador posicional
         await Expect(Filas(page)).Not.ToHaveCountAsync(0);
         await Expect(page).ToHaveURLAsync(new Regex(@"[?&]agrupar=cliente(&|$)"));
 
