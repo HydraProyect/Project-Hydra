@@ -168,10 +168,15 @@ public class RevisionIaGen2Tests : BunitContext
     {
         var sinLectura = Revision("Sin tipo", 0, null, Guid.NewGuid()) with { TipoDetectado = null };
         var distinto = Revision("Tipo distinto", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with { TipoDetectado = "Certificado médico" };
-        var cut = Renderizar(new MediadorFalso { Revisiones = [sinLectura, distinto] });
+        var enBlanco = Revision("Tipo en blanco", 40, null, Guid.NewGuid()) with { TipoDetectado = "  " };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [sinLectura, distinto, enBlanco] });
 
         FilaTipo(cut).TextContent.Should().Contain("No determinado")
             .And.NotContain("No coincide").And.NotContain("Coincide", "sin tipo leído no hay nada que comparar");
+
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Tipo en blanco")).Click();
+        FilaTipo(cut).TextContent.Should().Contain("No determinado", "un tipo en blanco es un tipo sin leer")
+            .And.NotContain("No coincide").And.NotContain("Coincide");
 
         cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Tipo distinto")).Click();
         var fila = FilaTipo(cut);

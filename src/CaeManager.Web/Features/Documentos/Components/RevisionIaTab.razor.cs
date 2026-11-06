@@ -489,7 +489,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     [
         new FilaComparacion(
             Textos["RevIaCampoTipo"],
-            r.TipoDetectado ?? Textos["RevIaTipoNoDeterminado"].Value,
+            string.IsNullOrWhiteSpace(r.TipoDetectado) ? Textos["RevIaTipoNoDeterminado"].Value : r.TipoDetectado,
             null,
             r.TipoDocumentoNombre,
             null,
