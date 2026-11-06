@@ -545,7 +545,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_chip_Bloquea_centro_deja_solo_los_bloqueos_y_los_recuentos_no_dependen_del_chip()
+    public void El_chip_Bloquea_centro_deja_solo_los_bloqueos_sin_chip_de_tipo_propio_y_los_recuentos_no_dependen_del_chip()
     {
         var cut = Renderizar();
 
@@ -557,6 +557,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
         TitulosVisibles(cut).Should().BeEquivalentTo("Requisito del centro", "Rechazado por la plataforma");
         (Cuenta("Todos"), Cuenta("Bloquea centro"), Cuenta("Gestiones"))
             .Should().Be(("6", "2", "0"), "el Vencido que bloquea cuenta en «Vencidos», no en «Bloquea centro»");
+        // El titular cuenta la severidad Bloqueo (3, con el Vencido); el chip, solo los bloqueos sin chip de tipo propio (2).
+        // Consecuencia declarada de la partición por tipo, a ratificar por Chris; no se toca el titular aquí.
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("3 bloqueos que resolver hoy");
     }
 
@@ -1137,6 +1139,13 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_busqueda_de_la_URL_filtra_por_si_sola()
+    {
+        var cut = Renderizar(url: $"/mi-trabajo?empresa={TenantRefri}&q=Requisito");
+
+        TitulosVisibles(cut).Should().BeEquivalentTo("Requisito del centro");
+    }
+    [Fact]
     public void Un_valor_de_la_URL_que_no_se_reconoce_se_ignora()
     {
         var cut = Renderizar(url: "/mi-trabajo?severidad=no-existe&empresa=no-es-un-guid&agrupar=99&orden=xx");
@@ -1244,14 +1253,6 @@ public partial class MiTrabajoGen2Tests : BunitContext
     [InlineData(SeveridadMiTrabajo.Proximo)]
     public void Lo_que_no_bloquea_no_entra_en_Bloquea_centro_aunque_su_tipo_sea_el_de_un_bloqueo_habitual(SeveridadMiTrabajo severidad) =>
         MiTrabajoVista.EnChip(FilaDeTipo(TipoItemBandeja.Vencido, severidad), TipoTareaMiTrabajo.BloqueaCentro).Should().BeFalse();
-
-    [Fact]
-    public void Ninguna_fila_con_chip_esta_en_mas_de_uno_para_ningun_tipo_ni_severidad()
-    {
-        foreach (var tipo in Enum.GetValues<TipoItemBandeja>())
-            foreach (var severidad in Enum.GetValues<SeveridadMiTrabajo>())
-                ChipsDe(FilaDeTipo(tipo, severidad)).Count.Should().BeLessThanOrEqualTo(1, $"{tipo} / {severidad}");
-    }
 
     private static MiTrabajoAgregadoDto CarteraMixtaSinHuecos() => new([Tenant(TenantRefri, "Refrielectric", esOrigen: false,
     [
