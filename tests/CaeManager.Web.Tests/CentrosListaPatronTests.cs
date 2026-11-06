@@ -437,7 +437,7 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal(["Cliente", "Empresa", "Filtros guardados", "Agrupar"],
+            .Should().Equal(["Cliente", "Empresa", "Filtros guardados", "Agrupar: no"],
                 "sin valor aplicado la pastilla dice solo el nombre del filtro; «Agrupar» cierra la barra, como en Trabajadores");
         cut.RotulosDeFranja().Should().Equal(
             "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
@@ -585,10 +585,18 @@ public partial class CentrosListaPatronTests : BunitContext
     /// </summary>
     private string CampoCliente => Services.GetRequiredService<IStringLocalizer<TextosCentros>>()["FiltroClienteEmpresarial"].Value;
 
-    /// <summary>La pastilla «Agrupar» de la barra: «Agrupar» sin agrupar y «Agrupar: Por Cliente» agrupada.</summary>
+    /// <summary>La pastilla «Agrupar» de la barra: «Agrupar: no» sin agrupar y «Agrupar: por cliente» agrupada.</summary>
     private static AngleSharp.Dom.IElement DesplegableAgrupar(IRenderedComponent<Centros> cut, string etiqueta = "Agrupar") => Disparador(cut, etiqueta);
 
     private const string AgruparPorClienteUrl = "centros?agrupar=cliente";
+
+    /// <summary>Los grupos «Por Cliente» nacen cerrados (como en la maqueta): abre todos los que sigan cerrados.</summary>
+    private static void AbrirGrupos(IRenderedComponent<Centros> cut)
+    {
+        // Cada clic repinta: se vuelve a buscar el siguiente cerrado en vez de reutilizar elementos viejos.
+        while (cut.FindAll("button.cabecera-grupo-centros[aria-expanded=false]") is { Count: > 0 } cerrados)
+            cerrados[0].Click();
+    }
 
     private static void ElegirAgrupacion(IRenderedComponent<Centros> cut, string opcion)
     {
@@ -695,10 +703,10 @@ public partial class CentrosListaPatronTests : BunitContext
         var mediador = ConPegasoPrimero();
         var cut = Renderizar(mediador, AgruparPorClienteUrl);
 
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: por cliente");
         NombresDeGrupo(cut).Should().Equal("Pegaso Cliente S.L.", "Orion Cliente S.L.");
     }
 
@@ -706,12 +714,54 @@ public partial class CentrosListaPatronTests : BunitContext
     public void La_flecha_del_orden_no_entra_en_el_nombre_accesible()
     {
         var cut = Renderizar(ConDosClientes());
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
 
-        var boton = cut.Find(".cabecera-columnas-centros .cabecera-columna-orden");
+        var boton = cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden");
         boton.QuerySelector("span[aria-hidden=true]")!.TextContent.Should().Be("↑");
     }
 
+    /// <summary>
+    /// Con los grupos cerrados, «seleccionar la página» no marca filas que nadie ha visto, y plegar un grupo
+    /// deselecciona sus filas: la barra de acciones en lote no apunta a lo invisible.
+    /// </summary>
+    [Fact]
+    public async Task La_seleccion_de_la_pagina_solo_alcanza_las_filas_de_grupos_abiertos_y_plegar_deselecciona()
+    {
+        var cut = Renderizar(ConDosClientes(), AgruparPorClienteUrl);
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        const string SeleccionarPagina = "input[aria-label='Seleccionar los centros de esta página']";
+
+        cut.Find(SeleccionarPagina).Change(true);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().BeEmpty("todos los grupos nacen cerrados");
+
+        AbrirGrupos(cut);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().BeEmpty("lo que estaba oculto no se marcó");
+        cut.Find(SeleccionarPagina).Change(true);
+        var filas = cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Count;
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().HaveCount(filas);
+
+        cut.FindAll("button.cabecera-grupo-centros")[0].Click();
+        var filasDelPrimerGrupo = filas - cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Count;
+        filasDelPrimerGrupo.Should().BeGreaterThan(0, "control: plegar el primer grupo oculta sus filas");
+        cut.FindAll("button.cabecera-grupo-centros")[0].Click();
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().HaveCount(filas - filasDelPrimerGrupo,
+            "las filas del grupo plegado dejan de estar marcadas y las del otro grupo conservan su marca");
+    }
+
+    /// <summary>Marcar la página sin agrupar y agrupar después (grupos cerrados) no deja marcado lo que ya no se ve.</summary>
+    [Fact]
+    public async Task Agrupar_con_la_pagina_marcada_deselecciona_las_filas_que_quedan_ocultas()
+    {
+        var cut = Renderizar(ConDosClientes());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-label='Seleccionar los centros de esta página']").Change(true);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().NotBeEmpty("control: la página quedó marcada");
+
+        ElegirAgrupacion(cut, "Por Cliente");
+        AbrirGrupos(cut);
+
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().BeEmpty();
+    }
     /// <summary>
     /// x activa la selección múltiple (como en la maqueta) y marca la fila enfocada: sin grupos contraíbles, toda
     /// fila marcada está a la vista.
@@ -772,6 +822,7 @@ public partial class CentrosListaPatronTests : BunitContext
     public void Agrupada_la_segunda_linea_de_la_fila_es_solo_el_codigo()
     {
         var cut = Renderizar(ConDosClientes(), url: AgruparPorClienteUrl);
+        AbrirGrupos(cut);
 
         var meta = cut.FindAll(".tarjeta-fila-acordeon").First(f => f.TextContent.Contains("Planta Bilbao"))
             .QuerySelector(".tarjeta-fila-acordeon-meta")!;
@@ -810,27 +861,27 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConDosClientes());
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar", "la lista nace sin agrupar, como en la maqueta");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no", "la lista nace sin agrupar, como en la maqueta");
         cut.FindAll(".cabecera-grupo-centros").Should().BeEmpty();
 
         ElegirAgrupacion(cut, "Por Cliente");
 
         navegacion.Uri.Should().Contain("agrupar=cliente");
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Por Cliente",
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: por cliente",
             "la pasada de parámetros que sigue a la navegación no puede devolver la agrupación");
         cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(2);
 
         ElegirAgrupacion(cut, "Sin agrupar");
 
         navegacion.Uri.Should().NotContain("agrupar", "sin agrupar es la vista de fábrica: no deja rastro en la URL");
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no");
         cut.FindAll(".cabecera-grupo-centros").Should().BeEmpty();
     }
 
     /// <summary>
     /// Contrato de la URL (AgrupacionDeLista): ausente es la de fábrica de Centros, sin agrupar; «no» también;
-    /// «cliente» agrupa por Cliente empresarial; un valor desconocido es la de fábrica. Los grupos no se contraen:
-    /// las filas se ven siempre.
+    /// «cliente» agrupa por Cliente empresarial; un valor desconocido es la de fábrica. Los grupos nacen cerrados
+    /// (la maqueta los parte colapsados); sin agrupar las filas se ven siempre.
     /// </summary>
     [Theory]
     [InlineData("centros", false)]
@@ -843,8 +894,13 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes(), url);
 
         cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(agrupada ? 2 : 0);
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? "Agrupar: Por Cliente" : "Agrupar");
-        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3, "agrupada o no, las filas se ven siempre");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? "Agrupar: por cliente" : "Agrupar: no");
+        if (agrupada)
+        {
+            cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("los grupos nacen cerrados, como en la maqueta");
+            AbrirGrupos(cut);
+        }
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3, "sin agrupar las filas se ven siempre; agrupada, al abrir los grupos");
     }
 
     /// <summary>Con la agrupación en la URL, «Sin agrupar» quita el parámetro: la fábrica no deja rastro.</summary>
@@ -890,7 +946,7 @@ public partial class CentrosListaPatronTests : BunitContext
 
         navegacion.Uri.Should().NotContain("q=", "control positivo: sí limpió el filtro");
         navegacion.Uri.Should().Contain("agrupar=cliente");
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: por cliente");
     }
 
     /// <summary>La página pide siempre el resumen por grupo: agrupar y desagrupar no vuelve a pedir la lista.</summary>
@@ -912,10 +968,10 @@ public partial class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes());
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
         navegacion.Uri.Should().EndWith("orden=cumplimiento");
 
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
         navegacion.Uri.Should().EndWith("orden=cumplimiento-desc");
     }
 
@@ -927,7 +983,7 @@ public partial class CentrosListaPatronTests : BunitContext
 
         var cut = Renderizar(mediador, "centros?agrupar=cliente&orden=cumplimiento-desc");
 
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: por cliente");
         cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(2);
         var consultas = mediador.Enviadas.OfType<ObtenerCentrosQuery>().ToList();
         consultas.Should().ContainSingle("la carga inicial ya lee el orden de la URL; la primera pasada de parámetros no la repite");
@@ -941,7 +997,9 @@ public partial class CentrosListaPatronTests : BunitContext
 
         Renderizar(mediador, "centros?orden=nombre");
 
-        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().BeNull();
+        var consulta = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
+        (consulta.OrdenarPor, consulta.Descendente).Should().Be((nameof(CentroListaDto.Estado), true),
+            "sin orden en la URL manda el de serie de la maqueta: el estado más grave primero");
     }
 
     /// <summary>
@@ -956,14 +1014,14 @@ public partial class CentrosListaPatronTests : BunitContext
         cut.FindAll(".barra-filtros-pastillas button").Should().NotContain(b => b.TextContent.Contains("Cumplimiento"),
             "el orden ya no vive en la barra de filtros");
 
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
         var primera = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").Click();
         var segunda = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
 
         (primera.OrdenarPor, primera.Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), false));
         (segunda.OrdenarPor, segunda.Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), true));
-        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find(".cabecera-columnas-centros .columna-cumplimiento-centro .cabecera-columna-orden").GetAttribute("aria-pressed").Should().Be("true");
     }
 
     /// <summary>
@@ -982,6 +1040,7 @@ public partial class CentrosListaPatronTests : BunitContext
         ]);
 
         var cut = Renderizar(mediador, AgruparPorClienteUrl);
+        AbrirGrupos(cut);
 
         NombresDeGrupo(cut).Should().Equal(["Orion Cliente S.L."], "Pegaso no tiene ninguna fila en esta página");
         RecuentosDeGrupo(cut).Should().Equal("· 20 en esta página");
@@ -1055,6 +1114,7 @@ public partial class CentrosListaPatronTests : BunitContext
     {
         var mediador = ConDosClientes();
         var cut = Renderizar(mediador, AgruparPorClienteUrl);
+        AbrirGrupos(cut);
         var vencido = mediador.Centros.Single(c => c.Estado == EstadoCentro.Vencido);
         string[] CabecerasYFilas() => cut
             .FindAll(".lista-filas-acordeon .cabecera-grupo-centros, .lista-filas-acordeon .enlace-nombre-fila")
@@ -1092,12 +1152,12 @@ public partial class CentrosListaPatronTests : BunitContext
         cut.FindAll(".cabecera-grupo-centros").Should().BeEmpty("la maqueta nace sin agrupar");
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim())
             .Should().Equal("Almacén Vigo", "Planta Murcia", "Planta Bilbao");
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no");
     }
 
     /// <summary>
     /// «Agrupar: Por Cliente» (agrupar=cliente): un título por Cliente empresarial, con cuántos Centros suyos hay
-    /// en la página, y debajo sus filas. Es un título, no un botón: los grupos no se contraen.
+    /// en la página, y debajo sus filas. Es un botón con aria-expanded: el grupo se pliega, y nace cerrado.
     /// </summary>
     [Fact]
     public void Agrupar_por_Cliente_pone_un_titulo_por_Cliente_con_su_recuento_y_las_filas_debajo()
@@ -1106,12 +1166,15 @@ public partial class CentrosListaPatronTests : BunitContext
 
         NombresDeGrupo(cut).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
         RecuentosDeGrupo(cut).Should().Equal("· 2", "· 1");
-        cut.FindAll(".cabecera-grupo-centros").Should().OnlyContain(t => t.LocalName == "div" && !t.HasAttribute("aria-expanded"));
-        cut.FindAll(".grupo-lista, .grupo-lista-cabecera, button.cabecera-grupo-centros").Should().BeEmpty();
+        cut.FindAll(".cabecera-grupo-centros").Should().OnlyContain(t => t.LocalName == "button" && t.GetAttribute("aria-expanded") == "false",
+            "los grupos nacen cerrados");
+        cut.FindAll(".grupo-lista, .grupo-lista-cabecera").Should().BeEmpty();
+        AbrirGrupos(cut);
+        cut.FindAll(".cabecera-grupo-centros").Should().OnlyContain(t => t.GetAttribute("aria-expanded") == "true");
         cut.FindAll(".lista-filas-acordeon .cabecera-grupo-centros, .lista-filas-acordeon .enlace-nombre-fila")
             .Select(e => e.ClassList.Contains("cabecera-grupo-centros") ? "#" + e.GetAttribute("data-grupo-cliente") : e.TextContent.Trim())
             .Should().Equal("#Orion Cliente S.L.", "Almacén Vigo", "Planta Murcia", "#Pegaso Cliente S.L.", "Planta Bilbao");
-        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: por cliente");
     }
 
     /// <summary>
@@ -1190,6 +1253,7 @@ public partial class CentrosListaPatronTests : BunitContext
     public async Task J_y_k_recorren_las_filas_en_el_orden_en_que_se_pintan()
     {
         var cut = Renderizar(ConDosClientes(), AgruparPorClienteUrl);
+        AbrirGrupos(cut);
         var atajos = cut.FindComponent<AtajosListaTeclado>();
 
         for (var i = 0; i < 3; i++)

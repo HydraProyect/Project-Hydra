@@ -44,30 +44,57 @@
 */
 .calendario-rejilla {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    /* Columna «Sem» (número de semana ISO, 44 px) y los siete días; minmax(0, 1fr) para que ningún contenido ensanche su columna (375 px). */
+    grid-template-columns: 44px repeat(7, minmax(0, 1fr));
     background-color: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
     overflow: hidden;
 }
 
-.calendario-cabecera-dia {
+/* Cada semana reparte sus ocho celdas (número ISO y siete días) en la rejilla del mes. */
+.calendario-semana {
+    display: contents;
+}
+
+/* Cabecera (maqueta): 11/600 en versalitas y 37 px de alto (10 + 16 + 10 + filete). */
+.calendario-cabecera-dia,
+.calendario-cabecera-semana {
     background-color: var(--color-surface-hover);
     border-bottom: var(--border-default);
-    padding: var(--space-2) var(--space-3);
+    padding: 10px var(--space-3);
     font: var(--font-label-md);
+    font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--color-text-muted);
+}
+
+.calendario-cabecera-semana {
+    padding-inline: 0;
+    text-align: center;
+    border-right: var(--border-default);
+}
+
+.calendario-numero-semana {
+    display: flex;
+    justify-content: center;
+    padding-top: 12px;
+    border-right: var(--border-default);
+    border-bottom: var(--border-default);
+    background-color: var(--color-surface-subtle);
+    font: 600 12px/16px var(--font-family);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-primary-700);
 }
 
 .calendario-celda {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-2);
+    gap: 6px;
     min-height: 96px;
-    padding: var(--space-2) var(--space-3);
+    padding: 8px 10px;
     border: 0;
     border-right: var(--border-default);
     border-bottom: var(--border-default);
@@ -77,8 +104,20 @@
     text-align: left;
 }
 
-.calendario-celda:nth-child(7n) {
+/* El domingo es la última celda de su semana. */
+.calendario-celda:last-child {
     border-right: 0;
+}
+
+/* Recuento del día (maqueta): círculo de 22 px, 12/600, sin borde; el color sigue siendo el tono del peor estado. */
+.calendario-celda ::deep .badge {
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    font-size: 12px;
+    line-height: 22px;
 }
 
 .calendario-celda-fuera {
@@ -155,4 +194,58 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
+}
+
+/* Las muestras de la leyenda (maqueta): 20 px, 11/600, sin borde. */
+.calendario-leyenda-item ::deep .badge {
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border: 0;
+    font-size: 11px;
+    line-height: 20px;
+}
+
+/*
+  Móvil (la maqueta no define uno propio): con 375 px la columna «Sem» y los siete días no caben con el relleno de
+  escritorio (las columnas sumaban 361 px frente a 311 disponibles y «DOM» quedaba recortada), así que se estrechan
+  la columna de semana, el relleno y el recuento, y el contenido se centra bajo su cabecera.
+*/
+@media (max-width: 640px) {
+    .calendario-rejilla {
+        grid-template-columns: 28px repeat(7, minmax(0, 1fr));
+    }
+
+    .calendario-cabecera-dia,
+    .calendario-cabecera-semana {
+        padding: 10px 0;
+        text-align: center;
+        letter-spacing: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .calendario-numero-semana {
+        font-size: 11px;
+    }
+
+    .calendario-celda {
+        align-items: center;
+        gap: 4px;
+        min-height: 64px;
+        padding: 6px 2px;
+    }
+
+    .calendario-celda ::deep .badge {
+        min-width: 20px;
+        height: 20px;
+        padding: 0 4px;
+        font-size: 11px;
+        line-height: 20px;
+    }
+
+    .calendario-visitas {
+        width: 80%;
+    }
 }

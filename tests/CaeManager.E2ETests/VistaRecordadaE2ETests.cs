@@ -32,8 +32,8 @@ namespace CaeManager.E2ETests;
 public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly string Gestor = Ayudas.EmailPrueba("gestorcae", 3);
-    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Por Cliente$");
-    private static readonly Regex SinAgrupar = new("^Agrupar$");
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: por cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
 
     private const string ToastRestablecida = "Vista de fábrica restablecida.";
 
@@ -149,7 +149,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await OlvidarLoRecordadoAsync(page, conUnaVista, pastilla);
 
             var buscador = page.GetByPlaceholder(placeholder);
-            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: Por Cliente», «Agrupar» si no hay).
+            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: por cliente», «Agrupar» si no hay).
             var agrupar = Ayudas.DesplegableAgrupar(page);
             var conteo = page.Locator(".cabecera-pagina .cabecera-listado-contador");
             await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
@@ -157,11 +157,12 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 
             // --- Una vista propia: agrupado «Por Cliente» y buscando un Centro por su nombre. La siembra no da un
             //     nombre estable, así que se lee de la lista el de un Centro cualquiera. ---
-            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
-            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
+            //     Se lee antes de agrupar: agrupada, la lista nace con los grupos cerrados y sin filas a la vista.
             var nombresDeCentro = page.Locator(".lista-filas-acordeon .fila-pulsable .enlace-nombre-fila");
             await Expect(nombresDeCentro).Not.ToHaveCountAsync(0);
             var nombre = (await nombresDeCentro.AllInnerTextsAsync()).Select(n => n.Trim()).Last(n => n.Length > 0);
+            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             await buscador.FillAsync(nombre);
             // La barrera es la CIFRA, no el texto entero: al teclear, el rótulo pasa en el acto a «N centros
             // con estos filtros» con la cifra de antes, y solo cambia de cifra cuando la lista filtrada llega.
@@ -229,7 +230,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await CircuitoAtendiendoAsync(page, pastilla);
             // Recién cargada en frío, la página aún se repinta al terminar de inicializarse y un clic suelto en
             // el desplegable puede perderse (visto 1 de 5 veces): se elige «Por Cliente» hasta que dice
-            // «Agrupar: Por Cliente» y la URL lo lleva.
+            // «Agrupar: por cliente» y la URL lo lleva.
             await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await SalirAOtraPantallaAsync(page, placeholder);

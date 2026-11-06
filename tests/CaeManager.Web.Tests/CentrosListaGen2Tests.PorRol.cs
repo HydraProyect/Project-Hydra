@@ -88,7 +88,7 @@ public partial class CentrosListaGen2Tests
 
         var cut = Renderizar();
 
-        cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("Aún no hay centros");
+        cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("Todavía no hay centros");
         cut.FindAll(".estado-vacio button").Select(b => b.TextContent.Trim()).Should().Equal(escribe ? ["+ Nuevo centro"] : []);
     }
 
@@ -181,6 +181,9 @@ public partial class CentrosListaGen2Tests
         var titulos = cut.FindAll(".cabecera-grupo-centros");
         titulos.Select(t => t.GetAttribute("data-grupo-cliente")).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
         titulos.Select(t => t.QuerySelector(".cabecera-grupo-centros-recuento")!.TextContent.Trim()).Should().Equal("· 2", "· 1");
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("los grupos nacen cerrados");
+        while (cut.FindAll("button.cabecera-grupo-centros[aria-expanded=false]") is { Count: > 0 } cerrados)
+            cerrados[0].Click();
         cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3);
     }
 

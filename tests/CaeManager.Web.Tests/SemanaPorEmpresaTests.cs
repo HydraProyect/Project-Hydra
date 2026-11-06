@@ -52,6 +52,17 @@ public class SemanaPorEmpresaTests : BunitContext
         cut.Find(".semana-reclamar").TextContent.Should().Contain("Reclamar todos (2)", "cuenta solo lo reclamable a los contactos de la Empresa: el documento del Trabajador no");
     }
 
+    /// <summary>La franja de la maqueta: chip con la semana ISO, el rango de lunes a viernes y la nota de numeración.</summary>
+    [Fact]
+    public void La_franja_dice_la_semana_ISO_el_rango_y_la_numeracion()
+    {
+        var cut = Semana();
+
+        cut.Find(".semana-chip").TextContent.Trim().Should().Be("Semana 43");
+        cut.Find(".semana-rango").TextContent.Trim().Should().Be("19–23 de octubre de 2026");
+        cut.Find(".semana-nota").TextContent.Trim().Should().Be("Numeración ISO 8601: la semana empieza en lunes");
+    }
+
     [Fact]
     public void Cada_celda_abre_solo_los_documentos_de_ese_dia_y_empresa()
     {

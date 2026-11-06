@@ -172,4 +172,8 @@
   <data name="SemanaVaciaDetalle" xml:space="preserve"><value>No hi ha documents amb venciment de dilluns a divendres a les Empreses que pots veure.</value></data>
   <data name="SemanaVaciaTitulo" xml:space="preserve"><value>No venç res aquesta setmana</value></data>
   <data name="Vista" xml:space="preserve"><value>Vista</value></data>
+  <data name="SemanaCabecera" xml:space="preserve"><value>Set</value></data>
+  <data name="SemanaNumeroTitulo" xml:space="preserve"><value>Número de setmana (ISO 8601)</value></data>
+  <data name="SemanaNumero" xml:space="preserve"><value>Setmana {0}</value></data>
+  <data name="SemanaNotaIso" xml:space="preserve"><value>Numeració ISO 8601: la setmana comença en dilluns</value></data>
 </root>

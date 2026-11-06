@@ -355,6 +355,38 @@ public class CalendarioTests : BunitContext
     }
 
     /// <summary>
+    /// Columna «Sem» de la maqueta: delante de cada semana va su número ISO 8601 (la semana empieza en lunes), con
+    /// su rótulo en la cabecera.
+    /// </summary>
+    [Fact]
+    public void Cada_semana_del_mes_lleva_delante_su_numero_ISO_8601()
+    {
+        var cut = Renderizar();
+
+        var numeros = cut.FindAll(".calendario-numero-semana");
+        numeros.Should().HaveCount(cut.FindAll(".calendario-celda").Count / 7);
+        var lunes = PrimeroDelMes.AddDays(-(((int)PrimeroDelMes.DayOfWeek + 6) % 7));
+        numeros.Select(n => n.TextContent.Trim())
+            .Should().Equal(Enumerable.Range(0, numeros.Count).Select(i => ISOWeek.GetWeekOfYear(lunes.AddDays(7 * i).ToDateTime(TimeOnly.MinValue)).ToString()));
+        numeros.Select(n => n.GetAttribute("title")).Should().OnlyContain(a => a!.StartsWith("Semana "));
+        cut.Find(".calendario-cabecera-semana").TextContent.Trim().Should().Be("Sem");
+        cut.FindAll(".calendario-cabecera-dia").Should().HaveCount(7, "la columna de semana no es un día");
+    }
+
+    /// <summary>
+    /// En el cambio de año la columna sigue la ISO 8601 y no la cuenta de enero: enero de 2027 empieza en la
+    /// semana 53 de 2026 (lunes 28 de diciembre) y la siguiente es la 1 (lunes 4 de enero), con literales.
+    /// </summary>
+    [Fact]
+    public void La_columna_de_semana_respeta_el_cambio_de_anio_ISO()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Vencimientos = [], Visitas = [] });
+        var cut = Render<Calendario>(p => p.Add(c => c.Hoy, new DateOnly(2027, 1, 15)));
+
+        cut.FindAll(".calendario-numero-semana").Select(n => n.TextContent.Trim())
+            .Should().Equal("53", "1", "2", "3", "4");
+    }
+    /// <summary>
     /// La primera semana se completa con los últimos días del mes anterior, en
     /// orden: si el mes empieza en jueves, delante van lunes, martes y
     /// miércoles del mes anterior.
@@ -379,8 +411,8 @@ public class CalendarioTests : BunitContext
 
     /// <summary>
     /// Una visita de varios días marca cada día de su rango (comportamiento
-    /// del código anterior que se conserva) y, cuando coinciden varias, el
-    /// día dice cuántas: la barra del mockup sola perdería ese recuento.
+    /// del código anterior que se conserva). La celda pinta solo la barra, como
+    /// la maqueta; cuántas coinciden lo dice el nombre accesible del día.
     /// </summary>
     [Fact]
     public void Una_visita_de_varios_dias_marca_cada_dia_y_si_coinciden_varias_se_cuentan()
@@ -388,12 +420,11 @@ public class CalendarioTests : BunitContext
         var cut = Renderizar(visitas: [Visita(Dia10, Dia12), Visita(Dia11, Dia11)]);
 
         BotonDelDia(cut, Dia10).QuerySelector(".calendario-barra-visita").Should().NotBeNull();
-        BotonDelDia(cut, Dia10).QuerySelector(".calendario-visitas-numero").Should().BeNull("una sola visita no lleva número");
+        BotonDelDia(cut, Dia10).QuerySelector(".calendario-visitas-numero").Should().BeNull("la barra va sin número");
         BotonDelDia(cut, Dia12).QuerySelector(".calendario-barra-visita").Should().NotBeNull();
 
         var dia11 = BotonDelDia(cut, Dia11);
-        dia11.QuerySelector(".calendario-visitas-numero").Should().NotBeNull("ese día coinciden dos visitas");
-        dia11.QuerySelector(".calendario-visitas-numero")!.TextContent.Trim().Should().Be("2");
+        dia11.QuerySelector(".calendario-visitas-numero").Should().BeNull("la maqueta pinta la barra sin número también con dos visitas");
         dia11.GetAttribute("aria-label").Should().EndWith("2 visitas programadas");
     }
 

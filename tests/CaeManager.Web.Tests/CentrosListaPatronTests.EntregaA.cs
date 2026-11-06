@@ -8,8 +8,8 @@ namespace CaeManager.Web.Tests;
 public partial class CentrosListaPatronTests
 {
     [Theory]
-    [InlineData("es-ES", "Centros", "+ Nuevo centro", "Agrupar: Por Cliente", "· 20 en esta página")]
-    [InlineData("ca-ES", "Centres", "+ Nou centre", "Agrupa: Per Client", "· 20 en aquesta pàgina")]
+    [InlineData("es-ES", "Centros", "+ Nuevo centro", "Agrupar: por cliente", "· 20 en esta página")]
+    [InlineData("ca-ES", "Centres", "+ Nou centre", "Agrupa: per client", "· 20 en aquesta pàgina")]
     public void Los_rotulos_de_la_lista_salen_de_los_recursos_de_cada_idioma(
         string idioma, string titulo, string alta, string agrupar, string recuentoEnPagina)
     {

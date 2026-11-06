@@ -322,7 +322,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
         await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Centros);
 
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
-            q.Busqueda == null && q.ClienteId == null && q.Estados == null && q.OrdenarPor == null);
+            q.Busqueda == null && q.ClienteId == null && q.Estados == null && q.OrdenarPor == nameof(CentroListaDto.Estado));
     }
 
     // --------------------------------------------------------- Subcontratas

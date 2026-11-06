@@ -1,14 +1,17 @@
 <div class="estado-vacio">
-    <div class="estado-vacio-icono @(EsAcento ? "estado-vacio-icono-acento" : null)" style="@EstiloAcento" aria-hidden="true">
-        @if (Icono is not null)
-        {
-            @Icono
-        }
-        else
-        {
-            <Icono Nombre="@(NombreIcono ?? "vacio")" Tamano="TamanoIcono.Grande" />
-        }
-    </div>
+    @if (!SinIcono)
+    {
+        <div class="estado-vacio-icono @(EsAcento ? "estado-vacio-icono-acento" : null)" style="@EstiloAcento" aria-hidden="true">
+            @if (Icono is not null)
+            {
+                @Icono
+            }
+            else
+            {
+                <Icono Nombre="@(NombreIcono ?? "vacio")" Tamano="TamanoIcono.Grande" />
+            }
+        </div>
+    }
     <h3>@Titulo</h3>
     @if (!string.IsNullOrWhiteSpace(Descripcion))
     {
@@ -51,6 +54,12 @@
 
     /// <summary>Relleno del círculo cuando hay <see cref="AcentoIcono"/>. Sin valor, transparente.</summary>
     [Parameter] public string? FondoIcono { get; set; }
+
+    /// <summary>
+    /// Sin hueco de icono: la tarjeta es solo título, texto y acción (estados Error, Vacía y Vacía por filtro de las
+    /// listas de Design, que no llevan icono). Por defecto no: los demás consumidores no cambian.
+    /// </summary>
+    [Parameter] public bool SinIcono { get; set; }
 
     private bool EsAcento => !string.IsNullOrEmpty(AcentoIcono);
 

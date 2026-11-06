@@ -352,7 +352,7 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "Nave" },
             "un Id que no es Guid, un estado y un orden desconocidos no filtran; «agrupar» solo viaja cuando es «cliente»");
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
-            q.Busqueda == "Nave" && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && q.OrdenarPor == null);
+            q.Busqueda == "Nave" && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && q.OrdenarPor == nameof(CentroListaDto.Estado));
     }
 
     /// <summary>
@@ -375,7 +375,7 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
         var url = await AplicarAsync(cut, "Vista");
 
         cut.FindAll(".cabecera-grupo-centros").Should().HaveCount(agrupada ? 2 : 0);
-        PastillaAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? "Agrupar: Por Cliente" : "Agrupar");
+        PastillaAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? "Agrupar: por cliente" : "Agrupar: no");
         url.Should().BeEquivalentTo(
             agrupada ? new Dictionary<string, string> { ["agrupar"] = "cliente" } : [],
             "la agrupación de fábrica no deja rastro en la URL, tampoco cuando el filtro guardado la nombra");
@@ -399,7 +399,7 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
         comando.ValoresJson.Should().Be("{\"q\":\"Planta\",\"agrupar\":\"cliente\"}");
     }
 
-    /// <summary>La pastilla «Agrupar» de la barra de Centros: «Agrupar» sin agrupar, «Agrupar: Por Cliente» agrupada.</summary>
+    /// <summary>La pastilla «Agrupar» de la barra de Centros: «Agrupar: no» sin agrupar, «Agrupar: por cliente» agrupada.</summary>
     private static AngleSharp.Dom.IElement PastillaAgrupar(IRenderedComponent<Centros> cut) =>
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
             .Single(p => p.GetAttribute("aria-label")!.StartsWith("Agrupar", StringComparison.Ordinal));
@@ -781,7 +781,8 @@ public partial class FiltrosGuardadosEnListadosTests : BunitContext
 
         url.Should().BeEmpty();
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
-            q.Busqueda == null && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && !q.Descendente);
+            q.Busqueda == null && q.ClienteId == null && q.EmpresaId == null && q.Estados == null
+            && q.OrdenarPor == nameof(CentroListaDto.Estado) && q.Descendente);
     }
 
     [Fact]
