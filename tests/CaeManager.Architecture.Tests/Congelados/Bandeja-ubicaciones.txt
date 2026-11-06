@@ -81,6 +81,7 @@ src/CaeManager.Web/Features/Bandeja/MiTrabajoVista.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Bandeja/MiTrabajoVista.cs :: Bandeja = 4
 src/CaeManager.Web/Features/Bandeja/MiTrabajoVista.cs :: ItemBandejaDto = 2
 src/CaeManager.Web/Features/Bandeja/MiTrabajoVista.cs :: ObtenerBandejaGestor = 1
+src/CaeManager.Web/Features/Bandeja/MiTrabajoVista.cs :: TipoItemBandeja = 7
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: Bandeja = 3
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: ObtenerBandejaAgrupada = 1

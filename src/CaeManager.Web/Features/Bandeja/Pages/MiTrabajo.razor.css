@@ -91,6 +91,12 @@
     cursor: pointer;
 }
 
+/* Tipo sin fuente de datos (Gestiones): se pinta con 0 y no responde. */
+.mi-trabajo-chip-inerte {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .mi-trabajo-chip:hover {
     border-color: var(--color-border-strong);
 }

@@ -461,4 +461,28 @@
   <data name="RecuentoPendienteVarios" xml:space="preserve">
     <value>pendents</value>
   </data>
+  <data name="ChipVencidos" xml:space="preserve">
+    <value>Vençuts</value>
+  </data>
+  <data name="ChipFaltantes" xml:space="preserve">
+    <value>Mancants</value>
+  </data>
+  <data name="ChipVisitas" xml:space="preserve">
+    <value>Visites</value>
+  </data>
+  <data name="ChipBloqueaCentro" xml:space="preserve">
+    <value>Bloqueja centre</value>
+  </data>
+  <data name="ChipRevisionIa" xml:space="preserve">
+    <value>Revisió IA</value>
+  </data>
+  <data name="ChipDetecciones" xml:space="preserve">
+    <value>Deteccions</value>
+  </data>
+  <data name="ChipGestiones" xml:space="preserve">
+    <value>Gestions</value>
+  </data>
+  <data name="FiltrarPorTipo" xml:space="preserve">
+    <value>Filtra per tipus de tasca</value>
+  </data>
 </root>

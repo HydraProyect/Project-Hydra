@@ -11,6 +11,12 @@ public enum AgruparMiTrabajo { Tenant, Severidad }
 public enum OrdenMiTrabajo { Prioridad, Cliente }
 
 /// <summary>
+/// Chips de la maqueta «Mi trabajo» (export 10-18), en su orden. Se derivan del Tipo y la severidad del ítem que la
+/// Query agregada ya devuelve; <see cref="Gestiones"/> no tiene fuente en esta Query y siempre cuenta cero.
+/// </summary>
+public enum TipoTareaMiTrabajo { Vencidos, Faltantes, Visitas, BloqueaCentro, RevisionIa, Detecciones, Gestiones }
+
+/// <summary>
 /// Una fila de la cola agregada. El Tenant propietario viaja aparte del ítem
 /// porque <see cref="ItemBandejaDto"/> no lo lleva: nunca se deduce de
 /// <c>EmpresaId</c>/<c>ClienteId</c> (contrato Gen2 § 7, regla dura).
@@ -25,7 +31,8 @@ public sealed record FiltroMiTrabajo(
     OrdenMiTrabajo Orden = OrdenMiTrabajo.Prioridad,
     IReadOnlySet<string>? Abiertos = null,
     IReadOnlySet<Guid>? TenantsAbiertos = null,
-    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null);
+    IReadOnlySet<SeveridadMiTrabajo>? SeveridadesAbiertas = null,
+    TipoTareaMiTrabajo? Tipo = null);
 
 /// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
 /// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
@@ -142,6 +149,28 @@ public sealed class MiTrabajoVista
     public IReadOnlyList<FilaMiTrabajo> Ambito(FiltroMiTrabajo filtro) =>
         _cartera.Where(f => (filtro.TenantId is null || f.TenantId == filtro.TenantId) && CoincideBusqueda(f, filtro.Busqueda)).ToList();
 
+    /// <summary>
+    /// Chip de la maqueta al que pertenece la fila: lo que bloquea un Centro gana a cualquier otro tipo; el resto sale del
+    /// Tipo del ítem. Null para lo que ningún chip nombra (por vencer, pendiente de envío, próximo, seguimiento): solo «Todos» lo alcanza.
+    /// </summary>
+    public static TipoTareaMiTrabajo? TipoDeTarea(FilaMiTrabajo fila) =>
+        fila.Severidad == SeveridadMiTrabajo.Bloqueo ? TipoTareaMiTrabajo.BloqueaCentro : fila.Item.Tipo switch
+        {
+            TipoItemBandeja.Vencido or TipoItemBandeja.PlataformaVencida => TipoTareaMiTrabajo.Vencidos,
+            TipoItemBandeja.Faltante => TipoTareaMiTrabajo.Faltantes,
+            TipoItemBandeja.SugerenciaVisitaUrgente or TipoItemBandeja.VisitaUrgente => TipoTareaMiTrabajo.Visitas,
+            TipoItemBandeja.RevisionIa => TipoTareaMiTrabajo.RevisionIa,
+            TipoItemBandeja.DeteccionPendiente => TipoTareaMiTrabajo.Detecciones,
+            _ => null
+        };
+
+    /// <summary>Recuento de un chip de tipo sobre el ámbito (Empresa elegida y búsqueda), nunca sobre el propio chip.</summary>
+    public int ContarTipo(FiltroMiTrabajo filtro, TipoTareaMiTrabajo? tipo)
+    {
+        var ambito = Ambito(filtro);
+        return tipo is null ? ambito.Count : ambito.Count(f => TipoDeTarea(f) == tipo);
+    }
+
     public int Contar(FiltroMiTrabajo filtro, SeveridadMiTrabajo? severidad)
     {
         var ambito = Ambito(filtro);
@@ -150,7 +179,7 @@ public sealed class MiTrabajoVista
 
     /// <summary>Filas que casan con todos los filtros, antes de aplicar ningún pliegue.</summary>
     public IReadOnlyList<FilaMiTrabajo> Alcance(FiltroMiTrabajo filtro) =>
-        Ambito(filtro).Where(f => filtro.Severidad is null || f.Severidad == filtro.Severidad).ToList();
+        Ambito(filtro).Where(f => (filtro.Severidad is null || f.Severidad == filtro.Severidad) && (filtro.Tipo is null || TipoDeTarea(f) == filtro.Tipo)).ToList();
 
     /// <summary>
     /// Filas que se pintan, en orden de pantalla — la misma secuencia que
@@ -357,7 +386,7 @@ public sealed class MiTrabajoVista
 
     private static bool BusquedaActiva(FiltroMiTrabajo filtro) => !string.IsNullOrWhiteSpace(filtro.Busqueda);
 
-    private static bool PliegaCalendario(FiltroMiTrabajo filtro) => filtro.Severidad is null && !BusquedaActiva(filtro);
+    private static bool PliegaCalendario(FiltroMiTrabajo filtro) => filtro.Severidad is null && filtro.Tipo is null && !BusquedaActiva(filtro);
 
     private static bool CoincideBusqueda(FilaMiTrabajo fila, string busqueda)
     {

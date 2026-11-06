@@ -156,12 +156,12 @@
             }
         </section>
 
-        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
+        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorTipo"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
-                <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
-                        aria-pressed="@(chip.Severidad == _severidad ? "true" : "false")"
-                        @onclick="() => CambiarSeveridad(chip.Severidad)">
+                <button type="button" class="@("mi-trabajo-chip" + (chip.Tipo == _tipo ? " mi-trabajo-chip-activo" : "") + (chip.Inerte ? " mi-trabajo-chip-inerte" : ""))"
+                        aria-pressed="@(chip.Tipo == _tipo ? "true" : "false")" disabled="@chip.Inerte"
+                        @onclick="() => CambiarTipo(chip.Tipo)">
                     @chip.Etiqueta <span class="mi-trabajo-chip-cuenta">@chip.Cantidad</span>
                 </button>
             }

@@ -545,18 +545,18 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_chip_de_bloqueos_deja_solo_los_bloqueos_y_los_recuentos_no_dependen_del_chip()
+    public void El_chip_Bloquea_centro_deja_solo_los_bloqueos_y_los_recuentos_no_dependen_del_chip()
     {
         var cut = Renderizar();
 
         string Cuenta(string etiqueta) => cut.FindAll(".mi-trabajo-chip")
             .Single(c => c.TextContent.Trim().StartsWith(etiqueta)).QuerySelector(".mi-trabajo-chip-cuenta")!.TextContent;
 
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
 
         TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
-        (Cuenta("Todos"), Cuenta("Bloqueos"), Cuenta("Actuación"), Cuenta("Próximo"), Cuenta("Seguimiento"))
-            .Should().Be(("6", "3", "1", "1", "1"));
+        (Cuenta("Todos"), Cuenta("Bloquea centro"), Cuenta("Gestiones"))
+            .Should().Be(("6", "3", "0"));
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("3 bloqueos que resolver hoy");
     }
 
@@ -892,12 +892,12 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Un_chip_de_severidad_sin_coincidencias_no_se_confunde_con_una_cartera_al_dia()
+    public void Un_chip_de_tipo_sin_coincidencias_no_se_confunde_con_una_cartera_al_dia()
     {
         var cut = Renderizar(() => new MiTrabajoAgregadoDto(
             [Tenant(TenantRefri, "Refrielectric", false, [Item("r1", TipoItemBandeja.Vencido, "Reconocimiento médico", "Transportes Planet Express")])]));
 
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Seguimiento")).Click();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Detecciones")).Click();
 
         cut.Markup.Should().Contain("Nada con este filtro").And.NotContain("La cola está vacía");
     }
@@ -1127,11 +1127,11 @@ public partial class MiTrabajoGen2Tests : BunitContext
     [Fact]
     public void Los_filtros_de_la_URL_se_leen_al_montar()
     {
-        var cut = Renderizar(url: $"/mi-trabajo?severidad=bloqueo&empresa={TenantRefri}&q=Reconocimiento&agrupar=severidad&orden=cliente");
+        var cut = Renderizar(url: $"/mi-trabajo?tipo=bloqueacentro&empresa={TenantRefri}&q=Reconocimiento&agrupar=severidad&orden=cliente");
 
         TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico");
         cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Reconocimiento");
-        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloqueos");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloquea centro");
         cut.FindAll(".mi-trabajo-cartera-fila-activa").Single().TextContent.Should().Contain("Refrielectric");
         cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente");
     }
@@ -1150,8 +1150,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
-        UrlActual.Should().EndWith("?severidad=bloqueo");
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
+        UrlActual.Should().EndWith("?tipo=bloqueacentro");
 
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
         cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
@@ -1159,7 +1159,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Cliente").Click();
 
         var consulta = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(UrlActual).Query);
-        consulta["severidad"].ToString().Should().Be("bloqueo");
+        consulta["tipo"].ToString().Should().Be("bloqueacentro");
         consulta["empresa"].ToString().Should().Be(TenantDexter.ToString());
         consulta["q"].ToString().Should().Be("Rechazado");
         consulta["agrupar"].ToString().Should().Be("severidad");
@@ -1170,9 +1170,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
     public void Quitar_filtros_limpia_tambien_la_URL()
     {
         var cut = Renderizar();
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Seguimiento")).Click();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Detecciones")).Click();
         cut.Find("input.mi-trabajo-filtro").Input("zzz-sin-resultados");
-        UrlActual.Should().Contain("severidad=seguimiento").And.Contain("q=zzz-sin-resultados");
+        UrlActual.Should().Contain("tipo=detecciones").And.Contain("q=zzz-sin-resultados");
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").Click();
 
@@ -1184,11 +1184,11 @@ public partial class MiTrabajoGen2Tests : BunitContext
     public void La_accion_de_una_fila_ofrece_la_vuelta_a_Mi_trabajo_con_los_filtros_vigentes()
     {
         var cut = Renderizar(url: "/mi-trabajo");
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloqueos")).Click();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
 
         var destino = Formulario(FilaDe(cut, "Reconocimiento médico")).ReturnUrl;
 
-        destino.Should().Be($"/documentos?documentoId={DocumentoVencido}&volver={Uri.EscapeDataString("/mi-trabajo?severidad=bloqueo")}");
+        destino.Should().Be($"/documentos?documentoId={DocumentoVencido}&volver={Uri.EscapeDataString("/mi-trabajo?tipo=bloqueacentro")}");
     }
 
     [Theory]
