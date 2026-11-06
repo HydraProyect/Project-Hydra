@@ -152,7 +152,7 @@ public sealed class MiTrabajoVista
     /// <summary>
     /// Chip de tipo propio de la fila, sale solo del Tipo del ítem y no mira la severidad: un Vencido que además bloquea un
     /// Centro sigue siendo «Vencidos». Null para lo que ningún chip de tipo nombra (por vencer, pendiente de envío, próximo,
-    /// seguimiento, rechazada de plataforma): solo «Todos» —y «Bloquea centro», si bloquea— lo alcanza.
+    /// seguimiento, rechazada de plataforma, urgente): solo «Todos» —y «Bloquea centro», si bloquea— lo alcanza.
     /// </summary>
     public static TipoTareaMiTrabajo? TipoDeTarea(FilaMiTrabajo fila) =>
         fila.Item.Tipo switch
@@ -166,12 +166,21 @@ public sealed class MiTrabajoVista
         };
 
     /// <summary>
-    /// Si la fila cae en el chip de tipo: los chips son inclusivos, así que una fila puede estar en dos. «Bloquea centro» es la
-    /// severidad Bloqueo; los demás, el tipo propio del ítem (<see cref="TipoDeTarea"/>). Un Vencido que bloquea un Centro
-    /// aparece en «Vencidos» y en «Bloquea centro»; el filtrado y los recuentos usan esta misma pertenencia.
+    /// El único chip de tipo en el que cae la fila: los chips son una partición de «Todos» (decisión de Chris, 2026-11-06,
+    /// «su tipo»), así que ninguna fila está en dos y la suma de los chips no pasa de «Todos». Manda el tipo propio del ítem
+    /// (<see cref="TipoDeTarea"/>): un Vencido, una PlataformaVencida, un Faltante o una SugerenciaVisitaUrgente que además
+    /// bloquea un Centro va a «Vencidos», «Faltantes» o «Visitas», no a «Bloquea centro». «Bloquea centro» recoge solo la
+    /// severidad Bloqueo de lo que no tiene chip de tipo propio (RequisitoPendiente, PlataformaRechazada que bloquea). Null
+    /// para lo que no tiene ningún chip (solo «Todos»); «Gestiones» no tiene fuente y no recibe ninguna fila.
     /// </summary>
-    public static bool EnChip(FilaMiTrabajo fila, TipoTareaMiTrabajo tipo) =>
-        tipo == TipoTareaMiTrabajo.BloqueaCentro ? fila.Severidad == SeveridadMiTrabajo.Bloqueo : TipoDeTarea(fila) == tipo;
+    public static TipoTareaMiTrabajo? ChipDeTarea(FilaMiTrabajo fila) =>
+        TipoDeTarea(fila) ?? (fila.Severidad == SeveridadMiTrabajo.Bloqueo ? TipoTareaMiTrabajo.BloqueaCentro : null);
+
+    /// <summary>
+    /// Si la fila cae en el chip de tipo: pertenencia única (<see cref="ChipDeTarea"/>). El filtrado (<see cref="Alcance"/>) y
+    /// los recuentos (<see cref="ContarTipo"/>) usan esta misma función, así que lo que el chip cuenta es lo que enseña.
+    /// </summary>
+    public static bool EnChip(FilaMiTrabajo fila, TipoTareaMiTrabajo tipo) => ChipDeTarea(fila) == tipo;
 
     /// <summary>Recuento de un chip de tipo sobre el ámbito (Empresa elegida y búsqueda), nunca sobre el propio chip.</summary>
     public int ContarTipo(FiltroMiTrabajo filtro, TipoTareaMiTrabajo? tipo)

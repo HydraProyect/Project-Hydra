@@ -554,9 +554,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
 
-        TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
+        TitulosVisibles(cut).Should().BeEquivalentTo("Requisito del centro", "Rechazado por la plataforma");
         (Cuenta("Todos"), Cuenta("Bloquea centro"), Cuenta("Gestiones"))
-            .Should().Be(("6", "3", "0"));
+            .Should().Be(("6", "2", "0"), "el Vencido que bloquea cuenta en «Vencidos», no en «Bloquea centro»");
         cut.Find(".mi-trabajo-titular").TextContent.Should().Be("3 bloqueos que resolver hoy");
     }
 
@@ -1127,10 +1127,10 @@ public partial class MiTrabajoGen2Tests : BunitContext
     [Fact]
     public void Los_filtros_de_la_URL_se_leen_al_montar()
     {
-        var cut = Renderizar(url: $"/mi-trabajo?tipo=bloqueacentro&empresa={TenantRefri}&q=Reconocimiento&agrupar=severidad&orden=cliente");
+        var cut = Renderizar(url: $"/mi-trabajo?tipo=bloqueacentro&empresa={TenantRefri}&q=Requisito&agrupar=severidad&orden=cliente");
 
-        TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico");
-        cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Reconocimiento");
+        TitulosVisibles(cut).Should().BeEquivalentTo("Requisito del centro");
+        cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Requisito");
         cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloquea centro");
         cut.FindAll(".mi-trabajo-cartera-fila-activa").Single().TextContent.Should().Contain("Refrielectric");
         cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente");
@@ -1203,103 +1203,138 @@ public partial class MiTrabajoGen2Tests : BunitContext
         MiTrabajoVista.TipoDeTarea(new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, severidad, Item("x", tipo, "t")))
             .Should().Be(esperado);
 
+    private static FilaMiTrabajo FilaDeTipo(TipoItemBandeja tipo, SeveridadMiTrabajo severidad) =>
+        new(TenantRefri, "Refrielectric", 0, severidad, Item("x", tipo, "t"));
+
+    private static IReadOnlyList<TipoTareaMiTrabajo> ChipsDe(FilaMiTrabajo fila) =>
+        Enum.GetValues<TipoTareaMiTrabajo>().Where(t => MiTrabajoVista.EnChip(fila, t)).ToList();
+
+    // Partición por tipo (decisión de Chris, 2026-11-06): cada tarea en exactamente un chip distinto de «Todos».
     [Theory]
     [InlineData(TipoItemBandeja.Vencido, TipoTareaMiTrabajo.Vencidos)]
     [InlineData(TipoItemBandeja.PlataformaVencida, TipoTareaMiTrabajo.Vencidos)]
     [InlineData(TipoItemBandeja.Faltante, TipoTareaMiTrabajo.Faltantes)]
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, TipoTareaMiTrabajo.Visitas)]
-    public void Un_bloqueo_esta_en_el_chip_de_su_tipo_y_tambien_en_Bloquea_centro(TipoItemBandeja tipo, TipoTareaMiTrabajo chipDelTipo)
+    public void Un_bloqueo_con_chip_de_tipo_propio_esta_solo_en_el_chip_de_su_tipo_y_no_en_Bloquea_centro(TipoItemBandeja tipo, TipoTareaMiTrabajo chipDelTipo)
     {
-        var fila = new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, SeveridadMiTrabajo.Bloqueo, Item("x", tipo, "t"));
+        var fila = FilaDeTipo(tipo, SeveridadMiTrabajo.Bloqueo);
 
         MiTrabajoVista.EnChip(fila, chipDelTipo).Should().BeTrue();
-        MiTrabajoVista.EnChip(fila, TipoTareaMiTrabajo.BloqueaCentro).Should().BeTrue("sigue siendo un bloqueo");
-        MiTrabajoVista.EnChip(fila, TipoTareaMiTrabajo.RevisionIa).Should().BeFalse();
+        MiTrabajoVista.EnChip(fila, TipoTareaMiTrabajo.BloqueaCentro).Should().BeFalse("el chip de su tipo gana a «Bloquea centro»");
+        ChipsDe(fila).Should().Equal([chipDelTipo], "la pertenencia es única");
     }
 
     [Theory]
     [InlineData(TipoItemBandeja.RequisitoPendiente)]
     [InlineData(TipoItemBandeja.PlataformaRechazada)]
-    public void Un_bloqueo_sin_chip_de_tipo_propio_solo_esta_en_Bloquea_centro(TipoItemBandeja tipo)
-    {
-        var fila = new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, SeveridadMiTrabajo.Bloqueo, Item("x", tipo, "t"));
+    public void Un_bloqueo_sin_chip_de_tipo_propio_solo_esta_en_Bloquea_centro(TipoItemBandeja tipo) =>
+        ChipsDe(FilaDeTipo(tipo, SeveridadMiTrabajo.Bloqueo)).Should().Equal([TipoTareaMiTrabajo.BloqueaCentro]);
 
-        MiTrabajoVista.EnChip(fila, TipoTareaMiTrabajo.BloqueaCentro).Should().BeTrue();
-        Enum.GetValues<TipoTareaMiTrabajo>().Where(t => t != TipoTareaMiTrabajo.BloqueaCentro)
-            .Should().OnlyContain(t => !MiTrabajoVista.EnChip(fila, t), "no tiene chip de tipo propio");
-    }
-
-    [Fact]
-    public void Una_Rechazada_que_no_bloquea_su_Centro_queda_fuera_de_Bloquea_centro()
-    {
-        var fila = new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, SeveridadMiTrabajo.Actuacion, Item("x", TipoItemBandeja.PlataformaRechazada, "t"));
-
-        Enum.GetValues<TipoTareaMiTrabajo>().Should().OnlyContain(t => !MiTrabajoVista.EnChip(fila, t));
-    }
+    [Theory]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, SeveridadMiTrabajo.Actuacion)]
+    [InlineData(TipoItemBandeja.PlataformaPendiente, SeveridadMiTrabajo.Actuacion)]
+    [InlineData(TipoItemBandeja.Urgente, SeveridadMiTrabajo.Actuacion)]
+    [InlineData(TipoItemBandeja.VencimientoProximo, SeveridadMiTrabajo.Proximo)]
+    [InlineData(TipoItemBandeja.EnPlataformaSeguimiento, SeveridadMiTrabajo.Seguimiento)]
+    public void Lo_que_ni_bloquea_ni_tiene_chip_de_tipo_propio_solo_cuenta_en_Todos(TipoItemBandeja tipo, SeveridadMiTrabajo severidad) =>
+        ChipsDe(FilaDeTipo(tipo, severidad)).Should().BeEmpty("hueco conocido de la partición: la maqueta no le asigna chip");
 
     [Theory]
     [InlineData(SeveridadMiTrabajo.Actuacion)]
     [InlineData(SeveridadMiTrabajo.Proximo)]
     public void Lo_que_no_bloquea_no_entra_en_Bloquea_centro_aunque_su_tipo_sea_el_de_un_bloqueo_habitual(SeveridadMiTrabajo severidad) =>
-        MiTrabajoVista.EnChip(new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, severidad, Item("x", TipoItemBandeja.Vencido, "t")), TipoTareaMiTrabajo.BloqueaCentro)
-            .Should().BeFalse();
+        MiTrabajoVista.EnChip(FilaDeTipo(TipoItemBandeja.Vencido, severidad), TipoTareaMiTrabajo.BloqueaCentro).Should().BeFalse();
 
     [Fact]
-    public void Los_recuentos_y_el_filtrado_de_los_chips_de_tipo_incluyen_las_tareas_que_tambien_bloquean()
+    public void Ninguna_fila_con_chip_esta_en_mas_de_uno_para_ningun_tipo_ni_severidad()
     {
-        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", esOrigen: false,
-        [
-            Item("v", TipoItemBandeja.Vencido, "Vencido que bloquea"),
-            Item("pv", TipoItemBandeja.PlataformaVencida, "Plataforma vencida que bloquea"),
-            Item("f", TipoItemBandeja.Faltante, "Faltante que bloquea"),
-            Item("s", TipoItemBandeja.SugerenciaVisitaUrgente, "Visita urgente que bloquea"),
-            Item("ia", TipoItemBandeja.RevisionIa, "Lectura IA"),
-        ])]);
-        var vista = new MiTrabajoVista(datos);
+        foreach (var tipo in Enum.GetValues<TipoItemBandeja>())
+            foreach (var severidad in Enum.GetValues<SeveridadMiTrabajo>())
+                ChipsDe(FilaDeTipo(tipo, severidad)).Count.Should().BeLessThanOrEqualTo(1, $"{tipo} / {severidad}");
+    }
+
+    private static MiTrabajoAgregadoDto CarteraMixtaSinHuecos() => new([Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+    [
+        Item("v", TipoItemBandeja.Vencido, "Vencido que bloquea"),
+        Item("pv", TipoItemBandeja.PlataformaVencida, "Plataforma vencida que bloquea"),
+        Item("f", TipoItemBandeja.Faltante, "Faltante que bloquea"),
+        Item("s", TipoItemBandeja.SugerenciaVisitaUrgente, "Sugerencia de visita que bloquea"),
+        Item("vu", TipoItemBandeja.VisitaUrgente, "Visita urgente"),
+        Item("rq", TipoItemBandeja.RequisitoPendiente, "Requisito que bloquea"),
+        Item("pr", TipoItemBandeja.PlataformaRechazada, "Rechazada que bloquea") with { RechazoBloqueaCentro = true },
+        Item("ia", TipoItemBandeja.RevisionIa, "Lectura IA"),
+        Item("de", TipoItemBandeja.DeteccionPendiente, "Detección"),
+    ])]);
+
+    [Fact]
+    public void Los_chips_de_tipo_son_una_particion_de_Todos_y_los_bloqueos_van_a_su_tipo()
+    {
+        var vista = new MiTrabajoVista(CarteraMixtaSinHuecos());
 
         vista.ContarTipo(new(), TipoTareaMiTrabajo.Vencidos).Should().Be(2);
         vista.ContarTipo(new(), TipoTareaMiTrabajo.Faltantes).Should().Be(1);
-        vista.ContarTipo(new(), TipoTareaMiTrabajo.Visitas).Should().Be(1);
-        vista.ContarTipo(new(), TipoTareaMiTrabajo.BloqueaCentro).Should().Be(4, "los cuatro bloquean");
+        vista.ContarTipo(new(), TipoTareaMiTrabajo.Visitas).Should().Be(2);
+        vista.ContarTipo(new(), TipoTareaMiTrabajo.BloqueaCentro).Should().Be(2, "solo el Requisito y la Rechazada que bloquea");
         vista.ContarTipo(new(), TipoTareaMiTrabajo.RevisionIa).Should().Be(1);
-        vista.ContarTipo(new(), null).Should().Be(5);
+        vista.ContarTipo(new(), TipoTareaMiTrabajo.Detecciones).Should().Be(1);
+        vista.ContarTipo(new(), TipoTareaMiTrabajo.Gestiones).Should().Be(0);
+        vista.ContarTipo(new(), null).Should().Be(9);
+
+        Enum.GetValues<TipoTareaMiTrabajo>().Sum(t => vista.ContarTipo(new(), t))
+            .Should().Be(vista.ContarTipo(new(), null), "la suma de los chips es «Todos»: ningún chip repite una tarea");
 
         TitulosAlcance(vista, TipoTareaMiTrabajo.Vencidos).Should().BeEquivalentTo("Vencido que bloquea", "Plataforma vencida que bloquea");
         TitulosAlcance(vista, TipoTareaMiTrabajo.Faltantes).Should().BeEquivalentTo("Faltante que bloquea");
-        TitulosAlcance(vista, TipoTareaMiTrabajo.Visitas).Should().BeEquivalentTo("Visita urgente que bloquea");
-        TitulosAlcance(vista, TipoTareaMiTrabajo.BloqueaCentro).Should().BeEquivalentTo(
-            "Vencido que bloquea", "Plataforma vencida que bloquea", "Faltante que bloquea", "Visita urgente que bloquea");
+        TitulosAlcance(vista, TipoTareaMiTrabajo.Visitas).Should().BeEquivalentTo("Sugerencia de visita que bloquea", "Visita urgente");
+        TitulosAlcance(vista, TipoTareaMiTrabajo.BloqueaCentro).Should().BeEquivalentTo("Requisito que bloquea", "Rechazada que bloquea");
+    }
 
-        // Cada recuento es exactamente lo que el chip enseña: la misma pertenencia manda en ambos.
-        foreach (var tipo in Enum.GetValues<TipoTareaMiTrabajo>())
-            vista.ContarTipo(new(), tipo).Should().Be(vista.Alcance(new(Tipo: tipo)).Count, tipo.ToString());
+    [Fact]
+    public void El_recuento_de_cada_chip_es_lo_que_el_filtrado_enseña_con_y_sin_busqueda()
+    {
+        var vista = new MiTrabajoVista(CarteraMixtaSinHuecos());
+
+        foreach (var busqueda in new[] { "", "bloquea" })
+            foreach (var tipo in Enum.GetValues<TipoTareaMiTrabajo>())
+                vista.ContarTipo(new(Busqueda: busqueda), tipo).Should().Be(vista.Alcance(new(Busqueda: busqueda, Tipo: tipo)).Count, $"{tipo} con «{busqueda}»");
+    }
+
+    [Fact]
+    public void Las_tareas_sin_chip_propio_que_no_bloquean_solo_suman_en_Todos()
+    {
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", esOrigen: false,
+            [Item("v", TipoItemBandeja.Vencido, "Vencido"), Item("u", TipoItemBandeja.Urgente, "Urgente"), Item("pp", TipoItemBandeja.PlataformaPendiente, "Pendiente de subir")],
+            proximos: [Item("p", TipoItemBandeja.VencimientoProximo, "Por vencer")],
+            seguimiento: [Item("s", TipoItemBandeja.EnPlataformaSeguimiento, "Enviado")])]);
+        var vista = new MiTrabajoVista(datos);
+
+        vista.ContarTipo(new(), null).Should().Be(5);
+        Enum.GetValues<TipoTareaMiTrabajo>().Sum(t => vista.ContarTipo(new(), t)).Should().Be(1, "las otras cuatro no tienen chip: nunca se cuentan dos veces");
     }
 
     private static IReadOnlyList<string> TitulosAlcance(MiTrabajoVista vista, TipoTareaMiTrabajo tipo) =>
         vista.Alcance(new(Tipo: tipo)).Select(f => f.Item.Titulo).ToList();
 
     [Fact]
-    public void En_pantalla_un_Vencido_que_bloquea_cuenta_y_se_ve_en_Vencidos_y_sigue_en_Bloquea_centro()
+    public void En_pantalla_los_contadores_de_los_chips_suman_Todos_y_cada_chip_enseña_sus_filas()
     {
-        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", esOrigen: false,
-        [
-            Item("v", TipoItemBandeja.Vencido, "Vencido que bloquea"),
-            Item("f", TipoItemBandeja.Faltante, "Faltante que bloquea"),
-            Item("ia", TipoItemBandeja.RevisionIa, "Lectura IA"),
-        ])]);
-        var cut = Renderizar(() => datos);
+        var cut = Renderizar(() => CarteraMixtaSinHuecos());
         string Cuenta(string etiqueta) => cut.FindAll(".mi-trabajo-chip")
             .Single(c => c.TextContent.Trim().StartsWith(etiqueta)).QuerySelector(".mi-trabajo-chip-cuenta")!.TextContent;
+        void Elegir(string etiqueta) => cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith(etiqueta)).Click();
 
-        (Cuenta("Todos"), Cuenta("Vencidos"), Cuenta("Faltantes"), Cuenta("Bloquea centro")).Should().Be(("3", "1", "1", "2"));
+        (Cuenta("Todos"), Cuenta("Vencidos"), Cuenta("Faltantes"), Cuenta("Visitas"), Cuenta("Bloquea centro"), Cuenta("Revisión IA"), Cuenta("Detecciones"), Cuenta("Gestiones"))
+            .Should().Be(("9", "2", "1", "2", "2", "1", "1", "0"));
+        new[] { "Vencidos", "Faltantes", "Visitas", "Bloquea centro", "Revisión IA", "Detecciones", "Gestiones" }.Sum(c => int.Parse(Cuenta(c)))
+            .Should().Be(int.Parse(Cuenta("Todos")), "la suma de los chips es «Todos»");
 
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Vencidos")).Click();
-        TitulosVisibles(cut).Should().BeEquivalentTo("Vencido que bloquea");
-
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
-        TitulosVisibles(cut).Should().BeEquivalentTo("Vencido que bloquea", "Faltante que bloquea");
+        Elegir("Vencidos");
+        TitulosVisibles(cut).Should().BeEquivalentTo("Vencido que bloquea", "Plataforma vencida que bloquea");
+        Elegir("Bloquea centro");
+        TitulosVisibles(cut).Should().BeEquivalentTo("Requisito que bloquea", "Rechazada que bloquea");
+        Elegir("Visitas");
+        TitulosVisibles(cut).Should().BeEquivalentTo("Sugerencia de visita que bloquea", "Visita urgente");
     }
-
     [Fact]
     public void El_chip_Gestiones_sale_inerte_y_a_cero_porque_no_hay_fuente_de_datos()
     {
@@ -1367,11 +1402,11 @@ public partial class MiTrabajoGen2Tests : BunitContext
     public void La_accion_de_una_fila_ofrece_la_vuelta_a_Mi_trabajo_con_los_filtros_vigentes()
     {
         var cut = Renderizar(url: "/mi-trabajo");
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Vencidos")).Click();
 
         var destino = Formulario(FilaDe(cut, "Reconocimiento médico")).ReturnUrl;
 
-        destino.Should().Be($"/documentos?documentoId={DocumentoVencido}&volver={Uri.EscapeDataString("/mi-trabajo?tipo=bloqueacentro")}");
+        destino.Should().Be($"/documentos?documentoId={DocumentoVencido}&volver={Uri.EscapeDataString("/mi-trabajo?tipo=vencidos")}");
     }
 
     [Theory]
