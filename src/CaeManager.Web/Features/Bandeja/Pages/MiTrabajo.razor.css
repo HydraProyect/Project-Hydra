@@ -12,6 +12,16 @@
     letter-spacing: -0.01em;
 }
 
+/* La maqueta no define la cabecera en móvil: a 375px el selector de Empresa y «Añadir a mi cartera» no caben en una
+   fila y el segundo se recortaba ~32px. Solución mínima: las acciones pasan a la línea siguiente. Solo esta pantalla
+   (el componente de cabecera es compartido); Calendario hace lo mismo con su regla propia. */
+@media (max-width: 640px) {
+    .mi-trabajo ::deep .acciones-cabecera {
+        flex-wrap: wrap;
+        gap: var(--space-3);
+    }
+}
+
 /* Estado de error de la maqueta (vista «Error»): caja sin icono, h3 18/26, texto atenuado y «Reintentar» primario de 40px. */
 .mi-trabajo-error {
     display: flex;
@@ -549,6 +559,28 @@
     color: var(--color-text-muted);
 }
 
+/* La maqueta no define la tarjeta en móvil; a 375px el nombre se quedaba en ~18px de ancho.
+   Se apila: nombre junto al chevron, total y severidad debajo, y el resumen en su propia línea. */
+@media (max-width: 640px) {
+    .mi-trabajo-grupo-encabezado .mi-trabajo-grupo-cabecera {
+        flex-wrap: wrap;
+        row-gap: var(--space-1);
+    }
+
+    .mi-trabajo-grupo-nombre {
+        flex: 1 1 calc(100% - 28px - var(--space-3));
+    }
+
+    .mi-trabajo-grupo-total {
+        margin-left: 28px;
+    }
+
+    .mi-trabajo-grupo-resumen {
+        flex: 1 1 100%;
+        order: 5;
+    }
+}
+
 .mi-trabajo-subcabecera {
     padding: var(--space-3) var(--space-4) var(--space-1) var(--space-8);
     font: var(--font-label-md);
@@ -661,6 +693,36 @@
     font: var(--font-body-sm);
     color: var(--color-text-muted);
     white-space: nowrap;
+}
+
+/* La maqueta no define la fila en móvil; a 375px la acción de la derecha se recortaba
+   y el contexto se partía palabra a palabra. Se apila: cuerpo arriba, severidad, fecha y acción debajo. */
+@media (max-width: 640px) {
+    .mi-trabajo-fila {
+        flex-wrap: wrap;
+        padding-left: var(--space-4);
+    }
+
+    .mi-trabajo-fila-cuerpo {
+        flex: 1 1 calc(100% - 26px - var(--space-3));
+    }
+
+    .mi-trabajo-fila-linea {
+        flex-wrap: wrap;
+    }
+
+    /* Acotado a la línea de la fila: la cabecera del lote reutiliza .mi-trabajo-fila-sujeto y debe seguir en una línea. */
+    .mi-trabajo-fila-titulo,
+    .mi-trabajo-fila-linea .mi-trabajo-fila-sujeto {
+        white-space: normal;
+        overflow: visible;
+    }
+
+    .mi-trabajo-fila-derecha {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
 }
 
 .mi-trabajo-pliegue {
