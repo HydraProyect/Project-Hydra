@@ -380,8 +380,24 @@
     cursor: pointer;
 }
 
+.mi-trabajo-resumen-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.mi-trabajo-resumen {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 .mi-trabajo-atajos {
-    font: var(--font-body-sm);
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
@@ -397,7 +413,20 @@
 
 /* En táctil no hay teclado: la pista «j k mover · ↵ abrir» sobra. */
 @media (pointer: coarse) {
-    .mi-trabajo-atajos {
+    .mi-trabajo-resumen-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.mi-trabajo-resumen {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-atajos {
+    margin-left: auto;
         display: none;
     }
 }

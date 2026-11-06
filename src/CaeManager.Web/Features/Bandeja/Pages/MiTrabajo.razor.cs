@@ -116,6 +116,17 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private IReadOnlyList<GrupoMiTrabajo> Grupos => _vista?.Grupos(Filtro) ?? [];
 
+    /// <summary>«N grupos · M tareas visibles» de la maqueta, sobre los grupos que muestra la cola (plegados o no).</summary>
+    private string ResumenLista
+    {
+        get
+        {
+            var grupos = Grupos;
+            return MiTrabajoVista.Plural(grupos.Count, "GrupoUno", "GruposVarios") + " · "
+                + MiTrabajoVista.Plural(grupos.Sum(g => g.Total), "TareaVisibleUna", "TareasVisiblesVarias");
+        }
+    }
+
     private IReadOnlyList<FilaMiTrabajo> Visibles => _vista?.Visibles(Filtro) ?? [];
 
     /// <summary>Vacío porque no queda trabajo en el Tenant elegido, no porque el filtro lo esconda.</summary>

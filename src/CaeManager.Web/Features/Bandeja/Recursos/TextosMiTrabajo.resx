@@ -485,4 +485,19 @@
   <data name="FiltrarPorTipo" xml:space="preserve">
     <value>Filtrar por tipo de tarea</value>
   </data>
+  <data name="GrupoUno" xml:space="preserve">
+    <value>1 grupo</value>
+  </data>
+  <data name="GruposVarios" xml:space="preserve">
+    <value>{0} grupos</value>
+  </data>
+  <data name="TareaVisibleUna" xml:space="preserve">
+    <value>1 tarea visible</value>
+  </data>
+  <data name="TareasVisiblesVarias" xml:space="preserve">
+    <value>{0} tareas visibles</value>
+  </data>
+  <data name="Atajos" xml:space="preserve">
+    <value>Atajos:</value>
+  </data>
 </root>

@@ -1376,6 +1376,20 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_fila_de_resumen_cuenta_grupos_y_tareas_visibles_y_enseña_los_atajos_que_existen()
+    {
+        var cut = Renderizar();
+
+        var grupos = cut.FindAll(".mi-trabajo-grupo").Count;
+        var tareas = cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Todos")).QuerySelector(".mi-trabajo-chip-cuenta")!.TextContent;
+        cut.Find(".mi-trabajo-resumen").TextContent.Trim().Should().Be($"{grupos} grupos · {tareas} tareas visibles");
+        cut.FindAll(".mi-trabajo-atajos kbd").Select(k => k.TextContent).Should().Equal("j", "k", "↵");
+
+        cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
+        cut.Find(".mi-trabajo-resumen").TextContent.Trim().Should().Be("1 grupo · 1 tarea visible");
+    }
+
+    [Fact]
     public void Un_tipo_Gestiones_en_la_URL_se_ignora_porque_el_chip_es_inerte()
     {
         var cut = Renderizar(url: "/mi-trabajo?tipo=gestiones");

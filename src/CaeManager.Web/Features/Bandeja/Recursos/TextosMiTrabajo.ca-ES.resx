@@ -485,4 +485,19 @@
   <data name="FiltrarPorTipo" xml:space="preserve">
     <value>Filtra per tipus de tasca</value>
   </data>
+  <data name="GrupoUno" xml:space="preserve">
+    <value>1 grup</value>
+  </data>
+  <data name="GruposVarios" xml:space="preserve">
+    <value>{0} grups</value>
+  </data>
+  <data name="TareaVisibleUna" xml:space="preserve">
+    <value>1 tasca visible</value>
+  </data>
+  <data name="TareasVisiblesVarias" xml:space="preserve">
+    <value>{0} tasques visibles</value>
+  </data>
+  <data name="Atajos" xml:space="preserve">
+    <value>Dreceres:</value>
+  </data>
 </root>
