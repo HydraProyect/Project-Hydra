@@ -172,7 +172,7 @@
         </div>
 
         @* Maqueta: «N grupos · M tareas visibles» y, a la derecha, los atajos que de verdad existen en la capa de teclado. *@
-        @if (_vista is not null && !_errorCarga)
+        @if (!_errorCarga)
         {
             <div class="mi-trabajo-resumen-fila">
                 <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
@@ -214,6 +214,8 @@
                     </div>
                 </div>
 
+                @* Maqueta: el estado vacío o cargando va dentro de una tarjeta; con grupos, cada grupo es la suya. *@
+                <div class="@(Grupos.Count == 0 ? "mi-trabajo-estado" : null)">
                 @if (Grupos.Count == 0 && ConsultandoCartera)
                 {
                     @* Con la carga en marcha, una cola vacía solo dice que esa Empresa aún no ha terminado: ni «al día» ni «sin cartera». *@
@@ -275,7 +277,7 @@
                         @{ var clavesGrupos = new ClavesDeHermanos(); }
                         @foreach (var grupo in Grupos)
                         {
-                            <div class="@("mi-trabajo-grupo" + (grupo.Peor == SeveridadMiTrabajo.Bloqueo ? " mi-trabajo-grupo-bloqueo" : ""))" @key="clavesGrupos.De(grupo.Clave)">
+                            <div class="@("mi-trabajo-grupo" + (grupo.Peor == SeveridadMiTrabajo.Bloqueo ? " mi-trabajo-grupo-bloqueo" : "") + (grupo.Plegado ? " mi-trabajo-grupo-plegado" : ""))" @key="clavesGrupos.De(grupo.Clave)">
                                 <div class="mi-trabajo-grupo-encabezado">
                                 @if (grupo.TenantId is { } tenantId)
                                 {
@@ -390,6 +392,7 @@
                         </div>
                     </div>
                 }
+                </div>
             </section>
 
             @if (FilaAbierta is { } abierta)

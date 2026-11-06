@@ -455,16 +455,30 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _lotesAbiertos.Clear();
     }
 
-    /// <summary>«Gestionar» del grupo: lo despliega si estaba plegado y abre la primera tarea (la de mayor prioridad) en el detalle.</summary>
+    /// <summary>
+    /// «Gestionar» del grupo: decide con el estado vivo (no con el del render que pintó el botón, que un doble clic deja
+    /// obsoleto), lo despliega si estaba plegado, abre el pliegue de calendario si es lo único que contiene y abre en el
+    /// detalle su tarea de mayor severidad (a igual severidad, la primera en orden de pantalla).
+    /// </summary>
     private void GestionarGrupo(GrupoMiTrabajo grupo)
     {
-        if (grupo.Plegado)
+        var vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
+        if (vivo is null) return;
+
+        if (vivo.Plegado)
         {
-            if (grupo.TenantId is { } tenantId) AlternarTenant(tenantId);
-            else AlternarSeveridad(grupo.Clave);
+            if (vivo.TenantId is { } tenantId) AlternarTenant(tenantId);
+            else AlternarSeveridad(vivo.Clave);
+            vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
         }
 
-        var primera = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave)?.Filas.FirstOrDefault();
+        if (vivo is { Filas.Count: 0, ResumenCalendario: not null })
+        {
+            AbrirPliegue(vivo.Clave);
+            vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
+        }
+
+        var primera = vivo?.Filas.OrderBy(f => f.Severidad).FirstOrDefault();
         if (primera is null) return;
         AbrirDetalle(primera);
         AbrirLoteDeLaFilaEnfocada();

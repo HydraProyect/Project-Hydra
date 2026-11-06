@@ -1401,9 +1401,53 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         bloquea[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
 
-        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("Gestionar abre la primera tarea del grupo en el detalle");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.GetAttribute("aria-label").Should().StartWith("Gestionar las tareas de ");
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("Gestionar abre una tarea del grupo en el detalle");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-fila-abierta").Should().NotBeNull("la tarea abierta es del grupo pulsado");
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-fila-abierta")!.ClassList.Should().Contain("mi-trabajo-fila-bloqueo", "abre la de mayor severidad, la que motiva la banda");
         cut.Find(".mi-trabajo-detalle").Should().NotBeNull();
     }
+
+    [Fact]
+    public void Gestionar_en_un_grupo_que_solo_tiene_calendario_abre_el_pliegue_y_la_primera_tarea()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [], [Item("r1", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")])]));
+
+        var gestionar = cut.Find(".mi-trabajo-grupo-gestionar");
+        gestionar.Click();
+
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle();
+        TitulosVisibles(cut).Should().Contain("EPI por vencer");
+        cut.FindAll(".mi-trabajo-pliegue").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Gestionar_en_el_modo_Severidad_abre_una_tarea_de_esa_severidad()
+    {
+        var cut = Renderizar(url: "/mi-trabajo?agrupar=severidad");
+
+        var primera = cut.FindAll(".mi-trabajo-grupo").First();
+        primera.QuerySelector(".mi-trabajo-grupo-nombre")!.TextContent.Should().Be("Bloqueo");
+        primera.QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle();
+        cut.Find(".mi-trabajo-fila-abierta").ClassList.Should().Contain("mi-trabajo-fila-bloqueo");
+    }
+
+    [Theory]
+    [InlineData(TipoItemBandeja.VisitaUrgente, "visitas")]
+    [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, "visitas")]
+    [InlineData(TipoItemBandeja.RevisionIa, "ia")]
+    [InlineData(TipoItemBandeja.DeteccionPendiente, "ia")]
+    [InlineData(TipoItemBandeja.PlataformaRechazada, "plataforma")]
+    [InlineData(TipoItemBandeja.EnPlataformaSeguimiento, "plataforma")]
+    [InlineData(TipoItemBandeja.Vencido, "reloj")]
+    [InlineData(TipoItemBandeja.VencimientoProximo, "reloj")]
+    [InlineData(TipoItemBandeja.Urgente, "advertencia")]
+    [InlineData(TipoItemBandeja.Faltante, "documentos")]
+    public void Cada_familia_de_tarea_tiene_su_icono_de_fila(TipoItemBandeja tipo, string icono) =>
+        TipoItemBandejaUi.Icono(Item("x", tipo, "t")).Should().Be(icono);
 
     [Fact]
     public void Un_grupo_sin_Bloqueo_no_lleva_la_banda_roja()

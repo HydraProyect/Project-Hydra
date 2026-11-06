@@ -185,6 +185,27 @@
     border-left: 4px solid var(--color-danger-500);
 }
 
+.mi-trabajo-estado {
+    overflow: hidden;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* Plegado, la tarjeta ya cierra con su propio borde: sin raya doble bajo el encabezado. */
+.mi-trabajo-grupo-plegado .mi-trabajo-grupo-encabezado {
+    border-bottom: 0;
+}
+
+/* overflow:hidden recortaría el anillo de foco global (offset hacia fuera) de los botones pegados al borde de la tarjeta. */
+.mi-trabajo-grupo-cabecera:focus-visible,
+.mi-trabajo-lote:focus-visible,
+.mi-trabajo-pliegue:focus-visible,
+.mi-trabajo-grupo-gestionar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
 .mi-trabajo-grupo-encabezado {
     display: flex;
     align-items: center;
