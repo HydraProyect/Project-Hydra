@@ -148,7 +148,8 @@
 }
 .lista-design.lista-design .tarjeta-listado::after { border-color: var(--color-border-strong); }
 .lista-design.lista-design .tarjeta-listado-pie { border-top: 0; padding: 12px var(--space-4); }
-.lista-design.lista-design.lista-design-centros .paginador-pie-listado { gap: var(--space-4); font-weight: 500; line-height: 16px; }
+.lista-design.lista-design .paginador-pie-listado { gap: var(--space-4); }
+.lista-design.lista-design.lista-design-centros .paginador-pie-listado { font-weight: 500; line-height: 16px; }
 .lista-design.lista-design .paginador-opciones-tamano { gap: 6px; }
 .lista-design.lista-design .paginador-opciones-tamano > [aria-hidden="true"] { display: none; }
 .lista-design.lista-design .paginador-opciones-tamano button { padding: 0 2px; font-weight: 400; }
@@ -215,7 +216,9 @@
     font: 600 10px/14px var(--font-family);
 }
 /* Filas: tinte de estado (rojo y ámbar, no «Sin confirmar»), nombre en 600 y pastilla de estado de 22 de alto */
-/* Solo el degradado de la maqueta («danger-50 0, transparent 60%») sobre fondo transparente: sin el color sólido de list-page.css (fila entera rosa) ni su desplazamiento de fondo. Con el puntero encima manda el azul de la fila. */
+.lista-design.lista-design .fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera { background-image: linear-gradient(90deg, var(--color-danger-50) 0, transparent 60%); }
+.lista-design.lista-design .fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera { background-image: linear-gradient(90deg, var(--color-warning-50) 0, transparent 60%); }
+/* Centros, encima de las dos reglas compartidas de arriba: solo el degradado de la maqueta («danger-50 0, transparent 60%») sobre fondo transparente: sin el color sólido de list-page.css (fila entera rosa) ni su desplazamiento de fondo. Con el puntero encima manda el azul de la fila. */
 .lista-design.lista-design.lista-design-centros .fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera:not(:hover) {
     background-color: transparent;
     background-image: linear-gradient(90deg, var(--color-danger-50) 0, transparent 60%);
