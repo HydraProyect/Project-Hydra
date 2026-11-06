@@ -15,8 +15,8 @@ namespace CaeManager.E2ETests;
 public class CentrosAgruparE2ETests(WebAppFixture fixture)
 {
     // «Por Cliente» es la única agrupación; sin elegirla la lista nace sin agrupar y su pastilla dice solo «Agrupar».
-    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Por Cliente$");
-    private static readonly Regex SinAgrupar = new("^Agrupar$");
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: por cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
 
     private static ILocator Grupos(IPage page) => page.Locator(".cabecera-grupo-centros");
     private static ILocator Filas(IPage page) => page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon");
@@ -44,9 +44,11 @@ public class CentrosAgruparE2ETests(WebAppFixture fixture)
         await Ayudas.MostrarCentrosSinAgruparAsync(page);
         await Expect(Filas(page)).Not.ToHaveCountAsync(0);
 
-        // --- «Por Cliente»: títulos de grupo sin contraer, las filas siguen a la vista y la dirección lo dice. ---
+        // --- «Por Cliente»: títulos de grupo cerrados (sin filas a la vista) y la dirección lo dice; un clic abre el primero. ---
         await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
         await Expect(Grupos(page)).Not.ToHaveCountAsync(0);
+        await Expect(Filas(page)).ToHaveCountAsync(0);
+        await Grupos(page).EvaluateAllAsync<bool>("grupos => { grupos[0].click(); return true; }"); // abre el primer grupo sin localizador posicional
         await Expect(Filas(page)).Not.ToHaveCountAsync(0);
         await Expect(page).ToHaveURLAsync(new Regex(@"[?&]agrupar=cliente(&|$)"));
 
@@ -54,7 +56,7 @@ public class CentrosAgruparE2ETests(WebAppFixture fixture)
         await page.ReloadAsync();
         await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente, new() { Timeout = 30_000 });
         await Expect(Grupos(page)).Not.ToHaveCountAsync(0);
-        await Expect(Filas(page)).Not.ToHaveCountAsync(0);
+        await Expect(Filas(page)).ToHaveCountAsync(0);
 
         // --- «Sin agrupar»: vuelve la vista de fábrica, que no deja rastro en la dirección. ---
         await Ayudas.ElegirAgrupacionAsync(page, "Sin agrupar", SinAgrupar);

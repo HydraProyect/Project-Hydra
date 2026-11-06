@@ -30,7 +30,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina lista-design">
+<div class="contenedor-pagina lista-design lista-design-centros">
     @* Lista 1:1 con «Lista Centros TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que
        Empresas y Trabajadores: cabecera de una línea (CabeceraListado) con el contador, el conmutador ☑ de selección
        múltiple, el icono ⤓ de exportación de la vista filtrada, ⌨, el menú «⋯» con «Exportar asignaciones» (lectura:
@@ -82,7 +82,8 @@
           prefijan el formulario y no filtran.
         - A la derecha, la agrupación «Por Cliente» (de serie sin agrupar; viaja en la URL como «agrupar») y
           «Expandir todo», que solo existe si alguna fila se despliega. El orden por cumplimiento (blueprint § 3.1,
-          DDL-036: atacar los peores centros sin depender de que haya visita) vive en la cabecera de su columna.
+          DDL-036: atacar los peores centros sin depender de que haya visita) y por Empresa viven en la cabecera de
+          su columna; de serie, de peor a mejor estado.
         La pastilla «Filtros guardados» guarda los parámetros de vista de la URL, con la agrupación y el orden:
         FiltrosGuardadosDeListado y ParametrosDeVista.
     *@
@@ -90,7 +91,7 @@
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
-                  VistaRecordada="_vistaRecordada">
+                  VistaRecordada="_vistaRecordada" RestablecerConHerramientas="true">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
                             ValorChanged="CambiarClienteFiltroAsync" Opciones="_opcionesCliente" />
@@ -105,7 +106,8 @@
             @if (_elementosPagina.Count > 0)
             {
                 <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
-                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
+                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A"
+                                TextoDisparadorPropio="@TextoPastillaAgrupar" />
                 @if (HayFilasDesplegables)
                 {
                     <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
@@ -140,7 +142,8 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
+        @* Estados de la maqueta (Error, Vacía, Vacía por filtro): tarjeta solo con título, texto y acción, sin icono. *@
+        <EstadoVacio SinIcono="true" Titulo="No pudimos cargar los centros" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="() => CargarAsync()">Reintentar</Boton>
             </Accion>
@@ -159,8 +162,7 @@
            La copia no afirma que HAYA registros dados de alta: el filtrado
            es de servidor y la consulta solo devuelve el total ya filtrado,
            así que la pantalla no sabe cuántos hay sin filtro. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]"
-                     Descripcion="@Textos["VacioFiltrosDescripcion"]">
+        <EstadoVacio SinIcono="true" Titulo="@Textos["VacioFiltrosTitulo"]">
             <Accion>
                 <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["VacioFiltrosQuitar"]</Boton>
             </Accion>
@@ -170,7 +172,7 @@
     {
         @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
         <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
-            <EstadoVacio NombreIcono="centros" Titulo="Aún no hay centros" Descripcion="Crea el primero para empezar a asignar trabajadores.">
+            <EstadoVacio SinIcono="true" Titulo="Todavía no hay centros" Descripcion="Da de alta el primero desde la ficha de un Cliente.">
                 <Accion>
                     <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
                 </Accion>
@@ -192,12 +194,18 @@
                 }
                 <span></span>
                 <span>@Textos["ColCentro"]</span>
-                <span>@Textos["ColEmpresa"]</span>
+                <span class="columna-empresa-centro-cabecera">
+                    <button type="button" class="cabecera-columna-orden"
+                            aria-pressed="@(OrdenPorEmpresa ? "true" : "false")"
+                            @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.EmpresaRazonSocial))">
+                        @Textos["ColEmpresa"] <span aria-hidden="true">@FlechaDeOrden(OrdenPorEmpresa)</span>
+                    </button>
+                </span>
                 <span class="columna-cumplimiento-centro">
                     <button type="button" class="cabecera-columna-orden"
                             aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
                             @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))">
-                        @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(OrdenPorCumplimiento ? (_ordenDescendente ? "↓" : "↑") : "")</span>
+                        @Textos["OrdenCumplimiento"] <span aria-hidden="true">@FlechaDeOrden(OrdenPorCumplimiento)</span>
                     </button>
                 </span>
                 <span>@Textos["ColEstado"]</span>
@@ -205,16 +213,26 @@
             </div>
 
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
-                @foreach (var (centro, grupo, cantidadGrupo) in FilasConGrupo())
+                @foreach (var (filaCentro, grupo, cantidadGrupo) in FilasConGrupo())
                 {
                     @if (grupo is not null)
                     {
-                        @* Título del grupo «Por Cliente» (maqueta de Centros): el Cliente y cuántos Centros suyos hay en esta página.
-                           Es un título, no un botón: la maqueta no contrae los grupos. *@
-                        <div class="cabecera-grupo-centros" data-grupo-cliente="@grupo.Nombre">
+                        @* Título del grupo «Por Cliente» (maqueta de Centros, export 10-21): botón que pliega y despliega las filas del
+                           grupo, con el Cliente, cuántos Centros suyos hay en esta página y, cerrado, cuántos tienen incidencia. *@
+                        var abierto = GrupoAbierto(grupo);
+                        var conIncidencia = CentrosConIncidencia(grupo);
+                        <button type="button" class="cabecera-grupo-centros" data-grupo-cliente="@grupo.Nombre"
+                                aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
+                            <svg class="@("cabecera-grupo-centros-chevron" + (abierto ? string.Empty : " cabecera-grupo-centros-chevron-cerrado"))" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"></path></svg>
                             @grupo.Nombre<span class="cabecera-grupo-centros-recuento">@RecuentoDeGrupo(cantidadGrupo)</span>
-                        </div>
+                            @if (!abierto && conIncidencia > 0)
+                            {
+                                <span class="cabecera-grupo-centros-incidencias">@TextoCentrosConIncidencia(conIncidencia)</span>
+                            }
+                        </button>
                     }
+                    @if (filaCentro is { } centro)
+                    {
                     <div class="@ClaseTarjeta(centro)" @key="centro.Id">
                         @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
                         @{ var visita = visitas.FirstOrDefault(); }
@@ -435,6 +453,7 @@
                             </div>
                         }
                     </div>
+                    }
                 }
             </div>
             </div>

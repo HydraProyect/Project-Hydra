@@ -38,7 +38,7 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         // «Agrupar» solo se pinta con centros en la página; de serie la lista llega sin agrupar.
         await Assertions.Expect(agrupar).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
-        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: no");
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
 
         // --- Encender: Alt pulsada y soltada sola. ---
@@ -58,10 +58,18 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
 
         // --- Elegir una opción la aplica y apaga el modo: «Por Cliente» pone los títulos de grupo. ---
         await page.Keyboard.PressAsync("p");
-        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: Por Cliente");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: por cliente");
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).Not.ToHaveCountAsync(0);
         await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
         await Assertions.Expect(letras).ToHaveCountAsync(0);
+
+        // --- Agrupada, la lista nace con los grupos cerrados (como la maqueta): sin filas no hay fila que enfocar con «j». ---
+        //     Se abre el primer grupo para que los controles de «j» de más abajo (negativo con el modo encendido y
+        //     positivo con él apagado) vean filas de verdad y no pasen en vacío.
+        var filas = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon");
+        await Assertions.Expect(filas).ToHaveCountAsync(0);
+        await page.Locator(".cabecera-grupo-centros").EvaluateAllAsync<bool>("grupos => { grupos[0].click(); return true; }"); // sin localizador posicional
+        await Assertions.Expect(filas).Not.ToHaveCountAsync(0);
 
         // --- Encender otra vez (el foco volvió a la pastilla, que no es un campo de texto). ---
         await page.Keyboard.PressAsync("Alt");

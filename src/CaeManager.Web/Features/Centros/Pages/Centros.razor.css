@@ -42,9 +42,8 @@
   aquí solo se anulan DENTRO del marco, con el atributo de ámbito de esta página.
 */
 .marco-lista-centros {
+    /* Sin borde propio: el marco de la lista es el de la tarjeta (.tarjeta-listado); dos bordes anidados eran el doble marco. */
     background: var(--color-surface);
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
 }
 
 .cabecera-columnas-centros {
@@ -104,22 +103,66 @@
     justify-content: flex-end;
 }
 
-/* Título de cada grupo «Por Cliente» (maqueta de Centros): nombre del Cliente en mayúsculas y recuento. */
+/*
+  Título de cada grupo «Por Cliente» (maqueta de Centros, export 10-21): un botón de ancho completo y 41 px
+  (10 + 16 + 10 + filete) que pliega las filas del grupo, con chevron, el Cliente en mayúsculas y su recuento.
+*/
 .cabecera-grupo-centros {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    width: 100%;
+    margin: 0;
     padding: 10px var(--space-4);
     background: var(--color-surface);
+    border: 0;
     border-bottom: 1px solid var(--color-fila-divisor);
     font: 600 12px/16px var(--font-family);
     text-transform: uppercase;
     letter-spacing: .08em;
     color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.cabecera-grupo-centros:hover {
+    background: var(--color-surface-subtle);
+}
+
+.cabecera-grupo-centros:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.cabecera-grupo-centros-chevron {
+    flex: none;
+    color: var(--color-text-muted);
+    transition: transform .15s;
+}
+
+.cabecera-grupo-centros-chevron-cerrado {
+    transform: rotate(-90deg);
 }
 
 .cabecera-grupo-centros-recuento {
     color: var(--color-text-muted);
+}
+
+/* Con el grupo cerrado: cuántos de sus Centros tienen incidencia (el «rojo» de la maqueta). */
+.cabecera-grupo-centros-incidencias {
+    margin-left: var(--space-2);
+    padding: 0 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font: 600 12px/20px var(--font-family);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* Rótulo «Empresa» de la cabecera: ordenable como «Cumplimiento»; recorta como su columna. */
+.columna-empresa-centro-cabecera {
+    min-width: 0;
 }
 
 /* Celda «Centro»: nombre encima, código (y Visita) debajo. */

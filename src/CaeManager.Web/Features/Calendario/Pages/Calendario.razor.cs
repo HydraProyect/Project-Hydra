@@ -240,6 +240,11 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private static string Capitalizar(string texto) =>
         string.IsNullOrEmpty(texto) ? texto : char.ToUpper(texto[0], Cultura) + texto[1..];
 
+    private static int NumeroSemanaIso(DateOnly fecha) => ISOWeek.GetWeekOfYear(fecha.ToDateTime(TimeOnly.MinValue));
+
+    /// <summary>Las celdas del mes agrupadas por semana (de lunes a domingo), para pintar delante el número ISO.</summary>
+    private IEnumerable<CeldaCalendario[]> SemanasDelMes() => CeldasDelMes().Chunk(7);
+
     // Rejilla de semana en lunes (convención española). La primera y la
     // última semana se completan con los días del mes anterior/siguiente,
     // marcados como fuera del mes: se pintan atenuados y no son interactivos.

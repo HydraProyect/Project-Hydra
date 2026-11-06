@@ -172,4 +172,8 @@
   <data name="SemanaVaciaDetalle" xml:space="preserve"><value>No hay documentos con vencimiento de lunes a viernes en las Empresas que puedes ver.</value></data>
   <data name="SemanaVaciaTitulo" xml:space="preserve"><value>Nada vence esta semana</value></data>
   <data name="Vista" xml:space="preserve"><value>Vista</value></data>
+  <data name="SemanaCabecera" xml:space="preserve"><value>Sem</value></data>
+  <data name="SemanaNumeroTitulo" xml:space="preserve"><value>Número de semana (ISO 8601)</value></data>
+  <data name="SemanaNumero" xml:space="preserve"><value>Semana {0}</value></data>
+  <data name="SemanaNotaIso" xml:space="preserve"><value>Numeración ISO 8601: la semana empieza en lunes</value></data>
 </root>

@@ -199,7 +199,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = AgrupacionDeLista.Parametro)]
     public string? AgruparInicial { get; set; }
 
-    /// <summary>Orden pedido: <c>cumplimiento</c> (peores primero) o <c>cumplimiento-desc</c>. Sin él, el orden de catálogo.</summary>
+    /// <summary>Orden pedido: <c>cumplimiento</c> o <c>empresa</c>, con sufijo <c>-desc</c> para invertirlo. Sin él, de peor a mejor estado.</summary>
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
@@ -213,6 +213,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<OpcionEstado> OpcionesAgrupacion => [new OpcionEstado(AgruparPorClienteClave, Textos["AgruparPorCliente"].Value)];
 
     private string ValorAgrupacion => ClaveDeAgrupacion ?? string.Empty;
+
+    /// <summary>Texto de la pastilla «Agrupar» (maqueta): «Agrupar: no» o «Agrupar: por cliente», siempre con su estado.</summary>
+    private string TextoPastillaAgrupar => Textos[_agruparPorCliente ? "AgruparEstadoPorCliente" : "AgruparEstadoNo"].Value;
 
     /// <summary>Cambia la agrupación y la escribe en la URL en una sola navegación (<see cref="AgrupacionDeLista.ParaUrl"/>).</summary>
     private Task CambiarAgrupacionAsync(string? valor)
@@ -239,6 +242,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private const string OrdenCumplimientoEnUrl = "cumplimiento";
     private const string OrdenCumplimientoDescendenteEnUrl = "cumplimiento-desc";
+    private const string OrdenEmpresaEnUrl = "empresa";
+    private const string OrdenEmpresaDescendenteEnUrl = "empresa-desc";
 
     private (string? OrdenarPor, bool Descendente) OrdenDesdeUrl() => OrdenDesde(OrdenInicial);
 
@@ -246,7 +251,17 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         OrdenCumplimientoEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), false),
         OrdenCumplimientoDescendenteEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), true),
+        OrdenEmpresaEnUrl => (nameof(CentroListaDto.EmpresaRazonSocial), false),
+        OrdenEmpresaDescendenteEnUrl => (nameof(CentroListaDto.EmpresaRazonSocial), true),
         _ => (null, false),
+    };
+
+    /// <summary>El orden vigente como valor de <c>orden</c> en la URL (lo contrario de <see cref="OrdenDesde"/>); <c>null</c> es el orden de serie.</summary>
+    private string? OrdenEnUrl() => _ordenarPor switch
+    {
+        null => null,
+        nameof(CentroListaDto.EmpresaRazonSocial) => _ordenDescendente ? OrdenEmpresaDescendenteEnUrl : OrdenEmpresaEnUrl,
+        _ => _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl,
     };
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -540,8 +555,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         ClienteId: IdDeFiltro(_clienteFiltro),
         Estado: null,
-        OrdenarPor: _ordenarPor,
-        Descendente: _ordenDescendente,
+        // Sin orden pedido, de peor a mejor estado (maqueta: Bloqueo, Vencido, … Sin incidencias). El orden por Estado
+        // ya lo resuelve la consulta (Gravedad, descendente = lo más grave primero), así que la vista sigue sin «orden» en la URL.
+        OrdenarPor: _ordenarPor ?? nameof(CentroListaDto.Estado),
+        Descendente: _ordenarPor is null || _ordenDescendente,
         Pagina: _pagina,
         TamanoPagina: _tamanoPagina,
         CentroId: _centroIdFiltro,
@@ -874,9 +891,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             ["cliente"] = _clienteFiltro,
             ["empresa"] = _empresaFiltro,
             [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(ClaveDeAgrupacion),
-            ["orden"] = _ordenarPor is null
-                ? null
-                : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl,
+            ["orden"] = OrdenEnUrl(),
         });
         await CargarAsync(resetPagina: true);
     }
@@ -954,7 +969,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// (los grupos en el orden de <see cref="Grupos"/>, y dentro de cada uno el de la consulta). <c>Cantidad</c> es
     /// cuántas filas tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
-    private IEnumerable<(CentroListaDto Centro, GrupoCentros? Grupo, int Cantidad)> FilasConGrupo()
+    private IEnumerable<(CentroListaDto? Centro, GrupoCentros? Grupo, int Cantidad)> FilasConGrupo()
     {
         if (!_agruparPorCliente)
         {
@@ -965,17 +980,56 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         foreach (var grupo in Grupos)
         {
+            // Un grupo cerrado es solo su título (Centro nulo): la maqueta pliega las filas del grupo.
+            if (!GrupoAbierto(grupo))
+            {
+                yield return (null, grupo, grupo.Centros.Count);
+                continue;
+            }
+
             for (var i = 0; i < grupo.Centros.Count; i++)
                 yield return i == 0 ? (grupo.Centros[i], grupo, grupo.Centros.Count) : (grupo.Centros[i], null, 0);
         }
     }
+
+    /// <summary>
+    /// Grupos «Por Cliente» desplegados. Como en la maqueta, nacen todos cerrados (<c>gAbiertos</c> vacío): el título de un
+    /// grupo cerrado resume cuántos Centros tiene y cuántos con incidencia. Vive en la página, no en la URL.
+    /// </summary>
+    private readonly HashSet<Guid> _gruposAbiertos = [];
+
+    private bool GrupoAbierto(GrupoCentros grupo) => _gruposAbiertos.Contains(grupo.ClienteEmpresarialId);
+
+    private void AlternarGrupo(Guid clienteEmpresarialId)
+    {
+        if (!_gruposAbiertos.Add(clienteEmpresarialId))
+        {
+            _gruposAbiertos.Remove(clienteEmpresarialId);
+            // Plegar un grupo deselecciona sus filas: la barra de acciones en lote no apunta a lo que ya no se ve.
+            foreach (var centro in _elementosPagina.Where(c => ClienteEmpresarialDe(c) == clienteEmpresarialId))
+                _seleccionados.Remove(centro.Id);
+        }
+        _idEnfocado = null;
+    }
+
+    /// <summary>
+    /// Centros del grupo ENTERO con incidencia: los que tiñen la fila de rojo (<see cref="NivelProblema"/> 2, el
+    /// «rojo» de la maqueta). Sale del resumen del grupo, no de las filas de esta página.
+    /// </summary>
+    private static int CentrosConIncidencia(GrupoCentros grupo) =>
+        Enum.GetValues<EstadoCentro>()
+            .Where(estado => NivelProblema(estado) == 2)
+            .Sum(estado => grupo.PorEstado.GetValueOrDefault(estado.ToString()));
+
+    private string TextoCentrosConIncidencia(int cantidad) =>
+        Textos[cantidad == 1 ? "GrupoConIncidencia" : "GrupoConIncidencias", cantidad].Value;
 
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty);
 
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
-        _agruparPorCliente ? grupos.SelectMany(g => g.Centros) : _elementosPagina;
+        _agruparPorCliente ? grupos.Where(GrupoAbierto).SelectMany(g => g.Centros) : _elementosPagina;
 
     private void AplicarAgrupacion(bool agrupar)
     {
@@ -984,6 +1038,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _agruparPorCliente = agrupar;
         _idEnfocado = null;
+        // Al agrupar, los grupos nacen cerrados: lo marcado antes y que ya no se ve se deselecciona.
+        if (agrupar)
+            _seleccionados.IntersectWith(FilasEnOrden(Grupos).Select(c => c.Id));
     }
 
     private string ClaseTarjeta(CentroListaDto centro) =>
@@ -1274,7 +1331,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasEnOrden(Grupos).ToList() is { Count: > 0 } visibles && visibles.All(e => _seleccionados.Contains(e.Id));
 
     /// <summary>
     /// Apagar el modo limpia la selección (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9):
@@ -1325,7 +1382,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            // Solo las filas que se ven: con los grupos cerrados no se marca lo que nadie ha visto.
+            foreach (var elemento in FilasEnOrden(Grupos)) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1463,15 +1521,20 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         StateHasChanged();
     }
     /// <summary>
-    /// Orden de la lista. Por defecto null: cliente y luego nombre, el orden de
-    /// catalogo. El orden por cumplimiento se pide expresamente (blueprint
+    /// Orden de la lista. Por defecto null: de peor a mejor estado (Estado
+    /// descendente). El orden por cumplimiento se pide expresamente (blueprint
     /// seccion 3.1, DDL-036) y existe para atacar los peores centros sin
-    /// depender de que haya una visita proxima.
+    /// depender de que haya una visita proxima; tambien se ordena por Empresa.
     /// </summary>
     private string? _ordenarPor;
     private bool _ordenDescendente;
 
     private bool OrdenPorCumplimiento => _ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje);
+
+    private bool OrdenPorEmpresa => _ordenarPor == nameof(CentroListaDto.EmpresaRazonSocial);
+
+    /// <summary>La flecha del rótulo de una columna ordenable: vacía si no es la que ordena, «↑» ascendente y «↓» descendente.</summary>
+    private string FlechaDeOrden(bool ordenaEstaColumna) => !ordenaEstaColumna ? string.Empty : _ordenDescendente ? "↓" : "↑";
 
     private async Task CambiarOrdenAsync(string? ordenarPor)
     {
@@ -1488,9 +1551,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         }
 
         // El orden viaja en la URL como los filtros: recargar o compartir el enlace lo conserva.
-        NavigationManager.ActualizarFiltroEnUrl("orden", _ordenarPor is null
-            ? null
-            : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl);
+        NavigationManager.ActualizarFiltroEnUrl("orden", OrdenEnUrl());
 
         _pagina = 1;
         await CargarAsync();
@@ -1621,7 +1682,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         ["cliente"] = _clienteFiltro,
         ["empresa"] = _empresaFiltro,
         ["centro"] = _centroIdFiltro?.ToString(),
-        ["orden"] = _ordenarPor,
-        ["desc"] = _ordenDescendente ? "true" : null,
+        // Sin orden pedido, el Excel sale en el de serie de la lista (Estado, lo más grave primero). Es plano: no lleva la agrupación.
+        ["orden"] = _ordenarPor ?? nameof(CentroListaDto.Estado),
+        ["desc"] = _ordenarPor is null || _ordenDescendente ? "true" : null,
     };
 }
