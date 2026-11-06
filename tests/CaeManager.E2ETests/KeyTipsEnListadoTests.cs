@@ -38,7 +38,7 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         // «Agrupar» solo se pinta con centros en la página; de serie la lista llega sin agrupar.
         await Assertions.Expect(agrupar).ToBeVisibleAsync(new() { Timeout = 30_000 });
         await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
-        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: no");
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
 
         // --- Encender: Alt pulsada y soltada sola. ---
@@ -58,7 +58,7 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
 
         // --- Elegir una opción la aplica y apaga el modo: «Por Cliente» pone los títulos de grupo. ---
         await page.Keyboard.PressAsync("p");
-        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: Por Cliente");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: por cliente");
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).Not.ToHaveCountAsync(0);
         await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
         await Assertions.Expect(letras).ToHaveCountAsync(0);

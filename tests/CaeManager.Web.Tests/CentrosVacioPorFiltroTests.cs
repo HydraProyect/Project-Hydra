@@ -116,9 +116,9 @@ public class CentrosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Zorrotzaurre");
 
-        cut.Markup.Should().Contain("Ningún centro con estos filtros");
-        cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay centros",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Quitar filtros");
+        cut.Markup.Should().NotContain("Todavía no hay centros",
             "mandar a crear a quien acaba de buscar termina en un centro duplicado");
     }
 
@@ -127,8 +127,8 @@ public class CentrosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(EstadoCentro.Vencido));
 
-        cut.Markup.Should().Contain("Ningún centro con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay centros");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay centros");
     }
 
     [Fact]
@@ -136,9 +136,9 @@ public class CentrosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay centros");
-        cut.Markup.Should().Contain("Crea el primero para empezar a asignar trabajadores.");
-        cut.Markup.Should().NotContain("Ningún centro con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay centros");
+        cut.Markup.Should().Contain("Da de alta el primero desde la ficha de un Cliente.");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     /// <summary>
@@ -150,12 +150,12 @@ public class CentrosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Zorrotzaurre");
 
-        cut.Markup.Should().Contain("Ningún centro con estos filtros");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
         cut.Markup.Should().NotContain("Hay centros dados de alta");
     }
 
     /// <summary>
-    /// «Quitar los filtros» limpia los dos y además los borra de la URL: sin
+    /// «Quitar filtros» limpia los dos y además los borra de la URL: sin
     /// eso, <c>OnParametersSet</c> los devolvería en la siguiente navegación
     /// dentro de la propia página.
     /// </summary>
@@ -163,14 +163,14 @@ public class CentrosVacioPorFiltroTests : BunitContext
     public void Quitar_los_filtros_limpia_los_dos_y_tambien_la_url()
     {
         var cut = Renderizar(busqueda: "Zorrotzaurre", estado: nameof(EstadoCentro.Vencido));
-        cut.Markup.Should().Contain("Ningún centro con estos filtros", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().NotContain("q=Zorrotzaurre").And.NotContain("estado=");
-        cut.Markup.Should().Contain("Aún no hay centros");
-        cut.Markup.Should().NotContain("Ningún centro con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay centros");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     [Fact]
@@ -178,13 +178,13 @@ public class CentrosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Zorrotzaurre", centros: Centro("Centro Zorrotzaurre"));
 
-        cut.Markup.Should().NotContain("Ningún centro con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay centros");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay centros");
         cut.Markup.Should().Contain("Centro Zorrotzaurre");
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Aún no hay centros»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Todavía no hay centros»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -197,7 +197,7 @@ public class CentrosVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay centros");
+        cut.Markup.Should().NotContain("Todavía no hay centros");
         cut.Markup.Should().NotContain("+ Nuevo centro", "invitar a crear con alcance cero termina en un duplicado");
     }
 
@@ -208,7 +208,7 @@ public class CentrosVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay centros");
+        cut.Markup.Should().Contain("Todavía no hay centros");
         cut.Markup.Should().Contain("+ Nuevo centro");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }

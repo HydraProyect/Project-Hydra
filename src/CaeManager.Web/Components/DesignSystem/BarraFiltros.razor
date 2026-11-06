@@ -102,11 +102,28 @@
             @* Sin criterios activos o sin callback, la acción se ofrece deshabilitada. *@
             <ItemMenuAccion OnClick="@(HayFiltrosActivos && OnGuardarFiltro.HasDelegate ? OnGuardarFiltro : default)">@Comunes["GuardarFiltro"]</ItemMenuAccion>
         </MenuAcciones>
-        @if (VistaRecordada is { DifiereDeInicio: true })
+        @if (!RestablecerConHerramientas && VistaRecordada is { DifiereDeInicio: true })
         {
             <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
         }
-        @if (!PresentacionMaqueta) { @Herramientas }
+        @if (!PresentacionMaqueta)
+        {
+            @if (RestablecerConHerramientas)
+            {
+                @* Maqueta de Centros: «Restablecer vista», «Agrupar» y «Expandir todo» forman un solo grupo a la derecha. *@
+                <div class="barra-filtros-herramientas-derecha">
+                    @if (VistaRecordada is { DifiereDeInicio: true })
+                    {
+                        <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
+                    }
+                    @Herramientas
+                </div>
+            }
+            else
+            {
+                @Herramientas
+            }
+        }
         @if (Resumen is not null)
         {
             <span class="barra-filtros-resumen">@Resumen</span>
@@ -239,6 +256,13 @@ else
     /// que «Limpiar todo» no toca.
     /// </summary>
     [Parameter] public ConexionVistaRecordada? VistaRecordada { get; set; }
+
+    /// <summary>
+    /// «Restablecer vista» se pinta dentro del grupo de <see cref="Herramientas"/>, alineado a la derecha, y no tras
+    /// «Filtros guardados». Solo en modo pastillas sin <see cref="PresentacionMaqueta"/>. Por defecto no: el resto de
+    /// listados no cambian.
+    /// </summary>
+    [Parameter] public bool RestablecerConHerramientas { get; set; }
 
     /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }

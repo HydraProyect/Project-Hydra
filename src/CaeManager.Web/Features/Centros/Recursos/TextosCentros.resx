@@ -346,13 +346,13 @@
     <value>{0} pendientes</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ningún centro con estos filtros</value>
+    <value>Ningún resultado con estos filtros</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
     <value>Ninguno coincide con la búsqueda ni con los filtros seleccionados.</value>
   </data>
   <data name="VacioFiltrosQuitar" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Quitar filtros</value>
   </data>
   <data name="PestanaTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>
@@ -579,6 +579,18 @@
   </data>
   <data name="AgruparPorCliente" xml:space="preserve">
     <value>Por Cliente</value>
+  </data>
+  <data name="AgruparEstadoNo" xml:space="preserve">
+    <value>Agrupar: no</value>
+  </data>
+  <data name="AgruparEstadoPorCliente" xml:space="preserve">
+    <value>Agrupar: por cliente</value>
+  </data>
+  <data name="GrupoConIncidencia" xml:space="preserve">
+    <value>{0} con incidencia</value>
+  </data>
+  <data name="GrupoConIncidencias" xml:space="preserve">
+    <value>{0} con incidencias</value>
   </data>
   <data name="RecuentoGrupo" xml:space="preserve">
     <value>· {0}</value>

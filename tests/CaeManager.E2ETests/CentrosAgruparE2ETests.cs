@@ -15,8 +15,8 @@ namespace CaeManager.E2ETests;
 public class CentrosAgruparE2ETests(WebAppFixture fixture)
 {
     // «Por Cliente» es la única agrupación; sin elegirla la lista nace sin agrupar y su pastilla dice solo «Agrupar».
-    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Por Cliente$");
-    private static readonly Regex SinAgrupar = new("^Agrupar$");
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: por cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
 
     private static ILocator Grupos(IPage page) => page.Locator(".cabecera-grupo-centros");
     private static ILocator Filas(IPage page) => page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon");

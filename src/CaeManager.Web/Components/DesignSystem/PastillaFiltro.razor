@@ -64,12 +64,20 @@
     /// </summary>
     [Parameter] public string Keytip { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Texto completo del disparador, con o sin valor aplicado, cuando la pantalla lo rotula de otro modo que
+    /// «Etiqueta: Opción» (maqueta de Centros: «Agrupar: no» / «Agrupar: por cliente»). Las opciones del menú
+    /// no cambian y la letra de KeyTips sigue saliendo de <see cref="Etiqueta"/>.
+    /// </summary>
+    [Parameter] public string? TextoDisparadorPropio { get; set; }
+
     private bool Activa => !string.IsNullOrEmpty(Valor);
 
     private string TextoDisparador
     {
         get
         {
+            if (!string.IsNullOrEmpty(TextoDisparadorPropio)) return TextoDisparadorPropio;
             if (!Activa) return Etiqueta;
             var opcion = Opciones.FirstOrDefault(o => o.Valor == Valor);
             return opcion is null ? Etiqueta : $"{Etiqueta}: {opcion.Texto}";

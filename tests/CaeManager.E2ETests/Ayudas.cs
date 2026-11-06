@@ -1052,7 +1052,7 @@ public static class Ayudas
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar$"));
+        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar: no$"));
         await Assertions.Expect(page.Locator(".cabecera-grupo-centros")).ToHaveCountAsync(0);
     }
 

@@ -51,6 +51,7 @@ public partial class CentrosListaPatronTests
     {
         var mediador = ConDosClientes();
         var cut = Renderizar(mediador, AgruparPorClienteUrl);
+        AbrirGrupos(cut);
         var antes = cut.FilaDeNombre(FilaDeCentro, Bilbao).Foto();
         var titulosAntes = cut.FindAll(".cabecera-grupo-centros").Select(t => t.TextContent).ToList();
 

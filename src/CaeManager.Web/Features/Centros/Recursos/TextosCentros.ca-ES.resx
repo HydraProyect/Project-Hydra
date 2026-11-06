@@ -340,13 +340,13 @@
     <value>{0} pendents</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Cap centre amb aquests filtres</value>
+    <value>Cap resultat amb aquests filtres</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
     <value>Cap no coincideix amb la cerca ni amb els filtres seleccionats.</value>
   </data>
   <data name="VacioFiltrosQuitar" xml:space="preserve">
-    <value>Treu els filtres</value>
+    <value>Treu filtres</value>
   </data>
   <data name="PestanaTrabajadores" xml:space="preserve">
     <value>Treballadors</value>
@@ -573,6 +573,18 @@
   </data>
   <data name="AgruparPorCliente" xml:space="preserve">
     <value>Per Client</value>
+  </data>
+  <data name="AgruparEstadoNo" xml:space="preserve">
+    <value>Agrupa: no</value>
+  </data>
+  <data name="AgruparEstadoPorCliente" xml:space="preserve">
+    <value>Agrupa: per client</value>
+  </data>
+  <data name="GrupoConIncidencia" xml:space="preserve">
+    <value>{0} amb incidència</value>
+  </data>
+  <data name="GrupoConIncidencias" xml:space="preserve">
+    <value>{0} amb incidències</value>
   </data>
   <data name="RecuentoGrupo" xml:space="preserve">
     <value>· {0}</value>

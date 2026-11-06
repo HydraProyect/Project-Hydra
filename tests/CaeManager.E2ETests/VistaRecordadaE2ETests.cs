@@ -32,8 +32,8 @@ namespace CaeManager.E2ETests;
 public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly string Gestor = Ayudas.EmailPrueba("gestorcae", 3);
-    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Por Cliente$");
-    private static readonly Regex SinAgrupar = new("^Agrupar$");
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: por cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
 
     private const string ToastRestablecida = "Vista de fábrica restablecida.";
 
@@ -149,7 +149,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await OlvidarLoRecordadoAsync(page, conUnaVista, pastilla);
 
             var buscador = page.GetByPlaceholder(placeholder);
-            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: Por Cliente», «Agrupar» si no hay).
+            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: por cliente», «Agrupar» si no hay).
             var agrupar = Ayudas.DesplegableAgrupar(page);
             var conteo = page.Locator(".cabecera-pagina .cabecera-listado-contador");
             await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
@@ -229,7 +229,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await CircuitoAtendiendoAsync(page, pastilla);
             // Recién cargada en frío, la página aún se repinta al terminar de inicializarse y un clic suelto en
             // el desplegable puede perderse (visto 1 de 5 veces): se elige «Por Cliente» hasta que dice
-            // «Agrupar: Por Cliente» y la URL lo lleva.
+            // «Agrupar: por cliente» y la URL lo lleva.
             await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "cliente"));
             await SalirAOtraPantallaAsync(page, placeholder);
