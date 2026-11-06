@@ -1,4 +1,10 @@
-.semana-desplazamiento { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+/* Marco de la maqueta: la franja de la semana (chip, rango y nota ISO) encima de la tabla, todo en una tarjeta. */
+.semana-marco { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); overflow: hidden; }
+.semana-franja { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--color-border); }
+.semana-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: var(--radius-full); background: var(--color-primary-50); color: var(--color-primary-700); font: 700 13px/16px var(--font-family); }
+.semana-rango { font: var(--font-label); }
+.semana-nota { font: var(--font-caption); color: var(--color-text-muted); }
+.semana-desplazamiento { overflow-x: auto; }
 .semana-tabla { min-width: 860px; }
 .semana-fila { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(5, 76px) 180px; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--color-border); }
 .semana-fila:last-child { border-bottom: 0; }
@@ -17,4 +23,5 @@ button.semana-celda { cursor: pointer; }
 .semana-reclamado { border-color: var(--color-border-control); background: var(--color-surface); color: var(--color-text); }
 .semana-reclamar:hover { filter: brightness(.95); }
 button.semana-celda:hover { box-shadow: inset 0 0 0 1px currentColor; }
-.semana-desplazamiento:focus-visible, button:focus-visible, a:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
+.semana-desplazamiento:focus-visible { outline: var(--border-focus); outline-offset: -2px; }
+button:focus-visible, a:focus-visible { outline: var(--border-focus); outline-offset: 2px; }

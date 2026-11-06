@@ -16,6 +16,22 @@ public partial class SemanaPorEmpresa
     private IEnumerable<DateOnly> DiasSemana => Enumerable.Range(0, 5).Select(Lunes.AddDays);
     private string InicioSemana => Lunes.ToString(Lunes.Month == Lunes.AddDays(4).Month ? "%d" : Textos["FormatoDiaMes"], Cultura);
     private string TituloSemana => Textos["EmpresaSemana", InicioSemana, Lunes.AddDays(4).ToString(Textos["FormatoDiaMes"], Cultura)];
+    private int NumeroSemana => ISOWeek.GetWeekOfYear(Lunes.ToDateTime(TimeOnly.MinValue));
+
+    /// <summary>«19–23 de octubre de 2026» (lunes a viernes, las columnas de la tabla); si cruza de mes o de año lo dice entero.</summary>
+    private string RangoSemana
+    {
+        get
+        {
+            var viernes = Lunes.AddDays(4);
+            var fin = viernes.ToString(Textos["FormatoFechaLarga"], Cultura);
+            if (Lunes.Year == viernes.Year && Lunes.Month == viernes.Month)
+                return $"{Lunes.ToString("%d", Cultura)}–{fin}";
+            var inicio = Lunes.ToString(Lunes.Year == viernes.Year ? Textos["FormatoDiaMes"] : Textos["FormatoFechaLarga"], Cultura);
+            return $"{inicio} – {fin}";
+        }
+    }
+
     private string NombreDia(DateOnly fecha) => $"{Textos[Dias[fecha.DayNumber - Lunes.DayNumber]]} {fecha.Day}";
     private static int Bloqueantes(SemanaEmpresaDto empresa) => empresa.Documentos.Count(d => d.BloqueaAcceso);
     private static IReadOnlyList<DocumentoSemanaDto> DocumentosDelDia(SemanaEmpresaDto empresa, DateOnly fecha) =>

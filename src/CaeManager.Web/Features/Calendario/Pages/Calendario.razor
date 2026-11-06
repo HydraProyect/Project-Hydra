@@ -60,12 +60,18 @@
     else
     {
         <div class="calendario-rejilla">
+            @* Columna «Sem» de la maqueta: el número de semana ISO 8601 (la semana empieza en lunes). *@
+            <div class="calendario-cabecera-semana" title="@Textos["SemanaNumeroTitulo"]">@Textos["SemanaCabecera"]</div>
             @foreach (var nombreDia in NombresDiasSemana)
             {
                 <div class="calendario-cabecera-dia">@nombreDia</div>
             }
 
-            @foreach (var celda in CeldasDelMes())
+            @foreach (var semanaDelMes in SemanasDelMes())
+            {
+            <div class="calendario-semana">
+            <span class="calendario-numero-semana" title="@Textos["SemanaNumero", NumeroSemanaIso(semanaDelMes[0].Fecha)]">@NumeroSemanaIso(semanaDelMes[0].Fecha)</span>
+            @foreach (var celda in semanaDelMes)
             {
                 @if (!celda.DelMes)
                 {
@@ -105,17 +111,16 @@
                             }
                             @if (visitasDelDia.Count > 0)
                             {
+                                @* Solo la barra, como en la maqueta; cuántas Visitas hay lo dice el nombre accesible del día. *@
                                 <span class="calendario-visitas">
                                     <span class="calendario-barra-visita"></span>
-                                    @if (visitasDelDia.Count > 1)
-                                    {
-                                        <span class="calendario-visitas-numero">@visitasDelDia.Count</span>
-                                    }
                                 </span>
                             }
                         </button>
                     }
                 }
+            }
+            </div>
             }
         </div>
     }

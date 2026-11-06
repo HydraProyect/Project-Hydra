@@ -10,6 +10,12 @@
 }
 else
 {
+    <div class="semana-marco">
+    <div class="semana-franja">
+        <span class="semana-chip">@Textos["SemanaNumero", NumeroSemana]</span>
+        <span class="semana-rango">@RangoSemana</span>
+        <span class="semana-nota">@Textos["SemanaNotaIso"]</span>
+    </div>
     <div class="semana-desplazamiento" role="region" aria-label="@Textos["SemanaPorEmpresa"]" tabindex="0">
         <div class="semana-tabla" role="table" aria-label="@Textos["SemanaPorEmpresa"]">
             <div class="semana-fila semana-cabecera" role="row">
@@ -61,6 +67,7 @@ else
                 </div>
             }
         </div>
+    </div>
     </div>
 }
 
