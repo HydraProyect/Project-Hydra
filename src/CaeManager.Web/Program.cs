@@ -1554,9 +1554,10 @@ app.Run();
 // las migraciones se aplican con una instancia propia apuntando siempre a
 // CaeManagerDb (el rol propietario), sin pasar por el DbContext inyectado —
 // que desde que se configura CaeManagerDbRuntime usa ese rol restringido
-// para todo lo demás (ver TenantRlsConnectionInterceptor). Mientras
-// CaeManagerDbRuntime no esté configurado (todos los entornos hoy) ambas
-// cadenas son la misma y esto es equivalente a conectar una sola vez.
+// para todo lo demás (ver TenantRlsConnectionInterceptor). Donde
+// CaeManagerDbRuntime no está configurado (el desarrollo local con dotnet run;
+// staging, producción y el arnés E2E sí lo configuran) el tráfico cae a
+// CaeManagerDb y esto es equivalente a conectar una sola vez.
 static async Task MigrarBaseDeDatosAsync(IConfiguration configuration, IServiceProvider servicios)
 {
     var cadenaMigraciones = configuration.GetConnectionString("CaeManagerDb");

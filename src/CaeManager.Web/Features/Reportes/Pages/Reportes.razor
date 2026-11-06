@@ -73,17 +73,6 @@
                         }
                     </div>
 
-                    <div class="campo-centro-informe">
-                        <CampoSelect Etiqueta="@Textos["EtiquetaCentrosIncluidos"]" Valor="@_centroId" ValorChanged="CambiarCentro"
-                                     Deshabilitado="@(SinCliente || _cargandoCentros)">
-                            <option value="">@Textos["OpcionTodosLosCentros"]</option>
-                            @foreach (var centro in _centrosDisponibles)
-                            {
-                                <option value="@centro.Id">@Textos["OpcionSoloCentro", centro.Nombre]</option>
-                            }
-                        </CampoSelect>
-                    </div>
-
                     @if (EsVigencia)
                     {
                         <label class="opcion-checkbox-informe">
@@ -95,21 +84,32 @@
                         </label>
                     }
 
-                    <Boton Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync" Cargando="_generando">@Textos["BotonGenerarVistaPrevia"]</Boton>
+                    <div class="campo-centro-informe">
+                        <CampoSelect Etiqueta="@Textos["EtiquetaCentrosIncluidos"]" Valor="@_centroId" ValorChanged="CambiarCentro"
+                                     Deshabilitado="@(SinCliente || _cargandoCentros)">
+                            <option value="">@Textos["OpcionTodosLosCentros"]</option>
+                            @foreach (var centro in _centrosDisponibles)
+                            {
+                                <option value="@centro.Id">@Textos["OpcionSoloCentro", centro.Nombre]</option>
+                            }
+                        </CampoSelect>
+                    </div>
+
+                    <Boton class="boton-generar-informe" Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync" Cargando="_generando">@Textos["BotonGenerarVistaPrevia"]</Boton>
 
                     <div class="acciones-exportar-informe">
                         @if (TienePlan)
                         {
-                            <a class="boton-exportar-informe" href="@EnlaceExportar("pdf")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</a>
-                            <a class="boton-exportar-informe" href="@EnlaceExportar("xlsx")"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</a>
+                            <a class="boton-exportar-informe" href="@EnlaceExportar("pdf")">@Textos["BotonDescargarPdf"]</a>
+                            <a class="boton-exportar-informe" href="@EnlaceExportar("xlsx")">@Textos["BotonDescargarExcel"]</a>
                         }
                         else
                         {
                             @* Sin vista previa vigente no hay qué descargar: sin href, no
                                un enlace atenuado solo por CSS que siguiera funcionando
                                con el teclado. *@
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarPdf"]</span>
-                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["BotonDescargarExcel"]</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe">@Textos["BotonDescargarPdf"]</span>
+                            <span class="boton-exportar-informe boton-exportar-informe-deshabilitado" aria-disabled="true" aria-describedby="pista-descarga-informe">@Textos["BotonDescargarExcel"]</span>
                         }
                     </div>
 
@@ -191,7 +191,7 @@
                 <div class="error-generacion-informe" role="alert">
                     <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorGeneracionTitulo"]"
                                  Descripcion="@Textos["ErrorGeneracionDescripcion"]">
-                        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync">@Textos["BotonReintentar"]</Boton></Accion>
+                        <Accion><Boton class="boton-generar-informe" Variante="VarianteBoton.Primario" OnClick="GenerarVistaPreviaAsync">@Textos["BotonReintentar"]</Boton></Accion>
                     </EstadoVacio>
                 </div>
             }
