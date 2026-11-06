@@ -200,6 +200,10 @@ else
         finally
         {
             _cargando = false;
+            // Tras recargar (p. ej. al corregir una incidencia) el estado filtrado puede haber desaparecido: sin
+            // este reinicio la lista quedaría vacía y ningún chip, ni «Todos», aparecería activo.
+            if (_filtroEstado is not null && !GruposDeEstado.Any(g => g.Texto == _filtroEstado))
+                _filtroEstado = null;
         }
     }
 

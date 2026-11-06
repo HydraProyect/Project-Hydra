@@ -556,6 +556,9 @@ public partial class Empresa360PaginaTests : BunitContext
         lateral.TextContent.Should().Contain("Se pide la documentación a").And.Contain("Jon Arregi").And.Contain("Administración").And.Contain("contacto principal")
             .And.Contain("Recibe las reclamaciones de documentos de esta Empresa.");
         lateral.TextContent.Should().NotContain("Iker Mena").And.NotContain("Nota interna del contacto");
+        // El nombre accesible contiene el dato visible (WCAG 2.5.3) para que el control por voz lo active.
+        lateral.QuerySelectorAll(".empresa360-contacto-filas button").Select(b => b.GetAttribute("aria-label"))
+            .Should().Equal("Copiar correo jon.arregi@ejemplo.test", "Copiar teléfono 976338900");
     }
 
     [Fact]

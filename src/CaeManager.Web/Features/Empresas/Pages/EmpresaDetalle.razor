@@ -200,11 +200,11 @@
                                 @* Correo y teléfono como filas-botón de 36 px con el icono de copiar a la derecha (maqueta «Empresa 360»). *@
                                 <div class="empresa360-contacto-filas">
                                     <BotonCopiar EnLinea="true" ConIcono="true" Valor="@contactoPrincipal.Email" Texto="@contactoPrincipal.Email"
-                                                 Etiqueta="@Textos["CopiarCorreoContacto"]" NombreAccesible="@Textos["CopiarCorreoContacto"]" />
+                                                 Etiqueta="@Textos["CopiarCorreoContacto"]" NombreAccesible="@($"{Textos["CopiarCorreoContacto"]} {contactoPrincipal.Email}")" />
                                     @if (!string.IsNullOrWhiteSpace(contactoPrincipal.Telefono))
                                     {
                                         <BotonCopiar EnLinea="true" ConIcono="true" Valor="@contactoPrincipal.Telefono" Texto="@contactoPrincipal.Telefono"
-                                                     Etiqueta="@Textos["CopiarTelefonoContacto"]" NombreAccesible="@Textos["CopiarTelefonoContacto"]" />
+                                                     Etiqueta="@Textos["CopiarTelefonoContacto"]" NombreAccesible="@($"{Textos["CopiarTelefonoContacto"]} {contactoPrincipal.Telefono}")" />
                                     }
                                 </div>
                                 <p class="empresa360-apoyo empresa360-contacto-pie">@Textos["TarjetaSePideDocumentacionPie"]</p>

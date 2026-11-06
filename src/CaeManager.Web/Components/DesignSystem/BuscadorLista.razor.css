@@ -27,7 +27,9 @@
     min-width: 0;
 }
 
-.buscador-lista ::deep .campo-input {
+.buscador-lista ::deep .campo-input,
+.buscador-lista ::deep .campo-input:focus,
+.buscador-lista ::deep .campo-input:focus-visible {
     min-height: 0;
     width: 100%;
     padding: 0;

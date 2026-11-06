@@ -125,6 +125,42 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
             .Should().Equal("Certificado de la Seguridad Social"));
     }
 
+    /// <summary>
+    /// Si al recargar desaparece el estado filtrado (p. ej. se corrige la única incidencia), el filtro vuelve a «Todos»:
+    /// sin eso la lista quedaba vacía y ningún chip aparecía activo.
+    /// </summary>
+    [Fact]
+    public async Task Con_filtros_si_tras_recargar_ya_no_hay_documentos_del_estado_filtrado_vuelve_a_Todos()
+    {
+        this.ConRolDeEscritura();
+        var documentos = new List<DocumentoListaDto>
+        {
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Seguro de responsabilidad civil", new DateOnly(2025, 1, 1), new DateOnly(2026, 12, 31), EstadoDocumento.Vigente, null, []),
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Certificado de la Seguridad Social", new DateOnly(2025, 1, 1), null, EstadoDocumento.Faltante, null, []),
+        };
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(documentos));
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
+        var propietario = Guid.NewGuid();
+        var cut = Render<PestanaDocumentacion>(p => p
+            .Add(x => x.Ambito, AmbitoAplicacion.Empresa).Add(x => x.PropietarioId, propietario).Add(x => x.EnPagina, true)
+            .Add(x => x.ConFiltros, true));
+        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion").Should().HaveCount(2));
+
+        await cut.FindAll(".documentacion-chip").Single(c => c.TextContent.Contains("Pendiente")).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.FindAll("li.fila-relacion").Should().ContainSingle();
+
+        documentos.RemoveAt(1);
+        cut.Render(p => p.Add(x => x.PropietarioId, Guid.NewGuid()));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll("li.fila-relacion").Should().ContainSingle();
+            cut.FindAll(".documentacion-chip").First().GetAttribute("aria-pressed").Should().Be("true");
+        });
+    }
+
     [Fact]
     public void Sin_filtros_la_pestana_no_pinta_barra_de_chips_ni_buscador()
     {

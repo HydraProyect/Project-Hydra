@@ -171,6 +171,8 @@
     font: var(--font-caption);
     letter-spacing: 0;
     text-align: left;
+    /* .boton-copiar fija nowrap: sin esto un correo largo se sale de la tarjeta lateral. */
+    white-space: normal;
     overflow-wrap: anywhere;
 }
 
