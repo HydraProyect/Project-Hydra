@@ -150,11 +150,12 @@ public sealed class MiTrabajoVista
         _cartera.Where(f => (filtro.TenantId is null || f.TenantId == filtro.TenantId) && CoincideBusqueda(f, filtro.Busqueda)).ToList();
 
     /// <summary>
-    /// Chip de la maqueta al que pertenece la fila: lo que bloquea un Centro gana a cualquier otro tipo; el resto sale del
-    /// Tipo del ítem. Null para lo que ningún chip nombra (por vencer, pendiente de envío, próximo, seguimiento): solo «Todos» lo alcanza.
+    /// Chip de tipo propio de la fila, sale solo del Tipo del ítem y no mira la severidad: un Vencido que además bloquea un
+    /// Centro sigue siendo «Vencidos». Null para lo que ningún chip de tipo nombra (por vencer, pendiente de envío, próximo,
+    /// seguimiento, rechazada de plataforma): solo «Todos» —y «Bloquea centro», si bloquea— lo alcanza.
     /// </summary>
     public static TipoTareaMiTrabajo? TipoDeTarea(FilaMiTrabajo fila) =>
-        fila.Severidad == SeveridadMiTrabajo.Bloqueo ? TipoTareaMiTrabajo.BloqueaCentro : fila.Item.Tipo switch
+        fila.Item.Tipo switch
         {
             TipoItemBandeja.Vencido or TipoItemBandeja.PlataformaVencida => TipoTareaMiTrabajo.Vencidos,
             TipoItemBandeja.Faltante => TipoTareaMiTrabajo.Faltantes,
@@ -164,11 +165,19 @@ public sealed class MiTrabajoVista
             _ => null
         };
 
+    /// <summary>
+    /// Si la fila cae en el chip de tipo: los chips son inclusivos, así que una fila puede estar en dos. «Bloquea centro» es la
+    /// severidad Bloqueo; los demás, el tipo propio del ítem (<see cref="TipoDeTarea"/>). Un Vencido que bloquea un Centro
+    /// aparece en «Vencidos» y en «Bloquea centro»; el filtrado y los recuentos usan esta misma pertenencia.
+    /// </summary>
+    public static bool EnChip(FilaMiTrabajo fila, TipoTareaMiTrabajo tipo) =>
+        tipo == TipoTareaMiTrabajo.BloqueaCentro ? fila.Severidad == SeveridadMiTrabajo.Bloqueo : TipoDeTarea(fila) == tipo;
+
     /// <summary>Recuento de un chip de tipo sobre el ámbito (Empresa elegida y búsqueda), nunca sobre el propio chip.</summary>
     public int ContarTipo(FiltroMiTrabajo filtro, TipoTareaMiTrabajo? tipo)
     {
         var ambito = Ambito(filtro);
-        return tipo is null ? ambito.Count : ambito.Count(f => TipoDeTarea(f) == tipo);
+        return tipo is { } t ? ambito.Count(f => EnChip(f, t)) : ambito.Count;
     }
 
     public int Contar(FiltroMiTrabajo filtro, SeveridadMiTrabajo? severidad)
@@ -179,7 +188,7 @@ public sealed class MiTrabajoVista
 
     /// <summary>Filas que casan con todos los filtros, antes de aplicar ningún pliegue.</summary>
     public IReadOnlyList<FilaMiTrabajo> Alcance(FiltroMiTrabajo filtro) =>
-        Ambito(filtro).Where(f => (filtro.Severidad is null || f.Severidad == filtro.Severidad) && (filtro.Tipo is null || TipoDeTarea(f) == filtro.Tipo)).ToList();
+        Ambito(filtro).Where(f => (filtro.Severidad is null || f.Severidad == filtro.Severidad) && (filtro.Tipo is not { } tipo || EnChip(f, tipo))).ToList();
 
     /// <summary>
     /// Filas que se pintan, en orden de pantalla — la misma secuencia que
