@@ -159,7 +159,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private static int CentrosDe(PuntoSerieCuadroDto p) => p.Cifras.CentrosActivos.Valor;
 
-    /// <summary>Las medidas por equipo (Outbound, Validación, Fincas) aún no existen en el servidor: ver <see cref="TablaEquiposComunicaciones"/>.</summary>
+    /// <summary>
+    /// Las medidas por equipo (Outbound, Validación, Fincas) aún no existen en el servidor, así que esta lista
+    /// siempre está vacía y el bloque «Por equipo» sale con la insignia «Próximamente» y una frase, sin tabla
+    /// (ver <see cref="TablaEquiposComunicaciones"/>, que se pinta cuando haya filas).
+    /// </summary>
     private readonly IReadOnlyList<FilaEquipoComunicaciones> _equipos = [];
 
     private bool _reaperturaAbierta;

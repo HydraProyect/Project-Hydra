@@ -1,4 +1,4 @@
-﻿using AngleSharp.Dom;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -58,11 +58,28 @@ public partial class Vehiculo360PaginaTests
     {
         var (id, m) = CamionGrua(); Registrar(m);
         var cut = Renderizar(id, "?pestana=plataformas");
-        cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).Should().ContainInOrder("Plataformas", "Ficha", "Historial");
-        cut.Find(".pestanas-boton-activa").TextContent.Should().Be("Plataformas");
+        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Replace(t.TextContent, @"\s+", " ").Trim())
+            .Should().ContainInOrder("Plataformas Próximamente", "Ficha", "Historial");
+        System.Text.RegularExpressions.Regex.Replace(cut.Find(".pestanas-boton-activa").TextContent, @"\s+", " ").Trim().Should().Be("Plataformas Próximamente");
         cut.Markup.Should().Contain("Estado en plataformas no disponible");
         cut.Markup.Should().NotContain("Sin incidencias en plataformas").And.NotContain("Todo lo exigido está validado");
         cut.Find(".pestanas-boton-activa").QuerySelectorAll(".pestanas-contador").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_pestana_Plataformas_lleva_la_insignia_Proximamente_sigue_activa_y_conserva_el_texto_explicativo()
+    {
+        var (id, m) = CamionGrua(); Registrar(m);
+        var cut = Renderizar(id, "?pestana=plataformas");
+
+        var pestana = cut.Find(".pestanas-boton-activa");
+        pestana.QuerySelector(".insignia-proximamente")!.TextContent.Should().Be("Próximamente");
+        pestana.HasAttribute("disabled").Should().BeFalse("la pestaña sigue activa: desactivarla la sacaría de la navegación por teclado");
+        pestana.GetAttribute("role").Should().Be("tab");
+        cut.FindAll("[role=tab]").Count(t => t.QuerySelector(".insignia-proximamente") is not null)
+            .Should().Be(1, "solo Plataformas es una función decidida sin construir");
+        cut.Markup.Should().Contain("Estado de la documentación del vehículo en la plataforma CAE de cada Cliente, por Centro.")
+            .And.Contain("Todavía no se puede consultar el estado del vehículo por Cliente y Centro.");
     }
 
     [Fact]

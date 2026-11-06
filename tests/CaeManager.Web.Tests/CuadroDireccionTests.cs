@@ -264,6 +264,15 @@ public partial class CuadroDireccionTests : BunitContext
     }
 
     [Fact]
+    public void Sin_filas_la_tabla_de_equipos_no_pinta_nada_ni_una_tabla_vacia()
+    {
+        var cut = Render<TablaEquiposComunicaciones>(ps => ps.Add(p => p.Filas, []));
+
+        cut.Markup.Trim().Should().BeEmpty();
+        cut.FindAll("table").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Un_equipo_suprimido_va_el_ultimo_aunque_se_ordene_por_su_columna()
     {
         var cut = Render<TablaEquiposComunicaciones>(ps => ps.Add(p => p.Filas,

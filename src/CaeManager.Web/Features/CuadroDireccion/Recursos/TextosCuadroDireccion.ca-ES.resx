@@ -223,7 +223,7 @@
     <value>Siempre por equipo del Operador CAE, nunca por persona. «Cambios de manos»: veces que la conversación pasa de un equipo o persona a otra. Un equipo con menos de 3 personas o 20 conversaciones no se muestra.</value>
   </data>
   <data name="EquiposSinMedidas" xml:space="preserve">
-    <value>Todavía no hay medidas de tiempo por equipo (Outbound, Validación y Fincas). Aparecerán cuando existan en Comunicaciones.</value>
+    <value>Mostrarà les mesures de temps per equip (Outbound, Validació i Finques): primera resposta, resolució i compliment de l’SLA.</value>
   </data>
   <data name="EquipoSuprimido" xml:space="preserve">
     <value>No se muestra: menos de {0} personas o menos de {1} conversaciones</value>

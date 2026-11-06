@@ -18,6 +18,14 @@ public record PestanaDefinicion(string Id, string Etiqueta, string? Icono = null
     /// pinta exactamente como antes y ningún consumidor existente cambia.
     /// </summary>
     public ContadorPestana? Contador { get; init; }
+
+    /// <summary>
+    /// La función de la pestaña está decidida pero sin construir: la etiqueta lleva la
+    /// <see cref="InsigniaProximamente"/>, que forma parte del nombre accesible de la pestaña.
+    /// La pestaña sigue activa (se puede enfocar y abrir): su panel explica qué hará la función.
+    /// Falso por defecto: ningún consumidor existente cambia.
+    /// </summary>
+    public bool Proximamente { get; init; }
 }
 
 /// <summary>

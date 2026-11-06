@@ -45,9 +45,6 @@
   <data name="PestanaPorCliente" xml:space="preserve">
     <value>Per Client empresarial</value>
   </data>
-  <data name="Proximamente" xml:space="preserve">
-    <value>Properament</value>
-  </data>
   <data name="PestanaPorClienteAyuda" xml:space="preserve">
     <value>El que cada Empresa gestionada factura als seus Clients empresarials: aquesta dada encara no existeix a la plataforma</value>
   </data>

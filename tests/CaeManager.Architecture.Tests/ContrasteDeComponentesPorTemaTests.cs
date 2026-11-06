@@ -169,6 +169,11 @@ public class ContrasteDeComponentesPorTemaTests
         new("Círculo de paso completado", "Components/DesignSystem/IndicadorPasos.razor.css",
             [".indicador-pasos-completado .indicador-pasos-circulo"]),
         new("Saltar al contenido", "Components/Layout/MainLayout.razor.css", [".saltar-al-contenido"]),
+        // Insignia «Próximamente»: texto atenuado sobre fondo transparente; va sobre la superficie (tarjeta) o la página (pestañas).
+        new("Insignia «Próximamente» sobre superficie", "Components/DesignSystem/InsigniaProximamente.razor.css",
+            [".insignia-proximamente"], FondoSiFalta: "var(--color-surface)"),
+        new("Insignia «Próximamente» sobre el fondo de página", "Components/DesignSystem/InsigniaProximamente.razor.css",
+            [".insignia-proximamente"], FondoSiFalta: "var(--color-bg)"),
         new("Contador de la campana de avisos", "Features/Notificaciones/CampanaAvisos.razor.css", [".campana-contador"]),
         new("Chip de vistas de demostración y vocabulario", "Components/Layout/PanelDesplegableCabecera.razor.css", [".vistas-chip"]),
         new("Aviso de la banda: sesión de soporte y fin de acceso", "Components/Layout/MainLayout.razor.css",

@@ -534,7 +534,13 @@ public partial class CuadroDireccionTests
         canal.TextContent.Should().Contain("Correo").And.Contain("30").And.Contain("WhatsApp").And.Contain("12").And.Contain("Llamada");
         cut.Find("[data-tarjeta=cm-kpis] [data-sin-modelo=tiempos]").TextContent.Should().Contain("medidas de tiempo");
         cut.Find("[data-tarjeta=cm-intencion] [data-sin-modelo=intencion]").TextContent.Should().Contain("intención");
-        cut.Find("[data-tarjeta=cm-equipos]").TextContent.Should().Contain("Todavía no hay medidas de tiempo por equipo");
+        var equipos = cut.Find("[data-tarjeta=cm-equipos]");
+        equipos.QuerySelector("h2")!.TextContent.Should().Be("Por equipo");
+        equipos.QuerySelector(".insignia-proximamente")!.TextContent.Should().Be("Próximamente");
+        equipos.QuerySelector("[data-sin-modelo=equipos]")!.TextContent.Should().Contain("Mostrará las medidas de tiempo por equipo (Outbound, Validación y Fincas)");
+        equipos.QuerySelector("table").Should().BeNull("el bloque sin medidas no pinta una tabla vacía");
+        equipos.QuerySelector(".cuadro-nota").Should().BeNull("la nota de la tabla no tiene tabla a la que explicar");
+        equipos.TextContent.Should().NotMatchRegex(@"\b20\d\d\b", "el texto de ayuda dice qué hará la función, nunca una fecha");
     }
 
     [Fact]

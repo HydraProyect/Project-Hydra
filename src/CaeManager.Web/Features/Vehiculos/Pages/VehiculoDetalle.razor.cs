@@ -441,7 +441,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
         _pestanas.Select(p =>
         {
-            var definicion = new PestanaDefinicion(p.Id, Textos[p.Clave]);
+            var definicion = new PestanaDefinicion(p.Id, Textos[p.Clave]) { Proximamente = p.Id == "plataformas" };
             return p.Id == "documentacion" && !_cargandoDocumentos && !_errorDocumentos
                 ? definicion with { Contador = new ContadorPestana(_totalDocumentos, Plural(_totalDocumentos, "FichaGlosaDocumentoUno", "FichaGlosaDocumentoVarios")) }
                 : definicion;

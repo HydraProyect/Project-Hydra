@@ -816,8 +816,19 @@
                         case "cm-equipos":
                             <div class="cuadro-bloque cuadro-ancha" data-tarjeta="cm-equipos">
                                 <Tarjeta Titulo="@Textos["EquiposTitulo"]" Class="cuadro-tarjeta">
-                                    <p class="cuadro-nota">@Textos["EquiposNota"]</p>
-                                    <TablaEquiposComunicaciones Filas="_equipos" />
+                                    <AccionesHeader><InsigniaProximamente /></AccionesHeader>
+                                    <ChildContent>
+                                        @if (_equipos.Count == 0)
+                                        {
+                                            @* Función decidida sin construir: solo título, insignia y qué mostrará; ninguna tabla vacía. *@
+                                            <p class="cuadro-vacio" data-sin-modelo="equipos">@Textos["EquiposSinMedidas"]</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="cuadro-nota">@Textos["EquiposNota"]</p>
+                                            <TablaEquiposComunicaciones Filas="_equipos" />
+                                        }
+                                    </ChildContent>
                                 </Tarjeta>
                             </div>
                             break;

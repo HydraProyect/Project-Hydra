@@ -6,13 +6,10 @@
     «Por equipo» de la pestaña Comunicaciones (maqueta «Cuadro Direccion TALVEG.dc.html», tarjeta cm-equipos).
     Siempre por equipo del Operador CAE, nunca por persona. Un equipo que no llega al umbral de anonimato
     (UmbralAnonimatoCuadro: 3 personas y 20 conversaciones) no enseña ninguna cifra: sale la fila con el motivo,
-    al final de la tabla, sin importar el orden elegido.
+    al final de la tabla, sin importar el orden elegido. Sin filas no pinta nada: el bloque «Por equipo» de
+    CuadroDireccion enseña entonces la insignia «Próximamente» y una frase, nunca una tabla vacía.
 *@
-@if (Filas.Count == 0)
-{
-    <p class="cuadro-vacio">@Textos["EquiposSinMedidas"]</p>
-}
-else
+@if (Filas.Count > 0)
 {
     <div class="cuadro-tabla-envoltorio">
         <table class="cuadro-tabla">

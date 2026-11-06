@@ -1,0 +1,21 @@
+/*
+    Insignia «Próximamente»: píldora neutra de borde discontinuo, sin fondo.
+    Inter 600 11/1 con 0,02em de tracking, texto atenuado, relleno 3 8 y radio completo.
+    El color del texto y del borde salen de tokens, así que siguen al tema.
+*/
+.insignia-proximamente {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 3px 8px;
+
+    font: 600 0.6875rem/1 var(--font-family);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+
+    background: transparent;
+    border: 1px dashed var(--color-border-control);
+    border-radius: 9999px;
+}
