@@ -21,7 +21,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Cabecera del menú lateral, opción D elegida por el propietario (2026-09-19)
 /// entre seis maquetas: el wordmark TALVEG sustituye al texto "CAE Manager", con
-/// una etiqueta "CAE" a su lado. <c>Marca.Nombre</c> no se toca (sigue siendo el
+/// una etiqueta a su lado: "CAE" en la opción D y, desde la decisión del 2026-11-07
+/// (DECISION_LOG, submarca del producto), "ACREDITA". <c>Marca.Nombre</c> no se toca (sigue siendo el
 /// nombre de títulos de pestaña y correos) — este cambio es solo lo que se pinta
 /// en <c>div.marca</c>.
 ///
