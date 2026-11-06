@@ -1228,6 +1228,15 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void Un_tipo_Gestiones_en_la_URL_se_ignora_porque_el_chip_es_inerte()
+    {
+        var cut = Renderizar(url: "/mi-trabajo?tipo=gestiones");
+
+        TitulosVisibles(cut).Should().HaveCount(4, "Gestiones no tiene fuente de datos: filtrar por él dejaría la cola vacía");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todos");
+    }
+
+    [Fact]
     public void El_control_de_cartera_se_abre_con_el_resumen_y_se_cierra_con_Escape_o_fuera_o_al_elegir_Empresa()
     {
         var cut = Renderizar();
