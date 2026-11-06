@@ -172,15 +172,12 @@
         </div>
 
         @* Maqueta: «N grupos · M tareas visibles» y, a la derecha, los atajos que de verdad existen en la capa de teclado. *@
-        @if (!_errorCarga)
-        {
-            <div class="mi-trabajo-resumen-fila">
-                <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
-                <span class="mi-trabajo-atajos">@Textos["Atajos"]
-                    <kbd title="@Textos["AtajoMover"]">j</kbd><kbd title="@Textos["AtajoMover"]">k</kbd><kbd title="@Textos["AtajoAbrir"]">↵</kbd>
-                </span>
-            </div>
-        }
+        <div class="mi-trabajo-resumen-fila">
+            <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
+            <span class="mi-trabajo-atajos">@Textos["Atajos"]
+                <kbd title="@Textos["AtajoMover"]">j</kbd><kbd title="@Textos["AtajoMover"]">k</kbd><kbd title="@Textos["AtajoAbrir"]">↵</kbd>
+            </span>
+        </div>
 
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 

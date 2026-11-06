@@ -1435,6 +1435,31 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-fila-abierta").ClassList.Should().Contain("mi-trabajo-fila-bloqueo");
     }
 
+    [Fact]
+    public void Gestionar_en_un_grupo_de_calendario_del_modo_Severidad_lo_despliega_y_abre_su_tarea()
+    {
+        var cut = RenderizarPlegado(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [], [Item("r1", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")])]),
+            url: "/mi-trabajo?agrupar=severidad");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty("el calendario carga plegado");
+
+        cut.Find(".mi-trabajo-grupo-gestionar").Click();
+
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("Gestionar despliega el grupo y abre su tarea en un solo clic");
+        TitulosVisibles(cut).Should().Contain("EPI por vencer");
+    }
+
+    [Fact]
+    public void Gestionar_dos_veces_sobre_un_grupo_que_estaba_plegado_no_lo_vuelve_a_plegar()
+    {
+        var cut = RenderizarPlegado();
+
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+        cut.FindAll(".mi-trabajo-grupo-bloqueo")[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("el segundo clic no repliega ni abre otra tarea");
+    }
+
     [Theory]
     [InlineData(TipoItemBandeja.VisitaUrgente, "visitas")]
     [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, "visitas")]
@@ -1446,6 +1471,9 @@ public partial class MiTrabajoGen2Tests : BunitContext
     [InlineData(TipoItemBandeja.VencimientoProximo, "reloj")]
     [InlineData(TipoItemBandeja.Urgente, "advertencia")]
     [InlineData(TipoItemBandeja.Faltante, "documentos")]
+    [InlineData(TipoItemBandeja.PlataformaPendiente, "plataforma")]
+    [InlineData(TipoItemBandeja.PlataformaVencida, "plataforma")]
+    [InlineData(TipoItemBandeja.RequisitoPendiente, "documentos")]
     public void Cada_familia_de_tarea_tiene_su_icono_de_fila(TipoItemBandeja tipo, string icono) =>
         TipoItemBandejaUi.Icono(Item("x", tipo, "t")).Should().Be(icono);
 

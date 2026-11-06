@@ -472,7 +472,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
         }
 
-        if (vivo is { Filas.Count: 0, ResumenCalendario: not null })
+        if (vivo is { Plegado: false, Filas.Count: 0 })
         {
             AbrirPliegue(vivo.Clave);
             vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
