@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -74,5 +75,29 @@ public class PestanasTests : BunitContext
         activa.GetAttribute("aria-selected").Should().Be("true");
         // El svg del icono es decorativo; el nombre accesible sale de la etiqueta.
         activa.QuerySelector("svg.icono")!.GetAttribute("aria-hidden").Should().Be("true");
+    }
+
+    [Fact]
+    public void Una_pestana_Proximamente_lleva_la_insignia_separada_de_la_etiqueta_y_sigue_siendo_una_pestana_activa()
+    {
+        Services.AddLocalization();
+        IReadOnlyList<PestanaDefinicion> definiciones =
+        [
+            new("listado", "Listado"),
+            new("plataformas", "Plataformas") { Proximamente = true }
+        ];
+
+        var cut = Render<Pestanas>(parametros => parametros
+            .Add(p => p.Definiciones, definiciones)
+            .Add(p => p.PestanaActiva, "listado"));
+
+        var pestana = cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Plataformas"));
+        System.Text.RegularExpressions.Regex.Replace(pestana.TextContent, @"\s+", " ").Trim()
+            .Should().Be("Plataformas Próximamente", "el nombre accesible lleva un espacio entre la etiqueta y la insignia");
+        pestana.QuerySelector("span.insignia-proximamente").Should().NotBeNull();
+        pestana.HasAttribute("disabled").Should().BeFalse();
+        pestana.GetAttribute("tabindex").Should().Be("-1", "es una pestaña más del grupo: entra con las flechas");
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Listado").QuerySelector(".insignia-proximamente")
+            .Should().BeNull("sin Proximamente no se pinta insignia: ningún consumidor existente cambia");
     }
 }

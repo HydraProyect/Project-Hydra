@@ -1,4 +1,4 @@
-using AngleSharp.Dom;
+﻿using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
