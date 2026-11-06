@@ -223,6 +223,14 @@
     display: none;
 }
 
+@media (max-width: 768px) {
+    /* En móvil las acciones bajan a la segunda fila y el wrapper arranca a la izquierda: la lista se ancla a su borde izquierdo. */
+    .mi-trabajo-cartera-lista {
+        left: 0;
+        right: auto;
+    }
+}
+
 .mi-trabajo-cartera-cabecera {
     display: flex;
     align-items: baseline;

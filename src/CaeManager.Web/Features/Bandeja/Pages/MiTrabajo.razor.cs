@@ -205,7 +205,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _urlAplicada = urlActual;
 
         _severidad = ParsearEnum<SeveridadMiTrabajo>(SeveridadUrl);
-        _tipo = ParsearEnum<TipoTareaMiTrabajo>(TipoUrl);
+        _tipo = ParsearEnum<TipoTareaMiTrabajo>(TipoUrl) is { } tipoUrl && tipoUrl != TipoTareaMiTrabajo.Gestiones ? tipoUrl : null; // Gestiones es inerte: no se filtra por él
         _tenantFiltro = Guid.TryParse(EmpresaUrl, out var tenantId) ? tenantId : null;
         _agrupar = ParsearEnum<AgruparMiTrabajo>(AgruparUrl) ?? AgruparMiTrabajo.Tenant;
         _orden = ParsearEnum<OrdenMiTrabajo>(OrdenUrl) ?? OrdenMiTrabajo.Prioridad;
@@ -328,13 +328,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
-    private void CambiarSeveridad(SeveridadMiTrabajo? severidad)
-    {
-        _severidad = severidad;
-        _idEnfocado = null;
-        EscribirFiltrosEnUrl();
-    }
-
     /// <summary>El control compacto de ámbito de cartera (antes carril lateral) está desplegado.</summary>
     private bool _carteraAbierta;
 
@@ -350,6 +343,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private void CambiarTipo(TipoTareaMiTrabajo? tipo)
     {
         _tipo = tipo;
+        _severidad = null; // un enlace antiguo con ?severidad= no puede dejar un filtro que ningún chip pueda quitar
         _idEnfocado = null;
         EscribirFiltrosEnUrl();
     }

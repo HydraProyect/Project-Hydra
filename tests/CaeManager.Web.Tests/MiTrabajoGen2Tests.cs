@@ -1219,6 +1219,12 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
         cut.FindAll(".mi-trabajo-chip-activo").Should().BeEmpty("la lista está filtrada y ningún chip lo dice: «Todos» no puede aparecer activo");
+
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Todos")).Click();
+
+        TitulosVisibles(cut).Should().HaveCount(4, "«Todos» quita el filtro de severidad heredado de la URL");
+        cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todos");
+        new Uri(UrlActual).Query.Should().BeEmpty();
     }
 
     [Fact]
