@@ -28,12 +28,11 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     [Inject] private ILogger<MiTrabajo> Logger { get; set; } = default!;
     [Inject] private NavigationManager Navegacion { get; set; } = default!;
 
-    /// <summary>
-    /// Los filtros de la cola viven también en la URL (UX_PATTERNS: compartir, recargar y volver
-    /// desde la pantalla de una acción sin perderlos). Lo que no se reconoce (un valor que no es una
-    /// severidad, un Tenant que no es un Guid) se ignora: la URL es entrada del usuario.
-    /// </summary>
-    [SupplyParameterFromQuery(Name = "severidad")] public string? SeveridadUrl { get; set; }
+    // Los filtros de la cola viven también en la URL (UX_PATTERNS: compartir, recargar y volver desde la
+    // pantalla de una acción sin perderlos). Lo que no se reconoce (un tipo que no existe, un Tenant que no
+    // es un Guid) se ignora: la URL es entrada del usuario. Un ?severidad= heredado de un enlace antiguo
+    // también se ignora: la maqueta no tiene control de severidad y un filtro sin control visible escondería
+    // trabajo sin que el Gestor CAE supiera cómo quitarlo. Nada del producto genera ya ese parámetro.
 
     /// <summary>Chip de tipo de tarea de la maqueta (<c>?tipo=vencidos</c>); un valor desconocido se ignora.</summary>
     [SupplyParameterFromQuery(Name = "tipo")] public string? TipoUrl { get; set; }
@@ -81,7 +80,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _puedeAnadirACartera;
     private bool _dialogoCarteraVisible;
 
-    private SeveridadMiTrabajo? _severidad;
     private TipoTareaMiTrabajo? _tipo;
     private Guid? _tenantFiltro;
     private string _busqueda = string.Empty;
@@ -114,7 +112,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
-    private FiltroMiTrabajo Filtro => new(_severidad, _tenantFiltro, _busqueda, _agrupar, _orden, _abiertos, _tenantsAbiertos, _severidadesAbiertas, _tipo);
+    private FiltroMiTrabajo Filtro => new(null, _tenantFiltro, _busqueda, _agrupar, _orden, _abiertos, _tenantsAbiertos, _severidadesAbiertas, _tipo);
 
     private IReadOnlyList<GrupoMiTrabajo> Grupos => _vista?.Grupos(Filtro) ?? [];
 
@@ -124,10 +122,10 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool AlDia => _vista is null || _vista.Ambito(Filtro with { Busqueda = string.Empty }).Count == 0;
 
     /// <summary>
-    /// Filtros que esconden trabajo dentro del ámbito: el chip de severidad y la búsqueda. La
+    /// Filtros que esconden trabajo dentro del ámbito: el chip de tipo y la búsqueda. La
     /// Empresa elegida en el carril no cuenta: acota el ámbito, y su vacío es «al día».
     /// </summary>
-    private bool HayFiltrosActivos => _severidad is not null || _tipo is not null || !string.IsNullOrWhiteSpace(_busqueda);
+    private bool HayFiltrosActivos => _tipo is not null || !string.IsNullOrWhiteSpace(_busqueda);
 
     private FilaCarteraMiTrabajo? TenantFiltrado => _tenantFiltro is { } id ? _vista?.Cartera.FirstOrDefault(t => t.TenantId == id) : null;
 
@@ -178,7 +176,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         get
         {
             var consulta = new List<string>();
-            if (_severidad is { } s) consulta.Add($"severidad={Uri.EscapeDataString(s.ToString().ToLowerInvariant())}");
             if (_tipo is { } ti) consulta.Add($"tipo={Uri.EscapeDataString(ti.ToString().ToLowerInvariant())}");
             if (_tenantFiltro is { } t) consulta.Add($"empresa={t}");
             if (!string.IsNullOrWhiteSpace(_busqueda)) consulta.Add($"q={Uri.EscapeDataString(_busqueda)}");
@@ -200,11 +197,10 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AplicarFiltrosDeLaUrl()
     {
-        var urlActual = $"{SeveridadUrl}|{TipoUrl}|{EmpresaUrl}|{BusquedaUrl}|{AgruparUrl}|{OrdenUrl}";
+        var urlActual = $"{TipoUrl}|{EmpresaUrl}|{BusquedaUrl}|{AgruparUrl}|{OrdenUrl}";
         if (urlActual == _urlAplicada) return;
         _urlAplicada = urlActual;
 
-        _severidad = ParsearEnum<SeveridadMiTrabajo>(SeveridadUrl);
         _tipo = ParsearEnum<TipoTareaMiTrabajo>(TipoUrl) is { } tipoUrl && tipoUrl != TipoTareaMiTrabajo.Gestiones ? tipoUrl : null; // Gestiones es inerte: no se filtra por él
         _tenantFiltro = Guid.TryParse(EmpresaUrl, out var tenantId) ? tenantId : null;
         _agrupar = ParsearEnum<AgruparMiTrabajo>(AgruparUrl) ?? AgruparMiTrabajo.Tenant;
@@ -221,7 +217,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void EscribirFiltrosEnUrl() => Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
     {
-        ["severidad"] = _severidad?.ToString().ToLowerInvariant(),
+        ["severidad"] = null, // la pantalla ya no filtra por severidad: la primera escritura de filtros retira el parámetro heredado
         ["tipo"] = _tipo?.ToString().ToLowerInvariant(),
         ["empresa"] = _tenantFiltro?.ToString(),
         ["q"] = _busqueda,
@@ -336,14 +332,12 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         if (e.Key == "Escape") _carteraAbierta = false;
     }
 
-    /// <summary>«Todos» solo está activo sin ningún filtro de tipo ni de severidad (la URL aún admite ?severidad=); un chip inerte nunca lo está.</summary>
-    private bool ChipActivo(ChipMiTrabajo chip) =>
-        !chip.Inerte && chip.Tipo == _tipo && (chip.Tipo is not null || _severidad is null);
+    /// <summary>«Todos» está activo sin filtro de tipo; un chip inerte nunca lo está.</summary>
+    private bool ChipActivo(ChipMiTrabajo chip) => !chip.Inerte && chip.Tipo == _tipo;
 
     private void CambiarTipo(TipoTareaMiTrabajo? tipo)
     {
         _tipo = tipo;
-        _severidad = null; // un enlace antiguo con ?severidad= no puede dejar un filtro que ningún chip pueda quitar
         _idEnfocado = null;
         EscribirFiltrosEnUrl();
     }
@@ -378,7 +372,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void QuitarFiltros()
     {
-        _severidad = null;
         _tipo = null;
         _tenantFiltro = null;
         _busqueda = string.Empty;

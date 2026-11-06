@@ -1351,18 +1351,28 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Un_filtro_de_severidad_de_la_URL_sigue_filtrando_y_no_deja_Todos_marcado()
+    public void Un_filtro_de_severidad_de_la_URL_se_ignora_porque_la_maqueta_no_tiene_control_de_severidad()
     {
         var cut = Renderizar(url: "/mi-trabajo?severidad=bloqueo");
 
-        TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
-        cut.FindAll(".mi-trabajo-chip-activo").Should().BeEmpty("la lista está filtrada y ningún chip lo dice: «Todos» no puede aparecer activo");
-
-        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Todos")).Click();
-
-        TitulosVisibles(cut).Should().HaveCount(4, "«Todos» quita el filtro de severidad heredado de la URL");
+        TitulosVisibles(cut).Should().HaveCount(4, "un filtro de severidad sin control visible escondería trabajo sin que nadie pudiera quitarlo");
         cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Todos");
-        new Uri(UrlActual).Query.Should().BeEmpty();
+
+        // 6 es el total de la Cartera del fixture; las 4 filas son las no plegadas en el Calendario. Sin filtro oculto, los dos coinciden con el enlace sin ?severidad=.
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Todos"))
+            .QuerySelector(".mi-trabajo-chip-cuenta")!.TextContent.Should().Be("6");
+    }
+
+    [Fact]
+    public void El_primer_cambio_de_filtro_retira_de_la_URL_el_parametro_de_severidad_heredado()
+    {
+        var cut = Renderizar(url: "/mi-trabajo?severidad=bloqueo");
+
+        cut.Find("input.mi-trabajo-filtro").Input("Requisito");
+
+        var consulta = new Uri(UrlActual).Query;
+        consulta.Should().Be("?q=Requisito");
+        consulta.Should().NotContain("severidad");
     }
 
     [Fact]
