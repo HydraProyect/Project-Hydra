@@ -1145,6 +1145,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
         TitulosVisibles(cut).Should().BeEquivalentTo("Requisito del centro");
     }
+
     [Fact]
     public void Un_valor_de_la_URL_que_no_se_reconoce_se_ignora()
     {
@@ -1336,6 +1337,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         Elegir("Visitas");
         TitulosVisibles(cut).Should().BeEquivalentTo("Sugerencia de visita que bloquea", "Visita urgente");
     }
+
     [Fact]
     public void El_chip_Gestiones_sale_inerte_y_a_cero_porque_no_hay_fuente_de_datos()
     {
