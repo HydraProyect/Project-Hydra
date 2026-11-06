@@ -1,3 +1,4 @@
+using CaeManager.E2ETests;
 using FluentAssertions;
 using Npgsql;
 using Xunit;
@@ -28,6 +29,15 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// así que la mutación nunca sale de aquí — y el primer caso <b>lo demuestra</b>
 /// con una conexión testigo en vez de darlo por supuesto.
 /// </para>
+///
+/// <para>
+/// <b>Y por qué cada caso que muta roles pasa antes por la guarda.</b> Aunque la
+/// mutación se deshaga, se ejecuta sobre el clúster al que apunta
+/// <c>CAEMANAGER_TESTS_PG</c>: cada caso comprueba, por su misma conexión y
+/// transacción, que es un clúster local declarado desechable
+/// (<c>GuardaClusterDePruebas</c>), igual que el bootstrap del arnés. Lo exige
+/// <c>GuardaClusterDePruebasTests</c> (Architecture) para cada <c>ALTER ROLE</c>.
+/// </para>
 /// </summary>
 public class ContratoDeRolesDeClusterTests
 {
@@ -51,12 +61,14 @@ public class ContratoDeRolesDeClusterTests
         await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, transaccion);
 
         // Precondición EXPLÍCITA, no ambiental: el test no puede depender de que
         // el clúster llegue con LOGIN puesto o quitado. Desde que el arnés lo
         // habilita para poder conectar de verdad con ese rol, el baseline es
         // LOGIN — y un test que asumiera lo contrario sería vacío en vez de roto.
-        await EjecutarAsync(conexion, transaccion, "ALTER ROLE cae_app_runtime WITH LOGIN;");
+        await using (var alter = new NpgsqlCommand("ALTER ROLE cae_app_runtime WITH LOGIN;", conexion, transaccion))
+            await alter.ExecuteNonQueryAsync();
         (await PuedeConectarAsync(conexion, transaccion, "cae_app_runtime")).Should().BeTrue();
 
         await EjecutarAsync(conexion, transaccion, Guion());
@@ -78,8 +90,10 @@ public class ContratoDeRolesDeClusterTests
         await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, transaccion);
 
-        await EjecutarAsync(conexion, transaccion, "ALTER ROLE cae_app_soporte WITH LOGIN;");
+        await using (var alter = new NpgsqlCommand("ALTER ROLE cae_app_soporte WITH LOGIN;", conexion, transaccion))
+            await alter.ExecuteNonQueryAsync();
         (await PuedeConectarAsync(conexion, transaccion, "cae_app_soporte")).Should().BeTrue();
 
         await EjecutarAsync(conexion, transaccion, Guion());
@@ -103,8 +117,10 @@ public class ContratoDeRolesDeClusterTests
         await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, transaccion);
 
-        await EjecutarAsync(conexion, transaccion, $"ALTER ROLE {rol} WITH BYPASSRLS CREATEDB CREATEROLE;");
+        await using (var alter = new NpgsqlCommand($"ALTER ROLE {rol} WITH BYPASSRLS CREATEDB CREATEROLE;", conexion, transaccion))
+            await alter.ExecuteNonQueryAsync();
         (await AtributoAsync(conexion, transaccion, rol, "rolbypassrls")).Should().BeTrue(
             "el estado de partida tiene que ser realmente inseguro, o el test no observaría ninguna corrección");
 
@@ -197,6 +213,7 @@ public class ContratoDeRolesDeClusterTests
         await using var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool());
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        await GuardaClusterDePruebas.ExigirClusterDesechableAsync(conexion, transaccion);
 
         await EjecutarAsync(conexion, transaccion, "REVOKE cae_app_soporte FROM cae_app_runtime;");
         (await MembresiaAsync(conexion, transaccion)).EsMiembro.Should().BeFalse(

@@ -223,6 +223,19 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
           -f deploy/bootstrap/roles-de-cluster.sql
 
+      # El inicializador de módulo de IntegrationTests solo toca roles en un
+      # clúster local declarado desechable (ver GuardaClusterDePruebas y el
+      # mismo paso del job tests-integracion de ci.yml). Este job crea el
+      # contenedor de servicio y lo tira al acabar.
+      - name: Identificar el clúster de pruebas desechable
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          PGPASSWORD: postgres
+        run: |
+          id=$(psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -tA -c "SELECT system_identifier FROM pg_control_system();")
+          test -n "$id"
+          echo "CAEMANAGER_TESTS_CLUSTER_DESECHABLE=$id" >> "$GITHUB_ENV"
+
       # Solo los tests de Anthropic: los demás tests sin clave siguen
       # declarándose omitidos en los bloques de ci.yml. La variable lleva el
       # nombre que espera la aplicación (`Anthropic__ApiKey`), tomada del secreto

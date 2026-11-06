@@ -3,8 +3,10 @@ using System.Net;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Guarda que decide si <c>WebAppFixture</c> puede modificar el rol de clúster <c>cae_app_runtime</c>
-/// (darle LOGIN con la contraseña fija de pruebas). Un rol es un objeto de clúster: el cambio alcanza a todas las
+/// Guarda que decide si una suite de pruebas puede modificar roles de clúster: <c>WebAppFixture</c> (E2E) y
+/// <c>BootstrapDeClusterEnTests</c> (integración, que la compila por enlace desde este fichero) dan LOGIN a
+/// <c>cae_app_runtime</c> con la contraseña fija de pruebas, y el bootstrap de integración además ejecuta
+/// <c>deploy/bootstrap/roles-de-cluster.sql</c>. Un rol es un objeto de clúster: el cambio alcanza a todas las
 /// bases del servidor, así que antes de hacerlo hay que saber que el servidor es un clúster de pruebas desechable.
 ///
 /// <para>
@@ -19,8 +21,9 @@ namespace CaeManager.E2ETests;
 /// <see cref="VariableDeEntorno"/> el <c>system_identifier</c> de ese clúster (<c>pg_control_system()</c>, un número de
 /// 64 bits que <c>initdb</c> genera al azar y que no cambia mientras el clúster exista). La fixture lo vuelve a leer del
 /// clúster al que de verdad está conectada y solo sigue si coinciden: la declaración vale para ESE clúster y no para
-/// cualquiera al que apunte la cadena. En CI lo pone el paso «Identificar el clúster de pruebas desechable» del job de
-/// E2E sobre el contenedor de servicio que el propio job crea. Además, el servidor tiene que ser local (bucle local):
+/// cualquiera al que apunte la cadena. En CI lo pone el paso «Identificar el clúster de pruebas desechable» de cada job
+/// de E2E o de integración, sobre el contenedor de servicio que el propio job crea. Además, el servidor tiene que ser
+/// local (bucle local):
 /// un anfitrión remoto se rechaza aunque la declaración coincida.
 /// </para>
 ///
@@ -61,6 +64,21 @@ internal static class GuardaClusterDePruebas
     }
 
     /// <summary>
+    /// Lo mismo que <see cref="ExigirClusterDesechableAsync"/>, sin <c>await</c>, para el inicializador de módulo del
+    /// bootstrap de integración: un inicializador de módulo no puede esperar, y bloquear sobre una tarea dentro de él
+    /// arriesga un interbloqueo (la continuación, en otro hilo, necesitaría el módulo que el inicializador aún retiene).
+    /// </summary>
+    internal static void ExigirClusterDesechableSincrono(Npgsql.NpgsqlConnection conexion, Npgsql.NpgsqlTransaction? transaccion)
+    {
+        string? identificadorDelCluster;
+        using (var consulta = new Npgsql.NpgsqlCommand(ConsultaIdentificador, conexion, transaccion))
+            identificadorDelCluster = consulta.ExecuteScalar() as string;
+
+        ExigirClusterDesechable(
+            Environment.GetEnvironmentVariable(VariableDeEntorno), conexion.ConnectionString, identificadorDelCluster);
+    }
+
+    /// <summary>
     /// Lanza <see cref="InvalidOperationException"/> salvo que <paramref name="declaracion"/> sea exactamente
     /// <paramref name="identificadorDelCluster"/> y todos los anfitriones de <paramref name="cadenaConexion"/> sean de
     /// bucle local. Es la decisión pura, separada para poder probarla sin servidor.
@@ -70,24 +88,24 @@ internal static class GuardaClusterDePruebas
         const string ComoPreparar =
             "Prepara un clúster de pruebas local con deploy/bootstrap/roles-de-cluster.sql y declara que es desechable con " +
             VariableDeEntorno + "=<salida de «" + ConsultaIdentificador + "» en ese clúster> (ci.yml lo hace en «Identificar " +
-            "el clúster de pruebas desechable»). La fixture no ha modificado ningún rol.";
+            "el clúster de pruebas desechable»). Este proceso de pruebas no ha modificado ningún rol.";
 
         if (string.IsNullOrWhiteSpace(declaracion))
             throw new InvalidOperationException(
-                $"No hay declaración de clúster de pruebas desechable ({VariableDeEntorno} vacía): la fixture no da LOGIN " +
-                $"a cae_app_runtime en un clúster que no está identificado como de pruebas. {ComoPreparar}");
+                $"No hay declaración de clúster de pruebas desechable ({VariableDeEntorno} vacía): las pruebas no tocan " +
+                $"roles ni dan LOGIN a cae_app_runtime en un clúster que no está identificado como de pruebas. {ComoPreparar}");
 
         var anfitriones = AnfitrionesDe(cadenaConexion);
         var remotos = anfitriones.Where(a => !EsBucleLocal(a)).ToList();
         if (anfitriones.Count == 0 || remotos.Count > 0)
             throw new InvalidOperationException(
-                $"El servidor PostgreSQL de los E2E no es local (anfitriones: «{string.Join(", ", anfitriones)}»): la fixture " +
-                $"solo modifica roles en un clúster de pruebas en localhost, 127.0.0.1 o [::1]. {ComoPreparar}");
+                $"El servidor PostgreSQL de las pruebas no es local (anfitriones: «{string.Join(", ", anfitriones)}»): las " +
+                $"pruebas solo modifican roles en un clúster de pruebas en localhost, 127.0.0.1 o [::1]. {ComoPreparar}");
 
         if (string.IsNullOrWhiteSpace(identificadorDelCluster)
             || !string.Equals(declaracion.Trim(), identificadorDelCluster.Trim(), StringComparison.Ordinal))
             throw new InvalidOperationException(
-                $"{VariableDeEntorno} declara desechable el clúster «{declaracion.Trim()}», pero la fixture está conectada al " +
+                $"{VariableDeEntorno} declara desechable el clúster «{declaracion.Trim()}», pero la conexión de pruebas va al " +
                 $"clúster «{identificadorDelCluster}»: CAEMANAGER_TESTS_PG apunta a otro clúster. {ComoPreparar}");
     }
 
