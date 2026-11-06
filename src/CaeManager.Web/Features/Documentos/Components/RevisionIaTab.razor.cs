@@ -463,6 +463,53 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         : Textos["RevIaResumenParcial", aceptadas, solicitadas, fallidas];
 
     private static string Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "No disponible";
+
+    // La tabla de comparación del detalle pinta las fechas en dd/MM/yyyy (formato único) y «—» sin dato (maqueta «Revision IA TALVEG.dc.html»).
+    // El botón de copiar de TextoFechaCopiable copia el mismo dd/MM/yyyy.
+    private static string FechaCorta(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "—";
+
+    private enum Coincidencia
+    {
+        SinComparar,
+        Coincide,
+        NoCoincide
+    }
+
+    private sealed record FilaComparacion(
+        string Campo,
+        string Leido,
+        DateOnly? FechaLeida,
+        string Introducido,
+        DateOnly? FechaIntroducida,
+        Coincidencia Resultado);
+
+    // Solo presentación: lo leído y lo introducido ya venían en el DTO. «Coincide» / «No coincide» se pinta únicamente
+    // cuando hay dos valores que comparar; con la lectura vacía no se afirma una coincidencia que nadie ha visto.
+    private IReadOnlyList<FilaComparacion> FilasComparacion(RevisionIaDocumentoDto r) =>
+    [
+        new FilaComparacion(
+            Textos["RevIaCampoTipo"],
+            r.TipoDetectado ?? Textos["RevIaTipoNoDeterminado"].Value,
+            null,
+            r.TipoDocumentoNombre,
+            null,
+            string.Equals(r.TipoDetectado?.Trim(), r.TipoDocumentoNombre.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? Coincidencia.Coincide
+                : Coincidencia.NoCoincide),
+        FilaFecha(Textos["RevIaCampoEmision"], r.FechaEmisionDetectada, r.FechaEmisionIntroducida),
+        FilaFecha(Textos["RevIaCampoVencimiento"], r.FechaVencimientoDetectada, r.FechaVencimientoIntroducida),
+        new FilaComparacion(Textos["RevIaCampoFirma"], Firma(r.TieneFirmaDetectada), null, Textos["RevIaFirmaNoSolicitada"], null, Coincidencia.SinComparar)
+    ];
+
+    private static FilaComparacion FilaFecha(string campo, DateOnly? leida, DateOnly? introducida) => new(
+        campo,
+        FechaCorta(leida),
+        leida,
+        FechaCorta(introducida),
+        introducida,
+        leida is null || introducida is null
+            ? Coincidencia.SinComparar
+            : leida == introducida ? Coincidencia.Coincide : Coincidencia.NoCoincide);
     private static string Firma(bool? tieneFirma) => tieneFirma switch
     {
         true => "Detectada",

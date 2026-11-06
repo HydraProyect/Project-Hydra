@@ -244,6 +244,90 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>Se aceptaron {0} de {1} lecturas; {2} no se pudieron aceptar.</value>
   </data>
+  <data name="RevIaPendiente" xml:space="preserve">
+    <value>pendiente</value>
+  </data>
+  <data name="RevIaPendientes" xml:space="preserve">
+    <value>pendientes</value>
+  </data>
+  <data name="RevIaConfianzaN" xml:space="preserve">
+    <value>Confianza {0} %</value>
+  </data>
+  <data name="RevIaAbrirPdf" xml:space="preserve">
+    <value>Abrir PDF completo</value>
+  </data>
+  <data name="RevIaPaginaDe" xml:space="preserve">
+    <value>página 1 de {0}</value>
+  </data>
+  <data name="RevIaColCampo" xml:space="preserve">
+    <value>Campo</value>
+  </data>
+  <data name="RevIaColLeido" xml:space="preserve">
+    <value>Leído por la IA</value>
+  </data>
+  <data name="RevIaColIntroducido" xml:space="preserve">
+    <value>Introducido al subir</value>
+  </data>
+  <data name="RevIaCoincide" xml:space="preserve">
+    <value>Coincide</value>
+  </data>
+  <data name="RevIaNoCoincide" xml:space="preserve">
+    <value>No coincide</value>
+  </data>
+  <data name="RevIaTarjetaConfianza" xml:space="preserve">
+    <value>Confianza de la extracción</value>
+  </data>
+  <data name="RevIaPieUmbralBajo" xml:space="preserve">
+    <value>Por debajo de {0} % la confianza sola ya justifica revisión humana</value>
+  </data>
+  <data name="RevIaPieUmbralLote" xml:space="preserve">
+    <value>{0} % · umbral de confirmación en lote</value>
+  </data>
+  <data name="RevIaMotivoTitulo" xml:space="preserve">
+    <value>Motivo de la revisión</value>
+  </data>
+  <data name="RevIaSiAceptasTitulo" xml:space="preserve">
+    <value>Si aceptas la detección</value>
+  </data>
+  <data name="RevIaSiAceptasConFecha" xml:space="preserve">
+    <value>Al aceptar, se aplicará la fecha de emisión detectada y se recalculará el vencimiento cuando el tipo de documento lo haga automáticamente.</value>
+  </data>
+  <data name="RevIaSiAceptasSinFecha" xml:space="preserve">
+    <value>No se puede aceptar: la IA no detectó una fecha de emisión que aplicar. Corrígelo a mano o descarta la lectura.</value>
+  </data>
+  <data name="RevIaPistaSinFecha" xml:space="preserve">
+    <value>Sin fecha detectada no hay nada que aplicar</value>
+  </data>
+  <data name="RevIaPistaRenueva" xml:space="preserve">
+    <value>Renueva el Documento y cierra el aviso</value>
+  </data>
+  <data name="RevIaCampoTipo" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="RevIaTipoNoDeterminado" xml:space="preserve">
+    <value>No determinado</value>
+  </data>
+  <data name="RevIaCampoEmision" xml:space="preserve">
+    <value>Fecha de emisión</value>
+  </data>
+  <data name="RevIaCampoVencimiento" xml:space="preserve">
+    <value>Fecha de vencimiento</value>
+  </data>
+  <data name="RevIaCampoFirma" xml:space="preserve">
+    <value>Firma</value>
+  </data>
+  <data name="RevIaFirmaNoSolicitada" xml:space="preserve">
+    <value>No se solicita al subir</value>
+  </data>
+  <data name="RevIaMigaAria" xml:space="preserve">
+    <value>Miga de pan</value>
+  </data>
+  <data name="RevIaVerAuditoria" xml:space="preserve">
+    <value>Ver auditoría IA →</value>
+  </data>
+  <data name="RevIaConfigurarLectura" xml:space="preserve">
+    <value>Configurar lectura IA</value>
+  </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: Documento o propietario</value></data>
   <data name="ListaFiltroAmbito" xml:space="preserve"><value>Ámbito</value></data>
   <data name="ListaFiltroTipo" xml:space="preserve"><value>Tipo de documento</value></data>

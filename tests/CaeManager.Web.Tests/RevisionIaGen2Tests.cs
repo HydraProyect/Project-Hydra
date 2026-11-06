@@ -128,10 +128,39 @@ public class RevisionIaGen2Tests : BunitContext
         var filas = cut.FindAll(".revision-ia-fila").ToList();
         filas.Should().ContainSingle("control positivo: hay una revisión seleccionable");
         var detalle = cut.Find(".revision-ia-detalle").TextContent;
-        detalle.Should().Contain("Introducida: 01/09/2026").And.Contain("Leída: 01/08/2026")
-            .And.Contain("Introducida: 01/09/2027").And.Contain("Leída: 01/08/2027")
-            .And.Contain("Leída: Detectada").And.Contain("Páginas del documento").And.Contain("3")
-            .And.Contain("Región de firma").And.Contain("No disponible en la extracción actual");
+        // Maqueta «Revision IA TALVEG.dc.html»: tabla con cabecera «Campo / Leído por la IA / Introducido al subir»,
+        // fechas en dd/MM/yyyy y el recuento de páginas en el enlace «Abrir PDF completo · página 1 de n».
+        var tabla = cut.Find(".revision-ia-comparacion");
+        tabla.QuerySelectorAll("thead th").Select(c => c.TextContent.Trim())
+            .Should().Equal("Campo", "Leído por la IA", "Introducido al subir");
+        var filasTabla = tabla.QuerySelectorAll("tbody tr").ToList();
+        filasTabla.Should().HaveCount(4, "tipo, emisión, vencimiento y firma");
+        var emision = filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).TextContent;
+        emision.Should().Contain("01/08/2026").And.Contain("01/09/2026").And.Contain("No coincide");
+        filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).ClassList
+            .Should().Contain("revision-ia-fila-discrepante", "la discrepancia tiñe la fila");
+        var vencimiento = filasTabla.Single(f => f.TextContent.Contains("Fecha de vencimiento")).TextContent;
+        vencimiento.Should().Contain("01/08/2027").And.Contain("01/09/2027");
+        filasTabla.Single(f => f.TextContent.Contains("Firma")).TextContent.Should().Contain("Detectada");
+        detalle.Should().Contain("Abrir PDF completo").And.Contain("página 1 de 3");
+        detalle.Should().Contain("Confianza de la extracción").And.Contain("Motivo de la revisión").And.Contain("Si aceptas la detección");
+    }
+
+    [Fact]
+    public void La_tabla_de_comparacion_solo_afirma_coincidencia_cuando_hay_dos_valores_que_comparar()
+    {
+        var iguales = Revision("Iguales", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 8, 1)
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [iguales] });
+
+        var filasTabla = cut.Find(".revision-ia-comparacion").QuerySelectorAll("tbody tr").ToList();
+        filasTabla.Single(f => f.TextContent.Contains("Fecha de emisión")).TextContent.Should().Contain("Coincide")
+            .And.NotContain("No coincide");
+        var vencimiento = filasTabla.Single(f => f.TextContent.Contains("Fecha de vencimiento"));
+        vencimiento.TextContent.Should().NotContain("Coincide", "sin fecha leída no hay nada que comparar");
+        vencimiento.TextContent.Should().Contain("—");
     }
 
     [Fact]
