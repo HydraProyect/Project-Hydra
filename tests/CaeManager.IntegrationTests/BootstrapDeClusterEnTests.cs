@@ -64,10 +64,11 @@ internal static class BootstrapDeClusterEnTests
         // al que de verdad está conectada esta conexión tiene que ser local y
         // estar declarado desechable (CAEMANAGER_TESTS_CLUSTER_DESECHABLE, ver
         // GuardaClusterDePruebas, compilada aquí por enlace desde E2ETests). Si
-        // no lo está, se lanza sin haber ejecutado nada: el inicializador de
-        // módulo falla y con él todo el ensamblado, así que ningún test de la
-        // suite llega a correr contra un clúster que no es de pruebas. Síncrona
-        // porque un inicializador de módulo no puede esperar.
+        // no lo está, se lanza sin haber ejecutado ninguna sentencia: ni el
+        // guion ni el LOGIN llegan a correr. Los tests que mutan roles por su
+        // cuenta (ContratoDeRolesDeClusterTests) pasan además la misma guarda
+        // sobre su propia conexión. Síncrona porque un inicializador de módulo
+        // no puede esperar.
         GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, null);
 
         using var comando = new NpgsqlCommand(File.ReadAllText(guion), conexion);

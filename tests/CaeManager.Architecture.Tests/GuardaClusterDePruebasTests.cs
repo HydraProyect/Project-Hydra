@@ -44,8 +44,9 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Excepción declarada.</b> <see cref="LiteralesExentosDeIntegracion"/> lista, por fichero y texto exacto, los
-/// literales que el análisis caza pero que no cambian un rol de clúster: hoy uno, el <c>ALTER ROLE … IN DATABASE … SET</c>
-/// con que <c>EquivalenciaDelClonConLaBaseMigradaTests</c> comprueba la sensibilidad de su huella sobre una base
+/// literales que el análisis caza pero que no cambian un rol de clúster: hoy dos, el nombre del caso y el SQL del
+/// <c>ALTER ROLE … IN DATABASE … SET</c> con que <c>EquivalenciaDelClonConLaBaseMigradaTests</c> comprueba la
+/// sensibilidad de su huella sobre una base
 /// temporal que el propio test crea y elimina. No da LOGIN, no pone contraseña ni cambia atributos del rol, y su proceso
 /// ya pasó la guarda en el inicializador de módulo. Una exención que deja de existir hace fallar el test.
 /// </para>
@@ -161,8 +162,8 @@ public class GuardaClusterDePruebasTests
 
         var (literales, desvios) = AlterRoleSinGuardaPrevia(fuentes);
 
-        // Control del instrumento: hoy son cinco (el LOGIN del bootstrap, tres en ContratoDeRolesDeClusterTests y el
-        // exento de EquivalenciaDelClonConLaBaseMigradaTests).
+        // Control del instrumento: hoy son seis (el LOGIN del bootstrap, tres en ContratoDeRolesDeClusterTests y los dos
+        // exentos de EquivalenciaDelClonConLaBaseMigradaTests, la etiqueta del caso y su SQL).
         literales.Should().BeGreaterThan(LiteralesExentosDeIntegracion.Count,
             "BootstrapDeClusterEnTests da LOGIN a cae_app_runtime con un ALTER ROLE");
 
@@ -184,11 +185,20 @@ public class GuardaClusterDePruebasTests
     [Fact]
     public void El_bootstrap_de_integracion_pasa_la_guarda_antes_de_ejecutar_ningun_comando()
     {
-        var bootstrap = LeerIntegracion().Single(f => f.Ruta == "tests/CaeManager.IntegrationTests/BootstrapDeClusterEnTests.cs");
-        var metodo = CSharpSyntaxTree.ParseText(bootstrap.Texto).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
-            .Single(m => m.AttributeLists.SelectMany(a => a.Attributes).Any(a => a.Name.ToString() == "ModuleInitializer"));
+        var inicializadores = LeerIntegracion()
+            .SelectMany(f => CSharpSyntaxTree.ParseText(f.Texto).GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+                .Where(m => m.AttributeLists.SelectMany(a => a.Attributes)
+                    .Any(a => a.Name.ToString() is "ModuleInitializer" or "ModuleInitializerAttribute"
+                        || a.Name.ToString().EndsWith(".ModuleInitializer", StringComparison.Ordinal)
+                        || a.Name.ToString().EndsWith(".ModuleInitializerAttribute", StringComparison.Ordinal)))
+                .Select(m => (f.Ruta, Metodo: m)))
+            .ToList();
 
-        DesviosDelBootstrap(metodo).Should().BeEmpty();
+        inicializadores.Select(i => i.Ruta).Should().Equal(["tests/CaeManager.IntegrationTests/BootstrapDeClusterEnTests.cs"],
+            "un inicializador de módulo corre antes que cualquier test: si hubiera otro, podría tocar roles sin pasar por " +
+            "este análisis");
+
+        DesviosDelBootstrap(inicializadores[0].Metodo).Should().BeEmpty();
     }
 
     [Theory]
@@ -200,6 +210,12 @@ public class GuardaClusterDePruebasTests
         "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); if (y) { GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); } using var g = new NpgsqlCommand(guion, c); }")]
     [InlineData("guarda sobre otra conexión",
         "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(otra, null); using var g = new NpgsqlCommand(guion, c); }")]
+    [InlineData("CreateCommand antes de la guarda",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); using var k = c.CreateCommand(); k.CommandText = guion; k.ExecuteNonQuery(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
+    [InlineData("new con tipo inferido antes de la guarda",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); NpgsqlCommand k = new(guion, c); k.ExecuteNonQuery(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
+    [InlineData("ayudante que ejecuta SQL antes de la guarda",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); Ejecutar(c, guion); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
     public void El_analisis_del_bootstrap_detecta_una_guarda_ausente_o_tardia(string caso, string metodo)
     {
         var declaracion = CSharpSyntaxTree.ParseText($"class B {{ {metodo} }}").GetRoot().DescendantNodes()
@@ -306,9 +322,12 @@ public class GuardaClusterDePruebasTests
     /// <summary>
     /// Literales de la suite de integración que el análisis caza pero que no cambian un rol de clúster (ver «Excepción
     /// declarada» en la cabecera). Por fichero y texto exacto: un literal nuevo, aunque se parezca, no hereda la exención.
+    /// Cada entrada tiene que corresponder exactamente a un literal (ni cero ni dos).
     /// </summary>
     private static readonly HashSet<(string Ruta, string Texto)> LiteralesExentosDeIntegracion =
     [
+        // Nombre del caso en la tabla de alteraciones (clave del diccionario), no SQL.
+        ("tests/CaeManager.IntegrationTests/EquivalenciaDelClonConLaBaseMigradaTests.cs", "ALTER ROLE IN DATABASE SET"),
         ("tests/CaeManager.IntegrationTests/EquivalenciaDelClonConLaBaseMigradaTests.cs",
             "ALTER ROLE cae_app_runtime IN DATABASE {BASE} SET statement_timeout = '7s';"),
     ];
@@ -373,6 +392,24 @@ public class GuardaClusterDePruebasTests
         {
             desvios.Add("no hay una sentencia de primer nivel GuardaClusterDePruebas.ExigirClusterDesechableSincrono(conexion, …)");
             return desvios;
+        }
+
+        // Antes de la primera guarda, la conexión que guarda solo puede declararse y abrirse: cualquier otro uso
+        // (CreateCommand, un NpgsqlBatch, new(sql, conexion) con tipo inferido, un ayudante que ejecute SQL) podría
+        // tocar roles antes de la comprobación sin ser un new NpgsqlCommand reconocible.
+        var primera = guardas.Min(g => g.SpanStart);
+        foreach (var guarda in guardas)
+        {
+            var conexionGuardada = ((InvocationExpressionSyntax)guarda.Expression).ArgumentList.Arguments
+                is [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var nombre } }, ..] ? nombre : null;
+            foreach (var uso in metodo.DescendantNodes().OfType<IdentifierNameSyntax>()
+                         .Where(i => i.Identifier.ValueText == conexionGuardada && i.SpanStart < primera))
+            {
+                var esApertura = uso.Parent is MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Open", Parent: InvocationExpressionSyntax { Parent: ExpressionStatementSyntax } } acceso
+                    && acceso.Expression == uso;
+                if (!esApertura)
+                    desvios.Add($"línea {uso.GetLocation().GetLineSpan().StartLinePosition.Line + 1}: «{uso.Parent}» usa la conexión antes de la guarda");
+            }
         }
 
         foreach (var comando in comandos)
