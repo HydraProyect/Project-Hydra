@@ -549,6 +549,28 @@
     color: var(--color-text-muted);
 }
 
+/* La maqueta no define la tarjeta por debajo de 768px; a 375px el nombre se quedaba en ~18px de ancho.
+   Se apila: nombre junto al chevron, total y severidad debajo, y el resumen en su propia línea. */
+@media (max-width: 640px) {
+    .mi-trabajo-grupo-encabezado .mi-trabajo-grupo-cabecera {
+        flex-wrap: wrap;
+        row-gap: var(--space-1);
+    }
+
+    .mi-trabajo-grupo-nombre {
+        flex: 1 1 calc(100% - 28px - var(--space-3));
+    }
+
+    .mi-trabajo-grupo-total {
+        margin-left: 28px;
+    }
+
+    .mi-trabajo-grupo-resumen {
+        flex: 1 1 100%;
+        order: 5;
+    }
+}
+
 .mi-trabajo-subcabecera {
     padding: var(--space-3) var(--space-4) var(--space-1) var(--space-8);
     font: var(--font-label-md);
