@@ -321,9 +321,13 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         EscribirFiltrosEnUrl();
     }
 
+    /// <summary>El control compacto de ámbito de cartera (antes carril lateral) está desplegado.</summary>
+    private bool _carteraAbierta;
+
     private void CambiarTenant(Guid? tenantId)
     {
         _tenantFiltro = tenantId;
+        _carteraAbierta = false;
         _idEnfocado = null;
         EscribirFiltrosEnUrl();
     }

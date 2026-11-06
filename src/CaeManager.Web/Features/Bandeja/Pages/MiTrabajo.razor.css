@@ -112,46 +112,30 @@
     color: var(--color-primario-texto);
 }
 
+/* Maqueta «Mi trabajo»: columna única de ancho de lectura 1180. El detalle solo existe con una tarea abierta y entonces
+   comparte fila con la cola; el ámbito de cartera ya no es un carril lateral sino un control compacto de la cabecera. */
+.mi-trabajo.contenedor-pagina {
+    max-width: 1180px;
+}
+
 .mi-trabajo-paneles {
     display: grid;
-    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     gap: var(--space-4);
     align-items: start;
 }
 
-/* Sin tarea abierta el detalle no se pinta y no reserva columna: la cola
-   gana esos 320px. Con tarea abierta vuelve la rejilla de tres. */
 .mi-trabajo-paneles-sin-detalle {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 @media (max-width: 1200px) {
-    .mi-trabajo-paneles,
-    .mi-trabajo-paneles-sin-detalle {
-        grid-template-columns: 240px minmax(0, 1fr);
-    }
-
-    .mi-trabajo-detalle {
-        grid-column: 1 / -1;
+    .mi-trabajo-paneles {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
 @media (max-width: 768px) {
-    .mi-trabajo-paneles,
-    .mi-trabajo-paneles-sin-detalle {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    /* A 375px la cola va primero: «Mi cartera» (480px de alto) la empujaba a y=1098 de 1436. Solo orden visual:
-       el DOM conserva cartera, cola, detalle. */
-    .mi-trabajo-cola {
-        order: -2;
-    }
-
-    .mi-trabajo-detalle {
-        order: -1;
-    }
-
     .mi-trabajo-filtro {
         min-width: 0;
         width: 100%;
@@ -163,7 +147,6 @@
     }
 }
 
-.mi-trabajo-cartera,
 .mi-trabajo-cola,
 .mi-trabajo-detalle {
     background: var(--color-surface);
@@ -171,11 +154,57 @@
     border-radius: var(--radius-lg);
 }
 
+/* Control compacto de ámbito: botón de 36px (como el «Ordenar por» de la maqueta) y lista flotante. */
 .mi-trabajo-cartera {
+    position: relative;
+}
+
+.mi-trabajo-cartera-resumen {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    max-width: 280px;
+    padding: 0 10px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.mi-trabajo-cartera-etiqueta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-cartera-actual {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mi-trabajo-cartera-lista {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    right: 0;
+    z-index: 20;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    width: min(320px, calc(100vw - 2 * var(--space-4)));
+    max-height: 60vh;
+    overflow-y: auto;
     padding: var(--space-3);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-overlay);
+    box-shadow: var(--shadow-overlay);
+}
+
+.mi-trabajo-cartera-lista[hidden] {
+    display: none;
 }
 
 .mi-trabajo-cartera-cabecera {
