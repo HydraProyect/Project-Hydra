@@ -6,8 +6,9 @@ namespace CaeManager.E2ETests;
 /// Actor de Plataforma TALVEG con Sesión Privilegiada y sin Usuario simulado, en los
 /// listados de <c>/centros</c>, <c>/trabajadores</c> y <c>/empresas</c>, con la conexión
 /// autenticada como <c>cae_app_runtime</c> y el <c>SET ROLE cae_app_soporte</c> real del
-/// interceptor. Ningún otro E2E abre esas rutas con esa identidad efectiva: el resto de
-/// fixtures conecta como propietario, a quien PostgreSQL no somete a RLS ni a GRANT.
+/// interceptor. Ningún otro E2E abre esas rutas con la Sesión Privilegiada y el
+/// <c>SET ROLE cae_app_soporte</c>; el tráfico como <c>cae_app_runtime</c> lo comparten
+/// desde la mejora 1.7 del harness todas las fixtures (ver <see cref="WebAppFixture"/>).
 ///
 /// <para>
 /// La sesión se abre por <c>/cuenta/soporte/abrir</c>, el único emisor de la cookie. La

@@ -1497,6 +1497,21 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
           -f deploy/bootstrap/roles-de-cluster.sql
 
+      # WebAppFixture da LOGIN a cae_app_runtime (un rol de clúster) con una
+      # contraseña de pruebas pública, y solo lo hace en un clúster local
+      # declarado desechable: CAEMANAGER_TESTS_CLUSTER_DESECHABLE debe ser el
+      # system_identifier del clúster al que está conectada (ver
+      # GuardaClusterDePruebas). Este job crea el contenedor de servicio y lo
+      # tira al acabar, así que aquí sí puede declararlo; sin este paso los E2E
+      # fallan cerrados sin tocar el rol.
+      - name: Identificar el clúster de pruebas desechable
+        env:
+          PGPASSWORD: postgres
+        run: |
+          id=$(psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -tA -c "SELECT system_identifier FROM pg_control_system();")
+          test -n "$id"
+          echo "CAEMANAGER_TESTS_CLUSTER_DESECHABLE=$id" >> "$GITHUB_ENV"
+
       - name: Instalar navegadores de Playwright
         uses: ./.github/actions/apt-acotado
         with:

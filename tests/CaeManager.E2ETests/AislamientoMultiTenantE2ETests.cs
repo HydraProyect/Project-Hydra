@@ -12,6 +12,17 @@ namespace CaeManager.E2ETests;
 /// independientes (contextos separados, sin compartir cookies), cada una
 /// autenticada como el Administrador de un tenant distinto.
 ///
+/// <para>
+/// Desde la mejora 1.7 del harness el tráfico corre como <c>cae_app_runtime</c>
+/// (ver <see cref="WebAppFixture"/>), así que estos tests observan las dos capas a
+/// la vez: el filtro global de EF Core y RLS. Son defensa en profundidad, y
+/// quitar una sola no los pone en rojo. Medido en CI en la PR #2032: sin el
+/// filtro de Tenant de EF para <c>Empresa</c>, los dos pasan (RLS sola aísla); con
+/// eso y además <c>DISABLE ROW LEVEL SECURITY</c> en <c>Empresas</c>,
+/// <c>Una_empresa_creada_por_el_tenant_A_no_es_visible_para_el_tenant_B</c> falla
+/// porque el Tenant B ve la Empresa de A.
+/// </para>
+///
 /// Las credenciales del segundo tenant están definidas en
 /// SegundoTenantSeeder (CaeManager.Infrastructure) — este proyecto de
 /// test no referencia Infrastructure (solo Playwright/PDFsharp/xUnit), así
