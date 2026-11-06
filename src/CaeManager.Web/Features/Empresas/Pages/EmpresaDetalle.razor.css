@@ -19,10 +19,6 @@
     gap: var(--space-3);
 }
 
-.empresa360-buscador {
-    min-width: 260px;
-}
-
 /* Sello de la pestaña Ficha: sección propia bajo las cajas (maqueta «Empresa 360»). */
 .empresa360-sello {
     margin-top: var(--space-2);
@@ -137,4 +133,60 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+}
+
+/* CIF de la cabecera: «CIF» + valor copiable con icono, en línea con 6 px entre ambos (maqueta «Empresa 360»). */
+.empresa360-meta-cif {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Nombre del contacto: 14/600 (maqueta «Empresa 360»). */
+.empresa360-contacto-texto b {
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+/* Correo y teléfono: filas-botón de 36 px, texto a la izquierda e icono de copiar a la derecha. */
+.empresa360-contacto-filas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: var(--space-1);
+}
+
+.empresa360-contacto-filas ::deep .boton-copiar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-caption);
+    letter-spacing: 0;
+    text-align: left;
+    /* .boton-copiar fija nowrap: sin esto un correo largo se sale de la tarjeta lateral. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.empresa360-contacto-filas ::deep .boton-copiar-icono {
+    flex: none;
+    color: var(--color-text-muted);
+}
+
+.empresa360-contacto-pie {
+    margin-top: var(--space-2);
+}
+
+/* Texto de apoyo bajo la barra de pestañas (.texto-apoyo de la maqueta «Empresa 360»): 13/400, no el pie de 12/500. */
+.empresa360-apoyo.empresa360-apoyo-pestana {
+    font: var(--font-label-md);
+    font-weight: 400;
 }

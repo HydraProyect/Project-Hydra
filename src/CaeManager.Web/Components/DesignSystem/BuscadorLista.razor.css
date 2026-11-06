@@ -1,0 +1,40 @@
+/* .buscador-lista de la maqueta «Empresa 360»: 260x36, radio 10, padding 0 10, lupa a la izquierda. */
+.buscador-lista {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 36px;
+    min-width: 260px;
+    padding: 0 10px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
+.buscador-lista:focus-within {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+}
+
+.buscador-lista-icono {
+    display: inline-flex;
+    flex: none;
+    color: var(--color-text-muted);
+}
+
+.buscador-lista ::deep .campo {
+    flex: 1;
+    min-width: 0;
+}
+
+.buscador-lista ::deep .campo-input,
+.buscador-lista ::deep .campo-input:focus,
+.buscador-lista ::deep .campo-input:focus-visible {
+    min-height: 0;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    outline: 0;
+}

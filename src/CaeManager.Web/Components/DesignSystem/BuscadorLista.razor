@@ -1,0 +1,17 @@
+@*
+    Buscador compacto de una lista de ficha 360 (.buscador-lista de la maqueta «Empresa 360»): 260x36, radio 10,
+    padding 0 10, lupa a la izquierda y el campo sin borde dentro. Envuelve a CampoTexto (mismo debounce y mismo
+    valor devuelto); solo cambia su presentación.
+*@
+<div class="buscador-lista">
+    <span class="buscador-lista-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+    <CampoTexto Type="search" Placeholder="@Placeholder" aria-label="@Placeholder" Valor="@Valor" ValorChanged="ValorChanged" />
+</div>
+
+@code {
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+
+    /// <summary>Texto de ayuda del campo; también es su nombre accesible.</summary>
+    [Parameter] public string? Placeholder { get; set; }
+}

@@ -50,8 +50,28 @@ else if (EnPagina)
 {
     @* Ficha 360 en página: misma gramática de lista que los documentos de Trabajador 360 (tarjeta, fila con vigencia,
        pastilla de estado y acreditaciones), sin viñetas. El panel de 520 px conserva la lista de filas-botón de abajo. *@
+    @if (ConFiltros)
+    {
+        @* Barra de la maqueta «Empresa 360» (.barra-lista): un chip por estado con su recuento y el buscador a la derecha. *@
+        <div class="documentacion-barra">
+            <div class="documentacion-chips" role="group" aria-label="@EtiquetaFiltros">
+                <button type="button" class="documentacion-chip" aria-pressed="@(_filtroEstado is null ? "true" : "false")"
+                        @onclick="() => _filtroEstado = null">@Comunes["OpcionTodos"] · @_documentos.Count</button>
+                @foreach (var (texto, cantidad) in GruposDeEstado)
+                {
+                    <button type="button" class="documentacion-chip" aria-pressed="@(_filtroEstado == texto ? "true" : "false")"
+                            @onclick="() => _filtroEstado = texto">@texto · @cantidad</button>
+                }
+            </div>
+            <BuscadorLista Placeholder="@PlaceholderBuscador" Valor="@_busqueda" ValorChanged="v => _busqueda = v" />
+        </div>
+    }
+    @if (DocumentosVisibles.Count == 0)
+    {
+        <p class="documentacion-sin-resultados">@TextoSinResultados</p>
+    }
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Comunes["ListaDocumentacion"]">
-        @foreach (var documento in _documentos)
+        @foreach (var documento in DocumentosVisibles)
         {
             <FilaRelacion Compacta="true" @key="documento.Id" Nombre="@documento.TipoDocumentoNombre"
                           Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)"
@@ -106,6 +126,38 @@ else
     /// </summary>
     [Parameter] public bool EnPagina { get; set; }
 
+    /// <summary>
+    /// Con <see cref="EnPagina"/>, añade sobre la lista los chips por estado (con recuento) y el buscador de la maqueta
+    /// «Empresa 360». Solo lo pide esa ficha; el filtrado es en memoria sobre los documentos ya cargados.
+    /// </summary>
+    [Parameter] public bool ConFiltros { get; set; }
+
+    [Parameter] public string? PlaceholderBuscador { get; set; }
+    [Parameter] public string? EtiquetaFiltros { get; set; }
+    [Parameter] public string? TextoSinResultados { get; set; }
+
+    private string? _filtroEstado;
+    private string _busqueda = string.Empty;
+
+    private static readonly EstadoDocumento[] OrdenEstados =
+    [
+        EstadoDocumento.Vencido, EstadoDocumento.EnTolerancia, EstadoDocumento.Faltante, EstadoDocumento.Urgente,
+        EstadoDocumento.Proximo, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente, EstadoDocumento.SinCaducidad
+    ];
+
+    /// <summary>Estados presentes, del peor al mejor, por su rótulo (Urgente y Próximo se leen los dos «Por vencer»).</summary>
+    private IReadOnlyList<(string Texto, int Cantidad)> GruposDeEstado =>
+        [.. OrdenEstados.Select(e => EstadoDocumentoUi.Texto(e)).Distinct()
+            .Select(t => (Texto: t, Cantidad: _documentos.Count(d => EstadoDocumentoUi.Texto(d.Estado) == t)))
+            .Where(g => g.Cantidad > 0)];
+
+    private IReadOnlyList<DocumentoListaDto> DocumentosVisibles =>
+        !ConFiltros ? _documentos
+        : [.. _documentos.Where(d =>
+            (_filtroEstado is null || EstadoDocumentoUi.Texto(d.Estado) == _filtroEstado)
+            && (string.IsNullOrWhiteSpace(_busqueda)
+                || d.TipoDocumentoNombre.Contains(_busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase)))];
+
     private DrawerGestionDocumento? _drawerGestion;
 
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
@@ -148,6 +200,10 @@ else
         finally
         {
             _cargando = false;
+            // Tras recargar (p. ej. al corregir una incidencia) el estado filtrado puede haber desaparecido: sin
+            // este reinicio la lista quedaría vacía y ningún chip, ni «Todos», aparecería activo.
+            if (_filtroEstado is not null && !GruposDeEstado.Any(g => g.Texto == _filtroEstado))
+                _filtroEstado = null;
         }
     }
 

@@ -298,8 +298,7 @@ a.vigencia-celda:hover {
 .vigencia-muestra[data-estado="por-vencer"] {
     background: var(--color-warning-50);
     color: var(--color-warning-700);
-    border-color: var(--color-warning-700);
-    border-style: dashed;
+    border-color: color-mix(in srgb, var(--color-warning-700) 22%, transparent);
 }
 
 .vigencia-celda[data-estado="vencido"],
@@ -307,7 +306,7 @@ a.vigencia-celda:hover {
 .vigencia-muestra[data-estado="vencido"] {
     background: var(--color-danger-50);
     color: var(--color-danger-700);
-    border-color: var(--color-danger-700);
+    border-color: color-mix(in srgb, var(--color-danger-700) 22%, transparent);
 }
 
 .vigencia-celda[data-estado="vencido"],

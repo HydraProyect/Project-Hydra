@@ -125,6 +125,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private Dictionary<int, IReadOnlyList<TrabajadorListaDto>> _paginasOrdenadas = [];
 
     private IReadOnlyList<ClienteDeEmpresaDto>? _clientes;
+
+    /// <summary>Incidencias en plataformas que la pestaña Plataformas leyó (contador de la pestaña, como en la maqueta). Null hasta que se abre.</summary>
+    private int? _incidenciasPlataformas;
     private bool _cargandoClientes;
     private bool _errorClientes;
 
@@ -340,6 +343,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorTrabajadores = false;
         _pagina = 1;
         _clientes = null;
+        _incidenciasPlataformas = null;
         _contactoPrincipal = null;
         _cargandoClientes = false;
         _errorClientes = false;
@@ -1037,7 +1041,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaReclamar, Textos["PestanaReclamar"]),
-        new(PestanaPlataformas, Textos["PestanaPlataformas"]),
+        new(PestanaPlataformas, Textos["PestanaPlataformas"])
+        {
+            Contador = _incidenciasPlataformas is > 0 and var incidencias ? new ContadorPestana(incidencias, Textos["GlosaPlataformas"]) : null
+        },
         new(PestanaAgenda, Textos["PestanaAgenda"]),
         .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])
