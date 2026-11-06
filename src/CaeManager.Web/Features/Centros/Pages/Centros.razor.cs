@@ -1038,6 +1038,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _agruparPorCliente = agrupar;
         _idEnfocado = null;
+        // Al agrupar, los grupos nacen cerrados: lo marcado antes y que ya no se ve se deselecciona.
+        if (agrupar)
+            _seleccionados.IntersectWith(FilasEnOrden(Grupos).Select(c => c.Id));
     }
 
     private string ClaseTarjeta(CentroListaDto centro) =>
@@ -1518,10 +1521,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         StateHasChanged();
     }
     /// <summary>
-    /// Orden de la lista. Por defecto null: cliente y luego nombre, el orden de
-    /// catalogo. El orden por cumplimiento se pide expresamente (blueprint
+    /// Orden de la lista. Por defecto null: de peor a mejor estado (Estado
+    /// descendente). El orden por cumplimiento se pide expresamente (blueprint
     /// seccion 3.1, DDL-036) y existe para atacar los peores centros sin
-    /// depender de que haya una visita proxima.
+    /// depender de que haya una visita proxima; tambien se ordena por Empresa.
     /// </summary>
     private string? _ordenarPor;
     private bool _ordenDescendente;
@@ -1679,7 +1682,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         ["cliente"] = _clienteFiltro,
         ["empresa"] = _empresaFiltro,
         ["centro"] = _centroIdFiltro?.ToString(),
-        // El Excel sale en el orden que se ve: sin orden pedido, el de serie de la lista (Estado, lo más grave primero).
+        // Sin orden pedido, el Excel sale en el de serie de la lista (Estado, lo más grave primero). Es plano: no lleva la agrupación.
         ["orden"] = _ordenarPor ?? nameof(CentroListaDto.Estado),
         ["desc"] = _ordenarPor is null || _ordenDescendente ? "true" : null,
     };

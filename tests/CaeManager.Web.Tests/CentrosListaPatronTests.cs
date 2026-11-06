@@ -741,9 +741,26 @@ public partial class CentrosListaPatronTests : BunitContext
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().HaveCount(filas);
 
         cut.FindAll("button.cabecera-grupo-centros")[0].Click();
+        var filasDelPrimerGrupo = filas - cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Count;
+        filasDelPrimerGrupo.Should().BeGreaterThan(0, "control: plegar el primer grupo oculta sus filas");
         cut.FindAll("button.cabecera-grupo-centros")[0].Click();
-        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Count.Should().BeLessThan(filas,
-            "las filas del grupo plegado dejan de estar marcadas");
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().HaveCount(filas - filasDelPrimerGrupo,
+            "las filas del grupo plegado dejan de estar marcadas y las del otro grupo conservan su marca");
+    }
+
+    /// <summary>Marcar la página sin agrupar y agrupar después (grupos cerrados) no deja marcado lo que ya no se ve.</summary>
+    [Fact]
+    public async Task Agrupar_con_la_pagina_marcada_deselecciona_las_filas_que_quedan_ocultas()
+    {
+        var cut = Renderizar(ConDosClientes());
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-label='Seleccionar los centros de esta página']").Change(true);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().NotBeEmpty("control: la página quedó marcada");
+
+        ElegirAgrupacion(cut, "Por Cliente");
+        AbrirGrupos(cut);
+
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().BeEmpty();
     }
     /// <summary>
     /// x activa la selección múltiple (como en la maqueta) y marca la fila enfocada: sin grupos contraíbles, toda
