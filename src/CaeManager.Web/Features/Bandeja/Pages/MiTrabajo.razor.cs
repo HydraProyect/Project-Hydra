@@ -455,6 +455,21 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _lotesAbiertos.Clear();
     }
 
+    /// <summary>«Gestionar» del grupo: lo despliega si estaba plegado y abre la primera tarea (la de mayor prioridad) en el detalle.</summary>
+    private void GestionarGrupo(GrupoMiTrabajo grupo)
+    {
+        if (grupo.Plegado)
+        {
+            if (grupo.TenantId is { } tenantId) AlternarTenant(tenantId);
+            else AlternarSeveridad(grupo.Clave);
+        }
+
+        var primera = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave)?.Filas.FirstOrDefault();
+        if (primera is null) return;
+        AbrirDetalle(primera);
+        AbrirLoteDeLaFilaEnfocada();
+    }
+
     private void AbrirDetalle(FilaMiTrabajo fila)
     {
         _idAbierto = fila.Item.Id;
@@ -500,7 +515,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private string ContextoFila(FilaMiTrabajo fila)
     {
-        var partes = new List<string?> { MiTrabajoVista.Etiqueta(fila.Severidad) };
+        var partes = new List<string?> { TipoItemBandejaUi.Texto(fila.Item) };
         if (_agrupar == AgruparMiTrabajo.Severidad) partes.Add(fila.TenantNombre);
         if (!(_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente)) partes.Add(fila.Item.ClienteNombre);
         return string.Join(" · ", partes.Where(p => !string.IsNullOrWhiteSpace(p)));

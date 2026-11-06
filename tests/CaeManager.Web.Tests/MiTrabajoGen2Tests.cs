@@ -1390,6 +1390,45 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
+    public void El_grupo_que_bloquea_lleva_la_banda_roja_y_su_Gestionar_abre_la_primera_tarea_aunque_este_plegado()
+    {
+        var cut = RenderizarPlegado();
+
+        var bloquea = cut.FindAll(".mi-trabajo-grupo").Where(g => g.ClassList.Contains("mi-trabajo-grupo-bloqueo")).ToList();
+        bloquea.Should().NotBeEmpty("hay Empresas con un Bloqueo");
+        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty("la pantalla carga plegada");
+        cut.FindAll(".mi-trabajo-grupo-gestionar").Select(b => b.TextContent.Trim()).Should().OnlyContain(t => t == "Gestionar");
+
+        bloquea[0].QuerySelector(".mi-trabajo-grupo-gestionar")!.Click();
+
+        cut.FindAll(".mi-trabajo-fila-abierta").Should().ContainSingle("Gestionar abre la primera tarea del grupo en el detalle");
+        cut.Find(".mi-trabajo-detalle").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Un_grupo_sin_Bloqueo_no_lleva_la_banda_roja()
+    {
+        var cut = Renderizar(() => new MiTrabajoAgregadoDto(
+            [Tenant(TenantRefri, "Refrielectric", false, [], [Item("r1", TipoItemBandeja.VencimientoProximo, "EPI por vencer", "Transportes Planet Express")])]));
+
+        cut.FindAll(".mi-trabajo-grupo").Should().NotBeEmpty();
+        cut.FindAll(".mi-trabajo-grupo-bloqueo").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Cada_fila_lleva_su_icono_y_la_severidad_a_la_derecha_en_vez_del_tipo_a_la_izquierda()
+    {
+        var cut = Renderizar();
+        ExpandirTodas(cut);
+
+        var fila = FilaDe(cut, "Reconocimiento médico");
+        fila.QuerySelector(".mi-trabajo-fila-icono")!.QuerySelector("svg").Should().NotBeNull();
+        fila.QuerySelector(".mi-trabajo-fila-derecha")!.TextContent.Should().Contain("Bloqueo");
+        fila.QuerySelector(".mi-trabajo-fila-linea")!.TextContent.Should().NotContain("Bloqueo");
+        fila.QuerySelector(".mi-trabajo-fila-contexto")!.TextContent.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public void Un_tipo_Gestiones_en_la_URL_se_ignora_porque_el_chip_es_inerte()
     {
         var cut = Renderizar(url: "/mi-trabajo?tipo=gestiones");

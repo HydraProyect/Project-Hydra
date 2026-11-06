@@ -500,4 +500,10 @@
   <data name="Atajos" xml:space="preserve">
     <value>Atajos:</value>
   </data>
+  <data name="Gestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="GestionarGrupo" xml:space="preserve">
+    <value>Gestionar las tareas de {0}</value>
+  </data>
 </root>

@@ -59,6 +59,18 @@ public static class TipoItemBandejaUi
         _ => (7, "RecuentoPendienteUno", "RecuentoPendienteVarios")
     };
 
+    /// <summary>Icono de la caja de 26 px de la fila de Mi trabajo (maqueta): uno por familia de tarea.</summary>
+    public static string Icono(ItemBandejaDto item) => item.Tipo switch
+    {
+        TipoItemBandeja.SugerenciaVisitaUrgente or TipoItemBandeja.VisitaUrgente => "visitas",
+        TipoItemBandeja.RevisionIa or TipoItemBandeja.DeteccionPendiente => "ia",
+        TipoItemBandeja.PlataformaPendiente or TipoItemBandeja.PlataformaRechazada or TipoItemBandeja.PlataformaVencida
+            or TipoItemBandeja.EnPlataformaSeguimiento => "plataforma",
+        TipoItemBandeja.Vencido or TipoItemBandeja.VencimientoProximo => "reloj",
+        TipoItemBandeja.Urgente => "advertencia",
+        _ => "documentos"
+    };
+
     public static string Texto(ItemBandejaDto item) => item.Tipo switch
     {
         TipoItemBandeja.SugerenciaVisitaUrgente => "Visita sorpresa",

@@ -38,6 +38,7 @@ public sealed record FiltroMiTrabajo(
 /// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
 /// <param name="ResumenCalendario">Texto del pliegue «N vencimientos y envíos en calendario»; null si no hay nada plegado.</param>
 /// <param name="ResumenCabecera">Recuento que se enseña en la cabecera cuando el grupo está plegado.</param>
+/// <param name="Peor">Severidad más alta del grupo (Bloqueo gana); la cabecera la enseña aunque esté plegado y el borde rojo marca los grupos con un Bloqueo.</param>
 public sealed record GrupoMiTrabajo(
     string Clave,
     string Etiqueta,
@@ -46,7 +47,8 @@ public sealed record GrupoMiTrabajo(
     bool Plegado,
     IReadOnlyList<FilaMiTrabajo> Filas,
     string? ResumenCalendario,
-    string? ResumenCabecera);
+    string? ResumenCabecera,
+    SeveridadMiTrabajo? Peor = null);
 
 /// <summary>
 /// Tramo de filas consecutivas de la misma gestión sobre el mismo trabajador
@@ -259,7 +261,8 @@ public sealed class MiTrabajoVista
                     tenant.TenantId.ToString(), tenant.Nombre, tenant.TenantId, delTenant.Count, plegado,
                     plegado ? [] : visibles.Where(f => f.TenantId == tenant.TenantId).ToList(),
                     calendarioPlegado ? Plural(resto, "CalendarioPlegadoUno", "CalendarioPlegadoVarios") : null,
-                    plegado ? ResumenPlegado(bloqueos, actuaciones, resto) : null));
+                    plegado ? ResumenPlegado(bloqueos, actuaciones, resto) : null,
+                    delTenant.Min(f => f.Severidad)));
             }
         }
         else
@@ -272,7 +275,7 @@ public sealed class MiTrabajoVista
 
                 if (!BusquedaActiva(filtro) && !severidadesAbiertas.Contains(severidad))
                 {
-                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, true, [], null, null));
+                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, true, [], null, null, severidad));
                     continue;
                 }
 
@@ -281,11 +284,11 @@ public sealed class MiTrabajoVista
                 {
                     if (total > 0)
                         grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, false, [],
-                            ResumenSeveridadPlegada(severidad, total), null));
+                            ResumenSeveridadPlegada(severidad, total), null, severidad));
                 }
                 else if (filas.Count > 0)
                 {
-                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, false, filas, null, null));
+                    grupos.Add(new GrupoMiTrabajo(severidad.ToString(), Etiqueta(severidad), null, total, false, filas, null, null, severidad));
                 }
             }
         }
