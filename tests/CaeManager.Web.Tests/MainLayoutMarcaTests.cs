@@ -59,14 +59,14 @@ public class MainLayoutMarcaTests : BunitContext
     }
 
     [Fact]
-    public void La_marca_es_texto_real_con_la_V_resaltada_y_la_etiqueta_CAE_va_a_su_lado()
+    public void La_marca_es_texto_real_con_la_V_resaltada_y_la_etiqueta_ACREDITA_va_a_su_lado()
     {
         var cut = Render<MainLayout>();
 
         var marca = cut.Find("div.marca");
 
-        string.Join(' ', marca.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Should().Be("TALVEG CAE",
-            "marco de Design (DDL-083): TALVEG en texto real y la etiqueta CAE; ya no hay wordmark en imagen");
+        string.Join(' ', marca.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Should().Be("TALVEG ACREDITA",
+            "marco de Design (DDL-083, DECISION_LOG 2026-11-07): TALVEG en texto real y la etiqueta ACREDITA; ya no hay wordmark en imagen");
         marca.QuerySelectorAll("img").Should().BeEmpty("la marca no es una imagen");
 
         var texto = cut.Find("div.marca span.marca-wordmark");
@@ -74,7 +74,7 @@ public class MainLayoutMarcaTests : BunitContext
         texto.QuerySelector("b")!.TextContent.Should().Be("V", "la V va resaltada, como en marco-talveg.js");
 
         var etiqueta = cut.Find("span.marca-etiqueta");
-        etiqueta.TextContent.Should().Be("CAE", "la etiqueta es texto real, no una imagen");
+        etiqueta.TextContent.Should().Be("ACREDITA", "la etiqueta es texto real, no una imagen");
     }
 
     [Fact]
@@ -84,6 +84,7 @@ public class MainLayoutMarcaTests : BunitContext
 
         var enlace = cut.Find("div.marca > a.marca-enlace");
         enlace.GetAttribute("href").Should().Be("/", "marco de Design: la marca lleva a Inicio");
+        enlace.GetAttribute("aria-label").Should().Be("TALVEG Acredita", "el nombre accesible del enlace a Inicio es la marca con su submarca");
         enlace.QuerySelector("span.marca-wordmark").Should().NotBeNull();
         enlace.QuerySelector("span.marca-etiqueta").Should().NotBeNull();
     }
