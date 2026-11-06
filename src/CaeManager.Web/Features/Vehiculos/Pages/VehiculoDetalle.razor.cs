@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
