@@ -164,6 +164,48 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
+    public void La_fila_de_tipo_no_afirma_coincidencia_sin_tipo_leido_y_marca_la_discrepancia_con_tipo_distinto()
+    {
+        var sinLectura = Revision("Sin tipo", 0, null, Guid.NewGuid()) with { TipoDetectado = null };
+        var distinto = Revision("Tipo distinto", 80, new DateOnly(2026, 8, 1), Guid.NewGuid()) with { TipoDetectado = "Certificado médico" };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [sinLectura, distinto] });
+
+        FilaTipo(cut).TextContent.Should().Contain("No determinado")
+            .And.NotContain("No coincide").And.NotContain("Coincide", "sin tipo leído no hay nada que comparar");
+
+        cut.FindAll(".revision-ia-fila").Single(f => f.TextContent.Contains("Tipo distinto")).Click();
+        var fila = FilaTipo(cut);
+        fila.TextContent.Should().Contain("No coincide");
+        fila.ClassList.Should().Contain("revision-ia-fila-discrepante");
+    }
+
+    [Theory]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.Administrador, true)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.GestorCae, false)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.CoordinadorCae, false)]
+    [InlineData(CaeManager.Infrastructure.Identity.Roles.DireccionCae, false)]
+    public void Los_enlaces_de_auditoria_y_lectura_ia_de_la_cabecera_son_solo_del_Administrador(string rol, bool visibles)
+    {
+        Registrar(new MediadorFalso());
+        AddAuthorization().SetAuthorized("usuario").SetRoles(rol);
+
+        var cut = Render<CaeManager.Web.Features.Documentos.Pages.RevisionIa>();
+
+        var enlaces = cut.FindAll(".revision-ia-enlaces a").Select(a => a.GetAttribute("href")).ToList();
+        if (visibles)
+        {
+            enlaces.Should().Equal("/auditoria-ia", "/configuracion/lectura-ia");
+        }
+        else
+        {
+            enlaces.Should().BeEmpty("las rutas destino exigen Administrador");
+        }
+    }
+
+    private static IElement FilaTipo(IRenderedComponent<RevisionIaTab> cut) => cut.Find(".revision-ia-comparacion")
+        .QuerySelectorAll("tbody tr").First();
+
+    [Fact]
     public async Task Corregir_a_mano_envia_un_solo_command_con_la_fecha_y_cierra_la_revision()
     {
         var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with

@@ -493,9 +493,11 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             null,
             r.TipoDocumentoNombre,
             null,
-            string.Equals(r.TipoDetectado?.Trim(), r.TipoDocumentoNombre.Trim(), StringComparison.OrdinalIgnoreCase)
-                ? Coincidencia.Coincide
-                : Coincidencia.NoCoincide),
+            string.IsNullOrWhiteSpace(r.TipoDetectado)
+                ? Coincidencia.SinComparar
+                : string.Equals(r.TipoDetectado.Trim(), r.TipoDocumentoNombre.Trim(), StringComparison.OrdinalIgnoreCase)
+                    ? Coincidencia.Coincide
+                    : Coincidencia.NoCoincide),
         FilaFecha(Textos["RevIaCampoEmision"], r.FechaEmisionDetectada, r.FechaEmisionIntroducida),
         FilaFecha(Textos["RevIaCampoVencimiento"], r.FechaVencimientoDetectada, r.FechaVencimientoIntroducida),
         new FilaComparacion(Textos["RevIaCampoFirma"], Firma(r.TieneFirmaDetectada), null, Textos["RevIaFirmaNoSolicitada"], null, Coincidencia.SinComparar)

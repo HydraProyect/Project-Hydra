@@ -174,7 +174,7 @@
                             }
                             <div class="revision-ia-abrir-documento">
                                 <a href="@($"/documentos/{seleccionada.DocumentoId}/archivo")" target="_blank" rel="noopener">@Textos["RevIaAbrirPdf"]</a>
-                                @if (seleccionada.NumeroPaginas is { } paginas)
+                                @if (seleccionada.NumeroPaginas is > 0 and var paginas)
                                 {
                                     <span aria-hidden="true">·</span>
                                     <span>@string.Format(Textos["RevIaPaginaDe"].Value, paginas)</span>
@@ -278,7 +278,7 @@
                             </div>
                             <div class="revision-ia-acciones-detalle">
                                 <Boton
-                                    class="revision-ia-boton-aceptar"
+                                    class="revision-ia-boton-aceptar" aria-describedby="pista-aceptar-deteccion"
                                     Variante="VarianteBoton.Primario"
                                     Deshabilitado="@(seleccionada.FechaEmisionDetectada is null)"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
@@ -299,7 +299,7 @@
                                     OnClick="PrepararDescartar">
                                     Descartar la lectura
                                 </Boton>
-                                <span class="revision-ia-pista-aceptar">@(seleccionada.FechaEmisionDetectada is null ? Textos["RevIaPistaSinFecha"] : Textos["RevIaPistaRenueva"])</span>
+                                <span id="pista-aceptar-deteccion" class="revision-ia-pista-aceptar">@(seleccionada.FechaEmisionDetectada is null ? Textos["RevIaPistaSinFecha"] : Textos["RevIaPistaRenueva"])</span>
                             </div>
                         </div>
                     </div>
