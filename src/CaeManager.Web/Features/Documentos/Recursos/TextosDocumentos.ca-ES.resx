@@ -244,6 +244,90 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>S'han acceptat {0} de {1} lectures; {2} no s'han pogut acceptar.</value>
   </data>
+  <data name="RevIaPendiente" xml:space="preserve">
+    <value>pendent</value>
+  </data>
+  <data name="RevIaPendientes" xml:space="preserve">
+    <value>pendents</value>
+  </data>
+  <data name="RevIaConfianzaN" xml:space="preserve">
+    <value>Confiança {0} %</value>
+  </data>
+  <data name="RevIaAbrirPdf" xml:space="preserve">
+    <value>Obre el PDF complet</value>
+  </data>
+  <data name="RevIaPaginaDe" xml:space="preserve">
+    <value>pàgina 1 de {0}</value>
+  </data>
+  <data name="RevIaColCampo" xml:space="preserve">
+    <value>Camp</value>
+  </data>
+  <data name="RevIaColLeido" xml:space="preserve">
+    <value>Llegit per la IA</value>
+  </data>
+  <data name="RevIaColIntroducido" xml:space="preserve">
+    <value>Introduït en pujar</value>
+  </data>
+  <data name="RevIaCoincide" xml:space="preserve">
+    <value>Coincideix</value>
+  </data>
+  <data name="RevIaNoCoincide" xml:space="preserve">
+    <value>No coincideix</value>
+  </data>
+  <data name="RevIaTarjetaConfianza" xml:space="preserve">
+    <value>Confiança de l&apos;extracció</value>
+  </data>
+  <data name="RevIaPieUmbralBajo" xml:space="preserve">
+    <value>Per sota de {0} % la confiança sola ja justifica revisió humana</value>
+  </data>
+  <data name="RevIaPieUmbralLote" xml:space="preserve">
+    <value>{0} % · llindar de confirmació en lot</value>
+  </data>
+  <data name="RevIaMotivoTitulo" xml:space="preserve">
+    <value>Motiu de la revisió</value>
+  </data>
+  <data name="RevIaSiAceptasTitulo" xml:space="preserve">
+    <value>Si acceptes la detecció</value>
+  </data>
+  <data name="RevIaSiAceptasConFecha" xml:space="preserve">
+    <value>En acceptar, s&apos;aplicarà la data d&apos;emissió detectada i es recalcularà el venciment quan el tipus de document ho faci automàticament.</value>
+  </data>
+  <data name="RevIaSiAceptasSinFecha" xml:space="preserve">
+    <value>No es pot acceptar: la IA no ha detectat cap data d&apos;emissió que aplicar. Corregeix-ho a mà o descarta la lectura.</value>
+  </data>
+  <data name="RevIaPistaSinFecha" xml:space="preserve">
+    <value>Sense data detectada no hi ha res que aplicar</value>
+  </data>
+  <data name="RevIaPistaRenueva" xml:space="preserve">
+    <value>Renova el Document i tanca l&apos;avís</value>
+  </data>
+  <data name="RevIaCampoTipo" xml:space="preserve">
+    <value>Tipus de document</value>
+  </data>
+  <data name="RevIaTipoNoDeterminado" xml:space="preserve">
+    <value>No determinat</value>
+  </data>
+  <data name="RevIaCampoEmision" xml:space="preserve">
+    <value>Data d&apos;emissió</value>
+  </data>
+  <data name="RevIaCampoVencimiento" xml:space="preserve">
+    <value>Data de venciment</value>
+  </data>
+  <data name="RevIaCampoFirma" xml:space="preserve">
+    <value>Signatura</value>
+  </data>
+  <data name="RevIaFirmaNoSolicitada" xml:space="preserve">
+    <value>No es sol·licita en pujar</value>
+  </data>
+  <data name="RevIaMigaAria" xml:space="preserve">
+    <value>Molla de pa</value>
+  </data>
+  <data name="RevIaVerAuditoria" xml:space="preserve">
+    <value>Veure l&apos;auditoria IA →</value>
+  </data>
+  <data name="RevIaConfigurarLectura" xml:space="preserve">
+    <value>Configurar la lectura IA</value>
+  </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: propietari o tipus de document</value></data>
   <data name="ListaFiltroAmbito" xml:space="preserve"><value>Àmbit</value></data>
   <data name="ListaFiltroTipo" xml:space="preserve"><value>Tipus de document</value></data>

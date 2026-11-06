@@ -3,13 +3,33 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae}")]
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Revisión IA — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    <p class="revision-ia-kicker">Ciclo documental</p>
-    <h1 class="titulo-pagina">Revisión IA</h1>
+    <nav class="revision-ia-migas" aria-label="@Textos["RevIaMigaAria"]">
+        <a href="/documentos"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" />Documentos</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Revisión IA</span>
+    </nav>
+    <div class="revision-ia-cabecera">
+        <div class="revision-ia-titular">
+            <p class="revision-ia-kicker">Ciclo documental</p>
+            <h1 class="titulo-pagina">Revisión IA</h1>
+        </div>
+        @* Los dos destinos son de Administrador (AuditoriaIa.razor y SeleccionarClienteLecturaIa.razor):
+           a quien no lo es, el enlace le llevaría a «Acceso denegado». *@
+        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+            <div class="revision-ia-enlaces">
+                <a href="/auditoria-ia">@Textos["RevIaVerAuditoria"]</a>
+                <a href="/configuracion/lectura-ia">@Textos["RevIaConfigurarLectura"]</a>
+            </div>
+        </AuthorizeView>
+    </div>
 
     <RevisionIaTab />
 </div>

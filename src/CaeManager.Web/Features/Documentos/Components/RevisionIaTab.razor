@@ -92,7 +92,7 @@
             <aside class="revision-ia-cola" aria-label="Extracciones por revisar">
                 <header>
                     <strong>Extracciones por revisar</strong>
-                    <span>@RevisionesVisibles.Count pendientes</span>
+                    <span>@RevisionesVisibles.Count @(RevisionesVisibles.Count == 1 ? Textos["RevIaPendiente"] : Textos["RevIaPendientes"])</span>
                 </header>
                 <div class="revision-ia-filtros" aria-label="Filtrar revisiones">
                     @foreach (var filtro in Filtros)
@@ -129,7 +129,7 @@
                         </span>
                         <span>@revision.TipoDocumentoNombre</span>
                         <span class="revision-ia-confianza">
-                            <span>Confianza @revision.ConfianzaGeneral %</span>
+                            <span class="revision-ia-confianza-texto"><span class="revision-ia-punto" aria-hidden="true"></span>@string.Format(Textos["RevIaConfianzaN"].Value, revision.ConfianzaGeneral)</span>
                             <span class="revision-ia-confianza-barra">
                                 <span
                                     class="@(
@@ -138,7 +138,7 @@
                                     style="width:@(revision.ConfianzaGeneral)%">
                                 </span>
                             </span>
-                            <small>@EtiquetaTratamiento(revision)</small>
+                            <small class="@(aceptable ? "revision-ia-tratamiento revision-ia-tratamiento-lote" : "revision-ia-tratamiento")">@EtiquetaTratamiento(revision)</small>
                         </span>
                     </button>
                     </div>
@@ -172,60 +172,113 @@
                                     title="Vista previa del documento">
                                 </iframe>
                             }
-                        </div>
-                        <div class="revision-ia-lectura">
-                            <div class="revision-ia-motivo">
-                                <h3>Por qué requiere revisión</h3>
-                                <p>@seleccionada.Motivo</p>
-                                @if (seleccionada.TieneAlertaDeterminista)
+                            <div class="revision-ia-abrir-documento">
+                                <a href="@($"/documentos/{seleccionada.DocumentoId}/archivo")" target="_blank" rel="noopener">@Textos["RevIaAbrirPdf"]</a>
+                                @if (seleccionada.NumeroPaginas is > 0 and var paginas)
                                 {
-                                    <p class="revision-ia-consecuencia">@Textos["RevIaAlertaDeUnaEnUna"]</p>
+                                    <span aria-hidden="true">·</span>
+                                    <span>@string.Format(Textos["RevIaPaginaDe"].Value, paginas)</span>
                                 }
                             </div>
-                            <dl>
-                                <div>
-                                    <dt>Tipo de documento</dt>
-                                    <dd>Introducido: @seleccionada.TipoDocumentoNombre</dd>
-                                    <dd>Leído: @(seleccionada.TipoDetectado ?? "No determinado")</dd>
+                        </div>
+                        <div class="revision-ia-lectura">
+                            <div class="revision-ia-comparacion">
+                                <table>
+                                    <colgroup>
+                                        <col class="revision-ia-col-campo" />
+                                        <col />
+                                        <col />
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@Textos["RevIaColCampo"]</th>
+                                            <th scope="col" class="revision-ia-col-leido"><span class="revision-ia-punto" aria-hidden="true"></span>@Textos["RevIaColLeido"]</th>
+                                            <th scope="col">@Textos["RevIaColIntroducido"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var fila in FilasComparacion(seleccionada))
+                                        {
+                                            <tr class="@(fila.Resultado == Coincidencia.NoCoincide ? "revision-ia-fila-discrepante" : null)">
+                                                <th scope="row">@fila.Campo</th>
+                                                <td class="revision-ia-valor-leido">
+                                                    @if (fila.FechaLeida is { } fechaLeida)
+                                                    {
+                                                        <TextoFechaCopiable Fecha="fechaLeida">@fila.Leido</TextoFechaCopiable>
+                                                    }
+                                                    else
+                                                    {
+                                                        @fila.Leido
+                                                    }
+                                                </td>
+                                                <td class="revision-ia-valor-introducido">
+                                                    <span class="revision-ia-valor-con-etiqueta">
+                                                        @if (fila.FechaIntroducida is { } fechaIntroducida)
+                                                        {
+                                                            <TextoFechaCopiable Fecha="fechaIntroducida">@fila.Introducido</TextoFechaCopiable>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>@fila.Introducido</span>
+                                                        }
+                                                        @if (fila.Resultado == Coincidencia.Coincide)
+                                                        {
+                                                            <span class="revision-ia-coincidencia revision-ia-coincidencia-si">@Textos["RevIaCoincide"]</span>
+                                                        }
+                                                        else if (fila.Resultado == Coincidencia.NoCoincide)
+                                                        {
+                                                            <span class="revision-ia-coincidencia revision-ia-coincidencia-no">@Textos["RevIaNoCoincide"]</span>
+                                                        }
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="revision-ia-tarjeta-confianza">
+                                <div class="revision-ia-tarjeta-confianza-cabecera">
+                                    <span class="revision-ia-tarjeta-titulo">@Textos["RevIaTarjetaConfianza"]</span>
+                                    <span class="revision-ia-confianza-texto"><span class="revision-ia-punto" aria-hidden="true"></span>@string.Format(Textos["RevIaConfianzaN"].Value, seleccionada.ConfianzaGeneral)</span>
                                 </div>
-                                <div>
-                                    <dt>Fecha de emisión</dt>
-                                    <dd>Introducida: @Fecha(seleccionada.FechaEmisionIntroducida)</dd>
-                                    <dd>Leída: @Fecha(seleccionada.FechaEmisionDetectada)</dd>
+                                <div class="revision-ia-umbral-barra">
+                                    <span class="revision-ia-umbral-relleno" style="width:@(seleccionada.ConfianzaGeneral)%"></span>
+                                    <span class="revision-ia-umbral-marca" aria-hidden="true" style="left:@(_confianzaMinima)%"></span>
                                 </div>
-                                <div>
-                                    <dt>Fecha de vencimiento</dt>
-                                    <dd>Introducida: @Fecha(seleccionada.FechaVencimientoIntroducida)</dd>
-                                    <dd>Leída: @Fecha(seleccionada.FechaVencimientoDetectada)</dd>
+                                <div class="revision-ia-tarjeta-confianza-pie">
+                                    <span>@string.Format(Textos["RevIaPieUmbralBajo"].Value, 70)</span>
+                                    <span>@string.Format(Textos["RevIaPieUmbralLote"].Value, _confianzaMinima)</span>
                                 </div>
-                                <div>
-                                    <dt>Firma</dt>
-                                    <dd>Introducida: No se solicita al subir</dd>
-                                    <dd>Leída: @Firma(seleccionada.TieneFirmaDetectada)</dd>
+                            </div>
+                            <div class="revision-ia-motivo">
+                                <span class="revision-ia-motivo-icono"><Icono Nombre="advertencia" Tamano="TamanoIcono.Medio" /></span>
+                                <div class="revision-ia-motivo-texto">
+                                    <h3>@Textos["RevIaMotivoTitulo"]</h3>
+                                    <p>@seleccionada.Motivo</p>
+                                    @if (seleccionada.TieneAlertaDeterminista)
+                                    {
+                                        <p class="revision-ia-consecuencia">@Textos["RevIaAlertaDeUnaEnUna"]</p>
+                                    }
                                 </div>
-                                <div>
-                                    <dt>Páginas del documento</dt>
-                                    <dd>@(seleccionada.NumeroPaginas?.ToString() ?? "No disponibles")</dd>
-                                </div>
-                                <div>
-                                    <dt>Región de firma</dt>
-                                    <dd>No disponible en la extracción actual</dd>
-                                </div>
-                            </dl>
-                            @if (seleccionada.FechaEmisionDetectada is not null)
-                            {
-                                <p class="revision-ia-consecuencia">
-                                    Al aceptar, se aplicará la fecha de emisión detectada y se recalculará el vencimiento cuando el tipo de documento lo haga automáticamente.
-                                </p>
-                            }
-                            else
-                            {
-                                <p class="revision-ia-consecuencia">
-                                    No se puede aceptar la detección porque la IA no detectó una fecha de emisión que aplicar.
-                                </p>
-                            }
+                            </div>
+                            <div class="revision-ia-si-aceptas">
+                                <span class="revision-ia-si-aceptas-titulo"><span class="revision-ia-punto" aria-hidden="true"></span>@Textos["RevIaSiAceptasTitulo"]</span>
+                                @if (seleccionada.FechaEmisionDetectada is not null)
+                                {
+                                    <p>
+                                        @Textos["RevIaSiAceptasConFecha"]
+                                    </p>
+                                }
+                                else
+                                {
+                                    <p>
+                                        @Textos["RevIaSiAceptasSinFecha"]
+                                    </p>
+                                }
+                            </div>
                             <div class="revision-ia-acciones-detalle">
                                 <Boton
+                                    class="revision-ia-boton-aceptar" aria-describedby="pista-aceptar-deteccion"
                                     Variante="VarianteBoton.Primario"
                                     Deshabilitado="@(seleccionada.FechaEmisionDetectada is null)"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
@@ -233,17 +286,20 @@
                                     Aceptar detección
                                 </Boton>
                                 <Boton
+                                    class="revision-ia-boton-corregir"
                                     Variante="VarianteBoton.Secundario"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
                                     OnClick="PrepararCorreccionManual">
                                     Corregir a mano…
                                 </Boton>
                                 <Boton
+                                    class="revision-ia-boton-descartar"
                                     Variante="VarianteBoton.Secundario"
                                     Cargando="@(_procesandoId == seleccionada.Id)"
                                     OnClick="PrepararDescartar">
                                     Descartar la lectura
                                 </Boton>
+                                <span id="pista-aceptar-deteccion" class="revision-ia-pista-aceptar">@(seleccionada.FechaEmisionDetectada is null ? Textos["RevIaPistaSinFecha"] : Textos["RevIaPistaRenueva"])</span>
                             </div>
                         </div>
                     </div>

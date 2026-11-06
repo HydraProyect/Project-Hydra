@@ -378,6 +378,7 @@ a.boton-exportar-informe:hover {
 .titulo-hoja-informe {
     margin: 0 0 var(--space-1);
     font: var(--font-h3);
+    font-weight: 700;
 }
 
 .metadato-hoja-informe {
@@ -407,4 +408,45 @@ a.boton-exportar-informe:hover {
 .nota-vista-previa-informe {
     font: var(--font-caption);
     color: var(--color-text-muted);
+}
+
+/* Paridad con la maqueta Reportes TALVEG.dc.html (C27): el titulo de la pantalla
+   es 26/32 700, no el 36/44 de CabeceraPagina. */
+.contenedor-pagina ::deep .titulo-pagina {
+    font-size: 1.625rem;
+    line-height: 2rem;
+    letter-spacing: -0.01em;
+}
+
+/* C35: el boton primario de la maqueta mide 44 de alto con 24 de padding. */
+.boton-generar-informe {
+    min-height: 44px;
+    padding-inline: 1.5rem;
+}
+
+/* C48: la tabla de la hoja no lleva cabecera con fondo ni esquinas redondeadas:
+   cabecera 11/600 con 2px de borde inferior, filas de 13px con 7px de relleno. */
+.tabla-hoja-informe {
+    border: 0;
+    border-radius: 0;
+}
+
+.tabla-hoja-informe th,
+.tabla-hoja-informe td {
+    border-radius: 0;
+    padding: 7px 0;
+}
+
+.tabla-hoja-informe th {
+    padding-right: var(--space-3);
+    color: var(--color-text);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid var(--color-text);
+}
+
+.tabla-hoja-informe td {
+    padding-right: var(--space-3);
+    font-size: 13px;
+    border-bottom: 1px solid var(--color-border);
 }
