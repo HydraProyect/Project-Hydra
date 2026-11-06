@@ -214,6 +214,8 @@ public class GuardaClusterDePruebasTests
         "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); using var k = c.CreateCommand(); k.CommandText = guion; k.ExecuteNonQuery(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
     [InlineData("new con tipo inferido antes de la guarda",
         "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); NpgsqlCommand k = new(guion, c); k.ExecuteNonQuery(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
+    [InlineData("segunda conexión usada entre la primera guarda y la suya",
+        "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var o = new NpgsqlConnection(x); o.Open(); Ejecutar(o, guion); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(o, null); using var g = new NpgsqlCommand(guion, c); }")]
     [InlineData("ayudante que ejecuta SQL antes de la guarda",
         "[ModuleInitializer] static void E() { using var c = new NpgsqlConnection(x); c.Open(); Ejecutar(c, guion); GuardaClusterDePruebas.ExigirClusterDesechableSincrono(c, null); using var g = new NpgsqlCommand(guion, c); }")]
     public void El_analisis_del_bootstrap_detecta_una_guarda_ausente_o_tardia(string caso, string metodo)
@@ -397,11 +399,15 @@ public class GuardaClusterDePruebasTests
         // Antes de la primera guarda, la conexión que guarda solo puede declararse y abrirse: cualquier otro uso
         // (CreateCommand, un NpgsqlBatch, new(sql, conexion) con tipo inferido, un ayudante que ejecute SQL) podría
         // tocar roles antes de la comprobación sin ser un new NpgsqlCommand reconocible.
-        var primera = guardas.Min(g => g.SpanStart);
-        foreach (var guarda in guardas)
+        // El umbral es la primera guarda de CADA conexión, no la primera de todas: si no, una segunda conexión usada
+        // entre la guarda de la primera y la suya propia quedaría sin comprobar.
+        var primeraGuardaPorConexion = guardas
+            .GroupBy(g => ((InvocationExpressionSyntax)g.Expression).ArgumentList.Arguments
+                is [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var nombre } }, ..] ? nombre : null)
+            .Where(g => g.Key is not null)
+            .ToDictionary(g => g.Key!, g => g.Min(s => s.SpanStart));
+        foreach (var (conexionGuardada, primera) in primeraGuardaPorConexion)
         {
-            var conexionGuardada = ((InvocationExpressionSyntax)guarda.Expression).ArgumentList.Arguments
-                is [{ Expression: IdentifierNameSyntax { Identifier.ValueText: var nombre } }, ..] ? nombre : null;
             foreach (var uso in metodo.DescendantNodes().OfType<IdentifierNameSyntax>()
                          .Where(i => i.Identifier.ValueText == conexionGuardada && i.SpanStart < primera))
             {
