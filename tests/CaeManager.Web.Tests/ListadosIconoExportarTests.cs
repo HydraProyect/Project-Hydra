@@ -279,7 +279,7 @@ public partial class CentrosListaPatronTests
             : "centros?q=&estado=&cliente=&empresa=&orden=");
         var esperados = activos
             ? new Dictionary<string, string> { ["q"] = "Peña & Hijos", ["estado"] = "Vencido", ["cliente"] = ClienteOrion.ToString(), ["empresa"] = EmpresaMontajes.ToString(), ["centro"] = centro.Id.ToString(), ["orden"] = "CumplimientoPorcentaje", ["desc"] = "true" }
-            : new Dictionary<string, string>();
+            : new Dictionary<string, string> { ["orden"] = "Estado", ["desc"] = "true" }; // el orden de serie que se ve: peor estado primero
         ComprobacionIconoExportar.Criterios(cut, "/centros/exportar.xlsx",
             typeof(CaeManager.Web.Features.Centros.CentrosEndpoints), esperados);
     }

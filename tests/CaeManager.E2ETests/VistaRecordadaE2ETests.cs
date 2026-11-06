@@ -157,11 +157,12 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 
             // --- Una vista propia: agrupado «Por Cliente» y buscando un Centro por su nombre. La siembra no da un
             //     nombre estable, así que se lee de la lista el de un Centro cualquiera. ---
-            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
-            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
+            //     Se lee antes de agrupar: agrupada, la lista nace con los grupos cerrados y sin filas a la vista.
             var nombresDeCentro = page.Locator(".lista-filas-acordeon .fila-pulsable .enlace-nombre-fila");
             await Expect(nombresDeCentro).Not.ToHaveCountAsync(0);
             var nombre = (await nombresDeCentro.AllInnerTextsAsync()).Select(n => n.Trim()).Last(n => n.Length > 0);
+            await Ayudas.ElegirAgrupacionAsync(page, "Por Cliente", AgrupadoPorCliente);
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             await buscador.FillAsync(nombre);
             // La barrera es la CIFRA, no el texto entero: al teclear, el rótulo pasa en el acto a «N centros
             // con estos filtros» con la cifra de antes, y solo cambia de cifra cuando la lista filtrada llega.

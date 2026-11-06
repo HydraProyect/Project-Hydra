@@ -72,14 +72,14 @@
 }
 .lista-design.lista-design .barra-filtros-pastillas-fila .barra-herramientas-lista { margin: 0 0 0 auto; gap: var(--space-2); }
 /* Centros: «Restablecer vista», «Agrupar» y «Expandir todo» en un solo grupo a la derecha (BarraFiltros.RestablecerConHerramientas) */
-.lista-design.lista-design .barra-filtros-pastillas-fila .barra-filtros-herramientas-derecha {
+.lista-design.lista-design.lista-centros .barra-filtros-pastillas-fila .barra-filtros-herramientas-derecha {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     margin: 0 0 0 auto;
 }
-.lista-design.lista-design .barra-filtros-herramientas-derecha .barra-herramientas-lista { margin: 0; }
-.lista-design.lista-design .restablecer-vista-barra { padding: 0 4px; font: 600 14px/16px var(--font-family); }
+.lista-design.lista-design.lista-centros .barra-filtros-herramientas-derecha .barra-herramientas-lista { margin: 0; }
+.lista-design.lista-design.lista-centros .restablecer-vista-barra { padding: 0 4px; font: 600 14px/16px var(--font-family); }
 .lista-design.lista-design .barra-herramientas-lista button {
     height: 32px;
     min-height: 32px;
@@ -148,7 +148,7 @@
 }
 .lista-design.lista-design .tarjeta-listado::after { border-color: var(--color-border-strong); }
 .lista-design.lista-design .tarjeta-listado-pie { border-top: 0; padding: 12px var(--space-4); }
-.lista-design.lista-design .paginador-pie-listado { gap: var(--space-4); font-weight: 500; line-height: 16px; }
+.lista-design.lista-design.lista-centros .paginador-pie-listado { gap: var(--space-4); font-weight: 500; line-height: 16px; }
 .lista-design.lista-design .paginador-opciones-tamano { gap: 6px; }
 .lista-design.lista-design .paginador-opciones-tamano > [aria-hidden="true"] { display: none; }
 .lista-design.lista-design .paginador-opciones-tamano button { padding: 0 2px; font-weight: 400; }
@@ -164,13 +164,13 @@
     gap: var(--space-3);
 }
 
-.lista-design.lista-design .estado-vacio h3 { margin: 0; font: var(--font-h4); }
-.lista-design.lista-design .estado-vacio p { margin: 0; }
+.lista-design.lista-design.lista-centros .estado-vacio h3 { margin: 0; font: var(--font-h4); }
+.lista-design.lista-design.lista-centros .estado-vacio p { margin: 0; }
 /* Sin icono (EstadoVacio.SinIcono: Error, Vacía y Vacía por filtro de la maqueta) el botón va a un gap del texto, sin el margen extra */
-.lista-design.lista-design .estado-vacio:not(:has(.estado-vacio-icono)) .estado-vacio-accion { margin-top: 0; }
+.lista-design.lista-design.lista-centros .estado-vacio:not(:has(.estado-vacio-icono)) .estado-vacio-accion { margin-top: 0; }
 
-/* Cargando: filas esqueleto de 56 px y radio md (animación «brillo» 1,4 s ya en EstadoCargando) */
-.lista-design.lista-design .esqueleto-fila { height: 56px; border-radius: var(--radius-md); }
+/* Cargando (solo Centros): filas esqueleto de 56 px y radio md (animación «brillo» 1,4 s ya en EstadoCargando) */
+.lista-design.lista-design.lista-centros .esqueleto-fila { height: 56px; border-radius: var(--radius-md); }
 
 /* Pastilla de estado, indicador «correcto» y barra de cumplimiento, al valor de la maqueta */
 .lista-design.lista-design .estado-fila-correcto { font: var(--font-body-sm); gap: 6px; min-height: 0; }
@@ -216,13 +216,13 @@
 }
 /* Filas: tinte de estado (rojo y ámbar, no «Sin confirmar»), nombre en 600 y pastilla de estado de 22 de alto */
 /* Solo el degradado de la maqueta («danger-50 0, transparent 60%») sobre fondo transparente: sin el color sólido de list-page.css (fila entera rosa) ni su desplazamiento de fondo. Con el puntero encima manda el azul de la fila. */
-.lista-design.lista-design .fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera:not(:hover) {
+.lista-design.lista-design.lista-centros .fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera:not(:hover) {
     background-color: transparent;
     background-image: linear-gradient(90deg, var(--color-danger-50) 0, transparent 60%);
     background-size: 100% 100%;
     background-position: 0 0;
 }
-.lista-design.lista-design .fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera:not(:hover) {
+.lista-design.lista-design.lista-centros .fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera:not(:hover) {
     background-color: transparent;
     background-image: linear-gradient(90deg, var(--color-warning-50) 0, transparent 60%);
     background-size: 100% 100%;

@@ -585,7 +585,7 @@ public partial class CentrosListaPatronTests : BunitContext
     /// </summary>
     private string CampoCliente => Services.GetRequiredService<IStringLocalizer<TextosCentros>>()["FiltroClienteEmpresarial"].Value;
 
-    /// <summary>La pastilla «Agrupar» de la barra: «Agrupar» sin agrupar y «Agrupar: Por Cliente» agrupada.</summary>
+    /// <summary>La pastilla «Agrupar» de la barra: «Agrupar: no» sin agrupar y «Agrupar: por cliente» agrupada.</summary>
     private static AngleSharp.Dom.IElement DesplegableAgrupar(IRenderedComponent<Centros> cut, string etiqueta = "Agrupar") => Disparador(cut, etiqueta);
 
     private const string AgruparPorClienteUrl = "centros?agrupar=cliente";
@@ -720,6 +720,31 @@ public partial class CentrosListaPatronTests : BunitContext
         boton.QuerySelector("span[aria-hidden=true]")!.TextContent.Should().Be("↑");
     }
 
+    /// <summary>
+    /// Con los grupos cerrados, «seleccionar la página» no marca filas que nadie ha visto, y plegar un grupo
+    /// deselecciona sus filas: la barra de acciones en lote no apunta a lo invisible.
+    /// </summary>
+    [Fact]
+    public async Task La_seleccion_de_la_pagina_solo_alcanza_las_filas_de_grupos_abiertos_y_plegar_deselecciona()
+    {
+        var cut = Renderizar(ConDosClientes(), AgruparPorClienteUrl);
+        await cut.Find("header.cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        const string SeleccionarPagina = "input[aria-label='Seleccionar los centros de esta página']";
+
+        cut.Find(SeleccionarPagina).Change(true);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().BeEmpty("todos los grupos nacen cerrados");
+
+        AbrirGrupos(cut);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().BeEmpty("lo que estaba oculto no se marcó");
+        cut.Find(SeleccionarPagina).Change(true);
+        var filas = cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Count;
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().HaveCount(filas);
+
+        cut.FindAll("button.cabecera-grupo-centros")[0].Click();
+        cut.FindAll("button.cabecera-grupo-centros")[0].Click();
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Count.Should().BeLessThan(filas,
+            "las filas del grupo plegado dejan de estar marcadas");
+    }
     /// <summary>
     /// x activa la selección múltiple (como en la maqueta) y marca la fila enfocada: sin grupos contraíbles, toda
     /// fila marcada está a la vista.

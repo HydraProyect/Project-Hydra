@@ -374,6 +374,19 @@ public class CalendarioTests : BunitContext
     }
 
     /// <summary>
+    /// En el cambio de año la columna sigue la ISO 8601 y no la cuenta de enero: enero de 2027 empieza en la
+    /// semana 53 de 2026 (lunes 28 de diciembre) y la siguiente es la 1 (lunes 4 de enero), con literales.
+    /// </summary>
+    [Fact]
+    public void La_columna_de_semana_respeta_el_cambio_de_anio_ISO()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Vencimientos = [], Visitas = [] });
+        var cut = Render<Calendario>(p => p.Add(c => c.Hoy, new DateOnly(2027, 1, 15)));
+
+        cut.FindAll(".calendario-numero-semana").Select(n => n.TextContent.Trim())
+            .Should().Equal("53", "1", "2", "3", "4");
+    }
+    /// <summary>
     /// La primera semana se completa con los últimos días del mes anterior, en
     /// orden: si el mes empieza en jueves, delante van lunes, martes y
     /// miércoles del mes anterior.

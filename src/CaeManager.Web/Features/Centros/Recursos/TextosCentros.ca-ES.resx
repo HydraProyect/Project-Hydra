@@ -342,9 +342,6 @@
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Cap resultat amb aquests filtres</value>
   </data>
-  <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Cap no coincideix amb la cerca ni amb els filtres seleccionats.</value>
-  </data>
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Treu filtres</value>
   </data>

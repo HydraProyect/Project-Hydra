@@ -30,7 +30,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina lista-design">
+<div class="contenedor-pagina lista-design lista-centros">
     @* Lista 1:1 con «Lista Centros TALVEG.dc.html» del export de Design (DDL-083, 2026-10-18), con el mismo molde que
        Empresas y Trabajadores: cabecera de una línea (CabeceraListado) con el contador, el conmutador ☑ de selección
        múltiple, el icono ⤓ de exportación de la vista filtrada, ⌨, el menú «⋯» con «Exportar asignaciones» (lectura:
@@ -82,7 +82,8 @@
           prefijan el formulario y no filtran.
         - A la derecha, la agrupación «Por Cliente» (de serie sin agrupar; viaja en la URL como «agrupar») y
           «Expandir todo», que solo existe si alguna fila se despliega. El orden por cumplimiento (blueprint § 3.1,
-          DDL-036: atacar los peores centros sin depender de que haya visita) vive en la cabecera de su columna.
+          DDL-036: atacar los peores centros sin depender de que haya visita) y por Empresa viven en la cabecera de
+          su columna; de serie, de peor a mejor estado.
         La pastilla «Filtros guardados» guarda los parámetros de vista de la URL, con la agrupación y el orden:
         FiltrosGuardadosDeListado y ParametrosDeVista.
     *@

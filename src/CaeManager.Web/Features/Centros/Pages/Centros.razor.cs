@@ -199,7 +199,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = AgrupacionDeLista.Parametro)]
     public string? AgruparInicial { get; set; }
 
-    /// <summary>Orden pedido: <c>cumplimiento</c> (peores primero) o <c>cumplimiento-desc</c>. Sin él, el orden de catálogo.</summary>
+    /// <summary>Orden pedido: <c>cumplimiento</c> o <c>empresa</c>, con sufijo <c>-desc</c> para invertirlo. Sin él, de peor a mejor estado.</summary>
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
@@ -1003,7 +1003,12 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private void AlternarGrupo(Guid clienteEmpresarialId)
     {
         if (!_gruposAbiertos.Add(clienteEmpresarialId))
+        {
             _gruposAbiertos.Remove(clienteEmpresarialId);
+            // Plegar un grupo deselecciona sus filas: la barra de acciones en lote no apunta a lo que ya no se ve.
+            foreach (var centro in _elementosPagina.Where(c => ClienteEmpresarialDe(c) == clienteEmpresarialId))
+                _seleccionados.Remove(centro.Id);
+        }
         _idEnfocado = null;
     }
 
@@ -1323,7 +1328,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasEnOrden(Grupos).ToList() is { Count: > 0 } visibles && visibles.All(e => _seleccionados.Contains(e.Id));
 
     /// <summary>
     /// Apagar el modo limpia la selección (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9):
@@ -1374,7 +1379,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            // Solo las filas que se ven: con los grupos cerrados no se marca lo que nadie ha visto.
+            foreach (var elemento in FilasEnOrden(Grupos)) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1673,7 +1679,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         ["cliente"] = _clienteFiltro,
         ["empresa"] = _empresaFiltro,
         ["centro"] = _centroIdFiltro?.ToString(),
-        ["orden"] = _ordenarPor,
-        ["desc"] = _ordenDescendente ? "true" : null,
+        // El Excel sale en el orden que se ve: sin orden pedido, el de serie de la lista (Estado, lo más grave primero).
+        ["orden"] = _ordenarPor ?? nameof(CentroListaDto.Estado),
+        ["desc"] = _ordenarPor is null || _ordenDescendente ? "true" : null,
     };
 }

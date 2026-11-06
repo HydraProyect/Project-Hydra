@@ -348,9 +348,6 @@
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Ningún resultado con estos filtros</value>
   </data>
-  <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguno coincide con la búsqueda ni con los filtros seleccionados.</value>
-  </data>
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Quitar filtros</value>
   </data>
