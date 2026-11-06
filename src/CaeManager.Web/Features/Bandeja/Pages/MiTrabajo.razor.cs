@@ -116,6 +116,17 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private IReadOnlyList<GrupoMiTrabajo> Grupos => _vista?.Grupos(Filtro) ?? [];
 
+    /// <summary>«N grupos · M tareas visibles» de la maqueta, sobre los grupos que muestra la cola (plegados o no).</summary>
+    private string ResumenLista
+    {
+        get
+        {
+            var grupos = Grupos;
+            return MiTrabajoVista.Plural(grupos.Count, "GrupoUno", "GruposVarios") + " · "
+                + MiTrabajoVista.Plural(grupos.Sum(g => g.Total), "TareaVisibleUna", "TareasVisiblesVarias");
+        }
+    }
+
     private IReadOnlyList<FilaMiTrabajo> Visibles => _vista?.Visibles(Filtro) ?? [];
 
     /// <summary>Vacío porque no queda trabajo en el Tenant elegido, no porque el filtro lo esconda.</summary>
@@ -444,6 +455,35 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _lotesAbiertos.Clear();
     }
 
+    /// <summary>
+    /// «Gestionar» del grupo: decide con el estado vivo (no con el del render que pintó el botón, que un doble clic deja
+    /// obsoleto), lo despliega si estaba plegado, abre el pliegue de calendario si es lo único que contiene y abre en el
+    /// detalle su tarea de mayor severidad (a igual severidad, la primera en orden de pantalla).
+    /// </summary>
+    private void GestionarGrupo(GrupoMiTrabajo grupo)
+    {
+        var vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
+        if (vivo is null) return;
+
+        if (vivo.Plegado)
+        {
+            if (vivo.TenantId is { } tenantId) AlternarTenant(tenantId);
+            else AlternarSeveridad(vivo.Clave);
+            vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
+        }
+
+        if (vivo is { Plegado: false, Filas.Count: 0 })
+        {
+            AbrirPliegue(vivo.Clave);
+            vivo = Grupos.FirstOrDefault(g => g.Clave == grupo.Clave);
+        }
+
+        var primera = vivo?.Filas.OrderBy(f => f.Severidad).FirstOrDefault();
+        if (primera is null) return;
+        AbrirDetalle(primera);
+        AbrirLoteDeLaFilaEnfocada();
+    }
+
     private void AbrirDetalle(FilaMiTrabajo fila)
     {
         _idAbierto = fila.Item.Id;
@@ -489,7 +529,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private string ContextoFila(FilaMiTrabajo fila)
     {
-        var partes = new List<string?> { MiTrabajoVista.Etiqueta(fila.Severidad) };
+        var partes = new List<string?> { TipoItemBandejaUi.Texto(fila.Item) };
         if (_agrupar == AgruparMiTrabajo.Severidad) partes.Add(fila.TenantNombre);
         if (!(_agrupar == AgruparMiTrabajo.Tenant && _orden == OrdenMiTrabajo.Cliente)) partes.Add(fila.Item.ClienteNombre);
         return string.Join(" · ", partes.Where(p => !string.IsNullOrWhiteSpace(p)));

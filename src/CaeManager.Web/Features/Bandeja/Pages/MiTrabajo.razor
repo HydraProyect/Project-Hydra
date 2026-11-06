@@ -171,6 +171,14 @@
             }
         </div>
 
+        @* Maqueta: «N grupos · M tareas visibles» y, a la derecha, los atajos que de verdad existen en la capa de teclado. *@
+        <div class="mi-trabajo-resumen-fila">
+            <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
+            <span class="mi-trabajo-atajos">@Textos["Atajos"]
+                <kbd title="@Textos["AtajoMover"]">j</kbd><kbd title="@Textos["AtajoMover"]">k</kbd><kbd title="@Textos["AtajoAbrir"]">↵</kbd>
+            </span>
+        </div>
+
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
         @* El detalle solo existe con una tarea abierta: sin ella no reserva
@@ -200,10 +208,11 @@
                         {
                             <button type="button" class="mi-trabajo-plegar-todas" disabled="@_cargando" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
                         }
-                        <span class="mi-trabajo-atajos"><kbd>j</kbd> <kbd>k</kbd> @Textos["AtajoMover"] · <kbd>↵</kbd> @Textos["AtajoAbrir"]</span>
                     </div>
                 </div>
 
+                @* Maqueta: el estado vacío o cargando va dentro de una tarjeta; con grupos, cada grupo es la suya. *@
+                <div class="@(Grupos.Count == 0 ? "mi-trabajo-estado" : null)">
                 @if (Grupos.Count == 0 && ConsultandoCartera)
                 {
                     @* Con la carga en marcha, una cola vacía solo dice que esa Empresa aún no ha terminado: ni «al día» ni «sin cartera». *@
@@ -265,7 +274,8 @@
                         @{ var clavesGrupos = new ClavesDeHermanos(); }
                         @foreach (var grupo in Grupos)
                         {
-                            <div class="mi-trabajo-grupo" @key="clavesGrupos.De(grupo.Clave)">
+                            <div class="@("mi-trabajo-grupo" + (grupo.Peor == SeveridadMiTrabajo.Bloqueo ? " mi-trabajo-grupo-bloqueo" : "") + (grupo.Plegado ? " mi-trabajo-grupo-plegado" : ""))" @key="clavesGrupos.De(grupo.Clave)">
+                                <div class="mi-trabajo-grupo-encabezado">
                                 @if (grupo.TenantId is { } tenantId)
                                 {
                                     <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-tenant" aria-expanded="@(grupo.Plegado ? "false" : "true")"
@@ -276,6 +286,10 @@
                                         @if (grupo.ResumenCabecera is { Length: > 0 } resumenCabecera)
                                         {
                                             <span class="mi-trabajo-grupo-resumen">@resumenCabecera</span>
+                                        }
+                                        @if (grupo.Peor is { } peorTenant)
+                                        {
+                                            <Badge Tono="TonoSeveridad(peorTenant)" Tamano="TamanoBadge.Pequeno">@MiTrabajoVista.Etiqueta(peorTenant)</Badge>
                                         }
                                     </button>
                                 }
@@ -289,6 +303,9 @@
                                         <span class="mi-trabajo-grupo-total">@grupo.Total</span>
                                     </button>
                                 }
+                                    <button type="button" class="mi-trabajo-grupo-gestionar" aria-label="@Textos["GestionarGrupo", grupo.Etiqueta]"
+                                            @onclick="() => GestionarGrupo(grupo)">@Textos["Gestionar"]</button>
+                                </div>
 
                                 @* Los lotes y sus filas son hermanos bajo este mismo grupo: una sola fuente de claves para todos (numera las
                                    repeticiones: ningún Id repetido mata el circuito). Mezcla Tenants en el modo por severidad y el Id de la fila no
@@ -326,16 +343,17 @@
                                         {
                                             <div @key="claves.De((fila.TenantId, fila.Item.Id))" class="@(ClaseFila(fila) + (lote.Colapsable ? " mi-trabajo-fila-en-lote" : ""))"
                                                  @onclick="() => AbrirDetalle(fila)">
+                                                <span class="mi-trabajo-fila-icono" aria-hidden="true"><Icono Nombre="@TipoItemBandejaUi.Icono(fila.Item)" Tamano="TamanoIcono.Pequeno" /></span>
                                                 <button type="button" class="mi-trabajo-fila-cuerpo" data-fila-abrir
                                                         aria-label="@($"{fila.Item.Titulo} · {fila.TenantNombre}")">
                                                     <span class="mi-trabajo-fila-linea">
-                                                        <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@TipoItemBandejaUi.Texto(fila.Item)</Badge>
                                                         <span class="mi-trabajo-fila-titulo">@fila.Item.Titulo</span>
                                                         <span class="mi-trabajo-fila-sujeto">· @MiTrabajoVista.Sujeto(fila.Item)</span>
                                                     </span>
                                                     <span class="mi-trabajo-fila-contexto">@ContextoFila(fila)</span>
                                                 </button>
                                                 <span class="mi-trabajo-fila-derecha" @onclick:stopPropagation="true">
+                                                    <Badge Tono="TonoSeveridad(fila.Severidad)" Tamano="TamanoBadge.Pequeno">@MiTrabajoVista.Etiqueta(fila.Severidad)</Badge>
                                                     @if (fila.Item.Fecha is { } fecha)
                                                     {
                                                         <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
@@ -371,6 +389,7 @@
                         </div>
                     </div>
                 }
+                </div>
             </section>
 
             @if (FilaAbierta is { } abierta)

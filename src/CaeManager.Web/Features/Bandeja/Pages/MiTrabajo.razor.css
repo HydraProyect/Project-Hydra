@@ -153,11 +153,90 @@
     }
 }
 
-.mi-trabajo-cola,
 .mi-trabajo-detalle {
     background: var(--color-surface);
     border: var(--border-default);
     border-radius: var(--radius-lg);
+}
+
+/* Maqueta: la cola no es una tarjeta única; la barra va suelta y cada grupo es su propia tarjeta. */
+.mi-trabajo-cola {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.mi-trabajo-grupos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.mi-trabajo-grupo {
+    overflow: hidden;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* Maqueta: el grupo que bloquea un Centro lleva banda izquierda de 4px en peligro. */
+.mi-trabajo-grupo-bloqueo {
+    border-left: 4px solid var(--color-danger-500);
+}
+
+.mi-trabajo-estado {
+    overflow: hidden;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+/* Plegado, la tarjeta ya cierra con su propio borde: sin raya doble bajo el encabezado. */
+.mi-trabajo-grupo-plegado .mi-trabajo-grupo-encabezado {
+    border-bottom: 0;
+}
+
+/* overflow:hidden recortaría el anillo de foco global (offset hacia fuera) de los botones pegados al borde de la tarjeta. */
+.mi-trabajo-grupo-cabecera:focus-visible,
+.mi-trabajo-lote:focus-visible,
+.mi-trabajo-pliegue:focus-visible,
+.mi-trabajo-grupo-gestionar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.mi-trabajo-grupo-encabezado {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding-right: var(--space-4);
+    border-bottom: var(--border-default);
+}
+
+.mi-trabajo-grupo-encabezado .mi-trabajo-grupo-cabecera {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    border-bottom: 0;
+}
+
+/* Maqueta: botón único de 36px, borde de control, texto primario. */
+.mi-trabajo-grupo-gestionar {
+    flex: none;
+    height: 36px;
+    padding: 0 var(--space-4);
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.mi-trabajo-grupo-gestionar:hover {
+    border-color: var(--color-primary-500);
+    background: var(--color-surface-hover);
 }
 
 /* Control compacto de ámbito: botón de 36px (como el «Ordenar por» de la maqueta) y lista flotante. */
@@ -317,8 +396,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border-bottom: var(--border-default);
+    padding: 0;
 }
 
 .mi-trabajo-barra-grupo {
@@ -380,8 +458,24 @@
     cursor: pointer;
 }
 
+.mi-trabajo-resumen-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+.mi-trabajo-resumen {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 .mi-trabajo-atajos {
-    font: var(--font-body-sm);
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
@@ -468,7 +562,22 @@
     padding: var(--space-3) var(--space-4) var(--space-3) var(--space-8);
     border-bottom: var(--border-default);
     border-left: 3px solid transparent;
+    background: var(--color-surface-subtle);
     cursor: pointer;
+}
+
+/* Maqueta: caja de icono de 26px, borde 1px, radio sm, sobre la superficie. */
+.mi-trabajo-fila-icono {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
 }
 
 .mi-trabajo-fila:hover {
@@ -517,7 +626,12 @@
     min-width: 0;
 }
 
-.mi-trabajo-fila-titulo,
+/* Maqueta: texto de la tarea 14/400 (font-body-md). */
+.mi-trabajo-fila-titulo {
+    font: var(--font-body-md);
+    white-space: nowrap;
+}
+
 .mi-trabajo-lote-titulo {
     font: var(--font-label-md);
     white-space: nowrap;
