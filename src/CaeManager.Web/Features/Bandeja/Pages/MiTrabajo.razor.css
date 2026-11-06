@@ -663,6 +663,35 @@
     white-space: nowrap;
 }
 
+/* La maqueta no define la fila por debajo de 768px; a 375px la acción de la derecha se recortaba
+   y el contexto se partía palabra a palabra. Se apila: cuerpo arriba, severidad, fecha y acción debajo. */
+@media (max-width: 640px) {
+    .mi-trabajo-fila {
+        flex-wrap: wrap;
+        padding-left: var(--space-4);
+    }
+
+    .mi-trabajo-fila-cuerpo {
+        flex: 1 1 calc(100% - 40px);
+    }
+
+    .mi-trabajo-fila-linea {
+        flex-wrap: wrap;
+    }
+
+    .mi-trabajo-fila-titulo,
+    .mi-trabajo-fila-sujeto {
+        white-space: normal;
+        overflow: visible;
+    }
+
+    .mi-trabajo-fila-derecha {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+}
+
 .mi-trabajo-pliegue {
     display: flex;
     align-items: center;
