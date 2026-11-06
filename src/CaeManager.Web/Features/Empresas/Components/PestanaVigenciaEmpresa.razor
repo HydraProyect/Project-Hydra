@@ -132,7 +132,7 @@
                                     }
                                     else
                                     {
-                                        @* El estado no depende solo del color: lo dice el nombre accesible y lo marcan el trazo y el grosor (ver el CSS). *@
+                                        @* El estado no depende solo del color: lo dicen el texto de la celda y su nombre accesible, y vencido y falta además van en negrita (ver el CSS; la leyenda es solo visual). *@
                                         <a class="vigencia-celda" data-estado="@CodigoEstado(celda.Resultado)" data-atenuada="@(atenuada ? "true" : null)"
                                            href="@($"/trabajadores/{fila.Fila.TrabajadorId}?pestana=documentacion")"
                                            title="@titulo" aria-label="@titulo">@TextoDeCelda(celda)</a>

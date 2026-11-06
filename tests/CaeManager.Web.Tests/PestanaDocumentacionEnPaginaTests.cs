@@ -87,6 +87,88 @@ public class PestanaDocumentacionEnPaginaTests : BunitContext
         return cut;
     }
 
+    /// <summary>
+    /// Maqueta «Empresa 360» (B6.1): la pestaña Documentación lleva un chip por estado con su recuento y el buscador. El
+    /// filtro es en memoria; Urgente y Próximo se leen los dos «Por vencer» y suman en un solo chip. Sin <c>ConFiltros</c>
+    /// (otras fichas) la barra no existe.
+    /// </summary>
+    [Fact]
+    public async Task Con_filtros_hay_un_chip_por_estado_con_recuento_y_el_buscador_acota_la_lista()
+    {
+        this.ConRolDeEscritura();
+        var documentos = new List<DocumentoListaDto>
+        {
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Seguro de responsabilidad civil", new DateOnly(2025, 1, 1), new DateOnly(2026, 12, 31), EstadoDocumento.Vigente, null, []),
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Certificado de la Seguridad Social", new DateOnly(2025, 1, 1), null, EstadoDocumento.Faltante, null, []),
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Evaluación de riesgos", new DateOnly(2025, 1, 1), new DateOnly(2026, 11, 20), EstadoDocumento.Urgente, null, []),
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Memoria preventiva", new DateOnly(2025, 1, 1), new DateOnly(2027, 1, 20), EstadoDocumento.Proximo, null, []),
+        };
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(documentos));
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
+        var cut = Render<PestanaDocumentacion>(p => p
+            .Add(x => x.Ambito, AmbitoAplicacion.Empresa).Add(x => x.PropietarioId, Guid.NewGuid()).Add(x => x.EnPagina, true)
+            .Add(x => x.ConFiltros, true).Add(x => x.PlaceholderBuscador, "Buscar documento de esta empresa…"));
+        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion").Should().HaveCount(4));
+
+        var chips = cut.FindAll(".documentacion-chip").Select(c => c.TextContent.Trim()).ToList();
+        chips.Should().Equal("Todos · 4", "Pendiente · 1", "Por vencer · 2", "Vigente · 1");
+
+        await cut.FindAll(".documentacion-chip").Single(c => c.TextContent.Contains("Por vencer")).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.FindAll("li.fila-relacion .fila-relacion-nombre").Select(n => n.TextContent.Trim())
+            .Should().BeEquivalentTo("Evaluación de riesgos", "Memoria preventiva");
+
+        await cut.FindAll(".documentacion-chip").First().ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find(".buscador-lista input[type=search]").Input("seguridad");
+        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion .fila-relacion-nombre").Select(n => n.TextContent.Trim())
+            .Should().Equal("Certificado de la Seguridad Social"));
+    }
+
+    /// <summary>
+    /// Si al recargar desaparece el estado filtrado (p. ej. se corrige la única incidencia), el filtro vuelve a «Todos»:
+    /// sin eso la lista quedaba vacía y ningún chip aparecía activo.
+    /// </summary>
+    [Fact]
+    public async Task Con_filtros_si_tras_recargar_ya_no_hay_documentos_del_estado_filtrado_vuelve_a_Todos()
+    {
+        this.ConRolDeEscritura();
+        var documentos = new List<DocumentoListaDto>
+        {
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Seguro de responsabilidad civil", new DateOnly(2025, 1, 1), new DateOnly(2026, 12, 31), EstadoDocumento.Vigente, null, []),
+            new(Guid.NewGuid(), AmbitoAplicacion.Empresa, "Ibertec GmbH", "Certificado de la Seguridad Social", new DateOnly(2025, 1, 1), null, EstadoDocumento.Faltante, null, []),
+        };
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(documentos));
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
+        var propietario = Guid.NewGuid();
+        var cut = Render<PestanaDocumentacion>(p => p
+            .Add(x => x.Ambito, AmbitoAplicacion.Empresa).Add(x => x.PropietarioId, propietario).Add(x => x.EnPagina, true)
+            .Add(x => x.ConFiltros, true));
+        cut.WaitForAssertion(() => cut.FindAll("li.fila-relacion").Should().HaveCount(2));
+
+        await cut.FindAll(".documentacion-chip").Single(c => c.TextContent.Contains("Pendiente")).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.FindAll("li.fila-relacion").Should().ContainSingle();
+
+        documentos.RemoveAt(1);
+        cut.Render(p => p.Add(x => x.PropietarioId, Guid.NewGuid()));
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll("li.fila-relacion").Should().ContainSingle();
+            cut.FindAll(".documentacion-chip").First().GetAttribute("aria-pressed").Should().Be("true");
+        });
+    }
+
+    [Fact]
+    public void Sin_filtros_la_pestana_no_pinta_barra_de_chips_ni_buscador()
+    {
+        var cut = Renderizar(enPagina: true);
+
+        cut.FindAll(".documentacion-barra").Should().BeEmpty();
+        cut.FindAll(".buscador-lista").Should().BeEmpty();
+    }
     [Fact]
     public void En_pagina_los_documentos_son_filas_de_una_tarjeta_con_vigencia_y_pastilla_de_estado()
     {

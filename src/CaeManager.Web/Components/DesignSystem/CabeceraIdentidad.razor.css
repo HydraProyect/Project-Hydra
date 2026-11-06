@@ -2,10 +2,10 @@
 .cabecera-identidad {
     display: flex;
     align-items: center;
-    gap: var(--space-5);
+    gap: var(--space-6);
     min-width: 0;
     margin-bottom: var(--space-3);
-    padding: 18px 22px;
+    padding: var(--space-5);
     border: var(--border-default);
     border-radius: var(--radius-lg);
     /* background-color, no el atajo background: el velo de cumplimiento (.velo-cumplimiento,
@@ -47,7 +47,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px 10px;
+    gap: 6px;
     margin-top: 7px;
     font: var(--font-body-md);
     color: var(--color-text-muted);
@@ -73,5 +73,29 @@
 
     .cabecera-identidad-acciones {
         align-items: flex-start;
+        /* Las acciones no se salen de la tarjeta: pasan a otra línea (.cabecera-acciones-fila de la maqueta). */
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        max-width: 100%;
+    }
+}
+
+/*
+   Móvil (375): la maqueta «Empresa 360» pone la cabecera en columna: anillo arriba, título, datos y las
+   acciones apiladas debajo, alineadas a la derecha y todas visibles.
+*/
+@media (max-width: 600px) {
+    .cabecera-identidad {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cabecera-identidad-texto {
+        flex: none;
+    }
+
+    .cabecera-identidad-acciones {
+        flex: none;
+        width: 100%;
     }
 }

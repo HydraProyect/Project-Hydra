@@ -45,8 +45,8 @@
     <comment>Descripción de un error de carga de una sección.</comment>
   </data>
   <data name="MetaCif" xml:space="preserve">
-    <value>CIF {0}</value>
-    <comment>Identificación fiscal en la línea de datos de la tarjeta de cabecera. {0} = CIF.</comment>
+    <value>CIF</value>
+    <comment>Rótulo «CIF» que precede al CIF copiable en la línea de datos de la tarjeta de cabecera.</comment>
   </data>
   <data name="CopiarElCif" xml:space="preserve">
     <value>el CIF</value>
@@ -129,6 +129,9 @@
     <value>Clientes</value>
     <comment>Glosa accesible del contador de la pestaña Clientes.</comment>
   </data>
+  <data name="GlosaPlataformas" xml:space="preserve">
+    <value>incidencias en plataformas</value>
+  </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
     <value>Filtrar los trabajadores por estado documental</value>
     <comment>Nombre accesible del grupo de chips.</comment>
@@ -168,6 +171,9 @@
   <data name="BuscadorTrabajadores" xml:space="preserve">
     <value>Buscar trabajador de esta empresa…</value>
   </data>
+  <data name="BuscadorDocumentos" xml:space="preserve"><value>Buscar documento de esta empresa…</value></data>
+  <data name="EtiquetaFiltrosDocumentacion" xml:space="preserve"><value>Filtrar los documentos por estado</value></data>
+  <data name="NingunDocumentoConFiltro" xml:space="preserve"><value>Ningún documento con ese filtro.</value></data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Quitar filtros</value>
     <comment>Quita el texto del buscador y el chip de estado.</comment>
@@ -545,6 +551,10 @@
   <data name="TarjetaSePideDocumentacion" xml:space="preserve">
     <value>Se pide la documentación a</value>
     <comment>Título de la tarjeta lateral de Empresa 360: a quién se pide la documentación.</comment>
+  </data>
+  <data name="TarjetaSePideDocumentacionPie" xml:space="preserve">
+    <value>Recibe las reclamaciones de documentos de esta Empresa.</value>
+    <comment>Pie de apoyo de la tarjeta lateral «Se pide la documentación a» (maqueta «Empresa 360»).</comment>
   </data>
   <data name="IrAAgendaFlecha" xml:space="preserve">
     <value>Agenda →</value>

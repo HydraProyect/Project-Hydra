@@ -50,3 +50,15 @@
     outline-offset: 1px;
     color: var(--color-primary-500);
 }
+
+/* Con icono (.cif-copiable de «Empresa 360»): el dato y, a su lado, el icono de copiar a 4 px. */
+.boton-copiar-con-icono {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    letter-spacing: 0.02em;
+}
+
+.boton-copiar-icono {
+    display: inline-flex;
+}

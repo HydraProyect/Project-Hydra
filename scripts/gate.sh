@@ -227,6 +227,10 @@ if [ "$RAPIDO" -eq 0 ]; then
   fi
 
   if [ "$INTEGRACION" -eq 1 ]; then
+    # El inicializador de módulo de IntegrationTests (BootstrapDeClusterEnTests) no toca ningún rol y lanza
+    # salvo que CAEMANAGER_TESTS_CLUSTER_DESECHABLE sea el system_identifier del clúster local al que apunta
+    # CAEMANAGER_TESTS_PG (ver GuardaClusterDePruebas). Declarar desechable el clúster compartido de desarrollo
+    # no lo decide este guion: sin la variable, esta etapa sale en rojo, y la integración corre en CI.
     etapa_tests integracion bash scripts/turno-postgres.sh -- "$DOTNET" test tests/CaeManager.IntegrationTests --no-build -v q
   fi
 fi

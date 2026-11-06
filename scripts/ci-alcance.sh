@@ -182,7 +182,10 @@ alcance_pr() {
   # de integración medidos en PR tocaban tests/CaeManager.IntegrationTests/.
   # Application y Domain entran desde 2026-10-25: los comandos, consultas e
   # invariantes que prueba la integración viven ahí (ver RIESGO RETIRADO).
-  local re_integracion='^(tests/CaeManager\.IntegrationTests/|src/CaeManager\.(Infrastructure|Migrations\.PostgreSQL|Application|Domain)/|scripts/)'
+  # GuardaClusterDePruebas.cs vive en E2ETests pero IntegrationTests la compila
+  # por enlace (guarda del bootstrap de clúster): un cambio en ella es también
+  # un cambio de la suite de integración.
+  local re_integracion='^(tests/CaeManager\.IntegrationTests/|tests/CaeManager\.E2ETests/GuardaClusterDePruebas\.cs$|src/CaeManager\.(Infrastructure|Migrations\.PostgreSQL|Application|Domain)/|scripts/)'
   local re_nombre='autoriz|authoriz|alcance|permis|rls|tenant'
   # E2E: los tests E2E y lo que ejercitan de verdad, las pantallas (Web) y los
   # casos de uso que esas pantallas invocan (Application).

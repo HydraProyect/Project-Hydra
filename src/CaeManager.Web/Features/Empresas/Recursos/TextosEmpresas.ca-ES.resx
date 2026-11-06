@@ -37,7 +37,7 @@
     <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="MetaCif" xml:space="preserve">
-    <value>CIF {0}</value>
+    <value>CIF</value>
   </data>
   <data name="CopiarElCif" xml:space="preserve">
     <value>el CIF</value>
@@ -100,6 +100,9 @@
   <data name="GlosaClientes" xml:space="preserve">
     <value>Clients</value>
   </data>
+  <data name="GlosaPlataformas" xml:space="preserve">
+    <value>incidències a plataformes</value>
+  </data>
   <data name="EtiquetaFiltros" xml:space="preserve">
     <value>Filtra els treballadors per estat documental</value>
   </data>
@@ -130,6 +133,9 @@
   <data name="BuscadorTrabajadores" xml:space="preserve">
     <value>Cerca un treballador d'aquesta empresa…</value>
   </data>
+  <data name="BuscadorDocumentos" xml:space="preserve"><value>Cerca un document d'aquesta empresa…</value></data>
+  <data name="EtiquetaFiltrosDocumentacion" xml:space="preserve"><value>Filtra els documents per estat</value></data>
+  <data name="NingunDocumentoConFiltro" xml:space="preserve"><value>Cap document amb aquest filtre.</value></data>
   <data name="QuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
   </data>
@@ -456,6 +462,10 @@
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminat.</value></data>
   <data name="TarjetaSePideDocumentacion" xml:space="preserve">
     <value>Es demana la documentació a</value>
+  </data>
+  <data name="TarjetaSePideDocumentacionPie" xml:space="preserve">
+    <value>Rep les reclamacions de documents d'aquesta Empresa.</value>
+    <comment>Pie de apoyo de la tarjeta lateral «Se pide la documentación a» (maqueta «Empresa 360»).</comment>
   </data>
   <data name="IrAAgendaFlecha" xml:space="preserve">
     <value>Agenda →</value>

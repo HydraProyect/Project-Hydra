@@ -46,6 +46,12 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     /// </summary>
     private string? TituloEnLinea => EnLinea ? Titulo ?? $"Copiar {(string.IsNullOrEmpty(Valor) ? Texto : Valor)}" : null;
 
+    /// <summary>
+    /// Con <see cref="EnLinea"/>, añade tras el dato el icono de copiar (<c>.cif-copiable</c> de la maqueta
+    /// «Empresa 360»: el valor y el icono, sin el rótulo «Copiar»).
+    /// </summary>
+    [Parameter] public bool ConIcono { get; set; }
+
     /// <summary>Rótulo en línea fijo cuando la maqueta nombra el dato en vez del valor (p. ej. «Copiar el CIF»).</summary>
     [Parameter] public string? Titulo { get; set; }
 
