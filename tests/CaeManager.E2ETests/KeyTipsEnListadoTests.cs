@@ -63,6 +63,14 @@ public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
         await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
         await Assertions.Expect(letras).ToHaveCountAsync(0);
 
+        // --- Agrupada, la lista nace con los grupos cerrados (como la maqueta): sin filas no hay fila que enfocar con «j». ---
+        //     Se abre el primer grupo para que los controles de «j» de más abajo (negativo con el modo encendido y
+        //     positivo con él apagado) vean filas de verdad y no pasen en vacío.
+        var filas = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon");
+        await Assertions.Expect(filas).ToHaveCountAsync(0);
+        await page.Locator(".cabecera-grupo-centros").EvaluateAllAsync<bool>("grupos => { grupos[0].click(); return true; }"); // sin localizador posicional
+        await Assertions.Expect(filas).Not.ToHaveCountAsync(0);
+
         // --- Encender otra vez (el foco volvió a la pastilla, que no es un campo de texto). ---
         await page.Keyboard.PressAsync("Alt");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
