@@ -305,7 +305,12 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.FindAll("h1").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Ibertec GmbH");
         cabecera.QuerySelector("h1").Should().NotBeNull();
         var entradilla = cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent;
-        entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
+        // «CIF» y el valor van en nodos separados (maqueta «Empresa 360»: .cif-copiable con icono de copiar), sin el rótulo «Copiar».
+        entradilla.Should().Contain("CIF").And.Contain("B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
+        var cif = cabecera.QuerySelector(".cabecera-identidad-datos .boton-copiar")!;
+        cif.TextContent.Should().Contain("B-48.220.917").And.NotContain("Copiar", "el dato es el botón y lleva el icono de copiar, no el texto «Copiar»");
+        cif.ClassList.Should().Contain("boton-copiar-con-icono");
+        cif.GetAttribute("aria-label").Should().Be("Copiar el CIF B-48.220.917");
         cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de los documentos exigidos");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
         cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
@@ -548,7 +553,8 @@ public partial class Empresa360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar();
         var lateral = cut.Find(".cuerpo-con-lateral-lateral");
-        lateral.TextContent.Should().Contain("Se pide la documentación a").And.Contain("Jon Arregi").And.Contain("Administración").And.Contain("Contacto principal");
+        lateral.TextContent.Should().Contain("Se pide la documentación a").And.Contain("Jon Arregi").And.Contain("Administración").And.Contain("contacto principal")
+            .And.Contain("Recibe las reclamaciones de documentos de esta Empresa.");
         lateral.TextContent.Should().NotContain("Iker Mena").And.NotContain("Nota interna del contacto");
     }
 

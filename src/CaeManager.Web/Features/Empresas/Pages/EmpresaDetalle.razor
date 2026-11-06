@@ -58,9 +58,11 @@
             <Datos>
                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                 {
-                    <span>
-                        @Textos["MetaCif", _detalle.Cif]
-                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    @* «CIF» + valor en 14/600 + icono de copiar (.cif-copiable de «Empresa 360»): el dato es el botón. *@
+                    <span class="empresa360-meta-cif">
+                        <span>@Textos["MetaCif"]</span>
+                        <BotonCopiar EnLinea="true" ConIcono="true" ConfirmarConIcono="false" Valor="@_detalle.Cif" Texto="@_detalle.Cif"
+                                     Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
                     </span>
                     @if (_clientes is { Count: > 0 } || _recuentos is not null)
                     {
@@ -113,13 +115,15 @@
                             <PestanaVigenciaEmpresa EmpresaId="_detalle.Id" />
                             break;
                         case PestanaPlataformas:
-                            <PestanaPlataformasEmpresa EmpresaId="_detalle.Id" />
+                            <PestanaPlataformasEmpresa EmpresaId="_detalle.Id" IncidenciasCargadas="n => _incidenciasPlataformas = n" />
                             break;
                         case PestanaClientes:
                             @PestanaDeClientes
                             break;
                         case PestanaDocumentacion:
-                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" />
+                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" ConFiltros="true"
+                                                      PlaceholderBuscador="@Textos["BuscadorDocumentos"]" EtiquetaFiltros="@Textos["EtiquetaFiltrosDocumentacion"]"
+                                                      TextoSinResultados="@Textos["NingunDocumentoConFiltro"]" />
                             break;
                         case PestanaReclamar:
                             <PestanaReclamarEmpresa EmpresaId="_detalle.Id" />
@@ -167,7 +171,7 @@
                                 }
                                 else
                                 {
-                                    <BotonCopiar Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                                    <BotonCopiar EnLinea="true" ConIcono="true" Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
                                 }
                             </DatoRejilla>
                             <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" Ancho="true" />
@@ -190,14 +194,20 @@
                                     <span class="empresa360-contacto-iniciales" aria-hidden="true">@Iniciales(contactoPrincipal.Nombre)</span>
                                     <span class="empresa360-contacto-texto">
                                         <b>@contactoPrincipal.Nombre</b>
-                                        <span class="empresa360-apoyo">@(string.IsNullOrWhiteSpace(contactoPrincipal.Cargo) ? Textos["ContactoPrincipal"] : $"{contactoPrincipal.Cargo} · {Textos["ContactoPrincipal"]}")</span>
+                                        <span class="empresa360-apoyo">@(string.IsNullOrWhiteSpace(contactoPrincipal.Cargo) ? Textos["ContactoPrincipal"] : $"{contactoPrincipal.Cargo} · {Textos["ContactoPrincipal"].Value.ToLowerInvariant()}")</span>
                                     </span>
                                 </div>
-                                <BotonCopiar Valor="@contactoPrincipal.Email" Texto="@contactoPrincipal.Email" Etiqueta="@Textos["CopiarCorreoContacto"]" />
-                                @if (!string.IsNullOrWhiteSpace(contactoPrincipal.Telefono))
-                                {
-                                    <BotonCopiar Valor="@contactoPrincipal.Telefono" Texto="@contactoPrincipal.Telefono" Etiqueta="@Textos["CopiarTelefonoContacto"]" />
-                                }
+                                @* Correo y teléfono como filas-botón de 36 px con el icono de copiar a la derecha (maqueta «Empresa 360»). *@
+                                <div class="empresa360-contacto-filas">
+                                    <BotonCopiar EnLinea="true" ConIcono="true" Valor="@contactoPrincipal.Email" Texto="@contactoPrincipal.Email"
+                                                 Etiqueta="@Textos["CopiarCorreoContacto"]" NombreAccesible="@Textos["CopiarCorreoContacto"]" />
+                                    @if (!string.IsNullOrWhiteSpace(contactoPrincipal.Telefono))
+                                    {
+                                        <BotonCopiar EnLinea="true" ConIcono="true" Valor="@contactoPrincipal.Telefono" Texto="@contactoPrincipal.Telefono"
+                                                     Etiqueta="@Textos["CopiarTelefonoContacto"]" NombreAccesible="@Textos["CopiarTelefonoContacto"]" />
+                                    }
+                                </div>
+                                <p class="empresa360-apoyo empresa360-contacto-pie">@Textos["TarjetaSePideDocumentacionPie"]</p>
                             </div>
                         </ChildContent>
                     </Tarjeta>
@@ -412,10 +422,7 @@
                         @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                         @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                     </div>
-                    <div class="empresa360-buscador">
-                        <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
-                                    Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                    </div>
+                    <BuscadorLista Placeholder="@Textos["BuscadorTrabajadores"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
                 </div>
                 @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo, o si hay una agrupación activa (que así
                    siempre se puede quitar). Las opciones son las de ESTA Empresa. *@
@@ -508,7 +515,7 @@
     private RenderFragment PestanaDeClientes => __builder =>
     {
         <section class="empresa360-seccion">
-            <p class="empresa360-apoyo">@Textos["ClientesApoyo"]</p>
+            <p class="empresa360-apoyo empresa360-apoyo-pestana">@Textos["ClientesApoyo"]</p>
             @if (_errorClientes)
             {
                 <EstadoVacio Titulo="@Textos["ErrorClientes"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">

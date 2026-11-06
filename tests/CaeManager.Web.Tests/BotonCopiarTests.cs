@@ -164,4 +164,31 @@ public class BotonCopiarTests : BunitContext
         boton.GetAttribute("title").Should().Be("Copiar el CIF", "la maqueta de Subcontrata 360 nombra el dato en el CIF");
         boton.TextContent.Should().Be("B12345678");
     }
+
+    [Fact]
+    public void Con_icono_el_boton_en_linea_lleva_el_icono_de_copiar_tras_el_dato_y_sin_el_rotulo_Copiar()
+    {
+        JSInterop.SetupModule(Modulo);
+
+        var boton = Render<BotonCopiar>(p => p
+            .Add(c => c.EnLinea, true)
+            .Add(c => c.ConIcono, true)
+            .Add(c => c.Valor, "B12345678")
+            .Add(c => c.Texto, "B12345678")).Find("button");
+
+        boton.ClassList.Should().Contain("boton-copiar-con-icono");
+        boton.QuerySelector(".boton-copiar-icono svg").Should().NotBeNull("la maqueta «Empresa 360» pinta el valor y a su lado el icono de copiar");
+        boton.TextContent.Should().Contain("B12345678").And.NotContain("Copiar");
+    }
+
+    [Fact]
+    public void Sin_icono_el_boton_en_linea_no_lo_pinta()
+    {
+        JSInterop.SetupModule(Modulo);
+
+        var boton = Render<BotonCopiar>(p => p
+            .Add(c => c.EnLinea, true).Add(c => c.Valor, "B12345678").Add(c => c.Texto, "B12345678")).Find("button");
+
+        boton.QuerySelector(".boton-copiar-icono").Should().BeNull();
+    }
 }

@@ -78,6 +78,9 @@
 @code {
     [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
 
+    /// <summary>Avisa de cuántas incidencias hay al terminar de cargar: es el contador de la pestaña en la ficha (maqueta «Empresa 360»).</summary>
+    [Parameter] public EventCallback<int> IncidenciasCargadas { get; set; }
+
     private sealed record Fila(
         string Cliente, Guid CentroId, string Centro, string Plataforma, string Documento, EstadoAcreditacion Estado, string? Motivo,
         bool Vencida = false, DateOnly? VenceEnPlataforma = null);
@@ -122,6 +125,7 @@
                     d.Estado == EstadoAcreditacion.Aceptada && d.VencidaEnPlataforma, d.FechaVencimientoEnPlataforma))))
                 .GroupBy(f => (f.Cliente, f.CentroId, f.Plataforma, f.Documento))
                 .Select(g => g.OrderBy(Rango).First())];
+            await IncidenciasCargadas.InvokeAsync(Incidencias);
         }
         catch (OperationCanceledException)
         {
