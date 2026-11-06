@@ -129,6 +129,9 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         // al cargar es la del prerender, y el tema aplicado no dice nada de la ficha: medir
         // entonces da dos lecturas vacías iguales (INSTRUMENTO CIEGO). Por eso se apunta también
         // cuándo inserta el circuito, ya con el documento parseado, la tarjeta del lateral.
+        // readyState se lee al entregarse el registro, no al insertarse el nodo: vale porque
+        // App.razor carga scripts síncronos tras el cuerpo, y cada uno entrega los registros del
+        // analizador aún en 'loading'. Si esos scripts pasan a defer/async, esto hay que revisarlo.
         await page.AddInitScriptAsync("""
             (() => {
                 window.__temaDeLaCuentaAplicado = false;
@@ -162,10 +165,17 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         await page.WaitForSelectorAsync("[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]", new PageWaitForSelectorOptions { Timeout = 30_000 });
         await Ayudas.EsperarCargaAsync(page, LoadState.NetworkIdle);
         // El HTML puede ser aún el prerender: se espera a que el circuito haya aplicado el tema de la cuenta
-        // y a que haya pintado la ficha cargada (no su «Cargando»).
+        // y a que haya pintado la ficha tras su primera carga (no su «Cargando»). Las cargas de después
+        // (trabajadores, Clientes empresariales, acceso) pintan su propio esqueleto (EstadoCargando,
+        // .esqueleto-lista) mientras tanto: se espera también a que no quede ninguno, o la referencia
+        // podría medirse sin filas y la repetición, ya con ellas, darle diferencias.
         await page.WaitForFunctionAsync("() => window.__temaDeLaCuentaAplicado === true");
         await page.WaitForFunctionAsync(
-            "() => window.__fichaPintadaPorElCircuito === true && document.querySelector('[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]') !== null",
+            """
+            () => window.__fichaPintadaPorElCircuito === true
+                && document.querySelector('[data-pieza="lateral"] [data-pieza="tarjeta"]') !== null
+                && document.querySelector('.esqueleto-lista') === null
+            """,
             null, new PageWaitForFunctionOptions { Timeout = 30_000 });
         // ReducedMotion no elimina todas las transiciones de las piezas compartidas.
         // Mismo patrón que SelectorTemaTests: medir el estilo final, no su interpolación.
