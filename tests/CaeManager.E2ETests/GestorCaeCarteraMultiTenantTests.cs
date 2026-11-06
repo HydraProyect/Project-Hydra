@@ -320,6 +320,9 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(cartera.Filter(new() { HasText = TenantBeneficiarioA })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(cartera.Filter(new() { HasText = TenantBeneficiarioB })).ToBeVisibleAsync();
         await Expect(cartera.Filter(new() { HasText = TenantFueraDeCartera })).ToHaveCountAsync(0);
+        // La lista es un popover sobre la cola: se cierra para poder pulsar los controles de debajo.
+        await page.Locator(".mi-trabajo-cartera-resumen").ClickAsync();
+        await Expect(page.Locator(".mi-trabajo-cartera-lista")).ToBeHiddenAsync();
         // Mi trabajo carga con todo plegado: se despliega la cola entera (barrera: la de A ya se ve) para que
         // la ausencia del Tenant de fuera diga algo.
         await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);

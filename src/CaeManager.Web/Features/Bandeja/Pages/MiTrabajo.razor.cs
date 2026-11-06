@@ -338,6 +338,15 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>El control compacto de ámbito de cartera (antes carril lateral) está desplegado.</summary>
     private bool _carteraAbierta;
 
+    private void TeclaCartera(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _carteraAbierta = false;
+    }
+
+    /// <summary>«Todos» solo está activo sin ningún filtro de tipo ni de severidad (la URL aún admite ?severidad=); un chip inerte nunca lo está.</summary>
+    private bool ChipActivo(ChipMiTrabajo chip) =>
+        !chip.Inerte && chip.Tipo == _tipo && (chip.Tipo is not null || _severidad is null);
+
     private void CambiarTipo(TipoTareaMiTrabajo? tipo)
     {
         _tipo = tipo;

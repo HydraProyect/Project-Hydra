@@ -1180,6 +1180,73 @@ public partial class MiTrabajoGen2Tests : BunitContext
         TitulosVisibles(cut).Should().HaveCount(4);
     }
 
+    // ── Chips por tipo de tarea (maqueta) ─────────────────────────────────────
+
+    [Theory]
+    [InlineData(TipoItemBandeja.Vencido, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Vencidos)]
+    [InlineData(TipoItemBandeja.PlataformaVencida, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Vencidos)]
+    [InlineData(TipoItemBandeja.Faltante, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Faltantes)]
+    [InlineData(TipoItemBandeja.SugerenciaVisitaUrgente, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Visitas)]
+    [InlineData(TipoItemBandeja.VisitaUrgente, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Visitas)]
+    [InlineData(TipoItemBandeja.RevisionIa, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.RevisionIa)]
+    [InlineData(TipoItemBandeja.DeteccionPendiente, SeveridadMiTrabajo.Actuacion, TipoTareaMiTrabajo.Detecciones)]
+    [InlineData(TipoItemBandeja.Vencido, SeveridadMiTrabajo.Bloqueo, TipoTareaMiTrabajo.BloqueaCentro)]
+    [InlineData(TipoItemBandeja.Faltante, SeveridadMiTrabajo.Bloqueo, TipoTareaMiTrabajo.BloqueaCentro)]
+    [InlineData(TipoItemBandeja.Urgente, SeveridadMiTrabajo.Actuacion, null)]
+    [InlineData(TipoItemBandeja.VencimientoProximo, SeveridadMiTrabajo.Proximo, null)]
+    [InlineData(TipoItemBandeja.EnPlataformaSeguimiento, SeveridadMiTrabajo.Seguimiento, null)]
+    public void Cada_tipo_de_item_cae_en_su_chip_y_un_bloqueo_siempre_en_Bloquea_centro(
+        TipoItemBandeja tipo, SeveridadMiTrabajo severidad, TipoTareaMiTrabajo? esperado) =>
+        MiTrabajoVista.TipoDeTarea(new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, severidad, Item("x", tipo, "t")))
+            .Should().Be(esperado);
+
+    [Fact]
+    public void El_chip_Gestiones_sale_inerte_y_a_cero_porque_no_hay_fuente_de_datos()
+    {
+        var cut = Renderizar();
+
+        var gestiones = cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Gestiones"));
+        gestiones.HasAttribute("disabled").Should().BeTrue();
+        gestiones.ClassList.Should().Contain("mi-trabajo-chip-inerte");
+        gestiones.QuerySelector(".mi-trabajo-chip-cuenta")!.TextContent.Should().Be("0");
+        cut.FindAll(".mi-trabajo-chip").Should().HaveCount(8, "Todos, Vencidos, Faltantes, Visitas, Bloquea centro, Revisión IA, Detecciones y Gestiones");
+    }
+
+    [Fact]
+    public void Un_filtro_de_severidad_de_la_URL_sigue_filtrando_y_no_deja_Todos_marcado()
+    {
+        var cut = Renderizar(url: "/mi-trabajo?severidad=bloqueo");
+
+        TitulosVisibles(cut).Should().BeEquivalentTo("Reconocimiento médico", "Requisito del centro", "Rechazado por la plataforma");
+        cut.FindAll(".mi-trabajo-chip-activo").Should().BeEmpty("la lista está filtrada y ningún chip lo dice: «Todos» no puede aparecer activo");
+    }
+
+    [Fact]
+    public void El_control_de_cartera_se_abre_con_el_resumen_y_se_cierra_con_Escape_o_fuera_o_al_elegir_Empresa()
+    {
+        var cut = Renderizar();
+        bool Abierto() => cut.Find(".mi-trabajo-cartera-resumen").GetAttribute("aria-expanded") == "true";
+
+        Abierto().Should().BeFalse();
+        cut.Find(".mi-trabajo-cartera-lista").HasAttribute("hidden").Should().BeTrue();
+
+        cut.Find(".mi-trabajo-cartera-resumen").Click();
+        Abierto().Should().BeTrue();
+        cut.Find(".mi-trabajo-cartera-lista").HasAttribute("hidden").Should().BeFalse();
+
+        cut.Find(".mi-trabajo-cartera").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        Abierto().Should().BeFalse();
+
+        cut.Find(".mi-trabajo-cartera-resumen").Click();
+        cut.Find(".mi-trabajo-cartera-fondo").Click();
+        Abierto().Should().BeFalse();
+
+        cut.Find(".mi-trabajo-cartera-resumen").Click();
+        cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
+        Abierto().Should().BeFalse();
+        cut.Find(".mi-trabajo-cartera-actual").TextContent.Should().Contain("Laboratorios Dexter");
+    }
+
     [Fact]
     public void La_accion_de_una_fila_ofrece_la_vuelta_a_Mi_trabajo_con_los_filtros_vigentes()
     {

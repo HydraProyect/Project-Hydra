@@ -44,13 +44,17 @@
             @if (_vista is not null && !_errorCarga)
             {
                 @* Maqueta: columna única. El ámbito de cartera (antes carril lateral) es un control compacto en la cabecera, donde la maqueta pone «Ordenar por». *@
-                <div class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
+                <div class="mi-trabajo-cartera" role="group" aria-label="@Textos["MiCartera"]" @onkeydown="TeclaCartera">
                     <button type="button" class="mi-trabajo-cartera-resumen" aria-expanded="@(_carteraAbierta ? "true" : "false")" aria-haspopup="true"
                             @onclick="() => _carteraAbierta = !_carteraAbierta">
                         <span class="mi-trabajo-cartera-etiqueta">@Textos["Empresa"]</span>
                         <span class="mi-trabajo-cartera-actual">@(TenantFiltrado?.Nombre ?? Textos["TodaMiCartera"])</span>
                         <span class="@("mi-trabajo-chevron" + (_carteraAbierta ? "" : " mi-trabajo-chevron-plegado"))" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
                     </button>
+                    @if (_carteraAbierta)
+                    {
+                        <div class="mi-trabajo-cartera-fondo" aria-hidden="true" @onclick="() => _carteraAbierta = false"></div>
+                    }
                     <div class="mi-trabajo-cartera-lista" hidden="@(!_carteraAbierta)">
                         <div class="mi-trabajo-cartera-cabecera">
                             <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
@@ -159,8 +163,8 @@
         <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorTipo"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
-                <button type="button" class="@("mi-trabajo-chip" + (chip.Tipo == _tipo ? " mi-trabajo-chip-activo" : "") + (chip.Inerte ? " mi-trabajo-chip-inerte" : ""))"
-                        aria-pressed="@(chip.Tipo == _tipo ? "true" : "false")" disabled="@chip.Inerte"
+                <button type="button" class="@("mi-trabajo-chip" + (ChipActivo(chip) ? " mi-trabajo-chip-activo" : "") + (chip.Inerte ? " mi-trabajo-chip-inerte" : ""))"
+                        aria-pressed="@(ChipActivo(chip) ? "true" : "false")" disabled="@chip.Inerte"
                         @onclick="() => CambiarTipo(chip.Tipo)">
                     @chip.Etiqueta <span class="mi-trabajo-chip-cuenta">@chip.Cantidad</span>
                 </button>
