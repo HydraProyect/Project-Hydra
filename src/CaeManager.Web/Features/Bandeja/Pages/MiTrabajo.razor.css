@@ -672,15 +672,16 @@
     }
 
     .mi-trabajo-fila-cuerpo {
-        flex: 1 1 calc(100% - 40px);
+        flex: 1 1 calc(100% - 26px - var(--space-3));
     }
 
     .mi-trabajo-fila-linea {
         flex-wrap: wrap;
     }
 
+    /* Acotado a la línea de la fila: la cabecera del lote reutiliza .mi-trabajo-fila-sujeto y debe seguir en una línea. */
     .mi-trabajo-fila-titulo,
-    .mi-trabajo-fila-sujeto {
+    .mi-trabajo-fila-linea .mi-trabajo-fila-sujeto {
         white-space: normal;
         overflow: visible;
     }
