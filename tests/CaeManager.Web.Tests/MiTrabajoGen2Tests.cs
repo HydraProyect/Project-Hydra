@@ -1218,6 +1218,26 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
+    [InlineData(TipoItemBandeja.RequisitoPendiente)]
+    [InlineData(TipoItemBandeja.PlataformaRechazada)]
+    public void Un_bloqueo_sin_chip_de_tipo_propio_solo_esta_en_Bloquea_centro(TipoItemBandeja tipo)
+    {
+        var fila = new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, SeveridadMiTrabajo.Bloqueo, Item("x", tipo, "t"));
+
+        MiTrabajoVista.EnChip(fila, TipoTareaMiTrabajo.BloqueaCentro).Should().BeTrue();
+        Enum.GetValues<TipoTareaMiTrabajo>().Where(t => t != TipoTareaMiTrabajo.BloqueaCentro)
+            .Should().OnlyContain(t => !MiTrabajoVista.EnChip(fila, t), "no tiene chip de tipo propio");
+    }
+
+    [Fact]
+    public void Una_Rechazada_que_no_bloquea_su_Centro_queda_fuera_de_Bloquea_centro()
+    {
+        var fila = new FilaMiTrabajo(TenantRefri, "Refrielectric", 0, SeveridadMiTrabajo.Actuacion, Item("x", TipoItemBandeja.PlataformaRechazada, "t"));
+
+        Enum.GetValues<TipoTareaMiTrabajo>().Should().OnlyContain(t => !MiTrabajoVista.EnChip(fila, t));
+    }
+
+    [Theory]
     [InlineData(SeveridadMiTrabajo.Actuacion)]
     [InlineData(SeveridadMiTrabajo.Proximo)]
     public void Lo_que_no_bloquea_no_entra_en_Bloquea_centro_aunque_su_tipo_sea_el_de_un_bloqueo_habitual(SeveridadMiTrabajo severidad) =>
