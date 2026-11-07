@@ -282,9 +282,9 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // PredeterminadoPorDefecto=true), que es justo lo que hace falta para
         // que la agenda resuelva un destinatario.
         await tarjetaCliente.GetByRole(AriaRole.Button, new() { Name = "Añadir contacto", Exact = true }).ClickAsync();
-        await page.Locator(".modal-cuerpo").GetByLabel("Nombre").FillAsync(nombreContacto);
-        await page.Locator(".modal-cuerpo").GetByLabel("Email").FillAsync(emailContacto);
-        await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+        await page.Locator("[role=dialog] .drawer-cuerpo").GetByLabel("Nombre").FillAsync(nombreContacto);
+        await page.Locator("[role=dialog] .drawer-cuerpo").GetByLabel("Email").FillAsync(emailContacto);
+        await page.Locator("[role=dialog] .drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
 
         // Contacto predeterminado ⇒ ya sale marcado en _contactosPorCliente
         // al recargar (ver ReclamacionesTab.razor) — no hace falta marcar
