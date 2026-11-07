@@ -800,6 +800,21 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("false");
         cut.Find(".mi-trabajo-vista-activos").TextContent.Should().Be("2", "agrupación y búsqueda activas");
     }
+
+    [Fact]
+    public void Un_cambio_de_tipo_u_orden_no_reabre_Vista_y_filtros_que_el_Gestor_CAE_plego()
+    {
+        var cut = RenderizarPlegado();
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+        cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
+        cut.Find(".mi-trabajo-vista-alternar").Click();
+
+        cut.FindAll(".mi-trabajo-chip").Single(c => c.TextContent.Trim().StartsWith("Bloquea centro")).Click();
+        cut.Find("select.mi-trabajo-ordenar-select").Change(nameof(OrdenMiTrabajo.Cliente));
+
+        cut.Find(".mi-trabajo-vista-alternar").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".mi-trabajo-vista-activos").TextContent.Should().Be("1");
+    }
     [Fact]
     public void Abrir_una_fila_pinta_el_detalle_con_Tenant_y_Cliente_empresarial_separados_y_rotulados_segun_el_contrato()
     {

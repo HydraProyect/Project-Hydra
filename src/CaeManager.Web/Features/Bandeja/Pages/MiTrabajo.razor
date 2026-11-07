@@ -155,7 +155,7 @@
         <div class="mi-trabajo-resumen-fila">
             <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
             <button type="button" class="mi-trabajo-vista-alternar" aria-expanded="@(_vistaAbierta ? "true" : "false")" aria-controls="mi-trabajo-vista"
-                    @onclick="() => _vistaAbierta = !_vistaAbierta">
+                    @onclick="AlternarVista">
                 @Textos["VistaYFiltros"]
                 @if (!_vistaAbierta && VistaActivos > 0)
                 {

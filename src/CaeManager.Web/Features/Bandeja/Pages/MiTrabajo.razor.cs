@@ -240,7 +240,19 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             _busquedasEscritas.Clear();
         }
 
-        if (VistaActivos > 0) _vistaAbierta = true;
+        // «Vista y filtros» se abre solo cuando la URL cambia Empresa, agrupación o búsqueda (un enlace profundo, o el eco de
+        // lo que el Gestor CAE acaba de teclear). Un cambio de tipo u orden no la reabre: si la plegó con filtros activos, sigue plegada.
+        var vistaUrl = $"{EmpresaUrl}|{BusquedaUrl}|{AgruparUrl}";
+        if (vistaUrl != _vistaUrlAplicada && VistaActivos > 0) _vistaAbierta = true;
+        _vistaUrlAplicada = vistaUrl;
+    }
+
+    private string? _vistaUrlAplicada;
+
+    private void AlternarVista()
+    {
+        _vistaAbierta = !_vistaAbierta;
+        _carteraAbierta = false; // la lista de Empresas no sobrevive al panel que la contiene
     }
 
     private void EscribirFiltrosEnUrl() => Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
