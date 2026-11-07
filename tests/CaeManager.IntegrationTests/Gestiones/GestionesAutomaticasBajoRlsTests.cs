@@ -135,8 +135,12 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         }
 
         await using (var runtime = CrearRuntime())
+        {
+            (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.Id == _propio.Acreditacion))
+                .Should().Be(1, "control positivo: la acreditación del Tenant de la sesión sí se ve");
             (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.Id == _ajeno.Acreditacion))
                 .Should().Be(0, "el cero sale de que RLS no deja leer la acreditación ajena, no de la FK compuesta al guardar");
+        }
 
         await using var comprobacion = CrearPropietarioLimpio();
         (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().Select(g => g.DocumentoId).ToListAsync())
