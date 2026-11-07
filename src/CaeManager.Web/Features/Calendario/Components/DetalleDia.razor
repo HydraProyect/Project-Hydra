@@ -5,9 +5,10 @@
 @* «Detalle del día» del mockup de Calendario: el mismo diálogo para el día del Mes y para la celda Empresa × día de la
    Semana por Empresa. Antetítulo con el día de la semana, fecha larga, «N vencimientos · M visita», una fila por
    vencimiento (sujeto en negrita, documento debajo, estado, Renovar y Reclamar), la sección de Visitas y el pie con
-   «Reclamar los N». Reclamar y el pie solo existen si el llamador puede reclamar (OnReclamar con manejador) y la
-   persona tiene un rol de gestión; el diálogo no decide a quién se reclama: devuelve los Documentos y quien lo abre
-   sabe el titular. *@
+   «Reclamar los N» (un botón por Empresa empleadora si el día mezcla varias, cada uno con su recuento). Reclamar y el
+   pie solo existen si el llamador puede reclamar (OnReclamar con manejador) y la persona tiene un rol de gestión; el
+   diálogo no decide a quién se reclama ni qué es reclamable: pinta lo que dice cada fila (Reclamable) y devuelve los
+   Documentos de la fila o de la Empresa pulsada; quien lo abre resuelve el titular. *@
 <div class="detalle-dia">
     <Modal Visible="@(Fecha is not null)" VisibleChanged="AlCambiarVisible"
            Sobretitulo="@Antetitulo" Titulo="@TituloFecha" Subtitulo="@Resumen"

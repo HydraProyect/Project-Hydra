@@ -78,6 +78,18 @@ public class CalendarioReclamarMesTests : BunitContext
     }
 
     [Fact]
+    public void Una_Empresa_visible_y_un_vencimiento_sin_Empresa_no_cuentan_como_varias_Empresas()
+    {
+        var ana = Venc(EbroId, "Montajes Ebro", "Ana Gil");
+        var sinEmpresa = new VencimientoCalendarioDto(Guid.NewGuid(), Dia10, "Eva Ruiz", "Formación PRL", EstadoDocumento.Proximo);
+        var cut = Renderizar(Roles.GestorCae, ana, sinEmpresa);
+
+        BotonesDelPie(cut).Should().Equal("Reclamar el documento");
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("Montajes Ebro",
+            "un vencimiento sin Empresa visible no convierte el día en uno de varias Empresas");
+    }
+
+    [Fact]
     public void Con_dos_Empresas_el_pie_trae_un_boton_por_Empresa_con_su_recuento()
     {
         var ana = Venc(EbroId, "Montajes Ebro", "Ana Gil");

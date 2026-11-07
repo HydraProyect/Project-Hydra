@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -22,7 +23,7 @@ namespace CaeManager.Application.Calendario.Queries;
 /// <para>
 /// Cada vencimiento lleva la Empresa empleadora del Trabajador (<c>SubcontrataId ?? EmpresaId</c>, como
 /// <see cref="ObtenerSemanaPorEmpresaQuery"/>) y <see cref="VencimientoCalendarioDto.Reclamable"/>, con LA MISMA regla que la
-/// Semana por Empresa: documento de ámbito Trabajador de un Trabajador que no es de Subcontrata, dentro de
+/// Semana por Empresa: documento de ámbito Trabajador de un Trabajador que no es de Subcontrata ni voluntario inactivo, dentro de
 /// <see cref="VentanaReclamacion"/> y con alcance de gestión sobre la Empresa empleadora. La Empresa solo se informa (y solo
 /// puede ser reclamable) si está en algún alcance de cartera del usuario: ver a un Trabajador no revela a quién emplea. El
 /// vencimiento sigue saliendo igual que antes (visibilidad del Trabajador); lo que cambia es que sin esa Empresa en alcance
@@ -44,7 +45,7 @@ public record VencimientoCalendarioDto(
     string? EmpresaNombre = null,
     bool Reclamable = false);
 
-public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVencimientosMesQuery, IReadOnlyList<VencimientoCalendarioDto>>
 {
     public async Task<IReadOnlyList<VencimientoCalendarioDto>> Handle(ObtenerVencimientosMesQuery request, CancellationToken cancellationToken)
@@ -57,6 +58,9 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         var empresasParaGestion = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
+        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var subcontratasVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
 
         var filas = await (
             from documento in documentosContext.Documentos.Operativos()
@@ -76,6 +80,8 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
                 documento.FechaVencimiento,
                 // SubcontrataId es deuda terminológica legacy: aquí identifica la Empresa empleadora contraparte.
                 EmpresaId = trabajador.SubcontrataId ?? trabajador.EmpresaId,
+                // La Semana oculta a los voluntarios inactivos; el Mes los deja ver pero no los ofrece a «Reclamar».
+                Inactivo = inactivos.Contains(trabajador.Id),
                 EsSubcontrata = trabajador.SubcontrataId != null
             })
             .ToListAsync(cancellationToken);
@@ -86,8 +92,8 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
         foreach (var empleadora in filas.Where(f => f.EmpresaId != null).Select(f => f.EmpresaId!.Value).Distinct())
         {
             if ((empresasVisibles is null || empresasVisibles.Contains(empleadora))
-                || await alcanceDatos.ClienteVisibleAsync(empleadora, cancellationToken)
-                || await alcanceDatos.SubcontrataVisibleAsync(empleadora, cancellationToken))
+                || (clientesVisibles is null || clientesVisibles.Contains(empleadora))
+                || (subcontratasVisibles is null || subcontratasVisibles.Contains(empleadora)))
                 empresasEnAlcance.Add(empleadora);
         }
         var idsEmpresasEnAlcance = empresasEnAlcance.ToList();
@@ -98,8 +104,9 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
 
         // Misma regla que ObtenerSemanaPorEmpresaQuery.EsReclamable para un documento de Trabajador: ámbito Trabajador,
         // fuera los de Trabajador de Subcontrata (van al Cliente del Centro), dentro de la ventana y con gestión sobre la Empresa.
-        bool EsReclamable(AmbitoAplicacion ambito, Guid? empresaId, DateOnly fecha, bool esSubcontrata) =>
+        bool EsReclamable(AmbitoAplicacion ambito, Guid? empresaId, DateOnly fecha, bool esSubcontrata, bool inactivo) =>
             empresaId is not null
+            && !inactivo
             && !esSubcontrata
             && ambito == AmbitoAplicacion.Trabajador
             && nombresEmpresa.ContainsKey(empresaId.Value)
@@ -120,7 +127,7 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
                         VigenciaDocumento.VenceEl(f.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
                     empresaVisible ? f.EmpresaId : null,
                     empresaVisible ? nombre : null,
-                    EsReclamable(f.AmbitoAplicacion, f.EmpresaId, f.FechaVencimiento!.Value, f.EsSubcontrata));
+                    EsReclamable(f.AmbitoAplicacion, f.EmpresaId, f.FechaVencimiento!.Value, f.EsSubcontrata, f.Inactivo));
             })
             .OrderBy(v => v.FechaVencimiento)
             .ToList();

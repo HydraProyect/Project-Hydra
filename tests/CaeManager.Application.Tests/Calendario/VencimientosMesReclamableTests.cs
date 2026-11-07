@@ -3,6 +3,7 @@ using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -29,11 +30,12 @@ public class VencimientosMesReclamableTests
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
     private readonly DocumentosQueryContextFalso _documentos = new();
     private readonly TiposDocumentoQueryContextFalso _tipos = new();
+    private readonly ProyectosQueryContextFalso _proyectos = new();
 
     public VencimientosMesReclamableTests() => _configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
 
     private Task<IReadOnlyList<VencimientoCalendarioDto>> Consultar(DateOnly mes, AlcanceDatosServiceFalso? alcance = null) =>
-        new ObtenerVencimientosMesQueryHandler(_configuracion, _documentos, _tipos, _trabajadores, _empresas, alcance ?? new())
+        new ObtenerVencimientosMesQueryHandler(_configuracion, _documentos, _tipos, _trabajadores, _empresas, _proyectos, alcance ?? new())
             .Handle(new ObtenerVencimientosMesQuery(mes.Year, mes.Month), default);
 
     private Empresa Empresa(string nombre = "Montajes Ebro")
@@ -174,5 +176,47 @@ public class VencimientosMesReclamableTests
 
         (await Consultar(PrimeroDelMes, new(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], trabajadorIdsVisibles: [])))
             .Should().BeEmpty("la visibilidad previa del Mes (por Trabajador) no cambia");
+    }
+
+    [Fact]
+    public async Task Un_voluntario_inactivo_se_ve_en_el_mes_pero_no_es_reclamable()
+    {
+        var empresa = Empresa();
+        var voluntario = TrabajadorDe(empresa);
+        voluntario.CambiarTipoContratacion(TipoContratacion.Voluntario);
+        DocumentoDe(voluntario, PrimeroDelMes);
+
+        var fila = (await Consultar(PrimeroDelMes)).Should().ContainSingle().Which;
+
+        fila.EmpresaId.Should().Be(empresa.Id, "el vencimiento sigue visible");
+        fila.Reclamable.Should().BeFalse("la Semana oculta a los voluntarios inactivos y el cajón los descartaría");
+    }
+
+    [Fact]
+    public async Task Una_Empresa_visible_solo_por_su_Cliente_empresarial_sale_con_nombre_y_reclamable_si_hay_gestion()
+    {
+        var empresa = Empresa();
+        var trabajador = TrabajadorDe(empresa);
+        DocumentoDe(trabajador, PrimeroDelMes);
+
+        var fila = (await Consultar(PrimeroDelMes, new(tieneAccesoTotal: false, empresaIdsVisibles: [],
+            clienteIdsVisibles: [empresa.Id], trabajadorIdsVisibles: [trabajador.Id], empresaIdsParaGestion: [empresa.Id]))).Should().ContainSingle().Which;
+
+        fila.EmpresaId.Should().Be(empresa.Id);
+        fila.Reclamable.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_Empresa_visible_solo_como_Subcontrata_sale_con_nombre_pero_no_reclamable_sin_gestion()
+    {
+        var empresa = Empresa();
+        var trabajador = TrabajadorDe(empresa);
+        DocumentoDe(trabajador, PrimeroDelMes);
+
+        var fila = (await Consultar(PrimeroDelMes, new(tieneAccesoTotal: false, empresaIdsVisibles: [],
+            subcontrataIdsVisibles: [empresa.Id], trabajadorIdsVisibles: [trabajador.Id], empresaIdsParaGestion: []))).Should().ContainSingle().Which;
+
+        fila.EmpresaId.Should().Be(empresa.Id);
+        fila.Reclamable.Should().BeFalse();
     }
 }

@@ -45,7 +45,7 @@ public partial class DetalleDia
     private IReadOnlyList<Guid> ReclamablesIds => [.. Vencimientos.Where(v => v.Reclamable).Select(v => v.DocumentoId)];
     private bool MostrarPie => PuedeReclamar && ReclamablesIds.Count > 0;
 
-    private bool HayVariasEmpresas => Vencimientos.Select(v => v.EmpresaId).Distinct().Count() > 1;
+    private bool HayVariasEmpresas => Vencimientos.Where(v => v.EmpresaId is not null).Select(v => v.EmpresaId).Distinct().Count() > 1;
 
     private IReadOnlyList<GrupoReclamable> GruposReclamables =>
     [
