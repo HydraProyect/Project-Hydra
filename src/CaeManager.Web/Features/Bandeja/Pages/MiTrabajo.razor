@@ -318,7 +318,7 @@
                                 }
                                 else
                                 {
-                                    @* Modo Severidad: mismo patrón que la cabecera de Tenant, plegada al cargar. *@
+                                    @* Modo Severidad: mismo patrón que la cabecera de Tenant, plegada salvo la primera, que se despliega al terminar la carga. *@
                                     <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-severidad" aria-expanded="@(grupo.Plegado ? "false" : "true")"
                                             @onclick="() => AlternarSeveridad(grupo.Clave)">
                                         <span class="@("mi-trabajo-chevron" + (grupo.Plegado ? " mi-trabajo-chevron-plegado" : ""))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>

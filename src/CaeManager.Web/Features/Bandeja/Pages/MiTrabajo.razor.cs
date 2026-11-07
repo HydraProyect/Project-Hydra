@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Web.Components;
@@ -412,7 +412,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>
     /// Maqueta: al cargar se despliega el primer grupo en el orden de pantalla y los demás quedan plegados. Es el estado
     /// de partida, una sola vez por visita: el Gestor CAE puede plegarlo, y recargar tras un error o «Reintentar la
-    /// consulta» no lo vuelve a abrir. Si la carga no dejó ningún grupo, no se gasta el único intento. Cualquier pliegue
+    /// consulta» no lo vuelve a abrir. Si la carga no dejó ningún grupo (p. ej. una Empresa o un tipo sin trabajo en la URL), esa carga no gasta el intento, pero cambiar el filtro después no lo reintenta: no hay recarga y los grupos que aparezcan salen plegados. El primer grupo de partida es el de la agrupación con que se cargó: pasar a Severidad y volver no lo cambia. Cualquier pliegue
     /// que el Gestor CAE toque antes de que termine la carga (también con la carga a medias) gasta el intento: lo que ve
     /// manda sobre el estado de partida.
     /// </summary>

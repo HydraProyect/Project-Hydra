@@ -26,7 +26,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
     private static readonly Guid TenantOrigen = Guid.Parse("0a0a0a0a-0000-0000-0000-000000000001");
     private static readonly Guid TenantRefri = Guid.Parse("a1a1a1a1-0000-0000-0000-000000000001");
     private static readonly Guid TenantDexter = Guid.Parse("b2b2b2b2-0000-0000-0000-000000000002");
-    private static readonly Guid TenantOrigenDos = Guid.Parse("c3c3c3c3-0000-0000-0000-000000000003");
+    private static readonly Guid TenantZeta = Guid.Parse("c3c3c3c3-0000-0000-0000-000000000003");
 
     private static ItemBandejaDto Vencido(string id, string titulo) => new(
         Id: id, Tipo: TipoItemBandeja.Vencido, Titulo: titulo, Subtitulo: $"Trabajador {id}", Fecha: new DateOnly(2026, 10, 1),
@@ -132,7 +132,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         }, Espera);
     }
 
-        /// <summary>
+    /// <summary>
     /// Lo que el Gestor CAE abre con la carga a medias manda: al terminar, el primer grupo de partida no se le suma.
     /// Abre la segunda Empresa en llegar (la primera en orden de pantalla es otra) y la tercera aún está por consultar.
     /// </summary>
@@ -142,7 +142,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         var mediador = new MediadorPorPasos(
             Tenant(TenantRefri, "Refrielectric", Vencido("r1", "Reconocimiento médico")),
             Tenant(TenantDexter, "Laboratorios Dexter", Vencido("d1", "Formación PRL")),
-            Tenant(TenantOrigenDos, "Transportes Zeta", Vencido("z1", "Reconocimiento Zeta")));
+            Tenant(TenantZeta, "Transportes Zeta", Vencido("z1", "Reconocimiento Zeta")));
         var cut = Renderizar(mediador);
 
         mediador.Liberar(0);
