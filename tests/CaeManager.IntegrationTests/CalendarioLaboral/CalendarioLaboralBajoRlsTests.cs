@@ -16,6 +16,7 @@ namespace CaeManager.IntegrationTests.CalendarioLaboral;
 /// </summary>
 public class CalendarioLaboralBajoRlsTests : IAsyncLifetime
 {
+    private const string Runtime = "cae_app_runtime";
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
@@ -93,6 +94,7 @@ public class CalendarioLaboralBajoRlsTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("\"Id\" = gen_random_uuid()")]
     [InlineData("\"TenantId\" = gen_random_uuid()")]
     [InlineData("\"UsuarioId\" = gen_random_uuid()")]
     public async Task Runtime_no_cambia_de_quien_es_un_calendario(string asignacion)
@@ -118,6 +120,91 @@ public class CalendarioLaboralBajoRlsTests : IAsyncLifetime
         await using var conexion = await AbrirComoAsync("cae_app_soporte", _tenantA);
 
         await DebeDenegarseAsync(conexion, $"SELECT count(*) FROM \"{tabla}\";");
+    }
+
+    [Theory]
+    [InlineData("SELECT count(*) FROM \"CalendariosLaboralesPersona\";")]
+    [InlineData("SELECT count(*) FROM \"FestivosOficiales\";")]
+    [InlineData("UPDATE \"CalendariosLaboralesPersona\" SET \"Comunidad\" = 9;")]
+    [InlineData("DELETE FROM \"CalendariosLaboralesPersona\";")]
+    [InlineData("""INSERT INTO "FestivosOficiales" ("Id", "Fecha", "Nombre", "Ambito") VALUES (gen_random_uuid(), DATE '2026-11-10', 'Inventado', 1);""")]
+    public async Task Aprovisionamiento_ni_lee_ni_escribe_las_tablas_del_calendario_laboral(string sql)
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_aprovisionamiento", _tenantA);
+
+        await DebeDenegarseAsync(conexion, sql);
+    }
+
+    [Fact]
+    public async Task Aprovisionamiento_no_inserta_un_calendario()
+    {
+        await using var conexion = await AbrirComoAsync("cae_app_aprovisionamiento", _tenantA);
+
+        await DebeDenegarseAsync(conexion, InsertarCalendario(_tenantA));
+    }
+
+    /// <summary>
+    /// El catálogo de privilegios, no solo los intentos: lo que cada rol de la aplicación (y PUBLIC) tiene concedido sobre
+    /// las dos tablas, por tabla y por columna. Una concesión de más —un <c>UPDATE</c> de tabla entera, que alcanzaría
+    /// <c>Id</c>, <c>TenantId</c> y <c>UsuarioId</c>, o cualquier privilegio de soporte o de aprovisionamiento— aparece aquí
+    /// aunque ningún test la intente.
+    /// </summary>
+    [Fact]
+    public async Task Cada_rol_tiene_exactamente_los_privilegios_que_concede_la_migracion()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        var concedidos = new List<string>();
+
+        foreach (var rol in new[] { Runtime, "cae_app_soporte", "cae_app_aprovisionamiento", "public" })
+        {
+            foreach (var tabla in new[] { "CalendariosLaboralesPersona", "FestivosOficiales" })
+            {
+                foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER" })
+                {
+                    await using var deTabla = conexion.CreateCommand();
+                    deTabla.CommandText = "SELECT has_table_privilege(@rol, format('public.%I', @tabla::text), @privilegio);";
+                    deTabla.Parameters.AddWithValue("rol", rol);
+                    deTabla.Parameters.AddWithValue("tabla", tabla);
+                    deTabla.Parameters.AddWithValue("privilegio", privilegio);
+                    if ((bool)(await deTabla.ExecuteScalarAsync())!)
+                    {
+                        concedidos.Add($"{rol} {tabla} {privilegio}");
+                        continue;
+                    }
+
+                    if (privilegio is "DELETE" or "TRUNCATE" or "TRIGGER")
+                        continue;
+
+                    // Sin el privilegio de tabla: las columnas sueltas en las que lo tiene.
+                    await using var deColumnas = conexion.CreateCommand();
+                    deColumnas.CommandText = """
+                        SELECT column_name::text FROM information_schema.columns
+                        WHERE table_schema = 'public' AND table_name = @tabla
+                          AND has_column_privilege(@rol, format('public.%I', @tabla::text), column_name, @privilegio)
+                        ORDER BY column_name;
+                        """;
+                    deColumnas.Parameters.AddWithValue("rol", rol);
+                    deColumnas.Parameters.AddWithValue("tabla", tabla);
+                    deColumnas.Parameters.AddWithValue("privilegio", privilegio);
+                    await using var lector = await deColumnas.ExecuteReaderAsync();
+                    while (await lector.ReadAsync())
+                        concedidos.Add($"{rol} {tabla} {privilegio}({lector.GetString(0)})");
+                }
+            }
+        }
+
+        concedidos.Should().BeEquivalentTo(
+            [
+                $"{Runtime} CalendariosLaboralesPersona SELECT",
+                $"{Runtime} CalendariosLaboralesPersona INSERT",
+                $"{Runtime} CalendariosLaboralesPersona UPDATE(AplicaJornadaIntensiva)",
+                $"{Runtime} CalendariosLaboralesPersona UPDATE(Comunidad)",
+                $"{Runtime} CalendariosLaboralesPersona UPDATE(Municipio)",
+                $"{Runtime} FestivosOficiales SELECT",
+            ],
+            "el runtime solo cambia la ubicación y el interruptor de la intensiva, nunca Id, TenantId ni UsuarioId; " +
+            "soporte, aprovisionamiento y PUBLIC no tienen nada");
     }
 
     [Fact]
@@ -167,16 +254,29 @@ public class CalendarioLaboralBajoRlsTests : IAsyncLifetime
         VALUES (gen_random_uuid(), '{tenantId}', gen_random_uuid(), 2, 'Zaragoza', true);
         """;
 
+    /// <summary>
+    /// Una conexión que <b>autentica como <c>cae_app_runtime</c></b> (<see cref="BaseDatosPostgresDePruebas.CadenaComoRuntime"/>),
+    /// no una propietaria con <c>SET ROLE</c>. Para <c>cae_app_soporte</c> y <c>cae_app_aprovisionamiento</c> eleva desde
+    /// ella con <c>SET ROLE</c>, como hace la aplicación (el runtime es miembro de los dos con INHERIT FALSE). Comprueba la
+    /// identidad efectiva antes de devolverla, para que ningún test pase por haber corrido con otra.
+    /// </summary>
     private async Task<NpgsqlConnection> AbrirComoAsync(string rol, Guid? tenantId)
     {
-        var conexion = new NpgsqlConnection(_cadenaConexion);
+        var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
         await conexion.OpenAsync();
 
         await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
-        await using var setRol = conexion.CreateCommand();
-        setRol.CommandText = $"SET ROLE {rol};";
-        await setRol.ExecuteNonQueryAsync();
+        if (rol != Runtime)
+        {
+            await using var setRol = conexion.CreateCommand();
+            setRol.CommandText = $"SET ROLE {rol};";
+            await setRol.ExecuteNonQueryAsync();
+        }
+
+        await using var identidad = conexion.CreateCommand();
+        identidad.CommandText = "SELECT session_user::text || '/' || current_user::text;";
+        ((string)(await identidad.ExecuteScalarAsync())!).Should().Be($"{Runtime}/{rol}");
 
         return conexion;
     }

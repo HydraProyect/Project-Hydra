@@ -47,6 +47,40 @@ public class PilotoOutboundSoloDesdeElModoCliTests
             "es el camino sin la guarda de Producción: un tercer llamador es un tercer camino a un servidor real sin revisar");
     }
 
+    /// <summary>
+    /// El calendario laboral del equipo del piloto (capas de /calendario) se escribe solo dentro del lote: lo llama
+    /// <c>SembrarEquipoAsync</c>, y a este solo <c>SembrarLoteAsync</c>, después de sus negativas previas. Así queda
+    /// bajo las mismas guardas que el resto del lote —la de Producción de la siembra local y el modo de CLI con
+    /// entorno confirmado de la administrativa— y no abre un camino propio a un servidor real.
+    /// </summary>
+    [Fact]
+    public void El_calendario_laboral_del_piloto_solo_se_siembra_dentro_del_lote()
+    {
+        const string llamada = "PilotoOutboundCalendarioLaboral.SembrarAsync(";
+        var seeder = Texto(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure", "Persistence", "Seed", "PilotoOutboundSeeder.cs"));
+        var calendario = Texto(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure", "Persistence", "Seed", "PilotoOutboundCalendarioLaboral.cs"));
+
+        FicherosDeCodigo()
+            .Where(f => Texto(f).Contains(llamada, StringComparison.Ordinal))
+            .Select(Relativa)
+            .Should().BeEquivalentTo(["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"],
+                "un hosted service, un endpoint u otra siembra que lo llamara escribiría calendarios fuera de las guardas del lote");
+        Regex.Count(seeder, Regex.Escape(llamada)).Should().Be(1, "una sola llamada, la del equipo del Operador CAE externo");
+
+        var (equipo, _) = BloqueDe(seeder, "private static async Task<Equipo> SembrarEquipoAsync(");
+        equipo.Should().Contain(llamada, "la llamada va dentro de la siembra del equipo, en el ámbito del Tenant del Operador CAE externo");
+
+        Regex.Count(seeder, @"(?<![\w.])SembrarEquipoAsync\(").Should().Be(2, "la declaración y una sola llamada");
+        var (lote, _) = BloqueDe(seeder, "internal static async Task<Resultado> SembrarLoteAsync(");
+        var negativas = lote.IndexOf("RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(", StringComparison.Ordinal);
+        negativas.Should().BeGreaterThan(-1, "control positivo: el instrumento ve las negativas previas del lote");
+        lote.IndexOf("SembrarEquipoAsync(", StringComparison.Ordinal).Should().BeGreaterThan(negativas,
+            "el equipo, y con él su calendario, se siembra dentro del lote y después de sus negativas previas a toda escritura");
+
+        calendario.Should().Contain("internal static class PilotoOutboundCalendarioLaboral",
+            "si fuera pública, otro ensamblado podría sembrar calendarios sin pasar por el lote");
+    }
+
     [Fact]
     public void En_Program_la_siembra_esta_dentro_del_modo_de_CLI_que_termina_el_proceso_y_antes_de_toda_siembra_de_arranque()
     {

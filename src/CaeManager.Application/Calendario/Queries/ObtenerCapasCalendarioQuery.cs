@@ -49,9 +49,12 @@ public record FestivoCapaDto(DateOnly Fecha, string Nombre, AmbitoFestivo Ambito
 ///
 /// <para>
 /// Todo se resuelve en el ámbito del Tenant de origen (<see cref="ContextoOperadorCae.EnOrigen"/>), sea cual sea el
-/// Workspace operativo derivado abierto: los calendarios laborales son de ese Tenant, y el rol se lee en Identity
+/// Workspace operativo derivado abierto: los calendarios laborales son de ese Tenant. La visibilidad la decide el rol
+/// efectivo de la sesión en ese origen (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>), con las
+/// restricciones de sesión ya aplicadas, y Identity confirma que la cuenta sigue activa con ese mismo rol
 /// (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>). Falla cerrado sin rol de negocio en la
-/// sesión (Sesión Privilegiada: Soporte TALVEG no es Operador CAE) y con cualquier otro rol (Consulta, Cliente).
+/// sesión (Sesión Privilegiada: Soporte TALVEG no es Operador CAE) y con cualquier otro rol efectivo (Consulta,
+/// Cliente), también cuando la cuenta tiene en Identity un rol de gestión y la sesión quedó limitada a Consulta.
 /// </para>
 /// </summary>
 public class ObtenerCapasCalendarioQueryHandler(
@@ -78,18 +81,20 @@ public class ObtenerCapasCalendarioQueryHandler(
 
         using (yo.EnOrigen())
         {
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
+            // Decide el rol efectivo de la sesión en el Tenant de origen, que ya lleva aplicadas sus restricciones
+            // (una sesión de login local limitada a Consulta es Consulta aunque la cuenta sea de Coordinador CAE);
+            // Identity solo confirma que la cuenta sigue activa con ese mismo rol en su Operador CAE.
+            var rol = await currentUserService.ObtenerRolEfectivoAsync();
+            bool veAlEquipo;
+            if (rol is not null && RolesQueVenAlEquipo.Contains(rol))
+                veAlEquipo = true;
+            else if (rol == GestorCae)
+                veAlEquipo = false;
+            else
                 return CapasCalendarioDto.Vacio;
 
-            var veAlEquipo = false;
-            foreach (var rol in RolesQueVenAlEquipo)
-            {
-                if (await directorioUsuarios.EsCuentaActivaConRolAsync(yo.UsuarioId, yo.OperadorTenantId, rol, cancellationToken))
-                {
-                    veAlEquipo = true;
-                    break;
-                }
-            }
+            if (!await directorioUsuarios.EsCuentaActivaConRolAsync(yo.UsuarioId, yo.OperadorTenantId, rol, cancellationToken))
+                return CapasCalendarioDto.Vacio;
 
             IReadOnlyList<Guid> personas;
             if (veAlEquipo)
@@ -98,13 +103,9 @@ public class ObtenerCapasCalendarioQueryHandler(
                 var coordinadores = await directorioUsuarios.ObtenerCuentasActivasConRolAsync(yo.OperadorTenantId, CoordinadorCae, cancellationToken);
                 personas = gestores.Concat(coordinadores).Distinct().ToList();
             }
-            else if (await directorioUsuarios.EsCuentaActivaConRolAsync(yo.UsuarioId, yo.OperadorTenantId, GestorCae, cancellationToken))
-            {
-                personas = [yo.UsuarioId];
-            }
             else
             {
-                return CapasCalendarioDto.Vacio;
+                personas = [yo.UsuarioId];
             }
 
             if (personas.Count == 0)

@@ -236,6 +236,46 @@ public class ObtenerCapasCalendarioQueryTests
     }
 
     [Fact]
+    public async Task Una_sesion_limitada_a_Consulta_de_una_cuenta_de_Coordinador_CAE_no_ve_ninguna_capa()
+    {
+        // Login local: la sesión queda en Consulta aunque Identity conserve el rol de Coordinador CAE de la cuenta.
+        var (directorio, contexto) = Escenario();
+
+        var capas = await ConsultarAsync(CoordinadoraA, OperadorA, "Consulta", directorio, contexto);
+
+        capas.VeAlEquipo.Should().BeFalse();
+        capas.Personas.Should().BeEmpty("decide el rol efectivo de la sesión, no el de la cuenta en Identity");
+        contexto.TenantsLeidos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_sesion_limitada_a_Consulta_de_una_cuenta_de_Gestor_CAE_no_ve_ninguna_capa()
+    {
+        var (directorio, contexto) = Escenario();
+
+        var capas = await ConsultarAsync(GestoraA, OperadorA, "Consulta", directorio, contexto);
+
+        capas.Personas.Should().BeEmpty("decide el rol efectivo de la sesión, no el de la cuenta en Identity");
+        contexto.TenantsLeidos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Un_rol_efectivo_que_Identity_no_confirma_para_la_cuenta_no_ve_ninguna_capa(string rolEnSesion)
+    {
+        // La sesión dice un rol de gestión, pero la cuenta ya no lo tiene activo en su Operador CAE (Consulta en Identity).
+        var (directorio, contexto) = Escenario();
+        var usuario = Guid.NewGuid();
+        directorio.Asignar(usuario, OperadorA, "Consulta");
+
+        var capas = await ConsultarAsync(usuario, OperadorA, rolEnSesion, directorio, contexto);
+
+        capas.Personas.Should().BeEmpty();
+        contexto.TenantsLeidos.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Sin_rol_de_negocio_en_la_sesion_no_ve_nada()
     {
         // Sesión Privilegiada: Soporte TALVEG no es Gestor CAE ni Operador CAE aunque su cuenta tenga un rol en Identity.
