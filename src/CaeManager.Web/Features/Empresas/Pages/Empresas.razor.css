@@ -51,17 +51,23 @@
     min-width: 0;
 }
 
+/* El rótulo de la celda solo se ve cuando la cabecera de columnas no está (rejilla de tarjetas, @media de abajo). */
+.rotulo-celda-empresa {
+    display: none;
+}
+
 /*
   En pantallas estrechas la lista no cabe en columnas (la rejilla de escritorio suma ~830 px y, a 375 px, la
   tabla medía 893 px: «Cumplimiento» y «Estado documental» quedaban fuera de pantalla). La cabecera de
-  columnas desaparece y cada fila pasa a tarjeta: chevron, Empresa y 360 en la primera línea, y debajo, ya
-  sangrados hasta el nombre, el estado documental, el cumplimiento y, solo si hay alguna, las detecciones. Se aplica
-  hasta 1151 px y no solo en móvil: con la barra lateral visible (desde 1024 px) el contenido mide la ventana menos ~326 px
-  y la rejilla de escritorio (~830 px) no cabe hasta ~1152 px (medido a 1024 px: la fila medía 810 en un marco de 698). El mismo
-  recurso que Subcontratas (el estado baja a otra línea); aquí son tres celdas. Las celdas se colocan por
-  clase y no por posición, porque la casilla de la selección múltiple desplaza todas.
+  columnas desaparece y cada fila pasa a tarjeta: chevron, Empresa y 360 en la primera línea y, debajo, ya
+  sangrados hasta el nombre, las detecciones (solo si hay alguna), el cumplimiento y el estado documental, en el
+  orden de las columnas, con su rótulo. El mismo recurso que Subcontratas (el estado baja a otra línea); aquí son
+  tres celdas. Se aplica hasta 1199 px y no solo en móvil: con la barra lateral visible (desde 1024 px) el
+  contenido mide la ventana menos ~326 px y la rejilla de escritorio no cabe hasta ~1152 px (medido a 1024 px: la
+  fila medía 810 en un marco de 698), y con la selección múltiple, que añade una columna, hasta ~1198 px. Las
+  celdas se colocan por clase y no por posición, porque la casilla de la selección múltiple desplaza todas.
 */
-@media (max-width: 1151px) {
+@media (max-width: 1199px) {
     .rejilla-empresas {
         grid-template-columns: 24px minmax(0, 1fr) 40px;
         row-gap: var(--space-2);
@@ -100,9 +106,22 @@
         grid-column: 3 / -1;
     }
 
-    .tarjeta-fila-acordeon-cabecera > .celda-estado-empresa { grid-row: 2; }
-    .tarjeta-fila-acordeon-cabecera > .celda-cumplimiento-empresa { grid-row: 3; }
-    .tarjeta-fila-acordeon-cabecera > .celda-detecciones-empresa { grid-row: 4; }
+    /* Sin grid-row: las tres celdas bajan una línea cada una en el orden del DOM (detecciones, cumplimiento, estado: el de las columnas de escritorio),
+       así el orden de tabulación sigue al visual; la fila 1 la ocupan chevron, Empresa y 360. */
+    .celda-detecciones-empresa,
+    .celda-cumplimiento-empresa {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+    }
+
+    /* La cabecera de columnas ya no está: cada celda con rótulo propio (los mismos de la cabecera) lo enseña. */
+    .rotulo-celda-empresa {
+        display: inline;
+        flex: none;
+        font: var(--font-caption);
+        color: var(--color-text-muted);
+    }
 
     /* Sin detecciones, el guion de la columna sobra: ya no hay columna que mantener cuadrada. */
     .celda-detecciones-vacia {
@@ -196,7 +215,7 @@
 }
 
 /* El detalle desplegado ya no se sangra bajo el nombre: la fila es una tarjeta estrecha. */
-@media (max-width: 1151px) {
+@media (max-width: 1199px) {
     .marco-lista-empresas .tarjeta-fila-acordeon-contenido {
         padding-left: var(--space-4);
     }
