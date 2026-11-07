@@ -120,13 +120,18 @@
                         </VentanaContexto>
                     </div>
 
-                    <div class="rejilla-kpis-criticos">
-                        @foreach (var kpi in TilesDelPeriodo)
-                        {
-                            <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
-                                            Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
-                        }
-                    </div>
+                    @if (ConCifra(TilesDelPeriodo).Count > 0)
+                    {
+                        <div class="rejilla-kpis-criticos">
+                            @foreach (var kpi in ConCifra(TilesDelPeriodo))
+                            {
+                                <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
+                                                Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
+                            }
+                        </div>
+                    }
+
+                    @BloqueSinMedir(SinCifra(TilesDelPeriodo))
 
                     @if (TilesDelPeriodo.Any(k => k.Codigo == CatalogoKpis.CosteMesActualIa) && TenantsConPresupuestoIaExcedido.Count > 0)
                     {
@@ -148,13 +153,18 @@
                         <span class="periodo-texto">@TextoFueraDelPeriodo</span>
                     </div>
 
-                    <div class="rejilla-kpis-criticos">
-                        @foreach (var kpi in TilesFueraDelPeriodo)
-                        {
-                            <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
-                                            Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
-                        }
-                    </div>
+                    @if (ConCifra(TilesFueraDelPeriodo).Count > 0)
+                    {
+                        <div class="rejilla-kpis-criticos">
+                            @foreach (var kpi in ConCifra(TilesFueraDelPeriodo))
+                            {
+                                <TarjetaMetrica Etiqueta="@kpi.Titulo" Valor="@ValorTile(kpi.Codigo)"
+                                                Tono="@TonoTile(kpi.Codigo)" Pista="@PistaTile(kpi.Codigo)" />
+                            }
+                        </div>
+                    }
+
+                    @BloqueSinMedir(SinCifra(TilesFueraDelPeriodo))
                 </section>
             }
 
@@ -355,3 +365,23 @@
     }
 </div>
 </LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// Un único bloque de estado vacío para los indicadores de IA y BPO que todavía no tienen con qué medirse (lecturas
+    /// de IA, sugerencias resueltas, visitas con antelación medida): en vez de una tarjeta por indicador con «—», dice
+    /// qué aparecerá y cuándo. Sin cifras ni gráficos de ejemplo; cada tarjeta vuelve a su sitio en cuanto hay dato.
+    /// </summary>
+    private RenderFragment BloqueSinMedir(IReadOnlyList<DefinicionKpi> pendientes) => __builder =>
+    {
+        if (pendientes.Count == 0)
+        {
+            return;
+        }
+
+        <div class="bloque-sin-medir" data-bloque="sin-medir">
+            <EstadoVacio Titulo="@Textos["SinMedirTitulo"]"
+                         Descripcion="@Textos["SinMedirDescripcion", string.Join(", ", pendientes.Select(k => k.Titulo))].Value" />
+        </div>
+    };
+}
