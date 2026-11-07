@@ -70,15 +70,14 @@ public class FestivosYJornadaIntensivaTests
     }
 
     [Fact]
-    public void El_catalogo_cubre_el_anio_siguiente_desde_noviembre()
+    public void Los_anios_cubiertos_son_los_sembrados_y_cada_uno_tiene_sus_nacionales()
     {
-        // Trinquete de caducidad: el BOE publica en octubre las fiestas del año siguiente. Desde noviembre, el
-        // catálogo debe tenerlas; si no, en enero /calendario dejaría de pintar festivos y jornada intensiva.
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        var exigido = hoy.Month >= 11 ? hoy.Year + 1 : hoy.Year;
-
-        CatalogoFestivosOficiales.AniosCubiertos.Should().Contain(exigido,
-            "falta sembrar el calendario oficial de ese año: filas en CatalogoFestivosOficiales y una migración");
+        // Sin reloj a propósito: un trinquete de caducidad pondría en rojo todas las PR el día que venza. La
+        // caducidad se ve en /calendario, que avisa en un año sin catálogo. Ampliar el catálogo cambia esta lista.
+        CatalogoFestivosOficiales.AniosCubiertos.Should().Equal(2026, 2027);
+        foreach (var anio in CatalogoFestivosOficiales.AniosCubiertos)
+            Catalogo.Count(f => f.Ambito == AmbitoFestivo.Nacional && f.Fecha.Year == anio)
+                .Should().BeGreaterThanOrEqualTo(8, $"los nacionales de {anio}");
     }
 
     [Theory]
