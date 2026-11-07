@@ -86,7 +86,10 @@ public sealed class FestivoOficial : Entity
     /// A una persona le aplican todos los nacionales, los autonómicos de su comunidad y los locales de su
     /// municipio. Sin comunidad, solo los nacionales (Especificación § 3). Los autonómicos de Cataluña del catálogo
     /// son los del cuadro general y no aplican en la Val d'Aran, que sustituye uno por la Fiesta de Arán
-    /// (<see cref="CatalogoFestivosOficiales.EsDeLaValDAran"/>): allí solo se conocen los nacionales.
+    /// (<see cref="CatalogoFestivosOficiales.EsDeLaValDAran"/>): allí solo se conocen los nacionales. Como en una
+    /// comunidad sin autonómicos en el catálogo (Madrid), «no aplica» es aquí «no se conoce»: la Diada sigue siendo
+    /// festivo en Arán y <see cref="PerfilLaboral.EsLaborable"/> la da por laborable. Quien cuente días laborables debe
+    /// mirar antes <see cref="CatalogoFestivosOficiales.Cubre"/>, como hace la jornada intensiva.
     /// </summary>
     public bool AplicaA(PerfilLaboral perfil)
     {

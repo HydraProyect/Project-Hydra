@@ -140,14 +140,18 @@ public static class CatalogoFestivosOficiales
 
     /// <summary>
     /// Los nueve municipios de la comarca de Aran según Idescat (consultado el 2026-11-07): Arres, Bausen, Es Bòrdes,
-    /// Bossòst, Canejan, Les, Naut Aran, Vielha e Mijaran y Vilamòs; más sus formas castellanas (Las Bordas, Bosost,
-    /// Alto Arán, Viella y Medio Arán), «Vielha» o «Viella» a secas y el nombre del territorio, por si se escribe en el
-    /// municipio. Normalizados con <see cref="NormalizarParaComparar"/>.
+    /// Bossòst, Canejan, Les, Naut Aran, Vielha e Mijaran y Vilamòs. Se añaden formas no oficiales que alguien puede
+    /// escribir, en catalán (Les Bordes, Alt Aran, Vielha i Mijaran) y en castellano (Las Bordas, Bosost, Alto Arán,
+    /// Viella y Medio Arán), «Vielha» o «Viella» a secas y el nombre del territorio. Una forma de más solo deja sin
+    /// cubrir a quien la escriba; una de menos le pinta el cuadro general sin aviso. Normalizados con
+    /// <see cref="NormalizarParaComparar"/>.
     /// </summary>
     private static readonly HashSet<string> MunicipiosValDAran =
     [
-        "arres", "bausen", "es bordes", "las bordas", "bossost", "bosost", "canejan", "les", "naut aran", "alto aran",
-        "vielha e mijaran", "viella y medio aran", "vielha", "viella", "vilamos",
+        "arres", "bausen", "es bordes", "les bordes", "las bordas", "bossost", "bosost", "canejan", "les",
+        "naut aran", "alt aran", "alto aran",
+        "vielha e mijaran", "vielha i mijaran", "vielha mijaran", "viella y medio aran", "vielha", "viella",
+        "vilamos",
         "val d'aran", "vall d'aran", "valle de aran", "aran",
     ];
 
@@ -156,6 +160,7 @@ public static class CatalogoFestivosOficiales
     /// El municipio es texto libre: se compara sin mayúsculas, acentos ni espacios repetidos, y un nombre que no esté
     /// en la lista (un núcleo como Salardú o una errata) no se reconoce y se trata como el resto de Cataluña. Sin
     /// municipio tampoco se sabe: se aplica el cuadro general, y <see cref="IncluyeLocales"/> ya avisa de que falta.
+    /// Los guiones cuentan como espacios («Vielha-Mijaran»).
     /// </summary>
     public static bool EsDeLaValDAran(PerfilLaboral perfil)
     {
@@ -173,7 +178,12 @@ public static class CatalogoFestivosOficiales
         {
             if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) == System.Globalization.UnicodeCategory.NonSpacingMark)
                 continue;
-            limpio.Append(caracter is '’' or '‘' or '´' or '`' ? '\'' : char.ToLowerInvariant(caracter));
+            limpio.Append(caracter switch
+            {
+                '’' or '‘' or '´' or '`' => '\'',
+                '-' => ' ',
+                _ => char.ToLowerInvariant(caracter),
+            });
         }
         return string.Join(' ', limpio.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }

@@ -234,7 +234,8 @@ public class ObtenerCapasCalendarioQueryTests
 
         var persona = marzo2027.Personas.Should().ContainSingle().Subject;
         persona.Comunidad.Should().Be("Cataluña", "«Festivos de» la sigue agrupando en su comunidad");
-        persona.Festivos.Should().OnlyContain(f => f.Ambito == AmbitoFestivo.Nacional, "el 29 de marzo está sustituido en Arán");
+        persona.Festivos.Select(f => f.Fecha).Should().Equal([new DateOnly(2027, 3, 26)],
+            "solo el Viernes Santo, nacional: el 29 de marzo está sustituido en Arán");
         marzo2027.ComunidadesSinAutonomicos.Should().Equal(CatalogoFestivosOficiales.NombreValDAran);
         julio2027.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().BeEmpty(
             "sin sus autonómicos no se le marca intensiva");

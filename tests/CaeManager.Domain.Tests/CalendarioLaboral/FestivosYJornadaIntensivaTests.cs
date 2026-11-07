@@ -103,6 +103,9 @@ public class FestivosYJornadaIntensivaTests
     [InlineData("Canejan")]
     [InlineData("  VIELHA  ")]
     [InlineData("Val d’Aran")]
+    [InlineData("Alt Aran")]
+    [InlineData("Vielha-Mijaran")]
+    [InlineData("Vielha i Mijaran")]
     public void La_Val_d_Aran_no_esta_cubierta_aunque_Cataluna_si(string municipio)
     {
         // BOE-A-2025-21667 y BOE-A-2026-21254, nota 2: en el territorio de Arán el 26-12-2026 y el 29-03-2027 se
@@ -113,8 +116,9 @@ public class FestivosYJornadaIntensivaTests
         CatalogoFestivosOficiales.EsDeLaValDAran(aran).Should().BeTrue();
         foreach (var anio in CatalogoFestivosOficiales.AniosCubiertos)
             CatalogoFestivosOficiales.Cubre(anio, aran).Should().BeFalse($"{municipio} {anio}");
-        aran.FestivosQueLeAplican(Catalogo).Should().OnlyContain(f => f.Ambito == AmbitoFestivo.Nacional,
-            "el cuadro general de Cataluña no es el de Arán");
+        aran.FestivosQueLeAplican(Catalogo).Should().NotBeEmpty()
+            .And.OnlyContain(f => f.Ambito == AmbitoFestivo.Nacional, "el cuadro general de Cataluña no es el de Arán");
+        aran.EsLaborable(new DateOnly(2027, 3, 26), Catalogo).Should().BeFalse("el Viernes Santo es nacional");
         aran.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeTrue("el Lunes de Pascua de 2027 está sustituido en Arán");
     }
 
