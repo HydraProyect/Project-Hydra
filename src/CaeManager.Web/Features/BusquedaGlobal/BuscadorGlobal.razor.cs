@@ -395,8 +395,11 @@ public partial class BuscadorGlobal
         {
             // Con tope: un recuento que no vuelve se trata como uno que falla (la acción va sin subtítulo), sin
             // tumbar un resultado de búsqueda que ya llegó bien.
-            var recuento = Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), token);
-            await EsperarConTopeAsync(recuento, token);
+            // Token propio para cancelar solo el recuento al vencer el tope: si no, seguiría vivo sobre el DbContext y
+            // la siguiente búsqueda esperaría a una consulta que nadie ha pedido parar.
+            using var propio = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var recuento = Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), propio.Token);
+            await EsperarConTopeAsync(recuento, token, propio);
             _vencenEstaSemana[empresaId] = await recuento;
         }
         catch (OperationCanceledException)
@@ -1331,7 +1334,7 @@ public partial class BuscadorGlobal
     /// <summary>Consulta soltada por el tope que aún no terminó: la siguiente búsqueda espera a que acabe de desenrollarse.</summary>
     private Task? _consultaAbandonada;
 
-    private async Task EsperarConTopeAsync(Task consulta, CancellationToken token)
+    private async Task EsperarConTopeAsync(Task consulta, CancellationToken token, CancellationTokenSource? alVencer = null)
     {
         try
         {
@@ -1339,6 +1342,7 @@ public partial class BuscadorGlobal
         }
         catch (TimeoutException)
         {
+            alVencer?.Cancel();
             _consultaAbandonada = Observar(consulta);
             throw;
         }

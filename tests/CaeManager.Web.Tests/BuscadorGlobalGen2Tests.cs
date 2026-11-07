@@ -345,6 +345,11 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.FindAll(".buscador-mensaje-error").Should().BeEmpty("el recuento no es la búsqueda: su tope no pinta el error");
         cut.Markup.Should().NotContain("Buscando…");
         Filas(cut).Should().Contain(("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"));
+
+        // Se cancela solo el recuento: si siguiera vivo, la siguiente búsqueda esperaría a una consulta que nadie quiere.
+        var indice = mediador.Enviados.ToList().FindIndex(e => e is ContarVencenEstaSemanaDeEmpresaQuery);
+        mediador.TokensRecibidos.ElementAt(indice).IsCancellationRequested.Should().BeTrue(
+            "al vencer el tope del recuento se cancela esa consulta, igual que la de la búsqueda");
     }
 
     [Fact]
