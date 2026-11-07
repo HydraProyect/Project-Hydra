@@ -95,6 +95,54 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
         await AfirmarAlineadoAsync(page, columnas: 7, "tema oscuro con selección múltiple");
     }
 
+    /// <summary>
+    /// A 375 px la lista no desborda: la tabla de escritorio medía 893 px dentro de una tarjeta de 375 y
+    /// «Cumplimiento» y «Estado documental» quedaban fuera de pantalla. La cabecera de columnas se oculta, cada fila
+    /// cabe en el ancho de la ventana y las tres celdas de datos son visibles y están dentro de ella (no solo
+    /// «cabe»: una celda recortada fuera de pantalla también haría que cupiera).
+    /// </summary>
+    [Fact]
+    public async Task A_375_px_la_lista_no_desborda_y_el_estado_y_el_cumplimiento_se_ven()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await page.SetViewportSizeAsync(375, 812);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await Expect(page.Locator(".marco-lista-empresas .tarjeta-fila-acordeon-cabecera")).Not.ToHaveCountAsync(0);
+
+        var medicion = await page.EvaluateAsync<JsonElement>("""
+            () => {
+                const ancho = document.documentElement.clientWidth;
+                const filas = Array.from(document.querySelectorAll('.marco-lista-empresas .tarjeta-fila-acordeon-cabecera'));
+                const fuera = [];
+                filas.forEach((fila, i) => {
+                    if (fila.scrollWidth > fila.clientWidth + 1)
+                        fuera.push(`fila ${i}: scrollWidth ${fila.scrollWidth} mayor que clientWidth ${fila.clientWidth}`);
+                    for (const clase of ['celda-estado-empresa', 'celda-cumplimiento-empresa']) {
+                        const celda = fila.querySelector('.' + clase);
+                        const r = celda ? celda.getBoundingClientRect() : null;
+                        if (!r || r.width === 0 || r.left < 0 || r.right > ancho + 0.5)
+                            fuera.push(`fila ${i}: .${clase} ${r ? `en [${r.left.toFixed(0)}, ${r.right.toFixed(0)}]` : 'no existe'} frente a una ventana de ${ancho}`);
+                    }
+                });
+                return {
+                    filas: filas.length,
+                    scrollPagina: document.documentElement.scrollWidth,
+                    ancho,
+                    cabeceraVisible: getComputedStyle(document.querySelector('.cabecera-columnas-empresas')).display !== 'none',
+                    fuera
+                };
+            }
+            """);
+
+        Assert.True(medicion.GetProperty("filas").GetInt32() > 0, "la lista sembrada no tiene filas: no hay nada que medir.");
+        Assert.False(medicion.GetProperty("cabeceraVisible").GetBoolean(), "la cabecera de columnas no tiene sentido cuando la fila pasa a tarjeta.");
+        Assert.True(medicion.GetProperty("scrollPagina").GetInt32() <= medicion.GetProperty("ancho").GetInt32(),
+            $"la página desborda: scrollWidth {medicion.GetProperty("scrollPagina").GetInt32()} frente a {medicion.GetProperty("ancho").GetInt32()}.");
+        var fuera = medicion.GetProperty("fuera").EnumerateArray().Select(d => d.GetString()).ToList();
+        Assert.True(fuera.Count == 0, $"la lista se sale de la ventana:{Environment.NewLine}{string.Join(Environment.NewLine, fuera)}");
+    }
     private static async Task AfirmarAlineadoAsync(IPage page, int columnas, string contexto)
     {
         var medicion = await page.EvaluateAsync<JsonElement>(MedirDesalineacion);

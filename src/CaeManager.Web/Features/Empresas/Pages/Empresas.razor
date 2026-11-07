@@ -305,7 +305,7 @@
                                Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                                de columnas: un componente que no se pinta desalinearía la fila
                                respecto a la cabecera. *@
-                            <span>
+                            <span class="@(empresa.DeteccionesPendientes > 0 ? "celda-detecciones-empresa" : "celda-detecciones-empresa celda-detecciones-vacia")">
                                 @if (empresa.DeteccionesPendientes > 0)
                                 {
                                     <button type="button" class="badge-deteccion"
@@ -319,7 +319,7 @@
                                     <span class="celda-sin-deteccion">—</span>
                                 }
                             </span>
-                            <span>
+                            <span class="celda-cumplimiento-empresa">
                                 <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
                                                    Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                             </span>
@@ -362,7 +362,7 @@
                                «Detección de trabajadores», la pastilla de la columna Detecciones (misma
                                condición: solo con detecciones pendientes); «Eliminar», la selección
                                múltiple (botón de la barra o tecla «x»). *@
-                            <div class="tarjeta-fila-acordeon-acciones">
+                            <div class="tarjeta-fila-acordeon-acciones celda-acciones-empresa">
                                 <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
                             </div>
                         </div>
