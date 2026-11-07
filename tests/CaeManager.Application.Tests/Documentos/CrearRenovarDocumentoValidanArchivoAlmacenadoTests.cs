@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
+using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Proyectos;
@@ -213,6 +214,48 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         documento.Id.Should().Be(idOriginal);
     }
 
+    // ---- Gestión automática (§ 4.1): qué actos hacen nacer un Documento a efectos de su Gestión ----
+
+    [Fact]
+    public async Task Crear_publica_que_nacio_un_Documento_sin_sustituir_a_ninguno()
+    {
+        var publicador = new PublisherFalso();
+        var (handler, documentos, almacen, trabajador, tipo) = PrepararCrear(publicador);
+        var clave = await almacen.GuardarAsync(new MemoryStream(PdfValido), "documento.pdf");
+
+        await handler.Handle(NuevoCrear(trabajador.Id, tipo.Id, clave), CancellationToken.None);
+
+        publicador.Publicados.OfType<DocumentoNacidoEvent>().Should().ContainSingle()
+            .Which.Should().Be(new DocumentoNacidoEvent(documentos.Documentos.Single().Id));
+    }
+
+    [Fact]
+    public async Task Renovar_con_archivo_nuevo_publica_que_nacio_el_nuevo_y_a_cual_sustituye()
+    {
+        var publicador = new PublisherFalso();
+        var (handler, documentos, almacen, documento) = PrepararRenovar(publicador);
+        var clave = await almacen.GuardarAsync(new MemoryStream(PdfValido), "documento.pdf");
+
+        var resultado = await handler.Handle(NuevoRenovar(documento.Id, clave), CancellationToken.None);
+
+        publicador.Publicados.OfType<DocumentoNacidoEvent>().Should().ContainSingle()
+            .Which.Should().Be(new DocumentoNacidoEvent(resultado.Valor, documento.Id));
+        documentos.Documentos.Select(d => d.Id).Should().Contain(resultado.Valor);
+    }
+
+    [Fact]
+    public async Task Corregir_fechas_sin_archivo_no_hace_nacer_ningun_Documento()
+    {
+        var publicador = new PublisherFalso();
+        var (handler, _, _, documento) = PrepararRenovar(publicador);
+
+        var resultado = await handler.Handle(NuevoRenovar(documento.Id, null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        publicador.Publicados.OfType<DocumentoNacidoEvent>().Should().BeEmpty(
+            "la corrección de fechas conserva el Documento y su Gestión; no crea otra");
+    }
+
     private static CrearDocumentoCommand NuevoCrear(Guid trabajadorId, Guid tipoId, string clave) =>
         new(trabajadorId, null, null, null, null, tipoId, Hoy, null, clave, null);
 
@@ -220,7 +263,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         new(documentoId, Hoy, null, clave, null, NoCaduca: true);
 
     private static (CrearDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
-        Domain.Trabajadores.Trabajador Trabajador, TipoDocumento Tipo) PrepararCrear()
+        Domain.Trabajadores.Trabajador Trabajador, TipoDocumento Tipo) PrepararCrear(PublisherFalso? publicador = null)
     {
         var mundo = new MundoAcreditaciones();
         var trabajador = mundo.Trabajador();
@@ -231,12 +274,12 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenado(almacen));
+            publicador ?? new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenado(almacen));
         return (handler, documentos, almacen, trabajador, tipo);
     }
 
     private static (RenovarDocumentoCommandHandler Handler, DocumentoRepositorioFalso Documentos, FileStorageServiceFalso Almacen,
-        Documento Documento) PrepararRenovar()
+        Documento Documento) PrepararRenovar(PublisherFalso? publicador = null)
     {
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Certificado");
@@ -247,7 +290,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
-            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenado(almacen));
+            mundo.Servicio(), publicador ?? new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenado(almacen));
         return (handler, documentos, almacen, documento);
     }
 

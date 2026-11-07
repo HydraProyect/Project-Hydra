@@ -121,7 +121,7 @@ public class GestionesAutomaticasTests
         await Publicar(new DocumentoNacidoEvent(anterior.Id));
         var gestionAnterior = _gestiones.Lista.Single();
 
-        var nuevo = DocumentoDelTrabajador();
+        var nuevo = RenovacionDe(anterior);
         Acreditar(nuevo, acceso);
         await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
 
@@ -141,7 +141,7 @@ public class GestionesAutomaticasTests
         await Publicar(new DocumentoNacidoEvent(anterior.Id));
         var gestionAnterior = _gestiones.Lista.Single();
 
-        var nuevo = DocumentoDelTrabajador();
+        var nuevo = RenovacionDe(anterior);
         Acreditar(nuevo, acceso);
         await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
 
@@ -156,7 +156,7 @@ public class GestionesAutomaticasTests
         Acreditar(anterior, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
         await Publicar(new DocumentoNacidoEvent(anterior.Id));
 
-        var nuevo = DocumentoDelTrabajador();
+        var nuevo = RenovacionDe(anterior);
         await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
 
         var gestionAnterior = _gestiones.Lista.Should().ContainSingle().Subject;
@@ -174,6 +174,43 @@ public class GestionesAutomaticasTests
         var publicar = () => Publicar(new DocumentoNacidoEvent(documento.Id));
 
         await publicar.Should().NotThrowAsync();
+        _gestiones.Descartadas.Should().ContainSingle().Which.DocumentoId.Should().Be(documento.Id,
+            "la Gestión que no se pudo guardar no puede quedarse en el contexto para el siguiente guardado");
+    }
+
+    [Fact]
+    public async Task Un_fallo_al_guardar_la_sustitucion_descarta_tambien_la_anterior_modificada()
+    {
+        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
+        var anterior = DocumentoDelTrabajador();
+        Acreditar(anterior, acceso);
+        await Publicar(new DocumentoNacidoEvent(anterior.Id));
+        var gestionAnterior = _gestiones.Lista.Single();
+        var nuevo = RenovacionDe(anterior);
+        Acreditar(nuevo, acceso);
+        _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException("caída simulada");
+
+        await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
+
+        _gestiones.Descartadas.Select(g => g.Id).Should().BeEquivalentTo(
+            [gestionAnterior.Id, _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id).Id]);
+    }
+
+    [Fact]
+    public async Task Un_evento_que_dice_sustituir_un_Documento_que_no_esta_sustituido_por_el_nuevo_no_toca_su_gestion()
+    {
+        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
+        var otro = DocumentoDelTrabajador();
+        Acreditar(otro, acceso);
+        await Publicar(new DocumentoNacidoEvent(otro.Id));
+        var gestionDelOtro = _gestiones.Lista.Single();
+
+        var nuevo = DocumentoDelTrabajador();
+        Acreditar(nuevo, acceso);
+        await Publicar(new DocumentoNacidoEvent(nuevo.Id, otro.Id));
+
+        gestionDelOtro.EstaSustituida.Should().BeFalse("el evento trae coordenadas, no autoridad");
+        _gestiones.Lista.Should().HaveCount(2);
     }
 
     // ---------- Universo visible ----------
@@ -335,6 +372,13 @@ public class GestionesAutomaticasTests
         return documento;
     }
 
+    private Documento RenovacionDe(Documento anterior)
+    {
+        var nuevo = DocumentoDelTrabajador();
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, Ahora);
+        return nuevo;
+    }
+
     private Centro Centro(string nombre)
     {
         var cliente = new Empresa($"Cliente de {nombre}");
@@ -385,4 +429,8 @@ internal sealed class GestionesAutomaticasEnMemoria : IGestionesQueryContext, IG
         Task.FromResult(Lista.Any(g => g.DocumentoId == documentoId));
 
     public void Agregar(GestionAutomatica gestion) => Lista.Add(gestion);
+
+    public List<GestionAutomatica> Descartadas { get; } = [];
+
+    public void Descartar(IEnumerable<GestionAutomatica> gestiones) => Descartadas.AddRange(gestiones);
 }

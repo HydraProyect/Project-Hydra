@@ -420,6 +420,8 @@ public class ReglasDeNegocioSinCopiasTests
         // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos.
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
+        // Y al nacer: resolución por Id del Documento que el evento dice sustituido, para comprobar su enlace.
+        ["src/CaeManager.Application/Gestiones/Eventos/CrearGestionAutomaticaAlNacerDocumentoHandler.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,

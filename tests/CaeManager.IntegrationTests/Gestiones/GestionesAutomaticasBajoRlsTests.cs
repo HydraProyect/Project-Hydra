@@ -103,13 +103,40 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_renovacion_bajo_runtime_sustituye_la_gestion_anterior_y_enlaza_la_nueva()
+    {
+        await using (var runtime = CrearRuntime())
+            await Handler(runtime).Handle(new DocumentoNacidoEvent(_propio.Documento), CancellationToken.None);
+        var nuevoDocumento = await RenovarComoPropietarioAsync(_tenantSesion, _propio.Documento);
+
+        await using (var runtime = CrearRuntime())
+            await Handler(runtime).Handle(new DocumentoNacidoEvent(nuevoDocumento, _propio.Documento), CancellationToken.None);
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        var gestiones = await comprobacion.GestionesAutomaticas.IgnoreQueryFilters()
+            .Where(g => g.TenantId == _tenantSesion).ToListAsync();
+        var anterior = gestiones.Single(g => g.DocumentoId == _propio.Documento);
+        var nueva = gestiones.Single(g => g.DocumentoId == nuevoDocumento);
+        anterior.SustituidaEnUtc.Should().NotBeNull("el UPDATE de la sustitución pasa el permiso y el WITH CHECK bajo runtime");
+        anterior.SustituidaPorGestionId.Should().Be(nueva.Id);
+        nueva.Origen.Should().Be(OrigenGestionAutomatica.RenovacionDocumento);
+    }
+
+    [Fact]
     public async Task El_evento_con_un_Documento_de_otro_Tenant_no_crea_nada()
     {
         await using (var runtime = CrearRuntime())
-            await Handler(runtime).Handle(new DocumentoNacidoEvent(_ajeno.Documento), CancellationToken.None);
+        {
+            var handler = Handler(runtime);
+            await handler.Handle(new DocumentoNacidoEvent(_ajeno.Documento), CancellationToken.None);
+            // Control: el mismo handler y el mismo contexto sí crean la del Documento propio, así que el cero de
+            // abajo no es un fallo tragado del arnés.
+            await handler.Handle(new DocumentoNacidoEvent(_propio.Documento), CancellationToken.None);
+        }
 
         await using var comprobacion = CrearPropietarioLimpio();
-        (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().Select(g => g.DocumentoId).ToListAsync())
+            .Should().Equal([_propio.Documento]);
     }
 
     [Fact]
@@ -195,6 +222,24 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
         _propietario.GestionesAutomaticas.Add(gestion);
         await _propietario.SaveChangesAsync();
         return gestion.Id;
+    }
+
+    /// <summary>Como la renovación con archivo: nace un Documento nuevo, el anterior queda sustituido por él y el
+    /// nuevo se acredita ante el mismo acceso de plataforma.</summary>
+    private async Task<Guid> RenovarComoPropietarioAsync(Guid tenantId, Guid documentoAnteriorId)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        var anterior = await _propietario.Documentos.SingleAsync(d => d.Id == documentoAnteriorId);
+        var canalId = await _propietario.AcreditacionesDocumentoPlataforma
+            .Where(a => a.DocumentoId == documentoAnteriorId).Select(a => a.CanalGestionDocumentalId).SingleAsync();
+        var hoy = DiaDeNegocio.Hoy();
+        var nuevo = Documento.DeTrabajador(anterior.TrabajadorId!.Value, anterior.TipoDocumentoId, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+        _propietario.Documentos.Add(nuevo);
+        await _propietario.SaveChangesAsync();
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        _propietario.AcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(nuevo.Id, canalId));
+        await _propietario.SaveChangesAsync();
+        return nuevo.Id;
     }
 
     private async Task<(Guid Documento, Guid Acreditacion)> SembrarAsync(Guid tenantId, Guid proveedorId, string razonSocial)

@@ -5,8 +5,8 @@ namespace CaeManager.Domain.Gestiones;
 
 /// <summary>
 /// Gestión automática de varios pasos (especificación «Gestión de varios pasos y Mi trabajo», 2026-10-23, § 4).
-/// Nace sola cuando un Documento de Trabajador o de Empresa nace con archivo, por alta o por renovación con
-/// archivo nuevo, y agrupa en <b>una sola</b> Gestión las acreditaciones en plataforma
+/// Nace sola cuando nace un Documento de Trabajador o de Empresa, por alta (con o sin archivo: el disparador
+/// fijado es el alta) o por renovación con archivo nuevo, y agrupa en <b>una sola</b> Gestión las acreditaciones en plataforma
 /// (<see cref="AcreditacionDocumentoPlataforma"/>) que ese mismo acto hizo nacer: un paso por acceso de
 /// plataforma (D-5). La corrección de fechas sin archivo no la hace nacer: no nace ningún Documento.
 ///

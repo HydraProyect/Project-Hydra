@@ -42,17 +42,22 @@ public class CrearGestionAutomaticaAlNacerDocumentoHandler(
 {
     public async Task Handle(DocumentoNacidoEvent notification, CancellationToken cancellationToken)
     {
+        var tocadas = new List<GestionAutomatica>();
         try
         {
-            await CrearAsync(notification, cancellationToken);
+            await CrearAsync(notification, tocadas, cancellationToken);
         }
         catch (Exception ex)
         {
+            // El comando que publicó ya respondió con éxito y su contexto sigue vivo (en Blazor, toda la sesión): lo
+            // que se añadió o modificó aquí se descarta, o el siguiente guardado de cualquier comando reintentaría
+            // la misma escritura fallida.
+            repositorio.Descartar(tocadas);
             logger.LogWarning(ex, "No se pudo crear la gestión automática del documento {DocumentoId}.", notification.DocumentoId);
         }
     }
 
-    private async Task CrearAsync(DocumentoNacidoEvent notification, CancellationToken cancellationToken)
+    private async Task CrearAsync(DocumentoNacidoEvent notification, List<GestionAutomatica> tocadas, CancellationToken cancellationToken)
     {
         if (await repositorio.ExisteParaDocumentoAsync(notification.DocumentoId, cancellationToken))
             return;
@@ -70,17 +75,32 @@ public class CrearGestionAutomaticaAlNacerDocumentoHandler(
         var nueva = GestionAutomatica.Nacer(
             notification.DocumentoId, origen, acreditacionIds, await currentUserService.ObtenerUsuarioActualIdAsync());
         if (nueva is not null)
+        {
             repositorio.Agregar(nueva);
+            tocadas.Add(nueva);
+        }
 
         var sustituida = notification.SustituyeADocumentoId is { } anteriorId
-                         && await SustituirLaAnteriorSiSigueAbiertaAsync(anteriorId, nueva?.Id, cancellationToken);
+                         && await SustituirLaAnteriorSiSigueAbiertaAsync(
+                             anteriorId, notification.DocumentoId, nueva?.Id, tocadas, cancellationToken);
 
         if (nueva is not null || sustituida)
             await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<bool> SustituirLaAnteriorSiSigueAbiertaAsync(Guid documentoAnteriorId, Guid? nuevaId, CancellationToken cancellationToken)
+    private async Task<bool> SustituirLaAnteriorSiSigueAbiertaAsync(
+        Guid documentoAnteriorId, Guid documentoNuevoId, Guid? nuevaId, List<GestionAutomatica> tocadas,
+        CancellationToken cancellationToken)
     {
+        // El evento trae coordenadas, no autoridad: solo se sustituye si el Documento anterior está de verdad
+        // sustituido por el que acaba de nacer.
+        var sustitutoDelAnterior = await documentosContext.Documentos
+            .Where(d => d.Id == documentoAnteriorId)
+            .Select(d => d.SustituidoPorDocumentoId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (sustitutoDelAnterior != documentoNuevoId)
+            return false;
+
         var anterior = await repositorio.ObtenerPorDocumentoIdAsync(documentoAnteriorId, cancellationToken);
         if (anterior is null || anterior.EstaSustituida)
             return false;
@@ -95,6 +115,7 @@ public class CrearGestionAutomaticaAlNacerDocumentoHandler(
             return false;
 
         anterior.Sustituir(nuevaId, reloj.GetUtcNow().UtcDateTime);
+        tocadas.Add(anterior);
         return true;
     }
 }
