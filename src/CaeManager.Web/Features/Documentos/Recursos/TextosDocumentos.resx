@@ -188,7 +188,7 @@
     <value>{0} de {1} deshechas. {2}</value>
   </data>
   <data name="RevIaReglaBloque" xml:space="preserve">
-    <value>Aceptación en bloque: eliges la confianza y confirmas tú</value>
+    <value>Umbral de confirmación en lote: {0} %</value>
   </data>
   <data name="RevIaFallosTitulo" xml:space="preserve">
     <value>No se pudieron aceptar {0} lectura(s); siguen pendientes:</value>

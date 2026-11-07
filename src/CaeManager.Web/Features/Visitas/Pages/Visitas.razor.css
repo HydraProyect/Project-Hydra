@@ -384,16 +384,32 @@
 /* En la fila principal el estado sigue acotado a la caja de 92 px: el motivo de cancelación es texto libre y, sin tope, ensancharía la celda. */
 .visitas-lista td.col-estado-visitas .visitas-estado-acotado { width: 92px; max-width: 92px; white-space: nowrap; }
 .visitas-lista td.col-estado-visitas .visitas-estado-acotado ::deep .estado-fila { max-width: 92px; }
+/* La fila de grupo (solo th) también es un bloque de ancho completo: sin display propio, list-page.css la oculta
+   (.tabla-datos tbody tr:not(:has(td:not(:empty))), pensada para las filas vacías de QuickGrid) y, si no, sería table-row. */
+.tabla-datos.visitas-lista tbody tr.visitas-grupo { display: block; width: 100%; }
 .visitas-lista .visitas-grupo th { padding: 10px var(--space-4); color: var(--color-text); border-bottom: 1px solid var(--color-border); }
 .visitas-expandir { display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-text-muted); cursor: pointer; }
 .visitas-expandir:hover { background: var(--color-surface-hover); }
 .visitas-expandir ::deep .icono { transition: transform var(--motion-transition) var(--ease-fluid); }
 .visitas-expandir[aria-expanded="false"] ::deep .icono { transform: rotate(-90deg); }
 .visitas-expandir:focus-visible, .visitas-lista button:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
-.visitas-lista .visitas-fila-desplegada > td { padding: 4px var(--space-4) 4px 56px; border-bottom: 1px solid var(--color-border); background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface)); }
+/* El tbody es un bloque y las filas de dato son una rejilla de ancho completo. La fila desplegada, si fuese
+   table-row, quedaría en una tabla anónima que se ajusta al contenido (≈ 2/3 del ancho) y dejaría un hueco
+   sin fondo a la derecha: también es un bloque, y el fondo lo lleva la fila para que sea continuo. */
+.visitas-lista tr.visitas-fila-desplegada { display: block; width: 100%; background-color: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface)); }
+.visitas-lista .visitas-fila-desplegada > td { padding: 4px var(--space-4) 4px 56px; border-bottom: 1px solid var(--color-border); }
+.visitas-lista .visitas-fila-desplegada > td,
+.visitas-lista .visitas-fila-desplegada:hover > td { background-color: transparent; }
 .visitas-con-seleccion .visitas-fila-desplegada > td { padding-left: 100px; }
 .visitas-lista .visitas-fila-peligro { background: color-mix(in srgb, var(--color-danger-50) 45%, var(--color-surface)); }
 .visitas-lista .visitas-fila-advertencia { background: color-mix(in srgb, var(--color-warning-50) 45%, var(--color-surface)); }
+/* La fila de dato es una rejilla con huecos (gap): si el resalte del puntero (list-page.css: .tabla-datos tr:hover td)
+   y el foco de j/k (.fila-enfocada td) pintasen cada celda, quedarían franjas sin fondo entre columnas. Los pinta la fila. */
+.visitas-lista tr.fila-pulsable td,
+.visitas-lista tr.fila-pulsable:hover td,
+.visitas-lista tr.fila-pulsable.fila-enfocada td { background-color: transparent; box-shadow: none; }
+.visitas-lista tr.fila-pulsable.fila-enfocada { background-color: var(--color-primary-50); box-shadow: inset 2px 0 0 var(--color-primary-400); }
+.visitas-lista tr.fila-pulsable:hover { background-color: var(--color-fila-hover); transition: background-color var(--motion-base) var(--ease-standard); }
 .visitas-hijo { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); padding-block: 10px; border-top: 1px solid var(--color-border); }
 .visitas-hijo:first-of-type { border-top: 0; }
 .visitas-hijo-nombre { flex: none; width: 220px; text-align: left; font-weight: 600; }

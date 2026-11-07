@@ -95,12 +95,37 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
 
-    private int TrabajadoresConIncidencias => _resumen is null ? 0 : _resumen.Recuentos.Vencidas
+    /// <summary>Causas del ámbito Trabajador del Centro, agrupadas por Trabajador (las que no traen Trabajador no se pueden contar).</summary>
+    private IEnumerable<IGrouping<Guid?, IncidenciaCentroDto>> CausasPorTrabajador => _resumen is null ? [] : _resumen.Recuentos.Vencidas
         .Concat(_resumen.Recuentos.Proximas)
         .Where(i => i.Ambito == AmbitoCausa.Trabajador && i.TrabajadorId is not null)
-        .Select(i => i.TrabajadorId)
-        .Distinct()
-        .Count();
+        .GroupBy(i => i.TrabajadorId);
+
+    /// <summary>
+    /// Trabajadores con incidencia: los que tienen alguna causa que no es solo «por vencer» (misma regla que el bloque Empresa,
+    /// <see cref="IncidenciaCentroDto.HayIncidencia"/>). Un Trabajador cuyos documentos solo vencen pronto no cuenta aquí.
+    /// </summary>
+    private int TrabajadoresConIncidencias => CausasPorTrabajador.Count(g => IncidenciaCentroDto.HayIncidencia(g));
+
+    /// <summary>Trabajadores cuyas causas son todas «por vencer»: se avisan aparte (contador sin alerta, nunca en rojo), no como incidencia.</summary>
+    private int TrabajadoresSoloPorVencer => CausasPorTrabajador.Count(g => !IncidenciaCentroDto.HayIncidencia(g));
+
+    /// <summary>
+    /// Contador de la pestaña «Trabajadores»: con incidencias reales, su número en alerta; sin ellas pero con Trabajadores por
+    /// vencer, ese número sin alerta (ContadorPestana no tiene tono ámbar; DECISION_LOG 2026-11-07, punto 3: «Por vencer» no es incidencia); sin nada, «0» como siempre.
+    /// </summary>
+    private ContadorPestana ContadorTrabajadores()
+    {
+        var conIncidencia = TrabajadoresConIncidencias;
+        if (conIncidencia > 0 || TrabajadoresSoloPorVencer == 0)
+            return new ContadorPestana(conIncidencia,
+                Textos[conIncidencia == 1 ? "GlosaTrabajadorConIncidencias" : "GlosaTrabajadoresConIncidencias"],
+                EnAlerta: conIncidencia > 0);
+
+        var porVencer = TrabajadoresSoloPorVencer;
+        return new ContadorPestana(porVencer,
+            Textos[porVencer == 1 ? "GlosaTrabajadorPorVencer" : "GlosaTrabajadoresPorVencer"], EnAlerta: false);
+    }
 
     // Centro 360 del 20-10: el estado se rotula con la plataforma del primer canal de gestión por plataforma; sin él, el rótulo genérico.
     private string? NombrePlataformaCentro => _canales
@@ -141,9 +166,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     [
         new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
         {
-            Contador = new ContadorPestana(TrabajadoresConIncidencias,
-                Textos[TrabajadoresConIncidencias == 1 ? "GlosaTrabajadorConIncidencias" : "GlosaTrabajadoresConIncidencias"],
-                EnAlerta: TrabajadoresConIncidencias > 0)
+            Contador = ContadorTrabajadores()
         },
         // Maqueta del 20-10: el contador de «Documentación Empresa» son los documentos de la Empresa con incidencia, que antes
         // iban en un bloque al abrir «Trabajadores». Una pestaña sin nada que contar no enseña «0».
@@ -151,8 +174,9 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         {
             Contador = IncidenciasEmpresaHeader.Count > 0
                 ? new ContadorPestana(IncidenciasEmpresaHeader.Count,
-                    Textos[IncidenciasEmpresaHeader.Count == 1 ? "GlosaDocumentoEmpresaConIncidencia" : "GlosaDocumentosEmpresaConIncidencia"],
-                    EnAlerta: true)
+                    Textos[GlosaDocumentosEmpresa(IncidenciasEmpresaHeader)],
+                    // En alerta (rojo) solo con vencidos, pendientes o bloqueos; con solo documentos por vencer, sin alerta.
+                    EnAlerta: IncidenciaCentroDto.HayIncidencia(IncidenciasEmpresaHeader))
                 : null
         },
         new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
@@ -230,6 +254,16 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _resumen is null
             ? []
             : _resumen.Recuentos.Vencidas.Concat(_resumen.Recuentos.Proximas).Where(i => i.Ambito == AmbitoCausa.Empresa).ToList();
+
+    /// <summary>Clave de la glosa del contador de «Documentación Empresa»: «con incidencia» solo si la hay; si no, «por vencer».</summary>
+    private static string GlosaDocumentosEmpresa(IReadOnlyList<IncidenciaCentroDto> documentos) =>
+        (IncidenciaCentroDto.HayIncidencia(documentos), documentos.Count == 1) switch
+        {
+            (true, true) => "GlosaDocumentoEmpresaConIncidencia",
+            (true, false) => "GlosaDocumentosEmpresaConIncidencia",
+            (false, true) => "GlosaDocumentoEmpresaPorVencer",
+            (false, false) => "GlosaDocumentosEmpresaPorVencer"
+        };
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Centros"), new BreadcrumbElemento(_detalle?.Nombre ?? "…") };

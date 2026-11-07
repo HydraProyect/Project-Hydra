@@ -567,6 +567,16 @@
   <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
   <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>documento de Empresa con incidencia</value></data>
   <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documentos de Empresa con incidencia</value></data>
+  <data name="EmpresaBloqueDesplegarPorVencer" xml:space="preserve"><value>Documentos por vencer de {0}</value></data>
+  <data name="EmpresaBloqueTabla" xml:space="preserve"><value>Documentación con incidencia de {0}</value></data>
+  <data name="EmpresaBloqueTablaPorVencer" xml:space="preserve"><value>Documentación por vencer de {0}</value></data>
+  <data name="GlosaDocumentoEmpresaPorVencer" xml:space="preserve"><value>documento de Empresa por vencer</value></data>
+  <data name="GlosaDocumentosEmpresaPorVencer" xml:space="preserve"><value>documentos de Empresa por vencer</value></data>
+  <data name="GlosaTrabajadorPorVencer" xml:space="preserve"><value>trabajador por vencer</value></data>
+  <data name="GlosaTrabajadoresPorVencer" xml:space="preserve"><value>trabajadores por vencer</value></data>
+  <data name="EmpresaBloqueNotaPorVencer" xml:space="preserve"><value>Solo se listan los documentos por vencer; el resto de su documentación está en Detalles.</value></data>
+  <data name="EmpresaBloqueCifraPorVencerUno" xml:space="preserve"><value>{0} documento de empresa por vencer</value></data>
+  <data name="EmpresaBloqueCifraPorVencerVarios" xml:space="preserve"><value>{0} documentos de empresa por vencer</value></data>
   <data name="BloqueaAccesoEtiqueta" xml:space="preserve"><value>Bloquea acceso</value></data>
   <data name="EtiquetaAgrupar" xml:space="preserve">
     <value>Agrupar</value>
