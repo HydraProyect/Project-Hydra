@@ -40,7 +40,8 @@ public record CapasCalendarioDto(bool VeAlEquipo, IReadOnlyList<PersonaCapasCale
     /// <summary>
     /// Las comunidades de personas visibles cuyos autonómicos no están en el catálogo de un año que sí lo está
     /// (<see cref="CatalogoFestivosOficiales.Cubre"/> es false): a esas personas no se les marcan autonómicos ni
-    /// intensiva, y la barra lo avisa. Vacía en un año sin catálogo, que ya avisa <see cref="CatalogoCubreElAnio"/>.
+    /// intensiva, y la barra lo avisa. La Val d'Aran figura con su nombre (<see cref="CatalogoFestivosOficiales.NombreValDAran"/>),
+    /// no como «Cataluña». Vacía en un año sin catálogo, que ya avisa <see cref="CatalogoCubreElAnio"/>.
     /// </summary>
     public IReadOnlyList<string> ComunidadesSinAutonomicos { get; init; } = [];
 
@@ -153,7 +154,7 @@ public class ObtenerCapasCalendarioQueryHandler(
                     // Sin el calendario oficial de su año o de su comunidad no se sabe qué día es laborable. Sus
                     // festivos locales no están en el catálogo: la intensiva se marca igual y la barra lo avisa
                     // (IntensivaPuedeCaerEnFestivoLocal).
-                    CatalogoFestivosOficiales.Cubre(request.Anio, perfil.Comunidad)
+                    CatalogoFestivosOficiales.Cubre(request.Anio, perfil)
                         ? dias.Where(d => perfil.TieneJornadaIntensiva(d, festivosDelMes, PeriodoIntensiva.Verano)).ToList()
                         : [])))
                 .ToList();
@@ -169,9 +170,11 @@ public class ObtenerCapasCalendarioQueryHandler(
                 IntensivaPuedeCaerEnFestivoLocal = sinLocales.Any(c => c.Dto.DiasJornadaIntensiva.Count > 0),
                 ComunidadesSinAutonomicos = catalogoCubreElAnio
                     ? perfiles
-                        .Select(p => p.Comunidad).OfType<ComunidadAutonoma>()
-                        .Where(c => !CatalogoFestivosOficiales.Cubre(request.Anio, c))
-                        .Select(c => c.Nombre()).Distinct(StringComparer.Ordinal)
+                        .Where(p => p.Comunidad is not null && !CatalogoFestivosOficiales.Cubre(request.Anio, p))
+                        .Select(p => CatalogoFestivosOficiales.EsDeLaValDAran(p)
+                            ? CatalogoFestivosOficiales.NombreValDAran
+                            : p.Comunidad!.Value.Nombre())
+                        .Distinct(StringComparer.Ordinal)
                         .Order(StringComparer.CurrentCulture).ToList()
                     : [],
             };

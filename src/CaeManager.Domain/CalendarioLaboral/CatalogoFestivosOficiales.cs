@@ -24,6 +24,15 @@ namespace CaeManager.Domain.CalendarioLaboral;
 /// locales, y su jornada intensiva puede marcarse en uno de ellos (por ejemplo, el 10 de agosto en Huesca). La capa no
 /// lo calla: <see cref="IncluyeLocales"/> dice cuándo faltan y la barra de capas lo avisa.
 /// </para>
+///
+/// <para>
+/// <b>Val d'Aran: fuera de la cobertura de Cataluña.</b> Los autonómicos de Cataluña de este catálogo son los del
+/// cuadro general. En el territorio de Arán, la nota 2 de cada resolución sustituye uno por el 17 de junio (Fiesta de
+/// Arán): el 26 de diciembre de 2026 (BOE-A-2025-21667) y el 29 de marzo de 2027 (BOE-A-2026-21254). Contrastado en el
+/// BOE el 2026-11-07. Esas sustituciones no se siembran: a una persona de un municipio de Arán
+/// (<see cref="EsDeLaValDAran"/>) no le aplican los autonómicos de Cataluña (<see cref="FestivoOficial.AplicaA"/>),
+/// <see cref="Cubre"/> es false y la barra la avisa como «Val d'Aran», igual que una comunidad sin autonómicos.
+/// </para>
 /// </summary>
 public static class CatalogoFestivosOficiales
 {
@@ -112,13 +121,62 @@ public static class CatalogoFestivosOficiales
 
     /// <summary>
     /// Si el catálogo conoce los festivos nacionales y autonómicos de una persona ese año: el año está sembrado y su
-    /// comunidad, si la tiene, también. Sin ello la jornada intensiva no se pinta (se pintaría sobre festivos
-    /// nacionales o autonómicos que el catálogo no conoce). Sin comunidad se pinta: son los nacionales y la intensiva
-    /// por defecto de quien aún no tiene ubicación de trabajo. No mira los festivos locales: eso es
+    /// comunidad, si la tiene, también, y la persona no es de un municipio de la Val d'Aran (<see cref="EsDeLaValDAran"/>),
+    /// cuyos autonómicos no son los de Cataluña sembrados. Sin ello la jornada intensiva no se pinta (se pintaría sobre
+    /// festivos nacionales o autonómicos que el catálogo no conoce). Sin comunidad se pinta: son los nacionales y la
+    /// intensiva por defecto de quien aún no tiene ubicación de trabajo. No mira los festivos locales: eso es
     /// <see cref="IncluyeLocales"/>.
     /// </summary>
-    public static bool Cubre(int anio, ComunidadAutonoma? comunidad) =>
-        AniosCubiertos.Contains(anio) && (comunidad is null || ComunidadesCubiertas.Contains(comunidad.Value));
+    public static bool Cubre(int anio, PerfilLaboral perfil)
+    {
+        ArgumentNullException.ThrowIfNull(perfil);
+        return AniosCubiertos.Contains(anio)
+            && (perfil.Comunidad is null || ComunidadesCubiertas.Contains(perfil.Comunidad.Value))
+            && !EsDeLaValDAran(perfil);
+    }
+
+    /// <summary>Cómo nombra la barra de capas la Val d'Aran cuando avisa de que sus autonómicos no están en el catálogo.</summary>
+    public const string NombreValDAran = "Val d'Aran";
+
+    /// <summary>
+    /// Los nueve municipios de la comarca de Aran según Idescat (consultado el 2026-11-07): Arres, Bausen, Es Bòrdes,
+    /// Bossòst, Canejan, Les, Naut Aran, Vielha e Mijaran y Vilamòs; más sus formas castellanas (Las Bordas, Bosost,
+    /// Alto Arán, Viella y Medio Arán), «Vielha» o «Viella» a secas y el nombre del territorio, por si se escribe en el
+    /// municipio. Normalizados con <see cref="NormalizarParaComparar"/>.
+    /// </summary>
+    private static readonly HashSet<string> MunicipiosValDAran =
+    [
+        "arres", "bausen", "es bordes", "las bordas", "bossost", "bosost", "canejan", "les", "naut aran", "alto aran",
+        "vielha e mijaran", "viella y medio aran", "vielha", "viella", "vilamos",
+        "val d'aran", "vall d'aran", "valle de aran", "aran",
+    ];
+
+    /// <summary>
+    /// Si la persona trabaja en un municipio de la Val d'Aran: comunidad Cataluña y municipio de la comarca de Aran.
+    /// El municipio es texto libre: se compara sin mayúsculas, acentos ni espacios repetidos, y un nombre que no esté
+    /// en la lista (un núcleo como Salardú o una errata) no se reconoce y se trata como el resto de Cataluña. Sin
+    /// municipio tampoco se sabe: se aplica el cuadro general, y <see cref="IncluyeLocales"/> ya avisa de que falta.
+    /// </summary>
+    public static bool EsDeLaValDAran(PerfilLaboral perfil)
+    {
+        ArgumentNullException.ThrowIfNull(perfil);
+        return perfil.Comunidad == ComunidadAutonoma.Cataluna
+            && perfil.Municipio is { } municipio
+            && MunicipiosValDAran.Contains(NormalizarParaComparar(municipio));
+    }
+
+    private static string NormalizarParaComparar(string texto)
+    {
+        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var limpio = new System.Text.StringBuilder(descompuesto.Length);
+        foreach (var caracter in descompuesto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) == System.Globalization.UnicodeCategory.NonSpacingMark)
+                continue;
+            limpio.Append(caracter is '’' or '‘' or '´' or '`' ? '\'' : char.ToLowerInvariant(caracter));
+        }
+        return string.Join(' ', limpio.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
 
     /// <summary>
     /// Si el catálogo tiene los festivos locales de la persona ese año.

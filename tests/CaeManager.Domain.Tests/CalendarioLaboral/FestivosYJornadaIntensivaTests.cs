@@ -87,7 +87,53 @@ public class FestivosYJornadaIntensivaTests
     [InlineData(2028, null, false)]
     [InlineData(2027, ComunidadAutonoma.Madrid, false)]
     public void Cubre_exige_el_anio_y_la_comunidad_en_el_catalogo(int anio, ComunidadAutonoma? comunidad, bool esperado) =>
-        CatalogoFestivosOficiales.Cubre(anio, comunidad).Should().Be(esperado);
+        CatalogoFestivosOficiales.Cubre(anio, comunidad is { } c ? En(c) : PerfilLaboral.SinConfigurar).Should().Be(esperado);
+
+    [Theory]
+    // Idescat, comarca de Aran (2026-11-07): sus nueve municipios, y formas que alguien puede escribir.
+    [InlineData("Vielha e Mijaran")]
+    [InlineData("Bossòst")]
+    [InlineData("bossost")]
+    [InlineData("Naut Aran")]
+    [InlineData("Es Bòrdes")]
+    [InlineData("Les")]
+    [InlineData("Vilamòs")]
+    [InlineData("Arres")]
+    [InlineData("Bausen")]
+    [InlineData("Canejan")]
+    [InlineData("  VIELHA  ")]
+    [InlineData("Val d’Aran")]
+    public void La_Val_d_Aran_no_esta_cubierta_aunque_Cataluna_si(string municipio)
+    {
+        // BOE-A-2025-21667 y BOE-A-2026-21254, nota 2: en el territorio de Arán el 26-12-2026 y el 29-03-2027 se
+        // sustituyen por el 17 de junio (Fiesta de Arán). El catálogo no siembra esas sustituciones, así que no da por
+        // conocidos sus autonómicos: ni los de Cataluña, ni la intensiva.
+        var aran = En(ComunidadAutonoma.Cataluna, municipio: municipio);
+
+        CatalogoFestivosOficiales.EsDeLaValDAran(aran).Should().BeTrue();
+        foreach (var anio in CatalogoFestivosOficiales.AniosCubiertos)
+            CatalogoFestivosOficiales.Cubre(anio, aran).Should().BeFalse($"{municipio} {anio}");
+        aran.FestivosQueLeAplican(Catalogo).Should().OnlyContain(f => f.Ambito == AmbitoFestivo.Nacional,
+            "el cuadro general de Cataluña no es el de Arán");
+        aran.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeTrue("el Lunes de Pascua de 2027 está sustituido en Arán");
+    }
+
+    [Fact]
+    public void El_resto_de_Cataluna_sigue_cubierto_con_su_cuadro_general()
+    {
+        var barcelona = En(ComunidadAutonoma.Cataluna, municipio: "Barcelona");
+        var lleida = En(ComunidadAutonoma.Cataluna, municipio: "Lleida");
+        var sinMunicipio = En(ComunidadAutonoma.Cataluna);
+        var lesEnAragon = En(ComunidadAutonoma.Aragon, municipio: "Les");
+
+        foreach (var perfil in new[] { barcelona, lleida, sinMunicipio })
+        {
+            CatalogoFestivosOficiales.EsDeLaValDAran(perfil).Should().BeFalse();
+            CatalogoFestivosOficiales.Cubre(2027, perfil).Should().BeTrue();
+            perfil.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeFalse("es Lunes de Pascua en Cataluña");
+        }
+        CatalogoFestivosOficiales.EsDeLaValDAran(lesEnAragon).Should().BeFalse("solo cuenta en Cataluña");
+    }
 
     [Fact]
     public void El_catalogo_no_tiene_festivos_locales_y_con_municipio_lo_dice()

@@ -84,7 +84,9 @@ public sealed class FestivoOficial : Entity
 
     /// <summary>
     /// A una persona le aplican todos los nacionales, los autonómicos de su comunidad y los locales de su
-    /// municipio. Sin comunidad, solo los nacionales (Especificación § 3).
+    /// municipio. Sin comunidad, solo los nacionales (Especificación § 3). Los autonómicos de Cataluña del catálogo
+    /// son los del cuadro general y no aplican en la Val d'Aran, que sustituye uno por la Fiesta de Arán
+    /// (<see cref="CatalogoFestivosOficiales.EsDeLaValDAran"/>): allí solo se conocen los nacionales.
     /// </summary>
     public bool AplicaA(PerfilLaboral perfil)
     {
@@ -92,7 +94,8 @@ public sealed class FestivoOficial : Entity
         return Ambito switch
         {
             AmbitoFestivo.Nacional => true,
-            AmbitoFestivo.Autonomico => perfil.Comunidad is { } c && c == Comunidad,
+            AmbitoFestivo.Autonomico => perfil.Comunidad is { } c && c == Comunidad
+                                        && !CatalogoFestivosOficiales.EsDeLaValDAran(perfil),
             AmbitoFestivo.Local => perfil.Comunidad is { } c && c == Comunidad
                                    && perfil.Municipio is { } m
                                    && string.Equals(m, Municipio, StringComparison.OrdinalIgnoreCase),

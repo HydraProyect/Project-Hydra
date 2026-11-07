@@ -222,6 +222,25 @@ public class ObtenerCapasCalendarioQueryTests
     }
 
     [Fact]
+    public async Task La_Val_d_Aran_se_avisa_por_su_nombre_y_no_pinta_los_autonomicos_de_Cataluna()
+    {
+        var (directorio, contexto) = Escenario();
+        var vielha = Guid.NewGuid();
+        directorio.Asignar(vielha, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, vielha, ComunidadAutonoma.Cataluna, municipio: "Vielha e Mijaran");
+
+        var marzo2027 = await ConsultarAsync(vielha, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 3);
+        var julio2027 = await ConsultarAsync(vielha, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 7);
+
+        var persona = marzo2027.Personas.Should().ContainSingle().Subject;
+        persona.Comunidad.Should().Be("Cataluña", "«Festivos de» la sigue agrupando en su comunidad");
+        persona.Festivos.Should().OnlyContain(f => f.Ambito == AmbitoFestivo.Nacional, "el 29 de marzo está sustituido en Arán");
+        marzo2027.ComunidadesSinAutonomicos.Should().Equal(CatalogoFestivosOficiales.NombreValDAran);
+        julio2027.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().BeEmpty(
+            "sin sus autonómicos no se le marca intensiva");
+    }
+
+    [Fact]
     public async Task Un_festivo_autonomico_suyo_no_es_dia_de_intensiva()
     {
         var (directorio, contexto) = Escenario();

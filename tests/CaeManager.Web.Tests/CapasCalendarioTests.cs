@@ -248,4 +248,29 @@ public class CapasCalendarioTests : BunitContext
         lunes.FindAll(".capas-intensiva").Should().ContainSingle();
         lunes.FindAll(".capas-festivo").Should().BeEmpty();
     }
+
+    // En un día sin vencimientos ni visitas la celda no es botón: la línea de intensiva, sin texto, es lo único que
+    // la anuncia, y sin nombre accesible un lector de pantalla no la percibe.
+    [Theory]
+    [InlineData("es-ES", "Jornada intensiva · cuenta como día completo")]
+    [InlineData("ca-ES", "Jornada intensiva · compta com a dia complet")]
+    public void La_linea_de_intensiva_tiene_nombre_accesible_en_cada_idioma(string cultura, string esperado)
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(cultura);
+            var (_, marcas, _) = Montar(_ => Equipo());
+
+            var lunes = Render<MarcasCapasDia>(p => p.Add(c => c.Marcas, marcas()).Add(c => c.Fecha, Lunes9));
+
+            var linea = lunes.Find(".capas-intensiva");
+            linea.GetAttribute("role").Should().Be("img");
+            linea.GetAttribute("aria-label").Should().Be(esperado);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
 }

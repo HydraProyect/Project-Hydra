@@ -57,6 +57,9 @@ public sealed class MarcasCapasMes
 
     public bool TieneMarcas(DateOnly dia) => Festivos(dia).Count > 0 || Intensiva(dia);
 
+    /// <summary>El nombre accesible de la línea de jornada intensiva en la celda («Jornada intensiva · …»).</summary>
+    public string IntensivaAccesible => _intensivaAccesible;
+
     /// <summary>Lo que el día añade a su nombre accesible («. Festivo: …. Jornada intensiva · …»), vacío sin marcas.</summary>
     public string TextoAccesible(DateOnly dia)
     {
