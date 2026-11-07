@@ -5,7 +5,9 @@ namespace CaeManager.Application.Tests.Reclamaciones;
 
 /// <summary>
 /// Fake de <see cref="IResolucionDestinatariosAgendaService"/> para los tests
-/// de EnviarReclamacionCommandHandler/EnviarReclamacionEmpresaCommandHandler:
+/// de EnviarReclamacionCommandHandler/EnviarReclamacionEmpresaCommandHandler y del
+/// lote de Trabajador real (ObtenerLoteReclamacionQueryHandler, que pide
+/// ResolverParaClientesAsync sin que se grabe la llamada):
 /// devuelve una respuesta fija por llamada y graba con qué la llamaron, sin
 /// reproducir la lógica real de resolución de agenda (esa la cubre
 /// ResolucionDestinatariosAgendaServiceTests).
