@@ -231,6 +231,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (_detalle is null)
                 return;
             await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
+            // El chip lee el mismo estado materializado que los recuentos: si vencía algo de la Empresa, se entera aquí.
+            await CargarEstadoDocumentalAsync(conservarSiFalla: true);
             StateHasChanged();
         });
     }
@@ -445,14 +447,26 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         // contador (EmpresaDetalleDto.ClienteIds no está acotado).
         await CargarClientesAsync();
         await CargarContactoPrincipalAsync();
-        await CargarEstadoDocumentalAsync();
-        await CargarIncidenciasPlataformasAsync();
 
         // Mismo motivo que CentroDetalle: OnParametersSetAsync también corre
         // en el prerenderizado estático, y una tarea sin await ahí queda en
         // vuelo cuando ASP.NET Core ya liberó el scope de DI.
         if (RendererInfo.IsInteractive && carga == _cargaDetalle)
-            _ = CargarAccesoAsync();
+            _ = CargarEnSegundoPlanoAsync(carga);
+    }
+
+    /// <summary>
+    /// Lo que la ficha puede pintar después de la primera vez: el acceso a la carpeta, el chip de estado documental y el contador de
+    /// Plataformas. Van uno tras otro (comparten el scope de DI) y fuera de la carga principal, para que el esqueleto no espere a dos
+    /// consultas de lista y de acreditaciones que solo rellenan un chip y una cifra. Si la ficha cambió de Empresa mientras tanto, se corta.
+    /// </summary>
+    private async Task CargarEnSegundoPlanoAsync(int cargaDetalle)
+    {
+        await CargarAccesoAsync();
+        if (cargaDetalle != _cargaDetalle) return;
+        await CargarEstadoDocumentalAsync();
+        if (cargaDetalle != _cargaDetalle) return;
+        await CargarIncidenciasPlataformasAsync();
     }
 
     /// <summary>
@@ -948,7 +962,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// tiene documentos y la ficha diría «Sin documentos» donde la lista dice «Sin incidencias»). Hereda el alcance del listado. Un fallo no tumba la
     /// página: sin chip.
     /// </summary>
-    private async Task CargarEstadoDocumentalAsync()
+    private async Task CargarEstadoDocumentalAsync(bool conservarSiFalla = false)
     {
         var carga = ++_cargaEstadoDocumental;
         var empresaId = EmpresaId;
@@ -961,9 +975,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         }
         catch (Exception)
         {
-            if (carga == _cargaEstadoDocumental)
+            if (carga == _cargaEstadoDocumental && !conservarSiFalla)
                 _filaDelListado = null;
         }
+        if (carga == _cargaEstadoDocumental)
+            StateHasChanged();
     }
 
     /// <summary>
@@ -985,6 +1001,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaPlataformas)
                 _incidenciasPlataformas = null;
         }
+        if (carga == _cargaPlataformas)
+            StateHasChanged();
     }
 
     private Task IrAAgendaAsync() => CambiarPestanaAsync(PestanaAgenda);
