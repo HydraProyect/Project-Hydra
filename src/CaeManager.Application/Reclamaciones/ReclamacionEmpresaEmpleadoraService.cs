@@ -108,8 +108,9 @@ public class ReclamacionEmpresaEmpleadoraService(
 
         (Guid EmpresaId, Guid? DelegacionEmpresaId)? Destino(Guid? trabajadorId)
         {
-            // Un voluntario inactivo no se ofrece a nadie (ni a la Empresa ni, de vuelta, al Cliente): la regla de la Semana y el
-            // Mes, que el envío revalida en TrabajadoresDelDestinoAsync.
+            // En los lotes reagrupados, un voluntario inactivo no se ofrece ni a la Empresa ni, de vuelta, al Cliente: la regla
+            // de la Semana y el Mes, que el envío revalida en TrabajadoresDelDestinoAsync. El lote sin reagrupar (Centro 360) y
+            // EnviarReclamacionCommand no la aplican todavía: es deuda preexistente, fuera de este cambio.
             if (trabajadorId is not { } id || !deEmpresa.TryGetValue(id, out var trabajador) || trabajador.Inactivo
                 || !razonesSociales.ContainsKey(trabajador.EmpresaId))
                 return null;
