@@ -757,4 +757,5 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         Texto(FilaDeGrupo(cut, "Delegación Cataluña").QuerySelector(".fila-relacion-estado")!).Should().Be("Vencido", "tiene un vencido y un por vencer");
         Texto(FilaDeGrupo(cut, "Contactos de la Empresa").QuerySelector(".fila-relacion-estado")!).Should().Be("Pendiente");
-    }}
+    }
+}
