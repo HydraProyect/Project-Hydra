@@ -1,4 +1,4 @@
-﻿using CaeManager.Web.Components.Layout;
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -364,14 +364,24 @@ public partial class Empresa360PaginaTests : BunitContext
         acciones.QuerySelectorAll("a").Single(x => x.TextContent.Contains("Detectar altas y bajas"))
             .ClassList.Should().NotContain("boton-primario", "la acción principal es subir el documento");
     }
-
     // ── Chip de estado documental y contador de Plataformas (maqueta «Empresa 360») ──
+    // Los dos salen de la carga en segundo plano de la ficha (después del acceso a la carpeta): el esqueleto no espera a esas dos consultas.
 
     private static EmpresaListaDto FilaDelListado(EstadoDocumento? estado, bool vencidoSinBloqueo = false) =>
         new(EmpresaId, "Ibertec GmbH", "B-48.220.917", DateTime.UtcNow, estado) { VencidoSinBloqueo = vencidoSinBloqueo };
 
     private static IElement? ChipEstado(IRenderedComponent<EmpresaDetalle> cut) =>
         cut.Find(".cabecera-identidad-datos").QuerySelector(".badge");
+
+    /// <summary>
+    /// Espera al último paso del segundo plano (el contador de Plataformas) y a que el repintado que lo sigue haya corrido, para que
+    /// las pruebas de AUSENCIA no pasen en vacío por mirar antes de tiempo.
+    /// </summary>
+    private static async Task EsperarSegundoPlanoAsync(IRenderedComponent<EmpresaDetalle> cut, MediatorFalso mediador)
+    {
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerAcreditacionesPorProveedorQuery>().Should().NotBeEmpty());
+        await cut.InvokeAsync(() => { });
+    }
 
     [Fact]
     public void El_chip_de_estado_documental_sale_de_la_misma_consulta_de_fila_que_el_listado()
@@ -382,6 +392,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
         var chip = ChipEstado(cut)!;
         chip.TextContent.Trim().Should().Be("Vencido");
         chip.ClassList.Should().Contain("badge-peligro").And.Contain("badge-pequeno");
@@ -399,44 +410,68 @@ public partial class Empresa360PaginaTests : BunitContext
         mediador.FilasDelListado[EmpresaId] = FilaDelListado(EstadoDocumento.Vencido, vencidoSinBloqueo: true);
         Registrar(mediador);
 
-        var chip = ChipEstado(Renderizar())!;
+        var cut = Renderizar();
 
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
+        var chip = ChipEstado(cut)!;
         chip.TextContent.Trim().Should().Be("Vencido");
         chip.ClassList.Should().Contain("badge-advertencia").And.NotContain("badge-peligro");
     }
 
     [Theory]
-    [InlineData(EstadoDocumento.Vigente, "Sin incidencias")]
-    [InlineData(EstadoDocumento.SinCaducidad, "Sin incidencias")]
     [InlineData(EstadoDocumento.Faltante, "Pendiente")]
     [InlineData(EstadoDocumento.Urgente, "Por vencer")]
-    public void El_chip_usa_el_rotulo_del_listado_para_cada_estado(EstadoDocumento estado, string rotulo)
+    [InlineData(EstadoDocumento.Proximo, "Por vencer")]
+    public void El_chip_usa_el_rotulo_del_listado_para_cada_estado_que_hay_que_atender(EstadoDocumento estado, string rotulo)
     {
         var mediador = Empresa();
         mediador.FilasDelListado[EmpresaId] = FilaDelListado(estado);
         Registrar(mediador);
 
-        ChipEstado(Renderizar())!.TextContent.Trim().Should().Be(rotulo);
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
+        ChipEstado(cut)!.TextContent.Trim().Should().Be(rotulo);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
+    public void Lo_correcto_se_dice_en_texto_sin_pastilla_como_en_la_lista(EstadoDocumento estado)
+    {
+        var mediador = Empresa();
+        mediador.FilasDelListado[EmpresaId] = FilaDelListado(estado);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Sin incidencias"));
+        ChipEstado(cut).Should().BeNull("el color queda para lo que hay que atender");
     }
 
     [Fact]
-    public void Sin_fila_en_el_listado_o_con_el_listado_roto_no_hay_chip_y_la_cabecera_sigue()
+    public async Task Sin_fila_en_el_listado_no_hay_chip_y_la_cabecera_sigue()
     {
         var sinFila = Empresa();
         Registrar(sinFila);
+
         var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, sinFila);
+
+        sinFila.Enviadas.OfType<ObtenerEmpresasQuery>().Should().ContainSingle("la consulta salió y no devolvió fila");
         ChipEstado(cut).Should().BeNull("sin fila en el listado no se supone ningún estado");
         cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("B-48.220.917");
     }
 
     [Fact]
-    public void Si_la_consulta_del_listado_falla_no_hay_chip_ni_error_de_pagina()
+    public async Task Si_la_consulta_del_listado_falla_no_hay_chip_ni_error_de_pagina()
     {
         var mediador = Empresa();
         mediador.FallarListado = true;
         Registrar(mediador);
 
         var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
 
         ChipEstado(cut).Should().BeNull();
         cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
@@ -469,8 +504,8 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
+        cut.WaitForAssertion(() => Pestana(cut, "Plataformas").TextContent.Should().Contain("3", "las validadas no son incidencias"));
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true", "la pestaña Plataformas sigue cerrada");
-        Pestana(cut, "Plataformas").TextContent.Should().Contain("3", "las validadas no son incidencias");
         // El universo es el de la pestaña: la misma petición que ella hace, acotada a ESTA Empresa.
         var consulta = mediador.Enviadas.OfType<ObtenerAcreditacionesPorProveedorQuery>().Should().ContainSingle().Subject;
         consulta.Should().Be(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true, SoloDocumentosDeEmpresaId: EmpresaId),
@@ -478,22 +513,27 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Sin_incidencias_o_con_la_lectura_rota_la_pestana_Plataformas_no_lleva_contador()
+    public async Task Con_todo_validado_la_pestana_Plataformas_no_lleva_contador()
     {
-        var todoValidado = Empresa();
-        todoValidado.Plataformas[EmpresaId] = PlataformasConIncidencias(pendientes: 0, validados: 4);
-        Registrar(todoValidado);
-        Pestana(Renderizar(), "Plataformas").TextContent.Trim().Should().Be("Plataformas", "cero incidencias no se enseña como contador");
+        var mediador = Empresa();
+        mediador.Plataformas[EmpresaId] = PlataformasConIncidencias(pendientes: 0, validados: 4);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
+
+        Pestana(cut, "Plataformas").TextContent.Trim().Should().Be("Plataformas", "cero incidencias no se enseña como contador");
     }
 
     [Fact]
-    public void Si_la_lectura_de_Plataformas_falla_la_pestana_no_lleva_contador_y_la_ficha_carga()
+    public async Task Si_la_lectura_de_Plataformas_falla_la_pestana_no_lleva_contador_y_la_ficha_carga()
     {
         var mediador = Empresa();
         mediador.FallarPlataformas = true;
         Registrar(mediador);
 
         var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
 
         Pestana(cut, "Plataformas").TextContent.Trim().Should().Be("Plataformas");
         cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");

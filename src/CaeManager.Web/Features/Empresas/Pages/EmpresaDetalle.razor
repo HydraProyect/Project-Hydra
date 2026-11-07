@@ -95,7 +95,15 @@
                     {
                         <span aria-hidden="true">·</span>
                     }
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(filaEstado.EstadoDocumental, filaEstado.VencidoSinBloqueo)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</Badge>
+                    @* Como en la lista: lo correcto se dice en texto sin pastilla de color; el color queda para lo que hay que atender. *@
+                    @if (EstadoDocumentoUi.EsCorrecto(filaEstado.EstadoDocumental))
+                    {
+                        <span>@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</span>
+                    }
+                    else
+                    {
+                        <Badge Tono="EstadoDocumentoUi.TonoDocumental(filaEstado.EstadoDocumental, filaEstado.VencidoSinBloqueo)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</Badge>
+                    }
                 }
             </Datos>
             <Acciones>
