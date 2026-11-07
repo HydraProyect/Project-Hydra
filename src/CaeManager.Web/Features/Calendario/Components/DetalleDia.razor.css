@@ -30,5 +30,5 @@
 /* Un botón «Reclamar los N» por Empresa cuando el día mezcla varias: se apilan a la derecha y, en móvil, a todo el ancho. */
 .detalle-dia-pie-botones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-left: auto; min-width: 0; max-width: 100%; }
 /* El nombre de la Empresa puede ser largo: el botón parte el texto en vez de desbordar el diálogo. */
-.detalle-dia-pie-botones ::deep .boton { white-space: normal; height: auto; min-height: 40px; padding-block: 8px; text-align: center; line-height: 1.25; }
+.detalle-dia-pie-botones ::deep .boton { white-space: normal; height: auto; padding-block: 8px; text-align: center; line-height: 1.25; }
 @media (max-width: 480px) { .detalle-dia-pie-botones { width: 100%; flex-direction: column; align-items: stretch; } }
