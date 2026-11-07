@@ -51,6 +51,9 @@ public static class CabecerasSeguridadExtensions
     // en esa página, en cualquier entorno.
     private static readonly ConcurrentDictionary<ImportMapDefinition, string> _hashesImportMapPorDefinicion = new();
 
+    /// <summary>Ninguna respuesta de la aplicación se indexa ni transmite enlaces a buscadores.</summary>
+    public const string ValorXRobotsTag = "noindex, nofollow";
+
     public static IApplicationBuilder UseCabecerasSeguridad(this IApplicationBuilder app)
     {
         return app.Use(async (contexto, siguiente) =>
@@ -96,6 +99,14 @@ public static class CabecerasSeguridadExtensions
         // una inyección futura las pida en nombre del usuario.
         cabeceras["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
         cabeceras["Referrer-Policy"] = PoliticaReferer(contexto.Request);
+        // La aplicación (app.talveg.es y staging.talveg.es sirven esta misma imagen)
+        // no debe aparecer en buscadores ni competir con la web pública en las
+        // búsquedas de marca. Va en la cabecera y no en una <meta> porque así
+        // cubre también lo que no es HTML (PDF, imágenes, JSON, /salud). Para
+        // que el buscador llegue a leerla, wwwroot/robots.txt NO bloquea el
+        // rastreo: una URL vetada en robots.txt no se descarga y puede
+        // indexarse igualmente, sin contenido, a partir de enlaces externos.
+        cabeceras["X-Robots-Tag"] = ValorXRobotsTag;
 
         // Por defecto nada se cachea: todo lo que no pasa por aquí como
         // caso especial va contra MediatR con datos de tenant y no debe
