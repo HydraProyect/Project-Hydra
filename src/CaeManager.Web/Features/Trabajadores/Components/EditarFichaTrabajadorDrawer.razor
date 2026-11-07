@@ -221,15 +221,6 @@
 
     private void IrAPaso(string clave) => _paso = clave;
 
-    /// <summary>El paso donde está lo que rechazó el servidor (documento, marca de extranjero cobrable, Delegación y Oficio); nulo si no es de un campo.</summary>
-    private string? PasoDelCodigoDeError(string codigo) => codigo switch
-    {
-        "Trabajador.DocumentoNoValido" or "Trabajador.DocumentoSinGestion" or "Trabajador.DniDuplicado" => PasoBasico,
-        "Trabajador.SinEmpresa" or "Delegacion.NoEncontrada" or "Oficio.NoEncontrado" => PasoTrabajo,
-        "Trabajador.ExtranjeroCobrableSinGestion" => PasoSituacion,
-        _ => null,
-    };
-
     private void AnotarErrores(IEnumerable<FluentValidation.Results.ValidationFailure> fallos) =>
         _errores = fallos.GroupBy(f => f.PropertyName).ToDictionary(g => g.Key, g => g.First().ErrorMessage);
 
