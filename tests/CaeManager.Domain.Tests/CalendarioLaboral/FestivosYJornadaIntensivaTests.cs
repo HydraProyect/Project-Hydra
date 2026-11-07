@@ -48,11 +48,11 @@ public class FestivosYJornadaIntensivaTests
         // Estatuto de los Trabajadores, art. 37.2: hasta catorce, de ellos dos locales; el catálogo no siembra
         // locales, así que cada comunidad cubierta debe sumar los doce nacionales y autonómicos.
         foreach (var comunidad in CatalogoFestivosOficiales.ComunidadesCubiertas)
-        foreach (var anio in new[] { 2026, 2027 })
-        {
-            En(comunidad).FestivosQueLeAplican(Catalogo).Count(f => f.Fecha.Year == anio)
-                .Should().Be(12, $"{comunidad.Nombre()} {anio}");
-        }
+            foreach (var anio in new[] { 2026, 2027 })
+            {
+                En(comunidad).FestivosQueLeAplican(Catalogo).Count(f => f.Fecha.Year == anio)
+                    .Should().Be(12, $"{comunidad.Nombre()} {anio}");
+            }
     }
 
     [Theory]
