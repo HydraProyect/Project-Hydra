@@ -728,6 +728,10 @@ public class Subcontrata360PaginaTests : BunitContext
             cut.FindAll(".cabecera-identidad-acciones button").Select(b => b.TextContent).Should().NotContain(t => t.Contains("Registrar verificación"));
             seccion.TextContent.Should().Contain("Gestionada: tu equipo guarda y renueva").And.Contain("RNT gestionado").And.Contain("Seguro gestionado");
             seccion.QuerySelectorAll(".fila-relacion .badge").Select(b => b.TextContent.Trim()).Should().Equal("Vencido", "Vigente");
+            // El icono de cada documento tiene que existir en el catálogo de Icono: un nombre inexistente pinta un cuadro vacío a la izquierda de la fila.
+            var iconos = seccion.QuerySelectorAll(".fila-relacion .fila-relacion-icono svg").ToList();
+            iconos.Should().HaveCount(2);
+            iconos.Should().OnlyContain(i => i.QuerySelectorAll("*").Length > 0, "el icono de la fila de Gestión no puede salir vacío");
             seccion.QuerySelectorAll(".fila-relacion").First().GetAttribute("data-tono").Should().Be("peligro");
             var q = m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle().Which;
             q.PropietarioId.Should().Be(SubcontrataId);

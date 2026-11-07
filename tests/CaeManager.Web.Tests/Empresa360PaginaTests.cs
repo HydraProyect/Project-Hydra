@@ -317,6 +317,10 @@ public partial class Empresa360PaginaTests : BunitContext
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
         // «Detectar altas y bajas» y el menú siguen en la cabecera.
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.TextContent.Should().Contain("Detectar altas y bajas");
+        // Maqueta «Empresa 360 página»: los dos enlaces de la cabecera son botones secundarios de 13 px, sin subrayado ni borde propio.
+        cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelectorAll("a.boton")
+            .Where(a => a.TextContent.Contains("Detectar altas y bajas") || a.TextContent.Contains("Reclamar para acceso"))
+            .Should().NotBeEmpty().And.OnlyContain(a => a.ClassList.Contains("empresa360-accion-cabecera"));
         cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!.GetAttribute("title").Should().Be("Más acciones");
 
         mediador.Enviadas.Should().Contain(new ObtenerEmpresaPorIdQuery(EmpresaId));

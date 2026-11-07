@@ -188,7 +188,7 @@
     <value>{0} de {1} desfetes. {2}</value>
   </data>
   <data name="RevIaReglaBloque" xml:space="preserve">
-    <value>Acceptació en bloc: tries la confiança i confirmes tu</value>
+    <value>Llindar de confirmació en lot: {0} %</value>
   </data>
   <data name="RevIaFallosTitulo" xml:space="preserve">
     <value>No s'han pogut acceptar {0} lectura(es); continuen pendents:</value>
