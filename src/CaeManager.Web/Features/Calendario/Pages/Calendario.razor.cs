@@ -188,8 +188,8 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
         : [];
 
     // «Reclamar» desde el día del Mes: el drawer de lote es de un único titular, así que el detalle ofrece un botón por
-    // Empresa y aquí llegan los Documentos de UNA. Se acota a lo que el Mes marcó reclamable (la misma regla que la Semana)
-    // y se reutiliza el drawer de la Semana por Empresa; el envío revalida el alcance de gestión.
+    // Empresa y aquí llegan los Documentos de UNA. Se acota a lo que el Mes marcó reclamable (la regla de la Semana más la
+    // Asignación reclamable del lote, AsignacionesReclamables) y se reutiliza el drawer de la Semana por Empresa; el envío revalida el alcance de gestión.
     private void ReclamarDelDia(IReadOnlyList<Guid> documentoIds)
     {
         var elegidos = _vencimientos
