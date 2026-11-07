@@ -212,7 +212,7 @@ public partial class CentrosListaPatronTests
     public void El_apilado_llega_hasta_1199_px_y_las_dos_rejillas_de_escritorio_caben_justo_por_encima()
     {
         CssLista().Should().Contain("@media (max-width: 1199px) {")
-            .And.NotContain("@media (max-width: 900px)", "el corte de 900 px dejaba sin apilar la franja de 901 a 1199 px, donde la rejilla desbordaba");
+            .And.NotMatchRegex(@"@media[^{]*max-width\s*:\s*900px", "el corte de 900 px dejaba sin apilar la franja de 901 a 1199 px, donde la rejilla desbordaba");
 
         // Anchura mínima de una rejilla: pistas mínimas + huecos de 16 px + relleno de 16 px a cada lado de la fila.
         static int Minimo(string pistas)

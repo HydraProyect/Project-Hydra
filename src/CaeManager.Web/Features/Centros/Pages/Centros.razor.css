@@ -228,7 +228,7 @@
   Celda de estado: no desborda su pista. El motivo de EstadoFila recorta lo que no cabe (una línea con puntos
   suspensivos); aquí contiene las ventanas de contexto de las incidencias, cuyo panel sale de la caja: recortado
   no se vería. Como no puede recortar, parte por sus piezas («24 pendientes · 2 bloqueos de plataforma · 2 por
-  vencer» ocupa dos o tres líneas en la pista de 170 px) en vez de salirse por el borde y pisar el icono 360.
+  vencer» ocupa dos o tres líneas en la pista de 170 px, o de 150 con la selección múltiple) en vez de salirse por el borde y pisar el icono 360.
 */
 .celda-estado-centro {
     min-width: 0;
@@ -265,7 +265,8 @@
 }
 
 /*
-  Pantalla estrecha (≤ 1199 px, el mismo corte que la lista de Empresas): la rejilla de seis pistas pide 856 px (24 + 200 +
+  Pantalla estrecha (≤ 1199 px, el mismo corte que la lista de Empresas en #2063, rama pantallas/empresas-lista-375, para
+  que las dos listas cambien a la vez; la maqueta, en cambio, conserva la tabla con 860 px mínimos y scroll horizontal): la rejilla de seis pistas pide 856 px (24 + 200 +
   180 + 130 + 170 + 40 de pistas mínimas, cinco huecos de 16 y 16 + 16 de relleno de la fila); con la casilla de
   selección múltiple (28 px y otro hueco) serían 900, y por eso .rejilla-centros-seleccion rebaja sus mínimos y pide 840.
   Con la barra lateral visible (desde 1024 px) la tarjeta mide el viewport menos ~326 px: a 1024 px, 698 px de tarjeta
@@ -336,7 +337,7 @@
         padding-left: 64px;
     }
 
-    /* La fila desplegada no necesita la sangría de escritorio (56/100 px): en 375 px dejaría la mitad del ancho vacía. */
+    /* La fila desplegada no necesita la sangría de escritorio (56/100 px): la fila es ya una tarjeta estrecha (en 375 px dejaría la mitad del ancho vacía; de 901 a 1199 px, como en Empresas, el detalle no cuelga bajo el nombre). */
     .marco-lista-centros .tarjeta-fila-acordeon-contenido,
     .marco-lista-centros .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
         padding-left: var(--space-4);
