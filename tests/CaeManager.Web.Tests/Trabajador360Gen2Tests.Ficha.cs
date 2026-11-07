@@ -319,21 +319,52 @@ public partial class Trabajador360Gen2Tests
         drawer.FindComponent<DrawerFormulario>().Instance.HayErroresDeCampo.Should().BeFalse("el error es de Situación y se está en Lo básico");
     }
 
-    // Delegación u Oficio que el servidor no encuentra: el rechazo lleva al paso Trabajo, donde están sus campos.
+    // Cada código del servidor que apunta a un campo lleva al paso donde está ese campo, desde cualquier otro paso.
     [Theory]
-    [InlineData("Delegacion.NoEncontrada")]
-    [InlineData("Oficio.NoEncontrado")]
-    public async Task Un_rechazo_de_delegacion_u_oficio_lleva_a_trabajo(string codigo)
+    [InlineData("Trabajador.DocumentoNoValido", "Lo básico", "Situación")]
+    [InlineData("Trabajador.DocumentoSinGestion", "Lo básico", "Situación")]
+    [InlineData("Trabajador.SinEmpresa", "Trabajo", "Situación")]
+    [InlineData("Delegacion.NoEncontrada", "Trabajo", "Situación")]
+    [InlineData("Oficio.NoEncontrado", "Trabajo", "Situación")]
+    [InlineData("Trabajador.ExtranjeroCobrableSinGestion", "Situación", "Lo básico")]
+    public async Task Un_rechazo_del_servidor_sobre_un_campo_lleva_a_su_paso(string codigo, string pasoEsperado, string pasoDeSalida)
     {
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
-        m.ResultadoFicha = Result.Fallo(Error.Crear(codigo, "No se encontró lo elegido."));
+        m.ResultadoFicha = Result.Fallo(Error.Crear(codigo, "No se pudo guardar eso."));
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
-        await IrAPasoFicha(drawer, "Situación");
+        await IrAPasoFicha(drawer, pasoDeSalida);
 
         await GuardarFicha(drawer);
 
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle();
+        PasoActivoFicha(drawer).Should().Be(pasoEsperado);
+        drawer.Markup.Should().Contain("No se pudo guardar eso.");
+    }
+
+    // «Siguiente» sobre un paso con error no borra los errores que un «Guardar» anterior dejó en otros pasos.
+    [Fact]
+    public async Task Siguiente_conserva_los_errores_de_otros_pasos()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+        await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "ABC");
+        await PulsarFicha(drawer, "Atrás");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-05-02");
+        await CambiarCampoFicha(drawer, "Baja", "2023-05-01");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
         PasoActivoFicha(drawer).Should().Be("Trabajo");
-        drawer.Markup.Should().Contain("No se encontró lo elegido.");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "la baja sigue anterior al alta");
+
+        await CambiarCampoFicha(drawer, "Baja", "2023-06-01");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "N.º de afiliación a la Seguridad Social")
+            .Instance.MensajeError.Should().NotBeNullOrWhiteSpace("el error de afiliación sigue señalado");
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
     }
 
     // Lo que rechaza el servidor sobre un campo (aquí el documento) lleva al paso donde está, con el mensaje a la vista.

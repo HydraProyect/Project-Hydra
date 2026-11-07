@@ -203,7 +203,8 @@
         var fallos = Validar().Where(f => PasoDelCampo(f.PropertyName) == _paso).ToList();
         if (fallos.Count > 0)
         {
-            AnotarErrores(fallos);
+            // Se suman a los de otros pasos que dejó un «Guardar» anterior: no se pierden por pulsar «Siguiente».
+            foreach (var fallo in fallos.GroupBy(f => f.PropertyName)) _errores[fallo.Key] = fallo.First().ErrorMessage;
             return Task.CompletedTask;
         }
 
