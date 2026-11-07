@@ -249,7 +249,7 @@
     background: var(--color-surface-hover);
 }
 
-/* Control compacto de ámbito: botón de 36px (como el «Ordenar por» de la maqueta) y lista flotante. */
+/* Control compacto de ámbito dentro de «Vista y filtros»: botón de 36px y lista flotante anclada a su borde izquierdo. */
 .mi-trabajo-cartera {
     position: relative;
 }
@@ -293,7 +293,7 @@
 .mi-trabajo-cartera-lista {
     position: absolute;
     top: calc(100% + var(--space-1));
-    right: 0;
+    left: 0;
     z-index: 20;
     display: flex;
     flex-direction: column;
@@ -310,14 +310,6 @@
 
 .mi-trabajo-cartera-lista[hidden] {
     display: none;
-}
-
-@media (max-width: 768px) {
-    /* En móvil las acciones bajan a la segunda fila y el wrapper arranca a la izquierda: la lista se ancla a su borde izquierdo. */
-    .mi-trabajo-cartera-lista {
-        left: 0;
-        right: auto;
-    }
 }
 
 .mi-trabajo-cartera-cabecera {
@@ -399,6 +391,55 @@
 .mi-trabajo-cartera-total {
     font: var(--font-label-md);
     font-weight: 700;
+}
+
+/* Maqueta: «Ordenar por [Impacto]», selector de 36px arriba a la derecha. */
+.mi-trabajo-ordenar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-trabajo-ordenar-select {
+    min-height: 36px;
+    padding: 0 10px;
+    border: var(--border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+/* «Vista y filtros»: pliega lo que la maqueta no dibuja (Empresa, Agrupar por, filtro y Expandir todas). */
+.mi-trabajo-vista-alternar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.mi-trabajo-vista-alternar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.mi-trabajo-vista-activos {
+    min-width: 18px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-primario-fondo);
+    color: var(--color-primario-texto);
+    font: 600 11px/14px var(--font-family);
+    text-align: center;
 }
 
 .mi-trabajo-barra {
@@ -900,6 +941,28 @@
 
 .propagaciones-fila ::deep form { flex: none; }
 .propagaciones-fila ::deep button { min-height: 34px; }
+
+.propagaciones-pie {
+    display: flex;
+    justify-content: center;
+    padding: 8px 16px;
+}
+
+.propagaciones-ver-todas {
+    min-height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.propagaciones-ver-todas:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
 
 .propagaciones-vacio {
     margin: 0;

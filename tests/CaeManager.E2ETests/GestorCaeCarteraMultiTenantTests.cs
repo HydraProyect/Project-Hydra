@@ -314,7 +314,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         // Mi trabajo: el panel de cartera lista A y B (barrera) y no el Tenant de fuera.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
-        // El ámbito de cartera es un control compacto de la cabecera (maqueta de columna única): se despliega para leerlo.
+        // El ámbito de cartera vive tras «Vista y filtros» (la maqueta no lo dibuja): se abre el panel y se despliega el control para leerlo.
+        await AbrirVistaAsync(page);
         await page.Locator(".mi-trabajo-cartera-resumen").ClickAsync();
         var cartera = page.Locator(".mi-trabajo-cartera .mi-trabajo-cartera-nombre");
         await Expect(cartera.Filter(new() { HasText = TenantBeneficiarioA })).ToBeVisibleAsync(EsperaEnFrio);
@@ -323,10 +324,17 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // La lista es un popover sobre la cola: se cierra para poder pulsar los controles de debajo.
         await page.Locator(".mi-trabajo-cartera-resumen").ClickAsync();
         await Expect(page.Locator(".mi-trabajo-cartera-lista")).ToBeHiddenAsync();
-        // Mi trabajo carga con todo plegado: se despliega la cola entera (barrera: la de A ya se ve) para que
+        // Mi trabajo carga con solo el primer grupo desplegado: se despliega la cola entera (barrera: la de A ya se ve) para que
         // la ausencia del Tenant de fuera diga algo.
         await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
-        await page.Locator(".mi-trabajo-plegar-todas").ClickAsync();
+        var plegarTodas = page.Locator(".mi-trabajo-plegar-todas");
+        // El primer grupo carga desplegado y el botón dice «Plegar todas»: primero se pliega todo y después se despliega entero.
+        if ((await plegarTodas.InnerTextAsync()).Trim() == "Plegar todas")
+        {
+            await plegarTodas.ClickAsync();
+            await Expect(plegarTodas).ToHaveTextAsync("Expandir todas");
+        }
+        await plegarTodas.ClickAsync();
         await Expect(page.Locator("button[data-fila-abrir][aria-label$='· " + TenantBeneficiarioA + "']")).Not.ToHaveCountAsync(0);
         await Expect(page.Locator("button[data-fila-abrir][aria-label$='· " + TenantFueraDeCartera + "']")).ToHaveCountAsync(0);
 
@@ -517,6 +525,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     /// </summary>
     private static async Task FiltrarColaAsync(IPage page, string texto, bool esperaEnFrio = false)
     {
+        await AbrirVistaAsync(page);
         var filtro = page.GetByLabel("Filtrar esta cola por trabajador, documento o centro", new() { Exact = true });
         if (esperaEnFrio)
             await Expect(filtro).ToBeVisibleAsync(EsperaEnFrio);
@@ -536,6 +545,16 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // Una cola que aún consulta otra Empresa de la cartera (arranque en frío) no ha terminado de pintar.
         await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
         await Expect(filtro).ToHaveValueAsync(texto);
+    }
+
+    /// <summary>«Vista y filtros» (Empresa, Agrupar por, filtro de la cola y Expandir todas) carga plegada salvo que la URL traiga un filtro.</summary>
+    private static async Task AbrirVistaAsync(IPage page)
+    {
+        var alternar = page.Locator(".mi-trabajo-vista-alternar");
+        await Expect(alternar).ToBeVisibleAsync(EsperaEnFrio);
+        if (await alternar.GetAttributeAsync("aria-expanded") != "true")
+            await alternar.ClickAsync();
+        await Expect(alternar).ToHaveAttributeAsync("aria-expanded", "true");
     }
 
     private Task<string> IdTenantAsync(string nombre) =>

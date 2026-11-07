@@ -17,6 +17,7 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         m.Detalles[id] = m.Detalles[id] with { ExtranjeroCobrableVisible = true, ExtranjeroCobrablePorDocumento = true };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
 
         var casilla = drawer.Find("[data-campo='extranjero-cobrable'] input");
         casilla.HasAttribute("checked").Should().BeTrue("su documento lo cuenta como extranjero");
@@ -41,6 +42,7 @@ public partial class Trabajador360Gen2Tests
             MarcaExtranjeroCobrable = true
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
 
         var casilla = drawer.Find("[data-campo='extranjero-cobrable'] input");
         casilla.HasAttribute("checked").Should().BeTrue("la marca manda");
@@ -70,7 +72,10 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
+        await IrAPasoFicha(drawer, "Situación");
         drawer.FindAll("[data-campo='extranjero-cobrable']").Should().BeEmpty();
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
         await CambiarCampoFicha(drawer, "Nacionalidad", "Colombiana");
         await GuardarFicha(drawer);
 

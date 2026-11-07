@@ -81,11 +81,23 @@
   <data name="Severidad" xml:space="preserve">
     <value>Severidad</value>
   </data>
-  <data name="Ordenar" xml:space="preserve">
-    <value>Ordenar</value>
+  <data name="OrdenarPor" xml:space="preserve">
+    <value>Ordenar por</value>
   </data>
-  <data name="Prioridad" xml:space="preserve">
-    <value>Prioridad</value>
+  <data name="Impacto" xml:space="preserve">
+    <value>Impacto</value>
+  </data>
+  <data name="VistaYFiltros" xml:space="preserve">
+    <value>Vista y filtros</value>
+  </data>
+  <data name="VistaYFiltrosActivos" xml:space="preserve">
+    <value>Opciones de vista activas</value>
+  </data>
+  <data name="PropagacionesVerTodas" xml:space="preserve">
+    <value>Ver todas ({0})</value>
+  </data>
+  <data name="PropagacionesVerMenos" xml:space="preserve">
+    <value>Ver menos</value>
   </data>
   <data name="Cliente" xml:space="preserve">
     <value>Cliente</value>

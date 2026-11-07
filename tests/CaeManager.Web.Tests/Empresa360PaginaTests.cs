@@ -5,7 +5,9 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Commands.EditarFichaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
@@ -72,6 +74,14 @@ public partial class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, List<ContactoAgendaDto>> Agenda { get; } = [];
         public Dictionary<Guid, CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
 
+        /// <summary>La fila de cada Empresa en el listado /empresas (lo que devuelve ObtenerEmpresasQuery con EmpresaId). Sin entrada: el listado no la devuelve.</summary>
+        public Dictionary<Guid, EmpresaListaDto> FilasDelListado { get; } = [];
+        public bool FallarListado { get; set; }
+
+        /// <summary>Lo que lee la pestaña Plataformas (y su contador) por Empresa, tal como lo devuelve ObtenerAcreditacionesPorProveedorQuery.</summary>
+        public Dictionary<Guid, IReadOnlyList<ProveedorAcreditacionesDto>> Plataformas { get; } = [];
+        public bool FallarPlataformas { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
@@ -95,6 +105,13 @@ public partial class Empresa360PaginaTests : BunitContext
             ObtenerAgendaContactosQuery q => (IReadOnlyList<ContactoAgendaDto>)(Agenda.GetValueOrDefault(q.PropietarioId) ?? []),
             ObtenerCumplimientoEmpresaQuery q => Cumplimiento.GetValueOrDefault(q.EmpresaId),
             ObtenerTrabajadoresQuery q => ResponderTrabajadores(q),
+            ObtenerEmpresasQuery when FallarListado => throw new InvalidOperationException("Fallo simulado del listado."),
+            ObtenerEmpresasQuery q => new ResultadoPaginado<EmpresaListaDto>(
+                q.EmpresaId is { } id && FilasDelListado.TryGetValue(id, out var fila) ? [fila] : [], 0, 1, 20),
+            ObtenerAcreditacionesPorProveedorQuery when FallarPlataformas => throw new InvalidOperationException("Fallo simulado de las plataformas."),
+            ObtenerAcreditacionesPorProveedorQuery q => q.SoloDocumentosDeEmpresaId is { } id && Plataformas.TryGetValue(id, out var proveedores)
+                ? proveedores
+                : (IReadOnlyList<ProveedorAcreditacionesDto>)[],
             ObtenerClientesDeEmpresaQuery q => (IReadOnlyList<ClienteDeEmpresaDto>)(Clientes.GetValueOrDefault(q.EmpresaId) ?? []),
             ObtenerCredencialAccesoEmpresaSinContrasenaQuery q => Credenciales.TryGetValue(q.EmpresaId, out var c)
                 ? new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
@@ -346,6 +363,227 @@ public partial class Empresa360PaginaTests : BunitContext
             subir!.ClassList.Should().Contain("boton-primario");
         acciones.QuerySelectorAll("a").Single(x => x.TextContent.Contains("Detectar altas y bajas"))
             .ClassList.Should().NotContain("boton-primario", "la acción principal es subir el documento");
+    }
+    // ── Chip de estado documental y contador de Plataformas (maqueta «Empresa 360») ──
+    // Los dos salen de la carga en segundo plano de la ficha (después del acceso a la carpeta): el esqueleto no espera a esas dos consultas.
+
+    private static EmpresaListaDto FilaDelListado(EstadoDocumento? estado, bool vencidoSinBloqueo = false) =>
+        new(EmpresaId, "Ibertec GmbH", "B-48.220.917", DateTime.UtcNow, estado) { VencidoSinBloqueo = vencidoSinBloqueo };
+
+    private static IElement? ChipEstado(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.Find(".cabecera-identidad-datos").QuerySelector(".badge");
+
+    /// <summary>
+    /// Espera al último paso del segundo plano (el contador de Plataformas) y a que el repintado que lo sigue haya corrido, para que
+    /// las pruebas de AUSENCIA no pasen en vacío por mirar antes de tiempo.
+    /// </summary>
+    private static async Task EsperarSegundoPlanoAsync(IRenderedComponent<EmpresaDetalle> cut, MediatorFalso mediador)
+    {
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerAcreditacionesPorProveedorQuery>().Should().NotBeEmpty());
+        await cut.InvokeAsync(() => { });
+    }
+
+    [Fact]
+    public void El_chip_de_estado_documental_sale_de_la_misma_consulta_de_fila_que_el_listado()
+    {
+        var mediador = Empresa();
+        mediador.FilasDelListado[EmpresaId] = FilaDelListado(EstadoDocumento.Vencido);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
+        var chip = ChipEstado(cut)!;
+        chip.TextContent.Trim().Should().Be("Vencido");
+        chip.ClassList.Should().Contain("badge-peligro").And.Contain("badge-pequeno");
+        // La pregunta es la del refresco de una fila del listado: por Id y con los recuentos por estado, sin lo cual el handler
+        // deja sin estado a quien no tiene documentos y la ficha diría «Sin documentos» donde la lista dice «Sin incidencias».
+        var consulta = mediador.Enviadas.OfType<ObtenerEmpresasQuery>().Should().ContainSingle().Subject;
+        consulta.EmpresaId.Should().Be(EmpresaId);
+        consulta.ConRecuentosPorEstado.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_Vencido_que_ningun_Centro_marca_obligatorio_lleva_el_tono_de_aviso_como_en_la_lista()
+    {
+        var mediador = Empresa();
+        mediador.FilasDelListado[EmpresaId] = FilaDelListado(EstadoDocumento.Vencido, vencidoSinBloqueo: true);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
+        var chip = ChipEstado(cut)!;
+        chip.TextContent.Trim().Should().Be("Vencido");
+        chip.ClassList.Should().Contain("badge-advertencia").And.NotContain("badge-peligro");
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Faltante, "Pendiente")]
+    [InlineData(EstadoDocumento.Urgente, "Por vencer")]
+    [InlineData(EstadoDocumento.Proximo, "Por vencer")]
+    public void El_chip_usa_el_rotulo_del_listado_para_cada_estado_que_hay_que_atender(EstadoDocumento estado, string rotulo)
+    {
+        var mediador = Empresa();
+        mediador.FilasDelListado[EmpresaId] = FilaDelListado(estado);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => ChipEstado(cut).Should().NotBeNull());
+        ChipEstado(cut)!.TextContent.Trim().Should().Be(rotulo);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
+    public void Lo_correcto_se_dice_en_texto_sin_pastilla_como_en_la_lista(EstadoDocumento estado)
+    {
+        var mediador = Empresa();
+        mediador.FilasDelListado[EmpresaId] = FilaDelListado(estado);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Sin incidencias"));
+        ChipEstado(cut).Should().BeNull("el color queda para lo que hay que atender");
+    }
+
+    [Fact]
+    public async Task Sin_fila_en_el_listado_no_hay_chip_y_la_cabecera_sigue()
+    {
+        var sinFila = Empresa();
+        Registrar(sinFila);
+
+        var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, sinFila);
+
+        sinFila.Enviadas.OfType<ObtenerEmpresasQuery>().Should().ContainSingle("la consulta salió y no devolvió fila");
+        ChipEstado(cut).Should().BeNull("sin fila en el listado no se supone ningún estado");
+        cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("B-48.220.917");
+    }
+
+    [Fact]
+    public async Task Si_la_consulta_del_listado_falla_no_hay_chip_ni_error_de_pagina()
+    {
+        var mediador = Empresa();
+        mediador.FallarListado = true;
+        Registrar(mediador);
+
+        var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
+
+        ChipEstado(cut).Should().BeNull();
+        cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
+    }
+
+    private static List<ProveedorAcreditacionesDto> PlataformasConIncidencias(int pendientes, int validados = 1)
+    {
+        AcreditacionDrillDownDto Doc(string tipo, EstadoAcreditacion estado, Guid centro) =>
+            new(Guid.NewGuid(), Guid.NewGuid(), "Ibertec GmbH", tipo, estado, null, EmpresaId: EmpresaId, CentroId: centro, CentroNombre: "Planta Zaragoza");
+        var centro = Guid.NewGuid();
+        return
+        [
+            new(Guid.NewGuid(), "Nalanda", "NALANDA",
+            [
+                new ClienteAcreditacionesDto(Guid.NewGuid(), "Refrielectric S.A.",
+                [
+                    .. Enumerable.Range(0, pendientes).Select(i => Doc($"Pendiente {i}", EstadoAcreditacion.PendienteDeSubir, centro)),
+                    .. Enumerable.Range(0, validados).Select(i => Doc($"Validado {i}", EstadoAcreditacion.Aceptada, centro))
+                ])
+            ])
+        ];
+    }
+
+    [Fact]
+    public void El_contador_de_Plataformas_cuenta_las_incidencias_sin_abrir_la_pestana()
+    {
+        var mediador = Empresa();
+        mediador.Plataformas[EmpresaId] = PlataformasConIncidencias(pendientes: 3, validados: 2);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => Pestana(cut, "Plataformas").TextContent.Should().Contain("3", "las validadas no son incidencias"));
+        Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true", "la pestaña Plataformas sigue cerrada");
+        // El universo es el de la pestaña: la misma petición que ella hace, acotada a ESTA Empresa.
+        var consulta = mediador.Enviadas.OfType<ObtenerAcreditacionesPorProveedorQuery>().Should().ContainSingle().Subject;
+        consulta.Should().Be(new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true, SoloDocumentosDeEmpresaId: EmpresaId),
+            "es la misma petición que hace la pestaña (Empresa360VigenciaPlataformasTests)");
+    }
+
+    [Fact]
+    public async Task Con_todo_validado_la_pestana_Plataformas_no_lleva_contador()
+    {
+        var mediador = Empresa();
+        mediador.Plataformas[EmpresaId] = PlataformasConIncidencias(pendientes: 0, validados: 4);
+        Registrar(mediador);
+
+        var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
+
+        Pestana(cut, "Plataformas").TextContent.Trim().Should().Be("Plataformas", "cero incidencias no se enseña como contador");
+    }
+
+    [Fact]
+    public async Task Si_la_lectura_de_Plataformas_falla_la_pestana_no_lleva_contador_y_la_ficha_carga()
+    {
+        var mediador = Empresa();
+        mediador.FallarPlataformas = true;
+        Registrar(mediador);
+
+        var cut = Renderizar();
+        await EsperarSegundoPlanoAsync(cut, mediador);
+
+        Pestana(cut, "Plataformas").TextContent.Trim().Should().Be("Plataformas");
+        cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
+    }
+
+    [Fact]
+    public void La_cabecera_no_ofrece_Preparar_paquete_porque_el_paquete_documental_es_de_una_Visita_no_de_una_Empresa()
+    {
+        // Hueco declarado, no inventado: la única función de paquete documental de la aplicación se genera por Visita
+        // (ObtenerPaqueteDocumentalVisitaQuery). Cuando exista el de Empresa, este test deja de tener sentido y se sustituye.
+        Registrar(Empresa());
+
+        Renderizar().Find(".cabecera-identidad-acciones").TextContent.Should().NotContain("Preparar paquete");
+    }
+
+    /// <summary>
+    /// Un dato opcional sin valor no se pinta —ni su etiqueta ni un «—»— en la cabecera ni en la tarjeta de información del lateral.
+    /// Hasta ahora solo lo cubrían los tests del panel; esta es la página.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void El_CIF_el_CNAE_y_el_convenio_vacios_no_se_pintan_en_la_cabecera_ni_en_el_lateral(string? vacio)
+    {
+        var mediador = Empresa();
+        mediador.Detalles[EmpresaId] = mediador.Detalles[EmpresaId] with { Cif = vacio, Cnae = vacio, ConvenioAplicable = vacio };
+        Registrar(mediador);
+
+        var cut = Renderizar();
+
+        var cabecera = cut.Find(".cabecera-identidad-datos").TextContent;
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral").TextContent;
+        cabecera.Should().NotContain("CIF");
+        lateral.Should().NotContain("Identificación fiscal").And.NotContain("CNAE").And.NotContain("Convenio aplicable");
+        // La tarjeta sigue viva con lo que sí se tiene.
+        lateral.Should().Contain("Alta").And.Contain("Actividad de Anexo I");
+    }
+
+    [Fact]
+    public void Con_CIF_CNAE_y_convenio_la_cabecera_y_el_lateral_los_pintan()
+    {
+        // Control del instrumento: sin él, el test de arriba pasaría aunque la página no pintara nunca estos datos.
+        Registrar(Empresa());
+
+        var cut = Renderizar();
+
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("CIF").And.Contain("B-48.220.917");
+        cut.Find(".cuerpo-con-lateral-lateral").TextContent
+            .Should().Contain("Identificación fiscal").And.Contain("CNAE").And.Contain("4322").And.Contain("Convenio aplicable").And.Contain("Metal de Bizkaia");
     }
 
     [Fact]

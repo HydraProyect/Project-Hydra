@@ -52,6 +52,55 @@ public partial class MiTrabajoGen2Tests
         cut.FindAll(".propagaciones-fila").Should().HaveCount(2, "renderizar no completa ni envía una propagación");
     }
 
+    private static ItemBandejaDto[] Pendientes(int cantidad, Guid documento) => Enumerable.Range(1, cantidad).Select(i =>
+        Item($"p{i}", TipoItemBandeja.PlataformaPendiente, $"RNT {i}", "Empresa destinataria", documentoId: documento, proveedor: "Nalanda") with
+        {
+            CentroNombre = $"Centro {i}",
+            AcreditacionId = Guid.NewGuid(),
+            EsPropagacionPendiente = true
+        }).ToArray();
+
+    /// <summary>Maqueta: el panel enseña 3 filas. El resto sigue a un clic en el mismo panel: ninguna fila se pierde y el total no se recorta.</summary>
+    [Fact]
+    public void PropagacionesMuestraTresFilasYElRestoQuedaTrasVerTodasSinPerderNinguna()
+    {
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, Pendientes(5, Guid.NewGuid()))]);
+        var todas = new MiTrabajoVista(datos).Propagaciones(new()).Select(f => f.Item.CentroNombre!).ToList();
+        todas.Should().HaveCount(5);
+        var cut = Renderizar(() => datos);
+
+        cut.Find(".propagaciones h2").TextContent.Should().Contain("Propagaciones pendientes · 5", "el total cuenta todas las filas");
+        string[] Centros() => cut.FindAll(".propagaciones-fila").Select(f => todas.Single(c => f.TextContent.Contains(c))).ToArray();
+        cut.FindAll(".propagaciones-fila").Should().HaveCount(3);
+        Centros().Should().Equal(todas.Take(3), "las tres primeras, en el orden de la cola");
+        var verTodas = cut.Find(".propagaciones-ver-todas");
+        verTodas.TextContent.Trim().Should().Be("Ver todas (5)");
+        verTodas.GetAttribute("aria-expanded").Should().Be("false");
+
+        verTodas.Click();
+
+        cut.FindAll(".propagaciones-fila").Should().HaveCount(5);
+        Centros().Should().Equal(todas, "no se pierde ninguna fila");
+        cut.FindAll(".propagaciones-fila button:not(.enlace-documento)").Should().OnlyContain(b => b.TextContent.Trim() == "Gestionar");
+        cut.Find(".propagaciones-ver-todas").TextContent.Trim().Should().Be("Ver menos");
+        cut.Find(".propagaciones-ver-todas").GetAttribute("aria-expanded").Should().Be("true");
+
+        cut.Find(".propagaciones-ver-todas").Click();
+
+        cut.FindAll(".propagaciones-fila").Should().HaveCount(3);
+        cut.Find(".propagaciones-ver-todas").TextContent.Trim().Should().Be("Ver todas (5)");
+    }
+
+    [Fact]
+    public void PropagacionesConTresFilasOMenosNoDibujaVerTodas()
+    {
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, Pendientes(3, Guid.NewGuid()))]);
+        var cut = Renderizar(() => datos);
+
+        cut.FindAll(".propagaciones-fila").Should().HaveCount(3);
+        cut.FindAll(".propagaciones-ver-todas").Should().BeEmpty();
+    }
+
     [Fact]
     public void PropagacionesExcluyeOrigenYEstadosQueNoSonPendientes()
     {
