@@ -24,7 +24,7 @@
                             <li class="detalle-dia-fila">
                                 <span class="detalle-dia-texto">
                                     <span class="detalle-dia-principal">@fila.Sujeto</span>
-                                    <span class="detalle-dia-secundaria">@fila.Documento</span>
+                                    <span class="detalle-dia-secundaria">@(HayVariasEmpresas && fila.EmpresaNombre is { Length: > 0 } empresa ? $"{fila.Documento} · {empresa}" : fila.Documento)</span>
                                 </span>
                                 <Badge Tono="fila.Tono">@fila.Estado</Badge>
                                 <span class="detalle-dia-acciones">
@@ -75,8 +75,15 @@
     private RenderFragment PieReclamar => __builder =>
     {
         <span class="detalle-dia-pie-texto">@Textos["AccionesSinSalir"]</span>
-        <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ReclamablesIds)">
-            @(ReclamablesIds.Count == 1 ? Textos["ReclamarElDocumento"] : Textos["ReclamarLosN", ReclamablesIds.Count])
-        </Boton>
+        @* Un drawer de lote es de un único titular: si el día mezcla Empresas, un botón por Empresa con su recuento. *@
+        <span class="detalle-dia-pie-botones">
+            @foreach (var grupo in GruposReclamables)
+            {
+                var ids = grupo.DocumentoIds;
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ids)">
+                    @EtiquetaReclamar(grupo)
+                </Boton>
+            }
+        </span>
     };
 }
