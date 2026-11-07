@@ -630,6 +630,30 @@ public partial class Centro360Gen2Tests : BunitContext
         cut.FindAll("[data-bloque-empresa]").Should().BeEmpty("el bloque «Empresa» ya no abre la pestaña Trabajadores");
     }
 
+    /// <summary>
+    /// Demo con IT (2026-11-10): con solo documentos de Empresa por vencer, la pestaña «Documentación Empresa» no se pinta en alerta
+    /// ni habla de incidencia (misma regla que el bloque Empresa de /centros: <c>IncidenciaCentroDto.HayIncidencia</c>).
+    /// </summary>
+    [Fact]
+    public void Con_solo_documentos_de_Empresa_por_vencer_el_contador_de_Documentacion_Empresa_no_esta_en_alerta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Proximo, proximas:
+        [
+            Incidencia("Seguro de responsabilidad civil — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Proximo },
+            Incidencia("Certificado TGSS — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Proximo }
+        ]);
+
+        var cut = Renderizar(id);
+
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        var contador = pestana.QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("2 documentos de Empresa por vencer");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeFalse("«Por vencer» no es una incidencia");
+    }
+
     [Fact]
     public void Un_centro_con_gestion_cae_conserva_el_anillo_y_no_se_rotula_sin_gestion()
     {

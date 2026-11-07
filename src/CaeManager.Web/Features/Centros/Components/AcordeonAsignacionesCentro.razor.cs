@@ -877,6 +877,15 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private bool EmpresaConIncidencia => IncidenciaCentroDto.HayIncidencia(IncidenciasEmpresa);
 
+    private string ClaveCifraEmpresa =>
+        (EmpresaConIncidencia, IncidenciasEmpresa.Count == 1) switch
+        {
+            (true, true) => "EmpresaBloqueCifraUno",
+            (true, false) => "EmpresaBloqueCifraVarios",
+            (false, true) => "EmpresaBloqueCifraPorVencerUno",
+            (false, false) => "EmpresaBloqueCifraPorVencerVarios"
+        };
+
     private TonoFila TonoBloqueEmpresa => EmpresaConIncidencia ? TonoFila.Peligro : TonoFila.Advertencia;
 
     private const string SufijoEmpresa = " — Empresa";
@@ -894,7 +903,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             return descripcion[..^SufijoEmpresa.Length];
 
         var separador = SufijoEmpresa + " — ";
-        var posicion = descripcion.IndexOf(separador, StringComparison.Ordinal);
+        // La última aparición: el sufijo del propietario precede a la causa, y un tipo que contuviera «— Empresa —» en su nombre
+        // no debe llevarse el recorte.
+        var posicion = descripcion.LastIndexOf(separador, StringComparison.Ordinal);
         return posicion < 0 ? descripcion : descripcion.Remove(posicion, SufijoEmpresa.Length);
     }
 

@@ -79,8 +79,10 @@ else
 
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
-        del centro tiene documentación con incidencia, y lista únicamente lo que
-        hay que resolver — el resto se consulta desde "Detalles" de la empresa.
+        del centro tiene documentación con incidencia o por vencer, y lista únicamente
+        lo que hay que resolver o vigilar — el resto se consulta desde "Detalles" de
+        la empresa. Con solo documentos por vencer el bloque es «Por vencer» (ámbar),
+        no «Con incidencia» (rojo): ver <c>IncidenciaCentroDto.HayIncidencia</c>.
 
         La nota no es decorativa: sin ella, ver una lista corta se leería como
         "la empresa casi no tiene documentación", cuando lo que dice es "esto es
@@ -92,9 +94,9 @@ else
         @*
             Tarjeta con la misma gramática que la lista de Trabajadores: una fila
             plegable de la Empresa (cifra, estado y «Detalles» en las columnas de la
-            rejilla) y, al desplegarla, sus documentos con incidencia en la misma
+            rejilla) y, al desplegarla, sus documentos con incidencia o por vencer en la misma
             tabla que usa cada Trabajador. Va desplegada de entrada: el bloque solo
-            existe cuando hay algo que resolver, y un vacío nunca se presenta como éxito.
+            existe cuando hay algo que resolver o vigilar, y un vacío nunca se presenta como éxito.
             Contrato de fidelidad 2026-08-09 § 1.5: mismas columnas Documento ·
             Estado · Vigencia · Acción.
         *@
@@ -104,10 +106,10 @@ else
                               OnNombre="AbrirDetalleEmpresa"
                               Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
                               EtiquetaDesplegar="@Textos["EmpresaBloqueDesplegar", EmpresaNombre]">
-                    <Detalle>@Textos["EmpresaBloqueNota"]</Detalle>
+                    <Detalle>@Textos[EmpresaConIncidencia ? "EmpresaBloqueNota" : "EmpresaBloqueNotaPorVencer"]</Detalle>
                     <Cifra>
                         @* Cifra corta como el «3 de 4» de los Trabajadores: la columna mide 76 px. El nombre completo va en el title. *@
-                        <span class="fila-trabajador-fraccion" title="@Textos[IncidenciasEmpresa.Count == 1 ? "EmpresaBloqueCifraUno" : "EmpresaBloqueCifraVarios", IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
+                        <span class="fila-trabajador-fraccion" title="@Textos[ClaveCifraEmpresa, IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
                     </Cifra>
                     <Estado>
                         @* Con solo documentos por vencer el bloque no tiene incidencia: «Por vencer» en ámbar, como la fila del Centro. *@
@@ -119,7 +121,7 @@ else
                         </Boton>
                     </Acciones>
                     <Desplegable>
-                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@($"Documentación con incidencia de {EmpresaNombre}")">
+                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@($"{(EmpresaConIncidencia ? "Documentación con incidencia" : "Documentación por vencer")} de {EmpresaNombre}")">
                             <div class="documentos-requeridos-cabecera" role="row">
                                 <span role="columnheader">Documento</span>
                                 <span role="columnheader">Estado</span>

@@ -235,6 +235,11 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         var estado = fila.QuerySelector(".fila-relacion-estado")!;
         estado.TextContent.Should().Contain("Por vencer").And.NotContain("Con incidencia");
         estado.InnerHtml.Should().Contain("advertencia").And.NotContain("peligro");
+
+        // Nada de lo que se lee ni se anuncia habla de incidencia junto a «Por vencer».
+        fila.QuerySelector(".fila-relacion-cifra span")!.GetAttribute("title").Should().Be("2 documentos de empresa por vencer");
+        fila.TextContent.Should().Contain("Solo se listan los documentos por vencer").And.NotContain("incidencia");
+        cut.Find(".bloque-empresa-ambito [role=table]").GetAttribute("aria-label").Should().NotContain("incidencia");
     }
 
     [Fact]
@@ -267,6 +272,8 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
     [InlineData("Seguro — Empresa — rechazado por la plataforma", "Seguro — rechazado por la plataforma")]
     [InlineData("Seguro — rechazado por la plataforma", "Seguro — rechazado por la plataforma")]
     [InlineData("Seguro de Empresa", "Seguro de Empresa")]
+    [InlineData("Póliza — Empresa — rechazado por la plataforma", "Póliza — rechazado por la plataforma")]
+    [InlineData("Alta — Empresa — extra — Empresa — rechazado por la plataforma", "Alta — Empresa — extra — rechazado por la plataforma")]
     public void TituloDocumentoEmpresa_solo_quita_el_segmento_Empresa(string descripcion, string esperado)
     {
         AcordeonAsignacionesCentro.TituloDocumentoEmpresa(DocumentoEmpresa(descripcion, null)).Should().Be(esperado);
