@@ -326,6 +326,27 @@ public class BuscadorGlobalGen2Tests : BunitContext
             "el recuento es por sujeto y apertura, no por tecla");
     }
 
+    /// <summary>
+    /// El recuento «vencen esta semana» lleva el mismo tope que la búsqueda, pero su fallo degrada igual que antes: la
+    /// acción va sin subtítulo y no se tumba un resultado que ya llegó bien ni se pinta el error de búsqueda.
+    /// </summary>
+    [Fact]
+    public async Task Un_recuento_que_no_vuelve_deja_la_accion_sin_subtitulo_y_sin_error()
+    {
+        var mediador = new MediadorControlado { Recientes = RecientesConSujeto };
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        _ = mediador.Retener(r => r is ContarVencenEstaSemanaDeEmpresaQuery); // no vuelve y no mira el token
+
+        var escritura = Input(cut).EscribirAsync("reclamar");
+        (await Task.WhenAny(escritura, Task.Delay(TimeSpan.FromSeconds(8)))).Should().BeSameAs(escritura,
+            "el recuento que no vuelve tiene que terminar por el tope de espera");
+        await escritura;
+
+        cut.FindAll(".buscador-mensaje-error").Should().BeEmpty("el recuento no es la búsqueda: su tope no pinta el error");
+        cut.Markup.Should().NotContain("Buscando…");
+        Filas(cut).Should().Contain(("Reclamar a Obras y Estructuras del Ebro S.L.", string.Empty, "/comunicaciones"));
+    }
+
     [Fact]
     public async Task Sin_recuento_la_accion_de_reclamar_va_sin_subtitulo()
     {
@@ -1113,7 +1134,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
     public async Task Tras_el_tope_la_siguiente_busqueda_espera_a_que_la_abandonada_termine()
     {
         var mediador = new MediadorControlado { Resultado = UnTrabajador };
-        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        // Tope holgado frente a los 700 ms de la comprobación: un runner lento no debe convertir la espera en tope.
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(4));
         var abandonada = mediador.Retener(r => r is BuscarGlobalQuery); // no mira el token: sigue viva tras el tope
 
         var primera = Input(cut).EscribirAsync("raccoon");

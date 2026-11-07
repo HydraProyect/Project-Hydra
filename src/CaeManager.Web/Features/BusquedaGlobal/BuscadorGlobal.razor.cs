@@ -393,7 +393,11 @@ public partial class BuscadorGlobal
 
         try
         {
-            _vencenEstaSemana[empresaId] = await Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), token);
+            // Con tope: un recuento que no vuelve se trata como uno que falla (la acción va sin subtítulo), sin
+            // tumbar un resultado de búsqueda que ya llegó bien.
+            var recuento = Mediator.Send(new ContarVencenEstaSemanaDeEmpresaQuery(empresaId), token);
+            await EsperarConTopeAsync(recuento, token);
+            _vencenEstaSemana[empresaId] = await recuento;
         }
         catch (OperationCanceledException)
         {
@@ -1280,7 +1284,7 @@ public partial class BuscadorGlobal
             await EsperarConTopeAsync(busqueda, token);
             var resultado = await busqueda;
             if (generacion == _generacionBusqueda)
-                await EsperarConTopeAsync(CargarVencenEstaSemanaAsync(termino, token), token);
+                await CargarVencenEstaSemanaAsync(termino, token);
 
             // Comprobación después del await, y deliberadamente NO basada en
             // el token: cancelar es una petición, no una garantía — un
@@ -1336,6 +1340,12 @@ public partial class BuscadorGlobal
         catch (TimeoutException)
         {
             _consultaAbandonada = Observar(consulta);
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superada o cancelada: no se espera por ella, pero su fallo tardío no puede quedar sin observar.
+            _ = Observar(consulta);
             throw;
         }
     }
