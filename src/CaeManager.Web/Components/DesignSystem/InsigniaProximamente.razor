@@ -1,0 +1,16 @@
+@*
+    Insignia «Próximamente» común (decisión de Chris, 2026-11-07, Project-Hydra-Negocio/DECISION_LOG.md «Insignia "Próximamente" común»).
+
+    Marca una función decidida pero todavía sin construir. Es una píldora neutra con borde discontinuo: no se
+    confunde con un estado (Badge) ni con un botón.
+
+    - Nunca se clica: es un <span> y no lleva rol ni tabindex. El texto de ayuda vive en el contexto de quien
+      la usa (la frase del bloque, el title de una pestaña desactivada) y dice qué hará la función, nunca una fecha.
+    - Nunca va en el menú principal.
+    - No hay otra píldora «Próximamente» propia de una pantalla: se usa esta.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<span class="insignia-proximamente" data-pieza="insignia-proximamente">@Comunes["Proximamente"]</span>

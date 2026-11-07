@@ -28,6 +28,12 @@
                     <Icono Nombre="@nombreIcono" Tamano="TamanoIcono.Pequeno" />
                 }
                 @definicion.Etiqueta
+                @if (definicion.Proximamente)
+                {
+                    @* El espacio va como expresión: escrito como literal, Razor lo recorta y el nombre accesible queda «PlataformasPróximamente». *@
+                    @(" ")
+                    <InsigniaProximamente />
+                }
                 @if (definicion.Contador is { } contador)
                 {
                     <span class="pestanas-contador @(contador.EnAlerta ? "pestanas-contador-alerta" : null)">

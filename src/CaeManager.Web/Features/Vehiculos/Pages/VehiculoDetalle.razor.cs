@@ -49,13 +49,13 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     internal const string PestanaPorDefecto = "documentacion";
 
-    private static readonly (string Id, string Clave)[] _pestanas =
+    private static readonly (string Id, string Clave, bool Proximamente)[] _pestanas =
     [
-        ("documentacion", "EtiquetaDocumentacion"),
-        ("centros", "PestanaCentrosEmpleador360"),
-        ("plataformas", "PestanaPlataformas360"),
-        ("ficha", "PestanaFicha"),
-        ("historial", "PestanaHistorial")
+        ("documentacion", "EtiquetaDocumentacion", false),
+        ("centros", "PestanaCentrosEmpleador360", false),
+        ("plataformas", "PestanaPlataformas360", true),
+        ("ficha", "PestanaFicha", false),
+        ("historial", "PestanaHistorial", false)
     ];
 
     [Parameter] public Guid VehiculoId { get; set; }
@@ -441,7 +441,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
         _pestanas.Select(p =>
         {
-            var definicion = new PestanaDefinicion(p.Id, Textos[p.Clave]);
+            var definicion = new PestanaDefinicion(p.Id, Textos[p.Clave]) { Proximamente = p.Proximamente };
             return p.Id == "documentacion" && !_cargandoDocumentos && !_errorDocumentos
                 ? definicion with { Contador = new ContadorPestana(_totalDocumentos, Plural(_totalDocumentos, "FichaGlosaDocumentoUno", "FichaGlosaDocumentoVarios")) }
                 : definicion;

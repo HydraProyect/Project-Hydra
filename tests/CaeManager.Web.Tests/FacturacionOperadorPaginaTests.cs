@@ -319,7 +319,11 @@ public class FacturacionOperadorPaginaTests : BunitContext
 
         var pestana = cut.FindAll("[role=tab]").Single(t => Texto(t).Contains("Por Cliente empresarial"));
         pestana.HasAttribute("disabled").Should().BeTrue();
-        Texto(pestana).Should().Contain("Próximamente");
+        pestana.QuerySelector(".insignia-proximamente")!.TextContent.Should().Be("Próximamente", "la insignia común, no una píldora propia de la pantalla");
+        pestana.QuerySelector(".fct-insignia").Should().BeNull();
+        System.Text.RegularExpressions.Regex.Replace(Texto(pestana), @"\s+", " ").Should().Be("Por Cliente empresarial Próximamente", "el nombre accesible lleva un espacio entre la etiqueta y la insignia");
+        cut.FindAll("[role=tab]").Count(t => t.QuerySelector(".insignia-proximamente") is not null).Should().Be(1);
+        pestana.GetAttribute("title").Should().NotBeNullOrWhiteSpace("el texto de ayuda dice qué hará la función");
     }
 
     [Fact]

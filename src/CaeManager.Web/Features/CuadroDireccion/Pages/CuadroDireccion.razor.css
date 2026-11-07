@@ -36,6 +36,10 @@
 .cuadro-bloque ::deep .tarjeta-header { padding: 0; border-bottom: 0; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
 .cuadro-bloque ::deep .tarjeta-titulo { margin: 0; font-size: 18px; line-height: 26px; font-weight: 600; text-wrap: balance; min-width: 0; flex: 1; }
 .cuadro-bloque ::deep .tarjeta-acciones { flex: none; }
+/* «Por equipo»: la insignia «Próximamente» va pegada al título, no al borde derecho, y centrada en su línea. */
+.cuadro-bloque[data-tarjeta="cm-equipos"] ::deep .tarjeta-header { justify-content: flex-start; }
+.cuadro-bloque[data-tarjeta="cm-equipos"] ::deep .tarjeta-titulo { flex: 0 1 auto; }
+.cuadro-bloque[data-tarjeta="cm-equipos"] ::deep .tarjeta-acciones { align-self: center; }
 .cuadro-bloque ::deep .tarjeta-contenido { padding: 0; display: grid; gap: 12px; min-width: 0; align-content: start; }
 
 /* «Exportar a Excel» en la fila de cabecera de la tarjeta (maqueta: 30 de alto, 12/16, relleno 10, radio 8). */
