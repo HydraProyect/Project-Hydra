@@ -196,7 +196,7 @@ public sealed class ModalContactoAgendaTests : BunitContext
     }
 
     [Fact]
-    public async Task Escribir_en_otro_paso_tambien_cuenta_como_cambio_y_Atras_nunca_pregunta()
+    public async Task Atras_nunca_pregunta_aunque_haya_cambios_en_otro_paso()
     {
         var cut = Renderizar();
         await RellenarDatosYAvanzar(cut);
