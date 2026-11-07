@@ -214,9 +214,10 @@ else
                             </div>
                         }
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloNivelServicio"]</span><strong>@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</strong></div>
-                        @if (_detalle.ClienteIds.Count > 0)
+                        @{ var clientes = _detalle.ClienteIds; }
+                        @if (clientes.Count > 0)
                         {
-                            <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
+                            <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(clientes, _nombresClientes)</strong></div>
                         }
                         @if (_detalle.EmpresaIds.Count > 0)
                         {

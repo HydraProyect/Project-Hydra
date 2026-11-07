@@ -46,7 +46,7 @@
     else
     {
         var grupos = Grupos();
-        @if (grupos.Count == 0)
+        @if (grupos.Count == 0 && HayFiltrosActivos)
         {
             <Tarjeta>
                 <EstadoVacio Titulo="@Textos["PlataformasVacioTitulo"]" Descripcion="@Textos["PlataformasVacioDescripcion"]" />
@@ -56,7 +56,7 @@
         {
             @* Como la pestaña Plataformas de Subcontrata: una tarjeta, «Cliente › Centro» como cabecera de cada grupo y una fila por documento. *@
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaPlataformas"]">
-                <Encabezado>@Textos["PlataformasMostrando", grupos.Sum(g => g.Visibles.Count), _filas.Count]</Encabezado>
+                <Encabezado>@Textos["PlataformasMostrando", TotalVisibles(grupos), _filas.Count]</Encabezado>
                 <ChildContent>
                     @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var grupo in grupos)

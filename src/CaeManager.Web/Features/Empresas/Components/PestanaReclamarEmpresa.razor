@@ -53,7 +53,7 @@
             <div class="reclamar-empresa-pastillas">
                 @* Delegación y Oficio piden al servidor: mientras carga se deshabilitan (el DbContext de la conexión no admite dos consultas
                    a la vez). El fieldset deshabilita de una vez los botones de las pastillas; Agrupar es de cliente y sigue libre. *@
-                @* Sin Delegaciones ni Oficios el fieldset quedaría con solo su leyenda: no se pinta. *@
+                @* Sin delegaciones ni Oficios el fieldset quedaría con solo su leyenda: no se pinta. *@
                 @if (Sedes.Count > 0 || _dto.Oficios.Count > 0)
                 {
                     <fieldset class="reclamar-empresa-servidor" disabled="@_recargando">
@@ -72,7 +72,7 @@
                 }
                 <PastillaFiltro Etiqueta="@Textos["AgruparPor"]" Valor="@AgrupacionActiva.ToString()" ValorChanged="Agrupar"
                                 Opciones="OpcionesDeAgrupacion" OfrecerTodos="false" />
-                @if (HayFiltros)
+                @if (HayFiltrosActivos)
                 {
                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_recargando" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
                 }

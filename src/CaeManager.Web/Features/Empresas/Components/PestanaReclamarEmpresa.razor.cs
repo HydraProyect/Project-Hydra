@@ -79,7 +79,7 @@ public partial class PestanaReclamarEmpresa
 
     private bool HayFiltroDeServidor => _sedeId is not null || _oficioId is not null;
 
-    private bool HayFiltros => HayFiltroDeServidor || _estados.Count > 0;
+    private bool HayFiltrosActivos => HayFiltroDeServidor || _estados.Count > 0;
 
     /// <summary>Sin Delegaciones no hay nada que agrupar por ellas: se agrupa por Trabajador.</summary>
     private Agrupacion AgrupacionActiva => _agrupacion switch
