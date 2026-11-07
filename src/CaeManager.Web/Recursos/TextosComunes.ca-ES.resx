@@ -772,4 +772,10 @@
   <data name="ArchivoSubidoNoLeido" xml:space="preserve">
     <value>No hem pogut llegir "{0}". Torna a triar-lo.</value>
   </data>
+  <data name="SubirCabecera" xml:space="preserve">
+    <value>Pujar</value>
+  </data>
+  <data name="SubirCabeceraTitulo" xml:space="preserve">
+    <value>Pujar documents</value>
+  </data>
 </root>
