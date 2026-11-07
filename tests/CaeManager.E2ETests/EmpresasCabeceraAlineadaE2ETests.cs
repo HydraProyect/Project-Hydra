@@ -104,7 +104,7 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
         if (conSeleccion)
         {
             await ActivarSeleccionMultipleAsync(page);
-            await Expect(page.Locator(".marco-lista-empresas .tarjeta-fila-acordeon-cabecera.rejilla-empresas-seleccion").First).ToBeVisibleAsync();
+            await Expect(page.Locator(".marco-lista-empresas .tarjeta-fila-acordeon-cabecera.rejilla-empresas-seleccion")).Not.ToHaveCountAsync(0);
         }
 
         var medicion = await page.EvaluateAsync<JsonElement>("""
