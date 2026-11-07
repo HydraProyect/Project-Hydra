@@ -246,6 +246,57 @@ public sealed class ModalContactoAgendaTests : BunitContext
         cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Email").Instance.MensajeError.Should().NotBeNullOrWhiteSpace();
     }
 
+    [Fact]
+    public async Task Los_errores_de_Datos_solo_bloquean_el_clic_fuera_y_Escape_mientras_Datos_esta_a_la_vista()
+    {
+        var cut = Renderizar();
+        await RellenarDatosYAvanzar(cut);
+        await Siguiente(cut);
+        await cut.FindAll("ol.indicador-pasos button.indicador-pasos-boton").Single(b => b.TextContent.Trim() == "Datos")
+            .ClickAsync(new MouseEventArgs());
+        await Escribir(cut, "Email", "");
+        await cut.FindAll("ol.indicador-pasos button.indicador-pasos-boton").Single(b => b.TextContent.Trim() == "Qué recibe")
+            .ClickAsync(new MouseEventArgs());
+        await Pulsar(cut, "Guardar y terminar");
+        PasoActivo(cut).Should().Be("Datos");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse("con el error de campo a la vista no se cierra por fuera");
+
+        await cut.FindAll("ol.indicador-pasos button.indicador-pasos-boton").Single(b => b.TextContent.Trim() == "Qué recibe")
+            .ClickAsync(new MouseEventArgs());
+
+        PasoActivo(cut).Should().Be("Qué recibe");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeTrue(
+            "el error sigue en «Datos» pero desde otro paso no se ve, y no debe bloquear Escape ni el clic fuera");
+    }
+
+    [Fact]
+    public async Task Marcar_una_casilla_o_escribir_la_nota_en_Que_recibe_cuenta_como_cambio_y_la_X_pregunta()
+    {
+        var contacto = new ContactoAgendaDto(
+            Guid.NewGuid(), "Marta Ruiz", "marta@example.test", null, null, null, false, false, false, [], [], [], NotaVisible: true);
+        var cut = RenderizarEdicion(contacto);
+        await Siguiente(cut);
+        PasoActivo(cut).Should().Be("Qué recibe");
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeFalse("sin tocar nada la X cierra sin preguntar");
+
+        _visible = true;
+        cut = RenderizarEdicion(contacto);
+        await Siguiente(cut);
+        await Marcar(cut, "Recibe la facturación");
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeTrue("una casilla marcada en otro paso es trabajo sin guardar");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios");
+
+        _visible = true;
+        cut = RenderizarEdicion(contacto);
+        await Siguiente(cut);
+        await cut.FindComponent<CampoTextarea>().Find("textarea").InputAsync(new ChangeEventArgs { Value = "Avisar antes de llamar" });
+        await cut.Find(".drawer-cerrar").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeTrue("la nota escrita en otro paso es trabajo sin guardar");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Descartar cambios");
+    }
+
     // ---- Qué recibe y Documentación ----------------------------------------------------------------------------------------
 
     [Fact]
