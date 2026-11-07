@@ -244,6 +244,14 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
     }
 
     [Fact]
+    public void Con_un_solo_documento_por_vencer_la_cifra_va_en_singular()
+    {
+        var cut = RenderizarBloqueEmpresa([DocumentoEmpresa("Seguro — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Proximo)]);
+
+        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra span").GetAttribute("title").Should().Be("1 documento de empresa por vencer");
+    }
+
+    [Fact]
     public void Con_un_documento_vencido_entre_los_por_vencer_el_bloque_Empresa_sigue_Con_incidencia_en_rojo()
     {
         var cut = RenderizarBloqueEmpresa([

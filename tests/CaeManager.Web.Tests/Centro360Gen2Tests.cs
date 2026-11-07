@@ -655,6 +655,25 @@ public partial class Centro360Gen2Tests : BunitContext
     }
 
     [Fact]
+    public void Con_un_solo_documento_de_Empresa_por_vencer_el_contador_va_en_singular_y_sin_alerta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Proximo, proximas:
+        [
+            Incidencia("Seguro — Empresa", AmbitoCausa.Empresa) with { Estado = EstadoDocumento.Urgente }
+        ]);
+
+        var cut = Renderizar(id);
+
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        var contador = pestana.QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be("1 documento de Empresa por vencer");
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().BeFalse();
+    }
+
+    [Fact]
     public void Un_centro_con_gestion_cae_conserva_el_anillo_y_no_se_rotula_sin_gestion()
     {
         var id = Guid.NewGuid();
