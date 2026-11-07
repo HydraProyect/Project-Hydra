@@ -685,6 +685,24 @@
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablir ordre</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Moure la targeta {0}. Utilitza les fletxes amunt i avall.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrossega ⠿ per reordenar les targetes</value></data>
+  <data name="AgendaContactoPasoDatos" xml:space="preserve">
+    <value>Dades</value>
+  </data>
+  <data name="AgendaContactoPasoRecibe" xml:space="preserve">
+    <value>Què rep</value>
+  </data>
+  <data name="AgendaContactoPasoDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="AgendaContactoEtiquetaPasos" xml:space="preserve">
+    <value>Alta de contacte</value>
+  </data>
+  <data name="AgendaContactoGrupoRecibe" xml:space="preserve">
+    <value>Rep</value>
+  </data>
+  <data name="AgendaContactoGrupoRol" xml:space="preserve">
+    <value>Rol del contacte</value>
+  </data>
   <data name="AgendaNotaComunicaciones" xml:space="preserve">
     <value>Nota per a Comunicacions</value>
   </data>

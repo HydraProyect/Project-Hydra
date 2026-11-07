@@ -699,6 +699,24 @@
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
+  <data name="AgendaContactoPasoDatos" xml:space="preserve">
+    <value>Datos</value>
+  </data>
+  <data name="AgendaContactoPasoRecibe" xml:space="preserve">
+    <value>Qué recibe</value>
+  </data>
+  <data name="AgendaContactoPasoDocumentacion" xml:space="preserve">
+    <value>Documentación</value>
+  </data>
+  <data name="AgendaContactoEtiquetaPasos" xml:space="preserve">
+    <value>Alta de contacto</value>
+  </data>
+  <data name="AgendaContactoGrupoRecibe" xml:space="preserve">
+    <value>Recibe</value>
+  </data>
+  <data name="AgendaContactoGrupoRol" xml:space="preserve">
+    <value>Rol del contacto</value>
+  </data>
   <data name="AgendaNotaComunicaciones" xml:space="preserve">
     <value>Nota para Comunicaciones</value>
   </data>
