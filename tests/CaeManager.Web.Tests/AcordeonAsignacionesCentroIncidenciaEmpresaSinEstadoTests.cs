@@ -239,7 +239,8 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         // Nada de lo que se lee ni se anuncia habla de incidencia junto a «Por vencer».
         fila.QuerySelector(".fila-relacion-cifra span")!.GetAttribute("title").Should().Be("2 documentos de empresa por vencer");
         fila.TextContent.Should().Contain("Solo se listan los documentos por vencer").And.NotContain("incidencia");
-        cut.Find(".bloque-empresa-ambito [role=table]").GetAttribute("aria-label").Should().NotContain("incidencia");
+        cut.Find(".bloque-empresa-ambito [role=table]").GetAttribute("aria-label").Should().Be("Documentación por vencer de Empresa Recuentos S.L.");
+        cut.Find(".bloque-empresa-ambito .fila-relacion-desplegar").GetAttribute("aria-label").Should().Be("Documentos por vencer de Empresa Recuentos S.L.");
     }
 
     [Fact]

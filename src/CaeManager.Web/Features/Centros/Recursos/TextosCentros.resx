@@ -567,6 +567,9 @@
   <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
   <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>documento de Empresa con incidencia</value></data>
   <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documentos de Empresa con incidencia</value></data>
+  <data name="EmpresaBloqueDesplegarPorVencer" xml:space="preserve"><value>Documentos por vencer de {0}</value></data>
+  <data name="EmpresaBloqueTabla" xml:space="preserve"><value>Documentación con incidencia de {0}</value></data>
+  <data name="EmpresaBloqueTablaPorVencer" xml:space="preserve"><value>Documentación por vencer de {0}</value></data>
   <data name="GlosaDocumentoEmpresaPorVencer" xml:space="preserve"><value>documento de Empresa por vencer</value></data>
   <data name="GlosaDocumentosEmpresaPorVencer" xml:space="preserve"><value>documentos de Empresa por vencer</value></data>
   <data name="EmpresaBloqueNotaPorVencer" xml:space="preserve"><value>Solo se listan los documentos por vencer; el resto de su documentación está en Detalles.</value></data>

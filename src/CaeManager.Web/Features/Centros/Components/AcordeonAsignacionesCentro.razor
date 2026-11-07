@@ -105,7 +105,7 @@ else
                 <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoBloqueEmpresa"
                               OnNombre="AbrirDetalleEmpresa"
                               Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
-                              EtiquetaDesplegar="@Textos["EmpresaBloqueDesplegar", EmpresaNombre]">
+                              EtiquetaDesplegar="@Textos[EmpresaConIncidencia ? "EmpresaBloqueDesplegar" : "EmpresaBloqueDesplegarPorVencer", EmpresaNombre]">
                     <Detalle>@Textos[EmpresaConIncidencia ? "EmpresaBloqueNota" : "EmpresaBloqueNotaPorVencer"]</Detalle>
                     <Cifra>
                         @* Cifra corta como el «3 de 4» de los Trabajadores: la columna mide 76 px. El nombre completo va en el title. *@
@@ -121,7 +121,7 @@ else
                         </Boton>
                     </Acciones>
                     <Desplegable>
-                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@($"{(EmpresaConIncidencia ? "Documentación con incidencia" : "Documentación por vencer")} de {EmpresaNombre}")">
+                        <div class="tabla-documentos-requeridos documentos-trabajador-ficha" role="table" aria-label="@Textos[EmpresaConIncidencia ? "EmpresaBloqueTabla" : "EmpresaBloqueTablaPorVencer", EmpresaNombre]">
                             <div class="documentos-requeridos-cabecera" role="row">
                                 <span role="columnheader">Documento</span>
                                 <span role="columnheader">Estado</span>

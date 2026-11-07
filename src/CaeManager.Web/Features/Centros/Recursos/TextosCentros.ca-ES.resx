@@ -561,6 +561,9 @@
   <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
   <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>document d'Empresa amb incidència</value></data>
   <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documents d'Empresa amb incidència</value></data>
+  <data name="EmpresaBloqueDesplegarPorVencer" xml:space="preserve"><value>Documents per vèncer de {0}</value></data>
+  <data name="EmpresaBloqueTabla" xml:space="preserve"><value>Documentació amb incidència de {0}</value></data>
+  <data name="EmpresaBloqueTablaPorVencer" xml:space="preserve"><value>Documentació per vèncer de {0}</value></data>
   <data name="GlosaDocumentoEmpresaPorVencer" xml:space="preserve"><value>document d'Empresa per vèncer</value></data>
   <data name="GlosaDocumentosEmpresaPorVencer" xml:space="preserve"><value>documents d'Empresa per vèncer</value></data>
   <data name="EmpresaBloqueNotaPorVencer" xml:space="preserve"><value>Només es llisten els documents per vèncer; la resta de la seva documentació és a Detalls.</value></data>
