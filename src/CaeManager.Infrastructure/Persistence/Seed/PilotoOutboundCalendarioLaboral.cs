@@ -10,8 +10,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 ///
 /// <para>
 /// <b>Idempotente y sin pisar</b>: solo crea el calendario de quien no tiene ninguno; uno ya guardado se deja como
-/// está. Por eso también rellena un entorno ya sembrado en el siguiente arranque con la siembra del piloto activa,
-/// sin resembrar. Se llama dentro del ámbito del Tenant del Operador CAE externo que ya abre
+/// está. Por eso también rellena un entorno ya sembrado la siguiente vez que el lote llega a escribir, sin resembrar;
+/// no la siguiente vez que arranca: con la fecha de la demostración fuera de margen y nada por sembrar,
+/// <c>PilotoOutboundSeeder.SembrarLoteAsync</c> vuelve antes de sembrar el equipo, y el calendario con él. Se llama
+/// solo desde la siembra del equipo, dentro del lote (bajo sus mismas guardas, lo fija
+/// <c>PilotoOutboundSoloDesdeElModoCliTests</c>), y en el ámbito del Tenant del Operador CAE externo que ya abre
 /// <c>PilotoOutboundSeeder.SembrarEquipoAsync</c>: el calendario es dato de ese Tenant.
 /// </para>
 /// </summary>
