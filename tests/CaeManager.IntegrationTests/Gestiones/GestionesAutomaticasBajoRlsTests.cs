@@ -151,10 +151,48 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_sustitucion_no_alcanza_la_gestion_de_un_Documento_de_otro_Tenant()
+    public async Task Los_pasos_son_solo_las_acreditaciones_agregadas_del_Documento_nacido_en_el_ChangeTracker_real()
+    {
+        await using (var runtime = CrearRuntime())
+        {
+            // En el mismo contexto: una acreditación ya guardada y cargada (sin cambios) y otro Documento nuevo con su
+            // acreditación agregada. Ninguna de las dos es del Documento que nace.
+            (await runtime.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion)).Should().NotBeNull();
+            var hoy = DiaDeNegocio.Hoy();
+            var otro = Documento.DeTrabajador(_propio.Trabajador, _propio.Tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), "tenant/otro.pdf");
+            runtime.Documentos.Add(otro);
+            new AcreditacionDocumentoPlataformaRepository(runtime).Agregar(new AcreditacionDocumentoPlataforma(otro.Id, _propio.Canal));
+
+            var nacido = await AltaConArchivoAsync(runtime, _propio);
+
+            var gestion = await new GestionAutomaticaRepository(runtime).ObtenerPorDocumentoIdAsync(nacido.Id);
+            var acreditacionDelNacido = await runtime.AcreditacionesDocumentoPlataforma
+                .Where(a => a.DocumentoId == nacido.Id).Select(a => a.Id).SingleAsync();
+            gestion!.Pasos.Select(p => p.AcreditacionId).Should().Equal([acreditacionDelNacido]);
+        }
+    }
+
+    [Fact]
+    public async Task El_servicio_no_sustituye_la_gestion_de_un_Documento_de_otro_Tenant()
     {
         await NacerComoPropietarioAsync(_tenantAjeno, _ajeno.Documento);
         await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+        Documento documentoAjeno;
+        using (AmbitoTenantExplicito.Establecer(_tenantAjeno))
+            documentoAjeno = await _propietario.Documentos.AsNoTracking().SingleAsync(d => d.Id == _ajeno.Documento);
+
+        await using (var runtime = CrearRuntime())
+        {
+            // Aunque un acto le pasara como anterior un Documento de otro Tenant, RLS no le deja leer su Gestión.
+            var hoy = DiaDeNegocio.Hoy();
+            var nacido = Documento.DeTrabajador(_propio.Trabajador, _propio.Tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), "tenant/nuevo.pdf");
+            runtime.Documentos.Add(nacido);
+            await ActoAsync(runtime, nacido, documentoAjeno, _propio.Canal);
+        }
+
+        await using (var comprobacion = CrearPropietarioLimpio())
+            (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().SingleAsync(g => g.DocumentoId == _ajeno.Documento))
+                .SustituidaEnUtc.Should().BeNull();
 
         await using (var runtime = CrearRuntime())
         {
@@ -170,10 +208,6 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
             (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.Id == _ajeno.Acreditacion))
                 .Should().Be(0, "el cero sale de que RLS no deja leer la acreditación ajena");
         }
-
-        await using var comprobacion = CrearPropietarioLimpio();
-        (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().SingleAsync(g => g.DocumentoId == _ajeno.Documento))
-            .SustituidaEnUtc.Should().BeNull();
     }
 
     [Fact]

@@ -6,15 +6,11 @@ namespace CaeManager.Application.Tests.Gestiones;
 
 /// <summary>
 /// Doble de <see cref="INacimientoGestionAutomaticaService"/> para los Commands cuya prueba no mira la Gestión
-/// automática: no agrega nada y recuerda con qué Documentos se le llamó, para comprobar que el acto la pide.
+/// automática: no agrega nada. Que el acto la pida lo prueban los tests que usan el servicio real
+/// (<see cref="GestionAutomaticaEnLosActosTests"/> y el de plantilla en <c>GenerarDocumentoIndividualCommandHandlerTests</c>).
 /// </summary>
 public sealed class NacimientoGestionAutomaticaQueRegistra : INacimientoGestionAutomaticaService
 {
-    public List<(Documento Nacido, Documento? Sustituido)> Llamadas { get; } = [];
-
-    public Task<GestionAutomatica?> AgregarAsync(Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default)
-    {
-        Llamadas.Add((nacido, sustituido));
-        return Task.FromResult<GestionAutomatica?>(null);
-    }
+    public Task<GestionAutomatica?> AgregarAsync(Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default) =>
+        Task.FromResult<GestionAutomatica?>(null);
 }

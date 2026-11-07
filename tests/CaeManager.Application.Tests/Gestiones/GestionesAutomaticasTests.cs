@@ -126,6 +126,23 @@ public class GestionesAutomaticasTests
     }
 
     [Fact]
+    public async Task Las_acreditaciones_sin_guardar_de_otro_Documento_no_son_pasos_de_este()
+    {
+        // Un mismo guardado puede llevar acreditaciones agregadas de varios Documentos (división de un PDF, por ejemplo):
+        // cada Gestión toma solo las de su Documento.
+        var documento = DocumentoDelTrabajador();
+        var otro = DocumentoDelTrabajador("tenant/otro.pdf");
+        var propia = Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        Acreditar(otro, AccesoPlataforma(Centro("Almacén Sur"), "Dokify"));
+
+        var gestion = await new NacimientoGestionAutomaticaService(
+                _gestiones, _delActo, _documentos, _centros, new CurrentUserServiceFalso(_usuarioId, "GestorCae"), new RelojFijo(Ahora))
+            .AgregarAsync(documento, sustituido: null, CancellationToken.None);
+
+        gestion!.Pasos.Select(p => p.AcreditacionId).Should().Equal(propia.Id);
+    }
+
+    [Fact]
     public async Task Renovar_con_la_gestion_anterior_abierta_la_cierra_como_sustituida_con_enlace_a_la_nueva()
     {
         var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
