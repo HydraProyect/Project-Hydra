@@ -475,6 +475,19 @@ public partial class CuadroDireccionTests : BunitContext
     }
 
     [Fact]
+    public void Los_botones_de_la_cabecera_son_del_sistema_de_diseno_y_conservan_su_clase_propia()
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);
+
+        // «Class» con mayúscula no se combinaba con las clases del Boton: el botón se pintaba sin .boton (nativo, sin estilo).
+        var presentar = cut.Find("button.cuadro-presentar");
+        presentar.ClassList.Should().Contain(["boton", "boton-secundario", "cuadro-presentar"]);
+
+        // Cada botón de la barra es del sistema de diseño, salvo el interruptor, el selector de periodo y el menú «⋯», que son propios de la maqueta.
+        cut.FindAll(".cuadro-barra > button:not(.cuadro-interruptor)").Should().OnlyContain(b => b.ClassList.Contains("boton"));
+    }
+
+    [Fact]
     public void Elegir_un_equipo_reduce_el_cuadro_a_las_Empresas_de_su_Gestor_CAE()
     {
         var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial), Roles.DireccionCae, out _);

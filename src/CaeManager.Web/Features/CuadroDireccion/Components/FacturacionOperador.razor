@@ -64,11 +64,11 @@
                         <span>@T["FactKpiExtranjerosSub"]</span>
                         @if (_datos.Total.Extranjeros > 0)
                         {
-                            <Boton Class="fact-exportar" Variante="VarianteBoton.Secundario" Href="@RutaExportar(null)" download data-enhance-nav="false">@T["FactExportar"]</Boton>
+                            <Boton class="fact-exportar" Variante="VarianteBoton.Secundario" Href="@RutaExportar(null)" download data-enhance-nav="false">@T["FactExportar"]</Boton>
                         }
                         else
                         {
-                            <Boton Class="fact-exportar" Variante="VarianteBoton.Secundario" Deshabilitado="true" title="@T["FactNadaQueExportar", NombreMes]">@T["FactExportar"]</Boton>
+                            <Boton class="fact-exportar" Variante="VarianteBoton.Secundario" Deshabilitado="true" title="@T["FactNadaQueExportar", NombreMes]">@T["FactExportar"]</Boton>
                             <span class="fact-nota">@T["FactNadaQueExportar", NombreMes]</span>
                         }
                     </div>
@@ -186,7 +186,7 @@
                                             }
                                             @if (VeImportes)
                                             {
-                                                <td class="fact-der"><Boton Variante="VarianteBoton.Secundario" Class="fact-tarifas" OnClick="@(() => AbrirTarifas(fila.TenantId))">@T["FactTarifas"]</Boton></td>
+                                                <td class="fact-der"><Boton Variante="VarianteBoton.Secundario" class="fact-tarifas" OnClick="@(() => AbrirTarifas(fila.TenantId))">@T["FactTarifas"]</Boton></td>
                                             }
                                         </tr>
                                     }

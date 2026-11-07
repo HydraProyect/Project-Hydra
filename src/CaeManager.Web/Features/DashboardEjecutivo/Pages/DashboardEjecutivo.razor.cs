@@ -501,6 +501,27 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
         _ => null
     };
 
+    /// <summary>
+    /// El indicador no tiene todavía con qué medirse: ninguna lectura de IA en el periodo, ninguna sugerencia resuelta o
+    /// ninguna visita con antelación medida. Es la misma condición que hoy pinta «—» en <see cref="ValorTile"/>; no se
+    /// recalcula nada. «Coste IA del mes» queda fuera a propósito: 0,00 € es una suma real (ningún gasto), no una ausencia.
+    /// </summary>
+    private bool TileSinMedir(string codigo) => codigo switch
+    {
+        CatalogoKpis.ConfianzaMediaIa => _valores!.ConfianzaMediaIa is null,
+        CatalogoKpis.TiempoMedioProcesamientoIa => _valores!.TiempoMedioProcesamientoIaMs is null,
+        CatalogoKpis.PalancaIa => PorcentajePalancaIa is null,
+        CatalogoKpis.FalsosAvisos => PorcentajeFalsosAvisos is null,
+        CatalogoKpis.TiempoBloqueadoCliente => HorasBloqueadasMedia is null,
+        _ => false
+    };
+
+    private IReadOnlyList<DefinicionKpi> ConCifra(IReadOnlyList<DefinicionKpi> tiles) =>
+        tiles.Where(k => !TileSinMedir(k.Codigo)).ToList();
+
+    private IReadOnlyList<DefinicionKpi> SinCifra(IReadOnlyList<DefinicionKpi> tiles) =>
+        tiles.Where(k => TileSinMedir(k.Codigo)).ToList();
+
     private static TonoBadge TonoPorcentaje(int valor) => valor switch
     {
         >= 90 => TonoBadge.Exito,
