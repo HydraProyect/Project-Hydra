@@ -153,7 +153,8 @@ public class DiaDeNegocioTests
 
         EstadoDocumento Estado(DateOnly hoy) => CalculadoraEstadoDocumento.Calcular(venceElDia7, hoy, 30, 15);
 
-        // Sin fijar: el mismo test lee dos días distintos y «Vence hoy» deja de serlo (el defecto del intermitente).
+        // Un reloj que avanza como el real (aquí simulado, instalado como reloj del flujo): dos lecturas dan dos días y
+        // «Vence hoy» deja de serlo. Es el comportamiento del intermitente; el reloj real no se puede forzar en un test.
         using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojQueAvanza(antesDeLaMedianoche, despuesDeLaMedianoche)))
         {
             var primeraLectura = DiaDeNegocio.Hoy();
