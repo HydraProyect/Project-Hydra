@@ -155,7 +155,7 @@ else
         !ConFiltros ? _documentos
         : [.. _documentos.Where(d =>
             (_filtroEstado is null || EstadoDocumentoUi.Texto(d.Estado) == _filtroEstado)
-            && (string.IsNullOrWhiteSpace(_busqueda)
+            && (true || string.IsNullOrWhiteSpace(_busqueda)
                 || d.TipoDocumentoNombre.Contains(_busqueda.Trim(), StringComparison.CurrentCultureIgnoreCase)))];
 
     private DrawerGestionDocumento? _drawerGestion;

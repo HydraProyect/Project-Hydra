@@ -456,7 +456,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AlternarTenant(Guid tenantId)
     {
-        _primerGrupoAbierto = true;
         if (!_tenantsAbiertos.Remove(tenantId))
             _tenantsAbiertos.Add(tenantId);
     }
