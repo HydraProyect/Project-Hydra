@@ -133,10 +133,6 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         }, Espera);
     }
 
-    /// <summary>
-    /// Lo que el Gestor CAE abre con la carga a medias manda: al terminar, el primer grupo de partida no se le suma.
-    /// Abre la segunda Empresa en llegar (la primera en orden de pantalla es otra) y la tercera aún está por consultar.
-    /// </summary>
     private const string CabeceraTenant = ".mi-trabajo-grupo-cabecera-tenant";
 
     /// <summary>
@@ -154,6 +150,10 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         cut.WaitForAssertion(() => Cabecera().GetAttribute("aria-expanded").Should().Be(abierta ? "true" : "false"), Espera);
     }
 
+    /// <summary>
+    /// Lo que el Gestor CAE abre con la carga a medias manda: al terminar, el primer grupo de partida no se le suma.
+    /// Abre la segunda Empresa en llegar (la primera en orden de pantalla es otra) y la tercera aún está por consultar.
+    /// </summary>
     [Fact]
     public async Task Un_pliegue_tocado_durante_la_carga_gasta_la_apertura_del_primer_grupo()
     {
