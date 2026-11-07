@@ -97,8 +97,12 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
-        await page.SetViewportSizeAsync(ancho, 900);
+        // La sesión se inicia a ancho de escritorio: IniciarSesionAsync espera la navegación principal, que por
+        // debajo de 1024 px está plegada (a 768 y 375 px el localizador la resuelve oculta y agota los 30 s). El
+        // ancho que se mide se fija antes de abrir el listado, y la medición no cambia.
+        await page.SetViewportSizeAsync(1280, 900);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await page.SetViewportSizeAsync(ancho, 900);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(page.Locator(".marco-lista-empresas .tarjeta-fila-acordeon-cabecera")).Not.ToHaveCountAsync(0);
         if (conSeleccion)
