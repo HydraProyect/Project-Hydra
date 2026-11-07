@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
@@ -964,12 +964,31 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Valor).Should().NotContain("—");
 
         var bloque = cut.FindAll("[data-bloque='sin-medir']").Should().ContainSingle("un único bloque, no uno por indicador").Subject;
-        Texto(bloque).Should().Contain("Los indicadores de IA y BPO aparecerán con la actividad")
+        Texto(bloque).Should().Contain("Estos indicadores aparecerán con la actividad")
             .And.Contain("Confianza media de extracción IA")
             .And.Contain("Tiempo medio de procesamiento IA");
 
         // El coste es una suma real: 0,00 € no es una ausencia y la tarjeta se queda donde estaba.
         etiquetasTiles.Should().Contain("Coste IA del mes");
+    }
+
+    [Fact]
+    public void Con_lecturas_de_ia_pero_sin_datos_de_BPO_el_bloque_solo_nombra_los_pendientes_y_no_niega_las_lecturas()
+    {
+        var escenario = new Escenario();
+        for (var i = 0; i < escenario.Organizaciones.Count; i++)
+        {
+            var organizacion = escenario.Organizaciones[i];
+            escenario.Organizaciones[i] = organizacion with { Valores = organizacion.Valores with { Bpo = KpisBpoDto.Vacio } };
+        }
+
+        var cut = Renderizar(escenario).Cut;
+
+        TilePorEtiqueta(cut, "Confianza media de extracción IA").Valor.Should().NotBe("—", "hay lecturas de IA: su tarjeta se queda");
+        var bloque = Texto(cut.FindAll("[data-bloque='sin-medir']").Should().ContainSingle().Subject);
+        bloque.Should().Contain("Falsos avisos con tiempo").And.Contain("Índice de palanca IA");
+        bloque.Should().NotContain("Confianza media de extracción IA");
+        bloque.Should().NotContain("no hay lecturas", "el texto no puede negar lo que la tarjeta de al lado muestra");
     }
 
     [Fact]

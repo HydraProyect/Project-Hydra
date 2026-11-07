@@ -298,9 +298,9 @@
     <value>Ver facturación →</value>
   </data>
   <data name="SinMedirTitulo" xml:space="preserve">
-    <value>Los indicadores de IA y BPO aparecerán con la actividad</value>
+    <value>Estos indicadores aparecerán con la actividad</value>
   </data>
   <data name="SinMedirDescripcion" xml:space="preserve">
-    <value>Todavía no hay lecturas de documentos con IA ni gestiones medidas en este periodo. En cuanto las haya, aparecerá aquí cada indicador con su cifra: {0}.</value>
+    <value>Todavía no hay datos en este periodo para calcularlos: se miden con las lecturas de documentos por IA, las sugerencias resueltas y las visitas con antelación medida. En cuanto los haya, cada indicador aparecerá aquí con su cifra: {0}.</value>
   </data>
 </root>

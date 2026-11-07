@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard;
@@ -483,7 +483,8 @@ public partial class CuadroDireccionTests : BunitContext
         var presentar = cut.Find("button.cuadro-presentar");
         presentar.ClassList.Should().Contain(["boton", "boton-secundario", "cuadro-presentar"]);
 
-        // Cada botón de la barra es del sistema de diseño, salvo el interruptor, el selector de periodo y el menú «⋯», que son propios de la maqueta.
+        // Los <button> de la barra y el enlace de exportación (un <a> con Href) son Boton del sistema de diseño; el interruptor, el periodo y el menú «⋯» son propios de la maqueta.
+        cut.Find("a.cuadro-exportar-extranjeros").ClassList.Should().Contain("boton");
         cut.FindAll(".cuadro-barra > button:not(.cuadro-interruptor)").Should().OnlyContain(b => b.ClassList.Contains("boton"));
     }
 
