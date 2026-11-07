@@ -122,6 +122,48 @@ public class FestivosYJornadaIntensivaTests
         aran.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeTrue("el Lunes de Pascua de 2027 está sustituido en Arán");
     }
 
+    [Theory]
+    // Espacios que no son el ordinario (copiar y pegar de una hoja o de un PDF): NBSP, tabulador, dobles, espacio
+    // estrecho NBSP (U+202F), espacio ideográfico, espacio de ancho cero y salto de línea.
+    [InlineData("Vielha e Mijaran")]
+    [InlineData("Vielha e\tMijaran")]
+    [InlineData("Vielha  e   Mijaran")]
+    [InlineData(" Naut  Aran ")]
+    [InlineData("Naut\tAran")]
+    [InlineData("Alt Aran")]
+    [InlineData("Vielha　i Mijaran")]
+    [InlineData("Vielha​e​Mijaran")]
+    [InlineData("Naut\r\nAran")]
+    [InlineData("Val d’Aran")]
+    public void La_Val_d_Aran_se_reconoce_aunque_el_texto_traiga_espacios_no_ordinarios(string municipio)
+    {
+        var aran = En(ComunidadAutonoma.Cataluna, municipio: municipio);
+
+        CatalogoFestivosOficiales.EsDeLaValDAran(aran).Should().BeTrue();
+        foreach (var anio in CatalogoFestivosOficiales.AniosCubiertos)
+            CatalogoFestivosOficiales.Cubre(anio, aran).Should().BeFalse($"{municipio} {anio}");
+        aran.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeTrue("el Lunes de Pascua de 2027 está sustituido en Arán");
+    }
+
+    [Theory]
+    // Control: los mismos espacios en un municipio que no es de Arán no lo convierten en Arán, y los espacios no unen
+    // palabras: «Naut Aran» sí es Arán, pero «NautAran» pegado no.
+    [InlineData("Barcelona")]
+    [InlineData("Lleida ")]
+    [InlineData("L’Hospitalet de Llobregat")]
+    [InlineData("Sant\t\tCugat")]
+    [InlineData("Salardú ")]
+    [InlineData("NautAran")]
+    [InlineData("Vielhae Mijaran")]
+    public void Los_espacios_no_ordinarios_no_convierten_en_Aran_un_municipio_que_no_lo_es(string municipio)
+    {
+        var perfil = En(ComunidadAutonoma.Cataluna, municipio: municipio);
+
+        CatalogoFestivosOficiales.EsDeLaValDAran(perfil).Should().BeFalse(municipio);
+        CatalogoFestivosOficiales.Cubre(2027, perfil).Should().BeTrue();
+        perfil.EsLaborable(new DateOnly(2027, 3, 29), Catalogo).Should().BeFalse("es Lunes de Pascua en Cataluña");
+    }
+
     [Fact]
     public void El_resto_de_Cataluna_sigue_cubierto_con_su_cuadro_general()
     {

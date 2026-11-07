@@ -178,10 +178,14 @@ public static class CatalogoFestivosOficiales
         {
             if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) == System.Globalization.UnicodeCategory.NonSpacingMark)
                 continue;
+            // Todo espacio cuenta como el ordinario: NBSP (U+00A0), tabuladores, espacios Unicode (U+2000 a U+200A,
+            // U+202F, U+3000...), saltos de línea, y el de ancho cero (U+200B) o la marca BOM (U+FEFF) que se cuelan
+            // al copiar y pegar. Separar solo por ' ' dejaba «Vielha e Mijaran» con NBSP sin reconocer.
             limpio.Append(caracter switch
             {
                 '’' or '‘' or '´' or '`' => '\'',
-                '-' => ' ',
+                '-' or '​' or '﻿' => ' ',
+                _ when char.IsWhiteSpace(caracter) => ' ',
                 _ => char.ToLowerInvariant(caracter),
             });
         }
