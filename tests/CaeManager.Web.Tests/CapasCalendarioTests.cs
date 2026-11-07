@@ -185,7 +185,7 @@ public class CapasCalendarioTests : BunitContext
             anio: 2027, mes: 7);
 
         cut.FindAll(".capas-aviso").Select(a => a.TextContent).Should().Contain(
-            "No tenemos los festivos autonómicos de Comunidad de Madrid: allí no se marcan ni esos festivos ni la jornada intensiva.");
+            "Sin festivos autonómicos en el catálogo: Comunidad de Madrid. En esa ubicación no se marcan ni esos festivos ni la jornada intensiva.");
     }
 
     [Fact]
