@@ -152,6 +152,21 @@ public class VencimientosMesReclamableTests
     }
 
     [Fact]
+    public async Task Gestion_sobre_una_Empresa_que_no_esta_en_el_alcance_de_lectura_tampoco_la_hace_reclamable()
+    {
+        var empresa = Empresa();
+        var trabajador = TrabajadorDe(empresa);
+        DocumentoDe(trabajador, PrimeroDelMes);
+
+        // Defensa en profundidad: la Semana oculta la fila entera si la Empresa empleadora no está en ningún alcance de lectura.
+        var fila = (await Consultar(PrimeroDelMes, new(tieneAccesoTotal: false, empresaIdsVisibles: [],
+            trabajadorIdsVisibles: [trabajador.Id], empresaIdsParaGestion: [empresa.Id]))).Should().ContainSingle().Which;
+
+        fila.EmpresaId.Should().BeNull();
+        fila.Reclamable.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Un_Trabajador_fuera_de_la_cartera_no_sale_en_el_mes()
     {
         var empresa = Empresa();
