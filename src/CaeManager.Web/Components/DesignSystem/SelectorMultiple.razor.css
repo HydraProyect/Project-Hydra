@@ -6,7 +6,9 @@
     margin-bottom: var(--space-2);
 }
 
-.selector-multiple-controles .campo {
+/* ::deep: el .campo del buscador es la raiz de CampoTexto, un componente hijo; sin ::deep el atributo de ambito de este fichero no llega a el
+   y la regla nunca aplicaba (el buscador quedaba en su ancho natural, unos 150 px, en un panel de 480). */
+.selector-multiple-controles ::deep .campo {
     flex: 1 1 160px;
     margin-bottom: 0;
 }
