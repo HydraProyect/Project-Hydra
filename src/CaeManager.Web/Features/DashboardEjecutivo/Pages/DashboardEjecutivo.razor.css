@@ -92,6 +92,13 @@
     color: var(--color-text-muted);
 }
 
+/* Estado vacío de los indicadores sin medir: un solo bloque sobre la superficie de las tarjetas, sin cifras ni gráficos. */
+.bloque-sin-medir {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
 /* ------------------------------------------------------------------ donut */
 
 .grafico-donut {
