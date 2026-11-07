@@ -653,12 +653,6 @@
   <data name="PlataformasQueMostrar" xml:space="preserve">
     <value>Què mostrar</value>
   </data>
-  <data name="PlataformasSoloIncidencias" xml:space="preserve">
-    <value>Només incidències · {0}</value>
-  </data>
-  <data name="PlataformasTodo" xml:space="preserve">
-    <value>Tot · {0}</value>
-  </data>
   <data name="PlataformasErrorTitulo" xml:space="preserve">
     <value>No s&apos;han pogut carregar les plataformes</value>
   </data>
@@ -729,5 +723,17 @@
   </data>
   <data name="ToastContactoPrincipalNoCargado" xml:space="preserve">
     <value>No hem pogut carregar el contacte principal d'aquesta empresa. Que no aparegui no vol dir que no en tingui; recarrega la pàgina.</value>
+  </data>
+  <data name="PlataformasSoloIncidenciasRotulo" xml:space="preserve">
+    <value>Només incidències</value>
+    <comment>Chip d'estat de la pestanya Plataformes: el recompte el pinta FiltroEstadosMultiple.</comment>
+  </data>
+  <data name="PlataformasTodoRotulo" xml:space="preserve">
+    <value>Tot</value>
+    <comment>Chip que treu la marca de «Només incidències».</comment>
+  </data>
+  <data name="PlataformasMostrando" xml:space="preserve">
+    <value>Mostrant {0} de {1} documents</value>
+    <comment>Encapçalament de la targeta de Plataformes: documents visibles dels que hi ha.</comment>
   </data>
 </root>

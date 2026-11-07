@@ -49,7 +49,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class ReclamacionesTabTests : BunitContext
 {
-    /// <summary>La pestaña monta ModalContactoAgenda (Modal con JS interop para el foco), aunque Visible empiece en false.</summary>
+    /// <summary>La pestaña monta ModalContactoAgenda (panel lateral con JS interop para el foco), aunque Visible empiece en false.</summary>
     public ReclamacionesTabTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -358,7 +358,7 @@ public class ReclamacionesTabTests : BunitContext
         var campoEmail = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Email");
         await cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync("Marta Ruiz"));
         await cut.InvokeAsync(() => campoEmail.Instance.ValorChanged.InvokeAsync("marta@arcos.example"));
-        var altaContacto = cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar")
+        var altaContacto = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar y terminar")
             .ClickAsync(new MouseEventArgs());
 
         // El envío termina el ÚLTIMO y dispara la recarga más reciente
