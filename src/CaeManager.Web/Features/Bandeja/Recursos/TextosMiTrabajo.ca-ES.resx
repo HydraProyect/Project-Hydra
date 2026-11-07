@@ -81,11 +81,23 @@
   <data name="Severidad" xml:space="preserve">
     <value>Gravetat</value>
   </data>
-  <data name="Ordenar" xml:space="preserve">
-    <value>Ordena</value>
+  <data name="OrdenarPor" xml:space="preserve">
+    <value>Ordena per</value>
   </data>
-  <data name="Prioridad" xml:space="preserve">
-    <value>Prioritat</value>
+  <data name="Impacto" xml:space="preserve">
+    <value>Impacte</value>
+  </data>
+  <data name="VistaYFiltros" xml:space="preserve">
+    <value>Vista i filtres</value>
+  </data>
+  <data name="VistaYFiltrosActivos" xml:space="preserve">
+    <value>Opcions de vista actives</value>
+  </data>
+  <data name="PropagacionesVerTodas" xml:space="preserve">
+    <value>Veure-les totes ({0})</value>
+  </data>
+  <data name="PropagacionesVerMenos" xml:space="preserve">
+    <value>Veure'n menys</value>
   </data>
   <data name="Cliente" xml:space="preserve">
     <value>Client</value>

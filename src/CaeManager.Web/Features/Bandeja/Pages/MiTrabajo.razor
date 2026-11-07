@@ -12,10 +12,10 @@
 <LimiteDeErrores Pagina="this">
 @* Mi trabajo Gen2, Nivel 1 multi-Tenant: mockup «Cola operativa multi-Tenant»
    (Mi trabajo.dc.html) sobre CONTRATO-MI-TRABAJO-GEN2-MULTI-TENANT-2026-09-22.
-   Toda la cola de cada Tenant está aquí, pero la pantalla carga SIEMPRE con todos
-   los grupos de Tenant plegados (decisión de producto 2026-10-16, sin estado
-   persistido): al desplegar un Tenant se ve lo urgente y el resto tras «Ver»; una
-   búsqueda activa anula los pliegues (contrato § 5). Cada acción
+   Toda la cola de cada Tenant está aquí. La pantalla carga con el primer grupo desplegado
+   y los demás plegados, como la maqueta (11-06, demo del 10-11; antes cargaba todo plegado,
+   decisión del 2026-10-16), sin estado persistido: al desplegar un Tenant se ve lo urgente
+   y el resto tras «Ver»; una búsqueda activa anula los pliegues (contrato § 5). Cada acción
    entra en su Tenant por el POST de /cuenta/cliente-activo (AccionCrossTenant).
    El Tenant de origen del Operador CAE no se gestiona desde aquí (§ 10).
 
@@ -43,46 +43,14 @@
         <Acciones>
             @if (_vista is not null && !_errorCarga)
             {
-                @* Maqueta: columna única. El ámbito de cartera (antes carril lateral) es un control compacto en la cabecera, donde la maqueta pone «Ordenar por». *@
-                <div class="mi-trabajo-cartera" role="group" aria-label="@Textos["MiCartera"]" @onkeydown="TeclaCartera">
-                    <button type="button" class="mi-trabajo-cartera-resumen" aria-expanded="@(_carteraAbierta ? "true" : "false")" aria-haspopup="true"
-                            @onclick="() => _carteraAbierta = !_carteraAbierta">
-                        <span class="mi-trabajo-cartera-etiqueta">@Textos["Empresa"]</span>
-                        <span class="mi-trabajo-cartera-actual">@(TenantFiltrado?.Nombre ?? Textos["TodaMiCartera"])</span>
-                        <span class="@("mi-trabajo-chevron" + (_carteraAbierta ? "" : " mi-trabajo-chevron-plegado"))" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
-                    </button>
-                    @if (_carteraAbierta)
-                    {
-                        <div class="mi-trabajo-cartera-fondo" aria-hidden="true" @onclick="() => _carteraAbierta = false"></div>
-                    }
-                    <div class="mi-trabajo-cartera-lista" hidden="@(!_carteraAbierta)">
-                        <div class="mi-trabajo-cartera-cabecera">
-                            <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
-                            <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
-                        </div>
-                        <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
-                                @onclick="() => CambiarTenant(null)">
-                            <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
-                            <span class="mi-trabajo-cartera-texto">
-                                <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
-                                <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
-                            </span>
-                            <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
-                        </button>
-                        @foreach (var tenant in _vista.Cartera)
-                        {
-                            <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
-                                    @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
-                                <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
-                                <span class="mi-trabajo-cartera-texto">
-                                    <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
-                                    <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
-                                </span>
-                                <span class="mi-trabajo-cartera-total">@tenant.Total</span>
-                            </button>
-                        }
-                    </div>
-                </div>
+                @* Maqueta: «Ordenar por [Impacto]» arriba a la derecha. El ámbito de cartera (Empresa), «Agrupar por», el filtro y «Expandir todas» no están en la maqueta: se pliegan en «Vista y filtros» (bajo los chips) y no se pierde ninguno. *@
+                <label class="mi-trabajo-ordenar">
+                    <span class="mi-trabajo-ordenar-etiqueta">@Textos["OrdenarPor"]</span>
+                    <select class="mi-trabajo-ordenar-select" aria-label="@Textos["OrdenarPor"]" @onchange="CambiarOrdenDesdeSelect">
+                        <option value="@OrdenMiTrabajo.Prioridad" selected="@(_orden == OrdenMiTrabajo.Prioridad)">@Textos["Impacto"]</option>
+                        <option value="@OrdenMiTrabajo.Cliente" selected="@(_orden == OrdenMiTrabajo.Cliente)">@Textos["Cliente"]</option>
+                    </select>
+                </label>
             }
             @if (_puedeAnadirACartera)
             {
@@ -130,6 +98,7 @@
         }
 
         var propagaciones = _vista.Propagaciones(Filtro);
+        var propagacionesVisibles = _propagacionesTodas ? propagaciones : propagaciones.Take(TopePropagaciones).ToList();
         <section class="propagaciones" aria-label="@Textos["PropagacionesTitulo"]">
             <header class="propagaciones-cabecera">
                 <h2>@Textos["PropagacionesTitulo"] · @propagaciones.Count</h2>
@@ -143,7 +112,7 @@
             {
                 <p class="propagaciones-vacio">@Textos[_vista.Incompleta(Filtro) ? "PropagacionesIncompletas" : _vista.SinAlcance(Filtro) ? "SinCarteraTitulo" : HayFiltrosActivos ? "PropagacionesSinResultados" : "PropagacionesVacio"]</p>
             }
-            @foreach (var fila in propagaciones)
+            @foreach (var fila in propagacionesVisibles)
             {
                 <div class="propagaciones-fila">
                     <div class="propagaciones-texto">
@@ -156,6 +125,16 @@
                     </div>
                     <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                        Texto="@Textos["PropagacionesGestionar"]" Variante="VarianteBoton.Secundario" />
+                </div>
+            }
+            @* Maqueta: el panel enseña 3 filas. El resto sigue a un clic, en el mismo panel: ninguna fila se pierde. *@
+            @if (propagaciones.Count > TopePropagaciones)
+            {
+                <div class="propagaciones-pie">
+                    <button type="button" class="propagaciones-ver-todas" aria-expanded="@(_propagacionesTodas ? "true" : "false")"
+                            @onclick="() => _propagacionesTodas = !_propagacionesTodas">
+                        @(_propagacionesTodas ? Textos["PropagacionesVerMenos"] : Textos["PropagacionesVerTodas", propagaciones.Count])
+                    </button>
                 </div>
             }
         </section>
@@ -171,14 +150,83 @@
             }
         </div>
 
-        @* Maqueta: «N grupos · M tareas visibles» y, a la derecha, los atajos que de verdad existen en la capa de teclado. *@
+        @* Maqueta: «N grupos · M tareas visibles» y, a la derecha, los atajos que de verdad existen en la capa de teclado.
+           «Vista y filtros» pliega lo que la maqueta no dibuja pero la pantalla ya tenía: Empresa (ámbito de cartera), Agrupar por, filtro de la cola y Expandir/Plegar todas. *@
         <div class="mi-trabajo-resumen-fila">
             <span class="mi-trabajo-resumen" role="status">@ResumenLista</span>
+            <button type="button" class="mi-trabajo-vista-alternar" aria-expanded="@(_vistaAbierta ? "true" : "false")" aria-controls="mi-trabajo-vista"
+                    @onclick="AlternarVista">
+                @Textos["VistaYFiltros"]
+                @if (!_vistaAbierta && VistaActivos > 0)
+                {
+                    <span class="mi-trabajo-vista-activos" title="@Textos["VistaYFiltrosActivos"]">@VistaActivos</span>
+                }
+                <span class="@("mi-trabajo-chevron" + (_vistaAbierta ? "" : " mi-trabajo-chevron-plegado"))" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+            </button>
             <span class="mi-trabajo-atajos">@Textos["Atajos"]
                 <kbd title="@Textos["AtajoMover"]">j</kbd><kbd title="@Textos["AtajoMover"]">k</kbd><kbd title="@Textos["AtajoAbrir"]">↵</kbd>
             </span>
         </div>
 
+        @if (_vistaAbierta)
+        {
+            <div id="mi-trabajo-vista" class="mi-trabajo-barra mi-trabajo-vista">
+                <div class="mi-trabajo-cartera" role="group" aria-label="@Textos["MiCartera"]" @onkeydown="TeclaCartera">
+                    <button type="button" class="mi-trabajo-cartera-resumen" aria-expanded="@(_carteraAbierta ? "true" : "false")" aria-haspopup="true"
+                            @onclick="() => _carteraAbierta = !_carteraAbierta">
+                        <span class="mi-trabajo-cartera-etiqueta">@Textos["Empresa"]</span>
+                        <span class="mi-trabajo-cartera-actual">@(TenantFiltrado?.Nombre ?? Textos["TodaMiCartera"])</span>
+                        <span class="@("mi-trabajo-chevron" + (_carteraAbierta ? "" : " mi-trabajo-chevron-plegado"))" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                    </button>
+                    @if (_carteraAbierta)
+                    {
+                        <div class="mi-trabajo-cartera-fondo" aria-hidden="true" @onclick="() => _carteraAbierta = false"></div>
+                    }
+                    <div class="mi-trabajo-cartera-lista" hidden="@(!_carteraAbierta)">
+                        <div class="mi-trabajo-cartera-cabecera">
+                            <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
+                            <span class="mi-trabajo-cartera-cuenta">@Empresas(_vista.Cartera.Count)</span>
+                        </div>
+                        <button type="button" class="@ClaseFilaCartera(null)" aria-pressed="@(_tenantFiltro is null ? "true" : "false")"
+                                @onclick="() => CambiarTenant(null)">
+                            <span class="mi-trabajo-cartera-avatar mi-trabajo-cartera-avatar-todo" aria-hidden="true">∑</span>
+                            <span class="mi-trabajo-cartera-texto">
+                                <span class="mi-trabajo-cartera-nombre">@Textos["TodaMiCartera"]</span>
+                                <span class="mi-trabajo-cartera-sub">@EmpresasConsultadas(_vista.Cartera.Count)</span>
+                            </span>
+                            <span class="mi-trabajo-cartera-total">@_vista.TotalCartera</span>
+                        </button>
+                        @foreach (var tenant in _vista.Cartera)
+                        {
+                            <button type="button" class="@ClaseFilaCartera(tenant.TenantId)" aria-pressed="@(_tenantFiltro == tenant.TenantId ? "true" : "false")"
+                                    @onclick="() => CambiarTenant(_tenantFiltro == tenant.TenantId ? null : tenant.TenantId)">
+                                <span class="mi-trabajo-cartera-avatar" aria-hidden="true">@Iniciales(tenant.Nombre)</span>
+                                <span class="mi-trabajo-cartera-texto">
+                                    <span class="mi-trabajo-cartera-nombre">@tenant.Nombre</span>
+                                    <span class="mi-trabajo-cartera-sub">@SubtituloCartera(tenant)</span>
+                                </span>
+                                <span class="mi-trabajo-cartera-total">@tenant.Total</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["AgruparPor"]">
+                    <span class="mi-trabajo-barra-etiqueta">@Textos["AgruparPor"]</span>
+                    <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Tenant)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Tenant ? "true" : "false")"
+                            @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Tenant)">@Textos["Empresa"]</button>
+                    <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Severidad)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Severidad ? "true" : "false")"
+                            @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">@Textos["Severidad"]</button>
+                </div>
+                <div class="mi-trabajo-barra-derecha">
+                    <input class="mi-trabajo-filtro" type="search" aria-label="@Textos["FiltroEtiqueta"]"
+                           placeholder="@Textos["FiltroMarcador"]" value="@_busqueda" @oninput="CambiarBusqueda" />
+                    @if (string.IsNullOrWhiteSpace(_busqueda))
+                    {
+                        <button type="button" class="mi-trabajo-plegar-todas" disabled="@_cargando" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
+                    }
+                </div>
+            </div>
+        }
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
         @* El detalle solo existe con una tarea abierta: sin ella no reserva
@@ -186,31 +234,6 @@
            barra de la cola («j k mover · ↵ abrir»). *@
         <div class="@("mi-trabajo-paneles contenido-entra" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
             <section class="mi-trabajo-cola" aria-label="@Textos["ColaDeTrabajo"]">
-                <div class="mi-trabajo-barra">
-                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["AgruparPor"]">
-                        <span class="mi-trabajo-barra-etiqueta">@Textos["AgruparPor"]</span>
-                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Tenant)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Tenant ? "true" : "false")"
-                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Tenant)">@Textos["Empresa"]</button>
-                        <button type="button" class="@ClasePestana(_agrupar == AgruparMiTrabajo.Severidad)" aria-pressed="@(_agrupar == AgruparMiTrabajo.Severidad ? "true" : "false")"
-                                @onclick="() => CambiarAgrupar(AgruparMiTrabajo.Severidad)">@Textos["Severidad"]</button>
-                    </div>
-                    <div class="mi-trabajo-barra-grupo" role="group" aria-label="@Textos["Ordenar"]">
-                        <span class="mi-trabajo-barra-etiqueta">@Textos["Ordenar"]</span>
-                        <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Prioridad)" aria-pressed="@(_orden == OrdenMiTrabajo.Prioridad ? "true" : "false")"
-                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Prioridad)">@Textos["Prioridad"]</button>
-                        <button type="button" class="@ClasePestana(_orden == OrdenMiTrabajo.Cliente)" aria-pressed="@(_orden == OrdenMiTrabajo.Cliente ? "true" : "false")"
-                                @onclick="() => CambiarOrden(OrdenMiTrabajo.Cliente)">@Textos["Cliente"]</button>
-                    </div>
-                    <div class="mi-trabajo-barra-derecha">
-                        <input class="mi-trabajo-filtro" type="search" aria-label="@Textos["FiltroEtiqueta"]"
-                               placeholder="@Textos["FiltroMarcador"]" value="@_busqueda" @oninput="CambiarBusqueda" />
-                        @if (string.IsNullOrWhiteSpace(_busqueda))
-                        {
-                            <button type="button" class="mi-trabajo-plegar-todas" disabled="@_cargando" @onclick="AlternarTodas">@(TodoPlegado ? Textos["ExpandirTodas"] : Textos["PlegarTodas"])</button>
-                        }
-                    </div>
-                </div>
-
                 @* Maqueta: el estado vacío o cargando va dentro de una tarjeta; con grupos, cada grupo es la suya. *@
                 <div class="@(Grupos.Count == 0 ? "mi-trabajo-estado" : null)">
                 @if (Grupos.Count == 0 && ConsultandoCartera)
@@ -295,7 +318,7 @@
                                 }
                                 else
                                 {
-                                    @* Modo Severidad: mismo patrón que la cabecera de Tenant, plegada al cargar. *@
+                                    @* Modo Severidad: mismo patrón que la cabecera de Tenant, plegada salvo la primera, que se despliega al terminar la carga. *@
                                     <button type="button" class="mi-trabajo-grupo-cabecera mi-trabajo-grupo-cabecera-severidad" aria-expanded="@(grupo.Plegado ? "false" : "true")"
                                             @onclick="() => AlternarSeveridad(grupo.Clave)">
                                         <span class="@("mi-trabajo-chevron" + (grupo.Plegado ? " mi-trabajo-chevron-plegado" : ""))"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>

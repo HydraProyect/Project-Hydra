@@ -35,7 +35,7 @@ public sealed record FiltroMiTrabajo(
     TipoTareaMiTrabajo? Tipo = null);
 
 /// <param name="Clave">TenantId en modo Tenant; nombre de la severidad en modo Severidad.</param>
-/// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Es el estado de partida: solo se despliega si el Gestor CAE la abrió en esta visita a la pantalla (<see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/>) o hay búsqueda.</param>
+/// <param name="Plegado">La cabecera del grupo (Tenant, o severidad en modo Severidad) está plegada. Solo se despliega si está en <see cref="FiltroMiTrabajo.TenantsAbiertos"/> / <see cref="FiltroMiTrabajo.SeveridadesAbiertas"/> (el primer grupo al terminar la carga, como la maqueta, o los que el Gestor CAE abra en esta visita a la pantalla) o hay búsqueda.</param>
 /// <param name="ResumenCalendario">Texto del pliegue «N vencimientos y envíos en calendario»; null si no hay nada plegado.</param>
 /// <param name="ResumenCabecera">Recuento que se enseña en la cabecera cuando el grupo está plegado.</param>
 /// <param name="Peor">Severidad más alta del grupo (Bloqueo gana); la cabecera la enseña aunque esté plegado y el borde rojo marca los grupos con un Bloqueo.</param>
@@ -206,8 +206,8 @@ public sealed class MiTrabajoVista
     /// recorren j/k. Con «Todas», Próximo y Seguimiento quedan plegados tras el
     /// resumen de calendario hasta que el Gestor CAE lo abre (mockup:
     /// <c>abiertos</c>). En modo Tenant, además, solo se enseñan las filas de los Tenants
-    /// que el Gestor CAE ha desplegado (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>, vacío
-    /// al cargar). Una búsqueda activa anula todo pliegue: el buscador
+    /// que están desplegados (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>: el primer grupo
+    /// al terminar la carga y los que el Gestor CAE abre). Una búsqueda activa anula todo pliegue: el buscador
     /// tiene que alcanzar cada gestión de la cartera (contrato § 5, que corrige
     /// en esto al mockup, donde el pliegue se aplicaba después del filtro).
     /// </summary>

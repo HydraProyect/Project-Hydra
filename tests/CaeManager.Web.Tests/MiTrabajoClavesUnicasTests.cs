@@ -106,7 +106,7 @@ public class MiTrabajoClavesUnicasTests : BunitContext
                 [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, CaeManager.Infrastructure.Identity.Roles.CoordinadorCae)], "prueba"))));
 
         var cut = Render<MiTrabajoPagina>(p => p.AddCascadingValue(estado));
-        // La pantalla carga con todo plegado (decisión de producto 2026-10-16): se parte de «Expandir todas», como haría el Gestor CAE.
+        // La pantalla carga con solo el primer grupo desplegado (maqueta, 2026-11-06; antes todo plegado por la decisión de producto 2026-10-16): se parte de «Expandir todas», como haría el Gestor CAE.
         // Los Tenants llegan por partes y cada uno entra plegado: se abre cada cabecera que aún esté plegada.
         cut.WaitForAssertion(() =>
         {
@@ -171,8 +171,9 @@ public class MiTrabajoClavesUnicasTests : BunitContext
         ClavesDeRender.ClavesObservadas(this, cut).Should().BeGreaterThanOrEqualTo(3 + 2, "tres filas más los dos grupos de Tenant: el detector observa claves");
         cut.Render();
 
+        cut.Find(".mi-trabajo-vista-alternar").Click(); // «Vista y filtros» carga plegada: se abre para llegar a «Agrupar por».
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent == "Severidad").Click();
-        // Las cabeceras de severidad también cargan plegadas.
+        // Las cabeceras de severidad también cargan plegadas salvo la primera.
         foreach (var cabecera in cut.FindAll(".mi-trabajo-grupo-cabecera-severidad").Where(c => c.GetAttribute("aria-expanded") == "false"))
             cabecera.Click();
         cut.FindAll(".mi-trabajo-fila").Should().HaveCount(3);
