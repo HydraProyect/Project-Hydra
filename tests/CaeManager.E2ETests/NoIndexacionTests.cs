@@ -6,7 +6,7 @@ namespace CaeManager.E2ETests;
 /// <summary>
 /// La aplicación (app.talveg.es y staging.talveg.es sirven la misma imagen) no debe indexarse en
 /// buscadores ni competir con la web pública de marketing. Contra la aplicación arrancada de verdad,
-/// con su pipeline completo: toda respuesta —página, activo estático, health check, 404 y el propio
+/// con su pipeline completo: toda respuesta —página, activo estático, health check, redirección al acceso y el propio
 /// robots.txt— lleva <c>X-Robots-Tag: noindex, nofollow</c>, y robots.txt existe y no bloquea el
 /// rastreo (si lo bloqueara, el buscador no descargaría la página y no llegaría a ver el noindex).
 /// </summary>
@@ -18,7 +18,9 @@ public class NoIndexacionTests(WebAppFixture fixture)
     [InlineData("/robots.txt", HttpStatusCode.OK)]
     [InlineData("/favicon.png", HttpStatusCode.OK)]
     [InlineData("/salud", HttpStatusCode.OK)]
-    [InlineData("/ruta-que-no-existe-noindex", HttpStatusCode.NotFound)]
+    // Sin sesión, una ruta que no existe no llega al 404: la FallbackPolicy redirige antes al acceso.
+    // Esa redirección es también una respuesta que el buscador recibe.
+    [InlineData("/ruta-que-no-existe-noindex", HttpStatusCode.Found)]
     public async Task Toda_respuesta_lleva_noindex_nofollow(string ruta, HttpStatusCode estadoEsperado)
     {
         using var cliente = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
