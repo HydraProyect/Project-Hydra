@@ -25,11 +25,24 @@ public record CapasCalendarioDto(bool VeAlEquipo, IReadOnlyList<PersonaCapasCale
     public bool CatalogoCubreElAnio { get; init; } = true;
 
     /// <summary>
-    /// Si a alguna persona visible le faltan sus festivos locales en el catálogo (tiene municipio y
-    /// <see cref="CatalogoFestivosOficiales.IncluyeLocales"/> es false). Su intensiva se sigue marcando y puede caer en
-    /// un festivo local: la barra lo avisa.
+    /// Si a alguna persona visible le faltan sus festivos locales en el catálogo
+    /// (<see cref="CatalogoFestivosOficiales.IncluyeLocales"/> es false): la capa de festivos no los pinta y la barra
+    /// lo avisa.
     /// </summary>
     public bool FaltanFestivosLocales { get; init; }
+
+    /// <summary>
+    /// Si a alguna de esas personas se le marca jornada intensiva este mes: puede caer en un festivo local suyo que el
+    /// catálogo no tiene, y la barra lo dice.
+    /// </summary>
+    public bool IntensivaPuedeCaerEnFestivoLocal { get; init; }
+
+    /// <summary>
+    /// Las comunidades de personas visibles cuyos autonómicos no están en el catálogo de un año que sí lo está
+    /// (<see cref="CatalogoFestivosOficiales.Cubre"/> es false): a esas personas no se les marcan autonómicos ni
+    /// intensiva, y la barra lo avisa. Vacía en un año sin catálogo, que ya avisa <see cref="CatalogoCubreElAnio"/>.
+    /// </summary>
+    public IReadOnlyList<string> ComunidadesSinAutonomicos { get; init; } = [];
 
     /// <summary>Las comunidades de las personas visibles, sin repetir y en orden alfabético: las opciones de «Festivos de».</summary>
     public IReadOnlyList<string> Comunidades => Personas
@@ -131,24 +144,36 @@ public class ObtenerCapasCalendarioQueryHandler(
             var perfiles = personas
                 .Select(id => porPersona.TryGetValue(id, out var guardado) ? guardado.Perfil : PerfilLaboral.SinConfigurar)
                 .ToList();
-            var resultado = perfiles
-                .Select(perfil => new PersonaCapasCalendarioDto(
+            var calculados = perfiles
+                .Select(perfil => (Perfil: perfil, Dto: new PersonaCapasCalendarioDto(
                     perfil.Comunidad?.Nombre(),
                     perfil.FestivosQueLeAplican(festivosDelMes)
                         .Select(f => new FestivoCapaDto(f.Fecha, f.Nombre, f.Ambito, LugarDe(f)))
                         .ToList(),
                     // Sin el calendario oficial de su año o de su comunidad no se sabe qué día es laborable. Sus
-                    // festivos locales no están en el catálogo: la intensiva se marca igual y FaltanFestivosLocales
-                    // lo avisa.
+                    // festivos locales no están en el catálogo: la intensiva se marca igual y la barra lo avisa
+                    // (IntensivaPuedeCaerEnFestivoLocal).
                     CatalogoFestivosOficiales.Cubre(request.Anio, perfil.Comunidad)
                         ? dias.Where(d => perfil.TieneJornadaIntensiva(d, festivosDelMes, PeriodoIntensiva.Verano)).ToList()
-                        : []))
+                        : [])))
                 .ToList();
+            var sinLocales = calculados
+                .Where(c => !CatalogoFestivosOficiales.IncluyeLocales(request.Anio, c.Perfil))
+                .ToList();
+            var catalogoCubreElAnio = CatalogoFestivosOficiales.AniosCubiertos.Contains(request.Anio);
 
-            return new CapasCalendarioDto(veAlEquipo, resultado)
+            return new CapasCalendarioDto(veAlEquipo, calculados.Select(c => c.Dto).ToList())
             {
-                CatalogoCubreElAnio = CatalogoFestivosOficiales.AniosCubiertos.Contains(request.Anio),
-                FaltanFestivosLocales = perfiles.Any(p => !CatalogoFestivosOficiales.IncluyeLocales(request.Anio, p)),
+                CatalogoCubreElAnio = catalogoCubreElAnio,
+                FaltanFestivosLocales = sinLocales.Count > 0,
+                IntensivaPuedeCaerEnFestivoLocal = sinLocales.Any(c => c.Dto.DiasJornadaIntensiva.Count > 0),
+                ComunidadesSinAutonomicos = catalogoCubreElAnio
+                    ? perfiles
+                        .Select(p => p.Comunidad).OfType<ComunidadAutonoma>()
+                        .Where(c => !CatalogoFestivosOficiales.Cubre(request.Anio, c))
+                        .Select(c => c.Nombre()).Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.CurrentCulture).ToList()
+                    : [],
             };
         }
     }

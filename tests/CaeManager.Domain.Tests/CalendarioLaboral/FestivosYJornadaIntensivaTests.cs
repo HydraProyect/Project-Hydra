@@ -96,8 +96,21 @@ public class FestivosYJornadaIntensivaTests
 
         CatalogoFestivosOficiales.IncluyeLocales(2026, En(ComunidadAutonoma.Aragon, municipio: "Huesca")).Should().BeFalse(
             "el 10 de agosto es festivo local de Huesca y el catálogo no lo tiene");
-        CatalogoFestivosOficiales.IncluyeLocales(2026, En(ComunidadAutonoma.Aragon)).Should().BeTrue("sin municipio no le aplica ningún local");
-        CatalogoFestivosOficiales.IncluyeLocales(2026, PerfilLaboral.SinConfigurar).Should().BeTrue();
+        CatalogoFestivosOficiales.IncluyeLocales(2026, En(ComunidadAutonoma.Aragon)).Should().BeFalse(
+            "con comunidad y sin municipio no se sabe qué locales le tocan");
+        CatalogoFestivosOficiales.IncluyeLocales(2026, PerfilLaboral.SinConfigurar).Should().BeTrue("sin comunidad, § 3 le aplica solo los nacionales");
+    }
+
+    [Fact]
+    public void Los_festivos_locales_de_un_municipio_se_siembran_los_dos_de_su_anio_o_ninguno()
+    {
+        // IncluyeLocales da por cubierto un municipio con que tenga uno: solo vale si nunca se siembra uno suelto.
+        // Hoy no hay ninguno: vale como trinquete para el primero que se siembre.
+        Catalogo.Where(f => f.Ambito == AmbitoFestivo.Local)
+            .GroupBy(f => (f.Fecha.Year, f.Comunidad, Municipio: f.Municipio!.ToUpperInvariant()))
+            .Where(g => g.Count() != 2)
+            .Select(g => g.Key)
+            .Should().BeEmpty("el artículo 37.2 del Estatuto de los Trabajadores da dos locales por año");
     }
 
     [Fact]

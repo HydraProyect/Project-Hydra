@@ -22,7 +22,9 @@
   <data name="NotaPropia" xml:space="preserve"><value>Ves tus festivos.</value></data>
   <data name="NotaEquipo" xml:space="preserve"><value>Ves los festivos de tu equipo según la ubicación de trabajo de cada persona.</value></data>
   <data name="SinCatalogoDelAnio" xml:space="preserve"><value>No tenemos el calendario oficial de festivos de {0}: este mes no marca festivos ni jornada intensiva.</value></data>
-  <data name="SinFestivosLocales" xml:space="preserve"><value>Los festivos locales no están incluidos: la jornada intensiva puede marcarse en un festivo local.</value></data>
+  <data name="SinFestivosLocales" xml:space="preserve"><value>Los festivos locales no están incluidos.</value></data>
+  <data name="SinFestivosLocalesConIntensiva" xml:space="preserve"><value>Los festivos locales no están incluidos: la jornada intensiva puede marcarse en un festivo local.</value></data>
+  <data name="SinAutonomicos" xml:space="preserve"><value>No tenemos los festivos autonómicos de {0}: allí no se marcan ni esos festivos ni la jornada intensiva.</value></data>
   <data name="FestivoNacional" xml:space="preserve"><value>{0} · nacional</value></data>
   <data name="FestivoConLugar" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="FestivoAccesible" xml:space="preserve"><value>Festivo: {0}</value></data>

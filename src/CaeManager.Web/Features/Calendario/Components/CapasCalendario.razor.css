@@ -64,8 +64,8 @@
     text-wrap: pretty;
 }
 
-/* El aviso de festivos locales va en su propia línea bajo la barra, alineado con la nota. */
-.capas-aviso-locales {
+/* Los avisos de lo que el catálogo no tiene van cada uno en su línea bajo la barra, alineados con la nota. */
+.capas-aviso {
     flex-basis: 100%;
     margin-left: 0;
     text-align: end;
@@ -83,7 +83,7 @@
         margin-left: 0;
     }
 
-    .capas-aviso-locales {
+    .capas-aviso {
         text-align: start;
     }
 

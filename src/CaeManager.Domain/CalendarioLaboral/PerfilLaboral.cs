@@ -3,7 +3,8 @@ namespace CaeManager.Domain.CalendarioLaboral;
 /// <summary>
 /// Lo que decide los festivos y la jornada intensiva de una persona (Especificación de Ausencias y
 /// Coberturas, § 3, «CalendarioLaboral»): comunidad autónoma (puede faltar), municipio (opcional, y solo
-/// con comunidad) y si le aplica la jornada intensiva del equipo.
+/// con comunidad) y si le aplica la jornada intensiva del equipo. § 3 pide el municipio cuando hay comunidad; aquí
+/// puede faltar, y entonces no se conocen sus festivos locales (<see cref="CatalogoFestivosOficiales.IncluyeLocales"/>).
 ///
 /// <para>
 /// Reglas: día laborable es de lunes a viernes y no festivo de esa persona (§ 4.1, D1); la jornada

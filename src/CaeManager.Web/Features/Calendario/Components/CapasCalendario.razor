@@ -29,10 +29,15 @@
         @if (_capas.CatalogoCubreElAnio)
         {
             <span class="capas-nota">@Textos[_capas.VeAlEquipo ? "NotaEquipo" : "NotaPropia"]</span>
-            @* El catálogo no tiene festivos locales: con municipio, la intensiva puede caer en uno y se dice. *@
+            @* Lo que el catálogo no tiene se dice: autonómicos de una comunidad no sembrada y festivos locales, y si con
+               ellos la intensiva marcada puede caer en un festivo local. *@
+            @if (_capas.ComunidadesSinAutonomicos.Count > 0)
+            {
+                <span class="capas-nota capas-aviso" role="note">@Textos["SinAutonomicos", string.Join(", ", _capas.ComunidadesSinAutonomicos)]</span>
+            }
             @if (_capas.FaltanFestivosLocales)
             {
-                <span class="capas-nota capas-aviso-locales" role="note">@Textos["SinFestivosLocales"]</span>
+                <span class="capas-nota capas-aviso capas-aviso-locales" role="note">@Textos[_intensiva && _capas.IntensivaPuedeCaerEnFestivoLocal ? "SinFestivosLocalesConIntensiva" : "SinFestivosLocales"]</span>
             }
         }
         else

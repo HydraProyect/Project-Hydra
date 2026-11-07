@@ -164,28 +164,61 @@ public class ObtenerCapasCalendarioQueryTests
         contexto.Guardar(OperadorA, huesca, ComunidadAutonoma.Aragon, municipio: "Huesca");
 
         var agosto = await ConsultarAsync(huesca, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
-        var sinMunicipio = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
+        var noviembre = await ConsultarAsync(huesca, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 11);
 
         agosto.FaltanFestivosLocales.Should().BeTrue("el 10 de agosto es festivo local de Huesca y el catálogo no lo tiene");
+        agosto.IntensivaPuedeCaerEnFestivoLocal.Should().BeTrue();
         agosto.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().NotBeEmpty(
             "la intensiva se sigue marcando: lo que cambia es que la barra avisa");
-        sinMunicipio.FaltanFestivosLocales.Should().BeFalse("sin municipio no le aplica ningún local");
+        noviembre.FaltanFestivosLocales.Should().BeTrue("los locales faltan todo el año");
+        noviembre.IntensivaPuedeCaerEnFestivoLocal.Should().BeFalse("en noviembre no hay intensiva que pueda caer en uno");
     }
 
     [Fact]
-    public async Task En_el_equipo_basta_una_persona_con_municipio_para_avisar()
+    public async Task Sin_comunidad_no_faltan_locales_y_con_comunidad_sin_municipio_si()
     {
         var (directorio, contexto) = Escenario();
-        var huesca = Guid.NewGuid();
-        directorio.Asignar(huesca, OperadorA, "GestorCae");
-        contexto.Guardar(OperadorA, huesca, ComunidadAutonoma.Aragon, municipio: "Huesca");
+        var sinCalendario = Guid.NewGuid();
+        directorio.Asignar(sinCalendario, OperadorB, "GestorCae");
 
-        var conHuesca = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorio, contexto, anio: 2026, mes: 8);
-        var (directorioSin, contextoSin) = Escenario();
-        var sinMunicipios = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorioSin, contextoSin, anio: 2026, mes: 8);
+        var sinComunidad = await ConsultarAsync(sinCalendario, OperadorB, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
+        var aragonSinMunicipio = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
 
-        conHuesca.FaltanFestivosLocales.Should().BeTrue();
-        sinMunicipios.FaltanFestivosLocales.Should().BeFalse();
+        sinComunidad.FaltanFestivosLocales.Should().BeFalse("sin comunidad, § 3 le aplica solo los nacionales");
+        aragonSinMunicipio.FaltanFestivosLocales.Should().BeTrue("con comunidad y sin municipio no se sabe qué locales le tocan");
+        aragonSinMunicipio.IntensivaPuedeCaerEnFestivoLocal.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Una_persona_sin_intensiva_no_hace_avisar_de_que_la_intensiva_puede_caer_en_un_local()
+    {
+        var (directorio, contexto) = Escenario();
+        var barcelona = Guid.NewGuid();
+        directorio.Asignar(barcelona, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, barcelona, ComunidadAutonoma.Cataluna, intensiva: false, municipio: "Barcelona");
+
+        var capas = await ConsultarAsync(barcelona, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
+
+        capas.FaltanFestivosLocales.Should().BeTrue();
+        capas.IntensivaPuedeCaerEnFestivoLocal.Should().BeFalse("no tiene días de intensiva");
+    }
+
+    [Fact]
+    public async Task Una_comunidad_sin_autonomicos_se_avisa_por_su_nombre_en_un_anio_cubierto()
+    {
+        var (directorio, contexto) = Escenario();
+        var madrid = Guid.NewGuid();
+        directorio.Asignar(madrid, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, madrid, ComunidadAutonoma.Madrid, municipio: "Madrid");
+
+        var julio2027 = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorio, contexto, anio: 2027, mes: 7);
+        var julio2028 = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorio, contexto, anio: 2028, mes: 7);
+        var soloMadrid = await ConsultarAsync(madrid, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 7);
+
+        julio2027.ComunidadesSinAutonomicos.Should().Equal("Comunidad de Madrid");
+        julio2028.ComunidadesSinAutonomicos.Should().BeEmpty("en un año sin catálogo ya avisa CatalogoCubreElAnio");
+        soloMadrid.IntensivaPuedeCaerEnFestivoLocal.Should().BeFalse("sin sus autonómicos no se le marca intensiva");
+        soloMadrid.FaltanFestivosLocales.Should().BeTrue();
     }
 
     [Fact]
@@ -212,6 +245,7 @@ public class ObtenerCapasCalendarioQueryTests
 
         capas.CatalogoCubreElAnio.Should().BeTrue();
         capas.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().BeEmpty();
+        capas.ComunidadesSinAutonomicos.Should().Equal(["Comunidad de Madrid"], "la barra avisa de la omisión");
     }
 
     [Fact]

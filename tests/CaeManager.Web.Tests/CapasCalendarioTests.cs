@@ -149,12 +149,43 @@ public class CapasCalendarioTests : BunitContext
     public void Si_faltan_festivos_locales_la_barra_lo_avisa()
     {
         var (cut, _, _) = Montar(
-            _ => new CapasCalendarioDto(false, [Persona("Aragón", [], new DateOnly(2026, 8, 10))]) { FaltanFestivosLocales = true },
+            _ => new CapasCalendarioDto(false, [Persona("Aragón", [], new DateOnly(2026, 8, 10))])
+            {
+                FaltanFestivosLocales = true,
+                IntensivaPuedeCaerEnFestivoLocal = true,
+            },
             anio: 2026, mes: 8);
 
         cut.Find(".capas-aviso-locales").TextContent.Should().Be(
             "Los festivos locales no están incluidos: la jornada intensiva puede marcarse en un festivo local.");
         cut.Find(".capas-nota").TextContent.Should().Be("Ves tus festivos.", "el aviso va además de la nota, no en su lugar");
+
+        cut.FindAll("input[type=checkbox]")[1].Change(false);
+        cut.Find(".capas-aviso-locales").TextContent.Should().Be("Los festivos locales no están incluidos.",
+            "con la capa de intensiva apagada no hay intensiva que pueda caer en un local");
+    }
+
+    [Fact]
+    public void Sin_intensiva_que_pueda_caer_en_un_local_el_aviso_solo_dice_que_faltan()
+    {
+        var (cut, _, _) = Montar(
+            _ => new CapasCalendarioDto(false, [Persona("Aragón", [])]) { FaltanFestivosLocales = true });
+
+        cut.Find(".capas-aviso-locales").TextContent.Should().Be("Los festivos locales no están incluidos.");
+    }
+
+    [Fact]
+    public void Una_comunidad_sin_autonomicos_se_avisa_en_la_barra()
+    {
+        var (cut, _, _) = Montar(
+            _ => new CapasCalendarioDto(true, [Persona("Comunidad de Madrid", []), Persona("Aragón", [])])
+            {
+                ComunidadesSinAutonomicos = ["Comunidad de Madrid"],
+            },
+            anio: 2027, mes: 7);
+
+        cut.FindAll(".capas-aviso").Select(a => a.TextContent).Should().Contain(
+            "No tenemos los festivos autonómicos de Comunidad de Madrid: allí no se marcan ni esos festivos ni la jornada intensiva.");
     }
 
     [Fact]
@@ -162,7 +193,7 @@ public class CapasCalendarioTests : BunitContext
     {
         var (cut, _, _) = Montar(_ => Equipo());
 
-        cut.FindAll(".capas-aviso-locales").Should().BeEmpty();
+        cut.FindAll(".capas-aviso").Should().BeEmpty();
     }
 
     [Fact]
@@ -172,7 +203,7 @@ public class CapasCalendarioTests : BunitContext
             _ => new CapasCalendarioDto(false, [Persona("Aragón", [])]) { CatalogoCubreElAnio = false, FaltanFestivosLocales = true },
             anio: 2028, mes: 7);
 
-        cut.FindAll(".capas-aviso-locales").Should().BeEmpty("sin catálogo del año no se marca intensiva y ya se avisa de ello");
+        cut.FindAll(".capas-aviso").Should().BeEmpty("sin catálogo del año no se marca nada y ya se avisa de ello");
     }
 
     [Fact]

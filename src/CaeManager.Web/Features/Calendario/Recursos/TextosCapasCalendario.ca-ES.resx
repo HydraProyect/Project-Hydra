@@ -22,7 +22,9 @@
   <data name="NotaPropia" xml:space="preserve"><value>Veus els teus festius.</value></data>
   <data name="NotaEquipo" xml:space="preserve"><value>Veus els festius del teu equip segons la ubicació de treball de cada persona.</value></data>
   <data name="SinCatalogoDelAnio" xml:space="preserve"><value>No tenim el calendari oficial de festius de {0}: aquest mes no marca festius ni jornada intensiva.</value></data>
-  <data name="SinFestivosLocales" xml:space="preserve"><value>Els festius locals no hi són inclosos: la jornada intensiva es pot marcar en un festiu local.</value></data>
+  <data name="SinFestivosLocales" xml:space="preserve"><value>Els festius locals no estan inclosos.</value></data>
+  <data name="SinFestivosLocalesConIntensiva" xml:space="preserve"><value>Els festius locals no estan inclosos: la jornada intensiva es pot marcar en un festiu local.</value></data>
+  <data name="SinAutonomicos" xml:space="preserve"><value>No tenim els festius autonòmics de {0}: allà no es marquen ni aquests festius ni la jornada intensiva.</value></data>
   <data name="FestivoNacional" xml:space="preserve"><value>{0} · nacional</value></data>
   <data name="FestivoConLugar" xml:space="preserve"><value>{0} · {1}</value></data>
   <data name="FestivoAccesible" xml:space="preserve"><value>Festiu: {0}</value></data>

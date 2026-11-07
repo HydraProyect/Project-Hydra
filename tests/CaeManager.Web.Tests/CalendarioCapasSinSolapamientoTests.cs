@@ -12,9 +12,10 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// La barra de capas se monta mientras /calendario carga el mes, así que su consulta sale con la carga principal aún
 /// en vuelo. Las dos comparten el <c>CaeManagerDbContext</c> scoped del circuito, que no admite dos operaciones a la
-/// vez. Lo que lo impide es <see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>, el primer behavior de
-/// todo request de MediatR (su registro lo fija <c>ApplicationServiceCollectionExtensionsTests</c>): la consulta de
-/// capas espera en <see cref="PuertaAccesoDatos"/> a que termine la principal.
+/// vez. Lo que lo impide es <see cref="SerializacionAccesoDatosBehavior{TRequest,TResponse}"/>, que envuelve todo
+/// request de MediatR por fuera de los behaviors que tocan datos (su registro lo fija
+/// <c>ApplicationServiceCollectionExtensionsTests</c>): la consulta de capas espera en <see cref="PuertaAccesoDatos"/> a
+/// que termine la principal.
 ///
 /// <para>
 /// El mediador de estos tests pasa cada request por ese mismo behavior con una puerta real, y retiene la consulta

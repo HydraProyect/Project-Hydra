@@ -20,7 +20,7 @@ namespace CaeManager.Domain.CalendarioLaboral;
 ///
 /// <para>
 /// <b>Festivos locales: ninguno.</b> § 3 los prevé por municipio, pero el catálogo no tiene ninguno y no se añaden sin
-/// la resolución oficial de su comunidad. Lo que eso supone: a una persona con municipio le faltan sus dos festivos
+/// la resolución oficial de su comunidad. Lo que eso supone: a una persona con comunidad le faltan sus dos festivos
 /// locales, y su jornada intensiva puede marcarse en uno de ellos (por ejemplo, el 10 de agosto en Huesca). La capa no
 /// lo calla: <see cref="IncluyeLocales"/> dice cuándo faltan y la barra de capas lo avisa.
 /// </para>
@@ -121,15 +121,21 @@ public static class CatalogoFestivosOficiales
         AniosCubiertos.Contains(anio) && (comunidad is null || ComunidadesCubiertas.Contains(comunidad.Value));
 
     /// <summary>
-    /// Si el catálogo tiene los festivos locales de la persona ese año. Sin municipio no le aplica ninguno (§ 3: a una
-    /// persona le aplican los locales de su municipio), así que no falta nada. Con municipio hace falta al menos un
-    /// festivo local de ese municipio y año; los locales de un municipio se siembran juntos, los dos de su año.
-    /// Hoy el catálogo no tiene ninguno, así que con municipio devuelve siempre false.
+    /// Si el catálogo tiene los festivos locales de la persona ese año.
+    /// <list type="bullet">
+    /// <item>Sin comunidad, sí: § 3 le aplica solo los nacionales.</item>
+    /// <item>Con comunidad y sin municipio, no. § 3 pide el municipio con la comunidad; <see cref="PerfilLaboral"/> lo
+    /// deja faltar, y entonces no se sabe qué locales le tocan.</item>
+    /// <item>Con municipio, solo si el catálogo tiene festivos locales de ese municipio y año. Los locales de un
+    /// municipio se siembran juntos, los dos de su año (artículo 37.2 del Estatuto de los Trabajadores), y lo fija
+    /// un test. Hoy el catálogo no tiene ninguno, así que con municipio devuelve siempre false.</item>
+    /// </list>
     /// </summary>
     public static bool IncluyeLocales(int anio, PerfilLaboral perfil)
     {
         ArgumentNullException.ThrowIfNull(perfil);
-        return perfil.Municipio is null
-            || Todos.Any(f => f.Ambito == AmbitoFestivo.Local && f.Fecha.Year == anio && f.AplicaA(perfil));
+        if (perfil.Comunidad is null) return true;
+        return perfil.Municipio is not null
+            && Todos.Any(f => f.Ambito == AmbitoFestivo.Local && f.Fecha.Year == anio && f.AplicaA(perfil));
     }
 }
