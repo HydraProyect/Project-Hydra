@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
@@ -132,12 +133,29 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         }, Espera);
     }
 
+    private const string CabeceraTenant = ".mi-trabajo-grupo-cabecera-tenant";
+
+    /// <summary>
+    /// Pulsa la cabecera de una Empresa y espera a VER su efecto. <c>Click()</c> (sin Async) devuelve el control antes de
+    /// que el manejador haya corrido: se encola y, con la máquina cargada, la parte siguiente de la carga (liberada por
+    /// el test justo después) podía terminar antes que el clic. Entonces la apertura del primer grupo de partida se
+    /// aplicaba antes y el clic la invertía (issue #2068: ≈18 % de 2.400 ejecuciones con 8 hilos en paralelo). El orden
+    /// que el test dice fijar es «el clic llega antes que el final de la carga»; esperar al estado observado lo hace
+    /// determinista sin depender de ningún tiempo.
+    /// </summary>
+    private static async Task PulsarCabeceraYEsperarAsync(IRenderedComponent<MiTrabajoPagina> cut, string nombre, bool abierta)
+    {
+        IElement Cabecera() => cut.FindAll(CabeceraTenant).First(c => c.TextContent.Contains(nombre));
+        await Cabecera().ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => Cabecera().GetAttribute("aria-expanded").Should().Be(abierta ? "true" : "false"), Espera);
+    }
+
     /// <summary>
     /// Lo que el Gestor CAE abre con la carga a medias manda: al terminar, el primer grupo de partida no se le suma.
     /// Abre la segunda Empresa en llegar (la primera en orden de pantalla es otra) y la tercera aún está por consultar.
     /// </summary>
     [Fact]
-    public void Un_pliegue_tocado_durante_la_carga_gasta_la_apertura_del_primer_grupo()
+    public async Task Un_pliegue_tocado_durante_la_carga_gasta_la_apertura_del_primer_grupo()
     {
         var mediador = new MediadorPorPasos(
             Tenant(TenantRefri, "Refrielectric", Vencido("r1", "Reconocimiento médico")),
@@ -149,7 +167,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
         mediador.Liberar(1);
         cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().HaveCount(2), Espera);
         cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Laboratorios Dexter")).Click();
+        await PulsarCabeceraYEsperarAsync(cut, "Laboratorios Dexter", abierta: true);
         mediador.Liberar(2);
 
         cut.WaitForAssertion(() => { cut.FindAll(".mi-trabajo-progreso").Should().BeEmpty(); cut.FindAll("[aria-busy='true']").Should().BeEmpty(); }, Espera);
@@ -159,7 +177,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
     }
     /// <summary>Abrir y volver a cerrar una cabecera durante la carga también cuenta: no se le reabre nada al terminar.</summary>
     [Fact]
-    public void Una_cabecera_abierta_y_cerrada_durante_la_carga_no_se_reabre_al_terminar()
+    public async Task Una_cabecera_abierta_y_cerrada_durante_la_carga_no_se_reabre_al_terminar()
     {
         var mediador = new MediadorPorPasos(
             Tenant(TenantRefri, "Refrielectric", Vencido("r1", "Reconocimiento médico")),
@@ -168,8 +186,8 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
 
         mediador.Liberar(0);
         cut.WaitForAssertion(() => cut.Find(".mi-trabajo-grupo-cabecera-tenant").GetAttribute("aria-expanded").Should().Be("false"), Espera);
-        cut.Find(".mi-trabajo-grupo-cabecera-tenant").Click();
-        cut.Find(".mi-trabajo-grupo-cabecera-tenant").Click();
+        await PulsarCabeceraYEsperarAsync(cut, "Refrielectric", abierta: true);
+        await PulsarCabeceraYEsperarAsync(cut, "Refrielectric", abierta: false);
         mediador.Liberar(1);
 
         cut.WaitForAssertion(() => { cut.FindAll(".mi-trabajo-progreso").Should().BeEmpty(); cut.FindAll("[aria-busy='true']").Should().BeEmpty(); }, Espera);
