@@ -1104,6 +1104,37 @@ public class BuscadorGlobalGen2Tests : BunitContext
             "al vencer el tope se cancela la consulta que seguía en vuelo");
     }
 
+    /// <summary>
+    /// El DbContext es scoped por circuito: una consulta soltada por el tope que aún no terminó (aquí, un handler que
+    /// ignora el token) no puede convivir con la siguiente búsqueda («A second operation was started on this context»).
+    /// La siguiente espera a que la abandonada acabe y entonces sí se lanza.
+    /// </summary>
+    [Fact]
+    public async Task Tras_el_tope_la_siguiente_busqueda_espera_a_que_la_abandonada_termine()
+    {
+        var mediador = new MediadorControlado { Resultado = UnTrabajador };
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        var abandonada = mediador.Retener(r => r is BuscarGlobalQuery); // no mira el token: sigue viva tras el tope
+
+        var primera = Input(cut).EscribirAsync("raccoon");
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Any(), "que la primera búsqueda llegase al mediador");
+        await primera; // termina por el tope, con la consulta aún en vuelo
+        cut.Find(".buscador-mensaje-error");
+
+        var segunda = Input(cut).EscribirAsync("juan");
+        await Task.Delay(TimeSpan.FromMilliseconds(700));
+        mediador.Enviados.OfType<BuscarGlobalQuery>().Should().ContainSingle(
+            "mientras la consulta abandonada siga viva, la nueva no puede arrancar sobre el mismo DbContext");
+
+        await cut.InvokeAsync(() => abandonada.TrySetResult(UnClienteEmpresarial));
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Count() == 2,
+            "que la segunda búsqueda se lance al terminar la abandonada");
+        await segunda;
+
+        cut.FindAll(".buscador-mensaje-error").Should().BeEmpty();
+        cut.Find(".buscador-item-titulo").TextContent.Should().Contain("Juan Pérez");
+    }
+
     /// <summary>El token del ciclo de vida viaja en TODAS las llamadas al mediador, no solo en la búsqueda.</summary>
     [Fact]
     public async Task El_token_del_ciclo_de_vida_viaja_en_la_busqueda_y_en_los_recientes()

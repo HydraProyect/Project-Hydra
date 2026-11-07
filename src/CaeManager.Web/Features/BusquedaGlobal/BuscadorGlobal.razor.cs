@@ -1270,10 +1270,17 @@ public partial class BuscadorGlobal
             // aunque el handler no respete el token (cancelar es una petición, no una garantía), y el
             // fallo se pinta como error con la misma vía que cualquier otro (se reintenta volviendo a escribir).
             // El recuento «vencen esta semana» (segunda consulta de la misma búsqueda) lleva el mismo tope.
-            var resultado = await Mediator.Send(new BuscarGlobalQuery(termino), token)
-                .WaitAsync(TiempoMaximoBusqueda, token);
+            // El DbContext es scoped por circuito: si una consulta abandonada por el tope sigue desenrollándose, la
+            // siguiente no puede arrancar encima (sería «A second operation was started on this context»). Solo se
+            // espera a la abandonada por tope; las superadas por una pulsación nueva siguen sin bloquear a la vigente.
+            if (_consultaAbandonada is { IsCompleted: false } abandonada)
+                await abandonada.WaitAsync(TiempoMaximoBusqueda, token);
+
+            var busqueda = Mediator.Send(new BuscarGlobalQuery(termino), token);
+            await EsperarConTopeAsync(busqueda, token);
+            var resultado = await busqueda;
             if (generacion == _generacionBusqueda)
-                await CargarVencenEstaSemanaAsync(termino, token).WaitAsync(TiempoMaximoBusqueda, token);
+                await EsperarConTopeAsync(CargarVencenEstaSemanaAsync(termino, token), token);
 
             // Comprobación después del await, y deliberadamente NO basada en
             // el token: cancelar es una petición, no una garantía — un
@@ -1315,6 +1322,29 @@ public partial class BuscadorGlobal
                 StateHasChanged();
             }
         }
+    }
+
+    /// <summary>Consulta soltada por el tope que aún no terminó: la siguiente búsqueda espera a que acabe de desenrollarse.</summary>
+    private Task? _consultaAbandonada;
+
+    private async Task EsperarConTopeAsync(Task consulta, CancellationToken token)
+    {
+        try
+        {
+            await consulta.WaitAsync(TiempoMaximoBusqueda, token);
+        }
+        catch (TimeoutException)
+        {
+            _consultaAbandonada = Observar(consulta);
+            throw;
+        }
+    }
+
+    // Observa el desenlace de la consulta abandonada para que su fallo tardío no quede sin observar.
+    private static async Task Observar(Task consulta)
+    {
+        try { await consulta; }
+        catch { /* ya se informó del fallo por el tope */ }
     }
 
     public async ValueTask DisposeAsync()
