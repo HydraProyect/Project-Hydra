@@ -230,9 +230,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (_detalle is null)
                 return;
-            await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
-            // El chip lee el mismo estado materializado que los recuentos: si vencía algo de la Empresa, se entera aquí.
+            // El chip lee el mismo estado materializado que los recuentos: si vencía algo de la Empresa, se entera aquí. Va antes que
+            // los Trabajadores, de los que es independiente (cada relectura recoge su propio fallo).
             await CargarEstadoDocumentalAsync(conservarSiFalla: true);
+            await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
             StateHasChanged();
         });
     }
@@ -452,21 +453,30 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         // en el prerenderizado estático, y una tarea sin await ahí queda en
         // vuelo cuando ASP.NET Core ya liberó el scope de DI.
         if (RendererInfo.IsInteractive && carga == _cargaDetalle)
-            _ = CargarEnSegundoPlanoAsync(carga);
+        {
+            _ = CargarAccesoAsync();
+            _ = CargarChipYContadorAsync(carga);
+        }
     }
 
     /// <summary>
-    /// Lo que la ficha puede pintar después de la primera vez: el acceso a la carpeta, el chip de estado documental y el contador de
-    /// Plataformas. Van uno tras otro (comparten el scope de DI) y fuera de la carga principal, para que el esqueleto no espere a dos
-    /// consultas de lista y de acreditaciones que solo rellenan un chip y una cifra. Si la ficha cambió de Empresa mientras tanto, se corta.
+    /// El chip de estado documental y el contador de Plataformas, fuera de la carga principal para que el esqueleto no espere a dos
+    /// consultas (lista y acreditaciones) que solo rellenan un chip y una cifra. Van uno tras otro, independientes del acceso a la
+    /// carpeta (la <c>PuertaAccesoDatos</c> serializa los envíos del circuito); si la ficha cambió de Empresa mientras tanto, se corta,
+    /// y una excepción inesperada no sale como tarea sin observar.
     /// </summary>
-    private async Task CargarEnSegundoPlanoAsync(int cargaDetalle)
+    private async Task CargarChipYContadorAsync(int cargaDetalle)
     {
-        await CargarAccesoAsync();
-        if (cargaDetalle != _cargaDetalle) return;
-        await CargarEstadoDocumentalAsync();
-        if (cargaDetalle != _cargaDetalle) return;
-        await CargarIncidenciasPlataformasAsync();
+        try
+        {
+            await CargarEstadoDocumentalAsync();
+            if (cargaDetalle != _cargaDetalle) return;
+            await CargarIncidenciasPlataformasAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo completar el chip o el contador de la Empresa {EmpresaId}: {TipoExcepcion}.", EmpresaId, ex.GetType().Name);
+        }
     }
 
     /// <summary>
@@ -973,8 +983,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaEstadoDocumental)
                 _filaDelListado = resultado.Elementos.FirstOrDefault(e => e.Id == empresaId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogWarning("No se pudo leer el estado documental de la Empresa {EmpresaId}: {TipoExcepcion}.", empresaId, ex.GetType().Name);
             if (carga == _cargaEstadoDocumental && !conservarSiFalla)
                 _filaDelListado = null;
         }
