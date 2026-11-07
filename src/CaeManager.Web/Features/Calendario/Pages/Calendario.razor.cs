@@ -57,6 +57,9 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private bool _error;
     private DateOnly? _diaSeleccionado;
 
+    /// <summary>Lo que pintan las capas «Festivos» y «Jornada intensiva» del mes; lo entrega <see cref="CapasCalendario"/>.</summary>
+    private MarcasCapasMes _marcasCapas = MarcasCapasMes.Vacias;
+
     /// <summary>
     /// Número de la carga vigente. Cada <see cref="CargarAsync"/> se queda con
     /// uno nuevo; una respuesta que vuelve cuando ya hay otro no es la del mes
