@@ -131,11 +131,11 @@ public partial class CentrosListaPatronTests
         return Regex.Replace(css, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
     }
 
-    /// <summary>Cuerpo del bloque <c>@media (max-width: 900px) { ... }</c> de la hoja de la lista.</summary>
+    /// <summary>Cuerpo del bloque <c>@media (max-width: 1199px) { ... }</c> de la hoja de la lista.</summary>
     private static string BloqueMovil()
     {
         var css = CssLista();
-        var inicio = css.IndexOf("@media (max-width: 900px) {", StringComparison.Ordinal);
+        var inicio = css.IndexOf("@media (max-width: 1199px) {", StringComparison.Ordinal);
         inicio.Should().BeGreaterThanOrEqualTo(0, "la lista tiene su bloque para pantalla estrecha");
         var abre = css.IndexOf('{', inicio);
         var profundidad = 0;
@@ -199,6 +199,34 @@ public partial class CentrosListaPatronTests
         var css = CssLista().Replace(BloqueMovil(), string.Empty);
 
         css.Should().Contain("grid-template-columns: 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;");
-        css.Should().Contain("grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;");
+        css.Should().Contain("grid-template-columns: 28px 24px minmax(180px, 2fr) minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;");
+    }
+
+    /// <summary>
+    /// A 1024 px de viewport la tarjeta mide 698 px (la barra lateral resta ~326) y la rejilla de seis pistas pide 840: se
+    /// salía por la derecha sin scroll, con Cumplimiento y Estado fuera de pantalla. El apilado llega hasta 1199 px, el
+    /// mismo corte que la lista de Empresas, y las dos rejillas de escritorio caben con la barra de desplazamiento a
+    /// 1200 px (1200 - 326 - 15 = 859 px de tarjeta): 856 la normal y 840 la de selección múltiple.
+    /// </summary>
+    [Fact]
+    public void El_apilado_llega_hasta_1199_px_y_las_dos_rejillas_de_escritorio_caben_justo_por_encima()
+    {
+        CssLista().Should().Contain("@media (max-width: 1199px) {")
+            .And.NotMatchRegex(@"@media[^{]*max-width\s*:\s*900px", "el corte de 900 px dejaba sin apilar la franja de 901 a 1199 px, donde la rejilla desbordaba");
+
+        // Anchura mínima de una rejilla: pistas mínimas + huecos de 16 px + relleno de 16 px a cada lado de la fila.
+        static int Minimo(string pistas)
+        {
+            var anchos = Regex.Matches(pistas, @"minmax\((\d+)px|(?<![\d(])(\d+)px")
+                .Select(m => int.Parse(m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)).ToList();
+            return anchos.Sum() + (anchos.Count - 1) * 16 + 32;
+        }
+
+        var css = CssLista();
+        var normal = Regex.Match(css, @"\.rejilla-centros\s*\{[^}]*grid-template-columns:\s*([^;]+);").Groups[1].Value;
+        var seleccion = Regex.Match(css, @"\.rejilla-centros-seleccion\s*\{[^}]*grid-template-columns:\s*([^;]+);").Groups[1].Value;
+        const int TarjetaA1200ConBarra = 1200 - 326 - 15;
+        Minimo(normal).Should().BeLessThanOrEqualTo(TarjetaA1200ConBarra);
+        Minimo(seleccion).Should().BeLessThanOrEqualTo(TarjetaA1200ConBarra);
     }
 }
