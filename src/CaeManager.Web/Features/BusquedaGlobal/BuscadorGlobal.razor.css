@@ -85,11 +85,31 @@
     outline-offset: 2px;
 }
 
-/* Sin esto el foco del buscador global era invisible: outline: none sin
-   sustituto incumple "el foco siempre visible" (02 § 8). */
+/* La maqueta pinta el campo sin borde dentro de la cabecera (input:focus { outline: none }).
+   El anillo de 2 px y el halo salían de la regla global de foco de input de base.css
+   (:where(input…):focus-visible: outline + box-shadow de 4 px), más un outline propio de aquí:
+   el campo no es un campo de formulario suelto, sino la línea de entrada de la paleta. Se anulan
+   los dos en el propio input (este componente lo pinta directamente, sin ::deep ni tocar el estilo
+   global) y el foco lo señala la cabecera, no el campo. */
 .buscador-input:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: -2px;
+    outline: none;
+    box-shadow: none;
+}
+
+/* Indicador de foco (WCAG 2.4.7): línea inferior de 2 px en el color primario sobre el borde de la
+   cabecera, mas el cursor de texto del propio campo. Solo cuando el foco es del campo (no del
+   botón «esc», que lleva su propio contorno). Contraste del primario sobre blanco > 3:1 (1.4.11). */
+.buscador-cabecera:has(.buscador-input:focus-visible) {
+    box-shadow: inset 0 -2px 0 var(--color-primary-500);
+}
+
+/* Contraste forzado (Windows alto contraste): ahí se descartan los box-shadow y outline: none no deja nada;
+   el campo recupera un contorno de sistema para que el foco siga siendo visible (WCAG 2.4.7). */
+@media (forced-colors: active) {
+    .buscador-input:focus-visible {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
+    }
 }
 
 .buscador-resultados {
