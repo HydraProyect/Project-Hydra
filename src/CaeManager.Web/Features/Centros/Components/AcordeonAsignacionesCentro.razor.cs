@@ -870,6 +870,34 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private Task ManejarAsignacionGuardadaAsync() => ManejarDocumentoGuardadoAsync();
 
+    /// <summary>
+    /// El bloque Empresa está con incidencia (rojo, «Con incidencia») solo si alguno de sus documentos está vencido, pendiente
+    /// o es un bloqueo de la plataforma; con solo documentos por vencer es «Por vencer», en ámbar, igual que la fila del Centro
+    /// (<see cref="IncidenciaCentroDto.HayIncidencia"/>).
+    /// </summary>
+    private bool EmpresaConIncidencia => IncidenciaCentroDto.HayIncidencia(IncidenciasEmpresa);
+
+    private TonoFila TonoBloqueEmpresa => EmpresaConIncidencia ? TonoFila.Peligro : TonoFila.Advertencia;
+
+    private const string SufijoEmpresa = " — Empresa";
+
+    /// <summary>
+    /// Título del documento dentro del bloque EMPRESA. La descripción de la causa (<c>CalculoEstadoCentroService</c>) lleva el
+    /// propietario como sufijo («… — Empresa») para las listas que mezclan ámbitos; bajo el encabezado EMPRESA lo repite, así que
+    /// aquí se omite. Solo presentación: el nombre del tipo de documento no cambia en los datos. El sufijo también puede ir
+    /// seguido de la causa («… — Empresa — rechazado por la plataforma»).
+    /// </summary>
+    public static string TituloDocumentoEmpresa(IncidenciaCentroDto incidencia)
+    {
+        var descripcion = incidencia.Descripcion;
+        if (descripcion.EndsWith(SufijoEmpresa, StringComparison.Ordinal))
+            return descripcion[..^SufijoEmpresa.Length];
+
+        var separador = SufijoEmpresa + " — ";
+        var posicion = descripcion.IndexOf(separador, StringComparison.Ordinal);
+        return posicion < 0 ? descripcion : descripcion.Remove(posicion, SufijoEmpresa.Length);
+    }
+
     private string TextoVigenciaEmpresa(IncidenciaCentroDto incidencia)
     {
         // Un rechazo en plataforma (Estado: null a propósito, ver

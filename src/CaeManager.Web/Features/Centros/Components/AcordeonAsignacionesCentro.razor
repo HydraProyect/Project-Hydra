@@ -100,7 +100,7 @@ else
         *@
         <div class="bloque-empresa-ambito @(ModoListado ? "bloque-empresa-ambito-listado" : null)" data-bloque-empresa>
             <ListaRelaciones Etiqueta="@($"Empresa · {EmpresaNombre}")" EnTarjeta="true">
-                <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoFila.Peligro"
+                <FilaRelacion Nombre="@EmpresaNombre" NombreIcono="empresas" Tono="TonoBloqueEmpresa"
                               OnNombre="AbrirDetalleEmpresa"
                               Desplegada="_empresaDesplegada" DesplegadaChanged="v => _empresaDesplegada = v"
                               EtiquetaDesplegar="@Textos["EmpresaBloqueDesplegar", EmpresaNombre]">
@@ -110,7 +110,8 @@ else
                         <span class="fila-trabajador-fraccion" title="@Textos[IncidenciasEmpresa.Count == 1 ? "EmpresaBloqueCifraUno" : "EmpresaBloqueCifraVarios", IncidenciasEmpresa.Count]">@IncidenciasEmpresa.Count doc.</span>
                     </Cifra>
                     <Estado>
-                        <Badge Tono="TonoBadge.Peligro">@Textos["EmpresaBloqueEstado"]</Badge>
+                        @* Con solo documentos por vencer el bloque no tiene incidencia: «Por vencer» en ámbar, como la fila del Centro. *@
+                        <Badge Tono="@(EmpresaConIncidencia ? TonoBadge.Peligro : TonoBadge.Advertencia)">@(EmpresaConIncidencia ? Textos["EmpresaBloqueEstado"].Value : EstadoDocumentoUi.PorVencer)</Badge>
                     </Estado>
                     <Acciones>
                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" aria-label="@Textos["EmpresaBloqueDetalles", EmpresaNombre]" OnClick="AbrirDetalleEmpresa">
@@ -134,10 +135,10 @@ else
                                         <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
                                             <Authorized>
                                                 <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
-                                                    @incidencia.Descripcion
+                                                    @TituloDocumentoEmpresa(incidencia)
                                                 </button>
                                             </Authorized>
-                                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
+                                            <NotAuthorized>@TituloDocumentoEmpresa(incidencia)</NotAuthorized>
                                         </AuthorizeView>
                                     </span>
                                     @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
@@ -165,7 +166,7 @@ else
                                            (ICommand denegados a Consulta), así que a quien solo lee no se le ofrece. *@
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(incidencia.Descripcion, EmpresaNombre)"
+                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TituloDocumentoEmpresa(incidencia), EmpresaNombre)"
                                                    OnClick="() => GestionarEmpresaAsync(incidencia)">
                                                 Gestionar
                                             </Boton>
