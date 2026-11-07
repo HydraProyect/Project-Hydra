@@ -30,12 +30,9 @@
     outline-offset: 2px;
 }
 
-/* Tablet y móvil: solo el icono (la cabecera compacta es de iconos), con la zona táctil de 36 px. */
+/* Tablet y móvil: solo el icono (la cabecera compacta es de iconos). Mismo relleno que en escritorio: la
+   maqueta usa 10 px, que no es un token, y 2 px por lado no justifican un valor suelto. */
 @media (max-width: 1180px) {
-    .boton-subir-cabecera {
-        padding: 0 var(--space-3);
-    }
-
     .boton-subir-cabecera-texto {
         display: none;
     }
