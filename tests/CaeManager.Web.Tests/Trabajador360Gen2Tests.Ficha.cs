@@ -46,7 +46,7 @@ public partial class Trabajador360Gen2Tests
     }
 
     private static string[] EtiquetasDelPasoFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer) =>
-        drawer.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).ToArray();
+        drawer.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta ?? "").ToArray();
 
     private static async Task<IRenderedComponent<EditarFichaTrabajadorDrawer>> AbrirEditorFicha(IRenderedComponent<TrabajadorDetalle> cut)
     {
