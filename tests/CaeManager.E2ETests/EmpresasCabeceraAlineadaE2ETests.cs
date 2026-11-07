@@ -120,8 +120,11 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                     // En el orden del DOM, que es el visual: cada celda empieza donde acaba la anterior.
                     for (const clase of ['celda-detecciones-empresa', 'celda-cumplimiento-empresa', 'celda-estado-empresa']) {
                         const celda = fila.querySelector('.' + clase);
-                        if (getComputedStyle(celda).display === 'none') continue;
+                        // Solo el guion de «sin detecciones» puede estar oculto: el estado y el cumplimiento, nunca.
+                        if (clase === 'celda-detecciones-empresa' && celda.classList.contains('celda-detecciones-vacia')) continue;
                         const r = celda.getBoundingClientRect();
+                        if (getComputedStyle(celda).display === 'none' || r.height === 0)
+                            fallos.push(`fila ${i}: .${clase} no se ve`);
                         if (r.width === 0 || r.left < 0 || r.right > ancho + 0.5)
                             fallos.push(`fila ${i}: .${clase} en [${r.left.toFixed(0)}, ${r.right.toFixed(0)}] frente a una ventana de ${ancho}`);
                         if (r.top < fondo - 0.5)
@@ -129,6 +132,10 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                         fondo = Math.max(fondo, r.bottom);
                     }
                 });
+                const rotulo = filas.length ? filas[0].querySelector('.celda-cumplimiento-empresa .rotulo-celda-empresa') : null;
+                const rr = rotulo ? rotulo.getBoundingClientRect() : null;
+                if (!rr || getComputedStyle(rotulo).display === 'none' || rr.width === 0 || rr.right > ancho + 0.5)
+                    fallos.push('el rótulo «Cumplimiento» de la tarjeta no se ve dentro de la ventana');
                 const cabecera = document.querySelector('.cabecera-columnas-empresas');
                 return {
                     filas: filas.length,
@@ -172,6 +179,9 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 
     private static async Task AfirmarAlineadoAsync(IPage page, int columnas, string contexto)
     {
+        var rotulosVisibles = await page.EvaluateAsync<int>("() => Array.from(document.querySelectorAll('.marco-lista-empresas .rotulo-celda-empresa')).filter(e => getComputedStyle(e).display !== 'none').length");
+        Assert.True(rotulosVisibles == 0, $"[{contexto}] los rótulos de celda son de la tarjeta móvil y no deben verse con la cabecera de columnas: {rotulosVisibles} visibles.");
+
         var medicion = await page.EvaluateAsync<JsonElement>(MedirDesalineacion);
 
         // Sin filas, sin rótulos o con otra cabecera no habría nada que comparar y el test pasaría en vacío.
