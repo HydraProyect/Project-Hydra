@@ -119,21 +119,22 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav):not(.sele
     color: var(--color-success-700);
 }
 
-/* Etiqueta "CAE" junto al wordmark. Texto real, no una imagen, para que un
-   lector de pantalla la anuncie tal cual. 11px/letter-spacing/padding son
-   la medida exacta de la maqueta elegida (opción D): no hay token de
-   tamaño que coincida, así que van literales — igual que .badge-visita
-   (list-page.css) ya hace con su font-size cuando --font-label-md no
-   encaja. El color y el borde sí son tokens del producto, nunca hex. */
+/* Etiqueta "ACREDITA" (submarca del producto, DECISION_LOG 2026-11-07) junto al
+   wordmark. Texto real, no una imagen, para que un lector de pantalla la anuncie
+   tal cual. 12px/letter-spacing/padding son la medida exacta de la maqueta
+   (.tvm-cae de marco-talveg.js): no hay token de tamaño que coincida, así que
+   van literales — igual que .badge-visita (list-page.css) ya hace con su
+   font-size cuando --font-label-md no encaja. El color y el borde sí son
+   tokens del producto, nunca hex. */
 .marca-etiqueta {
     flex-shrink: 0;
-    /* .tvm-cae: 600 11px/1 Inter, borde --color-border-strong: 11 + 4 + 4 + 1 + 1 = 21 px de alto. */
-    font: 600 11px/1 var(--font-family);
+    /* .tvm-cae: 600 12px/1 Inter, borde --color-border-control: 12 + 5 + 5 + 1,5 + 1,5 = 25 px de alto. */
+    font: 600 12px/1 var(--font-family);
     letter-spacing: .08em;
-    color: var(--color-text-muted);
-    border: 1px solid var(--color-border-strong);
-    border-radius: 4px;
-    padding: 4px 6px;
+    color: var(--color-text);
+    border: 1.5px solid var(--color-border-control);
+    border-radius: 5px;
+    padding: 5px 8px;
 }
 
 .area-principal {

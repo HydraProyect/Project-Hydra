@@ -53,11 +53,11 @@ public class BarraLateralLupaSinFranjaTests
 
     /// <summary>
     /// Revisión visual de la PR 1413 (marco-talveg.js, <c>.tvm-logo</c> y <c>.tvm-cae</c>): la marca mide los 64 px de la
-    /// cabecera SIN encoger (<c>flex: none</c>), con padding 0 18 y gap 10, y la etiqueta «CAE» mide 21 px
-    /// (<c>line-height: 1</c> + padding 4 + borde 1).
+    /// cabecera SIN encoger (<c>flex: none</c>), con padding 0 18 y gap 10, y la etiqueta «ACREDITA» (DECISION_LOG 2026-11-07)
+    /// mide 25 px (<c>line-height: 1</c> de 12 + padding 5 + borde 1,5).
     /// </summary>
     [Fact]
-    public void La_marca_mide_64px_sin_encoger_y_la_etiqueta_CAE_21px()
+    public void La_marca_mide_64px_sin_encoger_y_la_etiqueta_ACREDITA_25px()
     {
         var reglas = Reglas(Leer("Components", "Layout", "MainLayout.razor.css"));
 
@@ -66,7 +66,9 @@ public class BarraLateralLupaSinFranjaTests
             .And.Contain("padding: 0 18px").And.Contain("gap: 10px");
 
         var etiqueta = reglas.Where(r => r.Selector == ".marca-etiqueta").Should().ContainSingle().Which.Cuerpo;
-        etiqueta.Should().Contain("/1 ").And.Contain("padding: 4px 6px").And.Contain("border: 1px solid var(--color-border-strong)");
+        etiqueta.Should().Contain("600 12px/1 ").And.Contain("letter-spacing: .08em").And.Contain("color: var(--color-text);")
+            .And.Contain("border: 1.5px solid var(--color-border-control)").And.Contain("border-radius: 5px")
+            .And.Contain("padding: 5px 8px");
 
         Leer("wwwroot", "css", "tokens.css").Should().Contain("--navbar-height: 64px", "la regla de la marca iguala la cabecera de 64 px");
     }
