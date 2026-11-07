@@ -109,13 +109,14 @@ public partial class Empresa360PaginaTests
             [], Guid.NewGuid(), "4321", "Metal de Zaragoza", false);
         mediador.Cumplimiento[otraId] = 90;
         mediador.Trabajadores[otraId] = [Trabajador(EstadoDocumento.Vigente, "Gil")];
-        return (otraId, async () =>
+        async Task Cambiar()
         {
             Navegacion.NavigateTo($"empresas/{otraId}");
             await cut.InvokeAsync(() => cut.Render(p => p.Add(x => x.EmpresaId, otraId)));
             cut.WaitForAssertion(() => cut.Find("h1").TextContent.Should().Contain("Montajes Ebro S.L."));
             cut.WaitForAssertion(() => cut.FindAll("[aria-busy=true]").Should().BeEmpty());
-        });
+        }
+        return (otraId, Cambiar);
     }
 
     [Fact]
