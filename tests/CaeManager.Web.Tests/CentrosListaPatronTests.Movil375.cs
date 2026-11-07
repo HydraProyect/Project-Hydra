@@ -160,8 +160,12 @@ public partial class CentrosListaPatronTests
             .Should().BeTrue("Empresa, Cumplimiento y Estado ocupan cada uno su línea");
         Regex.IsMatch(movil, @"\.celda-identidad-centro\s*\{[^}]*min-width\s*:\s*0")
             .Should().BeTrue("un nombre largo no estira la fila");
-        movil.Should().Contain(":not(.columna-cumplimiento-centro)",
-            "la cabecera conserva solo la casilla de página y los dos rótulos que ordenan");
+        Regex.IsMatch(movil, @":not\(\.columna-cumplimiento-centro\)\s*\{[^}]*display\s*:\s*none")
+            .Should().BeTrue("la cabecera oculta lo que no actúa y conserva solo la casilla de página y los dos rótulos que ordenan");
+        Regex.IsMatch(movil, @"\.celda-estado-centro\s*\{[^}]*order\s*:\s*2[^}]*padding-left\s*:\s*36px")
+            .Should().BeTrue("Empresa, Cumplimiento y Estado se recolocan tras el icono 360 con la sangría del chevron");
+        Regex.IsMatch(movil, @"\.rejilla-centros-seleccion\.tarjeta-fila-acordeon-cabecera > \.celda-estado-centro\s*\{[^}]*padding-left\s*:\s*64px")
+            .Should().BeTrue("con selección múltiple la sangría suma la casilla");
     }
 
     /// <summary>
@@ -181,6 +185,8 @@ public partial class CentrosListaPatronTests
             "la variante estrecha va después de la rejilla de escritorio del listado para ganarle por orden");
         var bloque = css[inicio..];
         bloque.Should().Contain("grid-template-columns: minmax(0, 1fr) auto");
+        bloque.Should().Contain(".fila-relacion-rejilla:not(.fila-relacion-compacta) > .fila-relacion-identidad",
+            "FilaRelacion da a la identidad ambas columnas a <= 767 px con :not(.fila-relacion-compacta): sin esa especificidad el estado se solapa con el nombre");
         bloque.Should().Contain(".fila-relacion-estado");
         bloque.Should().Contain(".fila-relacion-acciones");
     }

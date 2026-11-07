@@ -228,7 +228,8 @@
         row-gap: 4px;
     }
 
-    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-identidad {
+    /* Con :not(.fila-relacion-compacta) para ganar a FilaRelacion, que a <= 767 px da a la identidad ambas columnas. */
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla:not(.fila-relacion-compacta) > .fila-relacion-identidad {
         grid-column: 1;
         grid-row: 1;
     }
