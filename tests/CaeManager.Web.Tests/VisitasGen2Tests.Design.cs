@@ -145,6 +145,22 @@ public partial class VisitasGen2Tests
     }
 
     [Fact]
+    public async Task La_fila_desplegada_es_una_sola_celda_que_abarca_todas_las_columnas_de_la_fila_de_dato()
+    {
+        var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte") } };
+        var cut = Renderizar(mediator);
+        await Fila(cut, "Centro Norte").QuerySelector(".visitas-expandir")!.ClickAsync(new MouseEventArgs());
+
+        var fila = Fila(cut, "Centro Norte");
+        var celdasDeDato = fila.Children.Length;
+        var desplegada = cut.Find("tr.visitas-fila-desplegada");
+        desplegada.Children.Should().ContainSingle("el detalle es una única celda, no una por columna");
+        desplegada.Children[0].GetAttribute("colspan").Should().Be(celdasDeDato.ToString(),
+            "colspan completo: el detalle ocupa el ancho de la fila de dato y no solo el de su contenido");
+        desplegada.ParentElement.Should().BeSameAs(fila.ParentElement, "cuelga del mismo tbody que la fila de dato");
+    }
+
+    [Fact]
     public async Task El_error_de_preparacion_se_puede_reintentar_sin_ninguna_escritura()
     {
         var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte") }, FallarDocumentacion = true };
