@@ -92,10 +92,15 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
 
     private static readonly TimeSpan Espera = TimeSpan.FromSeconds(5);
 
-    /// <summary>La pantalla carga con todo plegado (decisión de producto 2026-10-16): para mirar filas se parte de «Expandir todas».</summary>
+    /// <summary>La pantalla carga con el primer grupo desplegado y «Vista y filtros» plegada: para mirar todas las filas se abre el panel y se parte de «Expandir todas».</summary>
     private static void DesplegarTodos(IRenderedComponent<MiTrabajoPagina> cut)
     {
-        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas"), Espera);
+        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-vista-alternar"), Espera);
+        var alternar = cut.Find(".mi-trabajo-vista-alternar");
+        if (alternar.GetAttribute("aria-expanded") != "true") alternar.Click();
+        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-plegar-todas").HasAttribute("disabled").Should().BeFalse(), Espera);
+        // Con el primer grupo desplegado el botón dice «Plegar todas»: pliega todo y luego lo despliega.
+        if (cut.Find(".mi-trabajo-plegar-todas").TextContent.Trim() == "Plegar todas") cut.Find(".mi-trabajo-plegar-todas").Click();
         cut.Find(".mi-trabajo-plegar-todas").Click();
     }
 
