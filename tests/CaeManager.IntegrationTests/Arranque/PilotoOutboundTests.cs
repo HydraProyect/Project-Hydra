@@ -782,7 +782,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     /// Regla A-1 del 2026-11-08: un Documento de Empresa se acredita en los Centros de su Empresa (<c>Centro.EmpresaId</c>)
     /// gestionados por plataforma aunque nadie esté asignado allí. Se vuelve a poner en juego el acceso de plataforma ya
     /// sembrado con el servicio real, sin guardar: la Empresa del Centro no tiene ningún documento que la siembra no hubiera
-    /// acreditado, y el control comprueba que el Centro es de la Empresa propia.
+    /// acreditado, y el control comprueba que el Centro es de la Empresa propia. Es una guarda de no regresión de la
+    /// siembra («no deja nada por acreditar»): en todos los perfiles el Centro con plataforma ya tiene Trabajadores propios
+    /// asignados, así que no discrimina la regla nueva de la anterior. El caso sin Trabajadores lo fijan los tests
+    /// unitarios de <c>AltaAcreditacionesPlataformaServiceTests</c>.
     /// </summary>
     [Fact]
     public async Task Volver_a_poner_en_juego_el_acceso_de_plataforma_no_acredita_ningun_documento_de_la_Empresa_del_Centro_que_la_siembra_no_hubiera_acreditado()

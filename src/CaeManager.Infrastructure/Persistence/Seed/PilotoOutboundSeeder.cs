@@ -1392,8 +1392,9 @@ public static class PilotoOutboundSeeder
             }
 
             // Los de la Empresa propia, tenga o no a alguien asignado en ese Centro: todos los Centros del piloto son suyos
-            // (Centro.EmpresaId) y la regla de alta acredita allí sus documentos aunque nadie esté asignado. Van después de
-            // los de los Trabajadores para no consumir la receta de rechazos y subidas.
+            // (Centro.EmpresaId) y la regla de alta acredita allí sus documentos aunque nadie esté asignado. En los perfiles
+            // actuales el Centro con plataforma ya tiene Trabajadores propios, así que el resultado de la siembra no cambia.
+            // Van después de los de los Trabajadores para no consumir la receta de rechazos y subidas.
             foreach (var documento in documentosDeEmpresa)
                 AceptarEnPlataforma(documento, canal.Id);
 

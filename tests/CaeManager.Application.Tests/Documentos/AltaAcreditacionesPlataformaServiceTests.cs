@@ -382,6 +382,65 @@ public class AltaAcreditacionesPlataformaServiceTests
     }
 
     [Fact]
+    public async Task Un_documento_de_empresa_suma_sus_centros_a_los_de_sus_trabajadores_asignados_sin_quitar_ninguno()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centroPropio = mundo.Centro("Planta propia sin personal", mundo.EmpresaId);
+        var accesoPropio = mundo.AccesoPlataforma(centroPropio);
+        // Centro de otra Empresa donde trabaja alguien de esta: la vía anterior sigue valiendo.
+        var centroAjeno = mundo.Centro("Planta de otra Empresa");
+        var accesoAjeno = mundo.AccesoPlataforma(centroAjeno);
+        mundo.Asignacion(mundo.Trabajador(), centroAjeno);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = DocumentoNuevoDeEmpresa(mundo, tipo);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, accesoPropio.Id), (documento.Id, accesoAjeno.Id)]);
+    }
+
+    [Fact]
+    public async Task Repetir_el_alta_de_un_documento_de_empresa_no_duplica_acreditaciones()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centro);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = mundo.DocumentoDeEmpresa(tipo);
+        var altas = new AltasConAcreditacion { Documentos = [documento] };
+
+        (await mundo.Servicio().AgregarPendientesAsync(altas)).Should().Be(1);
+        mundo.Guardar();
+
+        (await mundo.Servicio().AgregarPendientesAsync(altas)).Should().Be(0);
+        (await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Canales = mundo.CentrosContexto.ListaCanalesGestionDocumental.ToList()
+        })).Should().Be(0, "el acceso ya acreditado no vuelve a acreditar el mismo Documento");
+        mundo.DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_centro_de_la_empresa_sin_trabajadores_que_vuelve_a_gestion_cae_acredita_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro("Almacén sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = mundo.DocumentoDeEmpresa(tipo);
+        // Lo que ve la consulta: el guardado que lo devuelve a gestión CAE todavía no ha ocurrido.
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Canales = [acceso],
+            CentrosQueVuelvenAGestionCae = [centro.Id]
+        });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
+    }
+
+    [Fact]
     public async Task Un_centro_de_la_empresa_sin_gestion_cae_no_recibe_sus_documentos_de_empresa()
     {
         var mundo = new MundoAcreditaciones();

@@ -307,8 +307,10 @@ public class AltaAcreditacionesPlataformaService(
     }
 
     /// <summary>
-    /// Empresa de cada Centro (<see cref="Centro.EmpresaId"/>) que importa a este alta: los Centros de las Empresas de
-    /// los Documentos nuevos y los Centros puestos en juego por completo. Bajo RLS, solo Centros del Tenant en curso.
+    /// Empresa de cada Centro (<see cref="Centro.EmpresaId"/>) que importa a este alta: los Centros con algún acceso de
+    /// plataforma de las Empresas de los Documentos nuevos (uno gestionado solo por correo nunca acredita), y los Centros
+    /// puestos en juego por completo, cuyo acceso puede ser el nuevo de este mismo alta. Bajo RLS, solo Centros del
+    /// Tenant en curso.
     /// </summary>
     private async Task<Dictionary<Guid, Guid>> CargarEmpresaDeCentroAsync(
         IReadOnlySet<Guid> empresaIds, IReadOnlySet<Guid> centroIds, CancellationToken cancellationToken)
@@ -318,7 +320,9 @@ public class AltaAcreditacionesPlataformaService(
         var empresaIdsConsulta = empresaIds.ToArray();
         var centroIdsConsulta = centroIds.ToArray();
         return await centrosContext.Centros
-            .Where(c => empresaIdsConsulta.Contains(c.EmpresaId) || centroIdsConsulta.Contains(c.Id))
+            .Where(c => centroIdsConsulta.Contains(c.Id)
+                || (empresaIdsConsulta.Contains(c.EmpresaId)
+                    && centrosContext.CanalesGestionDocumental.Any(k => k.CentroId == c.Id && k.Tipo == TipoCanalGestion.Plataforma)))
             .Select(c => new { c.Id, c.EmpresaId })
             .ToDictionaryAsync(c => c.Id, c => c.EmpresaId, cancellationToken);
     }
