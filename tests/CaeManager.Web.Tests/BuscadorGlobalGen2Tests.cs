@@ -607,19 +607,22 @@ public class BuscadorGlobalGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador, bool conEscritura = true)
+    private IRenderedComponent<BuscadorGlobal> Renderizar(MediadorControlado mediador, bool conEscritura = true, TimeSpan? tiempoMaximoBusqueda = null)
     {
         // «Subir documento para…» solo se ofrece con escritura (SoloConEscritura): por defecto, un rol que escribe.
         if (conEscritura) this.ConRolDeEscritura(); else this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
-        return Render<BuscadorGlobal>();
+        return Render<BuscadorGlobal>(p =>
+        {
+            if (tiempoMaximoBusqueda is { } tope) p.Add(c => c.TiempoMaximoBusqueda, tope);
+        });
     }
 
-    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador, bool conEscritura = true)
+    private async Task<IRenderedComponent<BuscadorGlobal>> RenderizarYAbrir(MediadorControlado mediador, bool conEscritura = true, TimeSpan? tiempoMaximoBusqueda = null)
     {
-        var cut = Renderizar(mediador, conEscritura);
+        var cut = Renderizar(mediador, conEscritura, tiempoMaximoBusqueda);
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
         return cut;
     }
@@ -1071,6 +1074,32 @@ public class BuscadorGlobalGen2Tests : BunitContext
         await segunda;
 
         cut.Markup.Should().NotContain("Buscando…");
+    }
+
+    /// <summary>
+    /// «Buscando…» no puede quedarse para siempre: una consulta que no vuelve (lenta o colgada, y que además ignora
+    /// el token de cancelación) acaba en el mensaje de error con opción de reintentar. Antes del tope de espera, la
+    /// paleta se quedaba en «Buscando…» indefinidamente (defecto de la auditoría visual del 07-11).
+    /// </summary>
+    [Fact]
+    public async Task Una_busqueda_que_no_vuelve_no_deja_la_paleta_en_Buscando_para_siempre()
+    {
+        var mediador = new MediadorControlado();
+        var cut = await RenderizarYAbrir(mediador, tiempoMaximoBusqueda: TimeSpan.FromSeconds(2));
+        _ = mediador.Retener(r => r is BuscarGlobalQuery); // nunca se completa y no mira el token
+
+        // Sin await: el evento no termina hasta que la búsqueda acaba (aquí, por el tope).
+        var escritura = Input(cut).EscribirAsync("raccoon");
+        await EsperarA(() => mediador.Enviados.OfType<BuscarGlobalQuery>().Any(), "que la búsqueda llegase al mediador");
+        cut.Markup.Should().Contain("Buscando…", "mientras no vence el tope, la búsqueda sigue en vuelo");
+
+        // Con el tope vencido el evento termina; sin él, esta espera no acaba nunca y el test falla por tiempo.
+        (await Task.WhenAny(escritura, Task.Delay(TimeSpan.FromSeconds(8)))).Should().BeSameAs(escritura,
+            "la búsqueda que no vuelve tiene que terminar por el tope de espera");
+        await escritura;
+
+        cut.Markup.Should().NotContain("Buscando…");
+        cut.Find(".buscador-mensaje-error").TextContent.Should().Contain("No se pudo completar la búsqueda");
     }
 
     /// <summary>El token del ciclo de vida viaja en TODAS las llamadas al mediador, no solo en la búsqueda.</summary>

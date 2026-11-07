@@ -47,6 +47,13 @@ public partial class BuscadorGlobal
     /// </summary>
     private string _valorMostrado = string.Empty;
 
+    /// <summary>
+    /// Tope de espera de una búsqueda ya lanzada (tras el debounce). Pasado, «Buscando…» se sustituye por el
+    /// error con opción de reintentar: una consulta lenta o colgada nunca deja la paleta en «Buscando…» para siempre.
+    /// Parámetro solo para que las pruebas no esperen el tiempo real.
+    /// </summary>
+    [Parameter] public TimeSpan TiempoMaximoBusqueda { get; set; } = TimeSpan.FromSeconds(10);
+
     private bool _buscando;
     private ResultadoBusquedaGlobalDto? _resultado;
     private int _indiceSeleccionado = -1;
@@ -1259,7 +1266,11 @@ public partial class BuscadorGlobal
             _buscando = true;
             await Task.Delay(RetardoDebounce, token);
 
-            var resultado = await Mediator.Send(new BuscarGlobalQuery(termino), token);
+            // «Buscando…» no puede ser un estado sin salida: WaitAsync suelta la espera al cumplirse el tope
+            // aunque el handler no respete el token (cancelar es una petición, no una garantía), y el
+            // fallo se pinta como error con la misma vía que cualquier otro (el usuario puede reintentar).
+            var resultado = await Mediator.Send(new BuscarGlobalQuery(termino), token)
+                .WaitAsync(TiempoMaximoBusqueda, token);
             if (generacion == _generacionBusqueda)
                 await CargarVencenEstaSemanaAsync(termino, token);
 
@@ -1277,11 +1288,14 @@ public partial class BuscadorGlobal
             // Se canceló porque el usuario siguió escribiendo, cerró el
             // palette o el componente se está destruyendo — ignorar.
         }
-        catch (Exception) when (generacion == _generacionBusqueda)
+        catch (Exception ex) when (generacion == _generacionBusqueda)
         {
             // Un fallo no puede acabar mostrándose como "sin resultados".
             _resultado = null;
             _errorBusqueda = "No se pudo completar la búsqueda. Vuelve a intentarlo.";
+
+            // Si fue el tope de espera, la consulta que sigue en vuelo ya no interesa a nadie.
+            if (ex is TimeoutException) enlazado.Cancel();
         }
         catch
         {
