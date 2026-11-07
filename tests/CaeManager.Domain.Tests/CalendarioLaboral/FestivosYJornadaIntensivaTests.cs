@@ -55,6 +55,41 @@ public class FestivosYJornadaIntensivaTests
         }
     }
 
+    [Theory]
+    // Contrastado con el anexo de BOE-A-2026-21254 el 2026-11-07: el 15 de agosto de 2027 es domingo y cada
+    // comunidad lo traslada o lo sustituye a su manera; el País Vasco no tiene el 19 de marzo ese año.
+    [InlineData(ComunidadAutonoma.Aragon, "2027-03-25,2027-04-23,2027-08-16")]
+    [InlineData(ComunidadAutonoma.Cataluna, "2027-03-29,2027-06-24,2027-09-11")]
+    [InlineData(ComunidadAutonoma.Extremadura, "2027-03-25,2027-09-08,2027-10-11")]
+    [InlineData(ComunidadAutonoma.PaisVasco, "2027-03-25,2027-03-29,2027-10-07")]
+    public void Los_autonomicos_de_2027_son_los_del_BOE(ComunidadAutonoma comunidad, string fechas)
+    {
+        Catalogo.Where(f => f.Ambito == AmbitoFestivo.Autonomico && f.Comunidad == comunidad && f.Fecha.Year == 2027)
+            .Select(f => f.Fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))
+            .Should().Equal(fechas.Split(','));
+    }
+
+    [Fact]
+    public void El_catalogo_cubre_el_anio_siguiente_desde_noviembre()
+    {
+        // Trinquete de caducidad: el BOE publica en octubre las fiestas del año siguiente. Desde noviembre, el
+        // catálogo debe tenerlas; si no, en enero /calendario dejaría de pintar festivos y jornada intensiva.
+        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+        var exigido = hoy.Month >= 11 ? hoy.Year + 1 : hoy.Year;
+
+        CatalogoFestivosOficiales.AniosCubiertos.Should().Contain(exigido,
+            "falta sembrar el calendario oficial de ese año: filas en CatalogoFestivosOficiales y una migración");
+    }
+
+    [Theory]
+    [InlineData(2026, ComunidadAutonoma.Aragon, true)]
+    [InlineData(2027, null, true)]
+    [InlineData(2028, ComunidadAutonoma.Aragon, false)]
+    [InlineData(2028, null, false)]
+    [InlineData(2027, ComunidadAutonoma.Madrid, false)]
+    public void Cubre_exige_el_anio_y_la_comunidad_en_el_catalogo(int anio, ComunidadAutonoma? comunidad, bool esperado) =>
+        CatalogoFestivosOficiales.Cubre(anio, comunidad).Should().Be(esperado);
+
     [Fact]
     public void Los_festivos_que_le_aplican_salen_ordenados_por_fecha_y_sin_los_de_otra_comunidad()
     {

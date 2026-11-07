@@ -99,4 +99,16 @@ public static class CatalogoFestivosOficiales
         A(2027, 3, 29, "Lunes de Pascua", Pv),
         A(2027, 10, 7, "Aniversario del primer Gobierno Vasco", Pv),
     ];
+
+    /// <summary>Los años cuyo calendario oficial está en el catálogo. Va detrás de <see cref="Todos"/>, que inicializa antes.</summary>
+    public static IReadOnlyList<int> AniosCubiertos { get; } = Todos.Select(f => f.Fecha.Year).Distinct().Order().ToList();
+
+    /// <summary>
+    /// Si el catálogo conoce todos los festivos que pueden aplicar a una persona ese año: el año está sembrado y su
+    /// comunidad, si la tiene, también. Sin ello no se puede decir qué día es laborable, y la jornada intensiva no se
+    /// pinta (se pintaría sobre festivos reales que el catálogo no conoce). Sin comunidad se pinta: son los
+    /// nacionales y la intensiva por defecto de quien aún no tiene ubicación de trabajo.
+    /// </summary>
+    public static bool Cubre(int anio, ComunidadAutonoma? comunidad) =>
+        AniosCubiertos.Contains(anio) && (comunidad is null || ComunidadesCubiertas.Contains(comunidad.Value));
 }

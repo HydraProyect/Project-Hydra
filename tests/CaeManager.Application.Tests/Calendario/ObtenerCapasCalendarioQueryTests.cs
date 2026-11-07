@@ -127,6 +127,49 @@ public class ObtenerCapasCalendarioQueryTests
     }
 
     [Fact]
+    public async Task El_Administrador_ve_al_equipo()
+    {
+        var (directorio, contexto) = Escenario();
+        var administrador = Guid.NewGuid();
+        directorio.Asignar(administrador, OperadorA, "Administrador");
+
+        var capas = await ConsultarAsync(administrador, OperadorA, "Administrador", directorio, contexto);
+
+        capas.VeAlEquipo.Should().BeTrue();
+        capas.Personas.Should().HaveCount(3);
+        capas.Comunidades.Should().BeEquivalentTo(["Aragón", "Cataluña", "País Vasco"]);
+    }
+
+    [Fact]
+    public async Task En_un_anio_sin_catalogo_no_hay_intensiva_y_se_avisa()
+    {
+        var (directorio, contexto) = Escenario();
+
+        var julio2028 = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2028, mes: 7);
+        var julio2027 = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 7);
+
+        julio2028.CatalogoCubreElAnio.Should().BeFalse();
+        julio2028.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().BeEmpty(
+            "sin el calendario oficial de 2028 se pintaría la intensiva sobre festivos que el catálogo no conoce");
+        julio2027.CatalogoCubreElAnio.Should().BeTrue();
+        julio2027.Personas[0].DiasJornadaIntensiva.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_comunidad_sin_autonomicos_en_el_catalogo_no_pinta_intensiva()
+    {
+        var (directorio, contexto) = Escenario();
+        var madrid = Guid.NewGuid();
+        directorio.Asignar(madrid, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, madrid, ComunidadAutonoma.Madrid);
+
+        var capas = await ConsultarAsync(madrid, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 7);
+
+        capas.CatalogoCubreElAnio.Should().BeTrue();
+        capas.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Dentro_de_un_Workspace_operativo_derivado_se_lee_el_equipo_del_Tenant_de_origen()
     {
         var (directorio, contexto) = Escenario();

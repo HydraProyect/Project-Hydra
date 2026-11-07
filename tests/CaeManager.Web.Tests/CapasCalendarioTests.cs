@@ -136,6 +136,17 @@ public class CapasCalendarioTests : BunitContext
     }
 
     [Fact]
+    public void Un_anio_sin_catalogo_oficial_lo_avisa_en_la_barra()
+    {
+        var (cut, _, _) = Montar(
+            _ => new CapasCalendarioDto(false, [Persona("Aragón", [])]) { CatalogoCubreElAnio = false }, anio: 2028, mes: 7);
+
+        cut.Find(".capas-nota").TextContent.Should().Be(
+            "Aún no está el calendario oficial de festivos de 2028: este mes no marca festivos ni jornada intensiva.");
+        cut.Find(".capas-nota").GetAttribute("role").Should().Be("status");
+    }
+
+    [Fact]
     public void Sin_nadie_que_mostrar_no_pinta_la_barra()
     {
         var (cut, marcas, _) = Montar(_ => CapasCalendarioDto.Vacio);

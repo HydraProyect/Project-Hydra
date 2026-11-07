@@ -26,6 +26,13 @@
                 </select>
             </label>
         }
-        <span class="capas-nota">@Textos[_capas.VeAlEquipo ? "NotaEquipo" : "NotaPropia"]</span>
+        @if (_capas.CatalogoCubreElAnio)
+        {
+            <span class="capas-nota">@Textos[_capas.VeAlEquipo ? "NotaEquipo" : "NotaPropia"]</span>
+        }
+        else
+        {
+            <span class="capas-nota" role="status">@Textos["SinCatalogoDelAnio", Anio]</span>
+        }
     </div>
 }
