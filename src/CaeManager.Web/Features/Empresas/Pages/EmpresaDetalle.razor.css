@@ -185,6 +185,14 @@
     margin-top: var(--space-2);
 }
 
+/* Acciones de enlace de la cabecera («Detectar altas y bajas», «Reclamar para acceso»): la maqueta «Empresa 360 página» las pinta con el
+   borde de tarjeta (--color-border) y la letra de etiqueta de 13 px. El selector lleva el elemento y .boton para ganar a las reglas
+   de Boton.razor.css sin depender del orden del paquete de estilos. */
+a.boton.empresa360-accion-cabecera {
+    border-color: var(--color-border);
+    font-size: 0.8125rem;
+}
+
 /* Texto de apoyo bajo la barra de pestañas (.texto-apoyo de la maqueta «Empresa 360»): 13/400, no el pie de 12/500. */
 .empresa360-apoyo.empresa360-apoyo-pestana {
     font: var(--font-label-md);

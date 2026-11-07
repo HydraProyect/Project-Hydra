@@ -158,6 +158,37 @@ public partial class Empresa360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Demo con IT (2026-11-10): en la caja «Información» un campo opcional sin valor no se pinta (ni «CNAE: —» ni «Convenio aplicable: —»);
+    /// con valor, sale como siempre.
+    /// </summary>
+    [Fact]
+    public void Los_campos_opcionales_sin_valor_no_se_pintan_en_Informacion()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L.") with { Cif = null }; m.Cumplimientos[id] = 80;
+
+        var cut = Renderizar(id);
+
+        var etiquetas = cut.FindAll(".campo-info-etiqueta").Select(e => e.TextContent.Trim()).ToList();
+        etiquetas.Should().Contain("Razón social").And.Contain("Actividad del Anexo I del RSP").And.Contain("Creada");
+        etiquetas.Should().NotContain(["Identificación fiscal", "CNAE", "Convenio aplicable", "Clientes con los que trabaja"]);
+        cut.FindAll(".campo-info-valor").Select(v => v.TextContent.Trim()).Should().NotContain("—");
+    }
+
+    [Fact]
+    public void Los_campos_opcionales_con_valor_se_pintan_en_Informacion()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Montajes Ebro S.L.") with { Cnae = "4321", ConvenioAplicable = "Construcción" }; m.Cumplimientos[id] = 80;
+
+        var cut = Renderizar(id);
+
+        ValorInfo(cut, "Identificación fiscal").Should().Be("B10380186");
+        ValorInfo(cut, "CNAE").Should().Be("4321");
+        ValorInfo(cut, "Convenio aplicable").Should().Be("Construcción");
+    }
+
+    /// <summary>
     /// Sin alcance de gestión, ObtenerClientesDeEmpresaQuery devuelve vacío a
     /// propósito: el panel no lo convierte en «0» ni en «todavía no tiene ningún
     /// Cliente empresarial», que sería falso para quien no puede ver la cartera
@@ -171,7 +202,8 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Cumplimientos[id] = 80;
 
         var cut = Renderizar(id);
-        ValorInfo(cut, "Clientes con los que trabaja").Should().Be("—");
+        cut.FindAll(".campo-info-etiqueta").Select(e => e.TextContent.Trim()).Should().NotContain("Clientes con los que trabaja",
+            "un campo sin valor no se pinta, ni como «—» ni como «0»");
 
         cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "clientes"));
         cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes")).TextContent.Should().NotContain("(");

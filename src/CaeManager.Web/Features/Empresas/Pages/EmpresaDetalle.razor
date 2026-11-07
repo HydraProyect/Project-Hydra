@@ -89,8 +89,8 @@
                 }
             </Datos>
             <Acciones>
-                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
-                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>
                     <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["AccionSubirDocumento"]</Boton>
                 </SoloConEscritura>
@@ -164,18 +164,21 @@
                     <ChildContent>
                         @* Orden y anchos de la maqueta: identificación fiscal, CNAE y convenio a ancho completo; alta y Anexo I, a media rejilla. *@
                         <RejillaDatos>
-                            <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
-                                @if (string.IsNullOrWhiteSpace(_detalle.Cif))
-                                {
-                                    <span>—</span>
-                                }
-                                else
-                                {
+                            @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
                                     <BotonCopiar EnLinea="true" ConIcono="true" Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
-                                }
-                            </DatoRejilla>
-                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
+                                </DatoRejilla>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cnae))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@_detalle.Cnae" Ancho="true" />
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_detalle.ConvenioAplicable))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@_detalle.ConvenioAplicable" Ancho="true" />
+                            }
                             <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                             <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" />
                         </RejillaDatos>

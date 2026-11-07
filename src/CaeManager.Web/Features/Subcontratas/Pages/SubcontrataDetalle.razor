@@ -104,7 +104,7 @@
                                         <ChildContent>
                                             @foreach (var documento in _documentosGestion)
                                             {
-                                                <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" NombreIcono="documento"
+                                                <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" NombreIcono="documentos"
                                                               Tono="EstadoDocumentoFicha360.TonoFila(documento.Estado)" OnNombre="() => AbrirDocumentoGestionAsync(documento)">
                                                     <Detalle>@(documento.FechaVencimiento is { } fecha ? Textos["GestionVence", fecha.ToString("dd/MM/yyyy")] : Textos["GestionSinFecha"])</Detalle>
                                                     <Estado><Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge></Estado>
@@ -381,18 +381,18 @@
                     <ChildContent>
                         <RejillaDatos>
                             <DatoRejilla Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_detalle.RazonSocial" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["RotuloIdentificacionFiscal"]">
-                                @if (string.IsNullOrWhiteSpace(_detalle.Cif))
-                                {
-                                    <text>—</text>
-                                }
-                                else
-                                {
+                            @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                            @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                            {
+                                <DatoRejilla Etiqueta="@Textos["RotuloIdentificacionFiscal"]">
                                     <span class="subcontrata360-copia"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Titulo="@Textos["TituloCopiarCif"]" Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaIdentificacionFiscal"], _detalle.Cif]" /></span>
-                                }
-                            </DatoRejilla>
+                                </DatoRejilla>
+                            }
                             <DatoRejilla Etiqueta="@Textos["RotuloAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
-                            <DatoRejilla Etiqueta="@Textos["ContratadaPor"]" Valor="@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)" Ancho="true" />
+                            @if (_detalle.EmpresaIds.Count > 0)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["ContratadaPor"]" Valor="@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)" Ancho="true" />
+                            }
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>

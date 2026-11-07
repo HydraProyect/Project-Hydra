@@ -202,19 +202,26 @@ else
                 {
                     <div class="rejilla-info-subcontrata-360">
                         <div class="celda-info-subcontrata-360 celda-info-subcontrata-360-ancha"><span>@Textos["RotuloRazonSocial"]</span><strong>@_detalle.RazonSocial</strong></div>
-                        <div class="celda-info-subcontrata-360">
-                            <span>@Textos["RotuloIdentificacionFiscal"]</span>
-                            <div class="valor-con-copia-subcontrata-360">
-                                <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
-                                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
-                                {
+                        @* Solo lo que se tiene: un campo opcional sin valor no se pinta (ni como «—»). *@
+                        @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                        {
+                            <div class="celda-info-subcontrata-360">
+                                <span>@Textos["RotuloIdentificacionFiscal"]</span>
+                                <div class="valor-con-copia-subcontrata-360">
+                                    <strong>@_detalle.Cif</strong>
                                     <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" />
-                                }
+                                </div>
                             </div>
-                        </div>
+                        }
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloNivelServicio"]</span><strong>@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
-                        <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        @if (_detalle.ClienteIds.Count > 0)
+                        {
+                            <div class="celda-info-subcontrata-360"><span>@Textos["RotuloClientesEmpresariales"]</span><strong>@TextoRelaciones(_detalle.ClienteIds, _nombresClientes)</strong></div>
+                        }
+                        @if (_detalle.EmpresaIds.Count > 0)
+                        {
+                            <div class="celda-info-subcontrata-360"><span>@Textos["EtiquetaEmpresasPrestaServicio"]</span><strong>@TextoRelaciones(_detalle.EmpresaIds, _nombresEmpresas)</strong></div>
+                        }
                         <div class="celda-info-subcontrata-360"><span>@Textos["RotuloAlta"]</span><strong>@(_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy", CultureInfo.CurrentCulture))</strong></div>
                     </div>
 
