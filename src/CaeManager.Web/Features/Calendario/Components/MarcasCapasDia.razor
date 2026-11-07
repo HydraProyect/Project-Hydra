@@ -1,0 +1,15 @@
+@* Lo que las capas pintan en la celda de un día (maqueta Calendario TALVEG, :141 y :143): una etiqueta de
+   tolerancia por festivo y la línea punteada de jornada intensiva al pie de la celda. *@
+@foreach (var festivo in Marcas.Festivos(Fecha))
+{
+    <span class="capas-festivo" title="@festivo">@festivo</span>
+}
+@if (Marcas.Intensiva(Fecha))
+{
+    <span class="capas-intensiva" data-capa="intensiva"></span>
+}
+
+@code {
+    [Parameter, EditorRequired] public MarcasCapasMes Marcas { get; set; } = MarcasCapasMes.Vacias;
+    [Parameter, EditorRequired] public DateOnly Fecha { get; set; }
+}

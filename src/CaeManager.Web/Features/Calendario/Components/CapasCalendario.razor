@@ -1,0 +1,31 @@
+@using CaeManager.Web.Features.Calendario.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCapasCalendario> Textos
+
+@* Barra «Capas» de la maqueta (Calendario TALVEG, :102-107), sin la capa de Ausencias: solo Festivos y Jornada
+   intensiva. Sin nadie cuyo calendario se pueda enseñar (rol sin equipo, error de carga) no se pinta. *@
+@if (_capas.Personas.Count > 0)
+{
+    <div class="capas-calendario" role="group" aria-label="@Textos["Capas"]">
+        <span class="capas-titulo">@Textos["Capas"]</span>
+        <label class="capas-chip @(_festivos ? "capas-chip-activa" : null)" title="@Textos["CapaFestivosTitulo"]">
+            <input type="checkbox" checked="@_festivos" @onchange="CambiarFestivosAsync" />@Textos["CapaFestivos"]
+        </label>
+        <label class="capas-chip @(_intensiva ? "capas-chip-activa" : null)" title="@Textos["CapaIntensivaTitulo"]">
+            <input type="checkbox" checked="@_intensiva" @onchange="CambiarIntensivaAsync" />@Textos["CapaIntensiva"]
+        </label>
+        @if (_festivos && _capas.VeAlEquipo && _capas.Comunidades.Count > 0)
+        {
+            <label class="capas-filtro">@Textos["FestivosDe"]
+                <select value="@(_comunidad ?? string.Empty)" @onchange="CambiarComunidadAsync">
+                    <option value="">@Textos["TodoElEquipo"]</option>
+                    @foreach (var comunidad in _capas.Comunidades)
+                    {
+                        <option value="@comunidad">@comunidad</option>
+                    }
+                </select>
+            </label>
+        }
+        <span class="capas-nota">@Textos[_capas.VeAlEquipo ? "NotaEquipo" : "NotaPropia"]</span>
+    </div>
+}

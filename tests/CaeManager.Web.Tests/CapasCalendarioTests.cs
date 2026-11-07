@@ -1,0 +1,180 @@
+using Bunit;
+using CaeManager.Application.Calendario.Queries;
+using CaeManager.Domain.CalendarioLaboral;
+using CaeManager.Web.Features.Calendario.Components;
+using FluentAssertions;
+using MediatR;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// Capas «Festivos» y «Jornada intensiva» de /calendario (maqueta Calendario TALVEG, :102-107 y :141-143): lo que
+/// entregan a las celdas según las casillas y «Festivos de», y que una carga fallida no rompe el calendario.
+/// </summary>
+public class CapasCalendarioTests : BunitContext
+{
+    private static readonly DateOnly Difuntos = new(2026, 11, 2);
+    private static readonly DateOnly Lunes9 = new(2026, 11, 9);
+
+    public CapasCalendarioTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+    }
+
+    private sealed class MediadorCapas(Func<ObtenerCapasCalendarioQuery, CapasCalendarioDto> responder) : IMediator
+    {
+        public List<ObtenerCapasCalendarioQuery> Consultas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is not ObtenerCapasCalendarioQuery consulta)
+                throw new NotSupportedException(request.GetType().Name);
+            Consultas.Add(consulta);
+            return Task.FromResult((TResponse)(object)responder(consulta));
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            throw new NotSupportedException();
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification =>
+            Task.CompletedTask;
+    }
+
+    private static PersonaCapasCalendarioDto Persona(string? comunidad, IReadOnlyList<FestivoCapaDto> festivos, params DateOnly[] intensiva) =>
+        new(comunidad, festivos, intensiva);
+
+    private static readonly FestivoCapaDto DifuntosAragon = new(Difuntos, "Todos los Santos (traslado)", AmbitoFestivo.Autonomico, "Aragón");
+    private static readonly FestivoCapaDto Constitucion = new(new DateOnly(2026, 12, 8), "Inmaculada Concepción", AmbitoFestivo.Nacional, null);
+
+    private static CapasCalendarioDto Equipo() => new(true,
+    [
+        Persona("Aragón", [DifuntosAragon, Constitucion], Lunes9),
+        Persona("País Vasco", [Constitucion]),
+        Persona("Cataluña", [Constitucion]),
+    ]);
+
+    private (IRenderedComponent<CapasCalendario> Componente, Func<MarcasCapasMes> Marcas, MediadorCapas Mediador) Montar(
+        Func<ObtenerCapasCalendarioQuery, CapasCalendarioDto> responder, int anio = 2026, int mes = 11)
+    {
+        var mediador = new MediadorCapas(responder);
+        Services.AddScoped<IMediator>(_ => mediador);
+        var ultimas = MarcasCapasMes.Vacias;
+        var cut = Render<CapasCalendario>(p => p
+            .Add(c => c.Anio, anio)
+            .Add(c => c.Mes, mes)
+            .Add(c => c.MarcasChanged, (MarcasCapasMes m) => ultimas = m));
+        return (cut, () => ultimas, mediador);
+    }
+
+    [Fact]
+    public void Con_las_dos_capas_activas_la_celda_recibe_festivos_con_su_lugar_y_la_intensiva()
+    {
+        var (cut, marcas, _) = Montar(_ => Equipo());
+
+        cut.Find(".capas-calendario").TextContent.Should().Contain("Capas").And.Contain("Festivos").And.Contain("Jornada intensiva");
+        cut.FindAll("input[type=checkbox]").Should().HaveCount(2).And.OnlyContain(c => c.HasAttribute("checked"));
+
+        marcas().Festivos(Difuntos).Should().Equal("Todos los Santos (traslado) · Aragón");
+        marcas().Festivos(new DateOnly(2026, 12, 8)).Should().Equal("Inmaculada Concepción · nacional");
+        marcas().Intensiva(Lunes9).Should().BeTrue();
+        marcas().TextoAccesible(Difuntos).Should().Be(". Festivo: Todos los Santos (traslado) · Aragón");
+    }
+
+    [Fact]
+    public void Un_festivo_que_comparten_varias_personas_se_pinta_una_sola_vez()
+    {
+        var (_, marcas, _) = Montar(_ => Equipo());
+
+        marcas().Festivos(new DateOnly(2026, 12, 8)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Festivos_de_una_comunidad_deja_solo_los_de_sus_personas()
+    {
+        var (cut, marcas, _) = Montar(_ => Equipo());
+
+        cut.FindAll("select option").Select(o => o.TextContent).Should().Equal("Todo el equipo", "Aragón", "Cataluña", "País Vasco");
+        cut.Find("select").Change("País Vasco");
+
+        marcas().Festivos(Difuntos).Should().BeEmpty("el traslado de Todos los Santos es de Aragón");
+        marcas().Festivos(new DateOnly(2026, 12, 8)).Should().ContainSingle();
+        marcas().Intensiva(Lunes9).Should().BeTrue("la intensiva no se filtra por «Festivos de»");
+
+        cut.Find("select").Change("");
+        marcas().Festivos(Difuntos).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Apagar_una_capa_quita_sus_marcas_y_el_selector()
+    {
+        var (cut, marcas, _) = Montar(_ => Equipo());
+
+        cut.FindAll("input[type=checkbox]")[0].Change(false);
+        marcas().Festivos(Difuntos).Should().BeEmpty();
+        cut.FindAll("select").Should().BeEmpty("«Festivos de» solo se ofrece con la capa de festivos activa");
+        marcas().Intensiva(Lunes9).Should().BeTrue();
+
+        cut.FindAll("input[type=checkbox]")[1].Change(false);
+        marcas().Intensiva(Lunes9).Should().BeFalse();
+        marcas().TieneMarcas(Lunes9).Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_Gestor_CAE_ve_sus_festivos_sin_selector_de_equipo()
+    {
+        var (cut, marcas, _) = Montar(_ => new CapasCalendarioDto(false, [Persona("Aragón", [DifuntosAragon])]));
+
+        cut.FindAll("select").Should().BeEmpty();
+        cut.Find(".capas-nota").TextContent.Should().Be("Ves tus festivos.");
+        marcas().Festivos(Difuntos).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Sin_nadie_que_mostrar_no_pinta_la_barra()
+    {
+        var (cut, marcas, _) = Montar(_ => CapasCalendarioDto.Vacio);
+
+        cut.FindAll(".capas-calendario").Should().BeEmpty();
+        marcas().TieneMarcas(Difuntos).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Si_la_carga_falla_el_calendario_sigue_sin_capas()
+    {
+        var (cut, marcas, _) = Montar(_ => throw new InvalidOperationException("caída"));
+
+        cut.FindAll(".capas-calendario").Should().BeEmpty();
+        marcas().TieneMarcas(Difuntos).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Cambiar_de_mes_recarga_y_mantener_el_mes_no()
+    {
+        var (cut, _, mediador) = Montar(_ => Equipo());
+
+        cut.Render(p => p.Add(c => c.Anio, 2026).Add(c => c.Mes, 11));
+        cut.Render(p => p.Add(c => c.Anio, 2026).Add(c => c.Mes, 12));
+
+        mediador.Consultas.Should().Equal(new ObtenerCapasCalendarioQuery(2026, 11), new ObtenerCapasCalendarioQuery(2026, 12));
+    }
+
+    [Fact]
+    public void La_celda_pinta_la_etiqueta_de_tolerancia_y_la_linea_de_intensiva()
+    {
+        var (_, marcas, _) = Montar(_ => Equipo());
+
+        var celda = Render<MarcasCapasDia>(p => p.Add(c => c.Marcas, marcas()).Add(c => c.Fecha, Difuntos));
+        celda.FindAll(".capas-festivo").Select(e => e.TextContent).Should().Equal("Todos los Santos (traslado) · Aragón");
+        celda.FindAll(".capas-intensiva").Should().BeEmpty("el 2 de noviembre no es de intensiva");
+
+        var lunes = Render<MarcasCapasDia>(p => p.Add(c => c.Marcas, marcas()).Add(c => c.Fecha, Lunes9));
+        lunes.FindAll(".capas-intensiva").Should().ContainSingle();
+        lunes.FindAll(".capas-festivo").Should().BeEmpty();
+    }
+}
