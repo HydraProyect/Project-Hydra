@@ -155,8 +155,8 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     {
         await using (var runtime = CrearRuntime())
         {
-            // En el mismo contexto: una acreditación ya guardada y cargada (sin cambios) y otro Documento nuevo con su
-            // acreditación agregada. Ninguna de las dos es del Documento que nace.
+            // En el mismo contexto: una acreditación ya guardada y cargada (sin cambios) de otro Documento y otro Documento
+            // nuevo con su acreditación agregada. Ninguna de las dos es del Documento que nace.
             (await runtime.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion)).Should().NotBeNull();
             var hoy = DiaDeNegocio.Hoy();
             var otro = Documento.DeTrabajador(_propio.Trabajador, _propio.Tipo, hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), "tenant/otro.pdf");
@@ -169,6 +169,11 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
             var acreditacionDelNacido = await runtime.AcreditacionesDocumentoPlataforma
                 .Where(a => a.DocumentoId == nacido.Id).Select(a => a.Id).SingleAsync();
             gestion!.Pasos.Select(p => p.AcreditacionId).Should().Equal([acreditacionDelNacido]);
+
+            // Tras el guardado, la acreditación del propio nacido ya no es «agregada»: ningún acto posterior en el mismo
+            // contexto la vuelve a tomar como paso (fija el filtro por estado Added, no solo el de Documento).
+            (await AltaAcreditacionesDePrueba.GestionAutomatica(runtime, Usuario()).AgregarAsync(nacido, null))
+                .Should().BeNull();
         }
     }
 
