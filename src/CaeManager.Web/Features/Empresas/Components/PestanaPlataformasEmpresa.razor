@@ -88,20 +88,16 @@
     /// <summary>Avisa de cuántas incidencias hay al terminar de cargar: es el contador de la pestaña en la ficha (maqueta «Empresa 360»).</summary>
     [Parameter] public EventCallback<int> IncidenciasCargadas { get; set; }
 
-    private sealed record Fila(
-        string Cliente, Guid CentroId, string Centro, string Plataforma, string Documento, EstadoAcreditacion Estado, string? Motivo,
-        bool Vencida = false, DateOnly? VenceEnPlataforma = null);
-
-    private sealed record Grupo(string Cliente, Guid CentroId, string Centro, string Plataforma, IReadOnlyList<Fila> Visibles, int Incidencias);
+    private sealed record Grupo(string Cliente, Guid CentroId, string Centro, string Plataforma, IReadOnlyList<FilaPlataforma> Visibles, int Incidencias);
 
     private readonly CancellationTokenSource _ciclo = new();
-    private List<Fila>? _filas;
+    private List<FilaPlataforma>? _filas;
     private bool _error;
     private bool _soloIncidencias = true;
     private Guid _cargado;
     private int _carga;
 
-    private int Incidencias => _filas?.Count(EsIncidencia) ?? 0;
+    private int Incidencias => _filas is null ? 0 : FilasPlataformasEmpresa.Incidencias(_filas);
 
     private IReadOnlyList<OpcionEstadoRecuento> OpcionesFiltro => [new("incidencias", Textos["PlataformasSoloIncidenciasRotulo"], Incidencias)];
 
@@ -124,20 +120,12 @@
         _filas = null;
         try
         {
-            var proveedores = await Mediator.Send(
-                new ObtenerAcreditacionesPorProveedorQuery(IncluirAceptadas: true, IncluirSubidas: true, SoloDocumentosDeEmpresaId: empresaId),
-                _ciclo.Token);
+            // El universo y la regla de incidencia son los de FilasPlataformasEmpresa: los mismos con los que la ficha cuenta el
+            // contador de la pestaña antes de abrirla.
+            var proveedores = await Mediator.Send(FilasPlataformasEmpresa.Consulta(empresaId), _ciclo.Token);
             if (carga != _carga) return;
 
-            // Un mismo documento puede llegar dos veces bajo la misma plataforma y Centro (p. ej. por dos canales): se queda con
-            // la fila más grave, que es la que hay que atender.
-            _filas = [.. proveedores.SelectMany(p => p.Clientes.SelectMany(c => c.Documentos
-                .Where(d => d.CentroId is not null)
-                .Select(d => new Fila(c.ClienteNombre, d.CentroId!.Value, d.CentroNombre ?? "—", p.ProveedorNombre,
-                    d.TipoDocumentoNombre, d.Estado, d.Estado == EstadoAcreditacion.Rechazada ? d.UltimoMotivoRechazo : null,
-                    d.Estado == EstadoAcreditacion.Aceptada && d.VencidaEnPlataforma, d.FechaVencimientoEnPlataforma))))
-                .GroupBy(f => (f.Cliente, f.CentroId, f.Plataforma, f.Documento))
-                .Select(g => g.OrderBy(Rango).First())];
+            _filas = FilasPlataformasEmpresa.Construir(proveedores);
             await IncidenciasCargadas.InvokeAsync(Incidencias);
         }
         catch (OperationCanceledException)
@@ -159,25 +147,14 @@
         .GroupBy(f => (f.Cliente, f.CentroId, f.Centro, f.Plataforma))
         .Select(g =>
         {
-            var todas = g.OrderBy(Rango).ThenBy(f => f.Documento, StringComparer.CurrentCultureIgnoreCase).ToList();
-            var visibles = _soloIncidencias ? todas.Where(EsIncidencia).ToList() : todas;
-            return new Grupo(g.Key.Cliente, g.Key.CentroId, g.Key.Centro, g.Key.Plataforma, visibles, todas.Count(EsIncidencia));
+            var todas = g.OrderBy(FilasPlataformasEmpresa.Rango).ThenBy(f => f.Documento, StringComparer.CurrentCultureIgnoreCase).ToList();
+            var visibles = _soloIncidencias ? todas.Where(FilasPlataformasEmpresa.EsIncidencia).ToList() : todas;
+            return new Grupo(g.Key.Cliente, g.Key.CentroId, g.Key.Centro, g.Key.Plataforma, visibles, FilasPlataformasEmpresa.Incidencias(todas));
         })
         .Where(g => g.Visibles.Count > 0)
         .OrderBy(g => g.Cliente, StringComparer.CurrentCultureIgnoreCase)
         .ThenBy(g => g.Centro, StringComparer.CurrentCultureIgnoreCase)
         .ToList();
-
-    // Incidencia = todo lo que no está validado en la plataforma, y también lo validado que ya venció allí.
-    private static bool EsIncidencia(Fila fila) => fila.Estado != EstadoAcreditacion.Aceptada || fila.Vencida;
-
-    private static int Rango(Fila fila) => fila.Vencida ? 0 : fila.Estado switch
-    {
-        EstadoAcreditacion.Rechazada => 0,
-        EstadoAcreditacion.PendienteDeSubir => 1,
-        EstadoAcreditacion.Subida => 2,
-        _ => 3
-    };
 
     private string Resumen(int incidencias) => incidencias switch
     {
@@ -186,7 +163,7 @@
         _ => Textos["PlataformasVariasIncidencias", incidencias]
     };
 
-    private string NombreEstado(Fila fila) => fila.Vencida ? Textos["PlataformasEstadoVencidoEnPlataforma"] : fila.Estado switch
+    private string NombreEstado(FilaPlataforma fila) => fila.Vencida ? Textos["PlataformasEstadoVencidoEnPlataforma"] : fila.Estado switch
     {
         EstadoAcreditacion.Aceptada => Textos["PlataformasEstadoValidado"],
         EstadoAcreditacion.Subida => Textos["PlataformasEstadoPendienteValidacion"],
@@ -194,7 +171,7 @@
         _ => Textos["PlataformasEstadoPendienteSubir"]
     };
 
-    private string Detalle(Fila fila)
+    private string Detalle(FilaPlataforma fila)
     {
         if (fila.Vencida)
             return fila.VenceEnPlataforma is { } fecha
@@ -203,14 +180,14 @@
         return string.IsNullOrWhiteSpace(fila.Motivo) ? string.Empty : fila.Motivo;
     }
 
-    private static TonoFila? TonoDeFila(Fila fila) => fila.Vencida ? TonoFila.Peligro : fila.Estado switch
+    private static TonoFila? TonoDeFila(FilaPlataforma fila) => fila.Vencida ? TonoFila.Peligro : fila.Estado switch
     {
         EstadoAcreditacion.Aceptada => null,
         EstadoAcreditacion.Subida => TonoFila.Advertencia,
         _ => TonoFila.Peligro
     };
 
-    private static TonoBadge Tono(Fila fila) => fila.Vencida ? TonoBadge.Peligro : fila.Estado switch
+    private static TonoBadge Tono(FilaPlataforma fila) => fila.Vencida ? TonoBadge.Peligro : fila.Estado switch
     {
         EstadoAcreditacion.Aceptada => TonoBadge.Exito,
         EstadoAcreditacion.Subida => TonoBadge.Advertencia,
