@@ -71,7 +71,24 @@ public record ObtenerCentrosQuery(
 /// </param>
 public record IncidenciaCentroDto(
     string Descripcion, AmbitoCausa Ambito, EstadoDocumento? Estado,
-    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null)
+{
+    /// <summary>
+    /// El documento sigue vigente y solo vence pronto (<see cref="EstadoDocumento.Urgente"/> o
+    /// <see cref="EstadoDocumento.Proximo"/>): es el mismo reparto que <c>ObtenerCentrosQuery.Desglosar</c> hace entre
+    /// «próximas» y «vencidas», y se rotula «Por vencer» en toda la aplicación. No es una incidencia.
+    /// </summary>
+    public bool EsPorVencer => Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo;
+
+    /// <summary>
+    /// Un agrupador (el bloque Empresa del Centro, por ejemplo) está «con incidencia» solo si alguna de sus causas no es
+    /// únicamente «por vencer»: vencida, pendiente (<see cref="EstadoDocumento.Faltante"/>) o bloqueante de la plataforma
+    /// (<see cref="Estado"/> en <c>null</c>). Con solo documentos por vencer el agrupador está por vencer, no con incidencia;
+    /// sin causas no hay incidencia que declarar.
+    /// </summary>
+    public static bool HayIncidencia(IEnumerable<IncidenciaCentroDto> causas) =>
+        causas.Any(c => !c.EsPorVencer);
+}
 
 /// <summary>
 /// Desglose de las incidencias de un centro por causa. No lleva contadores

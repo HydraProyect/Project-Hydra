@@ -151,8 +151,9 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         {
             Contador = IncidenciasEmpresaHeader.Count > 0
                 ? new ContadorPestana(IncidenciasEmpresaHeader.Count,
-                    Textos[IncidenciasEmpresaHeader.Count == 1 ? "GlosaDocumentoEmpresaConIncidencia" : "GlosaDocumentosEmpresaConIncidencia"],
-                    EnAlerta: true)
+                    Textos[GlosaDocumentosEmpresa(IncidenciasEmpresaHeader)],
+                    // En alerta (rojo) solo con vencidos, pendientes o bloqueos; con solo documentos por vencer, sin alerta.
+                    EnAlerta: IncidenciaCentroDto.HayIncidencia(IncidenciasEmpresaHeader))
                 : null
         },
         new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
@@ -230,6 +231,16 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _resumen is null
             ? []
             : _resumen.Recuentos.Vencidas.Concat(_resumen.Recuentos.Proximas).Where(i => i.Ambito == AmbitoCausa.Empresa).ToList();
+
+    /// <summary>Clave de la glosa del contador de «Documentación Empresa»: «con incidencia» solo si la hay; si no, «por vencer».</summary>
+    private static string GlosaDocumentosEmpresa(IReadOnlyList<IncidenciaCentroDto> documentos) =>
+        (IncidenciaCentroDto.HayIncidencia(documentos), documentos.Count == 1) switch
+        {
+            (true, true) => "GlosaDocumentoEmpresaConIncidencia",
+            (true, false) => "GlosaDocumentosEmpresaConIncidencia",
+            (false, true) => "GlosaDocumentoEmpresaPorVencer",
+            (false, false) => "GlosaDocumentosEmpresaPorVencer"
+        };
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Centros"), new BreadcrumbElemento(_detalle?.Nombre ?? "…") };
