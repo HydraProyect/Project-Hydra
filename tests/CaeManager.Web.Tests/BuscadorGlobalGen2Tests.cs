@@ -1100,6 +1100,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         cut.Markup.Should().NotContain("Buscando…");
         cut.Find(".buscador-mensaje-error").TextContent.Should().Contain("No se pudo completar la búsqueda");
+        mediador.TokensRecibidos.Any(t => t.IsCancellationRequested).Should().BeTrue(
+            "al vencer el tope se cancela la consulta que seguía en vuelo");
     }
 
     /// <summary>El token del ciclo de vida viaja en TODAS las llamadas al mediador, no solo en la búsqueda.</summary>
