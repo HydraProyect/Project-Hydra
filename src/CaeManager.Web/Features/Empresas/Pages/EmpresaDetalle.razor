@@ -64,7 +64,7 @@
                         <BotonCopiar EnLinea="true" ConIcono="true" ConfirmarConIcono="false" Valor="@_detalle.Cif" Texto="@_detalle.Cif"
                                      Etiqueta="@Textos["CopiarElCif"]" NombreAccesible="@Textos["CopiarCif", _detalle.Cif]" />
                     </span>
-                    @if (_clientes is { Count: > 0 } || _recuentos is not null)
+                    @if (_clientes is { Count: > 0 } || _recuentos is not null || _filaDelListado is not null)
                     {
                         <span aria-hidden="true">·</span>
                     }
@@ -86,6 +86,16 @@
                         <span aria-hidden="true">·</span>
                     }
                     <span>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
+                }
+                @* Chip de estado documental de la maqueta (junto al CIF): el de la fila de esta Empresa en /empresas. Misma consulta, mismo
+                   rótulo y mismo tono que la lista (un Vencido que ningún Centro marca obligatorio sigue siendo aviso, no rojo). *@
+                @if (_filaDelListado is { } filaEstado)
+                {
+                    @if (_clientes is { Count: > 0 } || _recuentos is not null)
+                    {
+                        <span aria-hidden="true">·</span>
+                    }
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(filaEstado.EstadoDocumental, filaEstado.VencidoSinBloqueo)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDocumental(filaEstado.EstadoDocumental)</Badge>
                 }
             </Datos>
             <Acciones>
