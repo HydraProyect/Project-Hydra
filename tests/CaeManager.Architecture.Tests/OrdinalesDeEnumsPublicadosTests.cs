@@ -4,6 +4,7 @@ using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -190,6 +191,14 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoVigenciaEnPlataforma.SinConfirmar)] = 0,
                 [nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)] = 1,
                 [nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)] = 2,
+            }
+        },
+        {
+            // Se guarda como entero en GestionesAutomaticas.Origen.
+            nameof(OrigenGestionAutomatica), new Dictionary<string, int>
+            {
+                [nameof(OrigenGestionAutomatica.AltaDocumento)] = 0,
+                [nameof(OrigenGestionAutomatica.RenovacionDocumento)] = 1,
             }
         },
     };

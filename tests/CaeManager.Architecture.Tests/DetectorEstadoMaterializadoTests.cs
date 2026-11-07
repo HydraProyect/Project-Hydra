@@ -66,6 +66,8 @@ public class DetectorEstadoMaterializadoTests
         "CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial",
         "CaeManager.Domain.EvidenciasInbound.EvidenciaInbound",
         "CaeManager.Domain.Gestiones.Gestion",
+        // La Gestión automática solo agrupa acreditaciones ya existentes; su estado se deriva de ellas, no al revés.
+        "CaeManager.Domain.Gestiones.GestionAutomatica",
         "CaeManager.Domain.Incidencias.Incidencia",
         "CaeManager.Domain.Plantillas.DocumentoGenerado",
         "CaeManager.Domain.Plantillas.ItemGeneracionDocumento",

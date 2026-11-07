@@ -180,6 +180,10 @@ public class RenovarDocumentoCommandHandler(
         // evento lleva el Id del documento que queda en uso.
         await publisher.Publish(new DocumentacionCambiadaEvent(nuevo.Id), cancellationToken);
 
+        // Solo la renovación con archivo nuevo hace nacer la Gestión automática, y cierra como Sustituida la que
+        // siguiera abierta del anterior (§ 4.1, regla 4). La corrección de fechas no publica este evento.
+        await publisher.Publish(new DocumentoNacidoEvent(nuevo.Id, anterior.Id), cancellationToken);
+
         return Result.Exito(nuevo.Id);
     }
 }

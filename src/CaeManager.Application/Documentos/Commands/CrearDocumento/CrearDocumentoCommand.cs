@@ -231,6 +231,10 @@ public class CrearDocumentoCommandHandler(
         // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
         await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
 
+        // Un alta hace nacer la Gestión automática con sus acreditaciones ya guardadas (§ 4.1 de la
+        // especificación «Gestión de varios pasos»).
+        await publisher.Publish(new DocumentoNacidoEvent(documento.Id), cancellationToken);
+
         return Result.Exito(documento.Id);
     }
 

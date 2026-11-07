@@ -415,6 +415,11 @@ public class ReglasDeNegocioSinCopiasTests
         // Historial de Centro 360 (bloque 3 del 21-10): un cambio de estado anotado sobre una versión ya renovada sigue
         // siendo un hecho del Historial; el Documento solo da su tipo y su titular, no decide estado ni cifras.
         ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
+        // Gestión automática (§ 4.1 de la especificación de Gestión de varios pasos): una Gestión Sustituida sigue
+        // listándose y abriéndose con el Documento renovado que la hizo nacer, así que su Documento se resuelve por Id
+        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos.
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
