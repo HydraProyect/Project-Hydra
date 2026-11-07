@@ -99,7 +99,7 @@
                             ValorChanged="CambiarEmpresaFiltroAsync" Opciones="_opcionesEmpresa" />
         </Pastillas>
         <Estados>
-            <FranjaEstado Opciones="EstadoCentroUi.Franja" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Opciones="FranjaEstadoEnLista" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
@@ -252,7 +252,7 @@
                                incidencias no lleva desplegable. *@
                             @if (desplegable)
                             {
-                                <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                <button type="button" class="@("boton-expandir-fila celda-chevron-centro" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                         aria-expanded="@(expandido ? "true" : "false")"
                                         aria-label="@($"Asignaciones de {centro.Nombre}")"
                                         @onclick="() => AlternarExpansion(centro.Id)" @onclick:stopPropagation="true">
@@ -261,7 +261,7 @@
                             }
                             else
                             {
-                                <span></span>
+                                <span class="celda-chevron-centro"></span>
                             }
                             @* Celda «Centro»: nombre (abre la vista rápida; es el destino de teclado del clic en la fila, que no es focable
                                con Tab) y debajo el código, copiable con un clic sin abrir la fila. Sin agrupar, el Cliente encabeza la
@@ -340,7 +340,7 @@
                                     @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0)
                                     {
                                         <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                    Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Texto="@TextoEstadoEnLista(centro)"
                                                     Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)">
                                             <MotivoContenido>
                                                 @* Vencidas, pendientes y bloqueos: causas separadas dentro del total «vencidas» de Desglosar (decisión 2026-10-10). *@
@@ -422,7 +422,7 @@
                                     else
                                     {
                                         <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                    Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Texto="@TextoEstadoEnLista(centro)"
                                                     Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
                                     }
                             </span>

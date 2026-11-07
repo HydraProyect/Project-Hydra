@@ -1027,6 +1027,25 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-centros" + (_seleccionMultiple ? " rejilla-centros-seleccion" : string.Empty);
 
+    /// <summary>
+    /// Rótulo del estado de la pastilla de la lista. Solo aquí «Bloqueo de la plataforma CAE» (<see cref="EstadoCentroUi"/>,
+    /// que comparten Centro 360, el panel, Clientes y la exportación) se acorta a «Bloqueo CAE», como en la maqueta de la lista;
+    /// el resto de rótulos y las demás pantallas no cambian.
+    /// </summary>
+    private string TextoEstadoEnLista(CentroListaDto centro) =>
+        centro.Estado == EstadoCentro.Bloqueado
+            ? Textos["EstadoBloqueoCaeLista"].Value
+            : EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje);
+
+    /// <summary>
+    /// La franja de estado de la lista con el mismo rótulo corto que la pastilla de la fila: cada botón filtra exactamente
+    /// las filas que llevan su rótulo (contrato de <see cref="EstadoCentroUi.Franja"/>), así que franja y fila se acortan juntas.
+    /// </summary>
+    private IReadOnlyList<OpcionFranjaEstado> FranjaEstadoEnLista =>
+        [.. EstadoCentroUi.Franja.Select(o => o.Valores.Contains(nameof(EstadoCentro.Bloqueado))
+            ? o with { Texto = Textos["EstadoBloqueoCaeLista"].Value }
+            : o)];
+
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
         _agruparPorCliente ? grupos.Where(GrupoAbierto).SelectMany(g => g.Centros) : _elementosPagina;

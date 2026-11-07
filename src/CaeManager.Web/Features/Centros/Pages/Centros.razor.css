@@ -258,3 +258,76 @@
 .motivo-recuento-proximos {
     color: var(--color-warning-700);
 }
+
+/*
+  Pantalla estrecha (≤ 900 px, el mismo corte con el que lista-design.css da 860 px mínimos a todas las listas): la
+  rejilla de seis pistas medía 860 px y desbordaba con scroll horizontal, con Cumplimiento y Estado fuera de pantalla.
+  Aquí se quita ese mínimo y se sigue la salida de TablaConversaciones (Comunicaciones): una columna por fila con las
+  celdas apiladas, y la cabecera de columnas deja solo lo que actúa. Cada fila pasa a ser una caja flexible: chevron, Centro y icono 360 en la primera línea, y debajo,
+  con la sangría del chevron, Empresa, Cumplimiento y Estado. El orden de la fila en el documento no cambia (teclado y
+  lectores de pantalla siguen leyendo Centro, Empresa, Cumplimiento, Estado); solo se recoloca con `order`.
+  Los selectores llevan `.marco-lista-centros` para ganar a `.rejilla-centros` (grid) sin tocar list-page.css.
+*/
+@media (max-width: 900px) {
+    /* lista-design.css (.lista-design.lista-design .tarjeta-listado-contenido > *, 0,3,0) fija min-width: 860px: se gana con más especificidad. */
+    .lista-design.lista-design .tarjeta-listado-contenido > .marco-lista-centros {
+        min-width: 0;
+    }
+
+    .marco-lista-centros .rejilla-centros {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+    }
+
+    /* Cabecera: la casilla «seleccionar página» y los dos rótulos que ordenan; «Centro», «Estado» y los huecos sobran. */
+    .marco-lista-centros .cabecera-columnas-centros > span:not(.seleccion-centro):not(.columna-empresa-centro-cabecera):not(.columna-cumplimiento-centro) {
+        display: none;
+    }
+
+    .marco-lista-centros .cabecera-columnas-centros {
+        gap: 6px var(--space-4);
+    }
+
+    .marco-lista-centros .rejilla-centros > .seleccion-centro {
+        flex: none;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-chevron-centro {
+        flex: 0 0 24px;
+        width: 24px;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-identidad-centro {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .tarjeta-fila-acordeon-acciones {
+        flex: none;
+    }
+
+    /* Empresa, Cumplimiento y Estado: cada uno en su línea, bajo el nombre del Centro (24 px de chevron + 12 px de hueco). */
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .columna-empresa-centro,
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .columna-cumplimiento-centro,
+    .marco-lista-centros .tarjeta-fila-acordeon-cabecera > .celda-estado-centro {
+        order: 2;
+        flex: 1 1 100%;
+        box-sizing: border-box;
+        padding-left: 36px;
+    }
+
+    /* Con selección múltiple entra la casilla (16 px + 12 px de hueco) delante del chevron. */
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .columna-empresa-centro,
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .columna-cumplimiento-centro,
+    .marco-lista-centros .rejilla-centros-seleccion.tarjeta-fila-acordeon-cabecera > .celda-estado-centro {
+        padding-left: 64px;
+    }
+
+    /* La fila desplegada no necesita la sangría de escritorio (56/100 px): en 375 px dejaría la mitad del ancho vacía. */
+    .marco-lista-centros .tarjeta-fila-acordeon-contenido,
+    .marco-lista-centros .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+        padding-left: var(--space-4);
+    }
+}
