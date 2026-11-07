@@ -56,9 +56,13 @@ public sealed record AltasConAcreditacion
 /// (<see cref="CanalGestionDocumental"/> de tipo
 /// <see cref="TipoCanalGestion.Plataforma"/>) de un Centro exactamente cuando:
 /// <list type="number">
-/// <item>su propietario tiene actividad en ese Centro: un Trabajador con una
-/// Asignación activa allí, o una Empresa con algún Trabajador suyo asignado
-/// allí (Centro cuelga de Cliente, no de Empresa: no hay relación directa);</item>
+/// <item>su propietario tiene actividad en ese Centro: un Trabajador, si tiene
+/// una Asignación activa allí; una Empresa, si el Centro es suyo
+/// (<see cref="Centro.EmpresaId"/>), tenga o no Trabajadores asignados, o si
+/// algún Trabajador suyo está asignado allí. Un Centro gestionado por plataforma
+/// exige la documentación de su Empresa siempre al día, no solo cuando se
+/// programa una Visita (decisión del propietario del producto del 2026-11-08);
+/// el acceso por correo nunca acredita;</item>
 /// <item>ese Centro exige su tipo, con el mismo criterio que el resto del
 /// producto (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>: la fila de
 /// <see cref="TipoDocumentoCentro"/> si existe, y si no
@@ -72,7 +76,7 @@ public sealed record AltasConAcreditacion
 /// desde plantilla; Asignación individual, en lote, importada o reabierta; acceso de
 /// plataforma nuevo; tipo que un Centro pasa a exigir— llaman aquí. Cada
 /// camino evalúa solo lo que su alta pone en juego: un Documento nuevo, ante
-/// todos los Centros de su propietario; una Asignación nueva, los Documentos
+/// todos los Centros donde su propietario tiene actividad; una Asignación nueva, los Documentos
 /// del Trabajador y de su Empresa ante ese Centro; un acceso nuevo, solo ese
 /// acceso; un requisito nuevo, solo ese tipo en ese Centro. Nunca repara
 /// acreditaciones ajenas al alta que la invoca.
@@ -131,6 +135,10 @@ public class AltaAcreditacionesPlataformaService(
         var empresaDeTrabajador = await CargarEmpresaDeTrabajadorAsync(
             altas.Trabajadores, trabajadoresDeInteres, empresasDeDocumentos, cancellationToken);
 
+        // La Empresa de cada Centro (Centro.EmpresaId) tiene actividad en él aunque no tenga a nadie asignado: los
+        // Centros de las Empresas de los Documentos nuevos, y la Empresa de cada Centro puesto en juego por completo.
+        var empresaDeCentro = await CargarEmpresaDeCentroAsync(empresasDeDocumentos, centrosPorCompleto, cancellationToken);
+
         // Pares (Trabajador, Centro) activos: la base, más las Asignaciones del propio alta.
         var trabajadoresConsultados = empresaDeTrabajador.Keys.Concat(trabajadoresDeInteres).Distinct().ToArray();
         var centrosPorCompletoConsulta = centrosPorCompleto.ToArray();
@@ -158,11 +166,11 @@ public class AltaAcreditacionesPlataformaService(
         var candidatos = new List<(DocumentoCandidato Documento, Guid CentroId, Guid? CanalId)>();
 
         foreach (var documento in documentosNuevos)
-            foreach (var centroId in CentrosDelPropietario(documento, paresActivos, empresaDeTrabajador))
+            foreach (var centroId in CentrosDelPropietario(documento, paresActivos, empresaDeTrabajador, empresaDeCentro))
                 candidatos.Add((documento, centroId, null));
 
         var documentosExistentes = await CargarDocumentosDePropietariosAsync(
-            asignacionesNuevas, centrosPorCompleto, paresActivos, empresaDeTrabajador, cancellationToken);
+            asignacionesNuevas, centrosPorCompleto, paresActivos, empresaDeTrabajador, empresaDeCentro, cancellationToken);
         var documentosDisponibles = documentosExistentes
             .Concat(documentosNuevos)
             .DistinctBy(d => d.Id)
@@ -177,11 +185,11 @@ public class AltaAcreditacionesPlataformaService(
         }
 
         foreach (var canal in canalesNuevos)
-            foreach (var documento in DocumentosConActividadEn(canal.CentroId, documentosDisponibles, paresActivos, empresaDeTrabajador))
+            foreach (var documento in DocumentosConActividadEn(canal.CentroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro))
                 candidatos.Add((documento, canal.CentroId, canal.Id));
 
         foreach (var requisito in requisitosIncluidos)
-            foreach (var documento in DocumentosConActividadEn(requisito.CentroId, documentosDisponibles, paresActivos, empresaDeTrabajador)
+            foreach (var documento in DocumentosConActividadEn(requisito.CentroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro)
                          .Where(d => d.TipoDocumentoId == requisito.TipoDocumentoId))
                 candidatos.Add((documento, requisito.CentroId, null));
 
@@ -298,22 +306,42 @@ public class AltaAcreditacionesPlataformaService(
         return resultado;
     }
 
+    /// <summary>
+    /// Empresa de cada Centro (<see cref="Centro.EmpresaId"/>) que importa a este alta: los Centros de las Empresas de
+    /// los Documentos nuevos y los Centros puestos en juego por completo. Bajo RLS, solo Centros del Tenant en curso.
+    /// </summary>
+    private async Task<Dictionary<Guid, Guid>> CargarEmpresaDeCentroAsync(
+        IReadOnlySet<Guid> empresaIds, IReadOnlySet<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        if (empresaIds.Count == 0 && centroIds.Count == 0) return [];
+
+        var empresaIdsConsulta = empresaIds.ToArray();
+        var centroIdsConsulta = centroIds.ToArray();
+        return await centrosContext.Centros
+            .Where(c => empresaIdsConsulta.Contains(c.EmpresaId) || centroIdsConsulta.Contains(c.Id))
+            .Select(c => new { c.Id, c.EmpresaId })
+            .ToDictionaryAsync(c => c.Id, c => c.EmpresaId, cancellationToken);
+    }
+
     /// <summary>Documentos ya guardados de los propietarios que las Asignaciones nuevas y los Centros puestos en juego por completo afectan.</summary>
     private async Task<List<DocumentoCandidato>> CargarDocumentosDePropietariosAsync(
         IReadOnlyCollection<Asignacion> asignacionesNuevas, IReadOnlySet<Guid> centrosPorCompleto,
         IReadOnlySet<(Guid TrabajadorId, Guid CentroId)> paresActivos, IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador,
-        CancellationToken cancellationToken)
+        IReadOnlyDictionary<Guid, Guid> empresaDeCentro, CancellationToken cancellationToken)
     {
         var trabajadorIds = asignacionesNuevas.Select(a => a.TrabajadorId)
             .Concat(paresActivos.Where(p => centrosPorCompleto.Contains(p.CentroId)).Select(p => p.TrabajadorId))
             .Distinct().ToArray();
-        if (trabajadorIds.Length == 0) return [];
 
+        // La Empresa de un Centro puesto en juego por completo cuenta aunque nadie esté asignado allí.
         var empresaIds = trabajadorIds
             .Select(id => empresaDeTrabajador.GetValueOrDefault(id))
             .Where(e => e is not null)
             .Select(e => e!.Value)
+            .Concat(centrosPorCompleto.Where(empresaDeCentro.ContainsKey).Select(c => empresaDeCentro[c]))
+            .Distinct()
             .ToArray();
+        if (trabajadorIds.Length == 0 && empresaIds.Length == 0) return [];
 
         return (await documentosContext.Documentos.Operativos()
                 .Where(d => (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))
@@ -324,25 +352,37 @@ public class AltaAcreditacionesPlataformaService(
             .ToList();
     }
 
+    /// <summary>
+    /// Centros donde el propietario del Documento tiene actividad: los de sus Asignaciones activas (Trabajador), o los
+    /// suyos (<see cref="Centro.EmpresaId"/>) más los de las Asignaciones activas de sus Trabajadores (Empresa).
+    /// </summary>
     private static IEnumerable<Guid> CentrosDelPropietario(
         DocumentoCandidato documento, IReadOnlySet<(Guid TrabajadorId, Guid CentroId)> paresActivos,
-        IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador) =>
-        paresActivos
-            .Where(p => documento.TrabajadorId is not null
-                ? p.TrabajadorId == documento.TrabajadorId
-                : empresaDeTrabajador.GetValueOrDefault(p.TrabajadorId) == documento.EmpresaId)
+        IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador, IReadOnlyDictionary<Guid, Guid> empresaDeCentro)
+    {
+        if (documento.TrabajadorId is not null)
+            return paresActivos.Where(p => p.TrabajadorId == documento.TrabajadorId).Select(p => p.CentroId).Distinct();
+
+        return paresActivos
+            .Where(p => empresaDeTrabajador.GetValueOrDefault(p.TrabajadorId) == documento.EmpresaId)
             .Select(p => p.CentroId)
+            .Concat(empresaDeCentro.Where(c => c.Value == documento.EmpresaId).Select(c => c.Key))
             .Distinct();
+    }
 
     private static IEnumerable<DocumentoCandidato> DocumentosConActividadEn(
         Guid centroId, IReadOnlyCollection<DocumentoCandidato> documentos,
-        IReadOnlySet<(Guid TrabajadorId, Guid CentroId)> paresActivos, IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador)
+        IReadOnlySet<(Guid TrabajadorId, Guid CentroId)> paresActivos, IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador,
+        IReadOnlyDictionary<Guid, Guid> empresaDeCentro)
     {
         var trabajadores = paresActivos.Where(p => p.CentroId == centroId).Select(p => p.TrabajadorId).ToHashSet();
         var empresas = trabajadores
             .Select(t => empresaDeTrabajador.GetValueOrDefault(t))
             .Where(e => e is not null)
             .ToHashSet();
+        // La Empresa del Centro, tenga o no a alguien asignado allí.
+        if (empresaDeCentro.TryGetValue(centroId, out var empresaDelCentro))
+            empresas.Add(empresaDelCentro);
 
         return documentos.Where(d =>
             (d.TrabajadorId is not null && trabajadores.Contains(d.TrabajadorId.Value))

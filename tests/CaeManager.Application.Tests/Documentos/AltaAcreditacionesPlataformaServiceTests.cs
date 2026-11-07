@@ -9,7 +9,8 @@ namespace CaeManager.Application.Tests.Documentos;
 /// <summary>
 /// Regla única de alta de acreditaciones de plataforma (P0-7): un Documento se
 /// acredita ante cada acceso de plataforma de cada Centro donde su propietario
-/// trabaja y que exige su tipo; nunca ante un Centro que no lo exige; nunca dos
+/// tiene actividad (el Trabajador asignado; la Empresa, en sus Centros y donde
+/// tenga Trabajadores asignados) y que exige su tipo; nunca ante un Centro que no lo exige; nunca dos
 /// veces el mismo par (Documento, acceso).
 /// </summary>
 public class AltaAcreditacionesPlataformaServiceTests
@@ -246,5 +247,152 @@ public class AltaAcreditacionesPlataformaServiceTests
         });
 
         mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
+    }
+
+    // A-1, decisión del propietario del producto del 2026-11-08: un Documento de Empresa se acredita en todos los Centros
+    // de esa Empresa (Centro.EmpresaId) gestionados por plataforma que exigen su tipo, tengan o no Trabajadores asignados.
+    // El acceso por correo nunca acredita.
+
+    private static Documento DocumentoNuevoDeEmpresa(MundoAcreditaciones mundo, TipoDocumento tipo) =>
+        Documento.DeEmpresa(mundo.EmpresaId, tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(5)));
+
+    [Fact]
+    public async Task Un_documento_de_empresa_nuevo_se_acredita_en_un_centro_de_plataforma_de_su_empresa_sin_trabajadores_asignados()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = DocumentoNuevoDeEmpresa(mundo, tipo);
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        agregadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)],
+            "el Centro es de la Empresa y la exige al día en su plataforma aunque nadie esté asignado allí");
+    }
+
+    [Fact]
+    public async Task Un_documento_de_empresa_no_se_acredita_en_un_centro_de_su_empresa_gestionado_por_correo()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centroPorCorreo = mundo.Centro("Planta por correo", mundo.EmpresaId);
+        mundo.AccesoCorreo(centroPorCorreo);
+        var centroConPlataforma = mundo.Centro("Planta con plataforma", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centroConPlataforma);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = DocumentoNuevoDeEmpresa(mundo, tipo);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)],
+            "el correo no se actualiza hasta que se programa una Visita; solo la plataforma (control positivo) acredita");
+    }
+
+    [Fact]
+    public async Task Un_documento_de_empresa_no_se_acredita_en_un_centro_de_otra_empresa_sin_trabajadores_suyos()
+    {
+        var mundo = new MundoAcreditaciones();
+        var otraEmpresaId = Guid.NewGuid();
+        var centroAjeno = mundo.Centro("Planta de otra Empresa", otraEmpresaId);
+        var accesoAjeno = mundo.AccesoPlataforma(centroAjeno);
+        var centroPropio = mundo.Centro("Planta propia", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centroPropio);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var documento = DocumentoNuevoDeEmpresa(mundo, tipo);
+        // En el mismo alta (una importación), el de la otra Empresa: cada uno solo llega a los Centros de la suya.
+        var documentoAjeno = Documento.DeEmpresa(otraEmpresaId, tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(5)));
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento, documentoAjeno] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id), (documentoAjeno.Id, accesoAjeno.Id)]);
+    }
+
+    [Fact]
+    public async Task Un_documento_de_empresa_no_se_acredita_en_un_centro_de_su_empresa_que_no_exige_el_tipo()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "ISO 9001");
+        var centroQueLoExige = mundo.Centro("Planta que lo exige", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centroQueLoExige);
+        mundo.Requisito(tipo, centroQueLoExige, incluido: true);
+        // Sin fila y con el tipo no obligatorio por defecto: no lo exige.
+        var centroSinFila = mundo.Centro("Planta sin fila", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centroSinFila);
+        var documento = DocumentoNuevoDeEmpresa(mundo, tipo);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
+    }
+
+    [Fact]
+    public async Task Un_documento_de_trabajador_sigue_sin_acreditarse_en_un_centro_de_su_empresa_donde_no_esta_asignado()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var centroSinAsignar = mundo.Centro("Planta sin asignar", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centroSinAsignar);
+        var centroAsignado = mundo.Centro("Planta asignada", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centroAsignado);
+        mundo.Asignacion(trabajador, centroAsignado);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var documento = DocumentoNuevoDe(trabajador, tipo);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)],
+            "un Documento de Trabajador solo cuenta donde el Trabajador tiene una Asignación activa");
+    }
+
+    [Fact]
+    public async Task Un_acceso_de_plataforma_nuevo_en_un_centro_de_la_empresa_sin_trabajadores_acredita_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipoEmpresa = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var tipoTrabajador = mundo.Tipo(RequisitoDocumental.Si);
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipoEmpresa);
+        mundo.DocumentoDe(mundo.Trabajador(), tipoTrabajador);
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var centroAjeno = mundo.Centro("Planta de otra Empresa");
+        var accesoAjeno = mundo.AccesoPlataforma(centroAjeno);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { Canales = [acceso, accesoAjeno] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
+            "el Documento de Trabajador sin Asignación allí y el Centro de otra Empresa no acreditan");
+    }
+
+    [Fact]
+    public async Task Un_tipo_que_un_centro_de_la_empresa_sin_trabajadores_pasa_a_exigir_acredita_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "ISO 9001");
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipo);
+        var centro = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Requisitos = [new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true)]
+        });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)]);
+    }
+
+    [Fact]
+    public async Task Un_centro_de_la_empresa_sin_gestion_cae_no_recibe_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro("Almacén sin gestión", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centro);
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(
+            new AltasConAcreditacion { Documentos = [DocumentoNuevoDeEmpresa(mundo, tipo)] });
+
+        agregadas.Should().Be(0);
     }
 }

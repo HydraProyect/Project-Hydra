@@ -35,7 +35,10 @@ public sealed record PendienteEnPlataformaDeCentro(
 /// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un sujeto con actividad allí — el Trabajador con Asignación
 /// activa en ese Centro, o la Empresa con algún Trabajador suyo con Asignación activa en él (decisión del 2026-10-10: los
 /// Trabajadores de la Empresa que cuentan son los asignados). La acreditación sobrevive a la baja y a que el tipo deje de
-/// exigirse, por eso se vuelve a comprobar aquí.
+/// exigirse, por eso se vuelve a comprobar aquí. Desde la regla de alta del 2026-11-08, un documento de Empresa también
+/// se acredita en los Centros de su Empresa (<c>Centro.EmpresaId</c>) sin nadie asignado
+/// (<see cref="Documentos.Acreditacion.IAltaAcreditacionesPlataformaService"/>); aquí esa acreditación no cuenta como
+/// Pendiente mientras la Empresa no tenga ningún Trabajador asignado en el Centro.
 /// </para>
 ///
 /// <para>

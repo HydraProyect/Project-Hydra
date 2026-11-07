@@ -40,9 +40,10 @@ internal sealed class MundoAcreditaciones
         return trabajador;
     }
 
-    public Centro Centro(string nombre = "Planta Norte")
+    /// <summary>Un Centro de otra Empresa del Tenant, salvo que se pase <paramref name="empresaId"/>.</summary>
+    public Centro Centro(string nombre = "Planta Norte", Guid? empresaId = null)
     {
-        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), nombre);
+        var centro = new Centro(Guid.NewGuid(), empresaId ?? Guid.NewGuid(), nombre);
         CentrosContexto.ListaCentros.Add(centro);
         return centro;
     }
