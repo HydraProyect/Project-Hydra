@@ -203,6 +203,35 @@ public partial class Subcontrata360Gen2Tests : BunitContext
             .Select(c => c.QuerySelector("strong")?.TextContent.Trim() ?? string.Empty)
             .Should().ContainSingle($"la rejilla tiene que tener exactamente una celda «{rotulo}»").Subject;
 
+    /// <summary>
+    /// Demo con IT (2026-11-10): en «Información» un campo opcional sin valor no se pinta (ni «—»): sin CIF no hay celda de
+    /// identificación fiscal, y sin Clientes empresariales o Empresas vinculadas no hay celdas de relaciones.
+    /// </summary>
+    [Fact]
+    public void Los_campos_opcionales_sin_valor_no_se_pintan_en_Informacion()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediatorFalso());
+        m.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.") with { Cif = null };
+
+        var cut = Renderizar(id);
+
+        var rotulos = cut.FindAll(".celda-info-subcontrata-360 > span").Select(s => s.TextContent.Trim()).ToList();
+        rotulos.Should().NotContain(["Identificación fiscal", "Clientes para los que trabaja", "Empresas a las que presta servicio"]);
+        cut.FindAll(".celda-info-subcontrata-360 strong").Select(s => s.TextContent.Trim()).Should().NotContain("—");
+        cut.FindAll(".celda-info-subcontrata-360").Should().NotBeEmpty("lo que sí tiene valor sigue saliendo");
+    }
+
+    [Fact]
+    public void La_identificacion_fiscal_con_valor_sigue_saliendo_en_Informacion()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediatorFalso());
+        m.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+
+        var cut = Renderizar(id);
+
+        Celda(cut, "Identificación fiscal").Should().Be("B10380186");
+    }
+
     [Fact]
     public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
     {

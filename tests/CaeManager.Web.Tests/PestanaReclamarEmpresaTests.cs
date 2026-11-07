@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> qué consulta llega al mediador y con qué filtros de Delegación y Oficio; que lo devuelto se pinta
-/// agrupado (por Delegación, por Trabajador y por Tipo de documento) con a quién iría cada tarjeta; el filtro de estado en cliente; los
+/// agrupado (por Delegación, por Trabajador y por Tipo de documento) con a quién iría cada fila de grupo; los chips de estado en cliente; los
 /// estados cargando, al día, vacío con filtros y error; que lo pendiente de subir sale aparte y de solo lectura; que «Reclamar» abre el
 /// cajón de siempre en su revisión sin mandar ningún comando; y que Consulta ve la lista pero no los botones de reclamar.
 /// </para>
@@ -192,9 +192,32 @@ public class PestanaReclamarEmpresaTests : BunitContext
     /// <summary>Los grupos salen plegados: abre todos los que lo estén para poder leer sus filas.</summary>
     private static void Desplegar(IRenderedComponent<PestanaReclamarEmpresa> cut)
     {
-        while (cut.FindAll("[data-alternar-grupo][aria-expanded=false]").FirstOrDefault() is { } cerrado)
+        while (cut.FindAll(".fila-relacion-desplegar[aria-expanded=false]").FirstOrDefault() is { } cerrado)
             cerrado.Click();
     }
+
+    /// <summary>Los títulos de los grupos de la lista, en el orden en que salen (la lista es la de la pestaña Trabajadores de Subcontrata).</summary>
+    private static List<string> Titulos(IRenderedComponent<PestanaReclamarEmpresa> cut) =>
+        cut.FindAll("li.fila-relacion .fila-relacion-nombre").Select(Texto).ToList();
+
+    private static IElement FilaDeGrupo(IRenderedComponent<PestanaReclamarEmpresa> cut, string titulo) =>
+        cut.FindAll("li.fila-relacion").Single(g => g.QuerySelector(".fila-relacion-nombre") is { } n && Texto(n) == titulo);
+
+    /// <summary>Los chips de estado («Todos · 4», «Vencido · 2»…) son los de FiltroEstadosMultiple, no un desplegable nativo.</summary>
+    private static IElement Chip(IRenderedComponent<PestanaReclamarEmpresa> cut, string inicio) =>
+        cut.FindAll(".filtro-estados-opcion").Single(c => Texto(c).StartsWith(inicio, StringComparison.Ordinal));
+
+    /// <summary>Abre la pastilla (Delegación, Oficio, Agrupar por) y elige una de sus opciones.</summary>
+    private static void ElegirOpcion(IRenderedComponent<PestanaReclamarEmpresa> cut, string pastilla, string opcion)
+    {
+        cut.FindAll("button[aria-haspopup=menu]").First(b => b.GetAttribute("aria-label")!.StartsWith(pastilla, StringComparison.Ordinal)).Click();
+        cut.FindAll("[role=menuitemradio]").Single(i => Texto(i) == opcion).Click();
+    }
+
+    private static bool HayPastilla(IRenderedComponent<PestanaReclamarEmpresa> cut, string pastilla) =>
+        cut.FindAll("button[aria-haspopup=menu]").Any(b => b.GetAttribute("aria-label")!.StartsWith(pastilla, StringComparison.Ordinal));
+
+    private static string Resumen(IRenderedComponent<PestanaReclamarEmpresa> cut) => Texto(cut.Find(".reclamar-empresa-resumen"));
 
     private static IElement Boton(IRenderedComponent<PestanaReclamarEmpresa> cut, string texto) =>
         cut.FindAll("button").Single(b => Texto(b).StartsWith(texto, StringComparison.Ordinal));
@@ -209,8 +232,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         consulta.EmpresaId.Should().Be(EmpresaId);
         consulta.DelegacionEmpresaId.Should().BeNull();
         consulta.OficioEmpresaId.Should().BeNull();
-        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto)
-            .Should().Equal("Documentos de Empresa", "Delegación Cataluña", "Contactos de la Empresa");
+        Titulos(cut).Should().Equal("Documentos de Empresa", "Delegación Cataluña", "Contactos de la Empresa");
         Desplegar(cut);
         cut.Markup.Should().Contain("Reconocimiento médico").And.Contain("Formación PRL").And.Contain("Información de riesgos");
         cut.Markup.Should().Contain("Se reclama a Montse Puig Casals").And.Contain("Reclamado hace 3 días").And.Contain("Sin reclamar");
@@ -223,11 +245,9 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
-        var fichas = cut.FindAll(".reclamar-empresa-ficha").Select(Texto).ToList();
-        fichas[0].Should().Contain("1").And.Contain("Documentos de Empresa por reclamar");
-        fichas[1].Should().Contain("3").And.Contain("Trabajadores afectados");
-        cut.FindAll(".reclamar-empresa-ficha-filtro").Select(Texto)
-            .Should().Equal("1 Vencidos · Trabajadores", "1 Por vencer · Trabajadores", "1 Pendientes · Trabajadores");
+        Resumen(cut).Should().Contain("1 Documentos de Empresa por reclamar").And.Contain("3 Trabajadores afectados");
+        cut.FindAll(".filtro-estados-opcion").Select(Texto)
+            .Should().Equal("Todos · 4", "Vencido · 2", "Pendiente · 1", "Por vencer · 1");
     }
 
     [Fact]
@@ -236,12 +256,12 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, mediador) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(1));
 
-        cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
+        ElegirOpcion(cut, "Delegación", "Cataluña");
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
         Preventivas(mediador).Last().DelegacionEmpresaId.Should().Be(Cataluna);
-        cut.WaitForAssertion(() => cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeFalse());
+        cut.WaitForAssertion(() => cut.Find("fieldset.reclamar-empresa-servidor").HasAttribute("disabled").Should().BeFalse());
 
-        cut.Find("select[aria-label='Oficio']").Change(Tecnico.ToString());
+        ElegirOpcion(cut, "Oficio", "Técnico");
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(3));
         Preventivas(mediador).Last().Should().Be(new ObtenerReclamacionPreventivaEmpresaQuery(EmpresaId, Cataluna, Tecnico));
         cut.WaitForAssertion(() => Boton(cut, "Quitar filtros").HasAttribute("disabled").Should().BeFalse());
@@ -257,25 +277,26 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, mediador) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.Find("select[aria-label='Estado']").Change("PorVencer");
+        Chip(cut, "Por vencer").Click();
         Desplegar(cut);
 
         cut.Markup.Should().Contain("Formación PRL").And.NotContain("Reconocimiento médico").And.NotContain("Certificado TGSS");
         Preventivas(mediador).Should().HaveCount(1, "el estado no es un filtro de la consulta");
-        cut.FindAll(".reclamar-empresa-ficha-filtro[aria-pressed=true]").Should().ContainSingle().Which.GetAttribute("data-categoria").Should().Be("PorVencer");
+        Texto(cut.FindAll(".filtro-estados-opcion[aria-pressed=true]").Should().ContainSingle().Subject).Should().StartWith("Por vencer");
+        cut.Markup.Should().Contain("Mostrando 1 de 4").And.NotContain("del peor estado al mejor");
     }
 
     [Fact]
-    public void Una_ficha_de_estado_alterna_el_filtro()
+    public void Un_chip_de_estado_alterna_el_filtro()
     {
         var (cut, _) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.Find(".reclamar-empresa-ficha-filtro[data-categoria=Vencido]").Click();
+        Chip(cut, "Vencido").Click();
         Desplegar(cut);
         cut.Markup.Should().Contain("Reconocimiento médico").And.NotContain("Formación PRL");
 
-        cut.Find(".reclamar-empresa-ficha-filtro[data-categoria=Vencido]").Click();
+        Chip(cut, "Vencido").Click();
         Desplegar(cut);
         cut.Markup.Should().Contain("Formación PRL");
     }
@@ -286,10 +307,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        Boton(cut, "Trabajador").Click();
+        ElegirOpcion(cut, "Agrupar", "Trabajador");
 
-        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto)
-            .Should().Equal("Documentos de Empresa", "Jordi Ferrer Vidal", "Laia Roca Serra", "Marc Soler Pujol");
+        Titulos(cut).Should().Equal("Documentos de Empresa", "Jordi Ferrer Vidal", "Laia Roca Serra", "Marc Soler Pujol");
+        cut.FindAll(".fila-relacion-avatar").Select(Texto).Should().Equal("JF", "LR", "MS");
         cut.FindAll(".reclamar-empresa-grupo-destino").Should().BeEmpty("el destino es de la tarjeta por Delegación, no del grupo por Trabajador");
     }
 
@@ -299,10 +320,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        Boton(cut, "Tipo de documento").Click();
+        ElegirOpcion(cut, "Agrupar", "Tipo de documento");
         Desplegar(cut);
 
-        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto)
+        Titulos(cut)
             .Should().BeEquivalentTo("Certificado TGSS", "Reconocimiento médico", "Formación PRL", "Información de riesgos");
         cut.Markup.Should().Contain("Jordi Ferrer Vidal · Vencimiento");
     }
@@ -314,9 +335,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones"));
         cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones");
-        cut.FindAll("select[aria-label='Delegación']").Should().BeEmpty();
-        cut.FindAll(".reclamar-empresa-segmento button").Single(b => Texto(b) == "Delegación").HasAttribute("disabled").Should().BeTrue();
-        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto).Should().Contain("Jordi Ferrer Vidal");
+        HayPastilla(cut, "Delegación").Should().BeFalse("sin Delegaciones no hay filtro por Delegación");
+        cut.FindAll("button[aria-haspopup=menu]").First(b => b.GetAttribute("aria-label")!.StartsWith("Agrupar", StringComparison.Ordinal)).Click();
+        cut.FindAll("[role=menuitemradio]").Select(Texto).Should().Equal("Trabajador", "Tipo de documento");
+        Titulos(cut).Should().Contain("Jordi Ferrer Vidal");
     }
 
     [Fact]
@@ -374,7 +396,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         });
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
+        ElegirOpcion(cut, "Delegación", "Cataluña");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada con estos filtros"));
         cut.Markup.Should().NotContain("Nada que reclamar a esta Empresa", "con un filtro puesto, el estado vacío es el de los filtros");
@@ -427,9 +449,9 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
-        cut.Find("select[aria-label='Estado']").Change("Vencido");
+        Chip(cut, "Vencido").Click();
 
-        var cabecera = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Delegación Cataluña");
+        var cabecera = FilaDeGrupo(cut, "Delegación Cataluña");
         cabecera.QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar").Click();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reclamar en lote"));
@@ -444,8 +466,78 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        var agenda = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Contactos de la Empresa");
+        var agenda = FilaDeGrupo(cut, "Contactos de la Empresa");
         agenda.QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_grupo_con_Sin_confirmar_y_Falta_de_la_misma_categoria_toma_la_insignia_y_el_tono_de_la_Falta()
+    {
+        // «Aaa» (Sin confirmar, ámbar) sale antes que «Zzz» (Falta, rojo) por el orden alfabético del tipo dentro de la categoría Pendiente:
+        // si el grupo se quedara con la primera fila, mostraría la insignia ámbar con la fila de grupo en rojo (o al revés).
+        var escenario = new Escenario();
+        var mixto = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null, [], null, [],
+            [
+                new DocumentoPendienteDto(Guid.NewGuid(), Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Aaa dudoso", MotivoPendienteDeReclamacion.SinConfirmar),
+                new DocumentoPendienteDto(null, Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Zzz ausente", MotivoPendienteDeReclamacion.Ausente),
+            ],
+            new DestinoEmpresaEmpleadoraDto(null, null));
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([mixto]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Contactos de la Empresa"));
+
+        var grupo = FilaDeGrupo(cut, "Contactos de la Empresa");
+
+        grupo.GetAttribute("data-tono").Should().Be("peligro", "la fila más grave del grupo es la Falta");
+        Texto(grupo.QuerySelector("[data-pieza=pastilla]")!).Should().Be("Pendiente", "la insignia del grupo es la de la fila más grave, no la primera por orden alfabético");
+    }
+
+    [Fact]
+    public void Un_grupo_solo_con_Sin_confirmar_se_pinta_ambar_en_la_fila_y_en_la_insignia()
+    {
+        var escenario = new Escenario();
+        var soloDudoso = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null, [], null, [],
+            [new DocumentoPendienteDto(Guid.NewGuid(), Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Aaa dudoso", MotivoPendienteDeReclamacion.SinConfirmar)],
+            new DestinoEmpresaEmpleadoraDto(null, null));
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([soloDudoso]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Contactos de la Empresa"));
+
+        var grupo = FilaDeGrupo(cut, "Contactos de la Empresa");
+
+        grupo.GetAttribute("data-tono").Should().Be("advertencia", "el tono de la fila de grupo se deriva de la insignia elegida");
+        Texto(grupo.QuerySelector("[data-pieza=pastilla]")!).Should().NotBe("Pendiente");
+    }
+
+    [Fact]
+    public void El_boton_Reclamar_de_cada_grupo_lleva_el_titulo_del_grupo_en_su_nombre_accesible()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        var boton = FilaDeGrupo(cut, "Delegación Cataluña").QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar");
+
+        boton.GetAttribute("aria-label").Should().Be("Reclamar Delegación Cataluña");
+    }
+
+    [Fact]
+    public void Sin_Delegaciones_ni_Oficios_no_se_pinta_el_bloque_de_filtros_del_servidor()
+    {
+        var (cut, _) = Renderizar(new Escenario { Delegaciones = [], Oficios = [] });
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones"));
+
+        cut.FindAll("fieldset.reclamar-empresa-servidor").Should().BeEmpty("un fieldset con solo su leyenda sería ruido para quien usa un lector de pantalla");
+    }
+
+    [Fact]
+    public void Con_Delegaciones_se_pinta_el_bloque_de_filtros_del_servidor()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        cut.FindAll("fieldset.reclamar-empresa-servidor").Should().ContainSingle();
     }
 
     [Fact]
@@ -459,7 +551,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         Boton(cut, "Reclamar lo visible").HasAttribute("disabled").Should().BeFalse();
 
-        cut.Find("select[aria-label='Delegación']").Change(Aragon.ToString());
+        ElegirOpcion(cut, "Delegación", "Aragón");
 
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
         Boton(cut, "Reclamar lo visible").HasAttribute("disabled").Should().BeTrue("el cajón copia los lotes al abrirse");
@@ -487,11 +579,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.FindAll(".reclamar-empresa-ficha")[1].TextContent.Should().Contain("2");
-        Boton(cut, "Trabajador").Click();
+        Resumen(cut).Should().Contain("2 Trabajadores afectados");
+        ElegirOpcion(cut, "Agrupar", "Trabajador");
 
-        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto).Should().Equal("Jordi Ferrer Vidal", "Jordi Ferrer Vidal");
-        cut.Markup.Should().Contain("2 Trabajadores");
+        Titulos(cut).Should().Equal("Jordi Ferrer Vidal", "Jordi Ferrer Vidal");
     }
 
     [Fact]
@@ -504,15 +595,18 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
+        ElegirOpcion(cut, "Delegación", "Cataluña");
 
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
-        cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeTrue("mientras carga no se encadenan consultas sobre el mismo contexto de datos");
-        cut.Find("select[aria-label='Delegación']").HasAttribute("disabled").Should().BeTrue();
-        cut.Find("select[aria-label='Estado']").HasAttribute("disabled").Should().BeFalse("el estado se filtra en cliente");
+        var servidor = cut.Find("fieldset.reclamar-empresa-servidor");
+        servidor.HasAttribute("disabled").Should().BeTrue("mientras carga no se encadenan consultas sobre el mismo contexto de datos");
+        servidor.QuerySelectorAll("button[aria-haspopup=menu]").Should().HaveCount(2, "Delegación y Oficio están dentro del fieldset deshabilitado");
+        cut.FindAll(".filtro-estados-opcion").Should().OnlyContain(c => !c.HasAttribute("disabled"), "el estado se filtra en cliente");
+        cut.FindAll("button[aria-haspopup=menu]").Single(b => b.GetAttribute("aria-label")!.StartsWith("Agrupar", StringComparison.Ordinal))
+            .HasAttribute("disabled").Should().BeFalse("agrupar tampoco pide nada al servidor");
 
         await cut.InvokeAsync(() => puerta.SetResult(escenario.Dto(LotesDeMuestra())));
-        cut.WaitForAssertion(() => cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeFalse());
+        cut.WaitForAssertion(() => cut.Find("fieldset.reclamar-empresa-servidor").HasAttribute("disabled").Should().BeFalse());
     }
 
     [Fact]
@@ -525,7 +619,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        cut.Find("select[aria-label='Delegación']").Change(Aragon.ToString());
+        ElegirOpcion(cut, "Delegación", "Aragón");
 
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
         cut.Markup.Should().NotContain("Ningún documento visible tiene destinatario");
@@ -548,14 +642,14 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.FindAll(".reclamar-empresa-fila").Should().BeEmpty("con cientos de documentos la lista no se acaba: todo sale plegado");
-        cut.FindAll("[data-alternar-grupo]").Should().OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
-        var cataluna = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Delegación Cataluña");
-        Texto(cataluna.QuerySelector(".reclamar-empresa-grupo-titulo")!).Should().Contain("2 documentos").And.Contain("1 vencidos").And.Contain("1 por vencer");
+        cut.FindAll(".fila-relacion-desplegar").Should().OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
+        var cataluna = FilaDeGrupo(cut, "Delegación Cataluña");
+        Texto(cataluna).Should().Contain("2 documentos").And.Contain("1 vencidos").And.Contain("1 por vencer");
 
-        cataluna.QuerySelector("[data-alternar-grupo]")!.Click();
+        cataluna.QuerySelector(".fila-relacion-desplegar")!.Click();
 
         cut.FindAll(".reclamar-empresa-fila").Should().HaveCount(2).And.OnlyContain(f => Texto(f).Contains("Vencimiento"));
-        cut.FindAll("[data-alternar-grupo][aria-expanded=true]").Should().ContainSingle();
+        cut.FindAll(".fila-relacion-desplegar[aria-expanded=true]").Should().ContainSingle();
     }
 
     [Fact]
@@ -573,7 +667,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Documentos de Empresa por reclamar"));
 
-        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("2");
+        Resumen(cut).Should().StartWith("2 Documentos de Empresa por reclamar");
         Desplegar(cut);
         cut.FindAll(".reclamar-empresa-fila").Should().HaveCount(2);
     }
@@ -605,7 +699,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Documentos de Empresa por reclamar"));
 
-        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("1");
+        Resumen(cut).Should().StartWith("1 Documentos de Empresa por reclamar");
         Desplegar(cut);
         cut.Markup.Should().Contain("Certificado TGSS").And.NotContain("Plan de Prevención");
     }
@@ -633,12 +727,35 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(escenario);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
-        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("0");
+        Resumen(cut).Should().StartWith("0 Documentos de Empresa por reclamar");
         Boton(cut, "Reclamar lo visible (1)").Click();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reclamar en lote"));
         var cajon = cut.Markup[cut.Markup.IndexOf("Reclamar en lote", StringComparison.Ordinal)..];
         cajon.Should().Contain("Reconocimiento médico")
             .And.NotContain("RNT").And.NotContain("RLC").And.NotContain("Formación Art. 19");
+    }
+
+    [Fact]
+    public void Es_la_lista_de_la_pestana_Trabajadores_con_chips_y_pastillas_y_ningun_desplegable_nativo()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        cut.FindAll("select").Should().BeEmpty("los filtros son chips de estado y pastillas, no <select> nativos");
+        cut.FindAll(".lista-relaciones-tarjeta").Should().NotBeEmpty("la lista va dentro de una tarjeta, como en Trabajadores");
+        cut.Markup.Should().Contain("Mostrando 4 de 4").And.NotContain("del peor estado al mejor");
+        Texto(cut.Find(".lista-relaciones-encabezado")).Should().Contain("Nada se envía hasta que lo revises y confirmes en el cajón.");
+        cut.Markup.Should().Contain("Solo se reclama lo que falta en TALVEG", "la nota final se conserva");
+    }
+
+    [Fact]
+    public void Cada_grupo_lleva_la_pildora_de_su_peor_estado()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        Texto(FilaDeGrupo(cut, "Delegación Cataluña").QuerySelector(".fila-relacion-estado")!).Should().Be("Vencido", "tiene un vencido y un por vencer");
+        Texto(FilaDeGrupo(cut, "Contactos de la Empresa").QuerySelector(".fila-relacion-estado")!).Should().Be("Pendiente");
     }
 }
