@@ -53,19 +53,23 @@
             <div class="reclamar-empresa-pastillas">
                 @* Delegación y Oficio piden al servidor: mientras carga se deshabilitan (el DbContext de la conexión no admite dos consultas
                    a la vez). El fieldset deshabilita de una vez los botones de las pastillas; Agrupar es de cliente y sigue libre. *@
-                <fieldset class="reclamar-empresa-servidor" disabled="@_recargando">
-                    <legend class="reclamar-empresa-legend">@Textos["FiltrosDelServidor"]</legend>
-                    @if (Sedes.Count > 0)
-                    {
-                        <PastillaFiltro Etiqueta="@Textos["FiltroSede"]" TextoTodos="@Textos["TodasLasSedes"]" Valor="@(_sedeId?.ToString() ?? string.Empty)"
-                                        ValorChanged="CambiarSedeAsync" Opciones="OpcionesDeSede" />
-                    }
-                    @if (_dto.Oficios.Count > 0)
-                    {
-                        <PastillaFiltro Etiqueta="@Textos["FiltroOficio"]" TextoTodos="@Textos["TodosLosOficios"]" Valor="@(_oficioId?.ToString() ?? string.Empty)"
-                                        ValorChanged="CambiarOficioAsync" Opciones="OpcionesDeOficio" />
-                    }
-                </fieldset>
+                @* Sin Delegaciones ni Oficios el fieldset quedaría con solo su leyenda: no se pinta. *@
+                @if (Sedes.Count > 0 || _dto.Oficios.Count > 0)
+                {
+                    <fieldset class="reclamar-empresa-servidor" disabled="@_recargando">
+                        <legend class="reclamar-empresa-legend">@Textos["FiltrosDelServidor"]</legend>
+                        @if (Sedes.Count > 0)
+                        {
+                            <PastillaFiltro Etiqueta="@Textos["FiltroSede"]" TextoTodos="@Textos["TodasLasSedes"]" Valor="@(_sedeId?.ToString() ?? string.Empty)"
+                                            ValorChanged="CambiarSedeAsync" Opciones="OpcionesDeSede" />
+                        }
+                        @if (_dto.Oficios.Count > 0)
+                        {
+                            <PastillaFiltro Etiqueta="@Textos["FiltroOficio"]" TextoTodos="@Textos["TodosLosOficios"]" Valor="@(_oficioId?.ToString() ?? string.Empty)"
+                                            ValorChanged="CambiarOficioAsync" Opciones="OpcionesDeOficio" />
+                        }
+                    </fieldset>
+                }
                 <PastillaFiltro Etiqueta="@Textos["AgruparPor"]" Valor="@AgrupacionActiva.ToString()" ValorChanged="Agrupar"
                                 Opciones="OpcionesDeAgrupacion" OfrecerTodos="false" />
                 @if (HayFiltros)
@@ -91,7 +95,7 @@
             }
             else
             {
-                @* La lista es la de la pestaña Trabajadores de Subcontrata: tarjeta con «Mostrando N de M · del peor estado al mejor», una fila por
+                @* La lista es la de la pestaña Trabajadores de Subcontrata: tarjeta con «Mostrando N de M», una fila por
                    grupo (iniciales o icono, detalle, estado en píldora y acción) y los documentos del grupo desplegados debajo. *@
                 <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["Etiqueta"]">
                     <Encabezado>
@@ -146,7 +150,7 @@
                                     {
                                         <SoloConEscritura>
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                   Deshabilitado="@(_recargando || loteGrupo.Destinatarios is not { Count: > 0 })" OnClick="() => AbrirGrupo(loteGrupo.Clave)">@Textos["ReclamarGrupo"]</Boton>
+                                                   Deshabilitado="@(_recargando || loteGrupo.Destinatarios is not { Count: > 0 })" OnClick="() => AbrirGrupo(loteGrupo.Clave)" aria-label="@Textos["ReclamarGrupoEtiqueta", grupo.Titulo]">@Textos["ReclamarGrupo"]</Boton>
                                         </SoloConEscritura>
                                     }
                                 </Acciones>

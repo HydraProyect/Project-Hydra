@@ -826,7 +826,7 @@
     <comment>Chip que quita la marca de «Solo incidencias».</comment>
   </data>
   <data name="PlataformasMostrando" xml:space="preserve">
-    <value>Mostrando {0} de {1} documentos · del peor estado al mejor</value>
+    <value>Mostrando {0} de {1} documentos</value>
     <comment>Encabezado de la tarjeta de Plataformas: documentos visibles de los que hay.</comment>
   </data>
 </root>

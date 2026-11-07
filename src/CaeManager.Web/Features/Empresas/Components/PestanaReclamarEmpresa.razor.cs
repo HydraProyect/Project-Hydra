@@ -266,11 +266,23 @@ public partial class PestanaReclamarEmpresa
         new OpcionEstado(nameof(Agrupacion.Tipo), Textos["AgruparTipo"]),
     ];
 
-    /// <summary>La fila más grave del grupo: su insignia es la del grupo (el estado va por orden de gravedad, Vencido primero).</summary>
-    private static Fila PeorFila(Grupo grupo) => grupo.Filas.OrderBy(f => f.Categoria).First();
+    /// <summary>
+    /// La fila más grave del grupo: su insignia es la del grupo. El orden es la categoría (Vencido primero) y, a igualdad, la
+    /// gravedad real de la insignia (una «Falta» roja pesa más que un «Sin confirmar» ámbar de la misma categoría).
+    /// </summary>
+    private static Fila PeorFila(Grupo grupo) =>
+        grupo.Filas.OrderBy(f => f.Categoria).ThenBy(f => GravedadDeTono(f.Tono)).First();
 
+    private static int GravedadDeTono(TonoBadge tono) => tono switch
+    {
+        TonoBadge.Peligro => 0,
+        TonoBadge.Advertencia => 1,
+        _ => 2,
+    };
+
+    /// <summary>El tono de la fila de grupo se deriva de la insignia de la fila elegida, para que ambos nunca se contradigan.</summary>
     private static TonoFila TonoDeGrupo(Grupo grupo) =>
-        PeorFila(grupo).Categoria == Categoria.PorVencer ? TonoFila.Advertencia : TonoFila.Peligro;
+        PeorFila(grupo).Tono == TonoBadge.Peligro ? TonoFila.Peligro : TonoFila.Advertencia;
 
     private static string Iniciales(string nombre) => string.Concat(nombre
         .Split(' ', StringSplitOptions.RemoveEmptyEntries)

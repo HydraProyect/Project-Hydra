@@ -184,6 +184,10 @@
     <value>Reclama el que es veu ({0})</value>
     <comment>Botón de la cabecera: abre el cajón con todo lo que se ve.</comment>
   </data>
+  <data name="ReclamarGrupoEtiqueta" xml:space="preserve">
+    <value>Reclama {0}</value>
+    <comment>Nom accessible del botó «Reclama» d'un grup; {0} és el títol del grup.</comment>
+  </data>
   <data name="ReclamarGrupo" xml:space="preserve">
     <value>Reclama</value>
     <comment>Botón de un grupo (Delegación): abre el cajón con ese grupo.</comment>
@@ -241,7 +245,7 @@
     <comment>Aviso cuando falla la lectura de lo pendiente de subir.</comment>
   </data>
   <data name="Mostrando" xml:space="preserve">
-    <value>Mostrant {0} de {1} · del pitjor estat al millor</value>
+    <value>Mostrant {0} de {1}</value>
     <comment>Encapçalament de la targeta de la llista: documents visibles dels que ha retornat la consulta.</comment>
   </data>
   <data name="FiltrosDelServidor" xml:space="preserve">

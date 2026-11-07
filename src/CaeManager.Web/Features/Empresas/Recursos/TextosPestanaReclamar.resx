@@ -184,6 +184,10 @@
     <value>Reclamar lo visible ({0})</value>
     <comment>Botón de la cabecera: abre el cajón con todo lo que se ve.</comment>
   </data>
+  <data name="ReclamarGrupoEtiqueta" xml:space="preserve">
+    <value>Reclamar {0}</value>
+    <comment>Nombre accesible del botón «Reclamar» de un grupo; {0} es el título del grupo.</comment>
+  </data>
   <data name="ReclamarGrupo" xml:space="preserve">
     <value>Reclamar</value>
     <comment>Botón de un grupo (Delegación): abre el cajón con ese grupo.</comment>
@@ -241,7 +245,7 @@
     <comment>Aviso cuando falla la lectura de lo pendiente de subir.</comment>
   </data>
   <data name="Mostrando" xml:space="preserve">
-    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
+    <value>Mostrando {0} de {1}</value>
     <comment>Encabezado de la tarjeta de la lista: documentos visibles de los que devolvió la consulta.</comment>
   </data>
   <data name="FiltrosDelServidor" xml:space="preserve">

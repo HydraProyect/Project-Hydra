@@ -283,7 +283,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.Markup.Should().Contain("Formación PRL").And.NotContain("Reconocimiento médico").And.NotContain("Certificado TGSS");
         Preventivas(mediador).Should().HaveCount(1, "el estado no es un filtro de la consulta");
         Texto(cut.FindAll(".filtro-estados-opcion[aria-pressed=true]").Should().ContainSingle().Subject).Should().StartWith("Por vencer");
-        cut.Markup.Should().Contain("Mostrando 1 de 4 · del peor estado al mejor");
+        cut.Markup.Should().Contain("Mostrando 1 de 4").And.NotContain("del peor estado al mejor");
     }
 
     [Fact]
@@ -468,6 +468,76 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         var agenda = FilaDeGrupo(cut, "Contactos de la Empresa");
         agenda.QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar").HasAttribute("disabled").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_grupo_con_Sin_confirmar_y_Falta_de_la_misma_categoria_toma_la_insignia_y_el_tono_de_la_Falta()
+    {
+        // «Aaa» (Sin confirmar, ámbar) sale antes que «Zzz» (Falta, rojo) por el orden alfabético del tipo dentro de la categoría Pendiente:
+        // si el grupo se quedara con la primera fila, mostraría la insignia ámbar con la fila de grupo en rojo (o al revés).
+        var escenario = new Escenario();
+        var mixto = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null, [], null, [],
+            [
+                new DocumentoPendienteDto(Guid.NewGuid(), Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Aaa dudoso", MotivoPendienteDeReclamacion.SinConfirmar),
+                new DocumentoPendienteDto(null, Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Zzz ausente", MotivoPendienteDeReclamacion.Ausente),
+            ],
+            new DestinoEmpresaEmpleadoraDto(null, null));
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([mixto]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Contactos de la Empresa"));
+
+        var grupo = FilaDeGrupo(cut, "Contactos de la Empresa");
+
+        grupo.GetAttribute("data-tono").Should().Be("peligro", "la fila más grave del grupo es la Falta");
+        Texto(grupo.QuerySelector("[data-pieza=pastilla]")!).Should().Be("Pendiente", "la insignia del grupo es la de la fila más grave, no la primera por orden alfabético");
+    }
+
+    [Fact]
+    public void Un_grupo_solo_con_Sin_confirmar_se_pinta_ambar_en_la_fila_y_en_la_insignia()
+    {
+        var escenario = new Escenario();
+        var soloDudoso = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null, [], null, [],
+            [new DocumentoPendienteDto(Guid.NewGuid(), Guid.NewGuid(), "Laia Roca Serra", Guid.NewGuid(), "Aaa dudoso", MotivoPendienteDeReclamacion.SinConfirmar)],
+            new DestinoEmpresaEmpleadoraDto(null, null));
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([soloDudoso]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Contactos de la Empresa"));
+
+        var grupo = FilaDeGrupo(cut, "Contactos de la Empresa");
+
+        grupo.GetAttribute("data-tono").Should().Be("advertencia", "el tono de la fila de grupo se deriva de la insignia elegida");
+        Texto(grupo.QuerySelector("[data-pieza=pastilla]")!).Should().NotBe("Pendiente");
+    }
+
+    [Fact]
+    public void El_boton_Reclamar_de_cada_grupo_lleva_el_titulo_del_grupo_en_su_nombre_accesible()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        var boton = FilaDeGrupo(cut, "Delegación Cataluña").QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar");
+
+        boton.GetAttribute("aria-label").Should().Be("Reclamar Delegación Cataluña");
+    }
+
+    [Fact]
+    public void Sin_Delegaciones_ni_Oficios_no_se_pinta_el_bloque_de_filtros_del_servidor()
+    {
+        var (cut, _) = Renderizar(new Escenario { Delegaciones = [], Oficios = [] });
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones"));
+
+        cut.FindAll("fieldset.reclamar-empresa-servidor").Should().BeEmpty("un fieldset con solo su leyenda sería ruido para quien usa un lector de pantalla");
+    }
+
+    [Fact]
+    public void Con_Delegaciones_se_pinta_el_bloque_de_filtros_del_servidor()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        cut.FindAll("fieldset.reclamar-empresa-servidor").Should().ContainSingle();
     }
 
     [Fact]
@@ -674,7 +744,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         cut.FindAll("select").Should().BeEmpty("los filtros son chips de estado y pastillas, no <select> nativos");
         cut.FindAll(".lista-relaciones-tarjeta").Should().NotBeEmpty("la lista va dentro de una tarjeta, como en Trabajadores");
-        cut.Markup.Should().Contain("Mostrando 4 de 4 · del peor estado al mejor");
+        cut.Markup.Should().Contain("Mostrando 4 de 4").And.NotContain("del peor estado al mejor");
         Texto(cut.Find(".lista-relaciones-encabezado")).Should().Contain("Nada se envía hasta que lo revises y confirmes en el cajón.");
         cut.Markup.Should().Contain("Solo se reclama lo que falta en TALVEG", "la nota final se conserva");
     }

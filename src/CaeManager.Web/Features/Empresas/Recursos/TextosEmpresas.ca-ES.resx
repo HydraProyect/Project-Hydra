@@ -733,7 +733,7 @@
     <comment>Chip que treu la marca de «Només incidències».</comment>
   </data>
   <data name="PlataformasMostrando" xml:space="preserve">
-    <value>Mostrant {0} de {1} documents · del pitjor estat al millor</value>
+    <value>Mostrant {0} de {1} documents</value>
     <comment>Encapçalament de la targeta de Plataformes: documents visibles dels que hi ha.</comment>
   </data>
 </root>
