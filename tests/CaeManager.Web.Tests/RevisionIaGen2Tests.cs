@@ -97,6 +97,21 @@ public class RevisionIaGen2Tests : BunitContext
         (Task)typeof(RevisionIaTab).GetMethod(nombre, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(cut.Instance, argumentos)!);
 
     [Fact]
+    public void El_umbral_de_confirmacion_en_lote_se_lee_como_en_la_maqueta_y_sigue_a_la_confianza_elegida()
+    {
+        // Maqueta «Revision IA»: «Umbral de confirmación en lote: 95 %». La app deja elegir la confianza
+        // (95, 90 u 80 %), así que el rótulo dice la que está elegida y por defecto es la de la maqueta.
+        var cut = Renderizar(new MediadorFalso { Revisiones = [Revision("Ana Ríos", 96, new DateOnly(2026, 9, 1), Guid.NewGuid())] });
+
+        var reglas = cut.Find(".revision-ia-reglas");
+        reglas.TextContent.Should().Contain("Umbral de confirmación en lote: 95 %");
+
+        cut.Find(".revision-ia-seleccion select").Change("90");
+
+        cut.Find(".revision-ia-reglas").TextContent.Should().Contain("Umbral de confirmación en lote: 90 %")
+            .And.NotContain("95 %", "el rótulo sigue a la confianza elegida, no se queda en la de por defecto");
+    }
+    [Fact]
     public void La_cola_muestra_los_datos_disponibles_y_no_inventa_campos_del_mockup()
     {
         var empresa = Revision("Montajes Norte", 0, null);

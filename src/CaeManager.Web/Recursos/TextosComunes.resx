@@ -804,4 +804,10 @@
   <data name="ArchivoSubidoNoLeido" xml:space="preserve">
     <value>No pudimos leer "{0}". Vuelve a elegirlo.</value>
   </data>
+  <data name="SubirCabecera" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="SubirCabeceraTitulo" xml:space="preserve">
+    <value>Subir documentos</value>
+  </data>
 </root>
