@@ -176,15 +176,20 @@ public static class CatalogoFestivosOficiales
         var limpio = new System.Text.StringBuilder(descompuesto.Length);
         foreach (var caracter in descompuesto)
         {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) == System.Globalization.UnicodeCategory.NonSpacingMark)
+            var categoria = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter);
+            if (categoria == System.Globalization.UnicodeCategory.NonSpacingMark)
+                continue;
+            // Los caracteres de formato (categoría Format: guion blando U+00AD, ancho cero U+200B a U+200D, U+2060,
+            // BOM U+FEFF...) son invisibles y se cuelan al copiar y pegar, dentro de una palabra o entre palabras: se
+            // eliminan, no separan. Una regla general en vez de enumerarlos uno a uno.
+            if (categoria == System.Globalization.UnicodeCategory.Format)
                 continue;
             // Todo espacio cuenta como el ordinario: NBSP (U+00A0), tabuladores, espacios Unicode (U+2000 a U+200A,
-            // U+202F, U+3000...), saltos de línea, y el de ancho cero (U+200B) o la marca BOM (U+FEFF) que se cuelan
-            // al copiar y pegar. Separar solo por ' ' dejaba «Vielha e Mijaran» con NBSP sin reconocer.
+            // U+202F, U+3000...) y saltos de línea. Separar solo por ' ' dejaba «Vielha e Mijaran» con NBSP sin reconocer.
             limpio.Append(caracter switch
             {
                 '’' or '‘' or '´' or '`' => '\'',
-                '-' or '​' or '﻿' => ' ',
+                '-' => ' ',
                 _ when char.IsWhiteSpace(caracter) => ' ',
                 _ => char.ToLowerInvariant(caracter),
             });

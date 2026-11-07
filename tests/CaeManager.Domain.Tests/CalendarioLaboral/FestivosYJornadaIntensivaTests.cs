@@ -124,7 +124,7 @@ public class FestivosYJornadaIntensivaTests
 
     [Theory]
     // Espacios que no son el ordinario (copiar y pegar de una hoja o de un PDF): NBSP, tabulador, dobles, espacio
-    // estrecho NBSP (U+202F), espacio ideográfico, espacio de ancho cero y salto de línea.
+    // estrecho NBSP (U+202F), espacio ideográfico, espacio de ancho cero rodeado de espacios y salto de línea.
     [InlineData("Vielha e Mijaran")]
     [InlineData("Vielha e\tMijaran")]
     [InlineData("Vielha  e   Mijaran")]
@@ -132,7 +132,15 @@ public class FestivosYJornadaIntensivaTests
     [InlineData("Naut\tAran")]
     [InlineData("Alt Aran")]
     [InlineData("Vielha　i Mijaran")]
-    [InlineData("Vielha​e​Mijaran")]
+    [InlineData("Vielha \u200Be\u200B Mijaran")]
+    // Caracteres de formato (categoría Format) dentro de una palabra: guion blando, ancho cero U+200C y U+200D, unión de
+    // palabras U+2060 y BOM. Son invisibles y se eliminan; no deben impedir el reconocimiento.
+    [InlineData("Viel\u00ADha e Mijaran")]
+    [InlineData("Vielha e Mi\u200Cjaran")]
+    [InlineData("Vielha e Mij\u200Daran")]
+    [InlineData("Naut Ar\u2060an")]
+    [InlineData("Naut Ara\uFEFFn")]
+    [InlineData("Vi\u00ADel\u200Bha\u200C e\u2060 Mi\uFEFFj\u200Dar\u00ADan")]
     [InlineData("Naut\r\nAran")]
     [InlineData("Val d’Aran")]
     public void La_Val_d_Aran_se_reconoce_aunque_el_texto_traiga_espacios_no_ordinarios(string municipio)
@@ -155,6 +163,10 @@ public class FestivosYJornadaIntensivaTests
     [InlineData("Salardú ")]
     [InlineData("NautAran")]
     [InlineData("Vielhae Mijaran")]
+    // Un carácter de formato (guion blando, ancho cero...) no es un espacio: no une ni separa, solo desaparece.
+    [InlineData("Barce\u00ADlona")]
+    [InlineData("Naut\u00ADAran")]
+    [InlineData("Vielha\u200Be\u200CMijaran")]
     public void Los_espacios_no_ordinarios_no_convierten_en_Aran_un_municipio_que_no_lo_es(string municipio)
     {
         var perfil = En(ComunidadAutonoma.Cataluna, municipio: municipio);
