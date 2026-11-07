@@ -36,7 +36,7 @@ public sealed record DestinoResuelto(IReadOnlyList<DestinatarioAgendaDto> Destin
 ///
 /// <para>
 /// <b>Qué se ofrece.</b> No decide qué es reclamable: parte de los lotes de <c>ObtenerLoteReclamacionQuery</c> (ventana,
-/// Asignación activa, Centro con gestión CAE, alcance visible y lo pendiente sin fecha) y cambia a quién se dirigen; solo
+/// Asignación activa, Centro con gestión CAE, alcance visible, Tipo de ámbito Trabajador y lo pendiente sin fecha) y cambia a quién se dirigen; solo
 /// quita lo de los voluntarios inactivos (<see cref="ActividadVoluntarios"/>), que la Semana y el Mes tampoco ofrecen y el
 /// envío rechaza. Un Trabajador de Subcontrata no tiene Empresa empleadora en el modelo, así que lo suyo sigue yendo al Cliente.
 /// </para>

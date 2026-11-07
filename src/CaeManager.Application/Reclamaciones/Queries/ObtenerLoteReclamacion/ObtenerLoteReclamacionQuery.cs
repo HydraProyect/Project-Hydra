@@ -120,7 +120,9 @@ public class ObtenerLoteReclamacionQueryHandler(
             where request.TrabajadorId == null || documento.TrabajadorId == request.TrabajadorId
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
+            // Solo Tipos de ámbito Trabajador: la misma regla con la que el envío revalida (TiposDocumentoReclamablesDeTrabajador).
+            join tipoDocumento in TiposDocumentoReclamablesDeTrabajador.De(tiposDocumentoContext.TiposDocumento)
+                on documento.TipoDocumentoId equals tipoDocumento.Id
             // Asignación activa a un Centro visible con gestión CAE de un Cliente empresarial visible: LA condición del lote,
             // que reutilizan el envío a la Empresa empleadora y el «Reclamable» del Mes (AsignacionesReclamables).
             join asignacion in asignacionesReclamables

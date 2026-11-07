@@ -27,7 +27,9 @@ public class ResolucionDestinatariosAgendaServiceFalso : IResolucionDestinatario
 
     public Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaClientesAsync(
         Guid? centroId, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorCliente, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("EnviarReclamacionCommandHandler usa ResolverAsync, no la versión por lote.");
+        // El lote de Trabajador (ObtenerLoteReclamacionQueryHandler) la pide para todos sus Clientes: todos reciben la misma respuesta.
+        Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>>(
+            tipoDocumentoIdsPorCliente.Keys.ToDictionary(id => id, _ => RespuestaResolverAsync));
 
     public Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverParaEmpresaAsync(
         Guid empresaId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default)

@@ -130,7 +130,7 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         // Mismo alcance y misma ventana que el lote (ObtenerLoteReclamacionQuery): un Id fuera de ellos falla igual que uno
         // ya renovado, sin decir que existe. Los voluntarios inactivos ya no están en trabajadorIdsDelLote
         // (TrabajadoresDelDestinoAsync), con la regla de la Semana y el Mes; y solo viajan documentos de un Tipo de ámbito
-        // Trabajador, como en el Mes y la Semana.
+        // Trabajador, con la misma regla que el lote y sus pendientes (TiposDocumentoReclamablesDeTrabajador).
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var asignacionesReclamables = await AsignacionesReclamables.DeAsync(
             asignacionesContext.Asignaciones, centrosContext.Centros, alcanceDatos, cancellationToken);
@@ -142,8 +142,8 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 where trabajadorIdsDelLote.Contains(documento.TrabajadorId!.Value)
                 where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
                 join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-                join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-                where tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+                join tipoDocumento in TiposDocumentoReclamablesDeTrabajador.De(tiposDocumentoContext.TiposDocumento)
+                    on documento.TipoDocumentoId equals tipoDocumento.Id
                 where asignacionesReclamables.Any(asignacion => asignacion.TrabajadorId == trabajador.Id)
                 select new
                 {
