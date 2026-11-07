@@ -224,7 +224,7 @@
     private string? PasoDelCodigoDeError(string codigo) => codigo switch
     {
         "Trabajador.DocumentoNoValido" or "Trabajador.DocumentoSinGestion" or "Trabajador.DniDuplicado" => PasoBasico,
-        "Trabajador.SinEmpresa" => PasoTrabajo,
+        "Trabajador.SinEmpresa" or "Delegacion.NoEncontrada" or "Oficio.NoEncontrado" => PasoTrabajo,
         "Trabajador.ExtranjeroCobrableSinGestion" => PasoSituacion,
         _ => null,
     };

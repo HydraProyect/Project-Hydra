@@ -296,6 +296,46 @@ public partial class Trabajador360Gen2Tests
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
     }
 
+    // Un error de campo en otro paso no se enseña en el paso que se ve: no marca el formulario con errores ni bloquea cerrarlo.
+    [Fact]
+    public async Task Un_error_de_otro_paso_no_marca_el_paso_que_se_ve()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+        await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "ABC");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
+        // Desde Lo básico, «Siguiente» solo valida los campos de Lo básico.
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+
+        await PulsarFicha(drawer, "Atrás");
+        await GuardarFicha(drawer);
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
+
+        drawer.FindComponent<DrawerFormulario>().Instance.HayErroresDeCampo.Should().BeFalse("el error es de Situación y se está en Lo básico");
+    }
+
+    // Delegación u Oficio que el servidor no encuentra: el rechazo lleva al paso Trabajo, donde están sus campos.
+    [Theory]
+    [InlineData("Delegacion.NoEncontrada")]
+    [InlineData("Oficio.NoEncontrado")]
+    public async Task Un_rechazo_de_delegacion_u_oficio_lleva_a_trabajo(string codigo)
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.ResultadoFicha = Result.Fallo(Error.Crear(codigo, "No se encontró lo elegido."));
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+
+        await GuardarFicha(drawer);
+
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        drawer.Markup.Should().Contain("No se encontró lo elegido.");
+    }
+
     // Lo que rechaza el servidor sobre un campo (aquí el documento) lleva al paso donde está, con el mensaje a la vista.
     [Fact]
     public async Task Un_rechazo_del_servidor_sobre_el_documento_lleva_a_lo_basico()
@@ -357,9 +397,10 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
         await PulsarFicha(drawer, "Siguiente");
-        PasoActivoFicha(drawer).Should().Be("Trabajo");
-        await PulsarFicha(drawer, "Atrás");
-        await PulsarFicha(drawer, "Cancelar");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        // Se cierra desde un paso posterior (la X), no desde el primero.
+        await drawer.Find("button.drawer-cerrar").ClickAsync(new MouseEventArgs());
 
         drawer = await AbrirEditorFicha(cut);
 
