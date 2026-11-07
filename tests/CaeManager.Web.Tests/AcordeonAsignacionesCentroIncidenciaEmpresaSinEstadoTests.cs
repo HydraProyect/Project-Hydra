@@ -113,7 +113,16 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         fila.TextContent.Should().NotContain("Sin caducidad");
     }
 
-    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(int incidencias, bool modoListado = false)
+    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(int incidencias, bool modoListado = false) =>
+        RenderizarBloqueEmpresa(
+            Enumerable.Range(1, incidencias)
+                .Select(i => new IncidenciaCentroDto(
+                    $"Seguro {i}", AmbitoCausa.Empresa, CaeManager.Domain.Documentos.EstadoDocumento.Vencido,
+                    DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), FechaVencimiento: new DateOnly(2026, 1, 1)))
+                .ToList(),
+            modoListado);
+
+    private IRenderedComponent<AcordeonAsignacionesCentro> RenderizarBloqueEmpresa(IReadOnlyList<IncidenciaCentroDto> lista, bool modoListado = false)
     {
         Services.AddLocalization();
         this.ConRolDeEscritura();
@@ -123,12 +132,6 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
-
-        var lista = Enumerable.Range(1, incidencias)
-            .Select(i => new IncidenciaCentroDto(
-                $"Seguro {i}", AmbitoCausa.Empresa, CaeManager.Domain.Documentos.EstadoDocumento.Vencido,
-                DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), FechaVencimiento: new DateOnly(2026, 1, 1)))
-            .ToList();
 
         var cut = Render<AcordeonAsignacionesCentro>(p => p
             .Add(a => a.CentroId, Guid.NewGuid())
@@ -210,6 +213,79 @@ public class AcordeonAsignacionesCentroIncidenciaEmpresaSinEstadoTests : BunitCo
         chevron().Click();
 
         cut.FindAll(".bloque-empresa-ambito .fila-documento-requerido").Should().HaveCount(2);
+    }
+
+    private static IncidenciaCentroDto DocumentoEmpresa(string descripcion, CaeManager.Domain.Documentos.EstadoDocumento? estado) =>
+        new(descripcion, AmbitoCausa.Empresa, estado,
+            DocumentoId: Guid.NewGuid(), TipoDocumentoId: Guid.NewGuid(), FechaVencimiento: new DateOnly(2026, 12, 1));
+
+    /// <summary>
+    /// Demo con IT (2026-11-10): una Empresa con sus documentos vigentes que solo vencen el mes siguiente salía con la pastilla
+    /// roja «Con incidencia» y la fila teñida de rojo. «Por vencer» no es una incidencia: ámbar, como la fila del Centro.
+    /// </summary>
+    [Fact]
+    public void Con_solo_documentos_por_vencer_el_bloque_Empresa_es_Por_vencer_en_ambar_sin_rojo()
+    {
+        var cut = RenderizarBloqueEmpresa([
+            DocumentoEmpresa("Certificado de estar al corriente con la Seguridad Social — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Proximo),
+            DocumentoEmpresa("Seguro de responsabilidad civil — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Urgente)]);
+
+        var fila = cut.Find(".bloque-empresa-ambito li.fila-relacion");
+        fila.GetAttribute("data-tono").Should().Be("advertencia", "sin vencidos ni pendientes la fila no se tiñe de rojo");
+        var estado = fila.QuerySelector(".fila-relacion-estado")!;
+        estado.TextContent.Should().Contain("Por vencer").And.NotContain("Con incidencia");
+        estado.InnerHtml.Should().Contain("advertencia").And.NotContain("peligro");
+
+        // Nada de lo que se lee ni se anuncia habla de incidencia junto a «Por vencer».
+        fila.QuerySelector(".fila-relacion-cifra span")!.GetAttribute("title").Should().Be("2 documentos de empresa por vencer");
+        fila.TextContent.Should().Contain("Solo se listan los documentos por vencer").And.NotContain("incidencia");
+        cut.Find(".bloque-empresa-ambito [role=table]").GetAttribute("aria-label").Should().Be("Documentación por vencer de Empresa Recuentos S.L.");
+        cut.Find(".bloque-empresa-ambito .fila-relacion-desplegar").GetAttribute("aria-label").Should().Be("Documentos por vencer de Empresa Recuentos S.L.");
+    }
+
+    [Fact]
+    public void Con_un_solo_documento_por_vencer_la_cifra_va_en_singular()
+    {
+        var cut = RenderizarBloqueEmpresa([DocumentoEmpresa("Seguro — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Proximo)]);
+
+        cut.Find(".bloque-empresa-ambito .fila-relacion-cifra span").GetAttribute("title").Should().Be("1 documento de empresa por vencer");
+    }
+
+    [Fact]
+    public void Con_un_documento_vencido_entre_los_por_vencer_el_bloque_Empresa_sigue_Con_incidencia_en_rojo()
+    {
+        var cut = RenderizarBloqueEmpresa([
+            DocumentoEmpresa("Seguro — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Proximo),
+            DocumentoEmpresa("Contrato de mantenimiento — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Vencido)]);
+
+        var fila = cut.Find(".bloque-empresa-ambito li.fila-relacion");
+        fila.GetAttribute("data-tono").Should().Be("peligro");
+        fila.QuerySelector(".fila-relacion-estado")!.TextContent.Should().Contain("Con incidencia");
+    }
+
+    /// <summary>El sufijo « — Empresa» del título repite el encabezado EMPRESA bajo el que cuelga el documento.</summary>
+    [Fact]
+    public void El_titulo_del_documento_en_el_bloque_Empresa_no_repite_el_sufijo_Empresa()
+    {
+        var cut = RenderizarBloqueEmpresa([
+            DocumentoEmpresa("Certificado de estar al corriente con la Seguridad Social — Empresa", CaeManager.Domain.Documentos.EstadoDocumento.Proximo),
+            DocumentoEmpresa("EPIs — Empresa — rechazado por la plataforma", null)]);
+
+        var titulos = cut.FindAll(".bloque-empresa-ambito .celda-documento-nombre").Select(c => c.TextContent.Trim()).ToList();
+
+        titulos.Should().Equal("Certificado de estar al corriente con la Seguridad Social", "EPIs — rechazado por la plataforma");
+    }
+
+    [Theory]
+    [InlineData("Seguro — Empresa", "Seguro")]
+    [InlineData("Seguro — Empresa — rechazado por la plataforma", "Seguro — rechazado por la plataforma")]
+    [InlineData("Seguro — rechazado por la plataforma", "Seguro — rechazado por la plataforma")]
+    [InlineData("Seguro de Empresa", "Seguro de Empresa")]
+    [InlineData("Póliza — Empresa — rechazado por la plataforma", "Póliza — rechazado por la plataforma")]
+    [InlineData("Alta — Empresa — extra — Empresa — rechazado por la plataforma", "Alta — Empresa — extra — rechazado por la plataforma")]
+    public void TituloDocumentoEmpresa_solo_quita_el_segmento_Empresa(string descripcion, string esperado)
+    {
+        AcordeonAsignacionesCentro.TituloDocumentoEmpresa(DocumentoEmpresa(descripcion, null)).Should().Be(esperado);
     }
 
     [Fact]
