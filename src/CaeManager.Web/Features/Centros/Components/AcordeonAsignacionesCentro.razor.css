@@ -216,4 +216,39 @@
 .linea-estado-plataforma { color: var(--color-text-muted); }
 .linea-estado-plataforma--rechazada { color: var(--color-danger-700); }
 
+/*
+  Fila desplegada de /centros en una caja estrecha (375 px: la lista deja de desplazarse en horizontal y la caja mide
+  ~280 px). La rejilla de escritorio reserva 230 px para el nombre y el estado quedaba fuera de la caja, cortado. Aquí:
+  nombre y estado en la primera línea, y el motivo con «Gestionar» en la segunda. Va tras el bloque de escritorio para
+  ganarle por orden, con su misma especificidad.
+*/
+@container (max-width: 520px) {
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 4px;
+    }
+
+    /* Con :not(.fila-relacion-compacta) para ganar a FilaRelacion, que a <= 767 px da a la identidad ambas columnas. */
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-rejilla:not(.fila-relacion-compacta) > .fila-relacion-identidad {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-estado {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-cifra {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .lista-trabajadores-acordeon-listado ::deep .fila-relacion-acciones {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: end;
+    }
+}
+
 }

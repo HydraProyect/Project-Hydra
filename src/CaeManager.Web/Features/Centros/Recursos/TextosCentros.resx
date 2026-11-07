@@ -129,6 +129,9 @@
   <data name="ColEstado" xml:space="preserve">
     <value>Estado documental</value>
   </data>
+  <data name="EstadoBloqueoCaeLista" xml:space="preserve">
+    <value>Bloqueo CAE</value>
+  </data>
   <data name="ColVisita" xml:space="preserve">
     <value>Visita</value>
   </data>
