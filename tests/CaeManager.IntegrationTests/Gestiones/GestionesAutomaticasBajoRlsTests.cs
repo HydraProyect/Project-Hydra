@@ -134,9 +134,42 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
             await handler.Handle(new DocumentoNacidoEvent(_propio.Documento), CancellationToken.None);
         }
 
+        await using (var runtime = CrearRuntime())
+            (await runtime.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.Id == _ajeno.Acreditacion))
+                .Should().Be(0, "el cero sale de que RLS no deja leer la acreditación ajena, no de la FK compuesta al guardar");
+
         await using var comprobacion = CrearPropietarioLimpio();
         (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().Select(g => g.DocumentoId).ToListAsync())
             .Should().Equal([_propio.Documento]);
+    }
+
+    [Fact]
+    public async Task Descartar_deja_el_contexto_sin_la_gestion_nueva_ni_la_sustitucion_pendiente()
+    {
+        await using (var runtime = CrearRuntime())
+            await Handler(runtime).Handle(new DocumentoNacidoEvent(_propio.Documento), CancellationToken.None);
+
+        await using (var runtime = CrearRuntime())
+        {
+            var repositorio = new GestionAutomaticaRepository(runtime);
+            var anterior = (await repositorio.ObtenerPorDocumentoIdAsync(_propio.Documento))!;
+            anterior.Sustituir(null, DateTime.UtcNow);
+            var nueva = GestionAutomatica.Nacer(_propio.Documento, OrigenGestionAutomatica.RenovacionDocumento,
+                [_propio.Acreditacion, Guid.NewGuid()], null)!;
+            repositorio.Agregar(nueva);
+            runtime.ChangeTracker.HasChanges().Should().BeTrue("control: antes de descartar hay escrituras pendientes");
+
+            repositorio.Descartar([nueva, anterior]);
+
+            runtime.ChangeTracker.HasChanges().Should().BeFalse();
+            runtime.ChangeTracker.Entries<GestionAutomatica>().Should().BeEmpty();
+            runtime.ChangeTracker.Entries<PasoGestionAutomatica>().Should().BeEmpty();
+            (await runtime.SaveChangesAsync()).Should().Be(0, "el siguiente guardado no reintenta nada");
+        }
+
+        await using var comprobacion = CrearPropietarioLimpio();
+        (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().SingleAsync(g => g.DocumentoId == _propio.Documento))
+            .SustituidaEnUtc.Should().BeNull();
     }
 
     [Fact]
