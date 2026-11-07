@@ -859,6 +859,12 @@
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de treballador</value>
   </data>
+  <data name="PasoEditarSituacion" xml:space="preserve">
+    <value>Situació</value>
+  </data>
+  <data name="EtiquetaPasosEditar" xml:space="preserve">
+    <value>Edició de treballador</value>
+  </data>
   <data name="AccionCorregirDocumento" xml:space="preserve">
     <value>Corregir el document d&apos;identitat</value>
   </data>

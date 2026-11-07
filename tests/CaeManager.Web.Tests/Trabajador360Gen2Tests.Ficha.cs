@@ -24,8 +24,29 @@ public partial class Trabajador360Gen2Tests
         await drawer.Find($"#{id}").BlurAsync(new FocusEventArgs());
     }
 
-    private static async Task GuardarFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer) =>
-        await drawer.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+    // La edición es por pasos: en el último, «Guardar»; en uno intermedio, «Guardar y terminar», que envía la misma orden única.
+    private static async Task GuardarFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer)
+    {
+        var botones = drawer.FindAll("button");
+        var guardar = botones.FirstOrDefault(b => b.TextContent.Trim() == "Guardar")
+            ?? botones.Single(b => b.TextContent.Trim() == "Guardar y terminar");
+        await guardar.ClickAsync(new MouseEventArgs());
+    }
+
+    private static string PasoActivoFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer) =>
+        drawer.Find("li.indicador-pasos-activo .indicador-pasos-titulo").TextContent.Trim();
+
+    private static Task PulsarFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer, string boton) =>
+        drawer.FindAll("button").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+
+    // Avanza con «Siguiente» hasta el paso pedido; si un paso lo bloquea (errores), se queda ahí y la aserción posterior falla.
+    private static async Task IrAPasoFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer, string paso)
+    {
+        for (var i = 0; i < 4 && PasoActivoFicha(drawer) != paso; i++) await PulsarFicha(drawer, "Siguiente");
+    }
+
+    private static string[] EtiquetasDelPasoFicha(IRenderedComponent<EditarFichaTrabajadorDrawer> drawer) =>
+        drawer.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).ToArray();
 
     private static async Task<IRenderedComponent<EditarFichaTrabajadorDrawer>> AbrirEditorFicha(IRenderedComponent<TrabajadorDetalle> cut)
     {
@@ -43,6 +64,7 @@ public partial class Trabajador360Gen2Tests
         await CambiarCampoFicha(drawer, "Nombre", "Marta");
         await CambiarCampoFicha(drawer, "Apellidos", "Salas");
         await CambiarCampoFicha(drawer, "Documento de identidad", "AB123456");
+        await IrAPasoFicha(drawer, "Situación");
         drawer.Find("[data-campo='extranjero-cobrable'] input").HasAttribute("checked").Should().BeTrue();
         await drawer.Find("[data-campo='extranjero-cobrable'] input").ChangeAsync(new ChangeEventArgs { Value = false });
         await GuardarFicha(drawer);
@@ -66,6 +88,7 @@ public partial class Trabajador360Gen2Tests
         var drawer = await AbrirEditorFicha(Renderizar(id));
         await CambiarCampoFicha(drawer, "Documento de identidad", "AB123456");
         await CambiarCampoFicha(drawer, "Documento de identidad", "12345678Z");
+        await IrAPasoFicha(drawer, "Situación");
         drawer.Find("[data-campo='extranjero-cobrable'] input").HasAttribute("checked").Should().BeTrue();
         await GuardarFicha(drawer);
         var c = m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle().Subject;
@@ -127,14 +150,22 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id); var version = m.Detalles[id].Version;
         m.Detalles[id] = m.Detalles[id] with { Nacionalidad = "Colombiana", FiguraEnRnt = "Sí, desde mayo de 2023" };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(13);
+        // Los 13 campos de texto de siempre, repartidos por pasos: ninguno se pierde ni se repite.
+        EtiquetasDelPasoFicha(drawer).Should().Equal("Documento de identidad", "Nombre", "Apellidos", "Fecha de nacimiento", "Nacionalidad");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nacionalidad").Instance.Valor.Should().Be("Colombiana");
         drawer.FindComponent<DrawerFormulario>().Instance.HayCambios().Should().BeFalse();
-        await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "41 1234567 89");
         await CambiarCampoFicha(drawer, "Fecha de nacimiento", "1988-03-14");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        EtiquetasDelPasoFicha(drawer).Should().Equal("Tipo de vínculo", "Alta en la empresa", "Baja");
         await CambiarCampoFicha(drawer, "Tipo de vínculo", "Plantilla");
         await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-05-02");
         await CambiarCampoFicha(drawer, "Baja", "2026-10-15");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        EtiquetasDelPasoFicha(drawer).Should().Equal(
+            "N.º de afiliación a la Seguridad Social", "Figura en el RNT", "Tipo", "Caduca", "Motivo");
+        await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "41 1234567 89");
         await CambiarCampoFicha(drawer, "Tipo", "Residencia y trabajo por cuenta ajena");
         await CambiarCampoFicha(drawer, "Caduca", "2027-02-18");
         await CambiarCampoFicha(drawer, "Motivo", "Se identifica con NIE");
@@ -159,6 +190,7 @@ public partial class Trabajador360Gen2Tests
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         m.Detalles[id] = m.Detalles[id] with { TipoContratacion = TipoContratacion.Autonomo };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
         var selector = drawer.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Tipo de contratación");
         selector.Instance.Valor.Should().Be("Autonomo", "precarga el tipo guardado, no el valor por defecto");
         selector.FindAll("option").Select(o => $"{o.GetAttribute("value")}={o.TextContent.Trim()}")
@@ -194,6 +226,7 @@ public partial class Trabajador360Gen2Tests
     {
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
         await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "ABC");
         await GuardarFicha(drawer);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "N.º de afiliación a la Seguridad Social")
@@ -201,13 +234,149 @@ public partial class Trabajador360Gen2Tests
         m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
     }
 
+    // «Guardar y terminar» desde el primer paso con un error de otro paso: no se envía y el formulario lleva al paso del error.
+    [Fact]
+    public async Task Guardar_con_un_error_de_otro_paso_lleva_a_ese_paso_y_senala_el_campo()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Situación");
+        await CambiarCampoFicha(drawer, "N.º de afiliación a la Seguridad Social", "ABC");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Atrás");
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "N.º de afiliación a la Seguridad Social")
+            .Instance.MensajeError.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // Un campo del paso en error no deja avanzar; al corregirlo, sí.
+    [Fact]
+    public async Task Siguiente_no_avanza_con_errores_del_paso_y_avanza_al_corregirlos()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await CambiarCampoFicha(drawer, "Nombre", "");
+
+        await PulsarFicha(drawer, "Siguiente");
+
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre").Instance.MensajeError.Should().NotBeNullOrWhiteSpace();
+        drawer.FindComponent<DrawerFormulario>().Instance.HayErroresDeCampo.Should().BeTrue();
+
+        await CambiarCampoFicha(drawer, "Nombre", "Marta");
+        await PulsarFicha(drawer, "Siguiente");
+
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        drawer.FindComponent<DrawerFormulario>().Instance.HayErroresDeCampo.Should().BeFalse();
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty("avanzar de paso no guarda");
+    }
+
+    // Un error de otro paso no se enseña ni bloquea cerrar desde el paso que se ve; el indicador deja volver a los pasos vistos.
+    [Fact]
+    public async Task El_indicador_deja_volver_a_los_pasos_vistos_y_el_atras_conserva_lo_escrito()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await CambiarCampoFicha(drawer, "Nacionalidad", "Colombiana");
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+        drawer.FindAll("li.indicador-pasos-item button").Should().BeEmpty("sin pasos vistos no hay a dónde volver");
+
+        await PulsarFicha(drawer, "Siguiente");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Situación");
+        await drawer.FindAll("li.indicador-pasos-item button").First().ClickAsync(new MouseEventArgs());
+
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nacionalidad").Instance.Valor.Should().Be("Colombiana");
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
+    }
+
+    // Lo que rechaza el servidor sobre un campo (aquí el documento) lleva al paso donde está, con el mensaje a la vista.
+    [Fact]
+    public async Task Un_rechazo_del_servidor_sobre_el_documento_lleva_a_lo_basico()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        m.ResultadoFicha = Result.Fallo(Error.Crear("Trabajador.DniDuplicado", "Ya existe un trabajador con este documento de identidad."));
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await CambiarCampoFicha(drawer, "Documento de identidad", "AB123456");
+        await IrAPasoFicha(drawer, "Situación");
+
+        await GuardarFicha(drawer);
+
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+        drawer.Markup.Should().Contain("Ya existe un trabajador con este documento de identidad.");
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().ContainSingle();
+    }
+
+    // Una fecha que el navegador no debería dejar escribir, pero que llega: se señala en su campo y lleva a su paso.
+    [Fact]
+    public async Task Una_fecha_ilegible_se_senala_en_su_campo_sin_enviar()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
+        await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-13-45");
+        await PulsarFicha(drawer, "Atrás");
+
+        await GuardarFicha(drawer);
+
+        m.Enviadas.OfType<EditarFichaTrabajadorCommand>().Should().BeEmpty();
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Alta en la empresa").Instance.MensajeError
+            .Should().Be("Introduce una fecha válida.");
+    }
+
+    // Sin contacto de emergencia visible la edición tiene tres pasos; con él, el paso Contacto va antes de Situación.
+    [Fact]
+    public async Task Los_pasos_son_los_del_alta_mas_situacion_y_contacto_solo_si_el_servidor_lo_envia()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        drawer.FindAll("ol.indicador-pasos li .indicador-pasos-titulo").Select(t => t.TextContent.Trim())
+            .Should().Equal("Lo básico", "Trabajo", "Situación");
+        drawer.Find("ol.indicador-pasos").GetAttribute("aria-label").Should().Be("Edición de trabajador");
+        await PulsarFicha(drawer, "Cancelar");
+
+        m.Detalles[id] = m.Detalles[id] with { ContactoEmergenciaVisible = true };
+        drawer = await AbrirEditorFicha(cut);
+        drawer.FindAll("ol.indicador-pasos li .indicador-pasos-titulo").Select(t => t.TextContent.Trim())
+            .Should().Equal("Lo básico", "Trabajo", "Contacto", "Situación");
+        await IrAPasoFicha(drawer, "Contacto");
+        EtiquetasDelPasoFicha(drawer).Should().Equal("Contacto de emergencia", "Teléfono de emergencia");
+    }
+
+    // Reabrir el drawer vuelve al primer paso, sin pasos vistos ni errores del intento anterior.
+    [Fact]
+    public async Task Reabrir_empieza_en_el_primer_paso()
+    {
+        var id = Guid.NewGuid(); var m = ConTrabajador(id);
+        var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo");
+        await PulsarFicha(drawer, "Atrás");
+        await PulsarFicha(drawer, "Cancelar");
+
+        drawer = await AbrirEditorFicha(cut);
+
+        PasoActivoFicha(drawer).Should().Be("Lo básico");
+        drawer.FindAll("li.indicador-pasos-item button").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task La_baja_anterior_al_alta_se_senala_en_su_campo_sin_enviar()
     {
         var id = Guid.NewGuid(); var m = ConTrabajador(id);
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
+        await IrAPasoFicha(drawer, "Trabajo");
         await CambiarCampoFicha(drawer, "Alta en la empresa", "2023-05-02");
         await CambiarCampoFicha(drawer, "Baja", "2023-05-01");
+        await PulsarFicha(drawer, "Siguiente");
+        PasoActivoFicha(drawer).Should().Be("Trabajo", "la baja anterior al alta bloquea el paso");
         await GuardarFicha(drawer);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Baja")
             .Instance.MensajeError.Should().NotBeNullOrWhiteSpace();
