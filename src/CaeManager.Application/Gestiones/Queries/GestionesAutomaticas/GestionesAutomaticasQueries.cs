@@ -113,6 +113,13 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .Select(g => new { g.NacidaPorUsuarioId, g.SustituidaEnUtc, g.SustituidaPorGestionId })
             .SingleAsync(cancellationToken);
 
+        // El enlace a la Gestión que la sustituyó solo sale si quien consulta también ve esa: su Id no puede revelar
+        // la existencia de una Gestión con todos sus pasos fuera de su cartera (mismo universo, D-7).
+        var sustitutaVisible = gestion.SustituidaPorGestionId is { } sustitutaId
+                               && (await PasosVisiblesDeGestionesAutomaticas.CargarAsync(
+                                   gestionesContext, documentosContext, centrosContext, proveedoresContext, alcanceDatos,
+                                   sustitutaId, documentoId: null, cancellationToken)).Count > 0;
+
         var documento = await documentosContext.Documentos
             .Where(d => d.Id == resumen.DocumentoId)
             .Select(d => new
@@ -160,7 +167,7 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .ToList();
 
         return new GestionAutomaticaDetalleDto(
-            resumen, gestion.NacidaPorUsuarioId, gestion.SustituidaEnUtc, gestion.SustituidaPorGestionId,
+            resumen, gestion.NacidaPorUsuarioId, gestion.SustituidaEnUtc, sustitutaVisible ? gestion.SustituidaPorGestionId : null,
             new DocumentoDeGestionAutomaticaDto(
                 documento.Id, documento.TrabajadorId, documento.EmpresaId, identificador, documento.FechaEmision,
                 documento.FechaVencimiento, documento.EstadoVigencia, operativo, vigente,

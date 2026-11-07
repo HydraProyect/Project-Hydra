@@ -17,5 +17,18 @@ public class AcreditacionDocumentoPlataformaRepositorioFalso : IAcreditacionDocu
         Task.FromResult<IReadOnlyList<AcreditacionDocumentoPlataforma>>(
             Acreditaciones.Where(a => a.DocumentoId == documentoId).ToList());
 
-    public void Agregar(AcreditacionDocumentoPlataforma acreditacion) => Acreditaciones.Add(acreditacion);
+    /// <summary>Lo agregado con <see cref="Agregar"/> y no marcado como guardado con <see cref="MarcarGuardadas"/>.</summary>
+    public List<AcreditacionDocumentoPlataforma> SinGuardar { get; } = [];
+
+    public IReadOnlyList<AcreditacionDocumentoPlataforma> AgregadasSinGuardar(Guid documentoId) =>
+        SinGuardar.Where(a => a.DocumentoId == documentoId).ToList();
+
+    public void Agregar(AcreditacionDocumentoPlataforma acreditacion)
+    {
+        Acreditaciones.Add(acreditacion);
+        SinGuardar.Add(acreditacion);
+    }
+
+    /// <summary>Como un guardado: lo agregado hasta aquí ya no es del acto siguiente.</summary>
+    public void MarcarGuardadas() => SinGuardar.Clear();
 }

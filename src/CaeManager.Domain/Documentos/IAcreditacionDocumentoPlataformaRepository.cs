@@ -16,5 +16,11 @@ public interface IAcreditacionDocumentoPlataformaRepository
     /// <summary>Todas las acreditaciones de un Documento — usado al renovarlo (invariante: renovar reinicia todas sus acreditaciones a Pendiente de subir).</summary>
     Task<IReadOnlyList<AcreditacionDocumentoPlataforma>> ObtenerPorDocumentoIdAsync(Guid documentoId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las acreditaciones del Documento agregadas en esta unidad de trabajo y todavía sin guardar: las que el acto en
+    /// curso acaba de hacer nacer. Las ya guardadas no salen, aunque estén rastreadas.
+    /// </summary>
+    IReadOnlyList<AcreditacionDocumentoPlataforma> AgregadasSinGuardar(Guid documentoId);
+
     void Agregar(AcreditacionDocumentoPlataforma acreditacion);
 }
