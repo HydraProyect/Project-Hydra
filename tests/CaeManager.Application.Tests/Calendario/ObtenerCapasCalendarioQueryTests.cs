@@ -48,8 +48,8 @@ public class ObtenerCapasCalendarioQueryTests
             }
         }
 
-        public void Guardar(Guid tenant, Guid usuario, ComunidadAutonoma comunidad, bool intensiva = true) =>
-            Calendarios.Add((tenant, CalendarioLaboralPersona.Crear(usuario, new PerfilLaboral(comunidad, null, intensiva))));
+        public void Guardar(Guid tenant, Guid usuario, ComunidadAutonoma comunidad, bool intensiva = true, string? municipio = null) =>
+            Calendarios.Add((tenant, CalendarioLaboralPersona.Crear(usuario, new PerfilLaboral(comunidad, municipio, intensiva))));
     }
 
     private static (DirectorioRolesEnOrigen Directorio, ContextoPorTenant Contexto) Escenario()
@@ -153,6 +153,51 @@ public class ObtenerCapasCalendarioQueryTests
             "sin el calendario oficial de 2028 se pintaría la intensiva sobre festivos que el catálogo no conoce");
         julio2027.CatalogoCubreElAnio.Should().BeTrue();
         julio2027.Personas[0].DiasJornadaIntensiva.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_municipio_avisa_de_que_faltan_sus_festivos_locales()
+    {
+        var (directorio, contexto) = Escenario();
+        var huesca = Guid.NewGuid();
+        directorio.Asignar(huesca, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, huesca, ComunidadAutonoma.Aragon, municipio: "Huesca");
+
+        var agosto = await ConsultarAsync(huesca, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
+        var sinMunicipio = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2026, mes: 8);
+
+        agosto.FaltanFestivosLocales.Should().BeTrue("el 10 de agosto es festivo local de Huesca y el catálogo no lo tiene");
+        agosto.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva.Should().NotBeEmpty(
+            "la intensiva se sigue marcando: lo que cambia es que la barra avisa");
+        sinMunicipio.FaltanFestivosLocales.Should().BeFalse("sin municipio no le aplica ningún local");
+    }
+
+    [Fact]
+    public async Task En_el_equipo_basta_una_persona_con_municipio_para_avisar()
+    {
+        var (directorio, contexto) = Escenario();
+        var huesca = Guid.NewGuid();
+        directorio.Asignar(huesca, OperadorA, "GestorCae");
+        contexto.Guardar(OperadorA, huesca, ComunidadAutonoma.Aragon, municipio: "Huesca");
+
+        var conHuesca = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorio, contexto, anio: 2026, mes: 8);
+        var (directorioSin, contextoSin) = Escenario();
+        var sinMunicipios = await ConsultarAsync(CoordinadoraA, OperadorA, "CoordinadorCae", directorioSin, contextoSin, anio: 2026, mes: 8);
+
+        conHuesca.FaltanFestivosLocales.Should().BeTrue();
+        sinMunicipios.FaltanFestivosLocales.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_festivo_autonomico_suyo_no_es_dia_de_intensiva()
+    {
+        var (directorio, contexto) = Escenario();
+
+        var agosto2027 = await ConsultarAsync(GestoraA, OperadorA, "GestorCae", directorio, contexto, anio: 2027, mes: 8);
+
+        var dias = agosto2027.Personas.Should().ContainSingle().Which.DiasJornadaIntensiva;
+        dias.Should().NotContain(new DateOnly(2027, 8, 16), "es festivo autonómico de Aragón");
+        dias.Should().Contain(new DateOnly(2027, 8, 17));
     }
 
     [Fact]

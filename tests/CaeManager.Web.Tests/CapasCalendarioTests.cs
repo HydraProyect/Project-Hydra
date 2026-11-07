@@ -146,6 +146,36 @@ public class CapasCalendarioTests : BunitContext
     }
 
     [Fact]
+    public void Si_faltan_festivos_locales_la_barra_lo_avisa()
+    {
+        var (cut, _, _) = Montar(
+            _ => new CapasCalendarioDto(false, [Persona("Aragón", [], new DateOnly(2026, 8, 10))]) { FaltanFestivosLocales = true },
+            anio: 2026, mes: 8);
+
+        cut.Find(".capas-aviso-locales").TextContent.Should().Be(
+            "Los festivos locales no están incluidos: la jornada intensiva puede marcarse en un festivo local.");
+        cut.Find(".capas-nota").TextContent.Should().Be("Ves tus festivos.", "el aviso va además de la nota, no en su lugar");
+    }
+
+    [Fact]
+    public void Sin_municipios_sin_cubrir_no_hay_aviso_de_festivos_locales()
+    {
+        var (cut, _, _) = Montar(_ => Equipo());
+
+        cut.FindAll(".capas-aviso-locales").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_anio_sin_catalogo_no_repite_el_aviso_de_festivos_locales()
+    {
+        var (cut, _, _) = Montar(
+            _ => new CapasCalendarioDto(false, [Persona("Aragón", [])]) { CatalogoCubreElAnio = false, FaltanFestivosLocales = true },
+            anio: 2028, mes: 7);
+
+        cut.FindAll(".capas-aviso-locales").Should().BeEmpty("sin catálogo del año no se marca intensiva y ya se avisa de ello");
+    }
+
+    [Fact]
     public void Sin_nadie_que_mostrar_no_pinta_la_barra()
     {
         var (cut, marcas, _) = Montar(_ => CapasCalendarioDto.Vacio);

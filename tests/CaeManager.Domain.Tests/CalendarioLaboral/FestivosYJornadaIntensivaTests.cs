@@ -90,6 +90,30 @@ public class FestivosYJornadaIntensivaTests
         CatalogoFestivosOficiales.Cubre(anio, comunidad).Should().Be(esperado);
 
     [Fact]
+    public void El_catalogo_no_tiene_festivos_locales_y_con_municipio_lo_dice()
+    {
+        Catalogo.Should().NotContain(f => f.Ambito == AmbitoFestivo.Local, "no se añaden locales sin su resolución oficial");
+
+        CatalogoFestivosOficiales.IncluyeLocales(2026, En(ComunidadAutonoma.Aragon, municipio: "Huesca")).Should().BeFalse(
+            "el 10 de agosto es festivo local de Huesca y el catálogo no lo tiene");
+        CatalogoFestivosOficiales.IncluyeLocales(2026, En(ComunidadAutonoma.Aragon)).Should().BeTrue("sin municipio no le aplica ningún local");
+        CatalogoFestivosOficiales.IncluyeLocales(2026, PerfilLaboral.SinConfigurar).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_festivo_conocido_de_cualquier_ambito_no_es_dia_de_intensiva()
+    {
+        var jueves = new DateOnly(2027, 7, 15);
+        var huesca = En(ComunidadAutonoma.Aragon, municipio: "Huesca");
+
+        huesca.TieneJornadaIntensiva(jueves, [], PeriodoIntensiva.Verano).Should().BeTrue();
+        huesca.TieneJornadaIntensiva(jueves, [FestivoOficial.Nacional(jueves, "Nacional")], PeriodoIntensiva.Verano).Should().BeFalse();
+        huesca.TieneJornadaIntensiva(jueves, [FestivoOficial.Autonomico(jueves, "Autonómico", ComunidadAutonoma.Aragon)], PeriodoIntensiva.Verano).Should().BeFalse();
+        huesca.TieneJornadaIntensiva(jueves, [FestivoOficial.Local(jueves, "Local", ComunidadAutonoma.Aragon, "Huesca")], PeriodoIntensiva.Verano).Should().BeFalse(
+            "un local catalogado también la quita");
+    }
+
+    [Fact]
     public void Los_festivos_que_le_aplican_salen_ordenados_por_fecha_y_sin_los_de_otra_comunidad()
     {
         var festivos = En(ComunidadAutonoma.Cataluna).FestivosQueLeAplican(Catalogo);

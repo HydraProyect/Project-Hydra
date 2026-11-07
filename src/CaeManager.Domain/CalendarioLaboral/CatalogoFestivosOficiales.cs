@@ -14,8 +14,15 @@ namespace CaeManager.Domain.CalendarioLaboral;
 /// ciudades autónomas) y los autonómicos de Aragón, Cataluña, Extremadura y País Vasco, las comunidades del
 /// calendario de la maqueta y de la siembra del piloto. Cada comunidad suma 12 días por año, el máximo del
 /// artículo 37.2 del Estatuto de los Trabajadores sin los dos locales. Las demás comunidades no tienen aún sus
-/// autonómicos: una persona de otra comunidad vería solo los nacionales. Tampoco hay festivos locales todavía
-/// (§ 3 los prevé por municipio). Ampliar la cobertura es añadir filas aquí y una migración que las siembre.
+/// autonómicos: una persona de otra comunidad vería solo los nacionales. Ampliar la cobertura es añadir filas aquí
+/// y una migración que las siembre.
+/// </para>
+///
+/// <para>
+/// <b>Festivos locales: ninguno.</b> § 3 los prevé por municipio, pero el catálogo no tiene ninguno y no se añaden sin
+/// la resolución oficial de su comunidad. Lo que eso supone: a una persona con municipio le faltan sus dos festivos
+/// locales, y su jornada intensiva puede marcarse en uno de ellos (por ejemplo, el 10 de agosto en Huesca). La capa no
+/// lo calla: <see cref="IncluyeLocales"/> dice cuándo faltan y la barra de capas lo avisa.
 /// </para>
 /// </summary>
 public static class CatalogoFestivosOficiales
@@ -104,11 +111,25 @@ public static class CatalogoFestivosOficiales
     public static IReadOnlyList<int> AniosCubiertos { get; } = Todos.Select(f => f.Fecha.Year).Distinct().Order().ToList();
 
     /// <summary>
-    /// Si el catálogo conoce todos los festivos que pueden aplicar a una persona ese año: el año está sembrado y su
-    /// comunidad, si la tiene, también. Sin ello no se puede decir qué día es laborable, y la jornada intensiva no se
-    /// pinta (se pintaría sobre festivos reales que el catálogo no conoce). Sin comunidad se pinta: son los
-    /// nacionales y la intensiva por defecto de quien aún no tiene ubicación de trabajo.
+    /// Si el catálogo conoce los festivos nacionales y autonómicos de una persona ese año: el año está sembrado y su
+    /// comunidad, si la tiene, también. Sin ello la jornada intensiva no se pinta (se pintaría sobre festivos
+    /// nacionales o autonómicos que el catálogo no conoce). Sin comunidad se pinta: son los nacionales y la intensiva
+    /// por defecto de quien aún no tiene ubicación de trabajo. No mira los festivos locales: eso es
+    /// <see cref="IncluyeLocales"/>.
     /// </summary>
     public static bool Cubre(int anio, ComunidadAutonoma? comunidad) =>
         AniosCubiertos.Contains(anio) && (comunidad is null || ComunidadesCubiertas.Contains(comunidad.Value));
+
+    /// <summary>
+    /// Si el catálogo tiene los festivos locales de la persona ese año. Sin municipio no le aplica ninguno (§ 3: a una
+    /// persona le aplican los locales de su municipio), así que no falta nada. Con municipio hace falta al menos un
+    /// festivo local de ese municipio y año; los locales de un municipio se siembran juntos, los dos de su año.
+    /// Hoy el catálogo no tiene ninguno, así que con municipio devuelve siempre false.
+    /// </summary>
+    public static bool IncluyeLocales(int anio, PerfilLaboral perfil)
+    {
+        ArgumentNullException.ThrowIfNull(perfil);
+        return perfil.Municipio is null
+            || Todos.Any(f => f.Ambito == AmbitoFestivo.Local && f.Fecha.Year == anio && f.AplicaA(perfil));
+    }
 }

@@ -24,6 +24,13 @@ public record CapasCalendarioDto(bool VeAlEquipo, IReadOnlyList<PersonaCapasCale
     /// </summary>
     public bool CatalogoCubreElAnio { get; init; } = true;
 
+    /// <summary>
+    /// Si a alguna persona visible le faltan sus festivos locales en el catálogo (tiene municipio y
+    /// <see cref="CatalogoFestivosOficiales.IncluyeLocales"/> es false). Su intensiva se sigue marcando y puede caer en
+    /// un festivo local: la barra lo avisa.
+    /// </summary>
+    public bool FaltanFestivosLocales { get; init; }
+
     /// <summary>Las comunidades de las personas visibles, sin repetir y en orden alfabético: las opciones de «Festivos de».</summary>
     public IReadOnlyList<string> Comunidades => Personas
         .Select(p => p.Comunidad).OfType<string>().Distinct(StringComparer.Ordinal)
@@ -121,14 +128,18 @@ public class ObtenerCapasCalendarioQueryHandler(
                 .ToListAsync(cancellationToken);
 
             var dias = Enumerable.Range(0, ultimoDia.Day).Select(primerDia.AddDays).ToList();
-            var resultado = personas
+            var perfiles = personas
                 .Select(id => porPersona.TryGetValue(id, out var guardado) ? guardado.Perfil : PerfilLaboral.SinConfigurar)
+                .ToList();
+            var resultado = perfiles
                 .Select(perfil => new PersonaCapasCalendarioDto(
                     perfil.Comunidad?.Nombre(),
                     perfil.FestivosQueLeAplican(festivosDelMes)
                         .Select(f => new FestivoCapaDto(f.Fecha, f.Nombre, f.Ambito, LugarDe(f)))
                         .ToList(),
-                    // Sin el calendario oficial de su año o de su comunidad no se sabe qué día es laborable.
+                    // Sin el calendario oficial de su año o de su comunidad no se sabe qué día es laborable. Sus
+                    // festivos locales no están en el catálogo: la intensiva se marca igual y FaltanFestivosLocales
+                    // lo avisa.
                     CatalogoFestivosOficiales.Cubre(request.Anio, perfil.Comunidad)
                         ? dias.Where(d => perfil.TieneJornadaIntensiva(d, festivosDelMes, PeriodoIntensiva.Verano)).ToList()
                         : []))
@@ -137,6 +148,7 @@ public class ObtenerCapasCalendarioQueryHandler(
             return new CapasCalendarioDto(veAlEquipo, resultado)
             {
                 CatalogoCubreElAnio = CatalogoFestivosOficiales.AniosCubiertos.Contains(request.Anio),
+                FaltanFestivosLocales = perfiles.Any(p => !CatalogoFestivosOficiales.IncluyeLocales(request.Anio, p)),
             };
         }
     }

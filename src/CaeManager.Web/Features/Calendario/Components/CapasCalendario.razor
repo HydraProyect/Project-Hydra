@@ -29,6 +29,11 @@
         @if (_capas.CatalogoCubreElAnio)
         {
             <span class="capas-nota">@Textos[_capas.VeAlEquipo ? "NotaEquipo" : "NotaPropia"]</span>
+            @* El catálogo no tiene festivos locales: con municipio, la intensiva puede caer en uno y se dice. *@
+            @if (_capas.FaltanFestivosLocales)
+            {
+                <span class="capas-nota capas-aviso-locales" role="note">@Textos["SinFestivosLocales"]</span>
+            }
         }
         else
         {
