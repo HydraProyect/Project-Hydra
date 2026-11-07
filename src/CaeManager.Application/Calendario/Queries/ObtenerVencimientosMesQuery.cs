@@ -58,8 +58,6 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         var empresasParaGestion = await alcanceDatos.ObtenerEmpresaIdsParaGestionAsync(cancellationToken);
-        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var subcontratasVisibles = await alcanceDatos.ObtenerSubcontrataIdsVisiblesAsync(cancellationToken);
         var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
 
         var filas = await (
@@ -92,8 +90,8 @@ public class ObtenerVencimientosMesQueryHandler(IConfiguracionQueryContext confi
         foreach (var empleadora in filas.Where(f => f.EmpresaId != null).Select(f => f.EmpresaId!.Value).Distinct())
         {
             if ((empresasVisibles is null || empresasVisibles.Contains(empleadora))
-                || (clientesVisibles is null || clientesVisibles.Contains(empleadora))
-                || (subcontratasVisibles is null || subcontratasVisibles.Contains(empleadora)))
+                || await alcanceDatos.ClienteVisibleAsync(empleadora, cancellationToken)
+                || await alcanceDatos.SubcontrataVisibleAsync(empleadora, cancellationToken))
                 empresasEnAlcance.Add(empleadora);
         }
         var idsEmpresasEnAlcance = empresasEnAlcance.ToList();
