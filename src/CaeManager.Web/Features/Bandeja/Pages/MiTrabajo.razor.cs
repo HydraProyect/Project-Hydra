@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Web.Components;
@@ -412,7 +412,9 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>
     /// Maqueta: al cargar se despliega el primer grupo en el orden de pantalla y los demás quedan plegados. Es el estado
     /// de partida, una sola vez por visita: el Gestor CAE puede plegarlo, y recargar tras un error o «Reintentar la
-    /// consulta» no lo vuelve a abrir. Si la carga no dejó ningún grupo, no se gasta el único intento.
+    /// consulta» no lo vuelve a abrir. Si la carga no dejó ningún grupo, no se gasta el único intento. Cualquier pliegue
+    /// que el Gestor CAE toque antes de que termine la carga (también con la carga a medias) gasta el intento: lo que ve
+    /// manda sobre el estado de partida.
     /// </summary>
     private void AbrirPrimerGrupoUnaVez()
     {
@@ -446,6 +448,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AlternarSeveridad(string clave)
     {
+        _primerGrupoAbierto = true; // el Gestor CAE ya decidió qué se ve: la apertura de partida no le pisa nada
         var severidad = Enum.Parse<SeveridadMiTrabajo>(clave);
         if (!_severidadesAbiertas.Remove(severidad))
             _severidadesAbiertas.Add(severidad);
@@ -453,12 +456,14 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void AlternarTenant(Guid tenantId)
     {
+        _primerGrupoAbierto = true;
         if (!_tenantsAbiertos.Remove(tenantId))
             _tenantsAbiertos.Add(tenantId);
     }
 
     private void AlternarTodas()
     {
+        _primerGrupoAbierto = true;
         if (!TodoPlegado)
         {
             _tenantsAbiertos.Clear();
@@ -501,6 +506,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private void VolverAPlegar()
     {
+        _primerGrupoAbierto = true;
         _abiertos.Clear();
         _tenantsAbiertos.Clear();
         _severidadesAbiertas.Clear();

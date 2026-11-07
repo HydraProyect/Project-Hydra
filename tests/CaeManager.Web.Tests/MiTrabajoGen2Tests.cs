@@ -674,6 +674,26 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// «Reintentar la consulta» vuelve a cargar la cola, pero el primer grupo se abre una sola vez por visita: si el
+    /// Gestor CAE lo plegó, la recarga no se lo vuelve a abrir.
+    /// </summary>
+    [Fact]
+    public void Reintentar_la_consulta_no_vuelve_a_abrir_el_primer_grupo_que_el_Gestor_CAE_plego()
+    {
+        var cartera = Cartera();
+        var cut = RenderizarPlegado(() => new MiTrabajoAgregadoDto(cartera.Tenants, [new TenantNoConsultadoDto(Guid.NewGuid(), "Otra Empresa", false)]));
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant")[0].GetAttribute("aria-expanded").Should().Be("true");
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant")[0].Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+
+        cut.Find(".mi-trabajo-cartera-incompleta button").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().NotBeEmpty());
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+    }
+
+    /// <summary>
     /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
     /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir con solo el
     /// primer grupo desplegado aunque la anterior terminara con otro Tenant desplegado.

@@ -324,7 +324,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // La lista es un popover sobre la cola: se cierra para poder pulsar los controles de debajo.
         await page.Locator(".mi-trabajo-cartera-resumen").ClickAsync();
         await Expect(page.Locator(".mi-trabajo-cartera-lista")).ToBeHiddenAsync();
-        // Mi trabajo carga con todo plegado: se despliega la cola entera (barrera: la de A ya se ve) para que
+        // Mi trabajo carga con solo el primer grupo desplegado: se despliega la cola entera (barrera: la de A ya se ve) para que
         // la ausencia del Tenant de fuera diga algo.
         await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
         var plegarTodas = page.Locator(".mi-trabajo-plegar-todas");
