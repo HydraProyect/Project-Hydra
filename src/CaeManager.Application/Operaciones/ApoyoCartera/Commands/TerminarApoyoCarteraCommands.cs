@@ -90,7 +90,7 @@ public class TerminarApoyoCarteraCommandHandler(
         Revocar,
     }
 
-    /// <summary>Quién actúa, desde qué Operador CAE y con qué rol en él (leído en Identity).</summary>
+    /// <summary>Quién actúa, desde qué Operador CAE y con qué rol en él (lo resuelve <c>ResolverActorAsync</c>).</summary>
     private sealed record Actor(Guid UsuarioId, Guid OperadorTenantId, string Rol);
 
     public Task<Result> Handle(DesasignarmeDeApoyoCommand request, CancellationToken cancellationToken) =>

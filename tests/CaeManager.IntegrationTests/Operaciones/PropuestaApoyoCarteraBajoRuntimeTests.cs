@@ -608,8 +608,10 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
             .Error.Should().Be(ErroresPropuestaApoyo.ApoyoFueraDeTuEquipo, "ya no le reporta ninguno de los dos");
         (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
 
-        // Con el Workspace operativo derivado del Tenant propietario abierto, el rol efectivo en el
-        // Tenant de origen sigue siendo el de la sesión en origen (decisión P7), que Identity confirma.
+        // Con el Workspace operativo derivado del Tenant propietario como Tenant activo, la revocación
+        // se resuelve en el Tenant de origen y escribe bajo RLS. Que ahí el rol efectivo sea el de la
+        // sesión en origen conservado (decisión P7) lo garantiza CurrentUserService, no este arnés,
+        // cuyo UsuarioDeSesion devuelve el rol de la sesión en el ámbito de origen.
         var resultado = await Terminar(_coordinadorAjeno, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId),
             tenantActivo: _beneficiario.Id);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);

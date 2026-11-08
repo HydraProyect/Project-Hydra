@@ -215,7 +215,8 @@ public class DesignarGestorCaePrincipalCommandTests
     public async Task Soporte_TALVEG_sin_Sesion_Privilegiada_no_cambia_el_principal_de_un_Operador_CAE()
     {
         // Su cuenta es Administrador del Tenant de TALVEG, con sesión normal (sin Sesión
-        // Privilegiada): ese rol es de su propio Tenant y no le hace Operador CAE de nadie.
+        // Privilegiada): pasa la puerta de rol, pero las carteras se leen acotadas a ese Tenant de
+        // origen, que no tiene esta operación. Test de regresión del acotado, anterior a este cambio.
         var e = new Escenario { TenantOrigen = TenantTalveg }.ActorConRol("Administrador");
 
         (await e.Designar(GestorB)).Error.Should().Be(DesignarGestorCaePrincipalCommandHandler.DestinoSinCartera);

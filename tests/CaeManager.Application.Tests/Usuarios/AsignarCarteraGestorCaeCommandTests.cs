@@ -246,8 +246,9 @@ public class AsignarCarteraGestorCaeCommandTests
     [Fact]
     public async Task Soporte_TALVEG_sin_Sesion_Privilegiada_no_asigna_Tenants_de_un_Operador_CAE()
     {
-        // Cuenta de Soporte TALVEG con sesión normal: es Administrador de su propio Tenant, que no
-        // opera los Tenants de este Operador CAE. Su rol no le hace Operador CAE de nadie.
+        // Cuenta de Soporte TALVEG con sesión normal: es Administrador de su propio Tenant y pasa la
+        // puerta de rol, pero todo se acota a ese Tenant de origen, que no opera los Tenants de este
+        // Operador CAE. Test de regresión: el acotado por Tenant de origen es anterior a este cambio.
         var e = new Escenario { TenantOrigenDelActor = TenantTalveg }.ActorConRol("Administrador");
 
         var resultado = await e.Handler().Handle(Asignar(Beneficiario1), default);
