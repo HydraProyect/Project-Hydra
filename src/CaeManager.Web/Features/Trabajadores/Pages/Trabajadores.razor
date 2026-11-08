@@ -220,12 +220,12 @@
                 {
                     <span class="seleccion-trabajador"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></span>
                 }
-                <span></span>
+                <span class="hueco-cabecera-trabajador"></span>
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.Apellidos), Textos["ListaColumnaTrabajador"]))
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.EmpleadorNombre), Textos["ListaColumnaEmpleador"]))
                 <span class="col-registrados-vigentes">@Textos["ListaColumnaRegistradosVigentes"]</span>
                 @(CabeceraOrdenable(nameof(TrabajadorListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado"))
-                <span></span>
+                <span class="hueco-cabecera-trabajador"></span>
             </div>
 
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
@@ -260,7 +260,7 @@
                             }
                             @if (context.Incidencias.Count > 0)
                             {
-                                <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                <button type="button" class="@("boton-expandir-fila celda-chevron-trabajador" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                         aria-label="@Textos["DesplegarIncidenciasTrabajador", NombreCompleto(context)]" aria-expanded="@(expandido ? "true" : "false")"
                                         @onclick="() => AlternarExpansion(context.Id)" @onclick:stopPropagation="true">
                                     <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
@@ -268,7 +268,7 @@
                             }
                             else
                             {
-                                <span></span>
+                                <span class="celda-chevron-trabajador"></span>
                             }
                             @* Celda «Trabajador»: «Nombre Apellidos» (abre la vista rápida) con, si es voluntario sin evento, su pastilla, y
                                debajo el DNI, sin prefijo, copiable con un clic, sin abrir la fila. *@
@@ -555,7 +555,7 @@
 @code {
     // Rótulo de columna que ordena. Sin roles de tabla (la lista no lo es), así que el sentido del orden lo dice la
     // flecha de la clase y el nombre accesible del botón. Agrupada «Por Empresa» manda el orden del grupo: ninguna columna lo marca.
-    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@(clase + (!Agrupado && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
+    private RenderFragment CabeceraOrdenable(string propiedad, string titulo, string clase = "") => @<span class="@("cabecera-orden-trabajador " + clase + (!Agrupado && _orden.Propiedad == propiedad ? (_orden.Direccion == SortDirection.Descending ? " col-sort-desc" : " col-sort-asc") : ""))">
         <button type="button" class="col-title" title="@Textos["OrdenarPorColumna"]" @onclick="() => OrdenarAsync(propiedad)"><span class="col-title-text">@titulo</span></button>
     </span>;
 }

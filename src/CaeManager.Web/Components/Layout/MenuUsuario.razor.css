@@ -31,6 +31,9 @@
 /* El avatar llena el botón; el fondo del botón queda debajo, como respaldo. */
 .menu-cuenta-boton ::deep .avatar-usuario {
     --avatar-usuario-lado: 36px;
+    /* Marco de Design (.tvm-yo): iniciales 12 px peso 700. */
+    font-size: 0.75rem;
+    font-weight: 700;
 }
 
 .menu-cuenta-boton:hover ::deep .avatar-usuario-glifo,

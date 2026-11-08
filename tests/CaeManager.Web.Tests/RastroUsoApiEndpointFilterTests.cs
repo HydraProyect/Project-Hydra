@@ -73,6 +73,7 @@ public class RastroUsoApiEndpointFilterTests
     [InlineData(ApiKeyAuthenticationSchemeOptions.NombreEsquema, TipoClaveUsoApi.ClaveSoporte)]
     public async Task Registra_tenant_clave_tipo_dia_de_negocio_y_patron_de_ruta(string esquema, TipoClaveUsoApi tipo)
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var rastro = new RastroFalso();
         var (tenantId, claveId) = (Guid.NewGuid(), Guid.NewGuid());
 
@@ -86,6 +87,7 @@ public class RastroUsoApiEndpointFilterTests
     [Fact]
     public async Task El_documento_OpenAPI_servido_a_una_clave_deja_rastro()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var rastro = new RastroFalso();
         var (tenantId, claveId) = (Guid.NewGuid(), Guid.NewGuid());
         var builder = WebApplication.CreateSlimBuilder();

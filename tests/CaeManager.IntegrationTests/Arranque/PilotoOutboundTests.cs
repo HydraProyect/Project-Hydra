@@ -393,6 +393,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Un_re_arranque_con_la_fecha_de_demostracion_ya_pasada_avisa_y_no_escribe_porque_no_queda_nada_por_sembrar()
     {
+        // Un único instante: «ayer» y el «hoy» con que la siembra decide que esa fecha ya pasó salen del mismo reloj (issue #2073).
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var antes = await fixture.Arnes.RecuentoAsync();
         var avisos = new ArnesPilotoOutbound.RegistroDeAvisos();
         var ayer = ArnesPilotoOutbound.Configurar(DiaDeNegocio.Hoy().AddDays(-1));
@@ -1441,6 +1443,7 @@ public class PilotoOutboundNoEscribeTests(PilotoOutboundSinSiembraFixture fixtur
     [InlineData("+10", "*queda a más de 9 días de hoy*")]
     public async Task Con_la_fecha_de_demostracion_ausente_ilegible_pasada_o_lejana_se_niega_antes_de_escribir(string? fecha, string mensaje)
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var valor = fecha is not null && (fecha[0] is '-' or '+')
             ? DiaDeNegocio.Hoy().AddDays(int.Parse(fecha)).ToString("yyyy-MM-dd")
             : fecha;
