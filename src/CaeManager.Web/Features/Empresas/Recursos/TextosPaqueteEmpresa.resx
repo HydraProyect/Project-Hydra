@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AccionPreparar" xml:space="preserve">
+    <value>Preparar paquete</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Preparar paquete documental</value>
+  </data>
+  <data name="Para" xml:space="preserve">
+    <value>Para</value>
+  </data>
+  <data name="TodoLoVigente" xml:space="preserve">
+    <value>Todo lo vigente</value>
+  </data>
+  <data name="VanEnElPaquete" xml:space="preserve">
+    <value>van en el paquete</value>
+  </data>
+  <data name="FaltanOVencidos" xml:space="preserve">
+    <value>faltan o vencidos</value>
+  </data>
+  <data name="NoLosPide" xml:space="preserve">
+    <value>no los pide este Cliente</value>
+  </data>
+  <data name="Faltan" xml:space="preserve">
+    <value>Faltan</value>
+  </data>
+  <data name="Falta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="VencidoEl" xml:space="preserve">
+    <value>Vencido {0}</value>
+  </data>
+  <data name="Formato" xml:space="preserve">
+    <value>Formato</value>
+  </data>
+  <data name="FormatoZip" xml:space="preserve">
+    <value>ZIP con carpetas por Trabajador</value>
+  </data>
+  <data name="ResumenUno" xml:space="preserve">
+    <value>1 documento</value>
+  </data>
+  <data name="ResumenVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="Reclamar" xml:space="preserve">
+    <value>Reclamar lo que falta</value>
+  </data>
+  <data name="Generar" xml:space="preserve">
+    <value>Generar ZIP</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Calculando el paquete…</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>No pudimos calcular el paquete.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="NadaVigente" xml:space="preserve">
+    <value>Nada de lo que pide este destino está vigente: no se genera el paquete.</value>
+  </data>
+</root>

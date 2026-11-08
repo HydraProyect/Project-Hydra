@@ -1,0 +1,94 @@
+@using CaeManager.Application.Empresas.PaqueteDocumental
+@using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<TextosPaqueteEmpresa> Textos
+
+@* «Preparar paquete» de la cabecera de Empresa 360 (maqueta «Empresa 360 TALVEG.dc.html», que enlaza a «Mapa Dia a Dia
+   TALVEG.dc.html» § C): elige el destino y dice, antes de generar, qué va, qué falta y qué no pide ese Cliente empresarial.
+   Los datos y la autorización son de ObtenerResumenPaqueteEmpresaQuery; el zip lo sirve el endpoint autenticado
+   /empresas/{id}/paquete-documental.zip (DescargarPaqueteEmpresaQuery), como el de una Visita. *@
+<Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" OnClick="AbrirAsync">@Textos["AccionPreparar"]</Boton>
+
+<Modal Visible="_abierto" VisibleChanged="v => _abierto = v" Titulo="@Textos["Titulo"]" Subtitulo="@RazonSocial" Ancho="AnchoModal.Grande">
+    <ChildContent>
+        @if (_cargando)
+        {
+            <p class="paquete-estado" role="status">@Textos["Cargando"]</p>
+        }
+        else if (_error || _resumen is null)
+        {
+            <div class="paquete-estado" role="alert">
+                <span>@(_mensajeError ?? Textos["Error"])</span>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+            </div>
+        }
+        else
+        {
+            <div class="paquete-cuerpo">
+                <div class="paquete-campo">
+                    <span class="paquete-etiqueta" id="@IdPara">@Textos["Para"]</span>
+                    <div class="paquete-destinos" role="group" aria-labelledby="@IdPara">
+                        @foreach (var destino in _resumen.Destinos)
+                        {
+                            var elegido = destino.ClienteEmpresarialId == _destinoId;
+                            <button type="button" class="paquete-destino @(elegido ? "paquete-destino-elegido" : null)" aria-pressed="@(elegido ? "true" : "false")"
+                                    @onclick="() => ElegirAsync(destino.ClienteEmpresarialId)">@destino.RazonSocial</button>
+                        }
+                        <button type="button" class="paquete-destino @(_destinoId is null ? "paquete-destino-elegido" : null)" aria-pressed="@(_destinoId is null ? "true" : "false")"
+                                @onclick="() => ElegirAsync(null)">@Textos["TodoLoVigente"]</button>
+                    </div>
+                </div>
+
+                <div class="paquete-recuentos">
+                    <span class="paquete-recuento paquete-recuento-incluye"><span class="paquete-cifra">@_resumen.Incluye</span><span>@Textos["VanEnElPaquete"]</span></span>
+                    <span class="paquete-recuento paquete-recuento-faltan"><span class="paquete-cifra">@_resumen.Faltan</span><span>@Textos["FaltanOVencidos"]</span></span>
+                    <span class="paquete-recuento paquete-recuento-fuera"><span class="paquete-cifra">@_resumen.Fuera</span><span>@Textos["NoLosPide"]</span></span>
+                </div>
+
+                @if (_resumen.ListaFaltan.Count > 0)
+                {
+                    <div class="paquete-faltan">
+                        <span class="paquete-faltan-cabecera">@Textos["Faltan"]</span>
+                        <ul>
+                            @foreach (var falta in _resumen.ListaFaltan)
+                            {
+                                <li>
+                                    <span class="paquete-falta-nombre">@(falta.Trabajador is null ? falta.TipoDocumento : $"{falta.TipoDocumento} · {falta.Trabajador}")</span>
+                                    <span class="paquete-falta-estado">@(falta.VencidoEl is { } vencido ? Textos["VencidoEl", vencido.ToString("dd/MM")] : Textos["Falta"])</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+
+                @if (_resumen.Incluye == 0)
+                {
+                    <p class="paquete-vacio">@Textos["NadaVigente"]</p>
+                }
+
+                <div class="paquete-campo">
+                    <span class="paquete-etiqueta">@Textos["Formato"]</span>
+                    <span class="paquete-formato">@Textos["FormatoZip"]</span>
+                </div>
+            </div>
+        }
+    </ChildContent>
+    <Pie>
+        @if (!_cargando && !_error && _resumen is not null)
+        {
+            <span class="paquete-resumen">@(_resumen.Incluye == 1 ? Textos["ResumenUno"] : Textos["ResumenVarios", _resumen.Incluye])</span>
+            @if (_resumen.Faltan > 0 || _resumen.Incluye == 0)
+            {
+                <Boton Variante="VarianteBoton.Secundario" OnClick="IrAReclamar">@Textos["Reclamar"]</Boton>
+            }
+            @if (_resumen.Incluye > 0)
+            {
+                <Boton Variante="VarianteBoton.Primario" Href="@RutaDescarga" download data-enhance-nav="false">@Textos["Generar"]</Boton>
+            }
+        }
+    </Pie>
+</Modal>

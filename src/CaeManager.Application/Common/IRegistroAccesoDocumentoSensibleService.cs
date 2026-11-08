@@ -22,7 +22,9 @@ namespace CaeManager.Application.Common;
 /// descarga para un Centro gestionado por correo (P1-X1,
 /// <c>ObtenerPaqueteDocumentalVisitaQuery</c>) y el adjunto automático al crear la Visita
 /// registran una apertura por cada Documento que contiene, en
-/// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>.
+/// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>. Y el «Preparar paquete» de Empresa 360
+/// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
+/// entregarlo.
 /// </para>
 ///
 /// <para>

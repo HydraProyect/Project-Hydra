@@ -1,4 +1,6 @@
-﻿using CaeManager.Web.Components.Layout;
+﻿using CaeManager.Application.Empresas.PaqueteDocumental;
+using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
+using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
@@ -84,6 +86,10 @@ public partial class Empresa360PaginaTests : BunitContext
 
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>Lo que responde ObtenerResumenPaqueteEmpresaQuery («Preparar paquete»).</summary>
+        public Func<ObtenerResumenPaqueteEmpresaQuery, Result<ResumenPaqueteEmpresaDto>> ResumenPaquete { get; set; } =
+            _ => throw new NotSupportedException("El resumen del paquete no está previsto en este test.");
+
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
         public bool SinDobleFactor { get; set; }
         public Func<object, Task?>? Retener { get; set; }
@@ -118,6 +124,7 @@ public partial class Empresa360PaginaTests : BunitContext
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
             CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.ObtenerCatalogoTrabajadoresEmpresaQuery q => Catalogos.GetValueOrDefault(q.EmpresaId) ?? CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto.Vacio,
+            ObtenerResumenPaqueteEmpresaQuery q => ResumenPaquete(q),
             GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             EditarFichaEmpresaCommand c => GuardarFicha(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -539,14 +546,105 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
     }
 
-    [Fact]
-    public void La_cabecera_no_ofrece_Preparar_paquete_porque_el_paquete_documental_es_de_una_Visita_no_de_una_Empresa()
-    {
-        // Hueco declarado, no inventado: la única función de paquete documental de la aplicación se genera por Visita
-        // (ObtenerPaqueteDocumentalVisitaQuery). Cuando exista el de Empresa, este test deja de tener sentido y se sustituye.
-        Registrar(Empresa());
+    // ---- «Preparar paquete» (maqueta «Mapa Dia a Dia TALVEG.dc.html» § C, enlazada desde la cabecera de Empresa 360)
 
-        Renderizar().Find(".cabecera-identidad-acciones").TextContent.Should().NotContain("Preparar paquete");
+    private static readonly Guid ClientePaqueteId = Guid.NewGuid();
+    private static readonly Guid OtroClientePaqueteId = Guid.NewGuid();
+
+    private static ResumenPaqueteEmpresaDto ResumenPaqueteDe(Guid? clienteId) => clienteId is null
+        ? new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, null, 40, 0, 0, [])
+        : new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, clienteId, 31, 2, 9,
+        [
+            new FaltaPaqueteEmpresaDto("Seguro de Responsabilidad Civil", null, null),
+            new FaltaPaqueteEmpresaDto("Certificado de aptitud médica", "Paula Campos Lara", new DateOnly(2026, 8, 2)),
+        ]);
+
+    private static readonly IReadOnlyList<DestinoPaqueteEmpresaDto> Destinos =
+        [new(ClientePaqueteId, "Refrielectric S.A."), new(OtroClientePaqueteId, "Grupo Arbeko")];
+
+    private IRenderedComponent<EmpresaDetalle> AbrirPaquete(MediatorFalso mediador)
+    {
+        mediador.ResumenPaquete = q => Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId));
+        var cut = Renderizar();
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+        return cut;
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_cabecera_ofrece_Preparar_paquete_solo_a_un_rol_que_descarga(string rol, bool ofrece)
+    {
+        Registrar(Empresa(), rol);
+
+        Renderizar().Find(".cabecera-identidad-acciones").TextContent.Contains("Preparar paquete").Should().Be(ofrece,
+            "el zip sale de TALVEG con documentos sensibles: la misma lista blanca que DescargarPaqueteEmpresaQuery");
+    }
+
+    [Fact]
+    public void Al_abrir_elige_el_primer_Cliente_empresarial_y_dice_que_va_que_falta_y_que_no_pide_antes_de_generar()
+    {
+        var mediador = Registrar(Empresa());
+
+        var dialogo = AbrirPaquete(mediador).Find("[role=dialog]");
+
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Last().Should().Be(new ObtenerResumenPaqueteEmpresaQuery(EmpresaId, ClientePaqueteId));
+        dialogo.QuerySelector("h2")!.TextContent.Trim().Should().Be("Preparar paquete documental");
+        dialogo.QuerySelectorAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
+        dialogo.QuerySelectorAll(".paquete-recuento").Select(r => r.TextContent.Trim())
+            .Should().Equal("31van en el paquete", "2faltan o vencidos", "9no los pide este Cliente");
+        dialogo.QuerySelectorAll(".paquete-faltan li")
+            .Select(l => System.Text.RegularExpressions.Regex.Replace(l.TextContent, @"\s+", " ").Trim())
+            .Should().Equal("Seguro de Responsabilidad Civil Falta", "Certificado de aptitud médica · Paula Campos Lara Vencido 02/08");
+        dialogo.TextContent.Should().Contain("Reclamar lo que falta");
+
+        var generar = dialogo.QuerySelectorAll("a").Single(a => a.TextContent.Trim() == "Generar ZIP");
+        generar.GetAttribute("href").Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
+            "la descarga va por el endpoint autenticado con el destino elegido, nunca por una URL pública");
+        generar.HasAttribute("download").Should().BeTrue();
+    }
+
+    [Fact]
+    public void Todo_lo_vigente_pide_el_resumen_sin_destino_y_descarga_sin_Cliente()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Last().ClienteEmpresarialId.Should().BeNull();
+        cut.FindAll("[role=dialog] a").Single(a => a.TextContent.Trim() == "Generar ZIP")
+            .GetAttribute("href").Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("Reclamar lo que falta", "no falta nada");
+    }
+
+    [Fact]
+    public void Si_nada_esta_vigente_no_ofrece_generar_y_si_reclamar_lo_que_falta()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", [], null, 0, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll("a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
+        dialogo.TextContent.Should().Contain("no se genera el paquete").And.Contain("Reclamar lo que falta");
+    }
+
+    [Fact]
+    public void Si_la_consulta_rechaza_el_paquete_lo_dice_y_no_ofrece_generar()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = _ => Result.Fallo<ResumenPaqueteEmpresaDto>(AutorizacionPaqueteEmpresa.RolSinDescarga);
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelector("[role=alert]")!.TextContent.Should().Contain(AutorizacionPaqueteEmpresa.RolSinDescarga.Mensaje);
+        dialogo.QuerySelectorAll("a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
     }
 
     /// <summary>
