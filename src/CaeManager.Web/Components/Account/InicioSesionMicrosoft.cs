@@ -127,7 +127,7 @@ public static class InicioSesionMicrosoft
     /// administra el directorio (hueco 2 del análisis del login corporativo, D-L6;
     /// ASVS 4.0.3 V3.5.3, OWASP Top 10 A07:2021).
     /// <para>
-    /// <c>null</c>, y el callback rechaza, si falta <c>oid</c> o <c>tid</c>, si no son GUID,
+    /// <c>null</c>, y el callback rechaza, si falta <c>oid</c> o <c>tid</c>, si no son GUID (o son el GUID vacío),
     /// si vienen repetidos con valores distintos o si <c>tid</c> no es el directorio
     /// configurado en <see cref="AzureAdOptions.TenantId"/> cuando este es un GUID (con un
     /// nombre de dominio, el emisor ya lo valida el manejador).
@@ -151,7 +151,7 @@ public static class InicioSesionMicrosoft
     {
         var valores = principal.Claims
             .Where(c => tipos.Contains(c.Type, StringComparer.Ordinal))
-            .Select(c => Guid.TryParse(c.Value.Trim(), out var g) ? g : (Guid?)null)
+            .Select(c => Guid.TryParse(c.Value.Trim(), out var g) && g != Guid.Empty ? g : (Guid?)null)
             .ToList();
         return valores.Count > 0 && valores.All(v => v is not null) && valores.Distinct().Count() == 1
             ? valores[0]
@@ -500,7 +500,7 @@ public enum DecisionCuentaMicrosoft
 /// <summary>Resultado de <see cref="InicioSesionMicrosoft.DecidirSegundoFactor"/>.</summary>
 public enum SegundoFactorMicrosoft
 {
-    /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con <c>mfa</c>).</summary>
+    /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con un método de <see cref="InicioSesionMicrosoft.MetodosAmrMultifactor"/>).</summary>
     SesionDirecta,
 
     /// <summary>Se pide el TOTP de TALVEG antes de emitir la sesión: sin MFA de Microsoft, o en la primera vinculación.</summary>

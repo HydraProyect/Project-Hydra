@@ -389,6 +389,7 @@ public class InicioSesionMicrosoftTests
     [Theory]
     [InlineData("no-es-un-guid", TidPrueba, null)]
     [InlineData(OidPrueba, "no-es-un-guid", null)]
+    [InlineData("00000000-0000-0000-0000-000000000000", TidPrueba, null)]
     [InlineData(OidPrueba, "0d0d0d0d-0000-4000-8000-000000000000", TidPrueba)]
     public void Sin_oid_y_tid_validos_no_hay_clave(string oid, string tid, string? directorio)
     {
