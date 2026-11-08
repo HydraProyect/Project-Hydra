@@ -623,7 +623,7 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
             PendientesDePlataforma = new ObtenerPendientesDeSubirAPlataformaEmpresaQueryHandler(Mediador, alcance, c);
             var servicio = new ReclamacionEmpresaEmpleadoraService(
                 c, c, new CatalogoTrabajadoresEmpresaRepository(c), alcance, PoliticaNotaInternaPruebas.Con("GestorCae"), agenda,
-                new DestinoDeReclamacionesEnviadasService(c, c, c, c, c, c));
+                new DestinoDeReclamacionesEnviadasService(c, c, c, c, c, c), c);
             PorAcceso = new ObtenerReclamacionPorAccesoQueryHandler(
                 Mediador, alcance, c, c, c, c, new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c), servicio);
             Preventiva = new ObtenerReclamacionPreventivaEmpresaQueryHandler(Mediador, alcance, c, c, c, c, servicio);
