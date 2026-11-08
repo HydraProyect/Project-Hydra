@@ -66,7 +66,9 @@ public class ConciliacionAcreditacionesEmpresaHostedServiceTests
             lider,
             new ConciliacionAcreditacionesEmpresaOptions
             {
-                EjecutarAlArrancar = true, IntentosMaximos = intentos, EsperaEntreIntentos = TimeSpan.Zero,
+                EjecutarAlArrancar = true,
+                IntentosMaximos = intentos,
+                EsperaEntreIntentos = TimeSpan.Zero,
             },
             TimeProvider.System, registro);
 
