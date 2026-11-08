@@ -11,9 +11,16 @@ public sealed class SerializacionAltasAcreditacionEmpresaFalsa : ISerializacionA
 {
     public int Llamadas { get; private set; }
 
+    /// <summary>
+    /// Se ejecuta al tomar el candado, antes de la operación: deja ver qué había hecho el llamante antes de serializar
+    /// y simular lo que otra alta confirmó mientras esta esperaba.
+    /// </summary>
+    public Action? AlTomarElCandado { get; set; }
+
     public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
     {
         Llamadas++;
+        AlTomarElCandado?.Invoke();
         return operacion(cancellationToken);
     }
 }

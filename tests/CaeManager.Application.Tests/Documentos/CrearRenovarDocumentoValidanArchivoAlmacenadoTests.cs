@@ -165,7 +165,8 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(empresaIdsParaGestion: []),
             new ProyectosQueryContextFalso(), new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(),
-            mundo.Acreditaciones, mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenado(almacen));
+            mundo.Acreditaciones, mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
+            new VerificadorArchivoAlmacenado(almacen));
 
         var resultado = await handler.Handle(NuevoRenovar(documento.Id, "tenant/ajeno.pdf"), CancellationToken.None);
 
@@ -247,7 +248,8 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
-            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenado(almacen));
+            mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
+            new VerificadorArchivoAlmacenado(almacen));
         return (handler, documentos, almacen, documento);
     }
 

@@ -5,6 +5,7 @@ using CaeManager.Application.Centros.Commands.CrearCanalGestion;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Application.Tests.Asignaciones;
@@ -239,6 +240,79 @@ public class CaminosDeAltaAcreditacionesTests
 
         serializacion.Llamadas.Should().Be(0, "solo esperan entre sí las altas de la regla A-1");
     }
+
+    [Fact]
+    public async Task Renovar_con_archivo_un_documento_de_empresa_se_serializa_y_acredita_el_nuevo_en_los_centros_de_su_empresa()
+    {
+        // Revisión puente de la ronda 2 de Codex sobre la PR #2074: renovar con archivo nuevo es otra alta de Documento
+        // de Empresa, y tiene que tomar el mismo candado antes de leer los accesos de plataforma.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));
+        var anterior = mundo.DocumentoDeEmpresa(tipo);
+        var documentos = new DocumentoRepositorioFalso();
+        documentos.Documentos.Add(anterior);
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        (int Documentos, int Acreditaciones)? alTomarElCandado = null;
+        serializacion.AlTomarElCandado = () => alTomarElCandado = (documentos.Documentos.Count, mundo.Agregadas.Count());
+
+        var resultado = await RenovarHandler(mundo, documentos, serializacion).Handle(
+            new RenovarDocumentoCommand(anterior.Id, Hoy, null, "blob://renovado.pdf", null, NoCaduca: true), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
+        alTomarElCandado.Should().Be((1, 0), "el Documento nuevo y sus acreditaciones se agregan dentro de la operación serializada");
+        mundo.Agregadas.Should().BeEquivalentTo([(resultado.Valor, acceso.Id)]);
+        anterior.EstaSustituido.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Renovar_un_documento_de_empresa_que_otra_renovacion_sustituyo_mientras_esperaba_el_candado_no_lo_sustituye_dos_veces()
+    {
+        // Lo que se comprobó antes del candado se vuelve a comprobar dentro: otra renovación que confirmó mientras esta
+        // esperaba ya dejó el anterior en el historial.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));
+        var anterior = mundo.DocumentoDeEmpresa(tipo);
+        var documentos = new DocumentoRepositorioFalso();
+        documentos.Documentos.Add(anterior);
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        serializacion.AlTomarElCandado = () => anterior.SustituirPor(
+            anterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.NoCaduca, "blob://otra-renovacion.pdf", null),
+            MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        var resultado = await RenovarHandler(mundo, documentos, serializacion).Handle(
+            new RenovarDocumentoCommand(anterior.Id, Hoy, null, "blob://renovado.pdf", null, NoCaduca: true), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Documentos.DocumentoEnHistorial.Codigo);
+        documentos.Documentos.Should().ContainSingle("no nace ningún Documento nuevo");
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Renovar_con_archivo_un_documento_de_trabajador_no_se_serializa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var anterior = mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.Si));
+        var documentos = new DocumentoRepositorioFalso();
+        documentos.Documentos.Add(anterior);
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+
+        var resultado = await RenovarHandler(mundo, documentos, serializacion).Handle(
+            new RenovarDocumentoCommand(anterior.Id, Hoy, null, "blob://renovado.pdf", null, NoCaduca: true), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        serializacion.Llamadas.Should().Be(0, "solo esperan entre sí las altas de la regla A-1");
+        anterior.EstaSustituido.Should().BeTrue();
+    }
+
+    private static RenovarDocumentoCommandHandler RenovarHandler(
+        MundoAcreditaciones mundo, DocumentoRepositorioFalso documentos, SerializacionAltasAcreditacionEmpresaFalsa serializacion) => new(
+        documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+        new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones, mundo.Servicio(), serializacion,
+        new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
     [Fact]
     public async Task Crear_un_acceso_de_plataforma_acredita_ante_el_solo_los_documentos_que_su_centro_exige()

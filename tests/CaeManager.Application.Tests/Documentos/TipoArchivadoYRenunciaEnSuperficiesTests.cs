@@ -89,7 +89,8 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         var handler = new RenovarDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
-            mundo.Servicio(), new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
+            new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new RenovarDocumentoCommand(documento.Id, Hoy, null, conArchivoNuevo ? "blob://renovado.pdf" : null, null, NoCaduca: true),

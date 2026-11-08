@@ -67,6 +67,7 @@ public class RenovarDocumentoCommandHandler(
     ITrabajoAnalisisDocumentoRepository colaAnalisis, ICurrentUserService currentUserService,
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IPublisher publisher, IUnitOfWork unitOfWork,
     IVerificadorArchivoAlmacenado verificadorArchivo)
     : IRequestHandler<RenovarDocumentoCommand, Result<Guid>>
@@ -116,7 +117,50 @@ public class RenovarDocumentoCommandHandler(
 
         return !hayArchivoNuevo
             ? await CorregirEnElMismoRegistroAsync(documento, request, vigencia, cancellationToken)
-            : await SustituirPorUnoNuevoAsync(documento, tipoDocumento, request, vigencia, cancellationToken);
+            : await RenovarConArchivoNuevoAsync(documento, tipoDocumento, request, vigencia, cancellationToken);
+    }
+
+    /// <summary>
+    /// Renovar con archivo nuevo da de alta un Documento. Si es de Empresa, se acredita en los accesos de plataforma de
+    /// los Centros de su Empresa (regla A-1): su alta se serializa con la de un acceso de plataforma, igual que en
+    /// <see cref="CrearDocumento.CrearDocumentoCommandHandler"/>, para que ninguna de las dos se pierda el par por leer
+    /// antes de que la otra confirme (ver <see cref="ISerializacionAltasAcreditacionEmpresa"/>).
+    /// </summary>
+    private async Task<Result<Guid>> RenovarConArchivoNuevoAsync(
+        Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
+        VigenciaDocumento vigencia, CancellationToken cancellationToken)
+    {
+        Documento? nuevo = null;
+        if (anterior.Ambito != AmbitoAplicacion.Empresa)
+            nuevo = await SustituirPorUnoNuevoAsync(anterior, tipoDocumento, request, vigencia, cancellationToken);
+        else
+        {
+            var guardado = await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                // Un reintento de la serialización empieza con el contexto vacío: el anterior del primer intento ya
+                // está desligado y marcado como sustituido en memoria. Se vuelve a leer, ya bajo el candado, y se
+                // comprueba de nuevo que sigue siendo el vigente que vio quien renueva. En el primer intento es la
+                // misma instancia rastreada.
+                var vigente = await repositorio.ObtenerPorIdAsync(anterior.Id, ct);
+                if (vigente is null)
+                    return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
+                if (!DocumentoOperativo.Es(vigente))
+                    return Result.Fallo(DocumentoEnHistorial.NuevoError());
+                if (ConcurrenciaOptimista.Verificar(vigente, request.Version, "este documento") is { } conflicto)
+                    return Result.Fallo(conflicto);
+
+                nuevo = await SustituirPorUnoNuevoAsync(vigente, tipoDocumento, request, vigencia, ct);
+                return Result.Exito();
+            }, cancellationToken);
+            if (guardado.EsFallido)
+                return Result.Fallo<Guid>(guardado.Error);
+        }
+
+        // Renovar puede sacar de "Vencido" el último documento que bloqueaba el expediente de una visita pendiente. El
+        // evento lleva el Id del documento que queda en uso.
+        await publisher.Publish(new DocumentacionCambiadaEvent(nuevo!.Id), cancellationToken);
+
+        return Result.Exito(nuevo.Id);
     }
 
     /// <summary>
@@ -149,9 +193,9 @@ public class RenovarDocumentoCommandHandler(
     /// nada. <b>No se borra nada</b>: el archivo del anterior queda en almacenamiento, referenciado por su fila, que es
     /// historial (decisión 7: sin borrado automático). Las acreditaciones del anterior quedan como historial —no se
     /// reinician—; las del nuevo nacen en Pendiente de subir por la regla única de
-    /// <see cref="IAltaAcreditacionesPlataformaService"/>, la misma del alta.
+    /// <see cref="IAltaAcreditacionesPlataformaService"/>, la misma del alta. Devuelve el Documento nuevo, ya guardado.
     /// </summary>
-    private async Task<Result<Guid>> SustituirPorUnoNuevoAsync(
+    private async Task<Documento> SustituirPorUnoNuevoAsync(
         Documento anterior, TipoDocumento tipoDocumento, RenovarDocumentoCommand request,
         VigenciaDocumento vigencia, CancellationToken cancellationToken)
     {
@@ -176,10 +220,6 @@ public class RenovarDocumentoCommandHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Renovar puede sacar de "Vencido" el último documento que bloqueaba el expediente de una visita pendiente. El
-        // evento lleva el Id del documento que queda en uso.
-        await publisher.Publish(new DocumentacionCambiadaEvent(nuevo.Id), cancellationToken);
-
-        return Result.Exito(nuevo.Id);
+        return nuevo;
     }
 }
