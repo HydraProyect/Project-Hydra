@@ -129,6 +129,62 @@ public class DiaDeNegocioTests
         DiaDeNegocio.Hoy().Year.Should().BeGreaterThan(2001);
     }
 
+    /// <summary>Un reloj que devuelve cada instante en orden y se queda en el último: el reloj real durante un run que cruza una medianoche.</summary>
+    private sealed class RelojQueAvanza(params DateTimeOffset[] instantes) : TimeProvider
+    {
+        private int _lecturas;
+
+        public override DateTimeOffset GetUtcNow() => instantes[Math.Min(_lecturas++, instantes.Length - 1)];
+    }
+
+    /// <summary>
+    /// Mecanismo del intermitente #2073: los tests de integración sembraban relativo a un «hoy» y medían minutos
+    /// después, y <c>DiaDeNegocio.Hoy()</c> leía el reloj real en cada consulta. Un run que cruza la medianoche de
+    /// Madrid (23:59:59 → 00:00:01, 22:59:59Z → 23:00:01Z en invierno) daba dos días, y el documento que «vence
+    /// hoy» pasaba de Urgente a Vencido. Con el reloj fijado en el flujo (lo que hace <c>RelojDePrueba.FijarEn</c>
+    /// en los tests de integración) las dos lecturas dan el mismo día aunque el reloj real avance.
+    /// </summary>
+    [Fact]
+    public void Un_reloj_que_cruza_la_medianoche_de_Madrid_cambia_el_estado_de_Vence_hoy_y_uno_fijado_no()
+    {
+        var antesDeLaMedianoche = Utc(2026, 11, 7, 22, 59, 59);   // 23:59:59 en Madrid (UTC+1)
+        var despuesDeLaMedianoche = Utc(2026, 11, 7, 23, 0, 1);   // 00:00:01 del día 8 en Madrid
+        var venceElDia7 = VigenciaDocumento.VenceEl(new DateOnly(2026, 11, 7));
+
+        EstadoDocumento Estado(DateOnly hoy) => CalculadoraEstadoDocumento.Calcular(venceElDia7, hoy, 30, 15);
+
+        // Un reloj que avanza como el real (aquí simulado, instalado como reloj del flujo): dos lecturas dan dos días y
+        // «Vence hoy» deja de serlo. Es el comportamiento del intermitente; el reloj real no se puede forzar en un test.
+        using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojQueAvanza(antesDeLaMedianoche, despuesDeLaMedianoche)))
+        {
+            var primeraLectura = DiaDeNegocio.Hoy();
+            var segundaLectura = DiaDeNegocio.Hoy();
+
+            primeraLectura.Should().Be(new DateOnly(2026, 11, 7));
+            segundaLectura.Should().Be(new DateOnly(2026, 11, 8));
+            Estado(primeraLectura).Should().Be(EstadoDocumento.Urgente);
+            Estado(segundaLectura).Should().Be(EstadoDocumento.Vencido);
+        }
+
+        // Fijado antes de la medianoche: todas las lecturas dan el día 7, también las que ocurren «después» en el tiempo real.
+        using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(antesDeLaMedianoche)))
+        {
+            var lecturas = Enumerable.Range(0, 5).Select(_ => DiaDeNegocio.Hoy()).Distinct().ToList();
+
+            lecturas.Should().Equal(new DateOnly(2026, 11, 7));
+            Estado(lecturas[0]).Should().Be(EstadoDocumento.Urgente);
+        }
+
+        // Fijado después de la medianoche: todas las lecturas dan el día 8.
+        using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(despuesDeLaMedianoche)))
+        {
+            var lecturas = Enumerable.Range(0, 5).Select(_ => DiaDeNegocio.Hoy()).Distinct().ToList();
+
+            lecturas.Should().Equal(new DateOnly(2026, 11, 8));
+            Estado(lecturas[0]).Should().Be(EstadoDocumento.Vencido);
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Reglas «no puede ser futura» del dominio, en la franja donde Madrid ya es mañana.
 
