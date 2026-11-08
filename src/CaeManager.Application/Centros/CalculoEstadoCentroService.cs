@@ -446,7 +446,8 @@ public class CalculoEstadoCentroService(
     /// ISO opcional pendiente pone el Centro en «Pendiente» aunque no bloquee a nadie.
     ///
     /// <para>
-    /// Mismo contexto que el rechazo: solo accesos de tipo Plataforma de este Centro (un Centro sin plataforma nunca tiene
+    /// Contexto parecido al del rechazo, no idéntico (el rechazo de un documento de Empresa cuenta en cualquier Centro; ver
+    /// <see cref="PendientesEnPlataformaDeCentros"/>): solo accesos de tipo Plataforma de este Centro (un Centro sin plataforma nunca tiene
     /// un Pendiente), un tipo que le aplique (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un propietario que
     /// cuente allí — el Trabajador con Asignación activa; la Empresa en los Centros de su Empresa (<c>Centro.EmpresaId</c>),
     /// aunque no tenga Trabajadores asignados (decisión del 2026-11-08), o en cualquier Centro donde tenga algún Trabajador
