@@ -1,5 +1,8 @@
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacion;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Importacion;
@@ -197,13 +200,91 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             "el fallo ocurrió antes de guardar de verdad — un guardado ajeno no puede darla por confirmada");
     }
 
+    /// <summary>
+    /// Issue #2094, B5: los demás tests usan <see cref="SerializacionAltasSinBloqueo"/> y planes sin Asignaciones, así que
+    /// no alcanzan la rama serializada. Aquí el plan trae una Asignación y la serialización es la real: la hoja de
+    /// Asignaciones, sus acreditaciones y el guardado corren dentro de la transacción con el candado del Tenant tomado.
+    /// </summary>
+    [Fact]
+    public async Task Una_importacion_con_Asignaciones_las_da_de_alta_y_las_acredita_con_el_candado_del_Tenant_tomado()
+    {
+        const string nombreCentro = "Planta Importación Serializada";
+        Guid canalId;
+        Guid documentoId;
+        await using (var siembra = CrearContexto())
+        {
+            var trabajador = await siembra.Trabajadores.SingleAsync(t => t.Id == _trabajadorId);
+            var cliente = Empresa.CrearComoCliente("Cliente Importación Serializada S.L.", "B10380194", false, null, null);
+            siembra.Empresas.Add(cliente);
+            await siembra.SaveChangesAsync();
+            var centro = new Centro(cliente.Id, trabajador.EmpresaId!.Value, nombreCentro);
+            siembra.Centros.Add(centro);
+            await siembra.SaveChangesAsync();
+            var proveedor = await siembra.ProveedoresPlataformaCae.FirstAsync();
+            var canal = CanalGestionDocumental.DePlataforma(
+                centro.Id, "Plataforma", proveedor.Id, "https://plataforma.test", "usuario", "clave");
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId, new DateOnly(2026, 2, 1), VigenciaDocumento.VenceEl(new DateOnly(2031, 2, 1)));
+            siembra.CanalesGestionDocumental.Add(canal);
+            siembra.Documentos.Add(documento);
+            siembra.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoId, centro.Id));
+            await siembra.SaveChangesAsync();
+            canalId = canal.Id;
+            documentoId = documento.Id;
+        }
+
+        var plan = new PlanImportacionDto(
+            OperacionId: Guid.NewGuid(),
+            ClientesCentros: [], Empresas: [], Trabajadores: [], Documentos: [],
+            Asignaciones: [new AsignacionImportadaDto(Dni, nombreCentro, YaExiste: false)], Advertencias: [], Omitidos: []);
+
+        await using var contexto = CrearContexto();
+        var serializacion = new SerializacionQueObservaElCandado(
+            new SerializacionAltasAcreditacionEmpresa(contexto, new TransaccionDeComando(contexto), _tenantActual), contexto);
+        var resultado = await ConstruirHandler(contexto, serializacion: serializacion)
+            .Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.AsignacionesCreadas.Should().Be(1);
+        serializacion.Llamadas.Should().Be(1, "un plan con Asignaciones entra por la rama serializada");
+        serializacion.CandadosDeAsesoramientoAlGuardar.Should().Be(1,
+            "la hoja de Asignaciones se guarda con el candado de asesoramiento del Tenant tomado en su transacción");
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.AcreditacionesDocumentoPlataforma.CountAsync(a => a.DocumentoId == documentoId && a.CanalGestionDocumentalId == canalId))
+            .Should().Be(1, "la Asignación importada acredita el Documento que el Centro exige ante su acceso de plataforma");
+    }
+
+    /// <summary>Delega en la serialización real y, al terminar la operación, cuenta los candados de asesoramiento de la sesión.</summary>
+    private sealed class SerializacionQueObservaElCandado(ISerializacionAltasAcreditacionEmpresa real, CaeManagerDbContext contexto)
+        : ISerializacionAltasAcreditacionEmpresa
+    {
+        public int Llamadas { get; private set; }
+        public int? CandadosDeAsesoramientoAlGuardar { get; private set; }
+
+        public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        {
+            Llamadas++;
+            return real.EjecutarAsync(async ct =>
+            {
+                var resultado = await operacion(ct);
+                CandadosDeAsesoramientoAlGuardar = await contexto.Database.SqlQueryRaw<int>(
+                        "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+                    .SingleAsync(ct);
+                return resultado;
+            }, cancellationToken);
+        }
+    }
+
     private static EjecutarImportacionCommandHandler ConstruirHandler(
-        CaeManagerDbContext contexto, ITrabajadorRepository? trabajadorRepositorio = null) =>
+        CaeManagerDbContext contexto, ITrabajadorRepository? trabajadorRepositorio = null,
+        ISerializacionAltasAcreditacionEmpresa? serializacion = null) =>
         new(
             new EmpresaRepository(contexto), trabajadorRepositorio ?? new TrabajadorRepository(contexto), new DocumentoRepository(contexto),
             new AsignacionRepository(contexto), new OperacionImportacionRepository(contexto),
             contexto, contexto, contexto, contexto, contexto, contexto,
-            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), new SerializacionAltasSinBloqueo());
+            new AutorizacionEscrituraEfectivaFalsa(), AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(),
+            serializacion ?? new SerializacionAltasSinBloqueo());
 
     private CaeManagerDbContext CrearContexto()
     {

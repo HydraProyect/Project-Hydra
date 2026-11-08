@@ -99,9 +99,11 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // candado: otra operación puede cambiar la clave mientras esta espera, y la clave pedida deja entonces de ser la
         // existente (revisión Codex de la PR #2074, ronda 6). Por eso la comprobación se hace dos veces: aquí, contra lo
         // confirmado antes de esperar, solo para rechazar pronto sin tomar el candado (un rechazo no escribe nada); y
-        // dentro de GuardarAsync, contra la fila releída, que es la única que puede admitir la clave. Lo único que se
-        // reutiliza entre las dos es el veredicto sobre el contenido almacenado bajo esa clave, que no depende de la fila.
-        bool? contenidoValido = null;
+        // dentro de GuardarAsync, contra la fila releída, que es la única que puede admitir la clave. El contenido
+        // almacenado también se vuelve a abrir bajo el candado, sin reutilizar el veredicto de antes de esperar: si otra
+        // operación borró el archivo durante la espera, se guardaría una clave que ya no se puede descargar (issue #2094,
+        // B1). La purga no toma este candado, así que un borrado entre esta comprobación y el guardado sigue siendo
+        // posible, como en main; esto solo deja fuera la espera.
         async Task<bool> ArchivoAdmitidoFrenteAAsync(TipoDocumentoCentro? frente, CancellationToken ct)
         {
             if (request.ArchivoUrl is not { } archivoUrl)
@@ -114,8 +116,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
                 return true;
             if (centro.TenantId == Guid.Empty || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId))
                 return false;
-            contenidoValido ??= await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
-            return contenidoValido.Value;
+            return await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
         }
 
         if (!await ArchivoAdmitidoFrenteAAsync(fila, cancellationToken))

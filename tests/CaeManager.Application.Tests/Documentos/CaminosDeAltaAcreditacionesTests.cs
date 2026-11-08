@@ -197,6 +197,9 @@ public class CaminosDeAltaAcreditacionesTests
         var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", empresa.Id));
         var documentos = new DocumentoRepositorioFalso();
         var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        // Issue #2094, B2: lo agregado antes de tomar el candado delata un alta fuera de la operación serializada.
+        (int Documentos, int Acreditaciones)? alTomarElCandado = null;
+        serializacion.AlTomarElCandado = () => alTomarElCandado = (documentos.Documentos.Count, mundo.Agregadas.Count());
         var handler = new CrearDocumentoCommandHandler(
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), empresas, new UnitOfWorkFalso(),
@@ -210,7 +213,8 @@ public class CaminosDeAltaAcreditacionesTests
         resultado.EsExitoso.Should().BeTrue();
         mundo.Agregadas.Should().BeEquivalentTo([(resultado.Valor, acceso.Id)]);
         serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
-        documentos.Documentos.Should().ContainSingle("el Documento se agrega dentro de la operación serializada");
+        alTomarElCandado.Should().Be((0, 0), "el Documento y sus acreditaciones se agregan dentro de la operación serializada");
+        documentos.Documentos.Should().ContainSingle();
     }
 
     [Fact]
@@ -524,6 +528,51 @@ public class CaminosDeAltaAcreditacionesTests
                 filas.Relaciones.Should().BeEmpty("el borrado que confirmó la otra operación se queda");
             else
                 filas.Relaciones.Single().ArchivoUrl.Should().Be(claveY, "la clave que confirmó la otra operación se queda");
+        }
+    }
+
+    // Issue #2094, B1: el contenido se comprueba antes de esperar el candado y otra operación borra el archivo durante la
+    // espera. Bajo el candado se vuelve a abrir: reutilizar el veredicto de antes guardaría una clave que ya no se puede
+    // descargar. «sigue-almacenado» es el control: sin borrado, la misma clave se admite y se guarda.
+    [Theory]
+    [InlineData("borrado-durante-la-espera", false)]
+    [InlineData("sigue-almacenado", true)]
+    public async Task Requisito_de_centro_vuelve_a_comprobar_bajo_el_candado_el_contenido_de_una_clave_nueva(string caso, bool admitida)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tenantPropietario = Guid.NewGuid();
+        AsignarTenant(centro, tenantPropietario);
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var almacen = new FileStorageServiceFalso { TenantId = tenantPropietario };
+        var clave = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "archivo.pdf");
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        var unit = new UnitOfWorkFalso();
+        var serializacion = new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () =>
+            {
+                if (caso == "borrado-durante-la-espera") almacen.EliminarAsync(clave).GetAwaiter().GetResult();
+            }
+        };
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), serializacion);
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, true, null, false, clave, "archivo.pdf", null), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1, "antes de esperar el archivo existía y era válido");
+        resultado.EsExitoso.Should().Be(admitida);
+        unit.VecesGuardado.Should().Be(admitida ? 1 : 0);
+        if (admitida)
+        {
+            filas.Relaciones.Single().ArchivoUrl.Should().Be(clave);
+        }
+        else
+        {
+            resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
+            filas.Relaciones.Should().BeEmpty();
         }
     }
 

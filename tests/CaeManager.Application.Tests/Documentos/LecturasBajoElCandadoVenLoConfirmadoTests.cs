@@ -66,6 +66,30 @@ public class LecturasBajoElCandadoVenLoConfirmadoTests
     }
 
     [Fact]
+    public async Task La_relectura_del_doble_repone_todos_los_campos_que_otra_operacion_confirmo_y_no_deja_nada_que_guardar()
+    {
+        // Issue #2094, B3: el doble solo refrescaba Incluido, así que la copia releída conservaba la periodicidad, el
+        // archivo o la tolerancia de antes del candado y un guardado posterior podía escribirlos sobre lo confirmado.
+        var tipoId = Guid.NewGuid();
+        var centroId = Guid.NewGuid();
+        var fila = new TipoDocumentoCentro(tipoId, centroId, true, null, false, null, null, null);
+        var confirmadas = new List<TipoDocumentoCentro> { fila };
+        var rastreo = new RequisitosRastreadosComoEf(confirmadas);
+        rastreo.Rastrear(fila);
+        fila.Actualizar(false, 6, true, "t/otro.pdf", "otro.pdf", 10);
+
+        var releida = await rastreo.ObtenerPorParActualizadoAsync(tipoId, centroId);
+
+        releida.Should().BeSameAs(rastreo.Rastreada(fila));
+        releida.Should().BeEquivalentTo(new
+        {
+            Incluido = false, PeriodicidadEspecialMeses = (int?)6, BloqueaAcceso = true, ArchivoUrl = "t/otro.pdf",
+            NombreArchivoOriginal = "otro.pdf", ToleranciaDias = (int?)10
+        });
+        (await rastreo.SaveChangesAsync()).Should().Be(0, "la copia releída coincide con lo confirmado");
+    }
+
+    [Fact]
     public async Task Exigir_un_tipo_que_otra_operacion_excluyo_mientras_esperaba_guarda_la_exigencia_aunque_el_contexto_rastreara_la_fila_exigida()
     {
         // Hallazgo 2: la fila rastreada dice Incluido=true; otra operación la excluye y confirma; esta pide true. Con la
@@ -261,11 +285,16 @@ internal sealed class RequisitosRastreadosComoEf(List<TipoDocumentoCentro> confi
 
     private object? Resolver(object? resultado) => resultado is TipoDocumentoCentro f && confirmadas.Contains(f) ? Rastrear(f) : resultado;
 
+    /// <summary>
+    /// Como la relectura de <c>ListarActualesAsync</c>: repone todos los campos de la copia, no solo <c>Incluido</c>
+    /// (issue #2094, B3).
+    /// </summary>
     private void Refrescar(TipoDocumentoCentro copia)
     {
         var par = (copia.TipoDocumentoId, copia.CentroId);
         var (_, _, confirmada) = rastreadas[par];
-        EscribirAjena(copia, confirmada.Incluido);
+        copia.Actualizar(confirmada.Incluido, confirmada.PeriodicidadEspecialMeses, confirmada.BloqueaAcceso,
+            confirmada.ArchivoUrl, confirmada.NombreArchivoOriginal, confirmada.ToleranciaDias);
         rastreadas[par] = (copia, Valores.De(confirmada), confirmada);
     }
 
