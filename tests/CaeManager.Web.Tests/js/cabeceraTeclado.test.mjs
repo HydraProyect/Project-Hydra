@@ -24,7 +24,9 @@ function entorno() {
     const llamadas = [];
     const body = new Element({});
     const raiz = new Element({});
-    const contenido = new Element({ scrollTop: 100, clientHeight: 800, scrollHeight: 5000, id: 'contenido-principal' });
+    // Como main.contenido real (MainLayout.razor.css): overflow-y auto y desbordado. Con 'visible' el bucle de
+    // dentroDeOtroScroller pararía solo en él aunque perdiera su cota «n !== contenido».
+    const contenido = new Element({ overflowY: 'auto', scrollTop: 100, clientHeight: 800, scrollHeight: 5000, id: 'contenido-principal' });
     contenido.scrollTo = function (arg) { llamadas.push(arg); };
     const nodos = {
         texto: new Element({ parentElement: contenido }),
@@ -37,13 +39,14 @@ function entorno() {
         noElemento: {},
     };
     nodos.menuHijo = new Element({ parentElement: nodos.menu });
+    nodos.contenido = contenido; // clic sobre el propio .contenido: el scroller al que pertenecen las teclas
     // El menú y el panel contienen un nodo que no desborda y cuyo ancestro sí: el bucle debe subir.
     const estado = { activo: body, modal: null };
     const documento = {
         body, documentElement: raiz,
         get activeElement() { return estado.activo; },
         addEventListener(tipo, fn) { oyentes.push({ tipo, fn }); },
-        getElementById(id) { return id === 'contenido-principal' ? contenido : null; },
+        getElementById(id) { return id === 'contenido-principal' && !estado.sinContenido ? contenido : null; },
         querySelectorAll() { return []; },
         // El menú de usuario nunca está abierto aquí. Un modal se ve si su variante aparece en el selector pedido.
         querySelector(selector) {
@@ -105,7 +108,9 @@ test('un control enfocado conserva sus teclas (activo distinto de body)', () => 
     }
 });
 
-test('Ctrl, Alt o Meta con cualquier tecla de desplazamiento no se atienden (atajos del navegador y de la aplicación)', () => {
+// Decisión, no omisión: con un modificador (Ctrl, Alt, Meta) el manejador se aparta entero. Protege Ctrl+K, los atajos Alt de
+// keytips y Ctrl+RePág/AvPág (cambio de pestaña); el coste es que Ctrl+Inicio/Fin (y Cmd+↑/↓ en macOS) no desplazan con el foco en body.
+test('Ctrl, Alt o Meta con cualquier tecla de desplazamiento no se atienden (atajos de la aplicación y del navegador)', () => {
     for (const modificador of ['ctrlKey', 'altKey', 'metaKey']) {
         for (const [tecla] of LOS_QUE_DESPLAZAN) {
             const r = entorno().pulsar(tecla, { [modificador]: true });
@@ -141,7 +146,7 @@ test('con un modal abierto, cualquiera de los tres tipos, el teclado es del moda
 test('un clic en otro scroller que desborda deja las teclas a ese scroller; uno que no desborda o que no es scroller, no', () => {
     const casos = [
         ['menu', false], ['panel', false], ['menuHijo', false],
-        ['texto', true], ['ajustado', true], ['oculto', true], ['desconectado', true], ['noElemento', true],
+        ['texto', true], ['contenido', true], ['ajustado', true], ['oculto', true], ['desconectado', true], ['noElemento', true],
     ];
     for (const [nombre, previene] of casos) {
         const e = entorno();
@@ -167,6 +172,21 @@ test('un clic previo caduca cuando el foco entra en algo que no es body (focusin
     c.clic(c.nodos.menu);
     c.enfocar(c.body);
     assert.equal(c.pulsar('PageDown').previene, false, 'focusin en body no borra el clic');
+});
+
+test('en una pantalla sin #contenido-principal el manejador no hace nada ni lanza', () => {
+    for (const [tecla] of LOS_QUE_DESPLAZAN) {
+        const e = entorno(); e.estado.sinContenido = true;
+        assert.deepEqual(e.pulsar(tecla), { previene: false, scroll: null }, JSON.stringify(tecla));
+    }
+});
+
+test('focusin en documentElement tampoco borra el clic previo (el foco sigue sin estar en un control)', () => {
+    const e = entorno();
+    e.clic(e.nodos.menu);
+    e.enfocar(e.raiz);
+    e.estado.activo = e.body;
+    assert.equal(e.pulsar('PageDown').previene, false);
 });
 
 test('Tab, Esc, flechas laterales, 1, 2 y Ctrl+K no se atienden nunca', () => {

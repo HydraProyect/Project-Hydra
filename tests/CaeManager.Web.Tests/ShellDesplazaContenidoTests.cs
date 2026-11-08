@@ -170,7 +170,9 @@ public class ShellDesplazaContenidoTests
         {
             var salida = proceso.StandardOutput.ReadToEndAsync();
             var error = proceso.StandardError.ReadToEndAsync();
-            proceso.WaitForExit(TimeSpan.FromSeconds(60)).Should().BeTrue("node --test no debe colgarse");
+            var termino = proceso.WaitForExit(TimeSpan.FromSeconds(60));
+            if (!termino) proceso.Kill(entireProcessTree: true); // sin esto quedaría un node huérfano en el runner
+            termino.Should().BeTrue("node --test no debe colgarse");
             proceso.ExitCode.Should().Be(0, "las pruebas de Node fallaron:\n" + salida.Result + error.Result);
             salida.Result.Should().MatchRegex(@"(?m)\bpass [1-9]\d*\s*$","node --test debe haber ejecutado casos (un 0 de 0 no prueba nada)");
         }
