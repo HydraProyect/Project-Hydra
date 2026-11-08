@@ -20,8 +20,8 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// cliente distinto, consentido por su propio administrador. Las llamadas
 /// sobre el buzón propio de quien consintió usan <c>/me/...</c> (resuelto por
 /// el token, no por un UPN en la URL); las de un buzón compartido usan
-/// <c>/users/{dirección}/...</c> con los permisos delegados <c>.Shared</c>
-/// (ver <see cref="RutaBuzon"/>).
+/// <c>/users/{dirección}/...</c> con el token de aplicación del directorio
+/// (<see cref="ObtenerTokenAplicacionAsync"/>; ver <see cref="RutaBuzon"/>).
 /// </summary>
 public class Microsoft365GraphClient(
     HttpClient httpClient,
@@ -30,13 +30,12 @@ public class Microsoft365GraphClient(
 {
     private const string EndpointAutorizacion = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    // Los dos .Shared permiten abrir por /users/{dirección} los buzones compartidos a los que la
-    // persona que consiente tiene acceso en Exchange (Full Access para leer, Send As o Send on Behalf
-    // para enviar). Una conexión consentida antes de añadirlos tiene un refresh token sin ellos: sigue
-    // sirviendo para su buzón propio, pero hay que reconectar para dar de alta un compartido.
+    // Solo el buzón propio de quien consiente. Los buzones compartidos no van por aquí: usan el
+    // token de aplicación del directorio (ObtenerTokenAplicacionAsync), acotado en Exchange.
     internal const string ScopesDelegados =
-        "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send " +
-        "https://graph.microsoft.com/Mail.Read.Shared https://graph.microsoft.com/Mail.Send.Shared";
+        "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+
+    private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
 
     private const string RaizGraph = "https://graph.microsoft.com/v1.0/";
 
@@ -71,7 +70,7 @@ public class Microsoft365GraphClient(
             ["scope"] = ScopesDelegados,
         };
 
-        var credencial = AgregarCredencialDeCliente(contenido);
+        var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);
         if (credencial.EsFallido)
             return Result.Fallo<TokensGraphDto>(credencial.Error);
 
@@ -87,11 +86,58 @@ public class Microsoft365GraphClient(
             ["scope"] = ScopesDelegados,
         };
 
-        var credencial = AgregarCredencialDeCliente(contenido);
+        var credencial = AgregarCredencialDeCliente(contenido, EndpointToken);
         if (credencial.EsFallido)
             return Result.Fallo<TokensGraphDto>(credencial.Error);
 
         return await PedirTokensAsync(contenido, cancellationToken);
+    }
+
+    public async Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
+    {
+        // El identificador va en la ruta del endpoint: solo un GUID, para que no pueda apuntar a otro
+        // sitio ni a /common u /organizations (que no admiten client credentials con sentido aquí).
+        if (!Guid.TryParse(directorioId, out var directorio) || directorio == Guid.Empty)
+            return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                "Integraciones.Microsoft365.DirectorioInvalido", "El directorio de Microsoft no es válido."));
+
+        var endpoint = $"https://login.microsoftonline.com/{directorio:D}/oauth2/v2.0/token";
+        var contenido = new Dictionary<string, string>
+        {
+            ["grant_type"] = "client_credentials",
+            ["scope"] = ScopeAplicacion,
+        };
+
+        var credencial = AgregarCredencialDeCliente(contenido, endpoint);
+        if (credencial.EsFallido)
+            return Result.Fallo<TokenAplicacionGraphDto>(credencial.Error);
+
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = new FormUrlEncodedContent(contenido) };
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError(
+                    "Microsoft Entra ID devolvió {StatusCode} al pedir un token de aplicación: {CodigoError}",
+                    (int)respuesta.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
+                return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                    "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+            }
+
+            var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaTokenGraph>(cancellationToken);
+            if (cuerpo?.AccessToken is null)
+                return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                    "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
+
+            return Result.Exito(new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600)));
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al pedir un token de aplicación a Microsoft Entra ID.");
+            return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
     }
 
     /// <summary>
@@ -102,7 +148,7 @@ public class Microsoft365GraphClient(
     /// Se genera un aserto NUEVO en cada llamada (<c>jti</c> único): Entra rechaza la
     /// reutilización de un mismo aserto.
     /// </summary>
-    private Result AgregarCredencialDeCliente(Dictionary<string, string> contenido)
+    private Result AgregarCredencialDeCliente(Dictionary<string, string> contenido, string endpointToken)
     {
         var config = opciones.Value;
         contenido["client_id"] = config.ClientId!;
@@ -123,7 +169,7 @@ public class Microsoft365GraphClient(
         }
 
         var aserto = AsertoClienteMicrosoft365.Crear(
-            config.ClientId!, EndpointToken, config.CertificadoRuta!, config.ClavePrivadaRuta!, DateTimeOffset.UtcNow);
+            config.ClientId!, endpointToken, config.CertificadoRuta!, config.ClavePrivadaRuta!, DateTimeOffset.UtcNow);
         if (aserto.EsFallido)
         {
             logger.LogError("No se pudo generar el aserto de cliente de Microsoft 365 con el certificado configurado: {Codigo}.", aserto.Error.Codigo);
@@ -207,9 +253,9 @@ public class Microsoft365GraphClient(
                 "Microsoft Graph devolvió {StatusCode} al comprobar el acceso a un buzón (compartido: {EsCompartido}): {CodigoError}",
                 (int)respuesta.StatusCode, buzon.EsCompartido, CodigoErrorGraph.Extraer(cuerpoError));
 
-            // 403/404: la persona no tiene Full Access sobre ese buzón, la dirección no existe o el
-            // consentimiento no incluye los permisos .Shared (conexión anterior a su alta). Graph no
-            // distingue los tres casos de forma fiable, así que el mensaje los nombra a la vez.
+            // 403/404: el buzón está fuera del ámbito de RBAC for Applications que el administrador de
+            // Exchange asignó a la aplicación en ese directorio, o la dirección no existe. Graph no
+            // distingue los dos casos de forma fiable, así que el mensaje los nombra a la vez.
             return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
                 ? Result.Fallo(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",
@@ -228,10 +274,11 @@ public class Microsoft365GraphClient(
     /// el token, sin depender de que <c>mail</c> coincida con el UPN) y <c>/users/{dirección}</c> para
     /// uno compartido. La dirección se escapa: viene de lo que escribió quien conectó el buzón.
     /// </summary>
-    internal static string RutaBuzon(BuzonGraph buzon) =>
-        buzon.EsCompartido
-            ? $"{RaizGraph}users/{Uri.EscapeDataString(buzon.Direccion)}"
-            : $"{RaizGraph}me";
+    internal static string RutaBuzon(BuzonGraph buzon) => RaizGraph + RecursoBuzon(buzon);
+
+    /// <summary>La misma raíz sin el prefijo de Graph: es como la quiere el <c>resource</c> de una suscripción.</summary>
+    internal static string RecursoBuzon(BuzonGraph buzon) =>
+        buzon.EsCompartido ? $"users/{Uri.EscapeDataString(buzon.Direccion)}" : "me";
 
     public async Task<Result> EnviarRespuestaAsync(
         string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
@@ -557,18 +604,12 @@ public class Microsoft365GraphClient(
     public async Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
         string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
     {
-        // Microsoft Learn (outlook-change-notifications-overview, «Request permissions»): con permiso
-        // delegado solo se puede suscribir el buzón propio, y los permisos .Shared no admiten
-        // suscripciones. Se corta aquí en vez de dejar que Graph devuelva un 403 tras la llamada.
-        if (buzon.EsCompartido)
-        {
-            return Result.Fallo<SuscripcionGraphDto>(Error.Crear(
-                "Integraciones.Microsoft365.SuscripcionNoAdmitida", "Microsoft no permite activar notificaciones sobre un buzón compartido."));
-        }
-
+        // Microsoft Learn (outlook-change-notifications-overview, «Request permissions»): un buzón
+        // compartido solo se puede suscribir con permiso de aplicación, así que el accessToken de un
+        // compartido es el de aplicación de su directorio; el del buzón propio es el delegado.
         var expiracion = DateTime.UtcNow.Add(DuracionMaximaSuscripcion);
         var solicitud = new SolicitudSuscripcionGraph(
-            "created,updated", notificationUrl, "me/mailFolders('Inbox')/messages", expiracion, clientState);
+            "created,updated", notificationUrl, $"{RecursoBuzon(buzon)}/mailFolders('Inbox')/messages", expiracion, clientState);
 
         using var peticion = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/subscriptions", accessToken);
         peticion.Content = JsonContent.Create(solicitud);

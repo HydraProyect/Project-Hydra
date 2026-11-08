@@ -14,6 +14,9 @@ namespace CaeManager.Application.Integraciones;
 /// </summary>
 public record TokensGraphDto(string AccessToken, string RefreshToken, DateTime AccessTokenExpiraUtc);
 
+/// <summary>Token de aplicación de un directorio Entra: sin refresh token, se pide otro al caducar.</summary>
+public record TokenAplicacionGraphDto(string AccessToken, DateTime ExpiraUtc);
+
 public record SuscripcionGraphDto(string GraphSubscriptionId, DateTime FechaExpiracionUtc);
 
 public record ParticipanteGraphDto(string Email, RolParticipante Rol);
@@ -43,9 +46,9 @@ public record MensajeEnviadoGraphDto(string MensajeExternoId, string HiloExterno
 /// <summary>
 /// Buzón sobre el que actúa una llamada a Graph. El propio de quien consintió
 /// (<see cref="EsCompartido"/> falso) va por <c>/me/...</c>, resuelto por el
-/// token; uno compartido va por <c>/users/{dirección}/...</c> con los permisos
-/// delegados <c>Mail.Read.Shared</c> y <c>Mail.Send.Shared</c>, y es Exchange
-/// quien comprueba en cada llamada que esa persona puede abrirlo.
+/// token; uno compartido va por <c>/users/{dirección}/...</c> con el token de
+/// aplicación de su directorio, y lo que puede abrir lo acota en Exchange el
+/// ámbito de RBAC for Applications de ese directorio.
 /// </summary>
 public readonly record struct BuzonGraph(string Direccion, bool EsCompartido)
 {
@@ -104,6 +107,14 @@ public interface IMicrosoft365GraphClient
     /// <summary>Graph puede rotar el refresh token en cada canje — el llamador debe persistir el que devuelve esta llamada, no reutilizar el anterior.</summary>
     Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Token de aplicación (client credentials) en el directorio Entra <paramref name="directorioId"/>, para los
+    /// buzones compartidos. Lo que puede abrir lo decide el ámbito de RBAC for Applications que el administrador
+    /// de Exchange de ese directorio asignó a la aplicación, no este token. Falla sin llamar a Entra si
+    /// <paramref name="directorioId"/> no es un GUID.
+    /// </summary>
+    Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken);
+
     Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken);
 
     /// <summary>
@@ -156,9 +167,10 @@ public interface IMicrosoft365GraphClient
         string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Solo para el buzón propio: Graph no admite suscripciones delegadas sobre
-    /// un buzón compartido (los permisos <c>.Shared</c> no las cubren), así que
-    /// con <see cref="BuzonGraph.EsCompartido"/> devuelve un fallo sin llamar a Graph.
+    /// Suscribe la Bandeja de entrada del buzón: <c>me/...</c> con el token delegado
+    /// del buzón propio, <c>users/{dirección}/...</c> con el token de aplicación
+    /// del directorio para uno compartido (Graph no admite suscripciones delegadas
+    /// sobre un buzón compartido).
     /// </summary>
     Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
         string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken);

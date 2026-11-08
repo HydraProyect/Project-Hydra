@@ -336,6 +336,8 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
     {
         public List<string> Respuestas { get; } = [];
 
+        public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito(new TokensGraphDto("access", "refresh", DateTime.UtcNow.AddHours(1))));
 

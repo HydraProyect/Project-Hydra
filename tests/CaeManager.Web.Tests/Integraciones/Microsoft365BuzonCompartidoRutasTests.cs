@@ -106,18 +106,71 @@ public class Microsoft365BuzonCompartidoRutasTests
         handler.Peticiones.Should().ContainSingle().Which.Url.Should().Be($"{RaizCompartido}/messages/origen-1/reply");
     }
 
-    /// <summary>Microsoft no admite suscripciones delegadas sobre un buzón compartido: ni se intenta.</summary>
-    [Fact]
-    public async Task No_se_crea_suscripcion_para_un_buzon_compartido_ni_se_llama_a_Graph()
+    [Theory]
+    [InlineData(true, "users/piloto%2Bcae%40talveg.example/mailFolders('Inbox')/messages")]
+    [InlineData(false, "me/mailFolders('Inbox')/messages")]
+    public async Task La_suscripcion_apunta_a_la_bandeja_del_buzon_de_la_conexion(bool compartido, string recursoEsperado)
+    {
+        var handler = new CapturaCuerpoHandler(
+            """{"id":"sub-1","expirationDateTime":"2026-11-11T00:00:00Z"}""");
+
+        var resultado = await Cliente(handler).CrearSuscripcionAsync(
+            "token", compartido ? Compartido : Propio, "https://app.example/webhook", "estado", CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        System.Text.Json.JsonDocument.Parse(handler.Cuerpo!).RootElement.GetProperty("resource").GetString()
+            .Should().Be(recursoEsperado);
+    }
+
+    [Theory]
+    [InlineData("no-es-un-guid")]
+    [InlineData("common")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task El_token_de_aplicacion_solo_se_pide_a_un_directorio_con_GUID(string directorio)
     {
         var handler = new AnotaPeticionesHandler();
 
-        var resultado = await Cliente(handler).CrearSuscripcionAsync(
-            "token", Compartido, "https://app.example/webhook", "estado", CancellationToken.None);
+        var resultado = await Cliente(handler).ObtenerTokenAplicacionAsync(directorio, CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.SuscripcionNoAdmitida");
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.DirectorioInvalido");
         handler.Peticiones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_token_de_aplicacion_se_pide_al_endpoint_del_directorio_con_client_credentials()
+    {
+        var directorio = Guid.NewGuid();
+        var handler = new CapturaCuerpoHandler("""{"access_token":"app","expires_in":3599}""");
+        var cliente = new Microsoft365GraphClient(
+            new HttpClient(handler),
+            Options.Create(new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto" }),
+            NullLogger<Microsoft365GraphClient>.Instance);
+
+        var resultado = await cliente.ObtenerTokenAplicacionAsync(directorio.ToString(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.AccessToken.Should().Be("app");
+        handler.Url.Should().Be($"https://login.microsoftonline.com/{directorio:D}/oauth2/v2.0/token");
+        handler.Cuerpo.Should().Contain("grant_type=client_credentials")
+            .And.Contain("scope=https%3A%2F%2Fgraph.microsoft.com%2F.default")
+            .And.NotContain("refresh_token");
+    }
+
+    private sealed class CapturaCuerpoHandler(string respuesta) : HttpMessageHandler
+    {
+        public string? Url { get; private set; }
+        public string? Cuerpo { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Url = request.RequestUri!.AbsoluteUri;
+            Cuerpo = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = new StringContent(respuesta, Encoding.UTF8, "application/json"),
+            };
+        }
     }
 
     [Fact]

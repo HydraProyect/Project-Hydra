@@ -46,6 +46,14 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
             : Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
     }
 
+    public List<string> DirectoriosConTokenDeAplicacion { get; } = [];
+
+    public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
+    {
+        DirectoriosConTokenDeAplicacion.Add(directorioId);
+        return Task.FromResult(Result.Exito(new TokenAplicacionGraphDto("token-aplicacion-falso", DateTime.UtcNow.AddHours(1))));
+    }
+
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
 
