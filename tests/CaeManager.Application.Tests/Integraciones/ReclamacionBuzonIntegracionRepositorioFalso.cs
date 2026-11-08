@@ -15,6 +15,9 @@ public class ReclamacionBuzonIntegracionRepositorioFalso : IReclamacionBuzonInte
 
     public void Reclamar(ReclamacionBuzonIntegracion reclamacion) => Reclamaciones.Add(reclamacion);
 
+    public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId));
+
     public Task<bool> GuardarCambiosSiBuzonLibreAsync(CancellationToken cancellationToken = default)
     {
         if (ExcepcionAlGuardar is { } excepcion)

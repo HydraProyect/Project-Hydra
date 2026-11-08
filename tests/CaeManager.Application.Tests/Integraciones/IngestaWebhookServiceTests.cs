@@ -5,6 +5,7 @@ using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comunicaciones;
 using CaeManager.Application.Tests.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Integraciones;
 using FluentAssertions;
@@ -355,6 +356,76 @@ public class IngestaWebhookServiceTests
         conversacion.HiloExternoId.Should().Be("graph-thread-1");
         conversacion.ClienteId.Should().Be(clienteId);
         conversacion.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "graph-msg-1");
+    }
+
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio) ConexionCompartida()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        return (conexion, repositorio);
+    }
+
+    /// <summary>Un buzón compartido se lee por <c>users/{buzón}</c> con el token de aplicación, sin credencial de nadie.</summary>
+    [Fact]
+    public async Task Ingiere_un_mensaje_de_un_buzon_compartido_con_el_token_de_aplicacion()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["compartido-1"],
+            MensajeADevolver = new MensajeGraphDto(
+                "compartido-1", "hilo-compartido", "Documentación", "contratista@ejemplo.test", "<p>adjunto</p>", DateTime.UtcNow,
+                [new ParticipanteGraphDto("contratista@ejemplo.test", RolParticipante.De)], []),
+        };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().ContainSingle().Which.Mensajes.Should().ContainSingle(m => m.MensajeExternoId == "compartido-1");
+        graph.DirectoriosConTokenDeAplicacion.Should().Equal("11111111-2222-3333-4444-555555555555");
+        graph.VecesRefrescado.Should().Be(0, "un compartido nunca cae en el token de una persona");
+        graph.BuzonesUsados.Should().OnlyContain(b => b == new BuzonGraph("cae@operador.test", true));
+    }
+
+    /// <summary>
+    /// Un fallo de lectura que no es un 404 (403, 429, 5xx, timeout) no puede tomarse por un mensaje borrado:
+    /// el evento queda para reintento y el mensaje no se pierde.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_transitorio_al_leer_el_mensaje_deja_el_evento_para_reintento()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["compartido-1"],
+            ErrorLecturaMensaje = Error.Crear("Integraciones.Microsoft365.ErrorApi", "429"),
+        };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().NotBeNullOrEmpty();
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_mensaje_borrado_antes_de_leerlo_se_salta_sin_reintento()
+    {
+        var (conexion, conexiones) = ConexionCompartida();
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { MensajeIdsADevolver = ["borrado"] };
+        var evento = new EventoWebhook(conexion.Id, "{\"value\":[{}]}");
+
+        await CrearServicio(conexiones, conversaciones, graph).ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().BeEmpty();
     }
 
     [Fact]

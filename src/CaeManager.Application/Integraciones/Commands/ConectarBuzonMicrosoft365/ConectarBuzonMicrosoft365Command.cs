@@ -28,10 +28,15 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// buzón pertenecen al Tenant de la sesión, igual que con el buzón propio
 /// (DN-3).
 /// </para>
+/// <para>
+/// <see cref="IdentidadBuzon"/> es la identidad estable del buzón (Id inmutable de su Bandeja de entrada),
+/// leída con el mismo token que lo abre: la reclamación global se hace sobre ella y no solo sobre la
+/// dirección, para que un alias del mismo buzón no pueda conectarse en otro Tenant.
+/// </para>
 /// </summary>
 public record ConectarBuzonMicrosoft365Command(
     string BuzonEmail, string Nombre, Guid? ClienteId, string AccessToken, string? RefreshToken, string NotificationUrlBase,
-    Guid? GestorPropietarioId = null, string? DirectorioEntraId = null, Guid? ConsentidoPorUsuarioId = null)
+    string IdentidadBuzon, Guid? GestorPropietarioId = null, string? DirectorioEntraId = null, Guid? ConsentidoPorUsuarioId = null)
     : ICommand<Guid>
 {
     public bool EsBuzonCompartido => DirectorioEntraId is not null;
@@ -44,6 +49,7 @@ public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<Conec
         RuleFor(c => c.BuzonEmail).NotEmpty().EmailAddress().WithMessage("El buzón debe ser un correo válido.");
         RuleFor(c => c.Nombre).NotEmpty().WithMessage("La conexión debe tener un nombre.");
         RuleFor(c => c.AccessToken).NotEmpty();
+        RuleFor(c => c.IdentidadBuzon).NotEmpty().MaximumLength(ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon);
         RuleFor(c => c.RefreshToken).NotEmpty().When(c => !c.EsBuzonCompartido);
         RuleFor(c => c.RefreshToken).Null().When(c => c.EsBuzonCompartido)
             .WithMessage("Un buzón compartido no guarda el refresh token de nadie.");
@@ -104,8 +110,10 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // ReactivarConexionCommand documenta para ese escenario (no crea una
         // suscripción nueva por sí solo).
         var buzonNormalizado = request.BuzonEmail.Trim().ToLowerInvariant();
+        var identidad = request.IdentidadBuzon;
         if (await queryContext.ConexionesIntegracion.AnyAsync(
-                c => c.BuzonEmail.ToLower() == buzonNormalizado && c.Estado != EstadoConexionIntegracion.Deshabilitada,
+                c => (c.BuzonEmail.ToLower() == buzonNormalizado || c.IdentidadBuzon == identidad) &&
+                     c.Estado != EstadoConexionIntegracion.Deshabilitada,
                 cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion",
@@ -127,6 +135,8 @@ public class ConectarBuzonMicrosoft365CommandHandler(
             credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, request.RefreshToken!));
         }
 
+        conexion.FijarIdentidadBuzon(identidad);
+
         // Secreto propio de Hydra, nunca elegido por Graph — se guarda
         // cifrado en SuscripcionWebhook y se compara en cada notificación
         // entrante (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
@@ -143,9 +153,9 @@ public class ConectarBuzonMicrosoft365CommandHandler(
             conexion.Id, graphSubscriptionId, clientState, suscripcionResultado.Valor.FechaExpiracionUtc));
 
         // Unicidad global del buzón (incremento 1 de PROPUESTA-BUZONES-COMPARTIDOS-M365
-        // § 5.4): sin esta reclamación, el mismo BuzonEmail podía conectarse
-        // en dos Tenants a la vez.
-        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(request.BuzonEmail, tenantId, conexion.Id, DateTime.UtcNow));
+        // § 5.4): sin esta reclamación, el mismo buzón podía conectarse en dos
+        // Tenants a la vez, con la misma dirección o con un alias suyo.
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(request.BuzonEmail, identidad, tenantId, conexion.Id, DateTime.UtcNow));
 
         bool buzonLibre;
         try

@@ -37,7 +37,14 @@ public class AccesoGraphService(ICredencialIntegracionRepository credencialRepos
         var token = await graphClient.ObtenerTokenAplicacionAsync(directorio, cancellationToken);
         return token.EsFallido ? Result.Fallo<string>(token.Error) : Result.Exito(token.Valor.AccessToken);
     }
-    public async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
+
+    /// <summary>
+    /// Token delegado de la credencial de una conexión. <c>internal</c> a propósito: fuera de Application nadie
+    /// puede pedir un token sin pasar la conexión, que es lo que decide entre credencial delegada y token de
+    /// aplicación; un llamador que volviese al Id dejaría de compilar en vez de dejar sin ingesta, en silencio,
+    /// a los buzones compartidos.
+    /// </summary>
+    internal async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
     {
         var credencial = await credencialRepositorio.ObtenerPorConexionAsync(conexionIntegracionId, cancellationToken);
         if (credencial is null)

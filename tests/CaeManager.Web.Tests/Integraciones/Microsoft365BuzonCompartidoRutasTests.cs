@@ -22,11 +22,12 @@ public class Microsoft365BuzonCompartidoRutasTests
 
     private sealed class AnotaPeticionesHandler(HttpStatusCode estado = HttpStatusCode.OK, string cuerpo = "{}") : HttpMessageHandler
     {
-        public List<(HttpMethod Metodo, string Url)> Peticiones { get; } = [];
+        public List<(HttpMethod Metodo, string Url, string? Prefer)> Peticiones { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Peticiones.Add((request.Method, request.RequestUri!.AbsoluteUri));
+            Peticiones.Add((request.Method, request.RequestUri!.AbsoluteUri,
+                request.Headers.TryGetValues("Prefer", out var prefer) ? string.Join(",", prefer) : null));
             return Task.FromResult(new HttpResponseMessage(estado)
             {
                 Content = new StringContent(cuerpo, Encoding.UTF8, "application/json"),
@@ -137,11 +138,77 @@ public class Microsoft365BuzonCompartidoRutasTests
         handler.Peticiones.Should().BeEmpty();
     }
 
+    /// <summary>Token con forma de JWT (sin firma real) y el claim <c>roles</c> dado; sin roles, ningún permiso de Entra.</summary>
+    private static string TokenJwt(params string[] roles)
+    {
+        static string Base64Url(string texto) =>
+            Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(texto)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+        var carga = roles.Length == 0 ? "{\"aud\":\"graph\"}" : $"{{\"roles\":[{string.Join(',', roles.Select(r => $"\"{r}\""))}]}}";
+        return $"{Base64Url("{\"alg\":\"none\"}")}.{Base64Url(carga)}.firma";
+    }
+
+    private static string RespuestaToken(string token) => $"{{\"access_token\":\"{token}\",\"expires_in\":3599}}";
+
+    private static Microsoft365GraphClient ClienteConSecreto(HttpMessageHandler handler) => new(
+        new HttpClient(handler),
+        Options.Create(new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto" }),
+        NullLogger<Microsoft365GraphClient>.Instance);
+
+    /// <summary>
+    /// Un permiso de aplicación de correo concedido en Entra abre todos los buzones del directorio y deja sin efecto
+    /// el ámbito de RBAC for Applications de Exchange (los dos se suman): con él, el token no se usa.
+    /// </summary>
+    [Theory]
+    [InlineData("Mail.Read")]
+    [InlineData("Mail.ReadWrite")]
+    [InlineData("mail.send")]
+    public async Task Un_token_de_aplicacion_con_permiso_de_correo_sin_acotar_no_se_usa(string rol)
+    {
+        var directorio = Guid.NewGuid().ToString();
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(TokenJwt("User.Read.All", rol)));
+        var cliente = ClienteConSecreto(handler);
+
+        var resultado = await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None);
+        var segundo = await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.PermisoSinAcotar");
+        segundo.EsFallido.Should().BeTrue("un token rechazado no se guarda en la caché");
+        handler.Peticiones.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData("opaco")]
+    [InlineData("a.no-es-base64!.c")]
+    public async Task Un_token_de_aplicacion_ilegible_no_se_usa(string token)
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(token));
+
+        var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.PermisoSinAcotar");
+    }
+
+    [Fact]
+    public async Task Un_token_de_aplicacion_sin_permisos_de_correo_en_Entra_se_acepta()
+    {
+        var token = TokenJwt("User.Read.All");
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(token));
+
+        var resultado = await ClienteConSecreto(handler).ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.AccessToken.Should().Be(token);
+    }
+
     [Fact]
     public async Task El_token_de_aplicacion_se_pide_al_endpoint_del_directorio_con_client_credentials()
     {
         var directorio = Guid.NewGuid();
-        var handler = new CapturaCuerpoHandler("""{"access_token":"app","expires_in":3599}""");
+        var token = TokenJwt();
+        var handler = new CapturaCuerpoHandler(RespuestaToken(token));
         var cliente = new Microsoft365GraphClient(
             new HttpClient(handler),
             Options.Create(new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto" }),
@@ -150,7 +217,7 @@ public class Microsoft365BuzonCompartidoRutasTests
         var resultado = await cliente.ObtenerTokenAplicacionAsync(directorio.ToString(), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        resultado.Valor.AccessToken.Should().Be("app");
+        resultado.Valor.AccessToken.Should().Be(token);
         handler.Url.Should().Be($"https://login.microsoftonline.com/{directorio:D}/oauth2/v2.0/token");
         handler.Cuerpo.Should().Contain("grant_type=client_credentials")
             .And.Contain("scope=https%3A%2F%2Fgraph.microsoft.com%2F.default")
@@ -161,14 +228,12 @@ public class Microsoft365BuzonCompartidoRutasTests
     public async Task El_token_de_aplicacion_de_un_directorio_se_reutiliza_mientras_esta_vigente()
     {
         var directorio = Guid.NewGuid().ToString();
-        var handler = new AnotaPeticionesHandler(cuerpo: """{"access_token":"app","expires_in":3599}""");
-        var cliente = new Microsoft365GraphClient(
-            new HttpClient(handler),
-            Options.Create(new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto" }),
-            NullLogger<Microsoft365GraphClient>.Instance);
+        var token = TokenJwt();
+        var handler = new AnotaPeticionesHandler(cuerpo: RespuestaToken(token));
+        var cliente = ClienteConSecreto(handler);
 
-        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be("app");
-        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be("app");
+        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be(token);
+        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be(token);
 
         handler.Peticiones.Should().ContainSingle();
     }
@@ -215,15 +280,101 @@ public class Microsoft365BuzonCompartidoRutasTests
     }
 
     [Fact]
-    public async Task Comprobar_acceso_pide_la_bandeja_de_entrada_del_buzon_compartido()
+    public async Task La_identidad_es_el_Id_inmutable_de_la_bandeja_de_entrada_del_buzon_compartido()
     {
-        var handler = new AnotaPeticionesHandler(cuerpo: """{"id":"inbox"}""");
+        var handler = new AnotaPeticionesHandler(cuerpo: """{"id":"AAMkInboxInmutable="}""");
 
-        var resultado = await Cliente(handler).ComprobarAccesoBuzonAsync("token", Compartido, CancellationToken.None);
+        var resultado = await Cliente(handler).ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        handler.Peticiones.Should().ContainSingle()
-            .Which.Url.Should().StartWith($"{RaizCompartido}/mailFolders('Inbox')");
+        resultado.Valor.Should().Be("AAMkInboxInmutable=");
+        var peticion = handler.Peticiones.Should().ContainSingle().Which;
+        peticion.Url.Should().StartWith($"{RaizCompartido}/mailFolders('Inbox')");
+        peticion.Prefer.Should().Be("IdType=\"ImmutableId\"");
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"id":""}""")]
+    [InlineData("""no es json""")]
+    public async Task Una_bandeja_sin_Id_no_da_identidad(string cuerpo)
+    {
+        var resultado = await Cliente(new AnotaPeticionesHandler(cuerpo: cuerpo))
+            .ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ErrorApi");
+    }
+
+    [Fact]
+    public async Task Un_timeout_de_Graph_en_la_identidad_es_un_fallo_recuperable_y_no_una_cancelacion()
+    {
+        var resultado = await Cliente(new LanzaTimeoutHandler())
+            .ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.TiempoAgotado");
+    }
+
+    [Fact]
+    public async Task Un_timeout_de_Entra_al_pedir_el_token_de_aplicacion_es_un_fallo_recuperable()
+    {
+        var resultado = await Cliente(new LanzaTimeoutHandler())
+            .ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.TiempoAgotado");
+    }
+
+    [Fact]
+    public async Task La_cancelacion_pedida_de_verdad_se_propaga()
+    {
+        using var cancelacion = new CancellationTokenSource();
+        await cancelacion.CancelAsync();
+
+        var accion = () => Cliente(new LanzaTimeoutHandler())
+            .ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), cancelacion.Token);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, "Integraciones.Microsoft365.MensajeNoEncontrado")]
+    [InlineData(HttpStatusCode.Forbidden, "Integraciones.Microsoft365.ErrorApi")]
+    [InlineData(HttpStatusCode.TooManyRequests, "Integraciones.Microsoft365.ErrorApi")]
+    [InlineData(HttpStatusCode.ServiceUnavailable, "Integraciones.Microsoft365.ErrorApi")]
+    public async Task Leer_un_mensaje_solo_da_por_borrado_el_404(HttpStatusCode estado, string codigo)
+    {
+        var resultado = await Cliente(new AnotaPeticionesHandler(estado))
+            .ObtenerMensajeAsync("token", Compartido, "msg-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(codigo);
+    }
+
+    [Theory]
+    [InlineData(true, HttpStatusCode.Forbidden, "Integraciones.Microsoft365.SinPermisoEscritura")]
+    [InlineData(true, HttpStatusCode.InternalServerError, "Integraciones.Microsoft365.ErrorEnvio")]
+    [InlineData(false, HttpStatusCode.Forbidden, "Integraciones.Microsoft365.ErrorEnvio")]
+    public async Task Sin_permiso_de_escritura_el_compartido_lo_dice_al_crear_el_borrador(bool compartido, HttpStatusCode estado, string codigo)
+    {
+        var buzon = compartido ? Compartido : new BuzonGraph("propio@tenant.com", false);
+
+        var resultado = await Cliente(new AnotaPeticionesHandler(estado))
+            .EnviarNuevoMensajeAsync("token", buzon, ["destino@otra.es"], "Asunto", "<p>Hola</p>", null, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(codigo);
+    }
+
+    private sealed class LanzaTimeoutHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            // Lo que hace HttpClient al vencer su Timeout: cancela sin que el llamador lo haya pedido.
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout.");
+        }
     }
 
     [Theory]
@@ -233,7 +384,7 @@ public class Microsoft365BuzonCompartidoRutasTests
     public async Task Comprobar_acceso_distingue_la_falta_de_permiso_de_un_fallo_de_Graph(HttpStatusCode estado, string codigo)
     {
         var resultado = await Cliente(new AnotaPeticionesHandler(estado))
-            .ComprobarAccesoBuzonAsync("token", Compartido, CancellationToken.None);
+            .ObtenerIdentidadBuzonAsync("token", Compartido, CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(codigo);

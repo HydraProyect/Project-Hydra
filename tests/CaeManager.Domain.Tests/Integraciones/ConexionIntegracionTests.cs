@@ -111,4 +111,49 @@ public class ConexionIntegracionTests
 
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
     }
+
+    [Fact]
+    public void La_identidad_del_buzon_se_fija_una_vez_y_admite_repetir_la_misma()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+
+        conexion.FijarIdentidadBuzon("inbox-1");
+        conexion.FijarIdentidadBuzon("inbox-1");
+
+        conexion.IdentidadBuzon.Should().Be("inbox-1");
+    }
+
+    [Fact]
+    public void La_identidad_del_buzon_no_se_cambia_por_la_de_otro_buzon()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-1");
+
+        var accion = () => conexion.FijarIdentidadBuzon("inbox-2");
+
+        accion.Should().Throw<InvalidOperationException>();
+        conexion.IdentidadBuzon.Should().Be("inbox-1");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rechaza_una_identidad_del_buzon_vacia(string identidad)
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+
+        var accion = () => conexion.FijarIdentidadBuzon(identidad);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Rechaza_una_identidad_del_buzon_demasiado_larga()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+
+        var accion = () => conexion.FijarIdentidadBuzon(new string('a', ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon + 1));
+
+        accion.Should().Throw<ArgumentException>();
+    }
 }

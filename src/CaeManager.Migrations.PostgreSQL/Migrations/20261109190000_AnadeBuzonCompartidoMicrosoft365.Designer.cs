@@ -7854,6 +7854,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("GestorPropietarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("IdentidadBuzon")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -7889,7 +7893,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("ConexionesIntegracion", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ConexionesIntegracion_BuzonCompartidoConDirectorio", "NOT \"EsBuzonCompartido\" OR (\"DirectorioEntraId\" IS NOT NULL AND \"GestorPropietarioId\" IS NULL)");
+                            t.HasCheckConstraint("CK_ConexionesIntegracion_BuzonCompartidoConDirectorio", "NOT \"EsBuzonCompartido\" OR (\"DirectorioEntraId\" IS NOT NULL AND \"GestorPropietarioId\" IS NULL AND \"ClienteId\" IS NULL)");
                         });
                 });
 
@@ -8569,6 +8573,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("ConexionIntegracionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("IdentidadBuzon")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<DateTime>("ReclamadoEnUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -8583,6 +8591,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("ConexionIntegracionId")
                         .IsUnique();
+
+                    b.HasIndex("IdentidadBuzon")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ReclamacionesBuzonIntegracion_IdentidadBuzon")
+                        .HasFilter("\"IdentidadBuzon\" IS NOT NULL");
 
                     b.ToTable("ReclamacionesBuzonIntegracion", (string)null);
                 });

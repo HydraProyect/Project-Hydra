@@ -139,6 +139,18 @@ public class Microsoft365GraphClient(
                 return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                     "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
 
+            // La concesión de Entra y la de Exchange se suman: con un permiso Mail.* de aplicación en Entra el
+            // token abre todos los buzones del directorio y el ámbito de RBAC for Applications deja de acotar
+            // nada. Esos permisos viajan en el claim «roles»; los de Exchange no. Se falla cerrado.
+            if (TokenAplicacion.TienePermisoDeCorreoSinAcotar(cuerpo.AccessToken))
+            {
+                logger.LogError(
+                    "El token de aplicación del directorio {Directorio} trae un permiso Mail.* concedido en Entra: no se usa.", directorio);
+                return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                    "Integraciones.Microsoft365.PermisoSinAcotar",
+                    "La aplicación tiene en ese directorio un permiso de correo sin acotar: el administrador debe retirarlo en Entra."));
+            }
+
             var token = new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600));
             TokensAplicacion[claveCache] = token;
             return Result.Exito(token);
@@ -147,6 +159,16 @@ public class Microsoft365GraphClient(
         {
             logger.LogError(ex, "Fallo de red al pedir un token de aplicación a Microsoft Entra ID.");
             return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al pedir un token de aplicación.");
+            return Result.Fallo<TokenAplicacionGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (JsonException)
+        {
+            return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
+                "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
         }
     }
 
@@ -275,22 +297,35 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al leer el directorio de Microsoft Graph.");
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el directorio.");
+            return Result.Fallo<string>(ErrorTiempoAgotado);
+        }
         catch (JsonException)
         {
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
         }
     }
 
-    public async Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    public async Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
     {
         using var peticion = NuevaPeticionGraph(
             HttpMethod.Get, $"{RutaBuzon(buzon)}/mailFolders('Inbox')?$select=id", accessToken);
+        // NuevaPeticionGraph ya pide el Id inmutable (Prefer: IdType="ImmutableId"), que no cambia aunque la
+        // carpeta se mueva ni depende de la dirección por la que se abra el buzón: es lo que hace de él una
+        // identidad y no solo una prueba de acceso.
 
         try
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (respuesta.IsSuccessStatusCode)
-                return Result.Exito();
+            {
+                var carpeta = await respuesta.Content.ReadFromJsonAsync<CarpetaIdGraph>(cancellationToken);
+                return string.IsNullOrWhiteSpace(carpeta?.Id) || carpeta.Id.Length > LongitudMaximaIdentidadBuzon
+                    ? Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."))
+                    : Result.Exito(carpeta.Id);
+            }
 
             var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
             logger.LogWarning(
@@ -301,17 +336,39 @@ public class Microsoft365GraphClient(
             // Exchange asignó a la aplicación en ese directorio, o la dirección no existe. Graph no
             // distingue los dos casos de forma fiable, así que el mensaje los nombra a la vez.
             return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
-                ? Result.Fallo(Error.Crear(
+                ? Result.Fallo<string>(Error.Crear(
                     "Integraciones.Microsoft365.SinAccesoBuzon",
                     "Tu cuenta de Microsoft no puede abrir ese buzón: comprueba la dirección y que tengas acceso total a él."))
-                : Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+                : Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al comprobar el acceso a un buzón vía Microsoft Graph.");
-            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al comprobar el acceso a un buzón.");
+            return Result.Fallo<string>(ErrorTiempoAgotado);
+        }
+        catch (JsonException)
+        {
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
         }
     }
+
+    /// <summary>Tope de la identidad del buzón en la reclamación; un Id inmutable de carpeta ronda los 150 caracteres.</summary>
+    internal const int LongitudMaximaIdentidadBuzon = CaeManager.Domain.Integraciones.ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon;
+
+    /// <summary>
+    /// Un timeout del <see cref="HttpClient"/> llega como <see cref="TaskCanceledException"/> sin que nadie haya
+    /// cancelado: es un fallo recuperable de Microsoft, no una cancelación, y no debe cortar la desconexión de un
+    /// buzón ni la renovación del resto del Tenant. La cancelación pedida de verdad se sigue propagando.
+    /// </summary>
+    private static readonly Error ErrorTiempoAgotado =
+        Error.Crear("Integraciones.Microsoft365.TiempoAgotado", "Microsoft no respondió a tiempo.");
+
+    private sealed record CarpetaIdGraph(string? Id);
 
     /// <summary>
     /// Raíz de las llamadas sobre un buzón: <c>/me</c> para el propio de quien consintió (resuelto por
@@ -394,7 +451,14 @@ public class Microsoft365GraphClient(
                 logger.LogError(
                     "Microsoft Graph devolvió {StatusCode} al crear un borrador: {CodigoError}",
                     (int)respuestaBorrador.StatusCode, CodigoErrorGraph.Extraer(cuerpoError));
-                return Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
+                // Un compartido con solo «Application Mail.Read» y «Application Mail.Send» en Exchange lee
+                // y responde, pero no puede crear el borrador de un mensaje nuevo: le falta
+                // «Application Mail.ReadWrite». Se nombra para que no parezca un fallo de Microsoft.
+                return Result.Fallo<MensajeEnviadoGraphDto>(
+                    buzon.EsCompartido && respuestaBorrador.StatusCode == System.Net.HttpStatusCode.Forbidden
+                        ? Error.Crear(CodigosErrorMicrosoft365.SinPermisoEscritura,
+                            "Este buzón compartido no permite enviar mensajes nuevos desde TALVEG: el administrador de Exchange debe concederle a la aplicación permiso de escritura (Mail.ReadWrite).")
+                        : Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "No pudimos enviar el mensaje."));
             }
 
             var borrador = await respuestaBorrador.Content.ReadFromJsonAsync<RespuestaCrearMensajeGraph>(cancellationToken);
@@ -471,7 +535,14 @@ public class Microsoft365GraphClient(
         {
             using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
             if (!respuesta.IsSuccessStatusCode)
-                return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+            {
+                // Solo el 404 dice que el mensaje ya no existe (borrado entre la notificación y la
+                // lectura). Un 403, un 429 o un 5xx no dicen nada del mensaje, y tratarlos igual
+                // perdería la notificación: la ingesta los reintenta.
+                return Result.Fallo<MensajeGraphDto>(respuesta.StatusCode == System.Net.HttpStatusCode.NotFound
+                    ? Error.Crear(CodigoMensajeNoEncontrado, "El mensaje ya no está en el buzón.")
+                    : Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+            }
 
             var mensaje = await respuesta.Content.ReadFromJsonAsync<MensajeDetalleGraph>(cancellationToken);
             if (mensaje is null)
@@ -513,7 +584,14 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al leer el mensaje {MensajeId} vía Microsoft Graph.", mensajeId);
             return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el mensaje {MensajeId}.", mensajeId);
+            return Result.Fallo<MensajeGraphDto>(ErrorTiempoAgotado);
+        }
     }
+
+    private const string CodigoMensajeNoEncontrado = CodigosErrorMicrosoft365.MensajeNoEncontrado;
 
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)

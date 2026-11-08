@@ -20,6 +20,14 @@ public class ReclamacionBuzonIntegracionConfiguration : IEntityTypeConfiguration
         // traducir la violación (23505) a un resultado de negocio.
         builder.HasIndex(r => r.BuzonEmail).IsUnique().HasDatabaseName(ReclamacionBuzonIntegracionRepository.IndiceUnicoBuzonEmail);
 
+        // La misma guarda por identidad estable del buzón: cierra el alta de un alias (UPN, proxy) de un
+        // buzón que otro Tenant ya tiene reclamado con otra dirección. Parcial porque las reclamaciones
+        // anteriores a la columna no la tienen hasta que la renovación la completa.
+        builder.Property(r => r.IdentidadBuzon).HasMaxLength(ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon);
+        builder.HasIndex(r => r.IdentidadBuzon).IsUnique()
+            .HasFilter("\"IdentidadBuzon\" IS NOT NULL")
+            .HasDatabaseName(ReclamacionBuzonIntegracionRepository.IndiceUnicoIdentidadBuzon);
+
         // Cada conexión reclama como mucho un buzón — sostiene LiberarAsync/
         // ExisteReclamacionAsync como una relación 1:1 con ConexionIntegracion.
         builder.HasIndex(r => r.ConexionIntegracionId).IsUnique();

@@ -101,6 +101,7 @@ public class ReactivarConexionCommandHandlerTests
     public async Task Al_reactivar_desde_Deshabilitada_vuelve_a_reclamar_el_buzon()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
         conexion.Deshabilitar();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
@@ -113,8 +114,33 @@ public class ReactivarConexionCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
         reclamacionRepositorio.Reclamaciones.Should().ContainSingle(
-            r => r.BuzonEmail == "cae@cliente.com" && r.TenantPropietarioId == TenantId && r.ConexionIntegracionId == conexion.Id);
+            r => r.BuzonEmail == "cae@cliente.com" && r.TenantPropietarioId == TenantId && r.ConexionIntegracionId == conexion.Id &&
+                 r.IdentidadBuzon == "inbox-x");
         reclamacionRepositorio.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Una conexión Deshabilitada anterior a la identidad del buzón no la tiene, y reclamar solo por la dirección
+    /// dejaría pasar un alias del mismo buzón conectado en otro Tenant: se pide volver a conectarla.
+    /// </summary>
+    [Fact]
+    public async Task Rechaza_reactivar_desde_Deshabilitada_una_conexion_sin_identidad_del_buzon()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamacionRepositorio);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ReconexionNecesaria");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        reclamacionRepositorio.Reclamaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     /// <summary>
@@ -125,6 +151,7 @@ public class ReactivarConexionCommandHandlerTests
     public async Task Rechaza_reactivar_si_otro_tenant_reclamo_el_buzon_mientras_estaba_desconectada()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
         conexion.Deshabilitar();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
@@ -150,6 +177,7 @@ public class ReactivarConexionCommandHandlerTests
     public async Task No_rehabilita_la_conexion_si_no_se_puede_resolver_el_tenant_actual()
     {
         var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
         conexion.Deshabilitar();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);

@@ -8,16 +8,19 @@ public class ConexionIntegracionConfiguration : IEntityTypeConfiguration<Conexio
 {
     public void Configure(EntityTypeBuilder<ConexionIntegracion> builder)
     {
-        // Un buzón compartido solo se abre con el token de aplicación de su directorio, y nunca es el buzón
-        // personal de un Gestor CAE: la base de datos lo garantiza aunque una escritura salte la fábrica.
+        // Un buzón compartido solo se abre con el token de aplicación de su directorio, y es el de su Tenant
+        // propietario: nunca el buzón personal de un Gestor CAE ni el de una Empresa (decisión R1). La base de
+        // datos lo garantiza aunque una escritura salte la fábrica.
         builder.ToTable("ConexionesIntegracion", t => t.HasCheckConstraint(
             "CK_ConexionesIntegracion_BuzonCompartidoConDirectorio",
             $"NOT \"{nameof(ConexionIntegracion.EsBuzonCompartido)}\" OR " +
-            $"(\"{nameof(ConexionIntegracion.DirectorioEntraId)}\" IS NOT NULL AND \"{nameof(ConexionIntegracion.GestorPropietarioId)}\" IS NULL)"));
+            $"(\"{nameof(ConexionIntegracion.DirectorioEntraId)}\" IS NOT NULL AND \"{nameof(ConexionIntegracion.GestorPropietarioId)}\" IS NULL" +
+            $" AND \"{nameof(ConexionIntegracion.ClienteId)}\" IS NULL)"));
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.BuzonEmail).IsRequired().HasMaxLength(ConexionIntegracion.LongitudMaximaBuzonEmail);
         builder.Property(c => c.DirectorioEntraId).HasMaxLength(36);
+        builder.Property(c => c.IdentidadBuzon).HasMaxLength(ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon);
         builder.Property(c => c.Nombre).IsRequired().HasMaxLength(ConexionIntegracion.LongitudMaximaNombre);
         builder.Property(c => c.UltimoError).HasMaxLength(ConexionIntegracion.LongitudMaximaUltimoError);
 

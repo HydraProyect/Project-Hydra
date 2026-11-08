@@ -108,6 +108,14 @@ public class RenovacionSuscripcionWebhookHostedService(
 
     private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
+        // En su propio ámbito y antes de renovar: un choque de identidad descarta los cambios en memoria de su
+        // DbContext, y no debe llevarse por delante los de la renovación.
+        using (var ambitoIdentidad = ambitoFactory.CreateScope())
+        using (AmbitoTenantExplicito.Establecer(tenantId))
+        {
+            await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>().CompletarAsync(stoppingToken);
+        }
+
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
 

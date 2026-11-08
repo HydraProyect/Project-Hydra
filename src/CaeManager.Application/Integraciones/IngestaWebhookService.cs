@@ -122,8 +122,14 @@ public class IngestaWebhookService(
         var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessTokenResultado.Valor, BuzonGraph.De(conexion), mensajeId, cancellationToken);
         if (mensajeResultado.EsFallido)
         {
-            // Un mensaje puntual que Graph ya no tiene (borrado entre la
-            // notificación y la ingesta) no debe tirar el resto del evento.
+            // Solo un mensaje que Graph ya no tiene (404: borrado entre la notificación y la ingesta) se
+            // descarta sin tirar el resto del evento. Un 403, un 429, un 5xx o un timeout no dicen nada del
+            // mensaje: el evento falla y se reintenta, y los mensajes ya ingeridos en este intento se
+            // descartan entonces por duplicado (ExisteMensajeExternoAsync).
+            if (mensajeResultado.Error.Codigo != CodigosErrorMicrosoft365.MensajeNoEncontrado)
+                throw new InvalidOperationException(
+                    $"No se pudo leer el mensaje {mensajeId} de Graph: {mensajeResultado.Error.Mensaje}");
+
             logger.LogWarning(
                 "No se pudo obtener el mensaje {MensajeId} de Graph para la conexión {ConexionId}: {Error}",
                 mensajeId, conexion.Id, mensajeResultado.Error.Mensaje);

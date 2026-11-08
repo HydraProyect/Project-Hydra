@@ -64,6 +64,13 @@ public class ReactivarConexionCommandHandler(
         var tenantId = Guid.Empty;
         if (necesitaReclamarBuzon)
         {
+            // La reclamación va por la identidad estable del buzón. Una conexión anterior a ese campo
+            // no la tiene, y reclamar solo por la dirección dejaría pasar un alias: se vuelve a conectar.
+            if (conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.IdentidadBuzon is null)
+                return Result.Fallo(Error.Crear(
+                    "Integraciones.Microsoft365.ReconexionNecesaria",
+                    "Esta conexión es anterior a la comprobación de buzón: vuelve a conectarla desde Conexiones."));
+
             if (tenantActual.TenantId is not { } resuelto)
                 return Result.Fallo(Error.Crear("Integraciones.Microsoft365.TenantNoResuelto", "No se pudo determinar la organización actual."));
             tenantId = resuelto;
@@ -77,7 +84,7 @@ public class ReactivarConexionCommandHandler(
             return Result.Exito();
         }
 
-        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, tenantId, conexion.Id, DateTime.UtcNow));
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, conexion.IdentidadBuzon, tenantId, conexion.Id, DateTime.UtcNow));
         var buzonLibre = await reclamacionRepositorio.GuardarCambiosSiBuzonLibreAsync(cancellationToken);
         if (!buzonLibre)
         {

@@ -398,7 +398,7 @@ public class GuardaEnvioCorreoTests
 
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) => throw new NotSupportedException();

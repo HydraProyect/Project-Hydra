@@ -25,7 +25,7 @@ public class DesconectarBuzonCommandHandlerTests
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
-        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion("cae@cliente.com", Guid.NewGuid(), conexion.Id, DateTime.UtcNow));
+        reclamacionRepositorio.Reclamar(new ReclamacionBuzonIntegracion("cae@cliente.com", null, Guid.NewGuid(), conexion.Id, DateTime.UtcNow));
         var unitOfWork = new UnitOfWorkFalso();
         var handler = CrearHandler(
             conexionRepositorio, new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio, new AlcanceDatosServiceFalso(),

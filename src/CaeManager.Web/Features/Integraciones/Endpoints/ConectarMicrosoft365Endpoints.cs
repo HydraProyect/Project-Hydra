@@ -49,8 +49,10 @@ public static class ConectarMicrosoft365Endpoints
             string? compartido = null;
             if (!string.IsNullOrWhiteSpace(buzonCompartido))
             {
+                // El compartido es el buzón de la organización (decisión R1): ni de una Empresa ni de un
+                // Gestor CAE. Se rechaza aquí para no consumir un consentimiento que el Command rechazaría.
                 compartido = NormalizarDireccionBuzon(buzonCompartido);
-                if (compartido is null || gestorPropietarioId is not null)
+                if (compartido is null || gestorPropietarioId is not null || clienteId is not null)
                     return Results.LocalRedirect("/integraciones?error=buzon-compartido");
             }
 
@@ -67,7 +69,8 @@ public static class ConectarMicrosoft365Endpoints
             string? code, string? state, string? error,
             IMicrosoft365GraphClient graphClient, IOptions<Microsoft365GraphOptions> opciones,
             ISolicitudConexionMicrosoft365Repository solicitudRepositorio, IUnitOfWork unitOfWork,
-            ICurrentUserService currentUser, IMediator mediator, ILogger<Program> logger, CancellationToken cancellationToken) =>
+            ICurrentUserService currentUser, IMediator mediator, AltaBuzonMicrosoft365Service altaBuzon,
+            ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
             // Solo «access_denied» es la persona cancelando en la pantalla de Microsoft
             // (RFC 6749 § 4.1.2.1): Conexiones lo enseña en tono informativo. Cualquier
@@ -108,58 +111,35 @@ public static class ConectarMicrosoft365Endpoints
             if (tokensResultado.EsFallido)
                 return Results.LocalRedirect("/integraciones?error=autenticacion");
 
-            var buzonResultado = await graphClient.ObtenerBuzonEmailAsync(tokensResultado.Valor.AccessToken, cancellationToken);
-            if (buzonResultado.EsFallido)
-                return Results.LocalRedirect("/integraciones?error=autenticacion");
-
-            // Escribir la propia dirección en el campo del compartido conecta el buzón propio: así
-            // conserva su suscripción webhook en vez de quedar como un compartido sin ella.
-            var esCompartido = buzonCompartido is not null &&
-                !string.Equals(buzonCompartido, buzonResultado.Valor, StringComparison.OrdinalIgnoreCase);
-            var buzonConectado = esCompartido ? buzonCompartido! : buzonResultado.Valor;
-
-            var accessToken = tokensResultado.Valor.AccessToken;
-            string? refreshToken = tokensResultado.Valor.RefreshToken;
-            string? directorioEntraId = null;
-            if (esCompartido)
+            // Qué buzón, con qué token y con qué identidad: AltaBuzonMicrosoft365Service, con sus garantías
+            // (directorio del inicio de sesión, sonda con el token de aplicación, sin refresh token en el
+            // compartido) cubiertas por sus tests.
+            var preparado = await altaBuzon.PrepararAsync(tokensResultado.Valor, buzonCompartido, cancellationToken);
+            if (preparado.EsFallido)
             {
-                // El compartido se abre con el token de aplicación del directorio de quien inició
-                // sesión, nunca con el suyo: su refresh token no se guarda. El directorio sale del
-                // inicio de sesión, no de un campo que alguien pueda escribir. Es el buzón del Tenant
-                // de la sesión (decisión R1): sin Empresa ni Gestor CAE, que el validador rechaza.
-                var directorio = await graphClient.ObtenerDirectorioAsync(tokensResultado.Valor.AccessToken, cancellationToken);
-                if (directorio.EsFallido)
-                    return Results.LocalRedirect("/integraciones?error=autenticacion");
-
-                var tokenAplicacion = await graphClient.ObtenerTokenAplicacionAsync(directorio.Valor, cancellationToken);
-                if (tokenAplicacion.EsFallido)
-                    return Results.LocalRedirect("/integraciones?error=sin-acceso-compartido");
-
-                // La única prueba de que el buzón está en el ámbito de RBAC for Applications de ese
-                // directorio: Graph no lista ese ámbito, y sin esta sonda se daría de alta una conexión
-                // que falla en la primera lectura.
-                var acceso = await graphClient.ComprobarAccesoBuzonAsync(
-                    tokenAplicacion.Valor.AccessToken, new BuzonGraph(buzonConectado, EsCompartido: true), cancellationToken);
-                if (acceso.EsFallido)
-                {
-                    return Results.LocalRedirect(acceso.Error.Codigo == "Integraciones.Microsoft365.SinAccesoBuzon"
-                        ? "/integraciones?error=sin-acceso-compartido"
-                        : "/integraciones?error=autenticacion");
-                }
-
-                accessToken = tokenAplicacion.Valor.AccessToken;
-                refreshToken = null;
-                directorioEntraId = directorio.Valor;
+                return Results.LocalRedirect(preparado.Error.Codigo == AltaBuzonMicrosoft365Service.ErrorSinAccesoCompartido
+                    ? "/integraciones?error=sin-acceso-compartido"
+                    : "/integraciones?error=autenticacion");
             }
 
+            var buzon = preparado.Valor;
             var comando = new ConectarBuzonMicrosoft365Command(
-                buzonConectado, buzonConectado, clienteId, accessToken, refreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId,
-                DirectorioEntraId: directorioEntraId, ConsentidoPorUsuarioId: usuarioId.Value);
+                buzon.BuzonEmail, buzon.BuzonEmail, clienteId, buzon.AccessToken, buzon.RefreshToken, opciones.Value.UrlPublicaBase,
+                buzon.IdentidadBuzon, gestorPropietarioId, DirectorioEntraId: buzon.DirectorioEntraId, ConsentidoPorUsuarioId: usuarioId.Value);
 
-            var resultado = await mediator.Send(comando, cancellationToken);
-            return resultado.EsExitoso
-                ? Results.LocalRedirect("/integraciones?conectado=true")
-                : Results.LocalRedirect("/integraciones?error=suscripcion");
+            try
+            {
+                var resultado = await mediator.Send(comando, cancellationToken);
+                return resultado.EsExitoso
+                    ? Results.LocalRedirect("/integraciones?conectado=true")
+                    : Results.LocalRedirect("/integraciones?error=suscripcion");
+            }
+            catch (FluentValidation.ValidationException)
+            {
+                // El state ya está consumido: una combinación que el Command rechaza vuelve a Conexiones con
+                // su error, no con un 500.
+                return Results.LocalRedirect("/integraciones?error=solicitud");
+            }
         }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();
 

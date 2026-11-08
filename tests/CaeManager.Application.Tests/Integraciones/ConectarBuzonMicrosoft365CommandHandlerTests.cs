@@ -42,7 +42,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -57,7 +57,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     private const string Directorio = "11111111-2222-3333-4444-555555555555";
 
     private static ConectarBuzonMicrosoft365Command ComandoCompartido(Guid? gestorPropietarioId = null, string? refreshToken = null, Guid? consentidoPor = null) =>
-        new("piloto@tenant.com", "Buzón piloto", ClienteId: null, "token-aplicacion", refreshToken, "https://hydra.local",
+        new("piloto@tenant.com", "Buzón piloto", ClienteId: null, "token-aplicacion", refreshToken, "https://hydra.local", "inbox-x",
             GestorPropietarioId: gestorPropietarioId, DirectorioEntraId: Directorio,
             ConsentidoPorUsuarioId: consentidoPor ?? Guid.NewGuid());
 
@@ -117,7 +117,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     public void El_validador_exige_el_refresh_token_al_buzon_propio()
     {
         new ConectarBuzonMicrosoft365CommandValidator().Validate(
-                new ConectarBuzonMicrosoft365Command("cae@tenant.com", "Buzón CAE", null, "access-token", null, "https://hydra.local"))
+                new ConectarBuzonMicrosoft365Command("cae@tenant.com", "Buzón CAE", null, "access-token", null, "https://hydra.local", "inbox-x"))
             .IsValid.Should().BeFalse();
     }
 
@@ -144,13 +144,63 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@tenant.com", "Buzón CAE (repetido)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@tenant.com", "Buzón CAE (repetido)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion");
         conexionRepositorio.Conexiones.Should().BeEmpty("no debe crear una segunda conexión duplicada");
         reclamacionRepositorio.VecesGuardado.Should().Be(0, "debe fallar antes de intentar la reclamación global");
+    }
+
+    /// <summary>
+    /// La identidad estable del buzón (ImmutableId de su Inbox) es la clave que cierra el paso a un alias: se
+    /// guarda en la conexión y en la reclamación global, cuyo índice único la cubre.
+    /// </summary>
+    [Fact]
+    public async Task Guarda_la_identidad_del_buzon_en_la_conexion_y_en_la_reclamacion()
+    {
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso());
+
+        var resultado = await handler.Handle(ComandoCompartido() with { IdentidadBuzon = "inbox-piloto" }, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexionRepositorio.Conexiones.Should().ContainSingle().Which.IdentidadBuzon.Should().Be("inbox-piloto");
+        reclamacionRepositorio.Reclamaciones.Should().ContainSingle().Which.IdentidadBuzon.Should().Be("inbox-piloto");
+    }
+
+    /// <summary>Un alias (UPN, dirección proxy) del buzón que el Tenant ya tiene activo es el mismo buzón.</summary>
+    [Fact]
+    public async Task Rechaza_un_alias_del_buzon_que_el_propio_tenant_ya_tiene_activo()
+    {
+        var conexionExistente = ConexionIntegracion.CrearBuzonCompartido("cae@tenant.com", "Buzón CAE", Directorio, Guid.NewGuid());
+        conexionExistente.FijarIdentidadBuzon("inbox-piloto");
+        var queryContext = new IntegracionesQueryContextFalso();
+        queryContext.ConexionesLista.Add(conexionExistente);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, new CredencialIntegracionRepositorioFalso(), new SuscripcionWebhookRepositorioFalso(), reclamacionRepositorio,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), new Microsoft365GraphClientFalso(),
+            queryContext: queryContext);
+
+        var resultado = await handler.Handle(ComandoCompartido() with { IdentidadBuzon = "inbox-piloto" }, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.BuzonYaConectadoEnEstaOrganizacion");
+        conexionRepositorio.Conexiones.Should().BeEmpty();
+        reclamacionRepositorio.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public void El_validador_exige_la_identidad_del_buzon()
+    {
+        new ConectarBuzonMicrosoft365CommandValidator().Validate(ComandoCompartido() with { IdentidadBuzon = "" })
+            .IsValid.Should().BeFalse();
     }
 
     /// <summary>
@@ -177,7 +227,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@tenant.com", "Buzón CAE (reconectado)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@tenant.com", "Buzón CAE (reconectado)", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue("una conexión Deshabilitada no debe bloquear la reconexión desde cero");
@@ -200,7 +250,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@cliente.com", "Buzón CAE", clienteAjeno.Id, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@cliente.com", "Buzón CAE", clienteAjeno.Id, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -221,7 +271,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x",
                 GestorPropietarioId: gestorId),
             CancellationToken.None);
 
@@ -241,7 +291,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                "gestor@arcosspa.com", "Buzón personal", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x",
                 GestorPropietarioId: Guid.NewGuid()),
             CancellationToken.None);
 
@@ -263,7 +313,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -291,7 +341,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var accion = () => handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@tenant.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         await accion.Should().ThrowAsync<InvalidOperationException>("el fallo original de guardado no debe quedar enmascarado");
@@ -317,7 +367,7 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
 
         var resultado = await handler.Handle(
             new ConectarBuzonMicrosoft365Command(
-                "cae@arcosspa.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local"),
+                "cae@arcosspa.com", "Buzón CAE", ClienteId: null, "access-token", "refresh-token", "https://hydra.local", "inbox-x"),
             CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();

@@ -125,13 +125,14 @@ public interface IMicrosoft365GraphClient
     Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Comprueba, antes de dar de alta un buzón compartido, que el token de aplicación
-    /// de su directorio puede leer su Bandeja de entrada, es decir, que el buzón está
-    /// dentro del ámbito de RBAC for Applications. Graph no lista los buzones de ese
-    /// ámbito, así que la dirección la escribe quien conecta y esta sonda es la única
-    /// prueba de acceso.
+    /// Identidad estable del buzón: el Id inmutable de su Bandeja de entrada. Es la misma por
+    /// cualquier dirección o alias que lo abra (correo principal, UPN, proxy) y por cualquier
+    /// token (delegado o de aplicación), y por eso es la clave de la reclamación global del
+    /// buzón, no la dirección escrita. Antes del alta de un compartido sirve además de sonda: si
+    /// el token de aplicación del directorio no puede leer esa Bandeja, el buzón está fuera del
+    /// ámbito de RBAC for Applications (Graph no lista ese ámbito).
     /// </summary>
-    Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
+    Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
 
     /// <summary>
     /// Usa el endpoint /reply de Graph — preserva threading automáticamente,
@@ -214,4 +215,17 @@ public interface IMicrosoft365GraphClient
     /// <see cref="ExtraerClientStateDeNotificacion"/>, lote heterogéneo incluido.
     /// </summary>
     string? ExtraerSubscriptionIdDeNotificacion(string payloadJson);
+}
+
+/// <summary>Códigos de error de <see cref="IMicrosoft365GraphClient"/> que un llamador trata de forma distinta al resto.</summary>
+public static class CodigosErrorMicrosoft365
+{
+    /// <summary>Graph respondió 404 al leer un mensaje: ya no existe. Cualquier otro fallo de lectura es transitorio o de permiso.</summary>
+    public const string MensajeNoEncontrado = "Integraciones.Microsoft365.MensajeNoEncontrado";
+
+    /// <summary>El buzón está fuera del alcance del token (403/404 en su Bandeja de entrada).</summary>
+    public const string SinAccesoBuzon = "Integraciones.Microsoft365.SinAccesoBuzon";
+
+    /// <summary>Graph rechazó con 403 la creación de un borrador: al token le falta Mail.ReadWrite sobre ese buzón.</summary>
+    public const string SinPermisoEscritura = "Integraciones.Microsoft365.SinPermisoEscritura";
 }

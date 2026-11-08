@@ -51,11 +51,19 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken)
     {
         DirectoriosConTokenDeAplicacion.Add(directorioId);
-        return Task.FromResult(Result.Exito(new TokenAplicacionGraphDto("token-aplicacion-falso", DateTime.UtcNow.AddHours(1))));
+        return Task.FromResult(FallaTokenAplicacion
+            ? Result.Fallo<TokenAplicacionGraphDto>(Error.Crear("Integraciones.Microsoft365.PermisoSinAcotar", "fallo simulado"))
+            : Result.Exito(new TokenAplicacionGraphDto("token-aplicacion-falso", DateTime.UtcNow.AddHours(1))));
     }
 
+    /// <summary>El directorio no da token de aplicación (sin consentimiento o con permiso de correo sin acotar).</summary>
+    public bool FallaTokenAplicacion { get; set; }
+
+    /// <summary>Dirección del buzón propio que devuelve <c>/me</c>.</summary>
+    public string BuzonEmailPropio { get; set; } = "buzon@cliente-falso.test";
+
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
+        Task.FromResult(Result.Exito(BuzonEmailPropio));
 
     public string DirectorioDevuelto { get; set; } = "11111111-2222-3333-4444-555555555555";
 
@@ -67,10 +75,32 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public int VecesSuscrito { get; private set; }
 
-    public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    /// <summary>
+    /// Identidad de cada buzón por su dirección en minúsculas; sin entrada, la propia dirección. Dos alias del
+    /// mismo buzón se simulan dándoles la misma identidad.
+    /// </summary>
+    public Dictionary<string, string> IdentidadesPorDireccion { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Identidad del buzón propio (<c>/me</c>), que no tiene dirección en la ruta.</summary>
+    public string IdentidadBuzonPropio { get; set; } = "inbox-propio";
+
+    /// <summary>Error que devuelve la sonda de identidad; null, éxito.</summary>
+    public Error? ErrorIdentidadBuzon { get; set; }
+
+    /// <summary>Tokens con los que se pidió la identidad, en orden: prueba que la sonda del compartido usa el de aplicación.</summary>
+    public List<string> TokensDeIdentidad { get; } = [];
+
+    public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
     {
         BuzonesUsados.Add(buzon);
-        return Task.FromResult(Result.Exito());
+        TokensDeIdentidad.Add(accessToken);
+        if (ErrorIdentidadBuzon is { } error)
+            return Task.FromResult(Result.Fallo<string>(error));
+
+        var identidad = !buzon.EsCompartido
+            ? IdentidadBuzonPropio
+            : IdentidadesPorDireccion.GetValueOrDefault(buzon.Direccion) ?? $"inbox-{buzon.Direccion.ToLowerInvariant()}";
+        return Task.FromResult(Result.Exito(identidad));
     }
 
     public Task<Result> EnviarRespuestaAsync(
@@ -104,9 +134,15 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
-        Registrar(buzon, (MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
-            ? Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "sin mensaje configurado"))
-            : Result.Exito(mensaje));
+        Registrar(buzon, ErrorLecturaMensaje is { } error
+            ? Result.Fallo<MensajeGraphDto>(error)
+            : (MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
+                // Sin mensaje configurado: el 404 de Graph, un mensaje borrado entre la notificación y la lectura.
+                ? Result.Fallo<MensajeGraphDto>(Error.Crear(CodigosErrorMicrosoft365.MensajeNoEncontrado, "sin mensaje configurado"))
+                : Result.Exito(mensaje));
+
+    /// <summary>Fallo de lectura que no es un 404 (403, 429, 5xx, timeout); null, el comportamiento normal.</summary>
+    public Error? ErrorLecturaMensaje { get; set; }
 
     public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>

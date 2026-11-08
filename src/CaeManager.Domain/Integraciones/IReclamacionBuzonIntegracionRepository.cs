@@ -4,11 +4,15 @@ public interface IReclamacionBuzonIntegracionRepository
 {
     void Reclamar(ReclamacionBuzonIntegracion reclamacion);
 
+    /// <summary>La reclamación de una conexión del Tenant actual (RLS), o null si no la tiene.</summary>
+    Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Persiste el Unit of Work compartido (la reclamación y, en el mismo
     /// <c>SaveChangesAsync</c>, cualquier otro cambio pendiente del mismo
     /// contexto — p. ej. la <c>ConexionIntegracion</c>/<c>CredencialIntegracion</c>/
     /// <c>SuscripcionWebhook</c> recién creadas). Si el <see cref="ReclamacionBuzonIntegracion.BuzonEmail"/>
+    /// o la <see cref="ReclamacionBuzonIntegracion.IdentidadBuzon"/>
     /// ya está reclamado por otro Tenant o conexión, el índice único lo
     /// rechaza a nivel de PostgreSQL: se traduce a <c>false</c> (y se
     /// descartan los cambios en memoria) en vez de propagar la excepción —

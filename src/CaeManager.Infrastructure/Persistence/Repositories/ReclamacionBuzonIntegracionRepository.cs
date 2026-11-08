@@ -7,6 +7,10 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext) : IReclamacionBuzonIntegracionRepository
 {
     public const string IndiceUnicoBuzonEmail = "IX_ReclamacionesBuzonIntegracion_BuzonEmail";
+    public const string IndiceUnicoIdentidadBuzon = "IX_ReclamacionesBuzonIntegracion_IdentidadBuzon";
+
+    public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        dbContext.ReclamacionesBuzonIntegracion.FirstOrDefaultAsync(r => r.ConexionIntegracionId == conexionIntegracionId, cancellationToken);
 
     public void Reclamar(ReclamacionBuzonIntegracion reclamacion) => dbContext.ReclamacionesBuzonIntegracion.Add(reclamacion);
 
@@ -25,7 +29,7 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {
             SqlState: "23505"
-        } pg && pg.ConstraintName == IndiceUnicoBuzonEmail)
+        } pg && pg.ConstraintName is IndiceUnicoBuzonEmail or IndiceUnicoIdentidadBuzon)
         {
             // Un SaveChangesAsync fallido no revierte el estado Added de las
             // entidades en memoria — solo la transacción de la base de

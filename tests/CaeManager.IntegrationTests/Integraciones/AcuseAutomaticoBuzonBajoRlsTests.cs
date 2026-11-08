@@ -358,7 +358,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+        public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(

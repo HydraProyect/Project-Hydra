@@ -410,7 +410,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Integraciones/RedaccionPayloadWebhookHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
         ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] =
-            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del EventoWebhook que procesa"),
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "2 llamadas — tenantId del bucle que recorre los Tenants activos desde el propio servicio: una para completar la identidad de los buzones antiguos, en su propio ámbito, y otra para renovar sus suscripciones"),
         ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "3 llamadas — tenantId del bucle que recorre todos los tenants activos desde el propio servicio (HO-084-01, REC-084)"),
         ["src/CaeManager.Infrastructure/VigilanciaNormativa/VigilanciaNormativaBoeHostedService.cs"] =
@@ -605,6 +605,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
+            // Las dos con el Tenant del bucle: completar la identidad de los buzones antiguos y renovar sus suscripciones.
+            ["src/CaeManager.Infrastructure/Integraciones/RenovacionSuscripcionWebhookHostedService.cs"] = 2,
             // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
             ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
             // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.

@@ -85,8 +85,30 @@ public class ConexionIntegracion : EntidadBase
     /// </summary>
     public Guid? ConsentidoPorUsuarioId { get; private set; }
 
+    /// <summary>
+    /// Identidad estable del buzón en Microsoft 365 (el Id inmutable de su Bandeja de entrada), la misma por
+    /// cualquier alias que lo abra. Es la clave de <see cref="ReclamacionBuzonIntegracion"/>, que la copia al
+    /// reclamar o reactivar. Null en las conexiones anteriores a este campo hasta que la renovación la completa.
+    /// </summary>
+    public string? IdentidadBuzon { get; private set; }
+
     private ConexionIntegracion()
     {
+    }
+
+    /// <summary>
+    /// Fija la identidad estable del buzón (ver <see cref="IdentidadBuzon"/>). Una vez fijada no cambia: otra
+    /// identidad sería otro buzón detrás de la misma conexión, y eso no se acepta en silencio.
+    /// </summary>
+    public void FijarIdentidadBuzon(string identidadBuzon)
+    {
+        if (string.IsNullOrWhiteSpace(identidadBuzon) || identidadBuzon.Length > ReclamacionBuzonIntegracion.LongitudMaximaIdentidadBuzon)
+            throw new ArgumentException("La identidad del buzón no es válida.", nameof(identidadBuzon));
+
+        if (IdentidadBuzon is not null && !string.Equals(IdentidadBuzon, identidadBuzon, StringComparison.Ordinal))
+            throw new InvalidOperationException("La conexión ya tiene la identidad de otro buzón.");
+
+        IdentidadBuzon = identidadBuzon;
     }
 
     public ConexionIntegracion(
