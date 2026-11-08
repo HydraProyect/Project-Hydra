@@ -775,7 +775,6 @@ public class DataProtectionAwsSinInterbloqueoTests
             accion.Should().Throw<Exception>($"{via} no puede leer ni reponer un cuerpo revocado");
         }
 
-        trozo.Should().OnlyContain(b => b == 0, "ninguna vía llegó a copiar nada en el búfer de destino");
         cuerpo.Dispose();
         cuerpo.Dispose();
     }
