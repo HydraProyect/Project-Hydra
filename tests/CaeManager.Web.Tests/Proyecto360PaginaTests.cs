@@ -130,7 +130,10 @@ public partial class Proyecto360PaginaTests : BunitContext
 
         public TaskCompletionSource<object?> Retener(Func<object, bool> cuando)
         {
-            var respuesta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            // Continuaciones síncronas a propósito: el test la resuelve dentro de cut.InvokeAsync y la carga sigue ahí
+            // mismo, en el dispatcher. Con RunContinuationsAsynchronously la carga saltaba al pool de hilos y, con el
+            // pool saturado al arrancar la suite en CI, no volvía a pintar dentro de la espera de WaitForAssertion (#2092).
+            var respuesta = new TaskCompletionSource<object?>();
             _retenciones.Add((cuando, respuesta));
             return respuesta;
         }

@@ -82,7 +82,17 @@ public partial class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, IReadOnlyList<ProveedorAcreditacionesDto>> Plataformas { get; } = [];
         public bool FallarPlataformas { get; set; }
 
-        public List<object> Enviadas { get; } = [];
+        private readonly List<object> _enviadas = [];
+
+        /// <summary>
+        /// Copia de lo enviado hasta ahora. La página sigue pidiendo en el dispatcher del renderizador (las relecturas
+        /// de un aviso de frescura) mientras el test enumera en su hilo: enumerar la lista viva lanzaba
+        /// «Collection was modified» (#2087).
+        /// </summary>
+        public IReadOnlyList<object> Enviadas
+        {
+            get { lock (_enviadas) return [.. _enviadas]; }
+        }
 
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
         public bool SinDobleFactor { get; set; }
@@ -90,7 +100,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
-            Enviadas.Add(request);
+            lock (_enviadas) _enviadas.Add(request);
             if (Retener?.Invoke(request) is { } espera) await espera;
             if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
                 throw new SegundoFactorRequeridoParaCredencialesException();
