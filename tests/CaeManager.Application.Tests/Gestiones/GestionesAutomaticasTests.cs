@@ -555,6 +555,40 @@ public class GestionesAutomaticasTests
         filaSinEmpresa.EmpresaGestionadaNombre.Should().BeNull();
     }
 
+    // ---------- Campos del DTO de detalle (ronda 7 de Codex sobre la PR #2072) ----------
+
+    [Fact]
+    public async Task El_detalle_devuelve_el_Usuario_que_hizo_nacer_la_gestion()
+    {
+        // Hasta la ronda 6 solo se afirmaba NacidaPorUsuarioId en la entidad al nacer; el DTO podía devolver null sin
+        // que ningún test lo notara.
+        var documento = DocumentoDelTrabajador();
+        Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(documento);
+
+        var detalle = await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso());
+
+        detalle!.NacidaPorUsuarioId.Should().Be(_usuarioId);
+    }
+
+    [Fact]
+    public async Task El_detalle_marca_en_cada_paso_si_el_canal_tiene_Usuario_guardado()
+    {
+        // TieneUsuario es el único dato de la credencial que sale por el detalle (nunca el Usuario ni la contraseña): el
+        // caso verdadero y el falso en la misma Gestión impiden que invertirlo, o fijarlo, pase inadvertido.
+        var documento = DocumentoDelTrabajador();
+        var conUsuario = Centro("Planta Norte");
+        var sinUsuario = Centro("Almacén Sur");
+        Acreditar(documento, AccesoPlataforma(conUsuario, "Nalanda", usuario: "gestor@ebro.example"));
+        Acreditar(documento, AccesoPlataforma(sinUsuario, "Dokify"));
+        await Nacer(documento);
+
+        var detalle = await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso());
+
+        detalle!.Pasos.Single(p => p.CentroId == conUsuario.Id).TieneUsuario.Should().BeTrue();
+        detalle.Pasos.Single(p => p.CentroId == sinUsuario.Id).TieneUsuario.Should().BeFalse();
+    }
+
     // ---------- Montaje ----------
 
     private async Task<GestionAutomatica?> Nacer(Documento documento, Documento? sustituido = null)
@@ -600,13 +634,14 @@ public class GestionesAutomaticasTests
         return centro;
     }
 
-    private CanalGestionDocumental AccesoPlataforma(Centro centro, string plataforma, string? urlAcceso = null, string? notas = null)
+    private CanalGestionDocumental AccesoPlataforma(
+        Centro centro, string plataforma, string? urlAcceso = null, string? notas = null, string? usuario = null)
     {
         var proveedor = _proveedores.ListaProveedores.FirstOrDefault(p => p.Nombre == plataforma)
                         ?? new ProveedorPlataformaCae(plataforma.ToLowerInvariant(), plataforma);
         if (!_proveedores.ListaProveedores.Contains(proveedor))
             _proveedores.ListaProveedores.Add(proveedor);
-        var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, urlAcceso, null, null, notas);
+        var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, urlAcceso, usuario, null, notas);
         _centros.ListaCanalesGestionDocumental.Add(canal);
         return canal;
     }
