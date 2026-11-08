@@ -126,10 +126,16 @@ internal static class LlamadaSincronaAws
         }
         finally
         {
-            // Libera el evento del núcleo que creó AsyncWaitHandle.
-            tarea.Dispose();
-            cancelacion.Dispose();
-            InvocarSinLanzar(liberarEntrada);
+            try
+            {
+                // Libera el evento del núcleo que creó AsyncWaitHandle.
+                tarea.Dispose();
+                cancelacion.Dispose();
+            }
+            finally
+            {
+                InvocarSinLanzar(liberarEntrada);
+            }
         }
     }
 
@@ -200,12 +206,17 @@ internal static class LlamadaSincronaAws
                 }
                 finally
                 {
-                    // Libera el evento del núcleo que creó AsyncWaitHandle.
-                    t.Dispose();
-
-                    // Lo último: quien espere a la liberación de la entrada encuentra la
-                    // limpieza ya hecha.
-                    InvocarSinLanzar(liberar);
+                    try
+                    {
+                        // Libera el evento del núcleo que creó AsyncWaitHandle.
+                        t.Dispose();
+                    }
+                    finally
+                    {
+                        // Lo último, y aunque lo anterior fallara: quien espere a la
+                        // liberación de la entrada encuentra la limpieza ya hecha.
+                        InvocarSinLanzar(liberar);
+                    }
                 }
             },
             (descartarResultadoTardio, liberarEntrada),
