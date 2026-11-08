@@ -203,8 +203,8 @@ public class GestionesAutomaticasTests
         var documento = DocumentoDelTrabajador();
         var norte = Centro("Planta Norte");
         var sur = Centro("Almacén Sur");
-        Acreditar(documento, AccesoPlataforma(norte, "Nalanda")).MarcarSubida();
-        Acreditar(documento, AccesoPlataforma(sur, "Dokify"));
+        Acreditar(documento, AccesoPlataforma(norte, "Nalanda", "https://nalanda.example/norte", "Notas de Norte")).MarcarSubida();
+        Acreditar(documento, AccesoPlataforma(sur, "Dokify", "https://dokify.example/sur", "Notas de Sur"));
         await Nacer(documento);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
             empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [norte.Id]);
@@ -216,7 +216,11 @@ public class GestionesAutomaticasTests
         fila.Avance.Should().Be(new AvanceGestionAutomatica(Pasos: 1, Hechos: 1, Validados: 0, PendientesDeValidar: 1));
         fila.Estado.Should().Be(EstadoGestionAutomatica.PendienteDeValidar);
         fila.Plataformas.Should().Equal("Nalanda");
-        detalle!.Pasos.Select(p => p.CentroId).Should().Equal(norte.Id);
+        var paso = detalle!.Pasos.Should().ContainSingle().Subject;
+        paso.CentroId.Should().Be(norte.Id);
+        paso.ClienteNombre.Should().Be("Cliente de Planta Norte");
+        paso.UrlAcceso.Should().Be("https://nalanda.example/norte");
+        paso.Notas.Should().Be("Notas de Norte", "ni la URL, ni las notas, ni el Cliente empresarial del Centro ajeno salen");
     }
 
     [Fact]
@@ -486,6 +490,10 @@ public class GestionesAutomaticasTests
         var fila = (await Listar(sinLaEmpresa)).Filas.Should().ContainSingle("la Gestión es del Trabajador y del Centro visibles").Subject;
         var detalle = await Detalle(_gestiones.Lista.Single().Id, sinLaEmpresa);
         var filaConEmpresa = (await Listar(conLaEmpresa)).Filas.Single();
+        // La regla son tres alcances: la Empresa visible solo como Cliente empresarial también se nombra.
+        var comoClienteEmpresarial = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [Guid.NewGuid()], clienteIdsVisibles: [_empresa.Id], centroIdsVisibles: [centro.Id]);
+        var filaComoCliente = (await Listar(comoClienteEmpresarial)).Filas.Single();
 
         fila.TitularNombre.Should().Be("Laura Gil");
         fila.EmpresaGestionadaId.Should().BeNull("ver al Trabajador no da a ver a quién emplea");
@@ -495,6 +503,27 @@ public class GestionesAutomaticasTests
         detalle.Documento.EmpresaId.Should().BeNull();
         filaConEmpresa.EmpresaGestionadaId.Should().Be(_empresa.Id, "control positivo: con la Empresa en cartera sí se nombra");
         filaConEmpresa.EmpresaGestionadaNombre.Should().Be("Construcciones Ebro S.L.");
+        filaComoCliente.EmpresaGestionadaId.Should().Be(_empresa.Id, "visible como Cliente empresarial");
+        filaComoCliente.EmpresaGestionadaNombre.Should().Be("Construcciones Ebro S.L.");
+    }
+
+    [Fact]
+    public async Task Una_Empresa_empleadora_que_la_consulta_no_encuentra_no_da_un_id_sin_nombre()
+    {
+        // Revisión puente de la sexta ronda: como el Mes, id y nombre van juntos. Con acceso total, una Empresa que el
+        // filtro global oculta (dada de baja) no deja un EmpresaGestionadaId sin rótulo.
+        var trabajador = Trabajador.DeSubcontrata(Guid.NewGuid(), "Pedro", "Ruiz", "12345678Z");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)), "tenant/rm.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(documento);
+
+        var fila = (await Listar(new AlcanceDatosServiceFalso())).Filas.Should().ContainSingle().Subject;
+
+        fila.TitularNombre.Should().Be("Pedro Ruiz");
+        fila.EmpresaGestionadaId.Should().BeNull();
+        fila.EmpresaGestionadaNombre.Should().BeNull();
     }
 
     [Fact]
@@ -571,13 +600,13 @@ public class GestionesAutomaticasTests
         return centro;
     }
 
-    private CanalGestionDocumental AccesoPlataforma(Centro centro, string plataforma)
+    private CanalGestionDocumental AccesoPlataforma(Centro centro, string plataforma, string? urlAcceso = null, string? notas = null)
     {
         var proveedor = _proveedores.ListaProveedores.FirstOrDefault(p => p.Nombre == plataforma)
                         ?? new ProveedorPlataformaCae(plataforma.ToLowerInvariant(), plataforma);
         if (!_proveedores.ListaProveedores.Contains(proveedor))
             _proveedores.ListaProveedores.Add(proveedor);
-        var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, null, null, null);
+        var canal = CanalGestionDocumental.DePlataforma(centro.Id, "Gestión general", proveedor.Id, urlAcceso, null, null, notas);
         _centros.ListaCanalesGestionDocumental.Add(canal);
         return canal;
     }

@@ -266,7 +266,11 @@ internal static class CabecerasGestionesAutomaticas
                 var empleadoraVisible = trabajador?.EmpresaEmpleadoraId is { } empleadoraId && empleadorasEnAlcance.Contains(empleadoraId)
                     ? empleadoraId
                     : (Guid?)null;
-                var empresaGestionadaId = c.EmpresaId ?? empleadoraVisible;
+                // Id y nombre van juntos, como en el Mes: una Empresa que la consulta no encuentra (dada de baja) no deja
+                // un id sin rótulo.
+                var empresaGestionadaId = (c.EmpresaId ?? empleadoraVisible) is { } gestionada && empresas.ContainsKey(gestionada)
+                    ? gestionada
+                    : (Guid?)null;
                 var titular = trabajador?.Nombre
                               ?? (c.EmpresaId is { } eId ? empresas.GetValueOrDefault(eId) : null)
                               ?? string.Empty;

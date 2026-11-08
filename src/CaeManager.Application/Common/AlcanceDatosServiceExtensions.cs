@@ -99,8 +99,9 @@ public static class AlcanceDatosServiceExtensions
     /// <summary>
     /// La Empresa está en alguno de los alcances de cartera del usuario —Empresa, Cliente empresarial o
     /// Subcontrata—: la regla con la que <c>ContarVencenEstaSemanaDeEmpresaQuery</c>, <c>ObtenerSemanaPorEmpresaQuery</c>
-    /// y <c>ObtenerVencimientosMesQuery</c> deciden si pueden nombrar a la Empresa empleadora de un Trabajador visible.
-    /// Ver a un Trabajador no basta para ver a quién emplea.
+    /// y <c>ObtenerVencimientosMesQuery</c> deciden si pueden nombrar a la Empresa empleadora de un Trabajador visible
+    /// (esas tres la escriben todavía en línea; llevarlas a este método es un incremento aparte). Ver a un Trabajador no
+    /// basta para ver a quién emplea.
     /// </summary>
     public static async Task<bool> EmpresaEnAlgunAlcanceDeCarteraAsync(
         this IAlcanceDatosService alcance, Guid empresaId, CancellationToken cancellationToken = default) =>
