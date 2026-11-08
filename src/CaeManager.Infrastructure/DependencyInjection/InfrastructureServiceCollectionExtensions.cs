@@ -810,6 +810,15 @@ public static class InfrastructureServiceCollectionExtensions
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
         services.AddHostedService<Comunicaciones.CierreConversacionesResueltasHostedService>();
 
+        // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
+        // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
+        configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
+            .Bind(opcionesConciliacionAcreditaciones);
+        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+            services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();
+
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra
         // siempre (barato, sin llamadas hasta que alguien lo invoca); el

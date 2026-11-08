@@ -454,4 +454,87 @@ public class AltaAcreditacionesPlataformaServiceTests
 
         agregadas.Should().Be(0);
     }
+
+    [Fact]
+    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_acredita_en_cada_centro_de_plataforma_sin_fila_aunque_la_base_aun_no_lo_exija()
+    {
+        var mundo = new MundoAcreditaciones();
+        // Guardado como no obligatorio: el alta que lo cambia prevalece sobre la base.
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Seguro RC");
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipo);
+        var centroSinFila = mundo.Centro("Planta sin personal", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centroSinFila);
+        var centroQueLoExcluye = mundo.Centro("Planta que lo excluye", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centroQueLoExcluye);
+        mundo.Requisito(tipo, centroQueLoExcluye, incluido: false);
+        var centroPorCorreo = mundo.Centro("Planta por correo", mundo.EmpresaId);
+        mundo.AccesoCorreo(centroPorCorreo);
+        var centroAjeno = mundo.Centro("Planta de otra Empresa");
+        mundo.AccesoPlataforma(centroAjeno);
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(
+            new AltasConAcreditacion { TiposQuePasanAExigirseDeSerie = [tipo.Id] });
+
+        agregadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
+            "la fila explícita sigue mandando, el correo no acredita y el Centro de otra Empresa no tiene actividad suya");
+    }
+
+    [Fact]
+    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_solo_pone_en_juego_ese_tipo()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Seguro RC");
+        var otroTipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Recibo del seguro");
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipo);
+        mundo.DocumentoDeEmpresa(otroTipo);
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { TiposQuePasanAExigirseDeSerie = [tipo.Id] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
+            "el otro tipo, aunque falte su acreditación, no es lo que este alta pone en juego");
+    }
+
+    [Fact]
+    public async Task Conciliar_un_centro_crea_solo_las_acreditaciones_que_faltan_de_sus_documentos_de_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipoEmpresa = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var tipoTrabajador = mundo.Tipo(RequisitoDocumental.Si);
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipoEmpresa);
+        var centro = mundo.Centro("Planta", mundo.EmpresaId);
+        var accesoYaAcreditado = mundo.AccesoPlataforma(centro);
+        var accesoSinAcreditar = mundo.AccesoPlataforma(centro);
+        mundo.DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.Add(
+            new AcreditacionDocumentoPlataforma(deEmpresa.Id, accesoYaAcreditado.Id));
+        // Un Documento de Trabajador asignado allí y sin acreditar: su regla no cambió, la conciliación no lo toca.
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentoDe(trabajador, tipoTrabajador);
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(
+            new AltasConAcreditacion { CentrosAConciliar = [centro.Id], SoloDocumentosDeEmpresa = true });
+
+        agregadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, accesoSinAcreditar.Id)]);
+    }
+
+    [Fact]
+    public async Task Conciliar_un_centro_sin_restringir_a_empresa_tambien_alcanzaria_los_documentos_de_trabajador()
+    {
+        // Control del instrumento del test anterior: el Documento de Trabajador sí es candidato, y lo que lo deja
+        // fuera es SoloDocumentosDeEmpresa, no la falta de actividad.
+        var mundo = new MundoAcreditaciones();
+        var tipoTrabajador = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro("Planta", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        var deTrabajador = mundo.DocumentoDe(trabajador, tipoTrabajador);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion { CentrosAConciliar = [centro.Id] });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(deTrabajador.Id, acceso.Id)]);
+    }
 }

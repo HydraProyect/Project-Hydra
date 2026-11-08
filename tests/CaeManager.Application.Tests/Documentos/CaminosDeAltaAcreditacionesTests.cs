@@ -461,6 +461,59 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, acceso.Id)]);
     }
 
+    [Fact]
+    public async Task Pasar_Requerido_a_Si_acredita_los_documentos_de_ese_tipo_en_los_centros_de_plataforma_que_pasan_a_exigirlo()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Seguro RC");
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipo);
+        // Un Centro de la Empresa sin Trabajadores asignados y sin fila propia: pasa a exigir el tipo.
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));
+        // Uno que lo excluye expresamente: la fila sigue mandando.
+        var centroQueLoExcluye = mundo.Centro("Planta que lo excluye", mundo.EmpresaId);
+        mundo.AccesoPlataforma(centroQueLoExcluye);
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        var exclusion = mundo.Requisito(tipo, centroQueLoExcluye, incluido: false);
+        filas.Agregar(exclusion);
+        var tipos = new TipoDocumentoRepositorioFalso();
+        tipos.Agregar(tipo);
+        var handler = new EditarTipoDocumentoCommandHandler(
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                tipo.Id, tipo.Nombre, 12, true, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
+                null, null, null, null, null, []),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)]);
+    }
+
+    [Fact]
+    public async Task Editar_un_tipo_que_ya_se_exigia_de_serie_no_repara_acreditaciones()
+    {
+        // Solo el paso de no exigido a exigido es un alta: guardar el tipo sin cambiar Requerido no pone nada en juego
+        // (lo que faltara de antes lo repara la conciliación, no la edición).
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        mundo.DocumentoDeEmpresa(tipo);
+        mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));
+        var tipos = new TipoDocumentoRepositorioFalso();
+        tipos.Agregar(tipo);
+        var handler = new EditarTipoDocumentoCommandHandler(
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                tipo.Id, tipo.Nombre, 12, true, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
+                null, null, null, null, null, []),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

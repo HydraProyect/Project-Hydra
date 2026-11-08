@@ -82,6 +82,8 @@ public class EditarTipoDocumentoCommandHandler(
         if (tipoDocumento.Archivado && request.Requerido != RequisitoDocumental.No)
             return Result.Fallo(Error.Crear("TipoDocumento.Archivado", "Este tipo de documento está archivado y no se pide de serie; pide su sustituto."));
 
+        var exigidoDeSerieAntes = tipoDocumento.Requerido == RequisitoDocumental.Si;
+
         tipoDocumento.Actualizar(
             request.Nombre,
             request.VigenciaMeses,
@@ -98,8 +100,8 @@ public class EditarTipoDocumentoCommandHandler(
         tipoDocumento.EstablecerAliases(request.Aliases ?? []);
 
         // Restringir la serie no da de baja nada: los Documentos ya creados siguen ahí y solo dejan de exigirse
-        // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar, igual que cambiar Requerido
-        // (ver IAltaAcreditacionesPlataformaService).
+        // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar (ver IAltaAcreditacionesPlataformaService);
+        // pasar Requerido a Sí sí los crea, abajo.
         if (tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Trabajador && request.TiposContratacionDeSerie is { } serie)
             tipoDocumento.EstablecerTiposContratacionDeSerie(serie);
 
@@ -156,10 +158,17 @@ public class EditarTipoDocumentoCommandHandler(
         }
 
         // Los Centros que pasan a exigir el tipo: los Documentos de ese tipo de
-        // quienes ya trabajan en ellos nacen pendientes de acreditar (misma regla
-        // que EstablecerDocumentacionRequeridaCentroCommand). Cambiar el valor
-        // general de Requerido no se propaga aquí: ver IAltaAcreditacionesPlataformaService.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = requisitosNuevos }, cancellationToken);
+        // quienes ya tienen actividad en ellos nacen pendientes de acreditar (misma regla
+        // que EstablecerDocumentacionRequeridaCentroCommand). Si el valor general de
+        // Requerido pasa a Sí, por la misma vía pasa a exigirlo cada Centro con acceso de
+        // plataforma que no tiene fila propia (la fila, si existe, sigue mandando). Bajar
+        // Requerido no da de baja nada: ver IAltaAcreditacionesPlataformaService.
+        var pasaAExigirseDeSerie = !exigidoDeSerieAntes && tipoDocumento.Requerido == RequisitoDocumental.Si;
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            Requisitos = requisitosNuevos,
+            TiposQuePasanAExigirseDeSerie = pasaAExigirseDeSerie ? [tipoDocumento.Id] : [],
+        }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

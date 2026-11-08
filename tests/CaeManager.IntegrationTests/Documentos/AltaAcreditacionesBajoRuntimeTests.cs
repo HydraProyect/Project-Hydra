@@ -22,8 +22,11 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// (<see cref="ArnesDeArranqueRuntime"/>). Lo que mide y los tests de
 /// Application no pueden: que PostgreSQL traduce y ejecuta sus consultas bajo
 /// RLS, que la acreditación queda sellada con el Tenant propietario del
-/// Documento, que el índice único real no ve duplicados al repetir el alta, y
-/// que desde otro Tenant la regla no encuentra nada que acreditar.
+/// Documento, que el índice único real no ve duplicados al repetir el alta, que
+/// desde otro Tenant la regla no encuentra nada que acreditar, que la vía de
+/// Empresa (regla A-1) acredita en Centros de plataforma sin Trabajadores, que el
+/// choque real con el índice único del par se trata como «ya existe», y que la
+/// conciliación solo crea en el Tenant en curso.
 /// </summary>
 public class AltaAcreditacionesBajoRuntimeTests
 {
@@ -75,6 +78,149 @@ public class AltaAcreditacionesBajoRuntimeTests
         _tenant.TenantId = _tenantPropietario;
         (await AltaAsync(arnes, documento, guardarDocumento: true)).Should().Be(1,
             "control positivo: el mismo Documento en su Tenant propietario sí se acredita");
+    }
+
+    [Fact]
+    public async Task Un_documento_de_empresa_se_acredita_bajo_RLS_en_un_centro_de_plataforma_de_su_empresa_sin_trabajadores()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var escenario = await SembrarEmpresaSinTrabajadoresAsync(arnes);
+
+        var documento = Documento.DeEmpresa(
+            escenario.EmpresaId, escenario.TipoId, Emision, VigenciaDocumento.VenceEl(Emision.AddYears(5)));
+
+        // Desde otro Tenant, los Centros de esa Empresa y sus accesos no son visibles: nada que acreditar.
+        _tenant.TenantId = _otroTenant;
+        (await AltaAsync(arnes, documento, guardarDocumento: false)).Should().Be(0);
+
+        _tenant.TenantId = _tenantPropietario;
+        (await AltaAsync(arnes, documento, guardarDocumento: true)).Should().Be(2,
+            "los dos Centros de plataforma de la Empresa, sin nadie asignado; el de correo no cuenta");
+
+        var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
+        acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId]);
+        acreditaciones.Should().OnlyContain(a => a.TenantId == _tenantPropietario);
+    }
+
+    [Fact]
+    public async Task Un_par_que_otra_operacion_guarda_entre_la_lectura_y_el_guardado_se_trata_como_ya_existente()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var escenario = await SembrarEmpresaSinTrabajadoresAsync(arnes);
+        _tenant.TenantId = _tenantPropietario;
+
+        // Un Documento de Empresa ya guardado y todavía sin acreditar (como uno anterior a la regla A-1).
+        var documento = Documento.DeEmpresa(
+            escenario.EmpresaId, escenario.TipoId, Emision, VigenciaDocumento.VenceEl(Emision.AddYears(5)));
+        await using (var scope = arnes.Servicios.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+        }
+
+        // La operación B lee y agrega sus dos pares sin guardar todavía...
+        await using var scopeB = arnes.Servicios.CreateAsyncScope();
+        var contextoB = scopeB.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        (await AltaAcreditacionesDePrueba.Con(contextoB).AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            CentrosAConciliar = [escenario.CentroId, escenario.OtroCentroId], SoloDocumentosDeEmpresa = true,
+        })).Should().Be(2);
+
+        // ...y la operación A confirma uno de ellos antes.
+        await using (var scopeA = arnes.Servicios.CreateAsyncScope())
+        {
+            var contextoA = scopeA.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            contextoA.AcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, escenario.CanalId));
+            await contextoA.SaveChangesAsync();
+        }
+
+        // El choque con el índice único no hace fallar a B: el par ya existe y el resto se guarda.
+        await contextoB.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+
+        var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
+        acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId],
+            "un solo par por acceso: el de A y el que solo B agregaba");
+    }
+
+    [Fact]
+    public async Task La_conciliacion_crea_bajo_RLS_lo_que_falta_solo_en_el_Tenant_en_curso_y_repetirla_no_duplica()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var escenario = await SembrarEmpresaSinTrabajadoresAsync(arnes);
+        _tenant.TenantId = _tenantPropietario;
+
+        var documento = Documento.DeEmpresa(
+            escenario.EmpresaId, escenario.TipoId, Emision, VigenciaDocumento.VenceEl(Emision.AddYears(5)));
+        await using (var scope = arnes.Servicios.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+        }
+
+        _tenant.TenantId = _otroTenant;
+        (await ConciliarAsync(arnes)).Should().Be(0, "desde otro Tenant no ve ni el Documento ni los Centros");
+        (await LeerComoPropietarioAsync(arnes, documento.Id)).Should().BeEmpty();
+
+        _tenant.TenantId = _tenantPropietario;
+        (await ConciliarAsync(arnes)).Should().Be(2);
+        (await ConciliarAsync(arnes)).Should().Be(0, "idempotente");
+
+        var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
+        acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId]);
+        acreditaciones.Should().OnlyContain(a => a.TenantId == _tenantPropietario);
+    }
+
+    private static async Task<int> ConciliarAsync(ArnesDeArranqueRuntime arnes)
+    {
+        await using var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        (await contexto.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync())
+            .Should().Be("cae_app_runtime");
+        return await new ConciliacionAcreditacionesEmpresaService(contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto)
+            .ConciliarTenantEnCursoAsync();
+    }
+
+    private sealed record EscenarioEmpresa(
+        Guid EmpresaId, Guid TipoId, Guid CentroId, Guid CanalId, Guid OtroCentroId, Guid OtroCanalId);
+
+    /// <summary>
+    /// En el Tenant propietario: una Empresa con dos Centros suyos con acceso de plataforma y uno por correo, sin ningún
+    /// Trabajador asignado en ninguno, y un tipo de Empresa obligatorio por defecto.
+    /// </summary>
+    private async Task<EscenarioEmpresa> SembrarEmpresaSinTrabajadoresAsync(ArnesDeArranqueRuntime arnes)
+    {
+        _tenant.TenantId = _tenantPropietario;
+        await using var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+
+        // Los mismos CIF que SembrarAsync: cada test tiene su propio Tenant propietario.
+        var cliente = Empresa.CrearComoCliente("Cliente Runtime A1 S.L.", "B10380194", false, null, null);
+        var empresa = new Empresa("Empresa Runtime A1 S.L.", "B10380186");
+        contexto.Empresas.AddRange(cliente, empresa);
+        await contexto.SaveChangesAsync();
+
+        var centro = new Centro(cliente.Id, empresa.Id, "Planta sin personal");
+        var otroCentro = new Centro(cliente.Id, empresa.Id, "Otra planta sin personal");
+        var centroPorCorreo = new Centro(cliente.Id, empresa.Id, "Planta por correo");
+        contexto.Centros.AddRange(centro, otroCentro, centroPorCorreo);
+        await contexto.SaveChangesAsync();
+
+        var proveedor = await contexto.ProveedoresPlataformaCae.FirstAsync();
+        var canal = CanalGestionDocumental.DePlataforma(
+            centro.Id, "Plataforma", proveedor.Id, "https://plataforma.test", "usuario", "clave");
+        var otroCanal = CanalGestionDocumental.DePlataforma(
+            otroCentro.Id, "Plataforma", proveedor.Id, "https://plataforma.test", "usuario", "clave");
+        contexto.CanalesGestionDocumental.AddRange(
+            canal, otroCanal, CanalGestionDocumental.PorEmail(centroPorCorreo.Id, "Correo CAE", "cae@contratista.es", null));
+
+        var tipo = new TipoDocumento("Seguro de responsabilidad civil", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.Si);
+        contexto.TiposDocumento.Add(tipo);
+        await contexto.SaveChangesAsync();
+
+        return new EscenarioEmpresa(empresa.Id, tipo.Id, centro.Id, canal.Id, otroCentro.Id, otroCanal.Id);
     }
 
     private sealed record Escenario(Guid TrabajadorId, Guid TipoId, Guid CanalCentroQueExigeId);

@@ -48,6 +48,28 @@ public sealed record AltasConAcreditacion
     /// los tiene como sin gestión CAE.
     /// </summary>
     public IReadOnlyCollection<Guid> CentrosQueVuelvenAGestionCae { get; init; } = [];
+
+    /// <summary>
+    /// TiposDocumento cuyo valor general <see cref="TipoDocumento.Requerido"/> acaba de pasar a
+    /// <see cref="RequisitoDocumental.Si"/> en este alta. Cada Centro con acceso de plataforma que no tiene fila
+    /// propia sobre el tipo pasa a exigirlo, así que se evalúa como si ese Centro hubiera pasado a exigir el tipo
+    /// (<see cref="Requisitos"/>). Prevalece sobre el valor guardado: el Command lo cambia y confirma sus
+    /// acreditaciones en el mismo guardado. La fila explícita del Centro, si existe, sigue mandando.
+    /// </summary>
+    public IReadOnlyCollection<Guid> TiposQuePasanAExigirseDeSerie { get; init; } = [];
+
+    /// <summary>
+    /// Centros que se concilian enteros: cada Documento operativo de quien tiene actividad en ellos, de cualquier
+    /// tipo, ante cada uno de sus accesos de plataforma. No es un alta: lo usa la conciliación
+    /// (<see cref="IConciliacionAcreditacionesEmpresaService"/>) para reparar lo que ya estaba guardado.
+    /// </summary>
+    public IReadOnlyCollection<Guid> CentrosAConciliar { get; init; } = [];
+
+    /// <summary>
+    /// Solo agrega acreditaciones de Documentos de Empresa: la conciliación de la regla A-1
+    /// (<see cref="IConciliacionAcreditacionesEmpresaService"/>) no repara los de Trabajador, cuya regla no cambió.
+    /// </summary>
+    public bool SoloDocumentosDeEmpresa { get; init; }
 }
 
 /// <summary>
@@ -74,15 +96,22 @@ public sealed record AltasConAcreditacion
 ///
 /// Todos los caminos de alta —Documento creado a mano, importado o generado
 /// desde plantilla; Asignación individual, en lote, importada o reabierta; acceso de
-/// plataforma nuevo; tipo que un Centro pasa a exigir— llaman aquí. Cada
+/// plataforma nuevo; tipo que un Centro pasa a exigir, o que pasa a exigirse de
+/// serie (<see cref="AltasConAcreditacion.TiposQuePasanAExigirseDeSerie"/>)— llaman aquí. Cada
 /// camino evalúa solo lo que su alta pone en juego: un Documento nuevo, ante
 /// todos los Centros donde su propietario tiene actividad; una Asignación nueva, los Documentos
 /// del Trabajador y de su Empresa ante ese Centro; un acceso nuevo, solo ese
-/// acceso; un requisito nuevo, solo ese tipo en ese Centro. Nunca repara
-/// acreditaciones ajenas al alta que la invoca.
+/// acceso; un requisito nuevo, solo ese tipo en ese Centro; un tipo que pasa a
+/// exigirse de serie, ese tipo en cada Centro con acceso de plataforma. Nunca repara
+/// acreditaciones ajenas al alta que la invoca: lo que ya existía antes de la regla, o lo
+/// que una carrera entre dos altas simultáneas dejó sin acreditar, lo repara la
+/// conciliación explícita (<see cref="IConciliacionAcreditacionesEmpresaService"/>).
 ///
 /// Idempotente: no agrega una acreditación si el par (Documento, acceso) ya
 /// existe (índice único <c>(TenantId, DocumentoId, CanalGestionDocumentalId)</c>).
+/// Si otra operación simultánea guarda el mismo par entre esta lectura y el
+/// guardado, el choque con ese índice se trata como «ya existe» al guardar
+/// (<c>CaeManagerDbContext.SaveChangesAsync</c>), no como error del alta.
 /// No guarda: agrega al repositorio para que el Command confirme el alta y sus
 /// acreditaciones en el mismo <c>SaveChangesAsync</c>, o ninguna. Lee solo con
 /// los contextos de consulta del Tenant en curso, bajo RLS: no cruza Tenants.
@@ -117,14 +146,28 @@ public class AltaAcreditacionesPlataformaService(
         var asignacionesNuevas = altas.Asignaciones.Where(a => a.FechaBaja is null).ToList();
         var canalesNuevos = altas.Canales.Where(c => c.Tipo == TipoCanalGestion.Plataforma).ToList();
         var requisitosIncluidos = altas.Requisitos.Where(r => r.Incluido).ToList();
+        var tiposExigidosDeSerie = altas.TiposQuePasanAExigirseDeSerie.ToHashSet();
+        var centrosAConciliar = altas.CentrosAConciliar.ToHashSet();
 
-        if (documentosNuevos.Count == 0 && asignacionesNuevas.Count == 0
-            && canalesNuevos.Count == 0 && requisitosIncluidos.Count == 0)
+        if (documentosNuevos.Count == 0 && asignacionesNuevas.Count == 0 && canalesNuevos.Count == 0
+            && requisitosIncluidos.Count == 0 && tiposExigidosDeSerie.Count == 0 && centrosAConciliar.Count == 0)
             return 0;
+
+        // Un tipo que pasa a exigirse de serie pone en juego cada Centro con acceso de plataforma (bajo RLS, del
+        // Tenant en curso): los que no tienen fila propia pasan a exigirlo; la fila, si existe, decide abajo.
+        List<Guid> centrosConPlataforma = tiposExigidosDeSerie.Count == 0
+            ? []
+            : await centrosContext.CanalesGestionDocumental
+                .Where(c => c.Tipo == TipoCanalGestion.Plataforma)
+                .Select(c => c.CentroId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
 
         // Centros donde el alta pone en juego a todos los propietarios con actividad.
         var centrosPorCompleto = canalesNuevos.Select(c => c.CentroId)
             .Concat(requisitosIncluidos.Select(r => r.CentroId))
+            .Concat(centrosConPlataforma)
+            .Concat(centrosAConciliar)
             .ToHashSet();
 
         // Empresa de cada Trabajador: la base, más los Trabajadores del propio alta.
@@ -170,7 +213,8 @@ public class AltaAcreditacionesPlataformaService(
                 candidatos.Add((documento, centroId, null));
 
         var documentosExistentes = await CargarDocumentosDePropietariosAsync(
-            asignacionesNuevas, centrosPorCompleto, paresActivos, empresaDeTrabajador, empresaDeCentro, cancellationToken);
+            asignacionesNuevas, centrosPorCompleto, paresActivos, empresaDeTrabajador, empresaDeCentro,
+            altas.SoloDocumentosDeEmpresa, cancellationToken);
         var documentosDisponibles = documentosExistentes
             .Concat(documentosNuevos)
             .DistinctBy(d => d.Id)
@@ -193,6 +237,19 @@ public class AltaAcreditacionesPlataformaService(
                          .Where(d => d.TipoDocumentoId == requisito.TipoDocumentoId))
                 candidatos.Add((documento, requisito.CentroId, null));
 
+        foreach (var centroId in centrosConPlataforma)
+            foreach (var documento in DocumentosConActividadEn(centroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro)
+                         .Where(d => tiposExigidosDeSerie.Contains(d.TipoDocumentoId)))
+                candidatos.Add((documento, centroId, null));
+
+        foreach (var centroId in centrosAConciliar)
+            foreach (var documento in DocumentosConActividadEn(centroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro))
+                candidatos.Add((documento, centroId, null));
+
+        // La conciliación de la regla A-1 solo repara Documentos de Empresa.
+        if (altas.SoloDocumentosDeEmpresa)
+            candidatos.RemoveAll(c => c.Documento.EmpresaId is null);
+
         if (candidatos.Count == 0)
             return 0;
 
@@ -212,6 +269,9 @@ public class AltaAcreditacionesPlataformaService(
             .Where(t => tipoIds.Contains(t.Id))
             .Select(t => new { t.Id, t.Requerido, t.TiposContratacionDeSerie })
             .ToDictionaryAsync(t => t.Id, t => (Obligatorio: t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie), cancellationToken);
+        // El valor general que este mismo alta cambia prevalece sobre el guardado.
+        foreach (var tipoId in tiposExigidosDeSerie.Where(obligatorioPorDefecto.ContainsKey))
+            obligatorioPorDefecto[tipoId] = (true, obligatorioPorDefecto[tipoId].TiposContratacionDeSerie);
         // La serie por tipo de contratación solo filtra los Documentos de un Trabajador: el de una Empresa no tiene.
         var tipoContratacionDeTrabajador = await CargarTipoContratacionDeTrabajadorAsync(
             altas.Trabajadores,
@@ -331,14 +391,16 @@ public class AltaAcreditacionesPlataformaService(
     private async Task<List<DocumentoCandidato>> CargarDocumentosDePropietariosAsync(
         IReadOnlyCollection<Asignacion> asignacionesNuevas, IReadOnlySet<Guid> centrosPorCompleto,
         IReadOnlySet<(Guid TrabajadorId, Guid CentroId)> paresActivos, IReadOnlyDictionary<Guid, Guid?> empresaDeTrabajador,
-        IReadOnlyDictionary<Guid, Guid> empresaDeCentro, CancellationToken cancellationToken)
+        IReadOnlyDictionary<Guid, Guid> empresaDeCentro, bool soloDeEmpresa, CancellationToken cancellationToken)
     {
-        var trabajadorIds = asignacionesNuevas.Select(a => a.TrabajadorId)
+        var trabajadoresConActividad = asignacionesNuevas.Select(a => a.TrabajadorId)
             .Concat(paresActivos.Where(p => centrosPorCompleto.Contains(p.CentroId)).Select(p => p.TrabajadorId))
             .Distinct().ToArray();
+        // Sin Documentos de Trabajador que acreditar, sus Trabajadores solo cuentan para llegar a su Empresa.
+        Guid[] trabajadorIds = soloDeEmpresa ? [] : trabajadoresConActividad;
 
         // La Empresa de un Centro puesto en juego por completo cuenta aunque nadie esté asignado allí.
-        var empresaIds = trabajadorIds
+        var empresaIds = trabajadoresConActividad
             .Select(id => empresaDeTrabajador.GetValueOrDefault(id))
             .Where(e => e is not null)
             .Select(e => e!.Value)
