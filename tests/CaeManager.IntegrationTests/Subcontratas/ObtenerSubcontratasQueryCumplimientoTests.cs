@@ -33,8 +33,13 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     private Guid _centroId;
     private Guid _tipoObligatorioId;
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
@@ -67,6 +72,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Sin_trabajadores_con_requisitos_el_cumplimiento_es_nulo()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await EjecutarAsync();
 
         var fila = resultado.Elementos.Should().ContainSingle().Subject;
@@ -78,6 +84,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_obligatorio_faltante_cuenta_como_incumplimiento_al_0_por_ciento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Sara", "Faltante", "12345678Z");
@@ -98,6 +105,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_el_vigente_y_no_falla()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // El índice (TrabajadorId, TipoDocumentoId) de Documento no es único: el
         // vencido sigue ahí cuando se sube la renovación. Se inserta primero la
         // renovación para que «el último leído» no acierte por casualidad.
@@ -125,6 +133,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_vigente_cuenta_como_cumplimiento_al_100_por_ciento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             var trabajador = Trabajador.DeSubcontrata(_subcontrataId, "Julio", "Aldia", "77189989B");
@@ -147,6 +156,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task El_nivel_de_servicio_viaja_en_la_fila_de_la_lista()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             var subcontrata = await contexto.Empresas.SingleAsync(e => e.Id == _subcontrataId);
@@ -163,6 +173,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_en_estado_Urgente_aparece_en_Proximas()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Mismo defecto que tenía ObtenerCentrosQuery.Desglosar (D-7, piloto
         // Outbound), ahora corregido también aquí: Urgente (dentro del
         // umbral rojo de 15 días, sin llegar a vencer) no es una tercera
@@ -201,6 +212,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Cada_incidencia_identifica_a_su_trabajador_y_la_que_tiene_documento_tambien_el_documento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid conDocumentoId, sinDocumentoId, documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -237,6 +249,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_faltante_de_un_trabajador_fuera_de_cartera_no_cuenta_en_el_cumplimiento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid trabajadorFueraDeCarteraId;
         await using (var contexto = CrearContexto())
         {
@@ -268,6 +281,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_sin_confirmar_de_un_Trabajador_no_decide_el_estado_y_el_de_la_Subcontrata_si()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid trabajadorId;
         await using (var contexto = CrearContexto())
         {
@@ -318,6 +332,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task El_filtro_de_estado_filtra_cuenta_y_pagina_sobre_el_estado_de_la_documentacion_de_Empresa()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var hoy = DiaDeNegocio.Hoy();
         Guid conBloqueadosId;
         await using (var contexto = CrearContexto())
@@ -406,6 +421,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task Los_Trabajadores_bloqueados_son_solo_los_de_la_Subcontrata_que_el_usuario_ve()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid visibleId;
         await using (var contexto = CrearContexto())
         {
@@ -439,6 +455,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     [Fact]
     public async Task El_camino_con_estado_no_devuelve_ni_cuenta_subcontratas_fuera_del_alcance()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid fueraDeAlcanceId;
         var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())

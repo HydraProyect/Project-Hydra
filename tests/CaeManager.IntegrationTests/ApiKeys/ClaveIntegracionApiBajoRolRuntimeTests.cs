@@ -159,18 +159,27 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         await using var api = await Api.IniciarAsync(this);
         var token = await api.TokenAsync(_claveId, Secreto);
 
+        // El servidor es un Kestrel real: su DiaDeNegocio.Hoy() no ve el reloj fijado del flujo del test (AsyncLocal), así que el día se
+        // acota con una lectura antes y otra después de las peticiones, y la fila puede partirse en dos si cruzan la medianoche (issue #2073).
+        var diaAntes = DiaDeNegocio.Hoy();
+
         (await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorA}")).Estado.Should().Be(HttpStatusCode.OK);
         (await api.GetAsync(token, $"/api/v1/trabajadores/{_trabajadorA}")).Estado.Should().Be(HttpStatusCode.OK);
         (await api.GetAsync(token, "/api/v1/asignaciones")).Estado.Should().Be(HttpStatusCode.Forbidden, "control: esta clave no tiene ese alcance");
 
         await using var contexto = CrearContextoPropietario();
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
-        var fila = (await contexto.UsosApiDiarios.ToListAsync()).Should().ContainSingle().Subject;
-        fila.ApiKeyId.Should().Be(_claveId);
-        fila.TipoClave.Should().Be(TipoClaveUsoApi.ClaveIntegracion);
-        fila.Dia.Should().Be(DiaDeNegocio.Hoy());
-        fila.Endpoint.Should().Be("/api/v1/trabajadores/{id:guid}", "el patrón, sin el identificador de la URL");
-        fila.Peticiones.Should().Be(2);
+        var diaDespues = DiaDeNegocio.Hoy();
+        var filas = await contexto.UsosApiDiarios.ToListAsync();
+        filas.Should().NotBeEmpty();
+        filas.Should().OnlyContain(f => f.ApiKeyId == _claveId && f.TipoClave == TipoClaveUsoApi.ClaveIntegracion);
+        filas.Should().OnlyContain(f => f.Dia >= diaAntes && f.Dia <= diaDespues, "el día de la fila es el del servidor, entre las dos lecturas");
+        filas.Should().OnlyContain(f => f.Endpoint == "/api/v1/trabajadores/{id:guid}", "el patrón, sin el identificador de la URL");
+        filas.Sum(f => f.Peticiones).Should().Be(2);
+        if (diaAntes == diaDespues)
+            filas.Should().ContainSingle("sin cruzar la medianoche las dos lecturas caen en una sola fila del día");
+        else
+            filas.Select(f => f.Dia).Should().OnlyHaveUniqueItems();
     }
 
     [Theory]
