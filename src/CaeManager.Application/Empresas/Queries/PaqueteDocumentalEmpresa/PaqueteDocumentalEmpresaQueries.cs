@@ -33,8 +33,11 @@ public record PaqueteEmpresaDescargaDto(string NombreArchivo, byte[] Contenido);
 /// como la pestaña «Clientes» (<c>ObtenerClientesDeEmpresaQuery</c>), que enseña los mismos destinos. Fuera de la cartera,
 /// la misma respuesta que una Empresa inexistente.</item>
 /// <item>Rol que descarga (decisión del propietario, 2026-10-08, la del paquete de la Visita): el zip entrega documentos,
-/// también los sensibles, y sale de TALVEG, así que solo lo obtiene un rol que escribe. Lista blanca; una Sesión
-/// Privilegiada de plataforma queda como en la Visita (su rol efectivo es <c>null</c> y la decide su alcance).</item>
+/// también los sensibles, y sale de TALVEG, así que solo lo obtiene un rol que escribe. Lista blanca.</item>
+/// <item>Sesión Privilegiada (decisión provisional de la coordinadora, 2026-11-08, pendiente de que Chris la confirme): el
+/// Actor de Plataforma TALVEG ve el resumen —su alcance lo decide, como hoy en la Visita—, pero no descarga el paquete de
+/// Empresa: el Soporte TALVEG no es Gestor CAE y un zip con todo lo vigente de una Empresa es una exportación en lote. Es la
+/// opción más restrictiva; el paquete de la Visita no cambia.</item>
 /// <item>El destino, si lo hay, es un Cliente empresarial de la Empresa en una Relación Empresarial vigente; otro Id
 /// responde como inexistente, para no sondear Clientes ajenos.</item>
 /// </list>
@@ -55,30 +58,42 @@ public static class AutorizacionPaqueteEmpresa
         "PaqueteEmpresa.DemasiadoGrande",
         $"El paquete pasa de {IPaqueteDocumentalEmpresaService.MaximoArchivos} archivos. Elige un Cliente concreto para prepararlo.");
 
+    public static readonly Error ArchivosNoDisponibles = Error.Crear(
+        "PaqueteEmpresa.ArchivosNoDisponibles",
+        "No se pudo abrir ningún archivo del paquete. Inténtalo de nuevo más tarde.");
+
+    public static readonly Error SesionPrivilegiadaSinDescarga = Error.Crear(
+        "PaqueteEmpresa.SesionPrivilegiadaSinDescarga",
+        "Una sesión privilegiada de plataforma puede ver el resumen del paquete, pero no descargarlo.");
+
     // Los mismos literales que AutorizacionEscrituraBehavior y ObtenerPaqueteDocumentalVisitaQueryHandler, por el mismo
     // motivo: Application no referencia Infrastructure.Identity.Roles.
     private static readonly string[] RolesQueObtienenElPaquete =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
-    /// <summary><c>null</c> si puede; si no, el error que responder. Devuelve también los destinos admisibles.</summary>
-    public static async Task<(Error? Error, IReadOnlyList<DestinoPaqueteEmpresaDto> Destinos)> ComprobarAsync(
+    /// <summary>
+    /// <c>null</c> si puede; si no, el error que responder. Devuelve también los destinos admisibles y si quien pregunta va
+    /// en una Sesión Privilegiada (ve el resumen, no descarga).
+    /// </summary>
+    public static async Task<(Error? Error, IReadOnlyList<DestinoPaqueteEmpresaDto> Destinos, bool EnSesionPrivilegiada)> ComprobarAsync(
         Guid empresaId, Guid? clienteEmpresarialId,
         IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService,
         ISesionPrivilegiadaActual sesionPrivilegiadaActual, IPaqueteDocumentalEmpresaService paquete, CancellationToken cancellationToken)
     {
         if (!await empresasContext.Empresas.AnyAsync(e => e.Id == empresaId, cancellationToken)
             || !await alcanceDatos.EmpresaParaGestionVisibleAsync(empresaId, cancellationToken))
-            return (NoEncontrada, []);
+            return (NoEncontrada, [], false);
 
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
+        var enSesionPrivilegiada = await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null;
+        if (!enSesionPrivilegiada
             && (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueObtienenElPaquete.Contains(rol)))
-            return (RolSinDescarga, []);
+            return (RolSinDescarga, [], false);
 
         var destinos = await paquete.ObtenerDestinosAsync(empresaId, cancellationToken);
         if (clienteEmpresarialId is { } destinoId && destinos.All(d => d.ClienteEmpresarialId != destinoId))
-            return (NoEncontrada, []);
+            return (NoEncontrada, [], enSesionPrivilegiada);
 
-        return (null, destinos);
+        return (null, destinos, enSesionPrivilegiada);
     }
 }
 
@@ -92,12 +107,13 @@ public class ObtenerResumenPaqueteEmpresaQueryHandler(
 {
     public async Task<Result<ResumenPaqueteEmpresaDto>> Handle(ObtenerResumenPaqueteEmpresaQuery request, CancellationToken cancellationToken)
     {
-        var (error, destinos) = await AutorizacionPaqueteEmpresa.ComprobarAsync(
+        var (error, destinos, enSesionPrivilegiada) = await AutorizacionPaqueteEmpresa.ComprobarAsync(
             request.EmpresaId, request.ClienteEmpresarialId, empresasContext, alcanceDatos, currentUserService, sesionPrivilegiadaActual, paquete, cancellationToken);
         if (error is not null)
             return Result.Fallo<ResumenPaqueteEmpresaDto>(error);
 
-        return Result.Exito(await paquete.ResumirAsync(request.EmpresaId, request.ClienteEmpresarialId, destinos, cancellationToken));
+        var resumen = await paquete.ResumirAsync(request.EmpresaId, request.ClienteEmpresarialId, destinos, cancellationToken);
+        return Result.Exito(enSesionPrivilegiada ? resumen with { PuedeDescargar = false } : resumen);
     }
 }
 
@@ -117,10 +133,12 @@ public class DescargarPaqueteEmpresaQueryHandler(
 {
     public async Task<Result<PaqueteEmpresaDescargaDto>> Handle(DescargarPaqueteEmpresaQuery request, CancellationToken cancellationToken)
     {
-        var (error, destinos) = await AutorizacionPaqueteEmpresa.ComprobarAsync(
+        var (error, destinos, enSesionPrivilegiada) = await AutorizacionPaqueteEmpresa.ComprobarAsync(
             request.EmpresaId, request.ClienteEmpresarialId, empresasContext, alcanceDatos, currentUserService, sesionPrivilegiadaActual, paquete, cancellationToken);
         if (error is not null)
             return Result.Fallo<PaqueteEmpresaDescargaDto>(error);
+        if (enSesionPrivilegiada)
+            return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
 
         var cliente = destinos.FirstOrDefault(d => d.ClienteEmpresarialId == request.ClienteEmpresarialId)?.RazonSocial;
 
@@ -132,6 +150,10 @@ public class DescargarPaqueteEmpresaQueryHandler(
         catch (PaqueteEmpresaDemasiadoGrandeException)
         {
             return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.DemasiadoGrande);
+        }
+        catch (PaqueteEmpresaSinArchivosException)
+        {
+            return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.ArchivosNoDisponibles);
         }
 
         if (zip is null)

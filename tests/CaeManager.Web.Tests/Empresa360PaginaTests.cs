@@ -599,24 +599,106 @@ public partial class Empresa360PaginaTests : BunitContext
             .Should().Equal("Seguro de Responsabilidad Civil Falta", "Certificado de aptitud médica · Paula Campos Lara Vencido 02/08");
         dialogo.TextContent.Should().Contain("Reclamar lo que falta");
 
-        var generar = dialogo.QuerySelectorAll("a").Single(a => a.TextContent.Trim() == "Generar ZIP");
-        generar.GetAttribute("href").Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
+        var descarga = ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
+        dialogo.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        descarga.Invocations["descargar"].Single().Arguments[0].Should().Be(
+            $"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
             "la descarga va por el endpoint autenticado con el destino elegido, nunca por una URL pública");
-        generar.HasAttribute("download").Should().BeTrue();
     }
 
     [Fact]
     public void Todo_lo_vigente_pide_el_resumen_sin_destino_y_descarga_sin_Cliente()
     {
         var mediador = Registrar(Empresa());
+        var descarga = ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
         var cut = AbrirPaquete(mediador);
 
         cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
 
         mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Last().ClienteEmpresarialId.Should().BeNull();
-        cut.FindAll("[role=dialog] a").Single(a => a.TextContent.Trim() == "Generar ZIP")
-            .GetAttribute("href").Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
         cut.Find("[role=dialog]").TextContent.Should().NotContain("Reclamar lo que falta", "no falta nada");
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        descarga.Invocations["descargar"].Single().Arguments[0].Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
+    }
+
+    [Theory]
+    [InlineData(409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.", "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.")]
+    [InlineData(403, "Tu rol no permite preparar ni descargar el paquete documental de una empresa — solo consultarla.", "Tu rol no permite preparar ni descargar el paquete documental de una empresa — solo consultarla.")]
+    [InlineData(404, null, "La empresa o el destino ya no están disponibles para ti.")]
+    [InlineData(0, null, "No pudimos generar el paquete. Inténtalo de nuevo.")]
+    public void Si_el_servidor_rechaza_la_descarga_el_motivo_se_ve_en_el_dialogo(int estado, string? mensaje, string esperado)
+    {
+        var mediador = Registrar(Empresa());
+        ModuloDescarga(new BotonPaqueteEmpresa.RespuestaDescarga(false, estado, mensaje));
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim().Should().Be(esperado,
+            "un 409 o un 403 de la descarga no puede quedarse solo en la barra de descargas del navegador");
+    }
+
+    [Fact]
+    public void Por_encima_de_200_archivos_no_ofrece_Generar_ZIP_y_explica_el_limite()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, 201, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll("button").Should().NotContain(b => b.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("pasa de 200 archivos").And.Contain("Elige un Cliente concreto");
+    }
+
+    [Fact]
+    public void Con_exactamente_200_archivos_si_ofrece_Generar_ZIP()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto("Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, 200, 0, 0, []));
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.FindAll("[role=dialog] button").Should().Contain(b => b.TextContent.Trim() == "Generar ZIP");
+    }
+
+    [Fact]
+    public void En_una_Sesion_Privilegiada_ve_el_resumen_pero_no_ofrece_Generar_ZIP()
+    {
+        var mediador = Registrar(Empresa());
+        mediador.ResumenPaquete = q => Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId) with { PuedeDescargar = false });
+        var cut = Renderizar();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelectorAll(".paquete-recuento").Should().HaveCount(3);
+        dialogo.QuerySelectorAll("button").Should().NotContain(b => b.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("sesión privilegiada");
+    }
+
+    [Fact]
+    public void Al_elegir_destino_los_botones_siguen_en_el_dialogo_y_el_resumen_nuevo_se_anuncia()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "true"), ("Todo lo vigente", "false"));
+        var recuentos = cut.Find(".paquete-recuentos");
+        recuentos.GetAttribute("aria-live").Should().Be("polite");
+        recuentos.GetAttribute("aria-atomic").Should().Be("true");
+    }
+
+    private BunitJSModuleInterop ModuloDescarga(BotonPaqueteEmpresa.RespuestaDescarga respuesta)
+    {
+        var modulo = JSInterop.SetupModule("./js/descarga-archivo.js");
+        modulo.Setup<BotonPaqueteEmpresa.RespuestaDescarga>("descargar", _ => true).SetResult(respuesta);
+        return modulo;
     }
 
     [Fact]
@@ -629,7 +711,7 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.QuerySelectorAll("a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelectorAll("button, a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
         dialogo.TextContent.Should().Contain("no se genera el paquete").And.Contain("Reclamar lo que falta");
     }
 
@@ -644,7 +726,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var dialogo = cut.Find("[role=dialog]");
         dialogo.QuerySelector("[role=alert]")!.TextContent.Should().Contain(AutorizacionPaqueteEmpresa.RolSinDescarga.Mensaje);
-        dialogo.QuerySelectorAll("a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
+        dialogo.QuerySelectorAll("button, a").Should().NotContain(a => a.TextContent.Trim() == "Generar ZIP");
     }
 
     /// <summary>

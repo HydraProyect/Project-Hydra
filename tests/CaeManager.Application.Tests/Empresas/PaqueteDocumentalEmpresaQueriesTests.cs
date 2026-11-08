@@ -16,6 +16,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -45,6 +46,7 @@ public class PaqueteDocumentalEmpresaQueriesTests
     private readonly RegistroQueAnota _registro = new();
     private AlcanceDatosServiceFalso _alcance = new();
     private string? _rol = "GestorCae";
+    private SesionPrivilegiadaActiva? _sesionPrivilegiada;
 
     private readonly Empresa _empresa = new("Contratista Demo SL", "B12345674");
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Refrielectric SA", "A58818501", false, null, null);
@@ -216,6 +218,76 @@ public class PaqueteDocumentalEmpresaQueriesTests
         (await DescargarAsync(_cliente.Id)).Error.Should().Be(AutorizacionPaqueteEmpresa.SinDocumentos);
     }
 
+    [Fact]
+    public async Task Todo_lo_vigente_no_trae_los_Documentos_vigentes_de_otra_Empresa_del_mismo_Tenant_propietario()
+    {
+        // Otra Empresa del mismo Tenant propietario, con un Documento de Empresa y un Trabajador con el suyo, todo vigente
+        // y de tipos que la Empresa del paquete no tiene: si se colara, entraría sin competir con nada.
+        var otraEmpresa = new Empresa("Otra Contratista SL", "B76543214");
+        var plan = NuevoTipo("Plan de prevención", AmbitoAplicacion.Empresa);
+        var formacion = NuevoTipo("Formación PRL", AmbitoAplicacion.Trabajador);
+        var marta = Trabajador.DeEmpresa(otraEmpresa.Id, "Marta", "Ruiz", "45678912S");
+        _empresas.ListaEmpresas.Add(otraEmpresa);
+        _tipos.ListaTiposDocumento.AddRange([plan, formacion]);
+        _trabajadores.ListaTrabajadores.Add(marta);
+        var planOtra = Documento.DeEmpresa(otraEmpresa.Id, plan.Id, Hoy.AddDays(-10), VigenciaDocumento.NoCaduca, Guardar("plan-otra"));
+        var formacionMarta = Documento.DeTrabajador(marta.Id, formacion.Id, Hoy.AddDays(-10), VigenciaDocumento.NoCaduca, Guardar("formacion-marta"));
+        _documentos.ListaDocumentos.AddRange([planOtra, formacionMarta]);
+
+        var resumen = (await ResumirAsync(null)).Valor;
+        var zip = LeerZip((await DescargarAsync(null)).Valor.Contenido);
+
+        resumen.Incluye.Should().Be(4, "solo cuentan los Documentos de la Empresa del paquete y de sus Trabajadores");
+        zip.Values.Should().BeEquivalentTo("seguro", "iso", "epi-ana", "epi-luis");
+        _registro.Registrados.Select(r => r.DocumentoId).Should().NotContain(planOtra.Id).And.NotContain(formacionMarta.Id);
+    }
+
+    [Fact]
+    public async Task Un_archivo_que_no_se_puede_abrir_no_se_omite_en_silencio_va_en_un_indice_dentro_del_zip()
+    {
+        _documentos.ListaDocumentos.RemoveAll(d => d.Id == _epiAna.Id);
+        var epiSinArchivo = Documento.DeTrabajador(_ana.Id, _epi.Id, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "no-existe.pdf");
+        _documentos.ListaDocumentos.Add(epiSinArchivo);
+
+        var resultado = await DescargarAsync(_cliente.Id);
+
+        var zip = LeerZip(resultado.Valor.Contenido);
+        zip.Keys.Should().BeEquivalentTo("Empresa/Seguro RC.pdf", PaqueteDocumentalEmpresaService.NombreLeeme);
+        zip[PaqueteDocumentalEmpresaService.NombreLeeme].Should().Contain("- Entrega de EPI · Ana Garcia");
+        _registro.Registrados.Select(r => r.DocumentoId).Should().NotContain(epiSinArchivo.Id, "lo que no entró no es un acceso a su contenido");
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_abrir_ningun_archivo_lo_dice_en_vez_de_decir_que_no_hay_nada_vigente()
+    {
+        _almacenamiento.ExcepcionAlAbrir = new IOException("almacenamiento caído");
+
+        (await DescargarAsync(_cliente.Id)).Error.Should().Be(AutorizacionPaqueteEmpresa.ArchivosNoDisponibles);
+        _registro.Registrados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_Sesion_Privilegiada_ve_el_resumen_pero_no_descarga_el_paquete_de_Empresa()
+    {
+        // Decisión provisional de la coordinadora (2026-11-08), la más restrictiva: el Soporte TALVEG no es Gestor CAE.
+        _rol = null;
+        _sesionPrivilegiada = new SesionPrivilegiadaActiva(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.AdminPlataforma, null);
+
+        var resumen = await ResumirAsync(_cliente.Id);
+        var descarga = await DescargarAsync(_cliente.Id);
+
+        resumen.EsFallido.Should().BeFalse();
+        resumen.Valor.Should().BeEquivalentTo(new { Incluye = 2, PuedeDescargar = false });
+        descarga.Error.Should().Be(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
+        _registro.Registrados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_Sesion_Privilegiada_el_resumen_permite_descargar()
+    {
+        (await ResumirAsync(_cliente.Id)).Valor.PuedeDescargar.Should().BeTrue();
+    }
+
     // ---- Montaje
 
     private Task<Result<ResumenPaqueteEmpresaDto>> ResumirAsync(Guid? clienteId) =>
@@ -230,7 +302,7 @@ public class PaqueteDocumentalEmpresaQueriesTests
             _empresas, _trabajadores, _documentos, _tipos, _asignaciones, _centros, _calculo, _almacenamiento, _alcance,
             NullLogger<PaqueteDocumentalEmpresaService>.Instance);
         var usuario = new CurrentUserServiceFalso(rol: _rol);
-        var sesion = new SinSesionPrivilegiada();
+        var sesion = new SesionPrivilegiadaFija(_sesionPrivilegiada);
         return new Handlers(
             new ObtenerResumenPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio),
             new DescargarPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio, _registro));
@@ -312,9 +384,9 @@ public class PaqueteDocumentalEmpresaQueriesTests
             throw new NotSupportedException();
     }
 
-    private sealed class SinSesionPrivilegiada : ISesionPrivilegiadaActual
+    private sealed class SesionPrivilegiadaFija(SesionPrivilegiadaActiva? sesion) : ISesionPrivilegiadaActual
     {
-        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult<SesionPrivilegiadaActiva?>(null);
-        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult<SesionPrivilegiadaActiva?>(null);
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) => Task.FromResult(sesion);
     }
 }

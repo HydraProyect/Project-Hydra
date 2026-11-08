@@ -53,12 +53,15 @@ public static class EmpresasEndpoints
 
         if (resultado.EsFallido)
         {
-            // Fuera de alcance o de otro Tenant responde igual que inexistente; un rol que no descarga, 403; el resto son
-            // estados del paquete que el Gestor CAE puede entender.
+            // Fuera de alcance o de otro Tenant responde igual que inexistente; un rol que no descarga o una Sesión
+            // Privilegiada, 403; el resto son estados del paquete que el Gestor CAE puede entender. El diálogo descarga por
+            // fetch y enseña este texto en pantalla.
             if (resultado.Error.Equals(AutorizacionPaqueteEmpresa.NoEncontrada))
                 return Results.NotFound();
+            var prohibido = resultado.Error.Equals(AutorizacionPaqueteEmpresa.RolSinDescarga)
+                || resultado.Error.Equals(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
             return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8",
-                statusCode: resultado.Error.Equals(AutorizacionPaqueteEmpresa.RolSinDescarga) ? StatusCodes.Status403Forbidden : StatusCodes.Status409Conflict);
+                statusCode: prohibido ? StatusCodes.Status403Forbidden : StatusCodes.Status409Conflict);
         }
 
         CabecerasArchivoSensible.ProhibirCache(contexto);

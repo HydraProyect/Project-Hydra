@@ -30,6 +30,14 @@
 .paquete-formato { font: var(--font-body-md); }
 .paquete-vacio, .paquete-estado { margin: 0; color: var(--color-text-muted); font: var(--font-body-md); }
 div.paquete-estado { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.paquete-aviso {
+    margin: 0; padding: 10px 12px; border-radius: var(--radius-md);
+    background: var(--color-warning-50); color: var(--color-warning-700); font: var(--font-body-md);
+}
+.paquete-error-descarga {
+    margin: 0; padding: 10px 12px; border-radius: var(--radius-md);
+    background: var(--color-danger-50); color: var(--color-danger-700); font: var(--font-body-md);
+}
 .paquete-resumen { flex: 1; font: var(--font-caption); color: var(--color-text-muted); }
 
 @media (max-width: 600px) {

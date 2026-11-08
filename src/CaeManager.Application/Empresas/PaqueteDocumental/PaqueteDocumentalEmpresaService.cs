@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Text;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -25,6 +27,7 @@ public sealed record FaltaPaqueteEmpresaDto(string TipoDocumento, string? Trabaj
 /// <summary>
 /// Lo que el diálogo «Preparar paquete documental» dice antes de generar (maqueta «Mapa Dia a Dia TALVEG.dc.html» § C):
 /// cuántos documentos van, cuántos faltan o están vencidos y cuántos no los pide este Cliente empresarial.
+/// <paramref name="PuedeDescargar"/> es <c>false</c> en una Sesión Privilegiada, que ve el resumen pero no descarga.
 /// </summary>
 public sealed record ResumenPaqueteEmpresaDto(
     string RazonSocial,
@@ -33,9 +36,12 @@ public sealed record ResumenPaqueteEmpresaDto(
     int Incluye,
     int Faltan,
     int Fuera,
-    IReadOnlyList<FaltaPaqueteEmpresaDto> ListaFaltan);
+    IReadOnlyList<FaltaPaqueteEmpresaDto> ListaFaltan,
+    bool PuedeDescargar = true);
 
-public sealed record PaqueteEmpresaZip(string NombreArchivo, byte[] Contenido, IReadOnlyList<Guid> DocumentoIds);
+/// <param name="NoIncluidos">Los documentos que debían ir y cuyo archivo no se pudo abrir («Tipo · titular»); van
+/// también en <see cref="PaqueteDocumentalEmpresaService.NombreLeeme"/> dentro del zip.</param>
+public sealed record PaqueteEmpresaZip(string NombreArchivo, byte[] Contenido, IReadOnlyList<Guid> DocumentoIds, IReadOnlyList<string> NoIncluidos);
 
 /// <summary>
 /// «Preparar paquete» de Empresa 360 (decisión de Chris del 2026-11-08, punto 5 de «Primera tanda de decisiones
@@ -72,8 +78,10 @@ public interface IPaqueteDocumentalEmpresaService
         Guid empresaId, Guid? clienteEmpresarialId, IReadOnlyList<DestinoPaqueteEmpresaDto> destinos, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Devuelve <c>null</c> si no hay nada vigente que entregar (o ningún archivo pudo abrirse): no se genera un zip vacío.
-    /// Lanza <see cref="PaqueteEmpresaDemasiadoGrandeException"/> por encima de <see cref="MaximoArchivos"/>.
+    /// Devuelve <c>null</c> si no hay nada vigente que entregar: no se genera un zip vacío. Lanza
+    /// <see cref="PaqueteEmpresaDemasiadoGrandeException"/> por encima de <see cref="MaximoArchivos"/> y
+    /// <see cref="PaqueteEmpresaSinArchivosException"/> si no se pudo abrir ningún archivo. Si solo algunos no se abren, el
+    /// zip sale con los demás y lleva en la raíz un índice de los que no van: nunca se omiten en silencio.
     /// </summary>
     Task<PaqueteEmpresaZip?> ConstruirAsync(Guid empresaId, Guid? clienteEmpresarialId, string? razonSocialCliente, CancellationToken cancellationToken);
 
@@ -89,6 +97,10 @@ public sealed class PaqueteEmpresaDemasiadoGrandeException(int archivos)
 {
     public int Archivos { get; } = archivos;
 }
+
+/// <summary>Había documentos que entregar, pero no se pudo abrir ninguno de sus archivos (almacenamiento inconsistente).</summary>
+public sealed class PaqueteEmpresaSinArchivosException()
+    : Exception("No se pudo abrir ningún archivo del paquete documental de la Empresa.");
 
 public class PaqueteDocumentalEmpresaService(
     IEmpresasQueryContext empresasContext,
@@ -172,13 +184,52 @@ public class PaqueteDocumentalEmpresaService(
             return ("Empresa", tipoNombre);
         }, almacenamiento, logger, cancellationToken);
 
-        if (zip is null) return null;
+        if (zip is null) throw new PaqueteEmpresaSinArchivosException();
+
+        // El paquete de la Visita omite con un aviso en el registro el documento cuyo archivo no se abre; este sale de la mano
+        // del Gestor CAE hacia el Cliente, así que lo dice dentro del zip, en un índice en la raíz (fuera de las carpetas
+        // Empresa/ y Trabajadores/, con las que no puede chocar). El paquete de la Visita no cambia.
+        var entraron = zip.Value.Documentos.Select(d => d.DocumentoId).ToHashSet();
+        var noIncluidos = grupos
+            .Where(g => !g.Any(c => entraron.Contains(c.Id)))
+            .Select(g => DescribirPar(g[0], tipos, universo.Trabajadores))
+            .ToList();
+        var bytes = noIncluidos.Count == 0 ? zip.Value.Bytes : AnadirLeeme(zip.Value.Bytes, noIncluidos);
 
         var destino = ArmadoPaqueteDocumental.SanearSegmento(razonSocialCliente ?? "Todo lo vigente").Replace(' ', '-');
         var empresa = ArmadoPaqueteDocumental.SanearSegmento(universo.RazonSocial).Replace(' ', '-');
         var nombre = $"{empresa}_{destino}_{DiaDeNegocio.Hoy():yyyy-MM-dd}.zip";
 
-        return new PaqueteEmpresaZip(nombre, zip.Value.Bytes, zip.Value.Documentos.Select(d => d.DocumentoId).ToList());
+        return new PaqueteEmpresaZip(nombre, bytes, zip.Value.Documentos.Select(d => d.DocumentoId).ToList(), noIncluidos);
+    }
+
+    /// <summary>El índice que el zip lleva en la raíz cuando algún archivo no se pudo abrir.</summary>
+    public const string NombreLeeme = "LEEME - documentos no incluidos.txt";
+
+    private static string DescribirPar(
+        ArmadoPaqueteDocumental.Copia copia, IReadOnlyDictionary<Guid, string> tipos, IReadOnlyDictionary<Guid, TrabajadorDelPaquete> trabajadores)
+    {
+        var tipo = tipos.GetValueOrDefault(copia.TipoDocumentoId, "Documento");
+        return copia.TrabajadorId is { } id && trabajadores.TryGetValue(id, out var trabajador)
+            ? $"{tipo} · {trabajador.Nombre} {trabajador.Apellidos}"
+            : $"{tipo} · Empresa";
+    }
+
+    private static byte[] AnadirLeeme(byte[] zip, IReadOnlyList<string> noIncluidos)
+    {
+        using var memoria = new MemoryStream();
+        memoria.Write(zip);
+        using (var archivo = new ZipArchive(memoria, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var entrada = archivo.CreateEntry(NombreLeeme, CompressionLevel.Fastest);
+            using var escritor = new StreamWriter(entrada.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+            escritor.WriteLine("Estos documentos debían ir en el paquete y no se pudo abrir su archivo, así que no están incluidos:");
+            escritor.WriteLine();
+            foreach (var linea in noIncluidos)
+                escritor.WriteLine($"- {linea}");
+        }
+
+        return memoria.ToArray();
     }
 
     private static (Guid? TrabajadorId, Guid TipoDocumentoId) Clave(IReadOnlyList<ArmadoPaqueteDocumental.Copia> grupo) =>
