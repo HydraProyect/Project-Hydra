@@ -25,7 +25,8 @@ public class RevisionUnoAUnoBajasHojasDeEstiloTests
         var css = Leer("Features", "Empresas", "Pages", "EmpresaDetalle.razor.css");
 
         Cuerpo(css, ".empresa360-cifra-trabajador").Should().MatchRegex(@"font\s*:\s*400\s+0?\.875rem");
-        Cuerpo(css, ".contenedor-pagina ::deep .fila-relacion-detalle").Should().Contain("font-size: 13px");
+        Cuerpo(css, ".empresa360-seccion ::deep .fila-relacion-detalle").Should().Contain("font-size: 13px");
+        css.Should().NotContain(".contenedor-pagina ::deep .fila-relacion-detalle", "el ajuste no debe alcanzar a toda la página, solo a las listas de Trabajadores y Clientes");
     }
 
     private static string Cuerpo(string css, string selector)

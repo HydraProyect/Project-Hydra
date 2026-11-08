@@ -103,8 +103,9 @@
     color: var(--color-text-muted);
 }
 
-/* El DNI/NIE de la fila de trabajador es de 13 px en la maqueta; mismo ajuste que Cliente 360 y Trabajador 360. */
-.contenedor-pagina ::deep .fila-relacion-detalle {
+/* El DNI/NIE de la fila de trabajador (y el CIF de la de cliente) es de 13 px en la maqueta («.fila-rel-sub»). Acotado a
+   las secciones de lista de Trabajadores y Clientes: no alcanza a Plataformas, Reclamar ni Documentación. */
+.empresa360-seccion ::deep .fila-relacion-detalle {
     font-size: 13px;
 }
 
