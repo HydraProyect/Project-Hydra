@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -42,7 +43,8 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
             {
                 var contexto = sp.GetRequiredService<CaeManagerDbContext>();
                 return new ConciliacionGestionesAutomaticasService(
-                    contexto, contexto, AltaAcreditacionesDePrueba.GestionAutomatica(contexto), contexto);
+                    contexto, contexto, contexto, AltaAcreditacionesDePrueba.GestionAutomatica(contexto), contexto,
+                    NullLogger<ConciliacionGestionesAutomaticasService>.Instance);
             }));
 
         Guid tenantPropio, tenantOtro, proveedorId;
@@ -62,6 +64,8 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         var historico = await ActoSinGestionAsync(arnes, tenantPropio, propioSinGestion);
         await EnvejecerAsync(arnes, historico, TimeSpan.FromDays(3));
         var renovacion = await RenovacionSinGestionAsync(arnes, tenantPropio, propioSinGestion);
+        var renovadoAntes = await RenovadoAntesDeConciliarAsync(arnes, tenantPropio, propioSinGestion);
+        var sinPasosAlNacer = await SinPasosAlNacerConAccesoPosteriorAsync(arnes, tenantPropio, propioSinGestion);
 
         await using (var scope = arnes.Servicios.CreateAsyncScope())
             (await scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>().Database
@@ -80,7 +84,9 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         var segunda = await disparador.ProcesarAsync(desde, CancellationToken.None);
 
         primera.Completa.Should().BeTrue();
-        primera.Creadas.Should().Be(3, "el acto de cada Tenant y la renovación; el histórico queda fuera de la ventana");
+        primera.Creadas.Should().Be(5,
+            "el acto de cada Tenant, la renovación y las dos del renovado antes de conciliar; el histórico queda fuera de " +
+            "la ventana y el Documento sin pasos al nacer no adquiere Gestión por el acceso posterior");
         segunda.Completa.Should().BeTrue();
         segunda.Creadas.Should().Be(0, "repetirla no duplica");
 
@@ -104,7 +110,19 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         renovada.Origen.Should().Be(OrigenGestionAutomatica.RenovacionDocumento);
         renovada.Pasos.Should().ContainSingle().Which.AcreditacionId.Should().Be(renovacion.Nuevo.Acreditacion);
         var anterior = gestiones.Single(g => g.Id == renovacion.GestionAnterior);
-        anterior.EstaSustituida.Should().BeFalse("la sustitución la deriva la lectura; la conciliación no la marca");
+        anterior.EstaSustituida.Should().BeFalse("la Gestión ya guardada no se toca: la sustitución la deriva la lectura");
+
+        // Hallazgo 1 de la ronda 4: el Documento renovado antes de conciliar tiene su Gestión histórica, ya Sustituida.
+        var sucesora = gestiones.Single(g => g.DocumentoId == renovadoAntes.Nuevo.Documento);
+        var historica = gestiones.Single(g => g.DocumentoId == renovadoAntes.Anterior.Documento);
+        historica.TenantId.Should().Be(tenantPropio);
+        historica.Pasos.Should().ContainSingle().Which.AcreditacionId.Should().Be(renovadoAntes.Anterior.Acreditacion);
+        historica.EstaSustituida.Should().BeTrue();
+        historica.SustituidaPorGestionId.Should().Be(sucesora.Id);
+
+        // Hallazgo 2 de la ronda 4: la acreditación del acceso creado después no es del acto, aunque esté a milisegundos.
+        gestiones.Should().NotContain(g => g.DocumentoId == sinPasosAlNacer,
+            "el alta auditada, leída de PostgreSQL bajo RLS, es anterior a la acreditación del acceso nuevo");
     }
 
     private sealed record Sembrado(Guid Documento, Guid Acreditacion, Guid Canal, Guid Trabajador, Guid Tipo);
@@ -147,9 +165,58 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, semilla.Canal);
         propietario.Documentos.Add(documento);
         propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+        AltaAuditada(propietario, documento.Id);
         await propietario.SaveChangesAsync();
         return semilla with { Documento = documento.Id, Acreditacion = acreditacion.Id };
     }
+
+    /// <summary>
+    /// La ranura anterior crea un Documento y lo renueva antes de la conciliación: ninguno de los dos tiene Gestión.
+    /// </summary>
+    private async Task<(Sembrado Anterior, Sembrado Nuevo)> RenovadoAntesDeConciliarAsync(
+        ArnesDeArranqueRuntime arnes, Guid tenantId, Sembrado semilla)
+    {
+        var anterior = await ActoSinGestionAsync(arnes, tenantId, semilla);
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        await using var propietario = CrearContextoPropietario(arnes.CadenaPropietario);
+        var documentoAnterior = await propietario.Documentos.SingleAsync(d => d.Id == anterior.Documento);
+        var nuevo = documentoAnterior.NuevoDelMismoTitular(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)), $"tenant/{Guid.NewGuid():N}.pdf", null, null);
+        propietario.Documentos.Add(nuevo);
+        documentoAnterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        var acreditacion = new AcreditacionDocumentoPlataforma(nuevo.Id, semilla.Canal);
+        propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+        AltaAuditada(propietario, nuevo.Id);
+        await propietario.SaveChangesAsync();
+        return (anterior, semilla with { Documento = nuevo.Id, Acreditacion = acreditacion.Id });
+    }
+
+    /// <summary>
+    /// Un alta sin acreditaciones (el Centro aún no tenía ese acceso de Plataforma) y, en el guardado siguiente, un acceso
+    /// nuevo que acredita ese Documento: lo que hace <c>CrearCanalGestionCommand</c>.
+    /// </summary>
+    private async Task<Guid> SinPasosAlNacerConAccesoPosteriorAsync(ArnesDeArranqueRuntime arnes, Guid tenantId, Sembrado semilla)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        await using var propietario = CrearContextoPropietario(arnes.CadenaPropietario);
+        var documento = Documento.DeTrabajador(semilla.Trabajador, semilla.Tipo, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)),
+            $"tenant/{Guid.NewGuid():N}.pdf");
+        propietario.Documentos.Add(documento);
+        AltaAuditada(propietario, documento.Id);
+        await propietario.SaveChangesAsync();
+
+        var existente = await propietario.CanalesGestionDocumental.SingleAsync(c => c.Id == semilla.Canal);
+        var canalNuevo = CanalGestionDocumental.DePlataforma(
+            existente.CentroId, "Acceso nuevo", existente.ProveedorPlataformaCaeId!.Value, null, null, null);
+        propietario.CanalesGestionDocumental.Add(canalNuevo);
+        propietario.AcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canalNuevo.Id));
+        await propietario.SaveChangesAsync();
+        return documento.Id;
+    }
+
+    /// <summary>El registro «Creado» que el interceptor de auditoría agrega en el guardado del acto.</summary>
+    private static void AltaAuditada(CaeManagerDbContext propietario, Guid documentoId) =>
+        propietario.RegistrosAuditoria.Add(new RegistroAuditoria(
+            nameof(Documento), documentoId, "Creado", null, null, null, TipoActorAuditoria.Desconocido));
 
     /// <summary>
     /// Una renovación de la ranura anterior: el Documento anterior tenía su Gestión, el nuevo nace con su acreditación y
@@ -171,6 +238,7 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         documentoAnterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         var acreditacion = new AcreditacionDocumentoPlataforma(nuevo.Id, semilla.Canal);
         propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+        AltaAuditada(propietario, nuevo.Id);
         await propietario.SaveChangesAsync();
         return (semilla with { Documento = nuevo.Id, Acreditacion = acreditacion.Id }, gestionAnterior.Id);
     }

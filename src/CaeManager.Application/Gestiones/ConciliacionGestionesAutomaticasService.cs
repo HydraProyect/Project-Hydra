@@ -1,7 +1,9 @@
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Gestiones;
 
@@ -13,19 +15,37 @@ namespace CaeManager.Application.Gestiones;
 /// mostrar una fila que no existe.
 ///
 /// <para>
-/// <b>Qué es un acto sin Gestión.</b> Un Documento operativo (no sustituido ni eliminado) con archivo, creado desde
-/// <c>desdeUtc</c>, sin ninguna Gestión automática, y cuyas acreditaciones del mismo acto (las creadas como mucho
-/// <see cref="ToleranciaDelActo"/> después o antes que el Documento) incluyen alguna ante un acceso de Plataforma. La
-/// Gestión se hace nacer con <see cref="INacimientoGestionAutomaticaService.AgregarDeActosSinGestionAsync"/>, la misma
-/// regla que en el acto: aquí no se decide qué es un paso. Una acreditación que llegó después (un acceso nuevo, una
-/// asignación nueva) no es del acto, igual que no habría entrado en la Gestión nacida con él. <c>desdeUtc</c> acota el
-/// histórico anterior a la función: lo fija quien invoca (<c>ConciliacionGestionesAutomaticasOptions.Ventana</c>).
+/// <b>Qué es un acto sin Gestión.</b> Un Documento con archivo, no eliminado, creado desde <c>desdeUtc</c> y sin ninguna
+/// Gestión automática, operativo o ya sustituido: si la ranura anterior lo creó y lo renovó antes de la conciliación, su
+/// Gestión histórica habría nacido igual en el acto. <c>desdeUtc</c> acota el histórico anterior a la función: lo fija
+/// quien despliega (<c>ConciliacionGestionesAutomaticasOptions.DesdeUtc</c>), no una ventana móvil.
 /// </para>
 ///
 /// <para>
-/// <b>Sustitución.</b> Si el Documento sin Gestión renovó otro cuya Gestión sigue abierta, esa Gestión ya se lee como
-/// Sustituida (<c>GestionAutomatica.ResolverEstado</c> con el Documento sustituido) y su detalle apunta a la que nace
-/// aquí. La conciliación no la marca: no repite esa regla.
+/// <b>Qué acreditaciones son del acto.</b> Las del Documento creadas, como mucho, en el instante de su alta auditada:
+/// el <c>FechaUtc</c> más antiguo de los registros de auditoría «Creado» del Documento. Ese registro lo construye el
+/// interceptor de auditoría dentro del <c>SaveChangesAsync</c> del acto, después de que el acto construyera sus
+/// acreditaciones (todos los caminos de alta con archivo las agregan antes de su único guardado) y antes de confirmar.
+/// Una acreditación de otro acto (un acceso de Plataforma, una Asignación o un requisito nuevos,
+/// <c>IAltaAcreditacionesPlataformaService</c>) solo puede construirse después de leer el Documento ya confirmado, así
+/// que es estrictamente posterior. No hay tolerancia que confunda actos cercanos ni deje fuera uno lento: es el mismo
+/// conjunto que el acto toma de lo agregado sin guardar (<c>NacimientoGestionAutomaticaService.AgregarAsync</c>), con
+/// el supuesto de un reloj común y que no retrocede entre las ranuras (las dos corren en el mismo servidor). Un
+/// Documento sin alta auditada no se concilia: sin ese dato no hay forma de separar su acto de los posteriores, y se
+/// registra como aviso.
+/// </para>
+///
+/// <para>
+/// La Gestión se hace nacer con <see cref="INacimientoGestionAutomaticaService.AgregarDeActosSinGestionAsync"/>, la misma
+/// regla que en el acto: aquí no se decide qué es un paso ni cuándo una renovación la cierra.
+/// </para>
+///
+/// <para>
+/// <b>Sustitución.</b> Si el Documento sin Gestión ya se renovó, su Gestión nace ya Sustituida (con la regla de la
+/// renovación, en <see cref="INacimientoGestionAutomaticaService"/>) y con enlace a la del sucesor: la búsqueda devuelve
+/// primero los más recientes para que el sucesor, si también la necesita, la tenga antes. Si es el Documento sin Gestión
+/// el que renovó a otro cuya Gestión sigue abierta, esa Gestión ya guardada no se toca: se lee como Sustituida
+/// (<c>GestionAutomatica.ResolverEstado</c> con el Documento sustituido).
 /// </para>
 ///
 /// <para>
@@ -43,7 +63,10 @@ namespace CaeManager.Application.Gestiones;
 /// </summary>
 public interface IConciliacionGestionesAutomaticasService
 {
-    /// <summary>Los Documentos operativos con archivo, creados desde <paramref name="desdeUtc"/>, que siguen sin Gestión.</summary>
+    /// <summary>
+    /// Los Documentos con archivo, no eliminados (operativos o sustituidos), creados desde <paramref name="desdeUtc"/>,
+    /// que siguen sin Gestión; los más recientes primero.
+    /// </summary>
     Task<IReadOnlyList<Guid>> BuscarDocumentosSinGestionAsync(DateTime desdeUtc, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -57,21 +80,17 @@ public interface IConciliacionGestionesAutomaticasService
 public class ConciliacionGestionesAutomaticasService(
     IDocumentosQueryContext documentosContext,
     IGestionesQueryContext gestionesContext,
+    IAuditoriaQueryContext auditoriaContext,
     INacimientoGestionAutomaticaService nacimiento,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ILogger<ConciliacionGestionesAutomaticasService> logger)
     : IConciliacionGestionesAutomaticasService
 {
     /// <summary>Documentos por guardado: acota el rastreo y las listas de las consultas. Cada lote se guarda entero o nada.</summary>
     public const int DocumentosPorLote = 100;
 
-    /// <summary>
-    /// Distancia máxima entre la creación del Documento y la de una acreditación para que sea del mismo acto. El acto
-    /// construye las dos en la misma petición, con el archivo ya subido y a milisegundos de distancia; una acreditación
-    /// posterior es de otro acto (una Asignación o un acceso de Plataforma nuevos sobre un Documento ya existente) y no
-    /// entra en la Gestión, como en el flujo normal. Un minuto deja margen a una petición lenta sin abarcar el gesto
-    /// siguiente de la persona.
-    /// </summary>
-    internal static readonly TimeSpan ToleranciaDelActo = TimeSpan.FromMinutes(1);
+    /// <summary>La acción con que el interceptor de auditoría registra un alta (<c>AuditoriaInterceptor</c>).</summary>
+    internal const string AccionAlta = "Creado";
 
     public async Task<IReadOnlyList<Guid>> BuscarDocumentosSinGestionAsync(
         DateTime desdeUtc, CancellationToken cancellationToken = default)
@@ -79,9 +98,10 @@ public class ConciliacionGestionesAutomaticasService(
         if (desdeUtc.Kind != DateTimeKind.Utc)
             throw new ArgumentException("El inicio de la ventana debe estar en UTC.", nameof(desdeUtc));
 
-        var candidatos = await documentosContext.Documentos.Operativos()
-            .Where(d => d.ArchivoUrl != null && d.CreadoEnUtc >= desdeUtc)
-            .OrderBy(d => d.CreadoEnUtc).ThenBy(d => d.Id)
+        // Sustituidos incluidos: su Gestión histórica también habría nacido en el acto. Eliminados no.
+        var candidatos = await documentosContext.Documentos
+            .Where(d => !d.EstaEliminado && d.ArchivoUrl != null && d.CreadoEnUtc >= desdeUtc)
+            .OrderByDescending(d => d.CreadoEnUtc).ThenBy(d => d.Id)
             .Select(d => d.Id)
             .ToListAsync(cancellationToken);
 
@@ -111,10 +131,27 @@ public class ConciliacionGestionesAutomaticasService(
             .Select(g => g.DocumentoId)
             .ToListAsync(cancellationToken)).ToHashSet();
 
-        var documentos = await documentosContext.Documentos.Operativos()
-            .Where(d => ids.Contains(d.Id))
+        var documentos = await documentosContext.Documentos
+            .Where(d => ids.Contains(d.Id) && !d.EstaEliminado)
             .ToListAsync(cancellationToken);
         documentos.RemoveAll(d => conGestion.Contains(d.Id));
+        if (documentos.Count == 0)
+            return 0;
+
+        var candidatos = documentos.Select(d => d.Id).ToArray();
+        var altaAuditada = (await auditoriaContext.RegistrosAuditoria
+                .Where(r => r.EntidadTipo == nameof(Documento) && r.Accion == AccionAlta && candidatos.Contains(r.EntidadId))
+                .GroupBy(r => r.EntidadId)
+                .Select(g => new { DocumentoId = g.Key, AltaUtc = g.Min(r => r.FechaUtc) })
+                .ToListAsync(cancellationToken))
+            .ToDictionary(a => a.DocumentoId, a => a.AltaUtc);
+
+        var sinAlta = documentos.Where(d => !altaAuditada.ContainsKey(d.Id)).Select(d => d.Id).ToList();
+        if (sinAlta.Count > 0)
+            logger.LogWarning(
+                "Conciliación de Gestiones automáticas: {Documentos} Documentos sin alta auditada no se concilian, porque no se puede separar su acto de los posteriores: {DocumentoIds}.",
+                sinAlta.Count, sinAlta);
+        documentos.RemoveAll(d => !altaAuditada.ContainsKey(d.Id));
         if (documentos.Count == 0)
             return 0;
 
@@ -130,11 +167,24 @@ public class ConciliacionGestionesAutomaticasService(
             .Select(d => d.SustituidoPorDocumentoId)
             .ToListAsync(cancellationToken)).OfType<Guid>().ToHashSet();
 
+        // Si ya se renovó: la Gestión ya guardada de su sucesor, para el enlace de la sustitución.
+        var sucesores = documentos.Select(d => d.SustituidoPorDocumentoId).OfType<Guid>().Distinct().ToArray();
+        var gestionDelSucesor = sucesores.Length == 0
+            ? []
+            : (await gestionesContext.GestionesAutomaticas
+                    .Where(g => sucesores.Contains(g.DocumentoId))
+                    .Select(g => new { g.DocumentoId, g.Id })
+                    .ToListAsync(cancellationToken))
+                .ToDictionary(g => g.DocumentoId, g => g.Id);
+
         var actos = documentos
             .Select(d => new ActoSinGestionAutomatica(
                 d,
                 nacidosPorRenovacion.Contains(d.Id),
-                acreditaciones.Where(a => a.DocumentoId == d.Id && SonDelMismoActo(d, a)).ToList()))
+                acreditaciones.Where(a => a.DocumentoId == d.Id && a.CreadoEnUtc <= altaAuditada[d.Id]).ToList(),
+                d.SustituidoPorDocumentoId is { } sucesorId && gestionDelSucesor.TryGetValue(sucesorId, out var delSucesor)
+                    ? delSucesor
+                    : null))
             .ToList();
 
         var nacidas = await nacimiento.AgregarDeActosSinGestionAsync(actos, cancellationToken);
@@ -144,7 +194,4 @@ public class ConciliacionGestionesAutomaticasService(
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return nacidas.Count;
     }
-
-    private static bool SonDelMismoActo(Documento documento, AcreditacionDocumentoPlataforma acreditacion) =>
-        (acreditacion.CreadoEnUtc - documento.CreadoEnUtc).Duration() <= ToleranciaDelActo;
 }
