@@ -67,7 +67,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantPorAmbito = new TenantActualPorAmbito();
         var opcionesPropietario = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -103,7 +103,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_va_bajo_RLS_efectiva_y_lo_que_no_debe_contar_existe()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         (await _runtime.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == _documentoAjeno)).Should().Be(0,
             "sin filtro global de EF, solo RLS puede ocultar el Documento del Tenant ajeno");
         (await _runtime.Vehiculos.IgnoreQueryFilters().CountAsync(v => v.Id == _gemeloAjeno)).Should().Be(0);
@@ -128,7 +128,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_desglose_cuenta_solo_los_documentos_operativos_del_Tenant_de_la_sesion(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerVehiculosQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
@@ -168,7 +168,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_desglose_pedido_con_el_Id_de_un_Vehiculo_de_otro_Tenant_no_devuelve_nada_suyo()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var servicio = new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime);
 
         var desgloses = await servicio.CalcularDesgloseAsync(
@@ -199,7 +199,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Sin_RLS_el_filtro_global_de_Tenant_basta_para_que_el_desglose_no_cuente_al_Tenant_ajeno()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
 
         // Control del instrumento: en esta conexión no hay RLS que oculte los documentos del gemelo.
@@ -222,7 +222,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_peor_estado_de_las_incidencias_coincide_con_el_estado_de_la_fila(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerVehiculosQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
@@ -256,7 +256,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Sin_pedir_el_desglose_no_se_consulta_y_las_filas_llegan_sin_el(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         _contador.Reiniciar();
 
         // Sin ConDesgloseDocumental: lo que se mide es el valor por defecto de la consulta.
@@ -285,7 +285,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_por_id_devuelve_el_mismo_desglose_que_la_fila_de_la_pagina()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var consultaDeFila = new ObtenerVehiculosQuery(
             Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: _grua, ConDesgloseDocumental: true);
         var pagina = await HandlerSinCartera().Handle(
@@ -318,7 +318,7 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Un_Gestor_CAE_con_cartera_acotada_no_recibe_filas_ni_desglose_de_fuera_de_su_alcance(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerDelGestor().Handle(
             new ObtenerVehiculosQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);

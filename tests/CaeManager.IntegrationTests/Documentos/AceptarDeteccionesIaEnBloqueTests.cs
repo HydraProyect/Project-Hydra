@@ -44,7 +44,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -119,7 +119,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
     [Fact]
     public async Task Un_elemento_que_no_se_puede_aceptar_falla_sin_tocar_su_documento_ni_tumbar_los_demas()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var buena1 = await SembrarAsync(_visible, _tipoAutomatico);
         var fueraDeAlcance = await SembrarAsync(_ajeno, _tipoAutomatico);
         var vigenciaAMano = await SembrarAsync(_visible, _tipoManual);
@@ -166,7 +166,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
     [Fact]
     public async Task Una_revision_con_alerta_o_lectura_parcial_persistida_falla_en_el_bloque_y_no_se_toca()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var buena = await SembrarAsync(_visible, _tipoAutomatico);
         var noApto = await SembrarAsync(_visible, _tipoAutomatico, $"Confianza baja; {MotivosRevisionIa.NoAptoORestriccion}");
         var parcial = await SembrarAsync(_visible, _tipoAutomatico, MotivosRevisionIa.LecturaParcial(26));
@@ -192,7 +192,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_ya_sustituido_falla_en_el_bloque_y_no_se_toca()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var historial = Documento.DeTrabajador(_visible.Id, _tipoAutomatico.Id, DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.NoCaduca);
         var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null);
         _dbContext.Documentos.AddRange(historial, vigente);
@@ -214,7 +214,7 @@ public class AceptarDeteccionesIaEnBloqueTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_marca_VigenciaLaFijaElTipo_igual_que_la_propiedad_del_dominio()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var automatico = await SembrarAsync(_visible, _tipoAutomatico);
         var manual = await SembrarAsync(_visible, _tipoManual);
         var consulta = new ObtenerRevisionesIaPendientesQueryHandler(

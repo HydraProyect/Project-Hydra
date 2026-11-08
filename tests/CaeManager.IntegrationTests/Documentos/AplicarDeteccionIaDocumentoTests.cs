@@ -37,7 +37,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -80,7 +80,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Renueva_el_documento_con_la_fecha_detectada_y_recalcula_el_vencimiento_automatico()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
@@ -126,7 +126,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Aplicar_la_deteccion_sobre_un_documento_del_historial_se_rechaza_y_no_lo_toca()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var (historial, revision) = await SembrarHistorialConRevisionPendienteAsync();
         var emisionOriginal = historial.FechaEmision;
 
@@ -143,7 +143,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Corregir_la_lectura_sobre_un_documento_del_historial_se_rechaza_y_no_lo_toca()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var (historial, revision) = await SembrarHistorialConRevisionPendienteAsync();
         var emisionOriginal = historial.FechaEmision;
 
@@ -160,7 +160,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Marca_como_confirmada_manual_la_auditoria_de_ia_ligada_al_documento()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
@@ -188,7 +188,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Usa_la_fecha_de_vencimiento_detectada_cuando_el_tipo_no_calcula_vigencia_automatica()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoManual.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
@@ -209,7 +209,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_ia_no_detecto_fecha_de_emision()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
@@ -227,7 +227,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_si_la_revision_ya_estaba_resuelta()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
@@ -247,7 +247,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Falla_como_no_encontrada_cuando_el_trabajador_no_es_visible()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
@@ -267,7 +267,7 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
     [Fact]
     public async Task Corregir_a_mano_falla_como_no_encontrada_fuera_del_alcance_y_no_persiste_mutaciones()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
         var documento = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
         _dbContext.Documentos.Add(documento);

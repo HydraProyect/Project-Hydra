@@ -176,6 +176,10 @@ public class ClaveIntegracionApiBajoRolRuntimeTests : IAsyncLifetime
         filas.Should().OnlyContain(f => f.Dia >= diaAntes && f.Dia <= diaDespues, "el día de la fila es el del servidor, entre las dos lecturas");
         filas.Should().OnlyContain(f => f.Endpoint == "/api/v1/trabajadores/{id:guid}", "el patrón, sin el identificador de la URL");
         filas.Sum(f => f.Peticiones).Should().Be(2);
+        if (diaAntes == diaDespues)
+            filas.Should().ContainSingle("sin cruzar la medianoche las dos lecturas caen en una sola fila del día");
+        else
+            filas.Select(f => f.Dia).Should().OnlyHaveUniqueItems();
     }
 
     [Theory]

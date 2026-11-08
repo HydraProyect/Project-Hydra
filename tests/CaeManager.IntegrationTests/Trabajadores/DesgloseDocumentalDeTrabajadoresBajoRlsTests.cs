@@ -69,7 +69,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantPorAmbito = new TenantActualPorAmbito();
         var opcionesPropietario = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -105,7 +105,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_va_bajo_RLS_efectiva_y_lo_que_no_debe_contar_existe()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         (await _runtime.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == _documentoAjeno)).Should().Be(0,
             "sin filtro global de EF, solo RLS puede ocultar el Documento del Tenant ajeno");
         (await _runtime.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.Id == _gemeloAjeno)).Should().Be(0);
@@ -129,7 +129,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_desglose_cuenta_solo_los_documentos_operativos_del_Tenant_de_la_sesion(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: conRecuentosPorEstado),
             CancellationToken.None);
@@ -166,7 +166,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Los_tipos_exigidos_por_un_Centro_activo_y_sin_documento_salen_en_la_fila_con_o_sin_desglose(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var conDesglose = await HandlerSinCartera().Handle(
             new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
 
@@ -205,7 +205,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_desglose_pedido_con_el_Id_de_un_Trabajador_de_otro_Tenant_no_devuelve_nada_suyo()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var servicio = new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime);
 
         var desgloses = await servicio.CalcularDesgloseAsync(
@@ -235,7 +235,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Sin_RLS_el_filtro_global_de_Tenant_basta_para_que_el_desglose_no_cuente_al_Tenant_ajeno()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
 
         // Control del instrumento: en esta conexión no hay RLS que oculte los documentos del gemelo.
@@ -258,7 +258,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_peor_estado_de_las_incidencias_coincide_con_el_estado_de_la_fila(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: conRecuentosPorEstado),
             CancellationToken.None);
@@ -292,7 +292,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Sin_pedir_el_desglose_no_se_consulta_y_las_filas_llegan_sin_el(bool conRecuentosPorEstado)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         _contador.Reiniciar();
 
         // Sin ConDesgloseDocumental: lo que se mide es el valor por defecto de la consulta.
@@ -318,7 +318,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_desglose_de_la_pagina_es_una_sola_consulta()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         _contador.Reiniciar();
 
         var resultado = await HandlerSinCartera().Handle(
@@ -336,7 +336,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_por_id_devuelve_el_mismo_desglose_que_la_fila_de_la_pagina()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var consultaDeFila = new ObtenerTrabajadoresQuery(
             Busqueda: null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true, TrabajadorId: _nora);
         var pagina = await HandlerSinCartera().Handle(
@@ -364,7 +364,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Un_Gestor_CAE_con_cartera_acotada_no_recibe_filas_ni_desglose_de_fuera_de_su_alcance()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerDelGestor().Handle(
             new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
 
@@ -387,7 +387,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_filtro_por_un_Centro_fuera_del_alcance_devuelve_vacio()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerDelGestor().Handle(
             new ObtenerTrabajadoresQuery(null, CentroId: _centroFuera, ConRecuentosPorEstado: true), CancellationToken.None);
 
@@ -404,7 +404,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_filtro_por_Centro_deja_solo_a_quien_tiene_una_Asignacion_activa_en_el()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var delGestor = await HandlerDelGestor().Handle(
             new ObtenerTrabajadoresQuery(null, CentroId: _centroDentro), CancellationToken.None);
         delGestor.Elementos.Select(t => t.Id).Should().Equal([_nora], "Ana está de baja en ese Centro; Iker no trabaja en él");

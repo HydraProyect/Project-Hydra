@@ -39,7 +39,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
@@ -83,7 +83,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vencido_en_la_plataforma_bloquea_el_Centro_aunque_el_documento_siga_vigente_en_TALVEG()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionAsync(
             VigenciaEnPlataforma.VenceEl(DiaDeNegocio.Hoy().AddDays(-1)));
 
@@ -97,7 +97,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Sin_confirmar_la_vigencia_NO_bloquea_el_Centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Mira en dirección contraria a la prueba de arriba, y es la que de
         // verdad protege: al desplegar esto, TODAS las acreditaciones que ya
         // existen quedan sin confirmar. Si "no lo sé" contara como vencido, el
@@ -113,7 +113,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vigente_en_la_plataforma_no_anade_ninguna_causa()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Control positivo del sembrado: sin esto, las dos pruebas de arriba
         // pasarían igual si SembrarAcreditacionAsync no escribiera nada.
         await SembrarAcreditacionAsync(
@@ -128,7 +128,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Un_trabajador_desvinculado_no_bloquea_el_Centro_por_su_vigencia_en_la_plataforma()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Misma acreditación vencida que la primera prueba de este bloque: la
         // única diferencia es la baja de la Asignación. La acreditación no
         // muere con ella —sigue en la base de datos, vencida—, así que sin el
@@ -166,7 +166,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vigente_en_TALVEG_y_aceptada_en_la_plataforma_deja_el_Centro_Vigente()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, a => a.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar));
 
         var resultado = await CalcularAsync();
@@ -178,7 +178,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vigente_en_TALVEG_pero_rechazada_por_la_plataforma_bloquea_el_Centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, Rechazada);
 
         var resultado = await CalcularAsync();
@@ -191,7 +191,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vigente_en_TALVEG_y_pendiente_de_subir_deja_el_Centro_Pendiente_sin_bloquearlo()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, _ => { });
 
         var resultado = await CalcularAsync();
@@ -206,7 +206,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Vigente_en_TALVEG_y_subida_esperando_respuesta_deja_el_Centro_Pendiente_sin_bloquearlo()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, a => a.MarcarSubida());
 
         var resultado = await CalcularAsync();
@@ -220,7 +220,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Una_rechazada_en_otro_Centro_no_bloquea_a_este()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Este Centro tiene su documento al día y aceptado; el otro, el suyo rechazado.
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, a => a.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar));
         var (otroCentro, otroTrabajador) = await SembrarSegundoCentroAsync();
@@ -239,7 +239,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Una_rechazada_de_un_trabajador_desvinculado_no_bloquea_el_Centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, Rechazada);
         await using (var contexto = CrearContexto())
         {
@@ -256,7 +256,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Una_rechazada_de_un_tipo_que_el_Centro_excluye_no_bloquea()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, Rechazada);
         await using (var contexto = CrearContexto())
         {
@@ -273,7 +273,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Una_rechazada_de_un_tipo_no_requerido_por_defecto_solo_bloquea_si_el_Centro_lo_incluye_explicitamente()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid tipoOpcional;
         await using (var contexto = CrearContexto())
         {
@@ -305,7 +305,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Renovar_el_documento_rechazado_deja_de_bloquear_el_Centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, Rechazada);
         (await CalcularAsync()).Estado.Should().Be(EstadoCentro.Bloqueado);
 
@@ -354,7 +354,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Retorna_Vigente_cuando_el_unico_trabajador_tiene_su_documento_obligatorio_al_dia()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -371,7 +371,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Retorna_Faltante_cuando_el_trabajador_no_tiene_el_documento_obligatorio()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await CalcularAsync();
 
         resultado.Estado.Should().Be(EstadoCentro.Faltante);
@@ -381,7 +381,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Retorna_Vencido_cuando_un_documento_de_la_empresa_esta_vencido()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid tipoEmpresaId;
         Guid documentoEmpresaId;
         var fechaVencimiento = DiaDeNegocio.Hoy().AddDays(-1);
@@ -416,7 +416,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_bloqueante_ausente_deja_el_Centro_en_Faltante_y_no_Bloqueado_porque_Bloqueado_es_del_Trabajador()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid tipoBloqueanteId;
         await using (var contexto = CrearContexto())
         {
@@ -445,7 +445,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Subir_el_documento_bloqueante_deja_de_bloquear_el_centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -481,7 +481,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Un_centro_que_pide_documentacion_de_trabajador_pero_sin_trabajadores_asignados_cuenta_cero_requeridos()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid centroSinTrabajadoresId;
         await using (var contexto = CrearContexto())
         {
@@ -520,7 +520,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Con_el_vencido_y_su_renovacion_del_mismo_tipo_cuenta_al_dia_por_el_vigente()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
@@ -550,7 +550,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Entre_dos_validas_hoy_del_mismo_tipo_manda_la_de_emision_mas_reciente()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
@@ -604,7 +604,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [InlineData(true, 1)]
     public async Task El_porcentaje_solo_cuenta_inclusiones_explicitas_del_Centro(bool? incluido, int requeridos)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         if (incluido is { } valor)
         {
@@ -624,7 +624,7 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     [Fact]
     public async Task Un_tipo_global_no_incluido_no_reduce_el_porcentaje_del_Centro()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         var opcional = new TipoDocumento("Opcional incluido", null, aplicaVencimientoAutomatico: false, 2,
             AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.No);

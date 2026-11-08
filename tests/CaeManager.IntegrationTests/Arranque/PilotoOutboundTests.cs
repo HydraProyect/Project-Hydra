@@ -1399,6 +1399,7 @@ public class PilotoOutboundNoEscribeTests(PilotoOutboundSinSiembraFixture fixtur
     [InlineData("+10", "*queda a más de 9 días de hoy*")]
     public async Task Con_la_fecha_de_demostracion_ausente_ilegible_pasada_o_lejana_se_niega_antes_de_escribir(string? fecha, string mensaje)
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var valor = fecha is not null && (fecha[0] is '-' or '+')
             ? DiaDeNegocio.Hoy().AddDays(int.Parse(fecha)).ToString("yyyy-MM-dd")
             : fecha;

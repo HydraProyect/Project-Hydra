@@ -78,7 +78,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantPorAmbito = new TenantActualPorAmbito();
         var opcionesPropietario = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -114,7 +114,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_va_bajo_RLS_efectiva_y_lo_que_no_debe_contar_existe()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         (await _runtime.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == _documentoAjeno)).Should().Be(0,
             "sin filtro global de EF, solo RLS puede ocultar el Documento del Tenant ajeno");
         (await _runtime.Empresas.IgnoreQueryFilters().CountAsync(e => e.Id == _clienteAjeno)).Should().Be(0);
@@ -131,7 +131,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Las_incidencias_de_la_fila_son_las_alertas_que_dan_su_pastilla_de_la_mas_grave_a_la_menos(bool comoLaPantalla)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(Consulta(comoLaPantalla, conDesglose: true), CancellationToken.None);
 
         resultado.Elementos.Select(c => c.Id).Should().BeEquivalentTo([_clienteDentro, _clienteFuera, _clienteTope],
@@ -171,7 +171,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_peor_estado_y_el_recuento_de_las_incidencias_coinciden_con_la_pastilla_y_su_motivo(bool comoLaPantalla)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(Consulta(comoLaPantalla, conDesglose: true), CancellationToken.None);
 
         var sinTope = resultado.Elementos.Where(c => c.IncidenciasTotales <= ObtenerClientesQuery.MaximoIncidenciasPorFila).ToList();
@@ -191,7 +191,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [Fact]
     public async Task Con_mas_alertas_que_el_tope_viajan_las_primeras_y_el_total_dice_cuantas_hay()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(Consulta(comoLaPantalla: true, conDesglose: true), CancellationToken.None);
 
         var tope = resultado.Elementos.Single(c => c.Id == _clienteTope);
@@ -210,7 +210,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Sin_pedir_el_desglose_las_filas_llegan_sin_incidencias_y_con_la_misma_pastilla(bool comoLaPantalla)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var sin = await HandlerSinCartera().Handle(Consulta(comoLaPantalla, conDesglose: false), CancellationToken.None);
         var con = await HandlerSinCartera().Handle(Consulta(comoLaPantalla, conDesglose: true), CancellationToken.None);
 
@@ -224,7 +224,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_por_id_devuelve_las_mismas_incidencias_que_la_fila_de_la_pagina()
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var pagina = await HandlerSinCartera().Handle(Consulta(comoLaPantalla: true, conDesglose: true), CancellationToken.None);
         var porId = await HandlerSinCartera().Handle(
             new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: _clienteDentro, ConDesgloseDocumental: true), CancellationToken.None);
@@ -253,7 +253,7 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Un_Cliente_empresarial_fuera_del_alcance_no_es_fila_ni_aporta_incidencias(bool comoLaPantalla)
     {
-    using var reloj = RelojDePrueba.FijarEn(_instante);
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerDelGestor().Handle(Consulta(comoLaPantalla, conDesglose: true), CancellationToken.None);
 
         resultado.Elementos.Select(c => c.Id).Should().Equal([_clienteDentro], "la cartera solo alcanza a ese Cliente empresarial");
