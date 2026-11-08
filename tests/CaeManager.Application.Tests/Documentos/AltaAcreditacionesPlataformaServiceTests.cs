@@ -498,30 +498,56 @@ public class AltaAcreditacionesPlataformaServiceTests
     }
 
     [Fact]
-    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_se_evalua_con_la_serie_que_fija_el_mismo_alta()
+    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_no_acredita_los_documentos_de_trabajador()
     {
-        // La serie guardada es Todos; la edición que pasa Requerido a Sí la restringe a cuenta ajena a la vez. El
-        // autónomo ya no tiene que presentarlo: su Documento no se pone en juego, el del trabajador por cuenta ajena sí.
+        // Revisión Codex de la PR #2074, ronda 5: antes de la regla A-1, pasar Requerido a Sí no acreditaba nada, y para
+        // los Documentos de Trabajador sigue igual (decisión del propietario del producto del 2026-11-08). El Trabajador
+        // está asignado a un Centro de plataforma que pasa a exigir su tipo; el Documento de Empresa del mismo Centro sí
+        // se acredita (control: la propagación recorrió ese Centro, y lo único que deja fuera al de Trabajador es su
+        // propietario, no la falta de actividad ni de exigencia).
+        var mundo = new MundoAcreditaciones();
+        var tipoTrabajador = mundo.Tipo(RequisitoDocumental.No);
+        var tipoEmpresa = mundo.Tipo(RequisitoDocumental.No, AmbitoAplicacion.Empresa, "Seguro RC");
+        var centro = mundo.Centro("Planta", mundo.EmpresaId);
+        var acceso = mundo.AccesoPlataforma(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentoDe(trabajador, tipoTrabajador);
+        var deEmpresa = mundo.DocumentoDeEmpresa(tipoEmpresa);
+
+        var agregadas = await mundo.Servicio().AgregarPendientesAsync(
+            new AltasConAcreditacion { TiposQuePasanAExigirseDeSerie = [tipoTrabajador.Id, tipoEmpresa.Id] });
+
+        agregadas.Should().Be(1);
+        mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
+            "el valor general que pasa a Sí solo propaga los Documentos de Empresa");
+    }
+
+    [Fact]
+    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_no_acredita_un_documento_de_trabajador_que_el_mismo_alta_pone_en_juego_por_otra_via()
+    {
+        // La misma edición exige el tipo en un Centro concreto (fila nueva) y lo pasa a exigir de serie. El Trabajador
+        // está asignado a los dos Centros: se acredita donde la fila nueva lo exige, como en origin/main, y no en el
+        // Centro sin fila al que solo llega el valor general, aunque su Documento ya esté cargado por la otra vía.
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.No);
-        var centro = mundo.Centro();
-        var acceso = mundo.AccesoPlataforma(centro);
-        var porCuentaAjena = mundo.Trabajador();
-        var autonomo = mundo.Trabajador("87654321X");
-        autonomo.CambiarTipoContratacion(TipoContratacion.Autonomo);
-        mundo.Asignacion(porCuentaAjena, centro);
-        mundo.Asignacion(autonomo, centro);
-        var documentoPorCuentaAjena = mundo.DocumentoDe(porCuentaAjena, tipo);
-        mundo.DocumentoDe(autonomo, tipo);
+        var centroConFila = mundo.Centro("Planta con fila");
+        var accesoConFila = mundo.AccesoPlataforma(centroConFila);
+        var centroSinFila = mundo.Centro("Planta sin fila");
+        mundo.AccesoPlataforma(centroSinFila);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centroConFila);
+        mundo.Asignacion(trabajador, centroSinFila);
+        var documento = mundo.DocumentoDe(trabajador, tipo);
 
         await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
         {
+            Requisitos = [new TipoDocumentoCentro(tipo.Id, centroConFila.Id)],
             TiposQuePasanAExigirseDeSerie = [tipo.Id],
-            SerieVigenteDeTipos = new Dictionary<Guid, TiposContratacion> { [tipo.Id] = TiposContratacion.CuentaAjena },
         });
 
-        mundo.Agregadas.Should().BeEquivalentTo([(documentoPorCuentaAjena.Id, acceso.Id)],
-            "la serie que fija el alta prevalece sobre la guardada, igual que el Requerido");
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, accesoConFila.Id)],
+            "la fila nueva acredita al Trabajador como antes; el valor general no lo propaga al Centro sin fila");
     }
 
     [Fact]

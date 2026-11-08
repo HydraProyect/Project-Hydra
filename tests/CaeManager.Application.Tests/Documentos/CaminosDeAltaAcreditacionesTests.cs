@@ -627,38 +627,63 @@ public class CaminosDeAltaAcreditacionesTests
     }
 
     [Fact]
-    public async Task Una_fila_incluida_que_la_misma_edicion_elimina_no_prevalece_sobre_la_serie_nueva()
+    public async Task Pasar_Requerido_a_Si_no_acredita_documentos_de_trabajador_y_la_fila_nueva_de_la_misma_edicion_si()
     {
-        // La edición quita la fila Incluido=true del Centro, pasa Requerido a Sí y restringe la serie a cuenta ajena.
-        // Tras guardar, el Centro sigue el valor general: el autónomo ya no tiene que presentarlo y su Documento no se
-        // acredita; el del trabajador por cuenta ajena sí (control de que la propagación ocurrió).
+        // Revisión Codex de la PR #2074, ronda 5: la propagación del valor general solo alcanza Documentos de Empresa
+        // (decisión del propietario del producto del 2026-11-08). El Trabajador está asignado a dos Centros de
+        // plataforma: el que esta misma edición marca (fila nueva) lo acredita, como en origin/main; el que solo pasa a
+        // exigirlo porque Requerido pasa a Sí, no. El Centro marcado es el control: su Documento es candidato y el
+        // servicio corre.
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.No);
-        var centro = mundo.Centro();
-        var acceso = mundo.AccesoPlataforma(centro);
-        var porCuentaAjena = mundo.Trabajador();
-        var autonomo = mundo.Trabajador("87654321X");
-        autonomo.CambiarTipoContratacion(TipoContratacion.Autonomo);
-        mundo.Asignacion(porCuentaAjena, centro);
-        mundo.Asignacion(autonomo, centro);
-        var documentoPorCuentaAjena = mundo.DocumentoDe(porCuentaAjena, tipo);
-        mundo.DocumentoDe(autonomo, tipo);
-        var filas = new TipoDocumentoCentroRepositorioFalso();
-        filas.Agregar(mundo.Requisito(tipo, centro, incluido: true));
+        var centroMarcado = mundo.Centro("Planta marcada");
+        var accesoMarcado = mundo.AccesoPlataforma(centroMarcado);
+        var centroSinFila = mundo.Centro("Planta sin fila");
+        mundo.AccesoPlataforma(centroSinFila);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centroMarcado);
+        mundo.Asignacion(trabajador, centroSinFila);
+        var documento = mundo.DocumentoDe(trabajador, tipo);
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
                 tipo.Id, tipo.Nombre, 12, true, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
-                null, null, null, null, null, [], TiposContratacionDeSerie: TiposContratacion.CuentaAjena),
+                null, null, null, null, null, [centroMarcado.Id]),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        mundo.Agregadas.Should().BeEquivalentTo([(documentoPorCuentaAjena.Id, acceso.Id)],
-            "la fila eliminada en la misma edición ya no exige el tipo al autónomo");
+        mundo.Agregadas.Should().BeEquivalentTo([(documento.Id, accesoMarcado.Id)],
+            "el Centro sin fila no acredita al Trabajador: el valor general no propaga Documentos de Trabajador");
+    }
+
+    [Fact]
+    public async Task Pasar_Requerido_a_Si_sin_marcar_centros_no_acredita_ningun_documento_de_trabajador()
+    {
+        // Mismo punto de entrada sin fila nueva: lo único que pondría en juego al Trabajador es la propagación.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var centro = mundo.Centro();
+        mundo.AccesoPlataforma(centro);
+        var trabajador = mundo.Trabajador();
+        mundo.Asignacion(trabajador, centro);
+        mundo.DocumentoDe(trabajador, tipo);
+        var tipos = new TipoDocumentoRepositorioFalso();
+        tipos.Agregar(tipo);
+        var handler = new EditarTipoDocumentoCommandHandler(
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                tipo.Id, tipo.Nombre, 12, true, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
+                null, null, null, null, null, []),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEmpty("pasar Requerido a Sí no acreditaba Documentos de Trabajador en origin/main");
     }
 
     [Fact]

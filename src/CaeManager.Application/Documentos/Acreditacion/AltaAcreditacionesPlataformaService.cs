@@ -41,13 +41,6 @@ public sealed record AltasConAcreditacion
     public IReadOnlyCollection<TipoDocumentoCentro> Requisitos { get; init; } = [];
 
     /// <summary>
-    /// Filas de Centro sobre un TipoDocumento que este mismo alta elimina, aún sin guardar: la base todavía las
-    /// devuelve, pero ya no deciden qué exige el Centro. Sin su fila, el Centro sigue el valor general del tipo
-    /// (Requerido y su serie), igual que tras el guardado. Una fila de <see cref="Requisitos"/> del mismo par prevalece.
-    /// </summary>
-    public IReadOnlyCollection<TipoDocumentoCentro> RequisitosEliminados { get; init; } = [];
-
-    /// <summary>
     /// Centros que este alta devuelve a <see cref="ModalidadGestionCae.ConGestionCae"/>
     /// (P1-X2). Prevalecen sobre la modalidad guardada, igual que
     /// <see cref="Requisitos"/> sobre la fila guardada: el Command los cambia y
@@ -59,19 +52,14 @@ public sealed record AltasConAcreditacion
     /// <summary>
     /// TiposDocumento cuyo valor general <see cref="TipoDocumento.Requerido"/> acaba de pasar a
     /// <see cref="RequisitoDocumental.Si"/> en este alta. Cada Centro con acceso de plataforma que no tiene fila
-    /// propia sobre el tipo pasa a exigirlo, así que se evalúa como si ese Centro hubiera pasado a exigir el tipo
-    /// (<see cref="Requisitos"/>). Prevalece sobre el valor guardado: el Command lo cambia y confirma sus
-    /// acreditaciones en el mismo guardado. La fila explícita del Centro, si existe, sigue mandando.
+    /// propia sobre el tipo pasa a exigirlo, así que sus Documentos de Empresa de ese tipo se evalúan como si ese Centro
+    /// hubiera pasado a exigirlo (<see cref="Requisitos"/>). Solo los de Empresa: los Documentos de Trabajador no se
+    /// acreditan por esta vía, igual que antes de la regla A-1 (decisión del propietario del producto del 2026-11-08,
+    /// revisión Codex de la PR #2074, ronda 5); su serie por tipo de contratación tampoco entra en juego. Prevalece sobre
+    /// el valor guardado: el Command lo cambia y confirma sus acreditaciones en el mismo guardado. La fila explícita del
+    /// Centro, si existe, sigue mandando.
     /// </summary>
     public IReadOnlyCollection<Guid> TiposQuePasanAExigirseDeSerie { get; init; } = [];
-
-    /// <summary>
-    /// Serie por tipo de contratación que este mismo alta acaba de fijar en un TipoDocumento, sin guardar todavía.
-    /// Prevalece sobre la guardada, igual que <see cref="TiposQuePasanAExigirseDeSerie"/> sobre el Requerido guardado:
-    /// sin ella, un tipo que pasa a exigirse con la serie restringida a la vez se evaluaría con la serie anterior.
-    /// </summary>
-    public IReadOnlyDictionary<Guid, TiposContratacion> SerieVigenteDeTipos { get; init; } =
-        new Dictionary<Guid, TiposContratacion>();
 
     /// <summary>
     /// Centros que se concilian enteros: cada Documento operativo de quien tiene actividad en ellos, de cualquier
@@ -117,7 +105,8 @@ public sealed record AltasConAcreditacion
 /// todos los Centros donde su propietario tiene actividad; una Asignación nueva, los Documentos
 /// del Trabajador y de su Empresa ante ese Centro; un acceso nuevo, solo ese
 /// acceso; un requisito nuevo, solo ese tipo en ese Centro; un tipo que pasa a
-/// exigirse de serie, ese tipo en cada Centro con acceso de plataforma. Nunca repara
+/// exigirse de serie, los Documentos de Empresa de ese tipo en cada Centro con acceso
+/// de plataforma (nunca los de Trabajador). Nunca repara
 /// acreditaciones ajenas al alta que la invoca: lo que ya existía antes de la regla, o lo
 /// que una carrera entre dos altas simultáneas dejó sin acreditar, lo repara la
 /// conciliación explícita (<see cref="IConciliacionAcreditacionesEmpresaService"/>).
@@ -169,7 +158,8 @@ public class AltaAcreditacionesPlataformaService(
             return 0;
 
         // Un tipo que pasa a exigirse de serie pone en juego cada Centro con acceso de plataforma (bajo RLS, del
-        // Tenant en curso): los que no tienen fila propia pasan a exigirlo; la fila, si existe, decide abajo.
+        // Tenant en curso) para los Documentos de Empresa: los que no tienen fila propia pasan a exigirlo; la fila, si
+        // existe, decide abajo.
         List<Guid> centrosConPlataforma = tiposExigidosDeSerie.Count == 0
             ? []
             : await centrosContext.CanalesGestionDocumental
@@ -252,9 +242,12 @@ public class AltaAcreditacionesPlataformaService(
                          .Where(d => d.TipoDocumentoId == requisito.TipoDocumentoId))
                 candidatos.Add((documento, requisito.CentroId, null));
 
+        // Solo Documentos de Empresa: el valor general nunca propagó los de Trabajador, y la regla A-1 no lo cambia
+        // (decisión del propietario del producto del 2026-11-08, revisión Codex de la PR #2074, ronda 5). Un Documento
+        // de Trabajador cargado por otra vía de este mismo alta tampoco entra por aquí.
         foreach (var centroId in centrosConPlataforma)
             foreach (var documento in DocumentosConActividadEn(centroId, documentosDisponibles, paresActivos, empresaDeTrabajador, empresaDeCentro)
-                         .Where(d => tiposExigidosDeSerie.Contains(d.TipoDocumentoId)))
+                         .Where(d => d.EmpresaId is not null && tiposExigidosDeSerie.Contains(d.TipoDocumentoId)))
                 candidatos.Add((documento, centroId, null));
 
         foreach (var centroId in centrosAConciliar)
@@ -287,8 +280,6 @@ public class AltaAcreditacionesPlataformaService(
         // El valor general que este mismo alta cambia prevalece sobre el guardado.
         foreach (var tipoId in tiposExigidosDeSerie.Where(obligatorioPorDefecto.ContainsKey))
             obligatorioPorDefecto[tipoId] = (true, obligatorioPorDefecto[tipoId].TiposContratacionDeSerie);
-        foreach (var (tipoId, serieVigente) in altas.SerieVigenteDeTipos.Where(s => obligatorioPorDefecto.ContainsKey(s.Key)))
-            obligatorioPorDefecto[tipoId] = (obligatorioPorDefecto[tipoId].Obligatorio, serieVigente);
         // La serie por tipo de contratación solo filtra los Documentos de un Trabajador: el de una Empresa no tiene.
         var tipoContratacionDeTrabajador = await CargarTipoContratacionDeTrabajadorAsync(
             altas.Trabajadores,
@@ -297,15 +288,15 @@ public class AltaAcreditacionesPlataformaService(
         // Proyección, no entidades: una consulta con seguimiento devolvería la instancia que el contexto (uno por
         // circuito en Blazor Server) rastreó antes del candado, con el Incluido de entonces, y no la fila que otra alta
         // confirmó mientras esta esperaba; el par se perdería (revisión Codex de la PR #2074, ronda 4, hallazgo 1). Lo
-        // que el propio alta cambia llega por Requisitos y RequisitosEliminados, no por el rastreo.
+        // que el propio alta cambia llega por Requisitos, no por el rastreo.
         var incluidoPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
                 .Where(tc => centroIds.Contains(tc.CentroId) && tipoIds.Contains(tc.TipoDocumentoId))
                 .Select(tc => new { tc.TipoDocumentoId, tc.CentroId, tc.Incluido })
                 .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId), tc => tc.Incluido);
-        // El estado final de la edición: lo que el alta elimina deja de decidir, y lo que agrega o cambia manda.
-        foreach (var eliminado in altas.RequisitosEliminados)
-            incluidoPorPar.Remove((eliminado.TipoDocumentoId, eliminado.CentroId));
+        // Una fila Incluido=true que el mismo alta elimina (EditarTipoDocumento) puede seguir aquí sin cambiar nada: solo
+        // pone en juego Documentos de Empresa si el tipo pasa a exigirse de serie, y entonces el valor general también
+        // es Sí; los de Trabajador, los únicos a los que la serie dejaría fuera, no entran por esa vía.
         foreach (var requisito in altas.Requisitos)
             incluidoPorPar[(requisito.TipoDocumentoId, requisito.CentroId)] = requisito.Incluido;
 

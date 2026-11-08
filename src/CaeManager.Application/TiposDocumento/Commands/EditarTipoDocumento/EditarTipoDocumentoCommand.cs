@@ -116,7 +116,7 @@ public class EditarTipoDocumentoCommandHandler(
 
         // Restringir la serie no da de baja nada: los Documentos ya creados siguen ahí y solo dejan de exigirse
         // de serie a quien queda fuera. Ampliarla no crea pendientes de acreditar (ver IAltaAcreditacionesPlataformaService);
-        // pasar Requerido a Sí sí los crea, abajo.
+        // pasar Requerido a Sí sí los crea, abajo, pero solo de Documentos de Empresa, que no tienen serie.
         if (tipoDocumento.AmbitoAplicacion == AmbitoAplicacion.Trabajador && request.TiposContratacionDeSerie is { } serie)
             tipoDocumento.EstablecerTiposContratacionDeSerie(serie);
 
@@ -151,10 +151,8 @@ public class EditarTipoDocumentoCommandHandler(
             || (centrosDeGestion is not null && !centroIdsNuevos.All(centrosDeGestion.Contains)))
             return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
 
-        var requisitosEliminados = actuales.Where(tc => !deseados.Contains(tc.CentroId)
-                                                        && (centrosDeGestion is null || centrosDeGestion.Contains(tc.CentroId)))
-            .ToList();
-        foreach (var tc in requisitosEliminados)
+        foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)
+                                                && (centrosDeGestion is null || centrosDeGestion.Contains(tc.CentroId))))
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
         var filaExcluidaPorCentroId = todasLasFilas.Where(tc => !tc.Incluido).ToDictionary(tc => tc.CentroId);
@@ -177,22 +175,17 @@ public class EditarTipoDocumentoCommandHandler(
         // Los Centros que pasan a exigir el tipo: los Documentos de ese tipo de
         // quienes ya tienen actividad en ellos nacen pendientes de acreditar (misma regla
         // que EstablecerDocumentacionRequeridaCentroCommand). Si el valor general de
-        // Requerido pasa a Sí, por la misma vía pasa a exigirlo cada Centro con acceso de
-        // plataforma que no tiene fila propia (la fila, si existe, sigue mandando). Bajar
+        // Requerido pasa a Sí, cada Centro con acceso de plataforma que no tiene fila
+        // propia pasa a exigirlo (la fila, si existe, sigue mandando), y por esa vía solo
+        // se acreditan los Documentos de Empresa: los de Trabajador siguen como antes de
+        // la regla A-1, sin propagación del valor general (decisión del propietario del
+        // producto del 2026-11-08, revisión Codex de la PR #2074, ronda 5). Bajar
         // Requerido no da de baja nada: ver IAltaAcreditacionesPlataformaService.
         var pasaAExigirseDeSerie = !exigidoDeSerieAntes && tipoDocumento.Requerido == RequisitoDocumental.Si;
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
         {
             Requisitos = requisitosNuevos,
-            // Las filas que esta edición elimina ya no deciden: sin ellas, el Centro sigue el Requerido y la serie
-            // nuevos (revisión Codex de la PR #2074, ronda 2, hallazgo 4).
-            RequisitosEliminados = requisitosEliminados,
             TiposQuePasanAExigirseDeSerie = pasaAExigirseDeSerie ? [tipoDocumento.Id] : [],
-            // La serie que esta edición acaba de fijar, aún sin guardar: la guardada ya no es la que rige.
-            SerieVigenteDeTipos = new Dictionary<Guid, TiposContratacion>
-            {
-                [tipoDocumento.Id] = tipoDocumento.TiposContratacionDeSerie,
-            },
         }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
