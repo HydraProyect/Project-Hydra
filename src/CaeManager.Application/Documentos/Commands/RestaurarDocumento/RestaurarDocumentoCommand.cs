@@ -12,7 +12,7 @@ namespace CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 public record RestaurarDocumentoCommand(Guid Id) : ICommand;
 
 public class RestaurarDocumentoCommandHandler(
-    IDocumentosQueryContext documentosContext, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
+    IDocumentoRepository documentoRepositorio, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
     IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork,
     IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<RestaurarDocumentoCommand, Result>
@@ -54,10 +54,10 @@ public class RestaurarDocumentoCommandHandler(
 
     // Asignación de Cartera: fuera de ella el documento eliminado «no existe», igual que en
     // EliminarDocumentoCommand — deshacer una baja es tan escritura como hacerla.
+    // Releído aunque el contexto (uno por circuito en Blazor Server) ya lo rastreara: bajo el candado, sin la relectura,
+    // se decidiría con lo que había antes de esperarlo.
     private Task<Domain.Documentos.Documento?> CargarAsync(Guid id, CancellationToken cancellationToken) =>
-        documentosContext.Documentos
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(d => d.Id == id && d.TenantId == tenantActual.TenantId, cancellationToken);
+        documentoRepositorio.ObtenerIncluidoEliminadoActualizadoAsync(id, tenantActual.TenantId, cancellationToken);
 
     private static Result NoEncontrado() =>
         Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento eliminado."));

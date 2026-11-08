@@ -390,8 +390,10 @@ public class EjecutarImportacionMaestraCommandHandler(
         // ---- Centros (Cliente empresarial + nombre) ----
         var clientePorId = todas.Concat(clientesPorCif.Values).Concat(gestionadasPorCif.Values).DistinctBy(e => e.Id).ToDictionary(e => e.Id);
         static string ClaveCentro(Guid idDelCliente, string nombre) => $"{idDelCliente:N}|{nombre}";
+        // Releídos los que el contexto (uno por circuito en Blazor Server) ya rastreaba: la modalidad de gestión CAE que
+        // decide si un Centro vuelve a ella (regla A-1) tiene que ser la de la base bajo el candado, no la de antes.
         var centrosPorClave = CatalogoPorNombre<Centro>.De(
-            await centrosContext.Centros.ToListAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
+            await centroRepositorio.ListarActualizadosAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
         var centrosCreados = 0;
         var centrosActualizados = 0;
         var centrosQueVuelvenAGestionCae = new List<Centro>();

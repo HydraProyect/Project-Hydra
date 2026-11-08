@@ -13,7 +13,8 @@ public record RestaurarCentroCommand(Guid Id) : ICommand;
 public class RestaurarCentroCommandHandler(
     ICentrosQueryContext centrosContext, ITenantActual tenantActual,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    ICentroRepository centroRepositorio)
     : IRequestHandler<RestaurarCentroCommand, Result>
 {
     /// <summary>
@@ -27,9 +28,10 @@ public class RestaurarCentroCommandHandler(
 
     private async Task<Result> RestaurarAsync(RestaurarCentroCommand request, CancellationToken cancellationToken)
     {
-        var centro = await centrosContext.Centros
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(c => c.Id == request.Id && c.TenantId == tenantActual.TenantId, cancellationToken);
+        // Releído aunque el contexto (uno por circuito en Blazor Server) ya lo rastreara: si no, se decidiría con lo que
+        // había antes de esperar el candado.
+        var centro = await centroRepositorio.ObtenerIncluidoEliminadoActualizadoAsync(
+            request.Id, tenantActual.TenantId, cancellationToken);
 
         if (centro is null || !centro.EstaEliminado)
             return Result.Fallo(Error.Crear("Centro.NoEncontrado", "No encontramos este centro eliminado."));

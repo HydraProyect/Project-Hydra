@@ -94,8 +94,8 @@ public class AsignacionDeCarteraEnEscriturasTests
 
         var documento = Documento.DeProyecto(proyecto.Id, Guid.NewGuid(), Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
         documento.MarcarComoEliminado(Guid.NewGuid());
-        var documentos = new DocumentosQueryContextFalso();
-        documentos.ListaDocumentos.Add(documento);
+        var documentos = new CaeManager.Application.Tests.Documentos.DocumentoRepositorioFalso();
+        documentos.Documentos.Add(documento);
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, clienteIdsVisibles: [carteraDelCliente ? clienteEmpresarial : Guid.NewGuid()]);
@@ -123,8 +123,8 @@ public class AsignacionDeCarteraEnEscriturasTests
     {
         var documento = Documento.DeEmpresa(empresaId ?? Guid.NewGuid(), Guid.NewGuid(), Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
         documento.MarcarComoEliminado(Guid.NewGuid());
-        var documentos = new DocumentosQueryContextFalso();
-        documentos.ListaDocumentos.Add(documento);
+        var documentos = new CaeManager.Application.Tests.Documentos.DocumentoRepositorioFalso();
+        documentos.Documentos.Add(documento);
         var unitOfWork = new UnitOfWorkFalso();
         // El Documento recién construido no tiene Tenant sellado (Guid.Empty): el Tenant actual del
         // test es ese mismo, para que solo decida la cartera.

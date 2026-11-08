@@ -267,7 +267,7 @@ public class EjecutarImportacionMaestraTests
         e.Empresas.ListaEmpresas.Add(gestionada);
         e.Empresas.ListaEmpresas.Add(cliente);
         var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, Guid.NewGuid(), "Planta Norte", direccion: "Dirección previa");
-        e.Centros.ListaCentros.Add(centro);
+        e.CentroRepositorio.Centros.Add(centro);
 
         var r = (await e.EjecutarAsync(
             Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
@@ -347,7 +347,7 @@ public class EjecutarImportacionMaestraTests
         e.Empresas.ListaEmpresas.Add(cliente);
         var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
         centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
-        e.Centros.ListaCentros.Add(centro);
+        e.CentroRepositorio.Centros.Add(centro);
         var acceso = CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma", Guid.NewGuid(), null, null, null);
         e.Centros.ListaCanalesGestionDocumental.Add(acceso);
         e.Centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(centro.Id, "Correo CAE", "cae@ejemplo.invalid", null));
@@ -371,6 +371,35 @@ public class EjecutarImportacionMaestraTests
     }
 
     [Fact]
+    public async Task Reemplazando_decide_la_vuelta_a_gestion_cae_con_la_modalidad_releida_bajo_el_candado()
+    {
+        // Revisión Codex de la PR #2104, ronda 1, hallazgo MEDIO: el contexto (uno por circuito) ya rastreaba el Centro
+        // con gestión CAE y otra operación lo dejó sin ella; sin relectura, la fila «con gestión CAE» no vería cambio y el
+        // Centro se quedaría sin gestión CAE y sin acreditar.
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        e.CentroRepositorio.Centros.Add(centro);
+        var acceso = CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma", Guid.NewGuid(), null, null, null);
+        e.Centros.ListaCanalesGestionDocumental.Add(acceso);
+        e.Serializacion.AlTomarElCandado = () =>
+            e.CentroRepositorio.CambioEnLaBase = c => c.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        var r = await e.EjecutarAsync(
+            Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+                [FilaCentro() with { YaExiste = true }]), reemplazar: true);
+
+        r.EsExitoso.Should().BeTrue();
+        centro.GestionCae.Should().Be(ModalidadGestionCae.ConGestionCae);
+        var alta = e.Altas.Recibidas.Should().ContainSingle().Subject;
+        alta.Canales.Should().BeEquivalentTo([acceso]);
+        alta.CentrosQueVuelvenAGestionCae.Should().BeEquivalentTo([centro.Id]);
+    }
+
+    [Fact]
     public async Task Completar_vacios_no_cambia_la_modalidad_ni_toma_el_candado()
     {
         var e = new Escenario();
@@ -380,7 +409,7 @@ public class EjecutarImportacionMaestraTests
         e.Empresas.ListaEmpresas.Add(cliente);
         var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
         centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
-        e.Centros.ListaCentros.Add(centro);
+        e.CentroRepositorio.Centros.Add(centro);
 
         var r = await e.EjecutarAsync(
             Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
