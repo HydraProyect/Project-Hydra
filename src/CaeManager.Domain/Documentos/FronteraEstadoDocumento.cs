@@ -39,6 +39,15 @@ public static class FronteraEstadoDocumento
         EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias) =>
         ProximoCambio(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), hoy, umbralAmbarDias, umbralRojoDias);
 
+    /// <summary>
+    /// La forma que usa el estado materializado: con los umbrales efectivos del tipo del documento
+    /// (<see cref="UmbralesVencimiento.Para"/>), los mismos con los que lo clasifica la calculadora. Con los del Tenant tal
+    /// cual, la frontera de un tipo mensual llegaría tarde (a 7 días en vez de a 15) y el estado quedaría viejo.
+    /// </summary>
+    public static DateOnly? ProximoCambio(
+        EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly hoy, UmbralesVencimiento umbrales) =>
+        ProximoCambio(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), hoy, umbrales.AmbarDias, umbrales.RojoDias);
+
     /// <summary>La fecha más temprana de las candidatas que sea posterior a <paramref name="hoy"/>; <c>null</c> si ninguna.</summary>
     public static DateOnly? PrimeraPosterior(DateOnly hoy, params DateOnly?[] candidatas)
     {

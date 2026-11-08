@@ -16,7 +16,8 @@ public static class CalculadoraEstadoDocumento
     /// <item><c>NoCaduca</c> → <see cref="EstadoDocumento.SinCaducidad"/>.</item>
     /// <item><c>SinConfirmar</c> → <see cref="EstadoDocumento.SinConfirmar"/>:
     /// no se sabe, y «no lo sé» no es «vigente».</item>
-    /// <item><c>VenceEnFecha</c> → semáforo por días restantes y umbrales. La
+    /// <item><c>VenceEnFecha</c> → semáforo por días restantes y umbrales (los lectores pasan los efectivos del tipo
+    /// del documento, <see cref="UmbralesVencimiento"/>). La
     /// fecha puede venir del vencimiento automático del TipoDocumento o de una
     /// fecha introducida a mano; participa igual.</item>
     /// </list>
@@ -59,6 +60,18 @@ public static class CalculadoraEstadoDocumento
         int umbralAmbarDias,
         int umbralRojoDias) =>
         Calcular(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), hoy, umbralAmbarDias, umbralRojoDias);
+
+    /// <summary>
+    /// La forma que usan los lectores: los umbrales ya son los efectivos del tipo del documento
+    /// (<see cref="UmbralesVencimiento.Para"/>), no los de Parámetros del sistema tal cual.
+    /// </summary>
+    public static EstadoDocumento Calcular(VigenciaDocumento vigencia, DateOnly hoy, UmbralesVencimiento umbrales) =>
+        Calcular(vigencia, hoy, umbrales.AmbarDias, umbrales.RojoDias);
+
+    /// <inheritdoc cref="Calcular(VigenciaDocumento, DateOnly, UmbralesVencimiento)"/>
+    public static EstadoDocumento Calcular(
+        EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly hoy, UmbralesVencimiento umbrales) =>
+        Calcular(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), hoy, umbrales.AmbarDias, umbrales.RojoDias);
 
     /// <summary>
     /// Decide la vigencia con la que nace o se renueva un Documento. Es la
