@@ -111,9 +111,10 @@ public class AltaAcreditacionesBajoRuntimeTests
 
     /// <summary>
     /// Issue #2094, B4: el test anterior consulta con los filtros globales de EF activos, que ya ocultan las filas del
-    /// otro Tenant aunque RLS no lo hiciera. Aquí se quitan (<c>IgnoreQueryFilters</c>) sobre cada tabla que lee o escribe
-    /// la vía de Empresa de la regla A-1: desde otro Tenant solo RLS puede ocultarlas (control negativo), y desde el
-    /// Tenant propietario se ven todas (control positivo, que demuestra que la consulta alcanza las filas).
+    /// otro Tenant aunque RLS no lo hiciera. Aquí se quitan (<c>IgnoreQueryFilters</c>) sobre las tablas que la siembra
+    /// llena y que lee o escribe la vía de Empresa de la regla A-1: desde otro Tenant solo RLS puede ocultarlas (control
+    /// negativo), y desde el Tenant propietario se ven todas (control positivo, que demuestra que la consulta alcanza las
+    /// filas). <c>TiposDocumentoCentros</c>, que esta siembra deja vacía, la cubre <c>AislamientoRlsCentroYSatelitesTests</c>.
     /// </summary>
     [Fact]
     public async Task Sin_los_filtros_de_EF_solo_RLS_oculta_al_otro_Tenant_las_filas_de_la_via_de_Empresa()
@@ -127,13 +128,13 @@ public class AltaAcreditacionesBajoRuntimeTests
         (await LeerComoPropietarioAsync(arnes, documento.Id)).Should().HaveCount(2,
             "control del instrumento: las acreditaciones existen en la base");
 
-        (await ContarSinFiltrosDeEfAsync(arnes, _otroTenant, escenario, documento.Id)).Should().Be((0, 0, 0, 0),
+        (await ContarSinFiltrosDeEfAsync(arnes, _otroTenant, escenario, documento.Id)).Should().Be((0, 0, 0, 0, 0),
             "sin filtro global de EF, solo RLS puede ocultar las filas del Tenant propietario");
-        (await ContarSinFiltrosDeEfAsync(arnes, _tenantPropietario, escenario, documento.Id)).Should().Be((2, 2, 1, 2),
-            "control positivo: el Tenant propietario ve sus dos Centros, sus dos accesos, el Documento y sus acreditaciones");
+        (await ContarSinFiltrosDeEfAsync(arnes, _tenantPropietario, escenario, documento.Id)).Should().Be((2, 2, 1, 2, 1),
+            "control positivo: el Tenant propietario ve sus dos Centros, sus dos accesos, el Documento, sus acreditaciones y el tipo");
     }
 
-    private async Task<(int Centros, int Accesos, int Documentos, int Acreditaciones)> ContarSinFiltrosDeEfAsync(
+    private async Task<(int Centros, int Accesos, int Documentos, int Acreditaciones, int Tipos)> ContarSinFiltrosDeEfAsync(
         ArnesDeArranqueRuntime arnes, Guid tenantId, EscenarioEmpresa escenario, Guid documentoId)
     {
         _tenant.TenantId = tenantId;
@@ -148,7 +149,8 @@ public class AltaAcreditacionesBajoRuntimeTests
             await contexto.Centros.IgnoreQueryFilters().CountAsync(c => centros.Contains(c.Id)),
             await contexto.CanalesGestionDocumental.IgnoreQueryFilters().CountAsync(c => accesos.Contains(c.Id)),
             await contexto.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == documentoId),
-            await contexto.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.DocumentoId == documentoId));
+            await contexto.AcreditacionesDocumentoPlataforma.IgnoreQueryFilters().CountAsync(a => a.DocumentoId == documentoId),
+            await contexto.TiposDocumento.IgnoreQueryFilters().CountAsync(t => t.Id == escenario.TipoId));
     }
 
     [Theory]

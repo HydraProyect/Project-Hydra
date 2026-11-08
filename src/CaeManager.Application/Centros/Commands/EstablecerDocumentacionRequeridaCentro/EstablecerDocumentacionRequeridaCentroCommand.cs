@@ -103,7 +103,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // almacenado también se vuelve a abrir bajo el candado, sin reutilizar el veredicto de antes de esperar: si otra
         // operación borró el archivo durante la espera, se guardaría una clave que ya no se puede descargar (issue #2094,
         // B1). La purga no toma este candado, así que un borrado entre esta comprobación y el guardado sigue siendo
-        // posible, como en main; esto solo deja fuera la espera.
+        // posible, como en main; esto solo deja fuera la espera. El precio es que esa segunda apertura (descifrado y
+        // reserva de memoria) ocurre con el candado del Tenant tomado, y solo cuando la clave es nueva frente a la fila.
         async Task<bool> ArchivoAdmitidoFrenteAAsync(TipoDocumentoCentro? frente, CancellationToken ct)
         {
             if (request.ArchivoUrl is not { } archivoUrl)

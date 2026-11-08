@@ -247,6 +247,8 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.AsignacionesCreadas.Should().Be(1);
         serializacion.Llamadas.Should().Be(1, "un plan con Asignaciones entra por la rama serializada");
+        serializacion.AlEntrar.Should().Be((1, 0),
+            "el candado del Tenant está tomado antes de leer las Asignaciones, y la hoja se recorre dentro de la operación serializada");
         serializacion.CandadosDeAsesoramientoAlGuardar.Should().Be(1,
             "la hoja de Asignaciones se guarda con el candado de asesoramiento del Tenant tomado en su transacción");
 
@@ -255,11 +257,15 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             .Should().Be(1, "la Asignación importada acredita el Documento que el Centro exige ante su acceso de plataforma");
     }
 
-    /// <summary>Delega en la serialización real y, al terminar la operación, cuenta los candados de asesoramiento de la sesión.</summary>
+    /// <summary>
+    /// Delega en la serialización real y cuenta los candados de asesoramiento de la sesión al entrar en la operación (con
+    /// las Asignaciones ya rastreadas) y al terminarla.
+    /// </summary>
     private sealed class SerializacionQueObservaElCandado(ISerializacionAltasAcreditacionEmpresa real, CaeManagerDbContext contexto)
         : ISerializacionAltasAcreditacionEmpresa
     {
         public int Llamadas { get; private set; }
+        public (int Candados, int Asignaciones)? AlEntrar { get; private set; }
         public int? CandadosDeAsesoramientoAlGuardar { get; private set; }
 
         public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
@@ -267,13 +273,18 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
             Llamadas++;
             return real.EjecutarAsync(async ct =>
             {
+                AlEntrar = (await ContarCandadosAsync(ct),
+                    contexto.ChangeTracker.Entries<CaeManager.Domain.Asignaciones.Asignacion>().Count());
                 var resultado = await operacion(ct);
-                CandadosDeAsesoramientoAlGuardar = await contexto.Database.SqlQueryRaw<int>(
-                        "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
-                    .SingleAsync(ct);
+                CandadosDeAsesoramientoAlGuardar = await ContarCandadosAsync(ct);
                 return resultado;
             }, cancellationToken);
         }
+
+        private Task<int> ContarCandadosAsync(CancellationToken ct) =>
+            contexto.Database.SqlQueryRaw<int>(
+                    "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
+                .SingleAsync(ct);
     }
 
     private static EjecutarImportacionCommandHandler ConstruirHandler(
