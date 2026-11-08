@@ -467,6 +467,57 @@ public class CaminosDeAltaAcreditacionesTests
         else filas.Relaciones.Single().ArchivoUrl.Should().Be(clave);
     }
 
+    // Revisión Codex de la PR #2074, ronda 6: la clave X se lee antes del candado como la existente (exenta); mientras
+    // esta operación espera, otra cambia X por Y y confirma. Bajo el candado, pedir X ya no es conservar la clave: es una
+    // clave nueva frente a la fila releída, y se valida como tal. «propia-valida» es el control: la misma carrera con
+    // una X que sí supera la validación se admite y se guarda.
+    [Theory]
+    [InlineData("contenido-no-valido", false)]
+    [InlineData("tenant-ajeno", false)]
+    [InlineData("propia-valida", true)]
+    public async Task Requisito_de_centro_valida_contra_la_fila_releida_bajo_el_candado_la_clave_que_otra_operacion_cambio_mientras_esperaba(
+        string caso, bool admitida)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tenantPropietario = Guid.NewGuid();
+        AsignarTenant(centro, tenantPropietario);
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var almacen = new FileStorageServiceFalso { TenantId = caso == "tenant-ajeno" ? Guid.NewGuid() : tenantPropietario };
+        var claveX = await almacen.GuardarAsync(
+            new MemoryStream(caso == "contenido-no-valido" ? "MZ"u8.ToArray() : "%PDF-1.7"u8.ToArray()), "archivo.pdf");
+        almacen.TenantId = tenantPropietario;
+        var claveY = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "otro.pdf");
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        // Una fila heredada con X, anterior a la validación: editar otros campos sin cambiar X no la vuelve a exigir.
+        var fila = new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, claveX, "archivo.pdf", null);
+        filas.Agregar(fila);
+        var unit = new UnitOfWorkFalso();
+        var serializacion = new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa
+        {
+            AlTomarElCandado = () => fila.Actualizar(true, null, false, claveY, "otro.pdf", null)
+        };
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), serializacion);
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, true, null, false, claveX, "archivo.pdf", 5), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1, "antes del candado X era la existente y no se rechazó");
+        resultado.EsExitoso.Should().Be(admitida);
+        unit.VecesGuardado.Should().Be(admitida ? 1 : 0);
+        if (admitida)
+        {
+            filas.Relaciones.Single().ArchivoUrl.Should().Be(claveX);
+        }
+        else
+        {
+            resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
+            filas.Relaciones.Single().ArchivoUrl.Should().Be(claveY, "la clave que confirmó la otra operación se queda");
+        }
+    }
+
     // El mismo Error para todas: quien prueba claves no distingue una que existe en otro Tenant de una que no existe.
     // «propia-con-segmentos» existe en el almacén y es un PDF válido: solo la rechaza la forma de la clave.
     [Theory]

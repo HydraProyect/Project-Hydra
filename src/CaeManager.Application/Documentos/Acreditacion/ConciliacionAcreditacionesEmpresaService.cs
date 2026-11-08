@@ -44,7 +44,11 @@ public interface IConciliacionAcreditacionesEmpresaService
 }
 
 /// <summary>Lo que dejó una pasada de la conciliación en un Tenant propietario.</summary>
-/// <param name="Creadas">Acreditaciones creadas y guardadas.</param>
+/// <param name="Creadas">
+/// Acreditaciones que la pasada agregó en lotes que se guardaron. Es una cota superior, solo para el registro: si un alta
+/// simultánea guardó el mismo par antes que el lote, el guardado lo trata como «ya existe» y no lo inserta, pero aquí
+/// sigue contado (revisión Codex de la PR #2074, ronda 6). Nada decide con este número.
+/// </param>
 /// <param name="Lotes">Lotes de Centros recorridos.</param>
 /// <param name="Errores">Un error por cada lote que falló; ese lote no guardó nada.</param>
 public sealed record ResultadoConciliacionTenant(int Creadas, int Lotes, IReadOnlyList<Exception> Errores)

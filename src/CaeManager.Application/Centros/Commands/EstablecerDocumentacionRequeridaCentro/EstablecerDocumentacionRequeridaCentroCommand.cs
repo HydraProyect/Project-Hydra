@@ -78,7 +78,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         if (tipo.Archivado && request.Incluido)
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.TipoDocumentoArchivado", "Ese tipo de documento está archivado; exige su sustituto."));
 
-        // Lo confirmado, no la copia que el contexto del circuito rastreara antes: decide qué clave de archivo es nueva.
+        // Lo confirmado, no la copia que el contexto del circuito rastreara antes: sirve para rechazar pronto una clave
+        // no válida; si la clave pedida es la existente lo decide la relectura bajo el candado (ver GuardarAsync).
         var fila = await repositorio.ObtenerPorParActualizadoAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
 
         // OWASP ASVS 4.0.3 V12.1/V12.2: la clave de archivo y el nombre original llegan del cliente; se validan en
@@ -93,16 +94,33 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // es de ese Tenant, igual que sus Centros). Se comprueba antes de abrir nada y con el mismo error que un archivo
         // no válido: la respuesta no dice si la clave existe. Si el Centro admite o no ese TipoDocumento es otra regla,
         // sin decidir, que esta validación no toca.
-        if (request.ArchivoUrl is { } archivoUrl)
+        //
+        // Qué clave «ya tenía la fila» se decide frente a una fila concreta, y la que cuenta es la releída bajo el
+        // candado: otra operación puede cambiar la clave mientras esta espera, y la clave pedida deja entonces de ser la
+        // existente (revisión Codex de la PR #2074, ronda 6). Por eso la comprobación se hace dos veces: aquí, contra lo
+        // confirmado antes de esperar, solo para rechazar pronto sin tomar el candado (un rechazo no escribe nada); y
+        // dentro de GuardarAsync, contra la fila releída, que es la única que puede admitir la clave. Lo único que se
+        // reutiliza entre las dos es el veredicto sobre el contenido almacenado bajo esa clave, que no depende de la fila.
+        bool? contenidoValido = null;
+        async Task<bool> ArchivoAdmitidoFrenteAAsync(TipoDocumentoCentro? frente, CancellationToken ct)
         {
-            var cambiaClave = archivoUrl != fila?.ArchivoUrl;
-            var cambiaNombre = request.NombreArchivoOriginal != fila?.NombreArchivoOriginal;
-            if (((cambiaClave || cambiaNombre) && !ExtensionCoincide(archivoUrl, request.NombreArchivoOriginal))
-                || (cambiaClave && (centro.TenantId == Guid.Empty
-                    || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId)
-                    || !await ArchivoRequisitoEsValidoAsync(archivoUrl, cancellationToken))))
-                return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));
+            if (request.ArchivoUrl is not { } archivoUrl)
+                return true;
+            var cambiaClave = archivoUrl != frente?.ArchivoUrl;
+            var cambiaNombre = request.NombreArchivoOriginal != frente?.NombreArchivoOriginal;
+            if ((cambiaClave || cambiaNombre) && !ExtensionCoincide(archivoUrl, request.NombreArchivoOriginal))
+                return false;
+            if (!cambiaClave)
+                return true;
+            if (centro.TenantId == Guid.Empty || !OriginalesInbound.EsDelTenant(archivoUrl, centro.TenantId))
+                return false;
+            contenidoValido ??= await ArchivoRequisitoEsValidoAsync(archivoUrl, ct);
+            return contenidoValido.Value;
         }
+
+        if (!await ArchivoAdmitidoFrenteAAsync(fila, cancellationToken))
+            return ArchivoNoValido();
+
         // Si el Centro pasa a exigir el tipo, los Documentos de ese tipo de
         // quienes ya trabajan en él nacen pendientes de acreditar ante sus
         // accesos de plataforma. Si deja de exigirlo, no se retira ninguna
@@ -116,6 +134,12 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
             // devolvería éxito con la base intacta (revisión Codex de la PR #2074, ronda 4, hallazgo 2). En el
             // reintento, que empieza con el contexto vacío, la lectura consulta la base igualmente.
             var actual = await repositorio.ObtenerPorParActualizadoAsync(request.TipoDocumentoId, request.CentroId, ct);
+
+            // La clave se admite frente a esta fila, no frente a la de antes de esperar (ver arriba): si otra operación
+            // cambió X por Y, pedir X ya no es conservar la clave existente y X se valida como cualquier clave nueva.
+            if (!await ArchivoAdmitidoFrenteAAsync(actual, ct))
+                return ArchivoNoValido();
+
             if (actual is null)
             {
                 actual = new TipoDocumentoCentro(
@@ -145,6 +169,9 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // hallazgo 2).
         return await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken);
     }
+
+    private static Result ArchivoNoValido() =>
+        Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));
 
     private static bool ExtensionCoincide(string archivoUrl, string? nombreOriginal) =>
         nombreOriginal is not null
