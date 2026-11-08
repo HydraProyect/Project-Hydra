@@ -141,8 +141,8 @@ public static class IdentityEndpointsExtensions
             // El correo solo sirve para la primera vinculación de una cuenta creada por
             // invitación: se exige allí (RechazarSinCorreo), después de buscar el vínculo, para
             // que una cuenta ya vinculada entre aunque el token no lo traiga (ASVS 4.0.3 V1.2.4).
-            var email = infoExterna.Principal.FindFirstValue(ClaimTypes.Email)
-                ?? infoExterna.Principal.FindFirstValue("preferred_username");
+            var email = new[] { infoExterna.Principal.FindFirstValue(ClaimTypes.Email), infoExterna.Principal.FindFirstValue("preferred_username") }
+                .FirstOrDefault(valor => !string.IsNullOrWhiteSpace(valor));
 
             // Vuelta del SSO: todavía no hay sesión ni Tenant, y AspNetUsers tiene
             // RLS (P1-M1). Búsqueda, alta y vinculación del login pasan por el
@@ -198,10 +198,10 @@ public static class IdentityEndpointsExtensions
                 case DecisionCuentaMicrosoft.RechazarCuentaDesactivada:
                     {
                         // Cuenta en uso sin vínculo (D-L6): el correo solo vincula un alta por
-                        // invitación pendiente; el mensaje remite al Administrador del Tenant.
+                        // invitación sin activar; el mensaje remite al Administrador del Tenant.
                         // Queda en la vigilancia del Tenant de la cuenta que se intentó
                         // abrir: es a quien le interesa saber que alguien lo intentó.
-                        // No se confirma que exista: los tres reciben el mismo mensaje
+                        // No se confirma que exista: todos reciben el mismo mensaje
                         // que «sin cuenta». En el Tenant destino no hay cuenta que abrir
                         // (la de otro Tenant no cuenta), y la desactivada o ya vinculada
                         // a otra identidad también la tiene que resolver un Administrador.
@@ -212,6 +212,16 @@ public static class IdentityEndpointsExtensions
                         await signInManager.SignOutAsync();
                         return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
                     }
+
+                case DecisionCuentaMicrosoft.EntrarConCuentaVinculada:
+                case DecisionCuentaMicrosoft.VincularCuentaExistente:
+                    break;
+
+                default:
+                    // Fallo cerrado: una decisión nueva sin su caso no sigue hacia el TOTP ni la sesión.
+                    logger.LogError("Login de Microsoft rechazado: decisión sin tratar ({Decision}).", decision);
+                    await signInManager.SignOutAsync();
+                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
             if (usuario is null)

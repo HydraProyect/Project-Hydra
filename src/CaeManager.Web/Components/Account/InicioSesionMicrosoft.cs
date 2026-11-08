@@ -294,13 +294,20 @@ public static class InicioSesionMicrosoft
         ArgumentNullException.ThrowIfNull(usuario);
         ArgumentNullException.ThrowIfNull(vinculo);
 
-        switch (DecidirVinculoTrasTotp(await userManager.GetLoginsAsync(usuario), vinculo.ProviderKey))
+        var vinculos = await userManager.GetLoginsAsync(usuario);
+        switch (DecidirVinculoTrasTotp(vinculos, vinculo.ProviderKey))
         {
             case DecisionVinculoTrasTotp.YaVinculada:
                 return true;
             case DecisionVinculoTrasTotp.RechazarOtraIdentidad:
                 return false;
         }
+
+        // El vínculo pendiente es de una primera vinculación por correo, que solo vale para una
+        // invitación sin activar: si la cuenta se activó (contraseña) o entró con otro login
+        // entre el callback y el TOTP, ya está en uso y no se vincula (D-L6, ASVS 4.0.3 V3.7.1).
+        if (!CuentaSinActivar(usuario, vinculos))
+            return false;
 
         // La identidad pudo quedar vinculada a otra cuenta entre el callback y el TOTP
         // (la cookie de dos pasos vive minutos): no se vincula. Se mira antes de
@@ -380,8 +387,8 @@ public static class InicioSesionMicrosoft
     /// cuenta hallada por correo solo se vincula si sigue pendiente de activación: sin
     /// contraseña y sin ningún login externo, la misma regla que
     /// <c>CuentaUsuario.PendienteActivacion</c> («la persona nunca entró»). Una cuenta en
-    /// uso se vincula solo desde ella misma, no por un correo que edita el directorio
-    /// (D-L6; ASVS 4.0.3 V1.2.4 y V3.7.1, OWASP Top 10 A07:2021).
+    /// uso no se vincula por un correo que edita el directorio (D-L6; ASVS 4.0.3 V1.2.4 y
+    /// V3.7.1, OWASP Top 10 A07:2021); hoy no hay otra vía para vincularla.
     /// </para>
     /// </summary>
     public static async Task<(DecisionCuentaMicrosoft Decision, ApplicationUser? Cuenta)> ResolverCuentaAsync(
@@ -418,7 +425,7 @@ public static class InicioSesionMicrosoft
             {
                 var vinculos = await userManager.GetLoginsAsync(porCorreo);
                 porCorreoTieneOtraIdentidad = vinculos.Any(l => l.LoginProvider == identidad.LoginProvider);
-                porCorreoPendienteDeActivacion = string.IsNullOrEmpty(porCorreo.PasswordHash) && vinculos.Count == 0;
+                porCorreoPendienteDeActivacion = CuentaSinActivar(porCorreo, vinculos);
             }
         }
 
@@ -433,6 +440,21 @@ public static class InicioSesionMicrosoft
             _ => null,
         };
         return (ComprobarCuentaActiva(decision, cuenta, DateTimeOffset.UtcNow), cuenta);
+    }
+
+    /// <summary>
+    /// Si la cuenta sigue en alta por invitación sin activar: sin contraseña y sin ningún login
+    /// externo, la misma regla que <c>CuentaUsuario.PendienteActivacion</c> («la persona nunca
+    /// entró»). Es la única cuenta que el correo puede vincular (D-L6). Se comprueba en el
+    /// callback y otra vez en <c>LoginCon2fa</c>, antes de dar de alta el TOTP y antes de guardar
+    /// el vínculo: la cookie de dos pasos vive minutos, y si la invitación se activa entretanto
+    /// la cuenta ya está en uso.
+    /// </summary>
+    public static bool CuentaSinActivar(ApplicationUser cuenta, IEnumerable<UserLoginInfo> vinculosDeLaCuenta)
+    {
+        ArgumentNullException.ThrowIfNull(cuenta);
+        ArgumentNullException.ThrowIfNull(vinculosDeLaCuenta);
+        return string.IsNullOrEmpty(cuenta.PasswordHash) && !vinculosDeLaCuenta.Any();
     }
 
     /// <summary>

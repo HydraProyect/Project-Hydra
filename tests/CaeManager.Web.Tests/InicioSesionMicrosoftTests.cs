@@ -1119,6 +1119,25 @@ public class InicioSesionMicrosoftTests
         usuarios.LlamadasAlta.Should().Be(1, "no se vuelve a guardar");
     }
 
+    /// <summary>
+    /// D-L6 (revisión puente de la #2099): si la invitación se activó, o la cuenta entró con otro login, entre el
+    /// callback y el TOTP, la cuenta ya está en uso y el vínculo hallado por correo no se guarda.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Tras_el_TOTP_no_se_vincula_una_cuenta_activada_desde_el_callback(bool conContrasena, bool conOtroLogin)
+    {
+        var usuarios = new UsuariosConVinculos();
+        if (conOtroLogin)
+            usuarios.Vinculos.Add(new UserLoginInfo("OtroProveedor", "clave-de-otro-proveedor", "OtroProveedor"));
+        var cuenta = new ApplicationUser { Id = Guid.NewGuid(), PasswordHash = conContrasena ? "hash-de-una-contrasena" : null };
+
+        (await InicioSesionMicrosoft.CompletarVinculoPendienteAsync(usuarios, cuenta,
+            new UserLoginInfo(IdentityEndpointsExtensions.EsquemaMicrosoft, "sub-1", "Microsoft (empresa)"))).Should().BeFalse();
+        usuarios.LlamadasAlta.Should().Be(0);
+    }
+
     [Fact]
     public async Task Tras_el_TOTP_no_se_anade_una_segunda_identidad_de_Microsoft()
     {
