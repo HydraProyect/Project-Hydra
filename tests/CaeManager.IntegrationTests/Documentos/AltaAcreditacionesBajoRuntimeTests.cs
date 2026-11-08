@@ -1,15 +1,22 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.Coordinacion;
+using CaeManager.Infrastructure.Documentos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -102,8 +109,10 @@ public class AltaAcreditacionesBajoRuntimeTests
         acreditaciones.Should().OnlyContain(a => a.TenantId == _tenantPropietario);
     }
 
-    [Fact]
-    public async Task Un_par_que_otra_operacion_guarda_entre_la_lectura_y_el_guardado_se_trata_como_ya_existente()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_par_que_otra_operacion_guarda_entre_la_lectura_y_el_guardado_se_trata_como_ya_existente(bool dentroDeTransaccion)
     {
         await using var arnes = await CrearArnesAsync();
         var escenario = await SembrarEmpresaSinTrabajadoresAsync(arnes);
@@ -124,7 +133,8 @@ public class AltaAcreditacionesBajoRuntimeTests
         var contextoB = scopeB.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         (await AltaAcreditacionesDePrueba.Con(contextoB).AgregarPendientesAsync(new AltasConAcreditacion
         {
-            CentrosAConciliar = [escenario.CentroId, escenario.OtroCentroId], SoloDocumentosDeEmpresa = true,
+            CentrosAConciliar = [escenario.CentroId, escenario.OtroCentroId],
+            SoloDocumentosDeEmpresa = true,
         })).Should().Be(2);
 
         // ...y la operación A confirma uno de ellos antes.
@@ -135,12 +145,113 @@ public class AltaAcreditacionesBajoRuntimeTests
             await contextoA.SaveChangesAsync();
         }
 
+        var idsDeB = contextoB.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+            .ToDictionary(e => e.Entity.CanalGestionDocumentalId, e => e.Entity.Id);
+
         // El choque con el índice único no hace fallar a B: el par ya existe y el resto se guarda.
-        await contextoB.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        if (dentroDeTransaccion)
+        {
+            // Como un Command: la transacción explícita sigue utilizable tras el choque (EF deshace hasta su punto de
+            // guardado automático) y confirma lo que B sí guarda.
+            var resultado = await new TransaccionDeComando(contextoB).EjecutarAsync(async ct =>
+            {
+                await contextoB.SaveChangesAsync(ct);
+                return Result.Exito();
+            });
+            resultado.EsExitoso.Should().BeTrue();
+        }
+        else
+        {
+            await contextoB.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        }
 
         var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
         acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId],
             "un solo par por acceso: el de A y el que solo B agregaba");
+
+        // La auditoría sigue a lo que de verdad se guardó: ni un «creado» huérfano del par que ya existía ni uno repetido
+        // del par que B sí guardó.
+        (await ContarAuditoriasComoPropietarioAsync(arnes, idsDeB[escenario.CanalId])).Should().Be(0,
+            "el par que ya existía no lo guardó B");
+        (await ContarAuditoriasComoPropietarioAsync(arnes, idsDeB[escenario.OtroCanalId])).Should().Be(1,
+            "el reintento audita una sola vez lo que B guarda");
+    }
+
+    [Fact]
+    public async Task El_disparador_concilia_cada_Tenant_en_su_ambito_bajo_RLS_y_repetirlo_no_duplica()
+    {
+        await using var arnes = await CrearArnesAsync();
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(
+                CrearTenant(_tenantPropietario, "Tenant propietario A-1"), CrearTenant(_otroTenant, "Otro Tenant A-1"));
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var escenario = await SembrarEmpresaSinTrabajadoresAsync(arnes);
+        var documento = Documento.DeEmpresa(
+            escenario.EmpresaId, escenario.TipoId, Emision, VigenciaDocumento.VenceEl(Emision.AddYears(5)));
+        await using (var scope = arnes.Servicios.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+        }
+
+        // Sin Tenant fijado: el disparador fija cada uno con AmbitoTenantExplicito, como en producción.
+        _tenant.TenantId = null;
+        var disparador = new ConciliacionAcreditacionesEmpresaHostedService(
+            arnes.Servicios.GetRequiredService<IServiceScopeFactory>(), new LiderSiempre(),
+            NullLogger<ConciliacionAcreditacionesEmpresaHostedService>.Instance);
+
+        await disparador.ProcesarAsync(CancellationToken.None);
+        await disparador.ProcesarAsync(CancellationToken.None);
+
+        var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
+        acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId],
+            "los dos Centros de plataforma de la Empresa, una sola vez aunque se ejecute dos veces");
+        acreditaciones.Should().OnlyContain(a => a.TenantId == _tenantPropietario,
+            "la pasada del otro Tenant no ve el Documento ni los Centros, y no crea nada sellado con él");
+    }
+
+    private static CaeManagerDbContext CrearContextoPropietario(string cadenaPropietario)
+    {
+        var tenantSinFijar = new TenantActualAmbiental();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantSelladoInterceptor(tenantSinFijar))
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantSinFijar);
+    }
+
+    private static Tenant CrearTenant(Guid id, string nombre)
+    {
+        var tenant = new Tenant(nombre);
+        typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(tenant, id);
+        return tenant;
+    }
+
+    private static async Task<int> ContarAuditoriasComoPropietarioAsync(ArnesDeArranqueRuntime arnes, Guid entidadId)
+    {
+        await using var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario);
+        return await propietarioBd.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()
+            .CountAsync(r => r.EntidadId == entidadId);
+    }
+
+    private sealed class LiderSiempre : IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(
+            string clave, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
+        {
+            await trabajo(cancellationToken);
+            return true;
+        }
+    }
+
+    /// <summary>Como el <c>TenantActual</c> real: primero el ámbito explícito, luego el Tenant que fija el test.</summary>
+    private sealed class TenantDelAmbitoOFijado(TenantActualAmbiental fijado) : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual ?? fijado.TenantId;
     }
 
     [Fact]
@@ -226,7 +337,7 @@ public class AltaAcreditacionesBajoRuntimeTests
     private sealed record Escenario(Guid TrabajadorId, Guid TipoId, Guid CanalCentroQueExigeId);
 
     private Task<ArnesDeArranqueRuntime> CrearArnesAsync() =>
-        ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, tenantActualPersonalizado: _tenant);
+        ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false, tenantActualPersonalizado: new TenantDelAmbitoOFijado(_tenant));
 
     /// <summary>
     /// En el Tenant propietario: un Trabajador asignado a dos Centros, cada uno

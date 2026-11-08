@@ -1,6 +1,7 @@
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
 using Xunit;
 
@@ -494,6 +495,33 @@ public class AltaAcreditacionesPlataformaServiceTests
 
         mundo.Agregadas.Should().BeEquivalentTo([(deEmpresa.Id, acceso.Id)],
             "el otro tipo, aunque falte su acreditación, no es lo que este alta pone en juego");
+    }
+
+    [Fact]
+    public async Task Un_tipo_que_pasa_a_exigirse_de_serie_se_evalua_con_la_serie_que_fija_el_mismo_alta()
+    {
+        // La serie guardada es Todos; la edición que pasa Requerido a Sí la restringe a cuenta ajena a la vez. El
+        // autónomo ya no tiene que presentarlo: su Documento no se pone en juego, el del trabajador por cuenta ajena sí.
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var centro = mundo.Centro();
+        var acceso = mundo.AccesoPlataforma(centro);
+        var porCuentaAjena = mundo.Trabajador();
+        var autonomo = mundo.Trabajador("87654321X");
+        autonomo.CambiarTipoContratacion(TipoContratacion.Autonomo);
+        mundo.Asignacion(porCuentaAjena, centro);
+        mundo.Asignacion(autonomo, centro);
+        var documentoPorCuentaAjena = mundo.DocumentoDe(porCuentaAjena, tipo);
+        mundo.DocumentoDe(autonomo, tipo);
+
+        await mundo.Servicio().AgregarPendientesAsync(new AltasConAcreditacion
+        {
+            TiposQuePasanAExigirseDeSerie = [tipo.Id],
+            SerieVigenteDeTipos = new Dictionary<Guid, TiposContratacion> { [tipo.Id] = TiposContratacion.CuentaAjena },
+        });
+
+        mundo.Agregadas.Should().BeEquivalentTo([(documentoPorCuentaAjena.Id, acceso.Id)],
+            "la serie que fija el alta prevalece sobre la guardada, igual que el Requerido");
     }
 
     [Fact]

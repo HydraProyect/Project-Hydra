@@ -513,7 +513,7 @@ public class CaeManagerDbContext(
                 // Otra operación simultánea guardó el mismo par (Documento, acceso de plataforma) entre la lectura de la
                 // regla de alta y este guardado: el par ya existe, que es lo que el alta quería. Se quitan del guardado
                 // las acreditaciones que ya están en la base y se repite con el resto; el alta no falla por eso.
-                if (!await DescartarAcreditacionesYaExistentesAsync(ex, auditoriasDelLlamador!, cancellationToken))
+                if (!await DescartarAcreditacionesYaExistentesAsync(auditoriasDelLlamador!, cancellationToken))
                     throw;
             }
         }
@@ -553,13 +553,13 @@ public class CaeManagerDbContext(
 
     /// <summary>
     /// Desacopla las acreditaciones pendientes cuyo par ya está guardado (o, si la base aún no lo deja ver, las que
-    /// EF señala como causantes del choque) y las auditorías que el interceptor construyó en el intento fallido, que el
+    /// repiten un par dentro del mismo guardado) y las auditorías que el interceptor construyó en el intento fallido, que el
     /// reintento vuelve a construir para lo que de verdad se guarde; las del llamador se conservan. Con un guardado
     /// dentro de una transacción explícita, EF deshace hasta su punto de guardado automático, así que la transacción
     /// sigue utilizable. Devuelve falso si no hay nada que quitar.
     /// </summary>
     private async Task<bool> DescartarAcreditacionesYaExistentesAsync(
-        DbUpdateException ex, IReadOnlySet<RegistroAuditoria> auditoriasDelLlamador, CancellationToken cancellationToken)
+        IReadOnlySet<RegistroAuditoria> auditoriasDelLlamador, CancellationToken cancellationToken)
     {
         var pendientes = ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
             .Where(e => e.State == EntityState.Added)
@@ -578,10 +578,12 @@ public class CaeManagerDbContext(
         var yaExistentes = pendientes
             .Where(e => guardados.Contains((e.Entity.DocumentoId, e.Entity.CanalGestionDocumentalId)))
             .ToList();
+        // Si la base aún no deja ver el par que chocó, solo se quita lo que se repite dentro del propio guardado (se
+        // conserva uno por par). Nada más se descarta a ciegas: sin un par identificado, el choque sigue siendo un error.
         if (yaExistentes.Count == 0)
-            yaExistentes = ex.Entries
-                .Where(e => e is { Entity: AcreditacionDocumentoPlataforma, State: EntityState.Added })
-                .Select(e => Entry((AcreditacionDocumentoPlataforma)e.Entity))
+            yaExistentes = pendientes
+                .GroupBy(e => (e.Entity.DocumentoId, e.Entity.CanalGestionDocumentalId))
+                .SelectMany(g => g.Skip(1))
                 .ToList();
         if (yaExistentes.Count == 0)
             return false;

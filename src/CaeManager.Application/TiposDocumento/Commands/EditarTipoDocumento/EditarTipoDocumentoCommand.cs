@@ -168,6 +168,11 @@ public class EditarTipoDocumentoCommandHandler(
         {
             Requisitos = requisitosNuevos,
             TiposQuePasanAExigirseDeSerie = pasaAExigirseDeSerie ? [tipoDocumento.Id] : [],
+            // La serie que esta edición acaba de fijar, aún sin guardar: la guardada ya no es la que rige.
+            SerieVigenteDeTipos = new Dictionary<Guid, TiposContratacion>
+            {
+                [tipoDocumento.Id] = tipoDocumento.TiposContratacionDeSerie,
+            },
         }, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

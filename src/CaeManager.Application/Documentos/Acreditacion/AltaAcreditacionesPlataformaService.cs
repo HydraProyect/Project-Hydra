@@ -59,6 +59,14 @@ public sealed record AltasConAcreditacion
     public IReadOnlyCollection<Guid> TiposQuePasanAExigirseDeSerie { get; init; } = [];
 
     /// <summary>
+    /// Serie por tipo de contratación que este mismo alta acaba de fijar en un TipoDocumento, sin guardar todavía.
+    /// Prevalece sobre la guardada, igual que <see cref="TiposQuePasanAExigirseDeSerie"/> sobre el Requerido guardado:
+    /// sin ella, un tipo que pasa a exigirse con la serie restringida a la vez se evaluaría con la serie anterior.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, TiposContratacion> SerieVigenteDeTipos { get; init; } =
+        new Dictionary<Guid, TiposContratacion>();
+
+    /// <summary>
     /// Centros que se concilian enteros: cada Documento operativo de quien tiene actividad en ellos, de cualquier
     /// tipo, ante cada uno de sus accesos de plataforma. No es un alta: lo usa la conciliación
     /// (<see cref="IConciliacionAcreditacionesEmpresaService"/>) para reparar lo que ya estaba guardado.
@@ -272,6 +280,8 @@ public class AltaAcreditacionesPlataformaService(
         // El valor general que este mismo alta cambia prevalece sobre el guardado.
         foreach (var tipoId in tiposExigidosDeSerie.Where(obligatorioPorDefecto.ContainsKey))
             obligatorioPorDefecto[tipoId] = (true, obligatorioPorDefecto[tipoId].TiposContratacionDeSerie);
+        foreach (var (tipoId, serieVigente) in altas.SerieVigenteDeTipos.Where(s => obligatorioPorDefecto.ContainsKey(s.Key)))
+            obligatorioPorDefecto[tipoId] = (obligatorioPorDefecto[tipoId].Obligatorio, serieVigente);
         // La serie por tipo de contratación solo filtra los Documentos de un Trabajador: el de una Empresa no tiene.
         var tipoContratacionDeTrabajador = await CargarTipoContratacionDeTrabajadorAsync(
             altas.Trabajadores,
