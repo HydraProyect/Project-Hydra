@@ -394,7 +394,7 @@ public class EjecutarImportacionMaestraCommandHandler(
             await centrosContext.Centros.ToListAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
         var centrosCreados = 0;
         var centrosActualizados = 0;
-        var centrosQueVuelvenAGestionCae = new List<Guid>();
+        var centrosQueVuelvenAGestionCae = new List<Centro>();
 
         foreach (var fila in plan.Centros)
         {
@@ -458,7 +458,7 @@ public class EjecutarImportacionMaestraCommandHandler(
                         centrosActualizados++;
                         if (escribir && modalidad0 == ModalidadGestionCae.SinGestionCae
                             && modalidadResultante == ModalidadGestionCae.ConGestionCae)
-                            centrosQueVuelvenAGestionCae.Add(existente.Id);
+                            centrosQueVuelvenAGestionCae.Add(existente);
                     }
                     else
                     {
@@ -589,16 +589,22 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         // Un Centro que vuelve a gestión CAE: sus accesos de plataforma reciben los Documentos de Empresa que exige
         // (regla A-1), en el mismo guardado. Solo los de Empresa: los Documentos de Trabajador no cambian.
-        if (centrosQueVuelvenAGestionCae.Count > 0)
+        // Cuenta el estado final: una fila posterior del mismo Centro puede devolverlo a Sin gestión CAE.
+        var vuelvenAGestionCae = centrosQueVuelvenAGestionCae
+            .Where(c => c.GestionCae == ModalidadGestionCae.ConGestionCae)
+            .Select(c => c.Id)
+            .Distinct()
+            .ToList();
+        if (vuelvenAGestionCae.Count > 0)
         {
             var accesosPlataforma = await centrosContext.CanalesGestionDocumental
-                .Where(c => centrosQueVuelvenAGestionCae.Contains(c.CentroId) && c.Tipo == TipoCanalGestion.Plataforma)
+                .Where(c => vuelvenAGestionCae.Contains(c.CentroId) && c.Tipo == TipoCanalGestion.Plataforma)
                 .ToListAsync(cancellationToken);
             if (accesosPlataforma.Count > 0)
                 await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
                 {
                     Canales = accesosPlataforma,
-                    CentrosQueVuelvenAGestionCae = centrosQueVuelvenAGestionCae,
+                    CentrosQueVuelvenAGestionCae = vuelvenAGestionCae,
                     SoloDocumentosDeEmpresa = true
                 }, cancellationToken);
         }
