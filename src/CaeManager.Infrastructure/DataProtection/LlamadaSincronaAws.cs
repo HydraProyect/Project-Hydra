@@ -39,7 +39,7 @@ internal static class LlamadaSincronaAws
         ArgumentNullException.ThrowIfNull(operacion);
 
         using var cancelacion = new CancellationTokenSource(limite);
-        var tarea = Task.Run(() => operacion(cancelacion.Token), CancellationToken.None);
+        var tarea = operacion(cancelacion.Token); // MUTACION: sin Task.Run
 
         try
         {
