@@ -112,7 +112,7 @@ public static partial class ValidadorSolicitudDemo
     // Misma forma que mailOk() de contacto.js, más estricta en servidor: sin
     // espacios ni controles, y comprobada después con MailAddress.
     // \z y no $: en .NET, $ también casa antes de un \n final.
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}\z",RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex PatronCorreo();
 
     [GeneratedRegex(@"^\+?[0-9 ().-]{6,30}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
