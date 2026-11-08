@@ -198,6 +198,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public void La_carga_inicial_acota_a_los_ultimos_90_dias_y_lo_muestra_en_un_campo_editable()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar();
 
         _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);

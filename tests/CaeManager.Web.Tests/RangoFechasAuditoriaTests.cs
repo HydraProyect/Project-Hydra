@@ -9,9 +9,24 @@ public class RangoFechasAuditoriaTests
     [Fact]
     public void Por_defecto_arranca_90_dias_antes_del_dia_de_negocio_de_hoy()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         RangoFechasAuditoria.DesdePorDefecto().Should().Be(DiaDeNegocio.Hoy().AddDays(-90));
     }
 
+    [Fact]
+    public void A_las_23_59_59_9_de_Madrid_el_rango_sigue_en_ese_dia_aunque_el_reloj_real_ya_haya_cruzado_la_medianoche()
+    {
+        // 15/07/2026 23:59:59.9 en Madrid (CEST, +02:00): el último décimo antes de la medianoche. Con el reloj del flujo fijado,
+        // las dos lecturas (la del rango y la de la aserción) ven el 15/07 aunque entre una y otra pase la medianoche real.
+        var instante = new DateTimeOffset(2026, 7, 15, 23, 59, 59, 900, TimeSpan.FromHours(2));
+        using var reloj = RelojDePrueba.FijarEn(instante);
+
+        var desde = RangoFechasAuditoria.DesdePorDefecto();
+
+        DiaDeNegocio.Hoy().Should().Be(new DateOnly(2026, 7, 15));
+        desde.Should().Be(new DateOnly(2026, 7, 15).AddDays(-90));
+        DiaDeNegocio.Hoy().Should().Be(DiaDeNegocio.De(instante));
+    }
     [Theory]
     [InlineData("2026-01-15", true)]
     [InlineData("", false)]

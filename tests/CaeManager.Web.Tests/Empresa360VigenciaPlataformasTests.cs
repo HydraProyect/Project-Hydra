@@ -185,6 +185,7 @@ public class Empresa360VigenciaPlataformasTests : BunitContext
     [Fact]
     public async Task Vigencia_el_selector_de_fecha_cambia_vencimiento_por_emision()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = RenderizarVigencia();
         var vencimientoCarla = cut.FindAll("[data-fila]")[2].QuerySelectorAll(".vigencia-celda")[0].TextContent.Trim();
 
