@@ -39,12 +39,14 @@ export function registrarAtajosPasosGestion(dotNetRef) {
         if (evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey) return;
         if (evento.defaultPrevented || evento.isComposing || evento.repeat) return;
         if (hayDialogoModalAbierto()) return;
-        if (document.querySelector(SELECTOR_MENU_ABIERTO)) return;
 
         const activo = document.activeElement;
         if (activo && activo !== document.body) {
             if (esCampoEditable(activo)) return;
             if (activo.closest?.(SELECTOR_SUPERFICIE_AJENA)) return;
+            // Solo mientras el foco sigue en el disparador: el «⋯» de la cabecera no se cierra al pulsar fuera, y un
+            // menú abierto que nadie mira no debe dejar mudos los atajos.
+            if (activo.closest?.(SELECTOR_MENU_ABIERTO)) return;
         }
 
         // No se toca el Tab ni el foco: la tecla solo cambia el paso abierto o la opción elegida.

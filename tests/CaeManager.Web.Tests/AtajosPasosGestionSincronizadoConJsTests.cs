@@ -85,7 +85,9 @@ public class AtajosPasosGestionSincronizadoConJsTests
     {
         var antes = AntesDeActuar();
         antes.Should().Contain("if (hayDialogoModalAbierto()) return;");
-        antes.Should().Contain("if (document.querySelector(SELECTOR_MENU_ABIERTO)) return;");
+        antes.Should().Contain("if (activo.closest?.(SELECTOR_MENU_ABIERTO)) return;");
+        antes.Should().NotContain("document.querySelector(SELECTOR_MENU_ABIERTO)",
+            "el «⋯» no se cierra al pulsar fuera: mirar todo el documento dejaría mudos los atajos con el foco en otro sitio");
         antes.Should().Contain("if (activo.closest?.(SELECTOR_SUPERFICIE_AJENA)) return;");
         Regex.Match(Js, @"const SELECTOR_SUPERFICIE_AJENA\s*=\s*'(?<s>[^']*)'").Groups["s"].Value
             .Should().Contain("[role=\"menu\"]").And.Contain("[role=\"dialog\"]");
