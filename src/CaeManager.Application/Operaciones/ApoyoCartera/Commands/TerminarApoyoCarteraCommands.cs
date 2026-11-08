@@ -53,10 +53,13 @@ public record RevocarApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 /// misma regla. Se resuelve una vez antes de abrir la transacción, para fallar pronto y saber en
 /// qué Operador CAE cargar la propuesta, y <b>se vuelve a resolver dentro, ya con el candado</b>:
 /// si el rol o la activación de la cuenta cambiaron entre medias, no escribe. La jerarquía para
-/// revocar también se lee dentro. Ventana que queda: el candado es el del Gestor CAE de apoyo, no
-/// el de quien actúa, así que una desactivación o un cambio de rol de quien actúa que se confirme
-/// entre esa segunda lectura y el cierre de esta transacción no se serializa con ella (OWASP ASVS
-/// 4.0.3 V4.1.3 y V4.2.1).
+/// revocar también se lee dentro. Ventana que queda, entre esa segunda lectura y el cierre de esta
+/// transacción: el único candado es el exclusivo del Gestor CAE de apoyo. Al desasignarse, quien
+/// actúa es ese Gestor CAE, y la desactivación de su cuenta, que toma el mismo exclusivo, sí se
+/// serializa; al revocar o retirar lo concedido, la desactivación de quien actúa no se serializa.
+/// Un cambio de rol no toma ningún candado de cartera, así que en ninguna vía se serializa. No se
+/// añade un candado compartido sobre quien actúa: con retiradas y revocaciones cruzadas entre dos
+/// personas formaría un ciclo con el exclusivo del apoyo (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1).
 /// </para>
 ///
 /// <para>

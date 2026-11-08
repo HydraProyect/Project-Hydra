@@ -17,8 +17,9 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Queries;
 /// </list>
 /// Acotada al Tenant de origen de la sesión, nunca a un dato de la petición ni al Tenant
 /// activo: el destinatario las ve trabaje en el Tenant que trabaje. Vacía, sin error, si quien
-/// pregunta no es una cuenta activa con rol Gestor CAE o Coordinador CAE (leído en Identity
-/// sobre el Tenant de origen): la campana pregunta por todo el mundo.
+/// pregunta no es una sesión de Gestor CAE o Coordinador CAE en el Tenant de origen, confirmada
+/// por Identity sobre una cuenta activa (<see cref="ContextoOperadorCae"/>): la campana pregunta
+/// por todo el mundo.
 /// </summary>
 public record ObtenerPropuestasApoyoPendientesQuery : IRequest<PropuestasApoyoPendientesDto>;
 

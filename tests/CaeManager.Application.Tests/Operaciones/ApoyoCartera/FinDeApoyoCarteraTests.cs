@@ -105,7 +105,7 @@ public class FinDeApoyoCarteraTests
         public Guid? Principal => Catalogo.CarterasVivas
             .Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
 
-        /// <summary>El claim de la sesión; el rol de verdad sale de <see cref="Roles"/>.</summary>
+        /// <summary>La sesión: <paramref name="rolDeSesion"/> es su rol efectivo en origen, el que decide; <see cref="Roles"/> lo confirma.</summary>
         public CurrentUserServicePorAmbito Como(Guid usuarioId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
             new(usuarioId, origen ?? Operador, rolDeSesion, rolDeSesion);
 

@@ -28,8 +28,8 @@ public interface IDirectorioCompanerosGestorCae
 ///
 /// <para>
 /// <b>Autorización, aquí y no en la interfaz.</b> Solo contesta si quien pregunta es un Gestor CAE activo de su
-/// Operador CAE, leído en Identity sobre su Tenant de origen y no en el claim (dentro de un Workspace operativo derivado
-/// el claim es el de la cartera, y una Sesión Privilegiada de plataforma no trae rol de negocio:
+/// Operador CAE: decide el rol efectivo de la sesión en su Tenant de origen e Identity lo confirma, no el claim (dentro
+/// de un Workspace operativo derivado el claim es el de la cartera, y una Sesión Privilegiada de plataforma no trae rol de negocio:
 /// <see cref="ContextoOperadorCae.ResolverAsync"/> falla cerrado en ambos). El Operador CAE sale de ese contexto
 /// verificado, nunca de un parámetro de la petición, así que la petición no puede apuntar a otra organización.
 /// Un Coordinador CAE, un Administrador o cualquier otro rol reciben la lista vacía.
