@@ -57,6 +57,18 @@ public class CambiarSegundoFactorDelTenantPorPlataformaCommandTests
         _puerta.Llamadas.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Con_la_concesion_revocada_falla_aunque_la_memo_conserve_la_sesion()
+    {
+        var resultado = await new CambiarSegundoFactorDelTenantPorPlataformaCommandHandler(
+                new SesionMemoizadaRevocada(Sesion(CapacidadPrivilegio.AjusteSegundoFactorTenant)),
+                new TenantActualFalso(_tenant.Id), _tenants, _puerta)
+            .Handle(new CambiarSegundoFactorDelTenantPorPlataformaCommand(true, Motivo), CancellationToken.None);
+
+        resultado.Error!.Codigo.Should().Be("SeguridadAcceso.SoloPlataformaConSesionPrivilegiada");
+        _puerta.Llamadas.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
     [InlineData(CapacidadPrivilegio.SoporteLectura)]
