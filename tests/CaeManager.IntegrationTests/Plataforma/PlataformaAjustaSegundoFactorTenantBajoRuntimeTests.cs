@@ -178,6 +178,22 @@ public class PlataformaAjustaSegundoFactorTenantBajoRuntimeTests : IAsyncLifetim
         (await InstantaneaAsync()).Should().Be(antes);
     }
 
+    [Fact]
+    public async Task Una_sesion_abierta_sobre_B_no_ampara_A_aunque_la_concesion_alcance_a_los_dos()
+    {
+        // Fija el predicado s."TenantObjetivoId" = v_tenant de la función: el alcance de la
+        // concesión cubre A, así que solo ese predicado rechaza la sesión abierta sobre B.
+        var sesionSobreB = await AbrirSesionConCapacidadAsync(tenantObjetivo: _tenantB, alcance: [_tenantA, _tenantB]);
+        var antes = await InstantaneaAsync();
+
+        (await CambiarComoPlataformaAsync(_tenantA, sesionSobreB)).Should().Be("sesion_no_autorizada");
+        (await InstantaneaAsync()).Should().Be(antes);
+
+        (await CambiarComoPlataformaAsync(_tenantB, sesionSobreB)).Should().Be("cambiado",
+            "control positivo: la misma sesión sí cambia el Tenant sobre el que se abrió");
+        (await ExigeAsync(_tenantA)).Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
     [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""VigenciaHasta"" = now() - interval '1 minute' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
@@ -308,12 +324,13 @@ WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" 
     private async Task<Guid> AbrirSesionConCapacidadAsync(
         Guid? concedidaPor = null,
         CapacidadPrivilegio capacidad = CapacidadPrivilegio.AjusteSegundoFactorTenant,
-        Guid? tenantObjetivo = null)
+        Guid? tenantObjetivo = null,
+        Guid[]? alcance = null)
     {
         var objetivo = tenantObjetivo ?? _tenantA;
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SobreTenants(
-            _tecnico, capacidad, [objetivo], ahora.AddMinutes(-10), ahora.AddDays(1),
+            _tecnico, capacidad, alcance ?? [objetivo], ahora.AddMinutes(-10), ahora.AddDays(1),
             concedidaPorUsuarioId: concedidaPor ?? _adminPlataforma);
         await using (var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion))
         {

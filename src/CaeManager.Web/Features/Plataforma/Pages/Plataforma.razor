@@ -678,6 +678,12 @@
             if (mensajeError is not null)
             {
                 _errorAjuste = mensajeError;
+                // La base ya tiene ese valor (lo cambió otro, por ejemplo el Administrador del
+                // Tenant): la sección deja de ofrecer el cambio que ya no procede.
+                if (resultado.Error.Codigo == "SeguridadAcceso.SinCambios")
+                {
+                    _ajusteSegundoFactor = new AjusteSegundoFactorPorPlataformaDto(exigir);
+                }
                 return;
             }
 
