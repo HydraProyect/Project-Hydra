@@ -243,6 +243,19 @@ public class SolicitudDemoEndpointsTests
     }
 
     [Fact]
+    public void Los_codigos_que_devuelven_la_plaza_son_los_que_emiten_la_guarda_y_el_smtp()
+    {
+        // Si alguien renombra un código en Infrastructure, la plaza dejaría de volver sin que nada
+        // se pusiera en rojo: el conjunto se compara con las constantes del origen.
+        SolicitudDemoEndpoints.FallosSinEnvio.Should().BeEquivalentTo(
+        [
+            EnvioCorreoOptions.CodigoErrorEnvioCerrado,
+            SmtpEmailService.CodigoNoConfigurado,
+            SmtpEmailService.CodigoErrorApi,
+        ]);
+    }
+
+    [Fact]
     public async Task Con_la_guarda_real_cerrada_la_plaza_vuelve()
     {
         // El código que devuelve la guarda de verdad, no uno escrito a mano en el test.

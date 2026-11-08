@@ -66,7 +66,11 @@ namespace CaeManager.Web.Features.Contacto;
 /// hacen falta muchos equipos: un solo prefijo IPv6 /48 da 65.536 particiones /64, y bastan 12 para
 /// gastar las 60 plazas de una hora. Es el precio de acotar el correo que llega a info@talveg.es. El
 /// agotamiento se registra como error una vez por episodio, no en cada rechazo, para que avise sin
-/// volverse ruido. El formulario debe ofrecer escribir a info@talveg.es ante cualquier 429 o 503.
+/// volverse ruido. También cierra el formulario una caída del SMTP: <c>Email.ErrorRed</c> no
+/// distingue un fallo de conexión de un corte durante <c>SendAsync</c>, así que conserva la plaza, y
+/// con suficientes solicitudes durante la caída el formulario sigue en 503 <c>cupo-agotado</c> hasta
+/// una hora después de volver; el aviso de agotamiento puede deberse a eso y no a abuso. El
+/// formulario debe ofrecer escribir a info@talveg.es ante cualquier 429 o 503.
 /// Frenar el envío distribuido de verdad pide un desafío antirrobot de terceros, que es una decisión
 /// de producto aparte.
 /// </para>
@@ -93,7 +97,8 @@ public static class SolicitudDemoEndpoints
     /// Códigos de <see cref="IEmailService"/> que demuestran que el mensaje no
     /// salió: guarda de envío cerrada (<c>EnvioCorreoOptions.CodigoErrorEnvioCerrado</c>),
     /// SMTP sin configurar y orden o credenciales rechazadas por el servidor
-    /// (<c>SmtpEmailService</c>). Solo con ellos vuelve la plaza del cupo.
+    /// (<c>SmtpEmailService.CodigoNoConfigurado</c> y <c>CodigoErrorApi</c>). Solo con
+    /// ellos vuelve la plaza del cupo; un test los compara con esas constantes.
     /// <c>Email.ErrorRed</c> no está: un vencimiento o un corte durante
     /// <c>SendAsync</c> puede llegar con el mensaje ya aceptado.
     /// </summary>
