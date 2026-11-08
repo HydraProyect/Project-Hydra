@@ -56,6 +56,18 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
         if (ConcurrenciaOptimista.Verificar(centro, request.Version, "este centro") is { } conflicto)
             return Result.Fallo(conflicto);
 
+        // Quitar o cambiar un ancla también exige ver a su X: quien no la ve no pisa lo que no sabe que hay.
+        if (centro.RelacionEmpresarialEntradaId is { } anclaActual)
+        {
+            var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()
+                .Where(r => r.Id == anclaActual && r.TenantId == centro.TenantId)
+                .Select(r => (Guid?)r.ClienteId)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (xActual is { } x && !await alcanceDatos.ClienteVisibleAsync(x, cancellationToken))
+                return Result.Fallo(Error.Crear("Centro.RelacionEntradaFueraDeCartera",
+                    "La contratista principal indicada en este centro no está en tu cartera."));
+        }
+
         if (request.RelacionEmpresarialId is not { } relacionId)
         {
             centro.QuitarAnclaDeEntrada();
@@ -69,8 +81,7 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
         if (relacion is null)
             return Result.Fallo(RelacionNoEncontrada);
 
-        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        if (clientesVisibles is not null && !clientesVisibles.Contains(relacion.ClienteId))
+        if (!await alcanceDatos.ClienteVisibleAsync(relacion.ClienteId, cancellationToken))
             return Result.Fallo(RelacionNoEncontrada);
 
         var anclada = centro.AnclarRelacionDeEntrada(relacion);

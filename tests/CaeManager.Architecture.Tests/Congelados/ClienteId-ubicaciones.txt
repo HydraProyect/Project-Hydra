@@ -24,8 +24,7 @@ src/CaeManager.Application/Centros/Commands/EditarCentro/EditarCentroCommand.cs 
 # Papel por Centro (DECISION_LOG 2026-11-08): compara la posición cliente de la Relación Empresarial anclada
 # (X, la contratista principal) con Centro.ClienteId (el titular) y filtra X por los Clientes empresariales
 # visibles; sin entidad nueva ni cambio de propiedad.
-src/CaeManager.Application/Centros/Commands/EstablecerRelacionDeEntradaCentro/EstablecerRelacionDeEntradaCentroCommand.cs :: ClienteId = 1
-src/CaeManager.Application/Centros/Commands/EstablecerRelacionDeEntradaCentro/EstablecerRelacionDeEntradaCentroCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Centros/Commands/EstablecerRelacionDeEntradaCentro/EstablecerRelacionDeEntradaCentroCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/PendientesEnPlataformaDeCentros.cs :: ClienteId = 1
@@ -33,7 +32,6 @@ src/CaeManager.Application/Centros/Queries/ContratistasDeSubcontratasEnCentro.cs
 src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorIdQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/PapelDeEntradaEnCentro.cs :: ClienteId = 3
-src/CaeManager.Application/Centros/Queries/PapelDeEntradaEnCentro.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionBloqueantePendiente/ObtenerDocumentacionBloqueantePendienteQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Centros/Queries/ObtenerDocumentacionExigidaDeCliente/ObtenerDocumentacionExigidaDeClienteQuery.cs :: ClienteId = 1

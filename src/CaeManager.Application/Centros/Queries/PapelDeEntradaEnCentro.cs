@@ -22,8 +22,14 @@ public sealed record PapelDeEntradaDto(
 /// Calcula el papel a partir del ancla <c>Centro.RelacionEmpresarialEntradaId</c>; no hay columna de rol
 /// (ADR-011). La arista se lee en el Tenant propietario del Centro, y se vuelve a comprobar lo que fijó
 /// <c>Centro.AnclarRelacionDeEntrada</c> (proveedora = Empresa del Centro, cliente ≠ titular): un ancla que
-/// ya no cumpla da contratista principal, que no enseña nada. Quien llama ya ha comprobado que el Centro es
-/// visible.
+/// ya no cumpla da contratista principal, que no enseña nada. La vigencia no se vuelve a comprobar: si la
+/// arista se cierra después, el papel sigue saliendo hasta que alguien quite o cambie el ancla (pendiente de
+/// decisión). Quien llama ya ha comprobado que el Centro es visible.
+///
+/// <para>
+/// El badge es para el lado de gestión CAE (DECISION_LOG: «para que el Gestor CAE sepa…»): al rol Cliente
+/// (portal) le llega contratista principal, que no enseña nada, hasta que se decida otra cosa.
+/// </para>
 /// </summary>
 public static class PapelDeEntradaEnCentro
 {
@@ -34,6 +40,9 @@ public static class PapelDeEntradaEnCentro
         IAlcanceDatosService alcanceDatos,
         CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
+            return PapelDeEntradaDto.ContratistaPrincipal;
+
         var contratistaPrincipalId = await (
             from centro in centrosContext.Centros
             where centro.Id == centroId && centro.RelacionEmpresarialEntradaId != null
@@ -48,8 +57,7 @@ public static class PapelDeEntradaEnCentro
         if (contratistaPrincipalId is not { } xId)
             return PapelDeEntradaDto.ContratistaPrincipal;
 
-        var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        if (clientesVisibles is not null && !clientesVisibles.Contains(xId))
+        if (!await alcanceDatos.ClienteVisibleAsync(xId, cancellationToken))
             return new PapelDeEntradaDto(true, null, null);
 
         var razonSocial = await empresasContext.Empresas

@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCentro;
 using CaeManager.Application.Centros.Queries;
+using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -187,6 +188,71 @@ public class PapelDeEntradaEnCentroTests
             e.Centro.Id, Centros(e.Centro), e.Empresas, alcance, CancellationToken.None);
 
         papel.Should().Be(new PapelDeEntradaDto(true, null, null));
+    }
+
+    private static void ForzarAncla(Centro centro, RelacionEmpresarial relacion) =>
+        typeof(Centro).GetProperty(nameof(Centro.RelacionEmpresarialEntradaId))!.SetValue(centro, relacion.Id);
+
+    [Fact]
+    public async Task Un_ancla_heredada_hacia_el_titular_o_de_otra_Empresa_no_da_papel()
+    {
+        var e = Montar();
+        var haciaElTitular = EnTenant(RelacionEmpresarial.Crear(_empresaDelCentro, _titular.Id, DateTime.UtcNow), Tenant);
+        var deOtraEmpresa = EnTenant(RelacionEmpresarial.Crear(Guid.NewGuid(), _contratistaPrincipal.Id, DateTime.UtcNow), Tenant);
+        e.Empresas.ListaRelacionesEmpresariales.AddRange([haciaElTitular, deOtraEmpresa]);
+
+        foreach (var relacion in new[] { haciaElTitular, deOtraEmpresa })
+        {
+            ForzarAncla(e.Centro, relacion);
+            (await PapelDeEntradaEnCentro.CalcularAsync(
+                    e.Centro.Id, Centros(e.Centro), e.Empresas, new AlcanceDatosServiceFalso(), CancellationToken.None))
+                .Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+        }
+    }
+
+    [Fact]
+    public async Task Al_rol_Cliente_no_se_le_muestra_el_papel()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion);
+
+        var papel = await PapelDeEntradaEnCentro.CalcularAsync(
+            e.Centro.Id, Centros(e.Centro), e.Empresas, new AlcanceDatosServiceFalso(ladoDeGestion: false),
+            CancellationToken.None);
+
+        papel.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+    }
+
+    [Fact]
+    public async Task Quitar_un_ancla_cuya_X_no_se_ve_se_rechaza()
+    {
+        var e = Montar();
+        e.Centro.AnclarRelacionDeEntrada(e.Relacion);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_titular.Id],
+            centroIdsVisibles: [e.Centro.Id], centroIdsParaGestion: [e.Centro.Id]);
+
+        var resultado = await Ejecutar(e, null, alcance);
+
+        resultado.Error.Codigo.Should().Be("Centro.RelacionEntradaFueraDeCartera");
+        e.Centro.RelacionEmpresarialEntradaId.Should().Be(e.Relacion.Id);
+        e.Uow.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task La_ficha_del_Centro_lleva_el_papel_calculado()
+    {
+        var e = Montar();
+        var empresaDelCentro = EnTenant(new Empresa("Empresa del Centro"), Tenant);
+        var centro = EnTenant(new Centro(_titular.Id, empresaDelCentro.Id, "Planta Huesca"), Tenant);
+        var relacion = EnTenant(RelacionEmpresarial.Crear(empresaDelCentro.Id, _contratistaPrincipal.Id, DateTime.UtcNow), Tenant);
+        centro.AnclarRelacionDeEntrada(relacion);
+        e.Empresas.ListaEmpresas.Add(empresaDelCentro);
+        e.Empresas.ListaRelacionesEmpresariales.Add(relacion);
+
+        var dto = await new ObtenerCentroPorIdQueryHandler(Centros(centro), e.Empresas, new AlcanceDatosServiceFalso(),
+            PoliticaNotaInternaPruebas.Con(null)).Handle(new(centro.Id), CancellationToken.None);
+
+        dto!.PapelDeEntrada.Should().Be(new PapelDeEntradaDto(true, _contratistaPrincipal.Id, "Contratista Principal SL"));
     }
 
     [Fact]
