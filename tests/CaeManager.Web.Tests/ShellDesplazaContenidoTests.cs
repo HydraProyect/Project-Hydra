@@ -147,7 +147,7 @@ public class ShellDesplazaContenidoTests
     }
 
     [Fact]
-    public void El_teclado_de_la_cabecera_cumple_su_contrato_ejecutando_el_script()
+    public async Task El_teclado_de_la_cabecera_cumple_su_contrato_ejecutando_el_script()
     {
         // Las guardas del manejador de teclado (modal, foco, Ctrl/Alt/Meta, Mayús, defaultPrevented, clic en otro scroller,
         // caducidad del clic) se prueban por su efecto, no por el texto: js/cabeceraTeclado.test.mjs evalúa cabecera.js con un
@@ -173,8 +173,10 @@ public class ShellDesplazaContenidoTests
             var termino = proceso.WaitForExit(TimeSpan.FromSeconds(60));
             if (!termino) proceso.Kill(entireProcessTree: true); // sin esto quedaría un node huérfano en el runner
             termino.Should().BeTrue("node --test no debe colgarse");
-            proceso.ExitCode.Should().Be(0, "las pruebas de Node fallaron:\n" + salida.Result + error.Result);
-            salida.Result.Should().MatchRegex(@"(?m)\bpass [1-9]\d*\s*$", "node --test debe haber ejecutado casos (un 0 de 0 no prueba nada)");
+            var textoSalida = await salida;
+            var textoError = await error;
+            proceso.ExitCode.Should().Be(0, "las pruebas de Node fallaron:\n" + textoSalida + textoError);
+            textoSalida.Should().MatchRegex(@"(?m)\bpass [1-9]\d*\s*$", "node --test debe haber ejecutado casos (un 0 de 0 no prueba nada)");
         }
     }
 
