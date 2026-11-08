@@ -740,10 +740,11 @@ public partial class Empresa360PaginaTests : BunitContext
     [Fact]
     public void Cambiar_de_destino_mientras_se_genera_no_cambia_el_paquete_que_se_descarga()
     {
-        var mediador = Registrar(Empresa());
         // La importación del módulo se queda pendiente: es la espera en la que, sin la corrección, se podía cambiar a «Todo lo
-        // vigente» y descargar un paquete más amplio que el anunciado.
-        var importacion = JSInterop.Setup<IJSObjectReference>("import", "./js/descarga-archivo.js");
+        // vigente» y descargar un paquete más amplio que el anunciado. Se registra antes de que nada lea los servicios.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
         var cut = AbrirPaquete(mediador);
         var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
 
@@ -755,6 +756,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var modulo = new ModuloDescargaQueAnota();
         importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled")));
 
         cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
         modulo.Rutas.Single().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
@@ -763,6 +765,23 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
             .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
         cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled"), "al terminar se puede volver a elegir");
+    }
+
+    /// <summary>
+    /// El JS de bUnit, salvo la importación de <c>descarga-archivo.js</c>, que espera a <paramref name="modulo"/> (bUnit no
+    /// deja retener un <c>SetupModule</c>).
+    /// </summary>
+    private sealed class JsConImportacionRetenida(IJSRuntime interior, Task<IJSObjectReference> modulo) : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            identifier == "import" && args is ["./js/descarga-archivo.js", ..]
+                ? EsperarModuloAsync<TValue>()
+                : interior.InvokeAsync<TValue>(identifier, cancellationToken, args);
+
+        private async ValueTask<TValue> EsperarModuloAsync<TValue>() => (TValue)await modulo;
     }
 
     /// <summary>El módulo <c>descarga-archivo.js</c> con la importación retenida: anota cada ruta que se pide.</summary>
