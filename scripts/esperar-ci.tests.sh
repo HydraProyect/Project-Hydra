@@ -443,7 +443,7 @@ nueva_fixture_dir
 fixture PR_VIEW 1 "MOCK_ERROR"
 TIMEOUT_S_PRUEBA=600 ejecutar 130 --hasta merge
 PRUEBAS=$((PRUEBAS + 1))
-if [[ "$CODIGO" == "64" ]] && ! printf '%s\n' "$SALIDA" | grep -q '^VEREDICTO:' \
+if [[ "$CODIGO" == "64" ]] && ! grep -q '^VEREDICTO:' <<<"$SALIDA" \
    && ! grep -q "releyendo" "$TMP_ROOT/ultimo-stderr.log"; then
   echo "OK: PR ilegible desde el principio -> 64 sin VEREDICTO y sin reintentos"
 else

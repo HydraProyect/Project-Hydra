@@ -35,6 +35,12 @@
 # Es lo que permite probar este guion sin red — ver verificar-licencias-nuget.tests.sh.
 set -euo pipefail
 
+# Nunca `productor | grep -q` ni `| head`: con pipefail, el consumidor que corta
+# al primer acierto deja al productor escribiendo en una tubería cerrada (SIGPIPE
+# o «write error: Broken pipe») y la tubería entera da fallo aunque el patrón
+# estuviera. Así se perdió una vez la marca «[exige aceptar términos]» en CI. La
+# entrada se materializa antes en una variable y se busca con `<<<`.
+
 # Licencias libres aceptadas sin revisión. Deliberadamente corta: ampliarla es
 # una decisión consciente, no un parche para silenciar un rojo.
 # `PostgreSQL` (la de Npgsql) es la licencia del propio PostgreSQL: permisiva
@@ -59,7 +65,9 @@ EXCEPCIONES="${EXCEPCIONES:-$(dirname "${BASH_SOURCE[0]}")/licencias-revisadas.t
 esta_exceptuado() {
   local id="$1" version="$2"
   [[ -f "$EXCEPCIONES" ]] || return 1
-  tr -d '\r' <"$EXCEPCIONES" | grep -qE "^[[:space:]]*${id}[[:space:]]+${version}([[:space:]]|$)"
+  local contenido
+  contenido="$(tr -d '\r' <"$EXCEPCIONES")"
+  grep -qE "^[[:space:]]*${id}[[:space:]]+${version}([[:space:]]|$)" <<<"$contenido"
 }
 
 obtener_nuspec() {
@@ -77,9 +85,10 @@ obtener_nuspec() {
 # Extrae el valor de <license type="X">Y</license> como "X|Y".
 # Tolera atributos en cualquier orden y espacios; si no hay <license>, "|".
 leer_licencia() {
-  local nuspec="$1"
+  local nuspec="${1//$'\r'/}"
   local linea
-  linea="$(printf '%s' "$nuspec" | tr -d '\r' | grep -o '<license[^>]*>[^<]*</license>' | head -1 || true)"
+  linea="$(grep -o '<license[^>]*>[^<]*</license>' <<<"$nuspec" || true)"
+  linea="${linea%%$'\n'*}"
   [[ -n "$linea" ]] || { printf '|'; return; }
   local tipo valor
   tipo="$(printf '%s' "$linea" | sed -n 's/.*type="\([^"]*\)".*/\1/p')"
@@ -88,8 +97,8 @@ leer_licencia() {
 }
 
 exige_aceptacion() {
-  printf '%s' "$1" | tr -d '\r' \
-    | grep -qi '<requireLicenseAcceptance>[[:space:]]*true[[:space:]]*</requireLicenseAcceptance>'
+  grep -qi '<requireLicenseAcceptance>[[:space:]]*true[[:space:]]*</requireLicenseAcceptance>' \
+    <<<"${1//$'\r'/}"
 }
 
 es_permitida() {

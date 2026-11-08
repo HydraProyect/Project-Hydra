@@ -176,7 +176,7 @@ ejecutar exito BETTERSTACK_HEARTBEAT_URL="$URL"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "un único curl" '[ "$(llamadas_curl)" -eq 1 ]'
 comprobar "el curl va a la URL exacta (por stdin)" 'grep -q "^cfg url = \"$URL\"\$" "$LOG_CURL"'
-comprobar "la URL NO viaja en los argumentos de curl (saldría en ps)" '! grep "^curl" "$LOG_CURL" | grep -q "$URL"'
+comprobar "la URL NO viaja en los argumentos de curl (saldría en ps)" '! grep -q "$URL" <<<"$(grep "^curl" "$LOG_CURL")"'
 comprobar "no se avisó de fallo" '! grep -q "/fail" "$LOG_CURL"'
 
 echo "== sin URL de heartbeat: cero llamadas de red"
@@ -221,7 +221,7 @@ comprobar "curl no se llamó" '[ "$(llamadas_curl)" -eq 0 ]'
 echo "== el ping falla tras un backup bueno: el backup sigue siendo bueno"
 ejecutar pingroto BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CURL_FALLA=1
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
-comprobar "lo dice en la salida" 'printf "%s" "$SALIDA" | grep -q "el ping a Better Stack falló"'
+comprobar "lo dice en la salida" 'grep -q "el ping a Better Stack falló" <<<"$SALIDA"'
 
 echo "== URL con barra final: /fail sin barra doble"
 ejecutar barra BETTERSTACK_HEARTBEAT_URL="$URL/" ESC_DUMP_VACIO=1
@@ -235,28 +235,28 @@ comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "el archivo Borg lleva env-produccion, byte a byte igual al .env" '[ -f "$ARCH/env-produccion" ] && cmp -s "$ARCH/env-produccion" "$ENV_FALSO"'
 comprobar "y sigue llevando dump, claves y documentos" '[ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ] && [ -f "$ARCH/documentos/$TENANT_PRUEBA/a.pdf" ]'
 comprobar "permisos 0600" '[ "$(stat -c %a "$ARCH/env-produccion" 2>/dev/null || stat -f %Lp "$ARCH/env-produccion")" = "600" ]'
-comprobar "el contenido NO sale en la salida del guion" '! printf "%s" "$SALIDA" | grep -q "$SENTINELA"'
+comprobar "el contenido NO sale en la salida del guion" '! grep -q "$SENTINELA" <<<"$SALIDA"'
 comprobar "el contenido NO va en argv de borg" '! grep -q "$SENTINELA" "$LOG_BORG"'
 comprobar "el contenido NO va en argv de curl ni en su configuración" '! grep -q "$SENTINELA" "$LOG_CURL"'
 comprobar "el contenido NO va en argv de docker" '! grep -q "$SENTINELA" "$LOG_DOCKER"'
-comprobar "la salida dice que se incluyó, sin mostrarlo" 'printf "%s" "$SALIDA" | grep -q "env-produccion"'
+comprobar "la salida dice que se incluyó, sin mostrarlo" 'grep -q "env-produccion" <<<"$SALIDA"'
 
 echo "== fallo tras copiar el .env: tampoco se filtra"
 ejecutar envfalla BETTERSTACK_HEARTBEAT_URL="$URL" ESC_BORG_CREATE_FALLA=1
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
-comprobar "el contenido NO sale en la salida" '! printf "%s" "$SALIDA" | grep -q "$SENTINELA"'
-comprobar "ni en los logs de curl / borg / docker" '! cat "$LOG_CURL" "$LOG_BORG" "$LOG_DOCKER" | grep -q "$SENTINELA"'
+comprobar "el contenido NO sale en la salida" '! grep -q "$SENTINELA" <<<"$SALIDA"'
+comprobar "ni en los logs de curl / borg / docker" '! grep -q "$SENTINELA" "$LOG_CURL" "$LOG_BORG" "$LOG_DOCKER"'
 
 echo "== sin .env (ruta inexistente): la BD SE RESPALDA igualmente; el guion sale con error y avisa /fail"
 ejecutar sinenv BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/no-existe"
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
-comprobar "dice qué falta y cómo salir" 'printf "%s" "$SALIDA" | grep -q "no hay .env de producción" && printf "%s" "$SALIDA" | grep -q "BACKUP_SIN_ENV=1"'
+comprobar "dice qué falta y cómo salir" 'grep -q "no hay .env de producción" <<<"$SALIDA" && grep -q "BACKUP_SIN_ENV=1" <<<"$SALIDA"'
 comprobar "se creó el archivo Borg" 'grep -q "^borg create" "$LOG_BORG"'
 comprobar "el archivo lleva la BD, las claves y los documentos" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ -f "$LOG_BORG.archivo/dataprotection-keys/key-x.xml" ] && [ -f "$LOG_BORG.archivo/documentos/$TENANT_PRUEBA/a.pdf" ]'
 comprobar "y no lleva env-produccion" '[ ! -e "$LOG_BORG.archivo/env-produccion" ]'
 comprobar "prune y compact también corrieron (la retención no se salta)" 'grep -q "^borg prune" "$LOG_BORG" && grep -q "^borg compact" "$LOG_BORG"'
 comprobar "avisó /fail y no mandó el ping de éxito (un único curl)" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
-comprobar "la salida dice que la BD quedó respaldada sin el .env" 'printf "%s" "$SALIDA" | grep -q "BACKUP DE LA BD COMPLETADO" && ! printf "%s" "$SALIDA" | grep -q "^BACKUP COMPLETADO"'
+comprobar "la salida dice que la BD quedó respaldada sin el .env" 'grep -q "BACKUP DE LA BD COMPLETADO" <<<"$SALIDA" && ! grep -q "^BACKUP COMPLETADO" <<<"$SALIDA"'
 
 echo "== .env vacío: igual (archivo con la BD, exit != 0, /fail)"
 : > "$TMP_ROOT/env-vacio"
@@ -275,14 +275,14 @@ echo "== .env que existe pero no se puede copiar (hallazgo de Codex): la BD se r
 mkdir -p "$TMP_ROOT/env-directorio"
 ejecutar envilegible BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/env-directorio"
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
-comprobar "dice que existe pero no se pudo copiar" 'printf "%s" "$SALIDA" | grep -q "no se pudo copiar"'
+comprobar "dice que existe pero no se pudo copiar" 'grep -q "no se pudo copiar" <<<"$SALIDA"'
 comprobar "se creó el archivo Borg con la BD" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ ! -e "$LOG_BORG.archivo/env-produccion" ]'
 comprobar "avisó /fail y no mandó el ping de éxito" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
 
 echo "== BACKUP_SIN_ENV=1: se omite a sabiendas, con aviso"
 ejecutar sinenv-explicito ENV_PRODUCCION="$TMP_ROOT/no-existe" BACKUP_SIN_ENV=1
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
-comprobar "avisa de que el archivo NO lleva el .env" 'printf "%s" "$SALIDA" | grep -q "NO incluye el .env"'
+comprobar "avisa de que el archivo NO lleva el .env" 'grep -q "NO incluye el .env" <<<"$SALIDA"'
 comprobar "el archivo Borg no lleva env-produccion" '[ ! -e "$LOG_BORG.archivo/env-produccion" ]'
 
 echo "== documentos/ se lee del punto de montaje del volumen, sin copia temporal en el host"
@@ -302,7 +302,7 @@ comprobar "las rutas del archivo son las de siempre: documentos/<tenantId>/<fich
 # reales de borg create y se aplica (re: de Borg = expresión regular de Python
 # con re.search; esta usa solo sintaxis común con ERE) a rutas como las del archivo.
 PATRON=$(grep "^borg create" "$LOG_BORG" | sed -n 's/.* --exclude re:\([^ ]*\) .*/\1/p')
-excluye() { printf '%s\n' "$1" | grep -Eq -- "$PATRON"; }
+excluye() { grep -Eq -- "$PATRON" <<<"$1"; }
 G="0123456789abcdef0123456789abcdef"; H="fedcba9876543210fedcba9876543210"
 comprobar "borg create lleva un --exclude re:" '[ -n "$PATRON" ]'
 comprobar "excluye el temporal de una escritura, con y sin extensión" \
@@ -312,7 +312,7 @@ comprobar "NO excluye documentos legítimos, aunque su extensión empiece por .t
 comprobar "NO excluye nada fuera de documentos/<tenant>/" \
   '! excluye "CaeManager.dump" && ! excluye "dataprotection-keys/key-$G.tmp-$H" && ! excluye "env-produccion" && ! excluye "documentos/$TENANT_PRUEBA" && ! excluye "documentos/$G.pdf.tmp-$H"'
 comprobar "borg create recibe rutas relativas (no la ruta del volumen)" \
-  'grep "^borg create" "$LOG_BORG" | grep -q " CaeManager.dump dataprotection-keys documentos" && ! grep "^borg create" "$LOG_BORG" | grep -q "$PUNTO_MONTAJE"'
+  'grep -q " CaeManager.dump dataprotection-keys documentos" <<<"$(grep "^borg create" "$LOG_BORG")" && ! grep -q "$PUNTO_MONTAJE" <<<"$(grep "^borg create" "$LOG_BORG")"'
 comprobar "pregunta el driver y las opciones del volumen" 'grep -q "^docker volume inspect -f {{ .Driver }} {{ len .Options }} caemanager-data\$" "$LOG_DOCKER"'
 
 echo "== volumen que no es local sin opciones (nfs, bind con driver_opts): falla antes de borg y avisa /fail"
@@ -335,7 +335,7 @@ echo "== punto de montaje inaccesible (cron sin root): falla antes de borg y avi
 ejecutar sinroot BETTERSTACK_HEARTBEAT_URL="$URL" ESC_PUNTO_MONTAJE="$TMP_ROOT/no-existe"
 comprobar "termina distinto de 0, avisa /fail y no llega a borg create" \
   '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
-comprobar "lo explica" 'printf "%s" "$SALIDA" | grep -q "como root"'
+comprobar "lo explica" 'grep -q "como root" <<<"$SALIDA"'
 
 echo "== el remount de solo lectura falla: borg NO lee documentos/ con permiso de escritura"
 ejecutar sinro BETTERSTACK_HEARTBEAT_URL="$URL" ESC_RO_FALLA=1
@@ -351,11 +351,11 @@ done
 for modo in none authenticated authenticated-blake2; do
   ejecutar "sincifrar-$modo" BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CIFRADO="$modo"
   comprobar "modo $modo: aborta, avisa /fail y no vuelca ni crea archivo" \
-    '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && printf "%s" "$SALIDA" | grep -q "NO está cifrado"'
+    '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && grep -q "NO está cifrado" <<<"$SALIDA"'
 done
 ejecutar infosinjson BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CIFRADO=SINJSON
 comprobar "salida de borg info sin el modo de encriptación: aborta (no se supone cifrado)" \
-  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && printf "%s" "$SALIDA" | grep -q "no se pudo leer la encriptación"'
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && grep -q "no se pudo leer la encriptación" <<<"$SALIDA"'
 ejecutar infofalla BETTERSTACK_HEARTBEAT_URL="$URL" ESC_INFO_FALLA=1
 comprobar "borg info falla (repo inaccesible, passphrase incorrecta): aborta y avisa /fail" \
   '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG"'
@@ -364,9 +364,9 @@ echo "== registro con hora de inicio y fin de cada fase (S-D-10)"
 ejecutar ventana
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "cada fase deja su hora UTC" \
-  '( for f in "inicio del volcado de la BD" "fin del volcado de la BD" "inicio de la copia de dataprotection-keys" "fin de la copia de dataprotection-keys" "inicio de borg create" "fin de borg create"; do printf "%s" "$SALIDA" | grep -Eq "\[[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\] $f" || exit 1; done )'
+  '( for f in "inicio del volcado de la BD" "fin del volcado de la BD" "inicio de la copia de dataprotection-keys" "fin de la copia de dataprotection-keys" "inicio de borg create" "fin de borg create"; do grep -Eq "\[[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\] $f" <<<"$SALIDA" || exit 1; done )'
 comprobar "y un resumen de la ventana con el nombre del archivo" \
-  'printf "%s" "$SALIDA" | grep -Eq "VENTANA \(caemanager-[0-9T-]+\): BD volcada entre [0-9TZ:-]+ y [0-9TZ:-]+; claves copiadas desde [0-9TZ:-]+; documentos/ leídos entre [0-9TZ:-]+ y [0-9TZ:-]+\."'
+  'grep -Eq "VENTANA \(caemanager-[0-9T-]+\): BD volcada entre [0-9TZ:-]+ y [0-9TZ:-]+; claves copiadas desde [0-9TZ:-]+; documentos/ leídos entre [0-9TZ:-]+ y [0-9TZ:-]+\." <<<"$SALIDA"'
 
 echo "== directorio de trabajo (S-D-12): umask 077, 0700, prefijo fijo y limpieza de restos"
 TMP_BACKUP="$TMP_ROOT/tmpbackup"
@@ -381,7 +381,7 @@ echo secreto > "$RESTO_MUERTO/CaeManager.dump"
 ejecutar restos TMPDIR="$TMP_BACKUP"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "borra el resto de un PID que ya no vive, y avisa" \
-  '[ ! -e "$RESTO_MUERTO" ] && printf "%s" "$SALIDA" | grep -q "borrando el directorio de trabajo que dejó una ejecución anterior"'
+  '[ ! -e "$RESTO_MUERTO" ] && grep -q "borrando el directorio de trabajo que dejó una ejecución anterior" <<<"$SALIDA"'
 comprobar "respeta el de una ejecución viva" '[ -d "$RESTO_VIVO" ]'
 comprobar "no toca directorios de otro prefijo" '[ -d "$OTRO_PREFIJO" ]'
 comprobar "su propio directorio de trabajo se borra al terminar" '[ "$(ls -A "$TMP_BACKUP" | wc -l)" -eq 2 ]'

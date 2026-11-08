@@ -67,7 +67,7 @@ for c in caemanager-app caemanager-db; do
   echo "== existe $c: se niega"
   ejecutar "guarda-$c" ESC_CONTENEDORES="$c otro"
   comprobar "sale con 3" '[ "$CODIGO" -eq 3 ]'
-  comprobar "dice por qué" 'printf "%s" "$SALIDA" | grep -q "existe el stack real"'
+  comprobar "dice por qué" 'grep -q "existe el stack real" <<<"$SALIDA"'
   comprobar "la única llamada a docker fue ps" '[ "$(llamadas_docker)" -eq 1 ] && grep -q "^docker ps" "$LOG_DOCKER"'
 done
 
@@ -88,7 +88,7 @@ comprobar "la contraseña entra por stdin (Entrada.Password@-)" 'grep -q "Entrad
 
 echo "== trinquete estático: con --certificado-dp, sin bandera de claves en claro"
 comprobar "la bandera se emite una sola vez" '[ "$(grep -c "^[^#]*PermitirClavesSinCifrar" "$SCRIPT")" -eq 1 ]'
-comprobar "y justo tras el else de la rama con certificado" 'grep -B1 "^[^#]*PermitirClavesSinCifrar" "$SCRIPT" | head -1 | grep -qx " *else"'
+comprobar "y justo tras el else de la rama con certificado" 'grep -qx " *else" <<<"$(grep -B1 "^[^#]*PermitirClavesSinCifrar" "$SCRIPT" | head -1)"'
 
 echo "== --certificado-dp: el UID 1654 de la app (no quien ejecuta el guion) debe poder leerlo"
 # Propietario y modo se leen con `stat -c`; aquí el propietario es quien ejecuta la
@@ -107,8 +107,8 @@ else
   crear_certs cert-600 600 750
   ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar cert-600
   comprobar "ficheros 600 de otro propietario: sale con 2" '[ "$CODIGO" -eq 2 ]'
-  comprobar "nombra el fichero ilegible" 'printf "%s" "$SALIDA" | grep -q "dataprotection.key  (el UID 1654 no puede leerlo)"'
-  comprobar "da el comando que lo arregla" 'printf "%s" "$SALIDA" | grep -qF "sudo chown -R 1654:\$(id -g) $DIR_CERT; sudo chmod 750 $DIR_CERT; sudo chmod 440 $DIR_CERT/*"'
+  comprobar "nombra el fichero ilegible" 'grep -q "dataprotection.key  (el UID 1654 no puede leerlo)" <<<"$SALIDA"'
+  comprobar "da el comando que lo arregla" 'grep -qF "sudo chown -R 1654:\$(id -g) $DIR_CERT; sudo chmod 750 $DIR_CERT; sudo chmod 440 $DIR_CERT/*" <<<"$SALIDA"'
   comprobar "antes de la fase 1: ni una llamada a docker" '[ "$(llamadas_docker)" -eq 0 ]'
 
   crear_certs cert-644 644 755
@@ -119,15 +119,15 @@ else
   crear_certs cert-dir-700 644 700
   ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar cert-dir-700
   comprobar "directorio 700 (sin x para otros): sale con 2" '[ "$CODIGO" -eq 2 ]'
-  comprobar "dice que no puede atravesarlo" 'printf "%s" "$SALIDA" | grep -q "no puede atravesarlo"'
+  comprobar "dice que no puede atravesarlo" 'grep -q "no puede atravesarlo" <<<"$SALIDA"'
 
   crear_certs cert-anterior 644 755
   echo key > "$DIR_CERT/dataprotection-2026.key"; chmod 600 "$DIR_CERT/dataprotection-2026.key"
   echo crt > "$DIR_CERT/dataprotection-2026.crt"; chmod 644 "$DIR_CERT/dataprotection-2026.crt"
   ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar cert-anterior
   comprobar "un dataprotection-*.key anterior en 600: sale con 2" '[ "$CODIGO" -eq 2 ]'
-  comprobar "nombra el anterior" 'printf "%s" "$SALIDA" | grep -q "dataprotection-2026.key"'
-  comprobar "y no nombra el principal, que sí se lee" '! printf "%s" "$SALIDA" | grep -q "dataprotection.key  "'
+  comprobar "nombra el anterior" 'grep -q "dataprotection-2026.key" <<<"$SALIDA"'
+  comprobar "y no nombra el principal, que sí se lee" '! grep -q "dataprotection.key  " <<<"$SALIDA"'
 
   crear_certs cert-otro 644 755
   echo key > "$DIR_CERT/otro.key"; chmod 600 "$DIR_CERT/otro.key"
@@ -203,16 +203,16 @@ ejecutar_borg() {   # ejecutar_borg NOMBRE ARCHIVOS -> $SALIDA, $CODIGO
 }
 
 ejecutar_borg cadencia-ok "$(archivos_diarios)"
-comprobar "siete diarios y un mensual de hace 40 días: la cadencia diaria sale OK" 'printf "%s" "$SALIDA" | grep -q "\[OK\] Hueco máximo entre copias diarias recientes"'
-comprobar "el hueco de 40 días no cuenta (24 h, no ~900 h)" 'printf "%s" "$SALIDA" | grep -q "Hueco máximo entre copias diarias recientes.*24 h 0 min"'
+comprobar "siete diarios y un mensual de hace 40 días: la cadencia diaria sale OK" 'grep -q "\[OK\] Hueco máximo entre copias diarias recientes" <<<"$SALIDA"'
+comprobar "el hueco de 40 días no cuenta (24 h, no ~900 h)" 'grep -q "Hueco máximo entre copias diarias recientes.*24 h 0 min" <<<"$SALIDA"'
 comprobar "llegó a crear la red (el ensayo siguió)" 'grep -q "^docker network create" "$LOG_DOCKER"'
 
 ejecutar_borg cadencia-falta-un-dia "$(archivos_diarios 3)"
-comprobar "falta la copia de un día: la cadencia diaria sale FALLO" 'printf "%s" "$SALIDA" | grep -q "\[FALLO\] Hueco máximo entre copias diarias recientes"'
-comprobar "con 48 h de hueco" 'printf "%s" "$SALIDA" | grep -q "Hueco máximo entre copias diarias recientes.*48 h 0 min"'
+comprobar "falta la copia de un día: la cadencia diaria sale FALLO" 'grep -q "\[FALLO\] Hueco máximo entre copias diarias recientes" <<<"$SALIDA"'
+comprobar "con 48 h de hueco" 'grep -q "Hueco máximo entre copias diarias recientes.*48 h 0 min" <<<"$SALIDA"'
 
 ejecutar_borg cadencia-sin-datos "caemanager-$(marca_hace 40) caemanager-$(marca_hace 0)"
-comprobar "con un solo archivo en la ventana no se calla: sale OMITIDO" 'printf "%s" "$SALIDA" | grep -q "\[OMITIDO\] Hueco máximo entre copias diarias recientes"'
+comprobar "con un solo archivo en la ventana no se calla: sale OMITIDO" 'grep -q "\[OMITIDO\] Hueco máximo entre copias diarias recientes" <<<"$SALIDA"'
 
 echo "== trinquete estático: el hueco total entre retenidos no se llama cadencia"
 comprobar "el resumen lo rotula informativo" 'grep -q "^echo \"Hueco entre retenidos: .*informativo, NO es cadencia" "$SCRIPT"'
