@@ -17,8 +17,10 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 ///
 /// Autorización: rol de escritura (<see cref="AutorizacionEscrituraBehavior"/>) y alcance de gestión del Gestor
 /// CAE sobre el Centro; fuera de alcance responde igual que un Centro inexistente, y lo mismo si el Centro ya
-/// tiene un ancla cuya X no está entre los Clientes empresariales visibles de quien la quita o la cambia (no se
-/// confirma que haya un ancla fuera de su Asignación de Cartera). La arista se busca en el
+/// tiene un ancla cuya X no está entre los Clientes empresariales visibles de quien la quita o la cambia. Ese
+/// error no nombra el ancla ni a X, pero el rechazo en sí sigue distinguiéndose del éxito que tendría el mismo
+/// comando sin ancla: es un oráculo residual aceptado hasta que se decida si quien no ve a X puede pisar el ancla
+/// (pendiente de decisión). La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
@@ -62,8 +64,8 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
             return Result.Fallo(conflicto);
 
         // Quitar o cambiar un ancla también exige ver a su X: quien no la ve no pisa lo que no sabe que hay. Responde
-        // como un Centro fuera de alcance, el mismo error de arriba, y no con uno propio que confirme que hay un
-        // ancla hacia alguien fuera de su Asignación de Cartera.
+        // con el mismo error de arriba, que no nombra el ancla ni a X; el rechazo frente al éxito sin ancla es el
+        // oráculo residual descrito en la cabecera.
         if (centro.RelacionEmpresarialEntradaId is { } anclaActual)
         {
             var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()

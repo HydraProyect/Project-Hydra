@@ -1,3 +1,5 @@
+using CaeManager.Application.Centros.Queries;
+using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -62,7 +64,53 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
             .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
     }
 
+    /// <summary>
+    /// La ficha del Centro lee el ancla y su X con LEFT JOIN en su propia sentencia, contra PostgreSQL: con X
+    /// visible nombra a X; con X fuera de la cartera de quien mira, el papel es igual que el de un Centro sin ancla.
+    /// </summary>
+    [Fact]
+    public async Task La_ficha_lee_el_papel_del_ancla_y_no_lo_revela_con_X_fuera_de_cartera()
+    {
+        var anclado = await SembrarAsync(_tenant);
+        var sinAncla = await SembrarAsync(_tenant);
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var centro = await contexto.Centros.SingleAsync(c => c.Id == anclado.CentroId);
+            var relacion = await contexto.RelacionesEmpresariales.SingleAsync(r => r.Id == anclado.RelacionId);
+            centro.AnclarRelacionDeEntrada(relacion).EsExitoso.Should().BeTrue();
+            await contexto.SaveChangesAsync();
+        }
+
+        (await PapelEnLaFichaAsync(anclado.CentroId, new AlcanceDatosServiceFalso()))
+            .Should().Be(new PapelDeEntradaDto(true, anclado.ContratistaPrincipalId, anclado.ContratistaPrincipalRazonSocial));
+
+        var sinCarteraSobreX = (Guid centroId, Guid titularId) => new AlcanceDatosServiceFalso(
+            clienteIds: [titularId], centroIds: [centroId], centroIdsParaGestion: [centroId]);
+        var conAncla = await PapelEnLaFichaAsync(anclado.CentroId, sinCarteraSobreX(anclado.CentroId, anclado.TitularId));
+        var gemelo = await PapelEnLaFichaAsync(sinAncla.CentroId, sinCarteraSobreX(sinAncla.CentroId, sinAncla.TitularId));
+        conAncla.Should().Be(gemelo);
+        conAncla.Should().Be(PapelDeEntradaDto.ContratistaPrincipal);
+    }
+
+    private async Task<PapelDeEntradaDto?> PapelEnLaFichaAsync(Guid centroId, AlcanceDatosServiceFalso alcance)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var dto = await new ObtenerCentroPorIdQueryHandler(contexto, contexto, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
+            .Handle(new ObtenerCentroPorIdQuery(centroId), CancellationToken.None);
+        dto.Should().NotBeNull();
+        return dto!.PapelDeEntrada;
+    }
+
+    private sealed record Sembrado(
+        Guid CentroId, Guid RelacionId, Guid TitularId, Guid ContratistaPrincipalId, string ContratistaPrincipalRazonSocial);
+
     private async Task<(Guid CentroId, Guid RelacionId)> SembrarCentroConRelacionAsync(Guid tenant)
+    {
+        var sembrado = await SembrarAsync(tenant);
+        return (sembrado.CentroId, sembrado.RelacionId);
+    }
+
+    private async Task<Sembrado> SembrarAsync(Guid tenant)
     {
         await using var contexto = CrearContexto(tenant);
         var sufijo = Guid.NewGuid().ToString("N");
@@ -77,7 +125,7 @@ public class PapelDeEntradaEnCentroIntegracionTests : IAsyncLifetime
         contexto.RelacionesEmpresariales.Add(relacion);
         contexto.Centros.Add(centro);
         await contexto.SaveChangesAsync();
-        return (centro.Id, relacion.Id);
+        return new Sembrado(centro.Id, relacion.Id, titular.Id, contratistaPrincipal.Id, contratistaPrincipal.RazonSocial);
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenant)

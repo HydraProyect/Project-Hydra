@@ -275,7 +275,8 @@ public class PapelDeEntradaEnCentroTests
 
     /// <summary>
     /// Quitar el ancla cuya X no ve responde con el mismo error, código y mensaje, que el Centro fuera de alcance de
-    /// gestión, y no con uno propio que confirme que hay un ancla fuera de su Asignación de Cartera.
+    /// gestión, y no con uno propio que nombre el ancla. El rechazo frente al éxito sin ancla sigue siendo un oráculo
+    /// residual, pendiente de decisión (cabecera del comando); este test fija solo la forma del error.
     /// </summary>
     [Fact]
     public async Task Quitar_un_ancla_cuya_X_no_se_ve_responde_como_un_Centro_fuera_de_alcance()
