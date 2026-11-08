@@ -712,7 +712,8 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     private IRenderedComponent<UsuariosControlados> Renderizar(
-        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false, string? url = null)
+        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false, string? url = null,
+        TimeSpan? tiempoMaximoBusquedaCif = null)
     {
         Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
@@ -764,7 +765,11 @@ public partial class UsuariosGen2Tests : BunitContext
         };
 
         if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
-        return Render<UsuariosControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
+        return Render<UsuariosControlados>(p =>
+        {
+            p.Add(c => c.IntegradaEnConfiguracion, integrada);
+            if (tiempoMaximoBusquedaCif is { } tope) p.Add(c => c.TiempoMaximoBusquedaCif, tope);
+        });
     }
 
     private static IReadOnlyList<IElement> Filas(IRenderedComponent<UsuariosControlados> cut) =>
@@ -2149,6 +2154,60 @@ public partial class UsuariosGen2Tests : BunitContext
             pista.Should().Contain("No pudimos comprobar esta identificación fiscal");
             pista.Should().NotContain("créala primero", "mandar a crear una empresa que quizá existe la duplica");
         });
+    }
+
+    /// <summary>
+    /// «Buscando…» no puede quedarse fijo: una comprobación de CIF que no vuelve (y que ignora el token) acaba, al
+    /// vencer el tope de espera, en el error de comprobación y deja de ocupar el botón de guardar.
+    /// </summary>
+    [Fact]
+    public async Task Una_comprobacion_de_CIF_que_no_vuelve_acaba_en_error_y_no_deja_Buscando_fijo()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _mediador.Retener = peticion =>
+            peticion is BuscarEmpresaPorCifQuery ? new TaskCompletionSource<object?>().Task : null; // nunca vuelve
+
+        var cut = Renderizar(tiempoMaximoBusquedaCif: TimeSpan.FromMilliseconds(500));
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
+
+        // Sin await: el evento no termina hasta que la comprobación acaba (aquí, por el tope).
+        var escritura = EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
+
+        cut.WaitForAssertion(() =>
+        {
+            var pista = cut.Find(".pista-documento-error").TextContent;
+            pista.Should().Contain("No pudimos comprobar esta identificación fiscal");
+            pista.Should().NotContain("créala primero");
+            cut.Markup.Should().NotContain("Buscando…");
+        }, TimeSpan.FromSeconds(10));
+
+        await escritura;
+    }
+
+    /// <summary>
+    /// Una cancelación que no viene del cierre de la página (un handler que se cancela por su cuenta) es un fallo, no
+    /// una retirada: antes la búsqueda salía sin apagar «Buscando…» y sin decir nada.
+    /// </summary>
+    [Fact]
+    public async Task Una_comprobacion_de_CIF_cancelada_por_otro_motivo_que_el_cierre_se_dice_como_error()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _mediador.Retener = peticion => peticion is BuscarEmpresaPorCifQuery
+            ? Task.FromException<object?>(new OperationCanceledException("cancelada por el handler"))
+            : null;
+
+        var cut = Renderizar();
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+        await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
+
+        await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find(".pista-documento-error").TextContent.Should().Contain("No pudimos comprobar esta identificación fiscal");
+            cut.Markup.Should().NotContain("Buscando…");
+        }, TimeSpan.FromSeconds(10));
     }
 
     [Fact]
