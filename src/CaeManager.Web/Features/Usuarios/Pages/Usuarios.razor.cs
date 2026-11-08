@@ -131,6 +131,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _desechado = true;
         _ciclo.Cancel();
         _ciclo.Dispose();
+        _busquedaCifCts?.Dispose();
+        _busquedaCifCts = null;
     }
 
     /// <summary>
@@ -818,10 +820,40 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private bool _errorBusquedaCif;
 
+    /// <summary>
+    /// Cuánto se espera a la comprobación del CIF. «Buscando…» no puede ser un
+    /// estado sin salida: <c>WaitAsync</c> suelta la espera al cumplirse el tope
+    /// aunque el handler no respete el token (cancelar es una petición, no una
+    /// garantía), y el fallo se pinta como error con la misma vía que cualquier
+    /// otro. Se inyecta para que los tests no esperen 10 s.
+    /// </summary>
+    [Parameter] public TimeSpan TiempoMaximoBusquedaCif { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Búsqueda de CIF en vuelo, enlazada a <see cref="_ciclo"/>. Se cancela al
+    /// teclear de nuevo, al abrir otra ficha y al cerrar el drawer, y es la
+    /// única cancelación que se ignora en silencio junto con la de la retirada
+    /// de la pantalla: cualquier otra es un fallo y se dice.
+    /// </summary>
+    private CancellationTokenSource? _busquedaCifCts;
+
+    /// <summary>Retira la búsqueda de CIF en vuelo y la deja obsoleta para quien la espere.</summary>
+    private void InvalidarBusquedaCif()
+    {
+        _versionBusquedaCif++;
+
+        var vigente = _busquedaCifCts;
+        _busquedaCifCts = null;
+        if (vigente is null) return;
+
+        vigente.Cancel();
+        vigente.Dispose();
+    }
+
     private async Task BuscarClientePorCifAsync(string valor)
     {
-        var version = ++_versionBusquedaCif;
-        var token = _ciclo.Token;
+        InvalidarBusquedaCif();
+        var version = _versionBusquedaCif;
 
         _clienteCif = valor;
         _clienteEncontrado = null;
@@ -833,23 +865,57 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return;
         }
 
+        if (_desechado) return;
+
+        var enlazado = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token);
+        _busquedaCifCts = enlazado;
+        var token = enlazado.Token;
+
         _buscandoCliente = true;
         StateHasChanged();
 
         EmpresaPorCifDto? encontrada = null;
         var fallo = false;
 
+        Task<EmpresaPorCifDto?>? consulta = null;
+
         try
         {
-            encontrada = await Mediator.Send(new BuscarEmpresaPorCifQuery(valor), token);
+            consulta = Mediator.Send(new BuscarEmpresaPorCifQuery(valor), token);
+            encontrada = await consulta.WaitAsync(TiempoMaximoBusquedaCif, token);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
         {
+            // La pantalla se retira: no hay dónde pintar.
             return;
         }
         catch (Exception)
         {
+            // Incluye el tope de espera y cualquier cancelación que no venga de
+            // la retirada de la pantalla: sin respuesta no hay "empresa no
+            // encontrada" que decir, hay un fallo.
             fallo = true;
+            if (!token.IsCancellationRequested) enlazado.Cancel();
+
+            // Una consulta soltada por el tope o por una cancelación ajena puede
+            // fallar más tarde: ese fallo ya no interesa, pero no queda sin observar.
+            _ = consulta?.ContinueWith(
+                static t => _ = t.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        }
+        finally
+        {
+            // Solo apaga «Buscando…» la búsqueda que lo encendió: si otra tomó
+            // el relevo, ese estado es suyo.
+            if (version == _versionBusquedaCif && !_ciclo.IsCancellationRequested)
+            {
+                _buscandoCliente = false;
+
+                if (ReferenceEquals(_busquedaCifCts, enlazado))
+                {
+                    _busquedaCifCts = null;
+                    enlazado.Dispose();
+                }
+            }
         }
 
         // Una respuesta vieja no puede pisar a la del CIF que se ve escrito.
@@ -857,7 +923,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         _clienteEncontrado = encontrada;
         _errorBusquedaCif = fallo;
-        _buscandoCliente = false;
     }
 
     /// <summary>
@@ -874,7 +939,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         if (_modoEquipo) return;
         _versionApertura++;
-        _versionBusquedaCif++;
+        InvalidarBusquedaCif();
         _editandoId = null;
         _email = string.Empty;
         _nombreCompleto = string.Empty;
@@ -936,7 +1001,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         // Otra apertura tomó el relevo mientras esta leía.
         if (version != _versionApertura) return;
 
-        _versionBusquedaCif++;
+        InvalidarBusquedaCif();
         _guardando = false;
         _buscandoCliente = false;
         _errorBusquedaCif = false;
@@ -1024,7 +1089,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // estas dos versiones repoblarían el formulario de la SIGUIENTE
             // ficha que se abriera.
             _versionApertura++;
-            _versionBusquedaCif++;
+            InvalidarBusquedaCif();
             _buscandoCliente = false;
             _mensajeErrorFormulario = null;
         }

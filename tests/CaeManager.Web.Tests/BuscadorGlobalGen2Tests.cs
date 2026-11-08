@@ -1368,6 +1368,25 @@ public class BuscadorGlobalGen2Tests : BunitContext
             "un fallo no es la misma noticia que «no hay nada»");
     }
 
+    /// <summary>
+    /// Una cancelación que no viene del usuario (un handler que se cancela por su cuenta, un timeout interno que
+    /// se propaga como cancelación) tampoco puede disfrazarse de «Sin resultados»: solo se calla la cancelación
+    /// del token del propio componente. Antes, todo <see cref="OperationCanceledException"/> se ignoraba.
+    /// </summary>
+    [Fact]
+    public async Task Una_busqueda_cancelada_por_el_handler_sin_cancelar_el_token_se_dice_como_error()
+    {
+        var mediador = new MediadorControlado { FalloDeBusqueda = new OperationCanceledException("cancelada por el handler") };
+        var cut = await RenderizarYAbrir(mediador);
+
+        await Input(cut).EscribirAsync("refri");
+
+        cut.FindAll(".buscador-mensaje-error").Should().ContainSingle();
+        cut.Markup.Should().NotContain("Sin resultados",
+            "una cancelación ajena al usuario no es lo mismo que «no hay nada»");
+        cut.Markup.Should().NotContain("Buscando…");
+    }
+
     /// <summary>"Sin resultados" nombra lo que se escribió: no es lo mismo que decir que no hay nada en la cartera.</summary>
     [Fact]
     public async Task Sin_resultados_nombra_el_termino_escrito_y_el_ambito()
