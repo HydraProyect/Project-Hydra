@@ -365,7 +365,9 @@ public class GestionesAutomaticasTests
     public async Task Un_paso_cerrado_despues_de_que_la_renovacion_la_marcara_sustituida_no_la_reabre_ni_la_cierra()
     {
         // La carrera inversa: la renovación la lee abierta y la marca; el último paso se valida antes del commit. El
-        // resultado es el de confirmar primero la renovación y después la validación, un orden posible: Sustituida.
+        // resultado es el de confirmar primero la renovación y después la validación, un orden posible (ningún comando de
+        // acreditación impide actuar sobre las de un Documento histórico): Sustituida. Ya pasaba antes de esta ronda; fija
+        // que la marca no la pisan los pasos, no la derivación nueva.
         var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
         var anterior = DocumentoDelTrabajador();
         var acreditacionAnterior = Acreditar(anterior, acceso);

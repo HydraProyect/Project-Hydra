@@ -15,9 +15,11 @@ namespace CaeManager.Domain.Gestiones;
 /// <b>El paso no tiene estado propio</b> (§ 4.3): su estado es el de su acreditación, que se cambia con los
 /// mismos comandos que el panel «Gestionar» de Centro 360. Por eso la Gestión no guarda «en curso» ni
 /// «cerrada»: los resuelve <see cref="ResolverEstado"/> leyendo esas acreditaciones, y un rechazo posterior la
-/// reabre sin hacer nada más (D-6). Lo único que guarda es lo que no se puede derivar: cuándo se sustituyó y por
-/// cuál. Que una Gestión abierta de un Documento ya sustituido es Sustituida lo deriva también la lectura, haya
-/// marca o no (<see cref="ResolverEstado"/>).
+/// reabre sin hacer nada más (D-6) mientras su Documento siga operativo. Lo único que guarda es lo que no se puede
+/// derivar: cuándo se sustituyó y por cuál. Que una Gestión abierta de un Documento ya sustituido es Sustituida lo
+/// deriva también la lectura, haya marca o no (<see cref="ResolverEstado"/>): un rechazo sobre una acreditación del
+/// Documento histórico no la reabre, y sin marca deja de leerse Sustituida si todos sus pasos llegan a cerrarse
+/// (entonces es Cerrada: tampoco queda abierta).
 /// </para>
 ///
 /// <para>
