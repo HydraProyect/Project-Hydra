@@ -73,7 +73,7 @@
     <value>Nada de lo que pide este destino está vigente: no se genera el paquete.</value>
   </data>
   <data name="PasaDelLimite" xml:space="preserve">
-    <value>El paquete pasa de {0} archivos, el máximo que se prepara al momento. Elige un Cliente empresarial concreto para generarlo.</value>
+    <value>El paquete pasa de {0} archivos, el máximo que se prepara al momento. Elige un Cliente concreto para generarlo.</value>
   </data>
   <data name="SesionPrivilegiadaSinDescarga" xml:space="preserve">
     <value>En una sesión privilegiada de plataforma puedes ver el resumen del paquete, pero no descargarlo.</value>

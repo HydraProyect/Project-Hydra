@@ -326,6 +326,13 @@ public class PaqueteDocumentalEmpresaQueriesTests
     }
 
     [Fact]
+    public void Sin_fijar_nada_el_servicio_de_produccion_aplica_el_tope_de_200_MiB()
+    {
+        ServicioSinTopeFijado().MaximoBytesZip.Should().Be(PaqueteDocumentalEmpresaService.MaximoBytes)
+            .And.Be(200L * 1024 * 1024, "es el tope que usa producción: la inyección por constructor no pasa por el inicializador de los tests");
+    }
+
+    [Fact]
     public async Task Sin_Sesion_Privilegiada_el_resumen_permite_descargar()
     {
         (await ResumirAsync(_cliente.Id)).Valor.PuedeDescargar.Should().BeTrue();
@@ -353,6 +360,10 @@ public class PaqueteDocumentalEmpresaQueriesTests
             new ObtenerResumenPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio),
             new DescargarPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio, _registro));
     }
+
+    private PaqueteDocumentalEmpresaService ServicioSinTopeFijado() =>
+        new(_empresas, _trabajadores, _documentos, _tipos, _asignaciones, _centros, _calculo, _almacenamiento, _alcance,
+            NullLogger<PaqueteDocumentalEmpresaService>.Instance);
 
     private sealed record Handlers(ObtenerResumenPaqueteEmpresaQueryHandler Resumen, DescargarPaqueteEmpresaQueryHandler Descarga)
     {
