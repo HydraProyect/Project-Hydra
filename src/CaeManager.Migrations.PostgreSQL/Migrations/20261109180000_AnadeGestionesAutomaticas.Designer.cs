@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261109170000_AnadeGestionesAutomaticas")]
+    [Migration("20261109180000_AnadeGestionesAutomaticas")]
     partial class AnadeGestionesAutomaticas
     {
         /// <inheritdoc />
@@ -973,6 +973,420 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsDescending(false, false, true);
 
                     b.ToTable("EventosRecientesUsuario", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AplicaJornadaIntensiva")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("Comunidad")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Municipio")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UsuarioId")
+                        .IsUnique();
+
+                    b.ToTable("CalendariosLaboralesPersona", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CalendariosLaboralesPersona_MunicipioConComunidad", "\"Municipio\" IS NULL OR \"Comunidad\" IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.CalendarioLaboral.FestivoOficial", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Ambito")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Comunidad")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Municipio")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Fecha");
+
+                    b.ToTable("FestivosOficiales", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FestivosOficiales_ComunidadSegunAmbito", "(\"Ambito\" = 1 AND \"Comunidad\" IS NULL) OR (\"Ambito\" IN (2, 3) AND \"Comunidad\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_FestivosOficiales_MunicipioSoloLocal", "(\"Ambito\" = 3) = (\"Municipio\" IS NOT NULL)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("000b4920-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 1, 1),
+                            Nombre = "Año Nuevo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4925-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 1, 6),
+                            Nombre = "Epifanía del Señor"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497c-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 4, 3),
+                            Nombre = "Viernes Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4998-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 5, 1),
+                            Nombre = "Fiesta del Trabajo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a02-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 8, 15),
+                            Nombre = "Asunción de la Virgen"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a3c-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 10, 12),
+                            Nombre = "Fiesta Nacional de España"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a75-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 12, 8),
+                            Nombre = "Inmaculada Concepción"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a86-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2026, 12, 25),
+                            Nombre = "Natividad del Señor"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497b-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2026, 4, 2),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4990-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2026, 4, 23),
+                            Nombre = "San Jorge · Día de Aragón"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a51-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2026, 11, 2),
+                            Nombre = "Lunes siguiente a Todos los Santos"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a74-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2026, 12, 7),
+                            Nombre = "Lunes siguiente al Día de la Constitución"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497f-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2026, 4, 6),
+                            Nombre = "Lunes de Pascua"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b49ce-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2026, 6, 24),
+                            Nombre = "San Juan"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a1d-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2026, 9, 11),
+                            Nombre = "Fiesta Nacional de Cataluña"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a87-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2026, 12, 26),
+                            Nombre = "San Esteban"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497b-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2026, 4, 2),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a1a-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2026, 9, 8),
+                            Nombre = "Día de Extremadura"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a51-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2026, 11, 2),
+                            Nombre = "Lunes siguiente a Todos los Santos"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a74-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2026, 12, 7),
+                            Nombre = "Lunes siguiente al Día de la Constitución"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b496d-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2026, 3, 19),
+                            Nombre = "San José"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497b-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2026, 4, 2),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b497f-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2026, 4, 6),
+                            Nombre = "Lunes de Pascua"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b49ed-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2026, 7, 25),
+                            Nombre = "Santiago Apóstol"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a8d-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 1, 1),
+                            Nombre = "Año Nuevo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4a92-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 1, 6),
+                            Nombre = "Epifanía del Señor"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae1-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 3, 26),
+                            Nombre = "Viernes Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4b05-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 5, 1),
+                            Nombre = "Fiesta del Trabajo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ba9-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 10, 12),
+                            Nombre = "Fiesta Nacional de España"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4bbd-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 11, 1),
+                            Nombre = "Todos los Santos"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4be0-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 12, 6),
+                            Nombre = "Día de la Constitución Española"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4be2-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 12, 8),
+                            Nombre = "Inmaculada Concepción"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4bf3-0001-0000-4645-535400000000"),
+                            Ambito = 1,
+                            Fecha = new DateOnly(2027, 12, 25),
+                            Nombre = "Natividad del Señor"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae0-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2027, 3, 25),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4afd-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2027, 4, 23),
+                            Nombre = "San Jorge · Día de Aragón"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4b70-0002-0002-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 2,
+                            Fecha = new DateOnly(2027, 8, 16),
+                            Nombre = "Lunes siguiente a la Asunción de la Virgen"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae4-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2027, 3, 29),
+                            Nombre = "Lunes de Pascua"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4b3b-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2027, 6, 24),
+                            Nombre = "San Juan"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4b8a-0002-0009-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 9,
+                            Fecha = new DateOnly(2027, 9, 11),
+                            Nombre = "Fiesta Nacional de Cataluña"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae0-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2027, 3, 25),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4b87-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2027, 9, 8),
+                            Nombre = "Día de Extremadura"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ba8-0002-000b-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 11,
+                            Fecha = new DateOnly(2027, 10, 11),
+                            Nombre = "Traslado de la Asunción de la Virgen"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae0-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2027, 3, 25),
+                            Nombre = "Jueves Santo"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ae4-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2027, 3, 29),
+                            Nombre = "Lunes de Pascua"
+                        },
+                        new
+                        {
+                            Id = new Guid("000b4ba4-0002-0010-4645-535400000000"),
+                            Ambito = 2,
+                            Comunidad = 16,
+                            Fecha = new DateOnly(2027, 10, 7),
+                            Nombre = "Aniversario del primer Gobierno Vasco"
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Centros.CanalGestionDocumental", b =>
