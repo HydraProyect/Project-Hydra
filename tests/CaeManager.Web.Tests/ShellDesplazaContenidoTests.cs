@@ -98,6 +98,16 @@ public class ShellDesplazaContenidoTests
         var overflow = Valor(contenido, "overflow-y") ?? Valor(contenido, "overflow");
         if (overflow is not ("auto" or "scroll"))
             defectos.Add($".contenido no es el contenedor que desplaza (overflow-y: {overflow ?? "sin declarar"})");
+
+        // Ningún @media (salvo print) puede tocar la altura ni el overflow de la cadena: un «arreglo para móvil» con
+        // min-height: 100vh devolvería el desplazamiento al documento solo en ese ancho, y aquí nadie lo vería.
+        var eslabones = new[] { ".shell", ".area-principal", ".contenido" };
+        foreach (var r in Analizar(css).Where(r => r.Media is not null && r.Media != "@media print"))
+        {
+            if (!r.Selector.Split(',').Any(s => eslabones.Contains(s.Trim()))) continue;
+            if (Regex.IsMatch(r.Cuerpo, @"(?<![-\w])(min-height|max-height|height|overflow|overflow-y)\s*:"))
+                defectos.Add($"{r.Media} vuelve a tocar la altura o el overflow de «{r.Selector}»");
+        }
         return defectos;
     }
 
@@ -113,7 +123,7 @@ public class ShellDesplazaContenidoTests
     {
         var print = Analizar(Leer("Components", "Layout", "MainLayout.razor.css")).Where(r => r.Media == "@media print").ToList();
 
-        print.Should().Contain(r => r.Selector.Split(',').Any(s => s.Trim() == ".shell") && Regex.IsMatch(r.Cuerpo, @"height\s*:\s*auto"),
+        print.Should().Contain(r => r.Selector.Split(',').Any(s => s.Trim() == ".shell") && Regex.IsMatch(r.Cuerpo, @"(?<![-\w])height\s*:\s*auto"),
             "con la altura acotada solo se imprimiría lo visible de .contenido");
         print.Should().Contain(r => r.Selector == ".contenido" && Regex.IsMatch(r.Cuerpo, @"overflow\s*:\s*visible"));
     }
@@ -130,6 +140,10 @@ public class ShellDesplazaContenidoTests
             "el scroll de un elemento no burbujea hasta document: se escucha en captura");
         js.Should().MatchRegex(@"addEventListener\('enhancedload',\s*volverArribaSiCambiaLaPantalla\)",
             "Blazor solo devuelve arriba la ventana; .contenido conservaría el scroll de la pantalla anterior");
+        js.Should().MatchRegex(@"window\.addEventListener\('load',\s*engancharNavegacion\)",
+            "si Blazor aún no expone addEventListener, el enganche se reintenta en load en vez de perderse en silencio");
+        js.Should().MatchRegex(@"case 'PageDown'[\s\S]*?case 'End'[\s\S]*?contenido\.scrollTo\(\{ top: destino \}\)",
+            "con el foco en body, las teclas de desplazamiento irían al documento, que ya no desplaza");
         js.Should().MatchRegex(@"contenido\.scrollTo\(\{\s*top:\s*0,\s*behavior:\s*'instant'\s*\}\)",
             ".contenido lleva scroll-behavior: smooth (base.css): la vuelta arriba al cambiar de pantalla no se anima");
     }
@@ -163,6 +177,12 @@ public class ShellDesplazaContenidoTests
             .Should().ContainSingle(d => d.Contains("no es el contenedor que desplaza"));
         DefectosDeLaCadena(bueno.Replace(".contenido { flex: 1; min-height: 0; overflow-y: auto; }",
                 ".contenido { flex: 1; min-height: 0; overflow-y: auto; } @media (max-width: 600px) { .contenido { overflow-y: visible; } }"))
-            .Should().BeEmpty("el detector solo mira las reglas sin @media; la de móvil la cubren las capturas a 375 px");
+            .Should().ContainSingle(d => d.Contains("@media (max-width: 600px)"), "un @media que suelte el overflow lo devuelve al documento");
+        DefectosDeLaCadena(bueno + " @media (max-width: 1023px) { .shell { min-height: 100vh; height: auto; } }")
+            .Should().ContainSingle(d => d.Contains("vuelve a tocar"));
+        DefectosDeLaCadena(bueno + " @media (max-width: 1023px) { .shell { gap: 0; } }")
+            .Should().BeEmpty("una regla de móvil que no toca altura ni overflow no rompe la cadena");
+        DefectosDeLaCadena(bueno + " @media print { .shell { height: auto; } .contenido { overflow: visible; } }")
+            .Should().BeEmpty("al imprimir sí se suelta la altura");
     }
 }

@@ -126,8 +126,41 @@
         if (contenido && !location.hash) contenido.scrollTo({ top: 0, behavior: 'instant' });
         marcarDesplazamiento();
     };
-    if (window.Blazor && typeof window.Blazor.addEventListener === 'function')
+    // Mismo patrón que menu-lateral.js: si Blazor aún no expone addEventListener, se reintenta en load.
+    let navegacionEnganchada = false;
+    const engancharNavegacion = function () {
+        if (navegacionEnganchada || !window.Blazor || typeof window.Blazor.addEventListener !== 'function') return;
         window.Blazor.addEventListener('enhancedload', volverArribaSiCambiaLaPantalla);
+        navegacionEnganchada = true;
+    };
+    engancharNavegacion();
+    window.addEventListener('load', engancharNavegacion);
+
+    // Teclado sin foco dentro de la página (carga inicial, sin clic): AvPág, RePág, Espacio,
+    // Inicio, Fin y las flechas desplazarían el documento, que ya no desplaza. Se aplican a
+    // .contenido. Solo con el foco en body: un control enfocado conserva sus teclas, y quien
+    // ya las haya atendido (defaultPrevented) gana.
+    document.addEventListener('keydown', function (e) {
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+        const activo = document.activeElement;
+        if (activo && activo !== document.body && activo !== document.documentElement) return;
+        const contenido = contenidoPrincipal();
+        if (!contenido) return;
+        const pagina = contenido.clientHeight * 0.875;
+        let destino = null;
+        switch (e.key) {
+            case 'PageDown': destino = contenido.scrollTop + pagina; break;
+            case 'PageUp': destino = contenido.scrollTop - pagina; break;
+            case ' ': destino = contenido.scrollTop + (e.shiftKey ? -pagina : pagina); break;
+            case 'ArrowDown': destino = contenido.scrollTop + 40; break;
+            case 'ArrowUp': destino = contenido.scrollTop - 40; break;
+            case 'Home': destino = 0; break;
+            case 'End': destino = contenido.scrollHeight; break;
+            default: return;
+        }
+        e.preventDefault();
+        contenido.scrollTo({ top: destino });
+    });
 
     // Banda de avisos: descartar un aviso y plegar la banda cuando se queda vacía.
 

@@ -70,8 +70,9 @@ public class CabeceraTests(WebAppFixture fixture)
             }
             """);
         await Assertions.Expect(cabecera).ToHaveAttributeAsync("data-desplazada", "");
-        // El documento ya no desplaza: lo hace main.contenido.
-        Assert.Equal(0, await page.EvaluateAsync<double>("window.scrollY"));
+        // El documento no desborda (sin doble barra): con el relleno dentro, lo que crece es main.contenido.
+        Assert.True(await page.EvaluateAsync<bool>(
+            "() => document.documentElement.scrollHeight <= document.documentElement.clientHeight"));
 
         await page.EvaluateAsync("document.getElementById('contenido-principal').scrollTop = 0");
         await Assertions.Expect(cabecera).Not.ToHaveAttributeAsync("data-desplazada", "");
