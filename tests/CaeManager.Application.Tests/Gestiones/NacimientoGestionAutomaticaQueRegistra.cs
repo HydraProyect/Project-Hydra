@@ -13,8 +13,4 @@ public sealed class NacimientoGestionAutomaticaQueRegistra : INacimientoGestionA
 {
     public Task<GestionAutomatica?> AgregarAsync(Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default) =>
         Task.FromResult<GestionAutomatica?>(null);
-
-    public Task<IReadOnlyList<GestionAutomatica>> AgregarDeActosSinGestionAsync(
-        IReadOnlyCollection<ActoSinGestionAutomatica> actos, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<GestionAutomatica>>([]);
 }

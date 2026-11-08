@@ -425,12 +425,6 @@ public class ReglasDeNegocioSinCopiasTests
         // que su Documento esté sustituido solo hace Sustituida a la Gestión que siga abierta (GestionAutomatica.ResolverEstado).
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
-        // Conciliación de Gestiones automáticas (ronda 4 de Codex sobre la PR #2072): la búsqueda y el lote miran los
-        // Documentos no eliminados, operativos o ya sustituidos, porque la Gestión histórica de un Documento renovado
-        // antes de conciliarse también habría nacido en el acto; el tercer lector busca el Documento anterior (historial)
-        // de cada uno solo para saber si nació por renovación (su Origen). No deciden estado, alertas ni cifras de
-        // Documentos: el estado de la Gestión lo resuelve GestionAutomatica.ResolverEstado.
-        ["src/CaeManager.Application/Gestiones/ConciliacionGestionesAutomaticasService.cs"] = 3,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
