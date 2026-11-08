@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Empresas.PaqueteDocumental;
+using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
 using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
@@ -785,6 +785,41 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
             .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
         cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled"), "al terminar se puede volver a elegir");
+    }
+
+    [Fact]
+    public void Cerrar_y_reabrir_el_dialogo_con_una_descarga_en_curso_sigue_anunciando_el_destino_que_se_descarga()
+    {
+        // «Todo lo vigente» es el paquete más amplio: reabrir sin conservarlo anunciaría el primer Cliente empresarial mientras
+        // llega el ZIP de todo.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el Gestor CAE cerró el diálogo");
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "true")); // el destino del ZIP que llega, no el primer Cliente empresarial
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => b.HasAttribute("disabled"), "mientras se genera, el destino no cambia");
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes,
+            "reabrir durante la descarga no vuelve a pedir ni a reiniciar el resumen");
+
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        modulo.Rutas.Single().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip");
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled")));
+
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"))); // terminada la descarga, la siguiente apertura vuelve a elegir el primer Cliente empresarial
     }
 
     /// <summary>

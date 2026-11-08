@@ -6,6 +6,7 @@ using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
@@ -183,6 +184,109 @@ public class PaqueteDocumentalEmpresaQueriesTests
         _transaccion.Ejecutadas.Should().Be(1, "una sola transacción para todas las aperturas del paquete");
         _transaccion.Confirmadas.Should().Be(1);
         _registro.Registrados.Should().HaveCount(2);
+    }
+
+    // ---- Nombres que Windows no puede extraer
+
+    [Theory]
+    [InlineData("CON", "CON_")]
+    [InlineData("con", "con_")]
+    [InlineData("Prn", "Prn_")]
+    [InlineData("AUX", "AUX_")]
+    [InlineData("nul", "nul_")]
+    [InlineData("COM1", "COM1_")]
+    [InlineData("com9", "com9_")]
+    [InlineData("LPT1", "LPT1_")]
+    [InlineData("lpt9", "lpt9_")]
+    [InlineData("COM¹", "COM¹_")]
+    [InlineData("CON.", "CON_")]
+    [InlineData("CON ", "CON_")]
+    [InlineData("CON .pdf", "CON _.pdf")]
+    [InlineData("aux.tar.gz", "aux_.tar.gz")]
+    [InlineData("Informe.", "Informe")]
+    [InlineData("Informe  ", "Informe")]
+    [InlineData("COM0", "COM0")]
+    [InlineData("COM10", "COM10")]
+    [InlineData("CONTRATO", "CONTRATO")]
+    [InlineData("Mi CON", "Mi CON")]
+    [InlineData("Seguro RC", "Seguro RC")]
+    public void Un_segmento_con_nombre_reservado_de_Windows_o_punto_o_espacio_final_se_sanea(string entrada, string esperado)
+    {
+        ArmadoPaqueteDocumental.SanearSegmento(entrada).Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task Un_Tipo_de_documento_llamado_como_un_dispositivo_de_Windows_sale_con_un_nombre_que_se_puede_extraer()
+    {
+        var reservado = NuevoTipo("CON", AmbitoAplicacion.Empresa);
+        var punto = NuevoTipo("Seguro de obra.", AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.AddRange([reservado, punto]);
+        _calculo.ExigirALaEmpresa(_centroDelCliente, _empresa, reservado);
+        _calculo.ExigirALaEmpresa(_centroDelCliente, _empresa, punto);
+        DocumentoDeEmpresa(reservado, VigenciaDocumento.NoCaduca, "con");
+        DocumentoDeEmpresa(punto, VigenciaDocumento.NoCaduca, "punto");
+
+        var zip = LeerZip((await DescargarAsync(_cliente.Id)).Valor.Contenido);
+
+        zip.Keys.Should().Contain(["Empresa/CON_.pdf", "Empresa/Seguro de obra.pdf"]);
+        zip.Keys.Should().NotContain("Empresa/CON.pdf");
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_cuyo_nombre_es_un_dispositivo_de_Windows_no_da_una_carpeta_imposible_de_extraer()
+    {
+        var aux = Trabajador.DeEmpresa(_empresa.Id, "AUX", ".", "00000001R");
+        _trabajadores.ListaTrabajadores.Add(aux);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(aux.Id, _centroDelCliente.Id, Hoy.AddDays(-30)));
+        _calculo.Exigir(_centroDelCliente, aux, _epi);
+        DocumentoDeTrabajador(aux, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-aux");
+
+        var zip = LeerZip((await DescargarAsync(_cliente.Id)).Valor.Contenido);
+
+        zip.Keys.Should().Contain("Trabajadores/AUX_/Entrega de EPI.pdf");
+        zip.Keys.Should().NotContain(k => k.Contains("/AUX/"));
+    }
+
+    // ---- La señal de extracción masiva (DEC-36) no sale de un paquete que no se confirmó
+
+    [Fact]
+    public async Task Si_falla_el_registro_de_un_documento_posterior_la_senal_de_extraccion_masiva_no_cuenta_los_anteriores()
+    {
+        var senales = new SenalesEspia(_transaccion);
+        var servicio = RegistroReal(senales, _repositorioReal = new RepositorioQueFallaEnLaLlamada(2));
+
+        var descargar = () => Mediador(servicio).DescargarAsync(new DescargarPaqueteEmpresaQuery(_empresa.Id, _cliente.Id));
+
+        await descargar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>();
+        _repositorioReal.Llamadas.Should().Be(2, "el primer registro llegó a guardarse dentro de la transacción y el segundo falló");
+        _transaccion.Deshechas.Should().Be(1);
+        senales.Emitidas.Should().BeEmpty("el rollback deshizo la apertura del primero: un contador en memoria no puede quedar inflado por un paquete que no se entregó");
+    }
+
+    [Fact]
+    public async Task Las_senales_de_un_paquete_entregado_salen_una_por_apertura_y_solo_tras_confirmar()
+    {
+        var senales = new SenalesEspia(_transaccion);
+        var servicio = RegistroReal(senales, _repositorioReal = new RepositorioQueFallaEnLaLlamada(null));
+
+        var resultado = await Mediador(servicio).DescargarAsync(new DescargarPaqueteEmpresaQuery(_empresa.Id, _cliente.Id));
+
+        resultado.EsFallido.Should().BeFalse();
+        _transaccion.Confirmadas.Should().Be(1);
+        senales.Emitidas.Should().HaveCount(2, "el EPI de Ana y el seguro: una apertura sensible cada uno");
+        senales.Emitidas.Should().OnlyContain(e => e.ConTransaccionAbierta == false, "la señal se emite cuando la transacción ya confirmó");
+        senales.Emitidas.Should().OnlyContain(e => e.Actor == _actorReal);
+    }
+
+    [Fact]
+    public async Task Fuera_de_un_lote_el_registro_suelto_sigue_emitiendo_la_senal_al_registrar()
+    {
+        var senales = new SenalesEspia(_transaccion);
+        var servicio = RegistroReal(senales, _repositorioReal = new RepositorioQueFallaEnLaLlamada(null));
+
+        await servicio.RegistrarSiSensibleAsync(_epiAna.Id, TipoAccesoDocumentoSensible.Apertura);
+
+        senales.Emitidas.Should().ContainSingle().Which.Actor.Should().Be(_actorReal);
     }
 
     // ---- Puerta: cartera, Tenant propietario, destino y rol
@@ -458,7 +562,13 @@ public class PaqueteDocumentalEmpresaQueriesTests
     private Task<Result<PaqueteEmpresaDescargaDto>> DescargarAsync(Guid? clienteId) =>
         Mediador().DescargarAsync(new DescargarPaqueteEmpresaQuery(_empresa.Id, clienteId));
 
-    private Handlers Mediador()
+    private readonly Guid _actorReal = Guid.NewGuid();
+    private RepositorioQueFallaEnLaLlamada _repositorioReal = new(null);
+
+    private RegistroAccesoDocumentoSensibleService RegistroReal(SenalesEspia senales, RepositorioQueFallaEnLaLlamada repositorio) =>
+        new(_documentos, _tipos, new ActorQueFirma(ActorAuditoria.Normal(_actorReal)), repositorio, senales);
+
+    private Handlers Mediador(IRegistroAccesoDocumentoSensibleService? registro = null)
     {
         var servicio = new PaqueteDocumentalEmpresaService(
             _empresas, _trabajadores, _documentos, _tipos, _asignaciones, _centros, _calculo, _almacenamiento, _alcance,
@@ -470,7 +580,7 @@ public class PaqueteDocumentalEmpresaQueriesTests
         var sesion = new SesionPrivilegiadaFija(_sesionPrivilegiada);
         return new Handlers(
             new ObtenerResumenPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio),
-            new DescargarPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio, _registro, _transaccion));
+            new DescargarPaqueteEmpresaQueryHandler(_empresas, _alcance, usuario, sesion, servicio, registro ?? _registro, _transaccion));
     }
 
     private PaqueteDocumentalEmpresaService ServicioSinTopeFijado() =>
@@ -563,6 +673,40 @@ public class PaqueteDocumentalEmpresaQueriesTests
 
         public Task RegistrarSiSensibleAsync(Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class ActorQueFirma(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    /// <summary>Repositorio de registros de acceso que guarda y, en la llamada indicada, dice que no pudo (falla en cerrado).</summary>
+    private sealed class RepositorioQueFallaEnLaLlamada(int? llamadaQueFalla) : IRegistroAccesoDocumentoSensibleRepository
+    {
+        public int Llamadas { get; private set; }
+
+        public Task<bool> GuardarAsync(RegistroAccesoDocumentoSensible registro, CancellationToken cancellationToken = default)
+        {
+            Llamadas++;
+            return Task.FromResult(Llamadas != llamadaQueFalla);
+        }
+    }
+
+    /// <summary>Anota cada señal de extracción masiva de documentos sensibles y si la transacción seguía abierta al recibirla.</summary>
+    private sealed class SenalesEspia(TransaccionQueDeshace transaccion) : ISenalesIncidenteSeguridad
+    {
+        public List<(Guid Actor, bool ConTransaccionAbierta)> Emitidas { get; } = [];
+
+        public Task DocumentoSensibleAbiertoAsync(Guid actorRealUsuarioId, Guid? tenantId, CancellationToken ct = default)
+        {
+            Emitidas.Add((actorRealUsuarioId, transaccion.Abierta));
+            return Task.CompletedTask;
+        }
+
+        public Task InicioSesionNoReconocidoAsync(Guid usuarioId, Guid tenantPropietarioId, bool teniaContrasena, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task ExportacionAsync(Guid actorRealUsuarioId, Guid? tenantId, int filas, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AccesoAOtroTenantRechazadoAsync(Guid usuarioId, Guid tenantOrigenId, Guid tenantObjetivoId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     /// <summary>

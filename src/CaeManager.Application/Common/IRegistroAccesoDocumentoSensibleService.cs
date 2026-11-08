@@ -72,4 +72,32 @@ public interface IRegistroAccesoDocumentoSensibleService
     /// </summary>
     Task RegistrarSiSensibleAsync(
         Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Abre un lote de aperturas para quien las agrupa en una transacción de varios guardados
+    /// (<see cref="ITransaccionDeComando"/>). Registra igual que <see cref="RegistrarSiSensibleAsync(Guid, TipoAccesoDocumentoSensible, CancellationToken)"/>
+    /// —mismo fallo en cerrado, misma auditoría—, pero la señal de extracción masiva (un contador en memoria que un rollback
+    /// no deshace) no se emite hasta <see cref="ILoteAccesosSensibles.EmitirSenalesAsync"/>, que se llama solo tras confirmar.
+    /// La transacción puede reintentar la operación: cada intento abre su propio lote y solo se emite el del intento
+    /// confirmado. La implementación por defecto no difiere nada (emite al registrar, como el método suelto).
+    /// </summary>
+    ILoteAccesosSensibles IniciarLote() => new LoteSinDiferir(this);
+}
+
+/// <summary>Aperturas de un mismo paquete; ver <see cref="IRegistroAccesoDocumentoSensibleService.IniciarLote"/>.</summary>
+public interface ILoteAccesosSensibles
+{
+    /// <summary>Registra la apertura (falla en cerrado) y retiene su señal de extracción masiva.</summary>
+    Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default);
+
+    /// <summary>Emite las señales retenidas. Solo tras confirmar la transacción que contiene las aperturas.</summary>
+    Task EmitirSenalesAsync(CancellationToken cancellationToken = default);
+}
+
+internal sealed class LoteSinDiferir(IRegistroAccesoDocumentoSensibleService servicio) : ILoteAccesosSensibles
+{
+    public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+        servicio.RegistrarSiSensibleAsync(documentoId, tipoAcceso, cancellationToken);
+
+    public Task EmitirSenalesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

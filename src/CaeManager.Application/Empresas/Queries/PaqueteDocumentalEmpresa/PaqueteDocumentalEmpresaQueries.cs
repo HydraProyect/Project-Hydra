@@ -175,12 +175,20 @@ public class DescargarPaqueteEmpresaQueryHandler(
         // no queda constancia de aperturas de un paquete cuyo registro no se completó, ni se entrega uno sin constancia. La confirmación
         // ocurre antes de escribir la respuesta: si el cliente aborta después, quedan aperturas de un zip no recibido (lado
         // conservador, inevitable).
-        await transaccion.EjecutarAsync(async ct =>
+        //
+        // La señal de extracción masiva de DEC-36 es un contador en memoria que un rollback no deshace: se retiene en el lote
+        // y se emite solo después de confirmar. La transacción puede reintentar la operación, así que cada intento abre su
+        // lote y se emite el del intento que confirmó.
+        ILoteAccesosSensibles? lote = null;
+        var confirmada = await transaccion.EjecutarAsync(async ct =>
         {
+            lote = registroAcceso.IniciarLote();
             foreach (var documentoId in zip.DocumentoIds)
-                await registroAcceso.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
+                await lote.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
             return Result.Exito();
         }, cancellationToken);
+        if (!confirmada.EsFallido && lote is not null)
+            await lote.EmitirSenalesAsync(CancellationToken.None);
 
         return Result.Exito(new PaqueteEmpresaDescargaDto(zip.NombreArchivo, zip.Contenido));
     }

@@ -190,9 +190,44 @@ internal static class ArmadoPaqueteDocumental
     /// <summary>
     /// Un segmento de ruta o de nombre de fichero hecho con datos que escribe el usuario: sin los caracteres que Windows no
     /// admite (barras incluidas, que de otro modo abrirían una subcarpeta) ni los de control, y sin puntos ni espacios al
-    /// final. Para la carpeta de un Trabajador dentro del zip.
+    /// final, y sin ser un nombre reservado de Windows (<see cref="EsNombreReservado"/>), que se acaba en «_». Para la carpeta
+    /// de un Trabajador dentro del zip y, junto con la extensión, para el nombre de cada fichero.
     /// </summary>
-    internal static string SanearSegmento(string texto) => Sanear(texto).TrimEnd('.', ' ');
+    internal static string SanearSegmento(string texto)
+    {
+        var segmento = Sanear(texto).TrimEnd('.', ' ');
+        if (!EsNombreReservado(segmento))
+            return segmento;
+
+        // El nombre reservado lo es con cualquier extensión («CON.pdf», «con.tar.gz»): el «_» va pegado al nombre base, antes del
+        // primer punto, para que la extensión que se añada después ya no lo vuelva a dejar reservado.
+        var punto = segmento.IndexOf('.');
+        return punto < 0 ? segmento + "_" : segmento.Insert(punto, "_");
+    }
+
+    /// <summary>
+    /// Nombres de dispositivo de Windows que no se pueden crear ni extraer como fichero o carpeta, con o sin extensión y sin
+    /// distinguir mayúsculas: CON, PRN, AUX, NUL, COM1–COM9 y LPT1–LPT9 (también con los superíndices ¹ ² ³ que Windows
+    /// trata igual). Se mira el nombre base —lo anterior al primer punto— sin los espacios finales, que Windows ignora.
+    /// </summary>
+    internal static bool EsNombreReservado(string segmento)
+    {
+        var punto = segmento.IndexOf('.');
+        var baseDelNombre = (punto < 0 ? segmento : segmento[..punto]).TrimEnd(' ');
+        if (baseDelNombre.Length == 0)
+            return false;
+
+        if (baseDelNombre.Equals("CON", StringComparison.OrdinalIgnoreCase)
+            || baseDelNombre.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+            || baseDelNombre.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+            || baseDelNombre.Equals("NUL", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return baseDelNombre.Length == 4
+            && (baseDelNombre.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+                || baseDelNombre.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
+            && (baseDelNombre[3] is >= '1' and <= '9' or '¹' or '²' or '³');
+    }
 
     /// <summary>
     /// Caracteres que Windows no admite en un nombre de fichero, junto con los de control (por debajo del espacio). La lista
@@ -210,8 +245,10 @@ internal static class ArmadoPaqueteDocumental
     /// </summary>
     private static string SanearNombreEntrada(string carpeta, string nombre, string extension, HashSet<string> nombresUsados)
     {
-        var nombreLimpio = SanearSegmento(nombre);
-        var extensionLimpia = SanearSegmento(extension);
+        // Un nombre que se queda sin nada (solo puntos, solo espacios) sería una entrada sin nombre, o una carpeta si no hay
+        // extensión: se sustituye por «_». La extensión sí puede quedar vacía.
+        var nombreLimpio = SanearSegmento(nombre) is { Length: > 0 } limpio ? limpio : "_";
+        var extensionLimpia = Sanear(extension).TrimEnd('.', ' ');
 
         var candidato = $"{carpeta}/{nombreLimpio}{extensionLimpia}";
         for (var contador = 2; !nombresUsados.Add(candidato); contador++)

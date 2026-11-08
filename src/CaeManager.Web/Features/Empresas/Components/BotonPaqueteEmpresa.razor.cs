@@ -10,7 +10,7 @@ namespace CaeManager.Web.Features.Empresas.Components;
 /// maqueta) o, sin ninguno, «Todo lo vigente». Cada cambio de destino vuelve a pedir el resumen sin retirar los botones de
 /// destino, para que el foco del teclado se quede donde estaba, y el resumen nuevo se anuncia (<c>aria-live</c>). «Generar
 /// ZIP» descarga por fetch (<c>wwwroot/js/descarga-archivo.js</c>) del endpoint autenticado con el destino del resumen
-/// anunciado —fijado antes de cualquier espera, y con los destinos deshabilitados mientras se genera—, que vuelve a
+/// anunciado —fijado antes de cualquier espera, y con los destinos deshabilitados mientras se genera, también si se cierra y se reabre el diálogo—, que vuelve a
 /// autorizar y a seleccionar: el resumen es solo lo que se anuncia, y si el servidor rechaza la descarga el motivo se ve en
 /// el diálogo.
 /// </summary>
@@ -55,6 +55,12 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private async Task AbrirAsync()
     {
         _abierto = true;
+
+        // Si se cerró el diálogo con una descarga en curso, al reabrirlo se ve el destino y el resumen de esa descarga, tal como
+        // estaban, con los destinos deshabilitados: reiniciar al primer Cliente empresarial anunciaría un paquete distinto del
+        // ZIP que sigue llegando (por ejemplo «Todo lo vigente»). Cuando termine, la próxima apertura sí reinicia.
+        if (_generando) return;
+
         _destinoInicialElegido = false;
         _destinoId = null;
         _resumen = null;
