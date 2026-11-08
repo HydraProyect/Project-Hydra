@@ -47,8 +47,8 @@
 
 .miga-actual {
     color: var(--color-text);
-    font: var(--font-label-md);
-    font-size: 0.9375rem;
+    /* Marco de Design (.tvm-migas .act): 14 px peso 500, no 15/600. */
+    font: 500 0.875rem/1.25rem var(--font-family);
 }
 
 /* Móvil: solo el título de la pantalla (la última miga), que es lo que cabe junto a los iconos. */
