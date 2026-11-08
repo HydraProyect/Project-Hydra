@@ -202,6 +202,7 @@ public static class AdmisionDeDestinos
 
         return new ContextoMenuLateral(
             usuario, vista, comunicacionesActivo, esAdministradorPlataforma,
-            default(PerfilVocabularioTenant), VariosTenants: false);
+            default(PerfilVocabularioTenant), VariosTenants: false,
+            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(servicios));
     }
 }

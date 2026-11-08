@@ -21,6 +21,7 @@
 @inject IStringLocalizer<TextosAlertas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ToastService ToastService
+@inject IServiceProvider Servicios
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 
 <LimiteDeErrores Pagina="this">
@@ -61,7 +62,10 @@
        distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
        menos. Retirada; el enlace de abajo es el único camino que hacía
        falta conservar. *@
-    <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
+    @if (!CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(Servicios))
+    {
+        <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
+    }
 
     @* Reclamación agregada (DEC-4 + DEC-7, Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
        SelectorLoteDocumental (PR #408) es el mismo componente que usa el

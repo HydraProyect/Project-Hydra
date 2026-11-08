@@ -27,7 +27,8 @@ public sealed record ContextoMenuLateral(
     bool VariosTenants,
     bool ParticipaEnIncorporacionCartera = false,
     bool RotulosPrimeraPersona = false,
-    bool HerramientasPdfDisponibles = true)
+    bool HerramientasPdfDisponibles = true,
+    bool MiTrabajoOculto = false)
 {
     /// <summary>
     /// Mismo criterio que <c>&lt;AuthorizeView Roles="…"&gt;</c>, que era como el marcado lo
@@ -269,7 +270,7 @@ public static class CatalogoMenuLateral
         // mandato del propietario del 2026-09-29. No se ofrece al rol Consulta: ninguna de las dos
         // páginas lo autoriza (ver RolesDeMiTrabajo).
         new("mi-trabajo", "operacion", "bandeja", "mi-trabajo", "Mi trabajo",
-            Condicion: c => c.TieneAlgunRol(RolesDeMiTrabajo),
+            Condicion: c => !c.MiTrabajoOculto && c.TieneAlgunRol(RolesDeMiTrabajo),
             RutaPorContexto: c => RutaMiTrabajo(c.VariosTenants)),
         // Comunicaciones es la excepción explícita a "solo lo que ya funciona": se oculta con
         // Comunicaciones:Activo porque no hay ingesta real detrás (ver ComunicacionesOptions).

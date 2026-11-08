@@ -41,6 +41,14 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     [Inject] private ActividadUsuarioService ActividadUsuario { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+    [Inject] private IServiceProvider ServiciosMiTrabajo { get; set; } = default!;
+
+    /// <summary>
+    /// Mi trabajo oculto para la demo (<see cref="MiTrabajoVisibilidad"/>): Inicio no ofrece ninguna de sus
+    /// salidas hacia Mi trabajo («Ver todo en Mi trabajo», el enlace del Inicio de cartera y el del aviso de
+    /// «sin cartera en este contexto»).
+    /// </summary>
+    private bool MiTrabajoOculto => CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(ServiciosMiTrabajo);
 
     /// <summary>
     /// La cola agregada de toda la cartera (Mi trabajo con más de un Tenant
