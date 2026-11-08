@@ -153,15 +153,23 @@ talveg.es {
 		hide .*
 	}
 
-	# Página 404 propia con su código 404, no un 200. Las cabeceras se importan
-	# otra vez porque Caddy descarta las de la ruta principal al pasar a
-	# handle_errors (medido el 2026-11-09 con la imagen del compose: sin este
-	# import el 404 salía sin HSTS ni X-Frame-Options y con Server). Si falta
-	# /404.html, la respuesta es un 404 vacío. Cualquier otro error (405 a un
-	# POST, 403, 5xx) va al segundo manejador, con las mismas cabeceras y un
-	# cuerpo de texto con su código.
+	# Página 404 propia con su código 404, no un 200. Cualquier otro error (405
+	# a un POST, 403, 5xx) va al segundo manejador, con un cuerpo de texto con
+	# su código. Si falta /404.html, el 404 sale vacío.
+	#
+	# Lo que la ruta principal ya fijó en la respuesta (el Cache-Control de
+	# arriba) llega al error; el bloque de cabeceras de seguridad, que va
+	# diferido por llevar el borrado de Server, no. Medido el 2026-11-09 con la
+	# imagen del compose: sin este import el 404 salía sin HSTS ni
+	# X-Frame-Options y con Server, pero con el Cache-Control de la ruta. Por
+	# eso cada manejador importa las cabeceras y fija no-store: si no, un 404
+	# bajo /estatico/ (HTML subido antes que su CSS) quedaría en caché una
+	# semana. no-store y no no-cache: con no-cache, la revalidación del 404
+	# podría acabar en un 304 por fechas si el fichero subido después conserva
+	# una fecha de modificación anterior (rsync -a la conserva).
 	handle_errors 404 {
 		import cabeceras_web_publica
+		header Cache-Control "no-store"
 		rewrite * /404.html
 		file_server {
 			status 404
@@ -169,6 +177,7 @@ talveg.es {
 	}
 	handle_errors {
 		import cabeceras_web_publica
+		header Cache-Control "no-store"
 		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 }
