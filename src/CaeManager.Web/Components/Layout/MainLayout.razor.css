@@ -21,9 +21,17 @@
     outline: none;
 }
 
+/* El shell mide exactamente la ventana y el que desplaza es main.contenido, no el documento.
+   Así todo position:sticky de una pantalla se pega al borde de .contenido —justo bajo la
+   cabecera— con el top que declare (list-page.css: «la tabla desplaza dentro de .contenido»):
+   con min-height y el documento desplazando, .contenido crecía hasta su contenido, era un
+   contenedor de scroll que nunca desplazaba y ningún sticky de dentro llegaba a pegarse.
+   Lo vigila ShellDesplazaContenidoTests. cabecera.js lee el desplazamiento de .contenido
+   (sombra de la cabecera) y lo devuelve arriba al cambiar de pantalla. */
 .shell {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
 }
 
 .barra-lateral {
@@ -142,6 +150,7 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav):not(.sele
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
 }
 
 /* Bloque fijo de la cabecera (rediseño, propuestas 06 y 07): la barra y la banda de avisos del
@@ -261,9 +270,24 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav):not(.sele
     overflow: hidden;
 }
 
+/* min-height: 0 deja que .contenido encoja por debajo de su contenido dentro de la columna
+   flex acotada: sin él volvería a medir todo su contenido y desplazaría el documento. */
 .contenido {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+}
+
+/* Al imprimir no hay ventana que acotar: la página entera sale en papel, no solo lo visible de .contenido. */
+@media print {
+    .shell,
+    .barra-lateral {
+        height: auto;
+    }
+
+    .contenido {
+        overflow: visible;
+    }
 }
 
 #blazor-error-ui {
