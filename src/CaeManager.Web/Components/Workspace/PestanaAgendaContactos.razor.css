@@ -6,7 +6,14 @@
     margin-bottom: var(--space-3);
 }
 
+/* El botón de la derecha no se encoge: a 375 px el flex lo estrechaba y su overflow:hidden recortaba
+   «Añadir contacto». Quien cede es el resumen, que sí puede partir línea. */
+.agenda-encabezado ::deep .boton {
+    flex: 0 0 auto;
+}
+
 .agenda-resumen {
+    min-width: 0;
     margin: 0;
     color: var(--color-text-muted);
     font: var(--font-small);
