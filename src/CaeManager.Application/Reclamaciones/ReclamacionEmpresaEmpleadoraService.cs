@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.Trabajadores;
@@ -35,8 +36,9 @@ public sealed record DestinoResuelto(IReadOnlyList<DestinatarioAgendaDto> Destin
 ///
 /// <para>
 /// <b>Qué se ofrece.</b> No decide qué es reclamable: parte de los lotes de <c>ObtenerLoteReclamacionQuery</c> (ventana,
-/// Asignación activa, Centro con gestión CAE, alcance visible y lo pendiente sin fecha) y solo cambia a quién se dirigen.
-/// Un Trabajador de Subcontrata no tiene Empresa empleadora en el modelo, así que lo suyo sigue yendo al Cliente.
+/// Asignación activa, Centro con gestión CAE, alcance visible, Tipo de ámbito Trabajador y lo pendiente sin fecha) y cambia a quién se dirigen; solo
+/// quita lo de los voluntarios inactivos (<see cref="ActividadVoluntarios"/>), que la Semana y el Mes tampoco ofrecen y el
+/// envío rechaza. Un Trabajador de Subcontrata no tiene Empresa empleadora en el modelo, así que lo suyo sigue yendo al Cliente.
 /// </para>
 ///
 /// <para>
@@ -54,9 +56,10 @@ public class ReclamacionEmpresaEmpleadoraService(
     IAlcanceDatosService alcanceDatos,
     IPoliticaNotaInterna politicaNotaInterna,
     IResolucionDestinatariosAgendaService resolucionDestinatarios,
-    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas)
+    DestinoDeReclamacionesEnviadasService reclamacionesEnviadas,
+    IProyectosQueryContext proyectosContext)
 {
-    private sealed record TrabajadorDeEmpresa(Guid Id, Guid EmpresaId, Guid? DelegacionEmpresaId);
+    private sealed record TrabajadorDeEmpresa(Guid Id, Guid EmpresaId, Guid? DelegacionEmpresaId, bool Inactivo);
 
     /// <summary>El motivo con el que se enseña el contacto de la Delegación junto a los de la agenda.</summary>
     public static string MotivoDelegacionEmpresa(string nombreDelegacionEmpresa) => $"Contacto de reclamación de la Delegación {nombreDelegacionEmpresa}";
@@ -70,11 +73,12 @@ public class ReclamacionEmpresaEmpleadoraService(
         if (trabajadorIds.Count == 0)
             return new([], lotesCliente);
 
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
         var deEmpresa = (await trabajadoresContext.Trabajadores
                 .Where(t => trabajadorIds.Contains(t.Id) && t.EmpresaId != null)
-                .Select(t => new { t.Id, EmpresaId = t.EmpresaId!.Value, t.DelegacionEmpresaId })
+                .Select(t => new { t.Id, EmpresaId = t.EmpresaId!.Value, t.DelegacionEmpresaId, Inactivo = inactivos.Contains(t.Id) })
                 .ToListAsync(cancellationToken))
-            .ToDictionary(t => t.Id, t => new TrabajadorDeEmpresa(t.Id, t.EmpresaId, t.DelegacionEmpresaId));
+            .ToDictionary(t => t.Id, t => new TrabajadorDeEmpresa(t.Id, t.EmpresaId, t.DelegacionEmpresaId, t.Inactivo));
 
         bool EsDeEmpresa(Guid? trabajadorId) => trabajadorId is { } id && deEmpresa.ContainsKey(id);
 
@@ -104,7 +108,11 @@ public class ReclamacionEmpresaEmpleadoraService(
 
         (Guid EmpresaId, Guid? DelegacionEmpresaId)? Destino(Guid? trabajadorId)
         {
-            if (trabajadorId is not { } id || !deEmpresa.TryGetValue(id, out var trabajador) || !razonesSociales.ContainsKey(trabajador.EmpresaId))
+            // En los lotes reagrupados, un voluntario inactivo no se ofrece ni a la Empresa ni, de vuelta, al Cliente: la regla
+            // de la Semana y el Mes, que el envío revalida en TrabajadoresDelDestinoAsync. El lote sin reagrupar (Centro 360) y
+            // EnviarReclamacionCommand no la aplican todavía: es deuda preexistente, fuera de este cambio.
+            if (trabajadorId is not { } id || !deEmpresa.TryGetValue(id, out var trabajador) || trabajador.Inactivo
+                || !razonesSociales.ContainsKey(trabajador.EmpresaId))
                 return null;
             return (trabajador.EmpresaId,
                 trabajador.DelegacionEmpresaId is { } delegacionId && delegaciones.ContainsKey(delegacionId) ? delegacionId : null);
@@ -164,14 +172,18 @@ public class ReclamacionEmpresaEmpleadoraService(
     /// <summary>
     /// Los Trabajadores cuyo lote va a <paramref name="delegacionEmpresaId"/>: los de esa Delegación; con <c>null</c>, los de la
     /// Empresa sin Delegación o con una Delegación sin correo. Lo usa el envío para revalidar que cada línea pedida es de ese lote.
+    /// Un voluntario inactivo no está en ningún lote (<see cref="ReagruparAsync"/> tampoco lo ofrece): su línea hace fallar el
+    /// envío entero, como una renovada.
     /// </summary>
     public async Task<IReadOnlyList<Guid>> TrabajadoresDelDestinoAsync(
         Guid empresaId, Guid? delegacionEmpresaId, CancellationToken cancellationToken)
     {
         var conCorreo = (await DelegacionesEmpresaConCorreoAsync([empresaId], cancellationToken)).Keys.ToList();
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
 
         return await trabajadoresContext.Trabajadores
             .Where(t => t.EmpresaId == empresaId)
+            .Where(t => !inactivos.Contains(t.Id))
             .Where(t => delegacionEmpresaId != null
                 ? t.DelegacionEmpresaId == delegacionEmpresaId
                 : t.DelegacionEmpresaId == null || !conCorreo.Contains(t.DelegacionEmpresaId.Value))

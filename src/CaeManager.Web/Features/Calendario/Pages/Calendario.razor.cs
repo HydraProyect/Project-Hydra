@@ -187,8 +187,26 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<FilaDetalleDia> FilasDelDiaSeleccionado => _diaSeleccionado is { } dia
         ? VencimientosDelDia(dia).Select(v => new FilaDetalleDia(
             v.DocumentoId, v.TrabajadorNombre, v.TipoDocumentoNombre,
-            EstadoDocumentoUi.Texto(v.Estado), EstadoDocumentoUi.Tono(v.Estado), false)).ToArray()
+            EstadoDocumentoUi.Texto(v.Estado), EstadoDocumentoUi.Tono(v.Estado), v.Reclamable, v.EmpresaId, v.EmpresaNombre)).ToArray()
         : [];
+
+    // «Reclamar» desde el día del Mes: el drawer de lote es de un único titular, así que el detalle ofrece un botón por
+    // Empresa y aquí llegan los Documentos de UNA. Se acota a lo que el Mes marcó reclamable (la regla de la Semana más la
+    // Asignación reclamable del lote, AsignacionesReclamables) y se reutiliza el drawer de la Semana por Empresa; el envío revalida el alcance de gestión.
+    private void ReclamarDelDia(IReadOnlyList<Guid> documentoIds)
+    {
+        var elegidos = _vencimientos
+            .Where(v => v.Reclamable && v.EmpresaId is not null && documentoIds.Contains(v.DocumentoId))
+            .ToList();
+        _diaSeleccionado = null;
+        if (elegidos.Count == 0 || elegidos.Select(v => v.EmpresaId).Distinct().Count() != 1) return;
+
+        var primero = elegidos[0];
+        _empresaReclamacion = new SemanaEmpresaDto(primero.EmpresaId!.Value, primero.EmpresaNombre ?? string.Empty,
+            [.. elegidos.Select(v => new DocumentoSemanaDto(v.DocumentoId, v.FechaVencimiento, false,
+                v.TipoDocumentoNombre, v.TrabajadorNombre, true, true))],
+            false);
+    }
 
     private IReadOnlyList<VisitaCalendarioDto> VisitasDelDiaSeleccionado => _diaSeleccionado is { } dia ? VisitasDelDia(dia) : [];
 

@@ -6,7 +6,7 @@
 .detalle-dia ::deep .modal-cerrar { flex: none; width: 32px; height: 32px; padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .detalle-dia ::deep .modal-cerrar:hover { border-color: var(--color-border-strong); color: var(--color-text); background: var(--color-surface); }
 .detalle-dia ::deep .modal-cuerpo { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-5) var(--space-6); }
-.detalle-dia ::deep .modal-pie { align-items: center; justify-content: space-between; padding: 14px var(--space-6); }
+.detalle-dia ::deep .modal-pie { align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); padding: 14px var(--space-6); }
 
 .detalle-dia-seccion { display: flex; flex-direction: column; gap: var(--space-2); }
 .detalle-dia-etiqueta { margin: 0; font: var(--font-label); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); }
@@ -27,3 +27,8 @@
 .detalle-dia-renovar:focus-visible, .detalle-dia-reclamar:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
 
 .detalle-dia-pie-texto { font: var(--font-caption); color: var(--color-text-muted); }
+/* Un botón «Reclamar los N» por Empresa cuando el día mezcla varias: se apilan a la derecha y, en móvil, a todo el ancho. */
+.detalle-dia-pie-botones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-left: auto; min-width: 0; max-width: 100%; }
+/* El nombre de la Empresa puede ser largo: el botón parte el texto en vez de desbordar el diálogo. */
+.detalle-dia-pie-botones ::deep .boton { white-space: normal; height: auto; padding-block: 8px; text-align: center; line-height: 1.25; }
+@media (max-width: 480px) { .detalle-dia-pie-botones { width: 100%; flex-direction: column; align-items: stretch; } }
