@@ -150,23 +150,30 @@
         return CargarAsync();
     }
 
+    private bool _cargadoAlgunaVez;
+
     private async Task CargarAsync()
     {
-        _cargando = true;
+        // El esqueleto solo en la primera carga: al filtrar, la barra de filtros sigue en su sitio y el botón pulsado
+        // conserva el foco. Una respuesta de un filtro que ya no es el elegido (dos clics seguidos) se descarta.
+        var pedido = _filtro;
+        _cargando = !_cargadoAlgunaVez;
         _error = false;
         try
         {
-            var listado = await Mediator.Send(new ObtenerGestionesAutomaticasQuery(_filtro));
+            var listado = await Mediator.Send(new ObtenerGestionesAutomaticasQuery(pedido));
+            if (pedido != _filtro) return;
             _filas = listado.Filas;
             _recuentos = listado.RecuentosPorEstado;
+            _cargadoAlgunaVez = true;
         }
         catch (Exception)
         {
-            _error = true;
+            if (pedido == _filtro) _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (pedido == _filtro) _cargando = false;
         }
     }
 

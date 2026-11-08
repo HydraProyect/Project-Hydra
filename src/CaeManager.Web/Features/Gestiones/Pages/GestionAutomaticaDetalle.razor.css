@@ -9,7 +9,7 @@
 /* Resumen */
 .gp-resumen { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 20px 24px; display: flex; flex-direction: column; gap: var(--space-4); }
 .gp-resumen-fila { display: flex; align-items: flex-start; gap: var(--space-6); flex-wrap: wrap; }
-.gp-resumen-texto { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 6px; }
+.gp-resumen-texto { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .gp-kicker { font: var(--font-caption); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .08em; }
 .gp-resumen h1 { margin: 0; font: 700 26px/32px var(--font-family); letter-spacing: -.01em; text-wrap: pretty; }
 .gp-origen { font: var(--font-body-md); color: var(--color-text-muted); }
@@ -74,7 +74,6 @@
 .gp-punto[data-tono="ok"] { background: var(--color-success-500); }
 .gp-punto[data-tono="rech"] { background: var(--color-danger-500); }
 .gp-paso-texto { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.gp-paso-hecho { opacity: .62; }
 .gp-paso-centro { font-weight: 600; }
 .gp-paso-cliente { font: var(--font-caption); color: var(--color-text-muted); }
 .gp-paso-estado { font: var(--font-caption); font-weight: 600; color: var(--color-text-muted); }
@@ -116,7 +115,7 @@
 .gp-campo-valor { font: var(--font-body-md); font-weight: 600; }
 .gp-campo-valor[data-tono="exito"] { color: var(--color-success-700); }
 .gp-campo-valor[data-tono="peligro"] { color: var(--color-danger-700); }
-.gp-nota-acceso { padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
+.gp-nota-acceso { white-space: pre-wrap; padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
 
 .gp-opciones { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
 .gp-opciones legend { padding: 0 0 8px; }
@@ -124,7 +123,7 @@
 .gp-opcion:hover:not(:disabled) { border-color: var(--color-border-control); }
 .gp-opcion[aria-checked="true"] { border-color: var(--color-primary-500); box-shadow: inset 0 0 0 1px var(--color-primary-500); background: var(--color-primary-50); }
 .gp-opcion:disabled { opacity: .45; cursor: not-allowed; }
-.gp-radio { flex: none; margin-top: 2px; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--color-border-control); background: #fff; display: grid; place-items: center; }
+.gp-radio { flex: none; margin-top: 2px; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--color-border-control); background: var(--color-surface); display: grid; place-items: center; }
 .gp-opcion[aria-checked="true"] .gp-radio { border-color: var(--color-primary-500); }
 .gp-opcion[aria-checked="true"] .gp-radio::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary-500); }
 .gp-opcion-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; align-items: flex-start; }
@@ -157,7 +156,6 @@
 @keyframes gp-brillo { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 @media (prefers-reduced-motion: reduce) { .gp-esq-cabecera, .gp-esq-lista > div, .gp-esq-paso { animation: none; } }
 
-.gp-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: var(--space-3); padding: 10px 16px; border-radius: var(--radius-md); background: var(--color-toast-fondo); color: var(--color-toast-texto); font: var(--font-body-md); box-shadow: var(--shadow-overlay); }
 
 /* Por debajo de 980 px la columna de pasos pasa encima (la maqueta: data-cuerpo-gp). */
 @media (max-width: 980px) {

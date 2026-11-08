@@ -286,11 +286,15 @@
 
                         @if (_puedeEscribir && estado != EstadoGestionAutomatica.Sustituida)
                         {
-                            <fieldset class="gp-opciones" data-opciones="">
+                            <fieldset class="gp-opciones" role="radiogroup" aria-label="@Textos["GpComoHaQuedado"]" data-opciones="">
                                 <legend class="gp-etiqueta">@Textos["GpComoHaQuedado"]</legend>
                                 @foreach (var (clave, estadoPaso, titulo, descripcion) in Opciones)
                                 {
-                                    var deshabilitada = (clave is OpcionSubido or OpcionValidado && !_detalle.Documento.VigenteEnTalveg) || clave == OpcionNoPide;
+                                    // Subido sobre un paso rechazado lo rechaza el comando (RechazadaSinVersionNueva): hace falta una
+                                    // versión corregida del Documento, así que la opción no se ofrece.
+                                    var deshabilitada = (clave is OpcionSubido or OpcionValidado && !_detalle.Documento.VigenteEnTalveg)
+                                                        || (clave == OpcionSubido && PasoRechazado)
+                                                        || clave == OpcionNoPide;
                                     <button type="button" role="radio" class="gp-opcion" aria-checked="@(_opcion == clave ? "true" : "false")"
                                             disabled="@deshabilitada" data-opcion="@clave" @onclick="() => ElegirOpcion(clave)">
                                         <span class="gp-radio" aria-hidden="true"></span>
@@ -304,6 +308,10 @@
                             @if (!_detalle.Documento.VigenteEnTalveg)
                             {
                                 <span class="gp-nota gp-nota-aviso" data-aviso-opciones="">@Textos["GpOpcionesNoVigente"]</span>
+                            }
+                            else if (PasoRechazado)
+                            {
+                                <span class="gp-nota gp-nota-aviso" data-aviso-subido-rechazado="">@Textos["GpOpcionSubidoRechazada"]</span>
                             }
 
                             @if (_opcion == OpcionValidado)
@@ -355,15 +363,5 @@
         </div>
     }
 
-    @if (!string.IsNullOrEmpty(_toast))
-    {
-        <div class="gp-toast" role="status" data-toast="">
-            <span>@_toast</span>
-            @if (_deshacer is not null)
-            {
-                <button type="button" class="gp-boton gp-boton-secundario gp-boton-pequeno" data-toast-accion="" @onclick="DeshacerAsync">@Textos["GpDeshacer"]</button>
-            }
-        </div>
-    }
 </div>
 </LimiteDeErrores>

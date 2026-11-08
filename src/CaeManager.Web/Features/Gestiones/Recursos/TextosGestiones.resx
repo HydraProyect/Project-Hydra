@@ -468,6 +468,9 @@
   <data name="GpOpcionesNoVigente" xml:space="preserve">
     <value>«Subido» y «Validado» están desactivados mientras el documento no esté vigente en TALVEG.</value>
   </data>
+  <data name="GpOpcionSubidoRechazada" xml:space="preserve">
+    <value>La plataforma rechazó este paso: para marcarlo «Subido» hay que subir antes una versión corregida del documento.</value>
+  </data>
   <data name="GpOpcionNoPideDescripcion" xml:space="preserve">
     <value>No se volverá a pedir en este acceso.</value>
   </data>

@@ -535,8 +535,10 @@ public class GestionesAutomaticasPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionSubidaCommand>().Should().ContainSingle()
             .Which.AcreditacionId.Should().Be(pasos[0].AcreditacionId));
-        cut.Find("[data-toast]").TextContent.Should().Contain("Paso guardado. Centro 360 ya muestra el estado nuevo.");
-        cut.FindAll("[data-toast-accion]").Should().BeEmpty("Deshacer solo existe tras Validado: Subido no devuelve qué restaurar");
+        var toast = Toasts.Mensajes.Should().ContainSingle().Subject;
+        toast.Mensaje.Should().Be("Paso guardado. Centro 360 ya muestra el estado nuevo.");
+        toast.Tono.Should().Be(TonoToast.Exito);
+        toast.OnAccion.Should().BeNull("Deshacer solo existe tras Validado: Subido no devuelve qué restaurar");
         cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[1].AcreditacionId.ToString());
     }
 
@@ -571,7 +573,7 @@ public class GestionesAutomaticasPantallaTests : BunitContext
 
         cut.WaitForAssertion(() => m.Enviados.OfType<MarcarAcreditacionAceptadaCommand>().Should().ContainSingle()
             .Which.Vigencia.Should().Be(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 10, 14))));
-        cut.Find("[data-toast-accion]").TextContent.Should().Be("Deshacer");
+        Toasts.Mensajes.Should().ContainSingle().Which.TextoAccion.Should().Be("Deshacer");
     }
 
     [Fact]
@@ -639,14 +641,14 @@ public class GestionesAutomaticasPantallaTests : BunitContext
         cut.Find("[data-opcion='validado']").Click();
         cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
         cut.Find("[data-accion='guardar']").Click();
-        cut.WaitForAssertion(() => cut.FindAll("[data-toast-accion]").Should().ContainSingle());
+        cut.WaitForAssertion(() => Toasts.Mensajes.Should().ContainSingle().Which.OnAccion.Should().NotBeNull());
 
-        cut.Find("[data-toast-accion]").Click();
+        PulsarDeshacer(cut);
 
         cut.WaitForAssertion(() => m.Enviados.OfType<CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion.RestaurarAnotacionAcreditacionCommand>()
             .Should().ContainSingle().Which.Should().Match<CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion.RestaurarAnotacionAcreditacionCommand>(
                 c => c.AcreditacionId == pasos[0].AcreditacionId && c.EstadoPrevio == EstadoAcreditacion.PendienteDeSubir && c.VersionEsperada == MediatorFalso.Version));
-        cut.FindAll("[data-toast]").Should().BeEmpty();
+        Toasts.Mensajes.Should().BeEmpty("Deshacer descarta el aviso");
     }
 
     [Fact]
@@ -745,21 +747,123 @@ public class GestionesAutomaticasPantallaTests : BunitContext
     }
 
     [Fact]
-    public void Cambiar_de_Gestion_en_la_misma_instancia_no_arrastra_el_aviso_ni_el_toast()
+    public void Cambiar_de_Gestion_en_la_misma_instancia_no_arrastra_el_aviso_de_reapertura_y_consulta_la_nueva()
     {
-        var pasos = SeisPasosNuevos();
+        var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Subida, Hecho = true }).ToList();
         var m = Montar();
         var cut = Detallar(m, Detalle(pasos));
-        cut.Find("[data-opcion='validado']").Click();
-        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+        m.AlMarcar = () => m.Detalle = Detalle(pasos.Select((p, i) => i == 0 ? p with { Estado = EstadoAcreditacion.Rechazada, Hecho = false } : p).ToList());
+        cut.Find("[data-filtro-pasos='todos']").Click();
+        cut.Find($"[data-paso='{pasos[0].AcreditacionId}']").Click();
+        cut.Find("[data-opcion='rechazado']").Click();
+        cut.Find("[data-campos-opcion='rechazado'] select").Change(nameof(CausaRechazoAcreditacion.Otro));
+        cut.Find("[data-campos-opcion='rechazado'] textarea").Input("Motivo");
         cut.Find("[data-accion='guardar']").Click();
-        cut.WaitForAssertion(() => cut.FindAll("[data-toast]").Should().ContainSingle());
+        cut.WaitForAssertion(() => cut.FindAll("[data-aviso='reabierta']").Should().ContainSingle("control positivo: el aviso estaba"));
 
         var otra = Guid.NewGuid();
         cut.Render(p => p.Add(x => x.Id, otra));
 
-        cut.WaitForAssertion(() => cut.FindAll("[data-toast]").Should().BeEmpty());
+        cut.WaitForAssertion(() => m.DetallesPedidos.Last().Should().Be(otra));
         cut.FindAll("[data-aviso='reabierta']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_detalle_consulta_la_Gestion_de_la_ruta()
+    {
+        var m = Montar();
+        Detallar(m, Detalle(SeisPasosNuevos()));
+
+        m.DetallesPedidos.Should().Equal(GestionId);
+    }
+
+    [Fact]
+    public void Deshacer_tras_Siguiente_Gestion_vuelve_a_la_Gestion_del_paso_con_ese_paso_abierto()
+    {
+        var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Aceptada, Hecho = true }).ToList();
+        pasos[5] = pasos[5] with { Estado = EstadoAcreditacion.PendienteDeSubir, Hecho = false };
+        var m = Montar();
+        var otra = Guid.NewGuid();
+        m.Listado = new ListadoGestionesAutomaticasDto([Fila(otra, EstadoGestionAutomatica.EnCurso)], Recuentos());
+        var cut = Detallar(m, Detalle(pasos));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+        cut.Find("[data-accion='primario']").Click();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.WaitForAssertion(() => navegacion.Uri.Should().EndWith($"gestiones/{otra}"));
+        cut.Render(p => p.Add(x => x.Id, otra));
+
+        Toasts.Mensajes.Should().ContainSingle("el aviso con Deshacer sobrevive a Siguiente Gestión");
+        PulsarDeshacer(cut);
+
+        cut.WaitForAssertion(() => navegacion.Uri.Should().EndWith($"gestiones/{GestionId}?paso={pasos[5].AcreditacionId}"));
+        m.Enviados.OfType<CaeManager.Application.Documentos.Commands.RestaurarAnotacionAcreditacion.RestaurarAnotacionAcreditacionCommand>()
+            .Should().ContainSingle().Which.AcreditacionId.Should().Be(pasos[5].AcreditacionId);
+    }
+
+    [Fact]
+    public void Un_paso_rechazado_no_ofrece_Subido_y_explica_que_hace_falta_una_version_corregida()
+    {
+        var pasos = SeisPasosNuevos();
+        pasos[0] = pasos[0] with { Estado = EstadoAcreditacion.Rechazada };
+        var m = Montar();
+        var cut = Detallar(m, Detalle(pasos));
+
+        cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[0].AcreditacionId.ToString());
+        cut.Find("[data-opcion='subido']").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("[data-opcion='validado']").HasAttribute("disabled").Should().BeFalse();
+        cut.Find("[data-aviso-subido-rechazado]").TextContent.Should().Contain("versión corregida del documento");
+
+        cut.Find($"[data-paso='{pasos[1].AcreditacionId}']").Click();
+        cut.Find("[data-opcion='subido']").HasAttribute("disabled").Should().BeFalse("control: un paso por subir sí lo ofrece");
+        cut.FindAll("[data-aviso-subido-rechazado]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Siguiente_Gestion_prefiere_la_de_la_misma_Empresa_gestionada_aunque_no_sea_la_primera()
+    {
+        var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Aceptada, Hecho = true }).ToList();
+        pasos[5] = pasos[5] with { Estado = EstadoAcreditacion.PendienteDeSubir, Hecho = false };
+        var m = Montar();
+        var deOtraEmpresa = Guid.NewGuid();
+        var deLaMisma = Guid.NewGuid();
+        m.Listado = new ListadoGestionesAutomaticasDto(
+            [Fila(deOtraEmpresa, EstadoGestionAutomatica.EnCurso) with { EmpresaGestionadaId = Guid.NewGuid(), EmpresaGestionadaNombre = "Otra S.L." },
+             Fila(deLaMisma, EstadoGestionAutomatica.EnCurso)], Recuentos());
+        var cut = Detallar(m, Detalle(pasos));
+
+        cut.Find("[data-accion='primario']").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"gestiones/{deLaMisma}"));
+    }
+
+    [Fact]
+    public void Sin_Empresa_gestionada_visible_el_detalle_se_pinta_y_Siguiente_Gestion_toma_la_primera()
+    {
+        var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Aceptada, Hecho = true }).ToList();
+        pasos[5] = pasos[5] with { Estado = EstadoAcreditacion.PendienteDeSubir, Hecho = false };
+        var m = Montar();
+        var primera = Guid.NewGuid();
+        m.Listado = new ListadoGestionesAutomaticasDto(
+            [Fila(primera, EstadoGestionAutomatica.EnCurso) with { EmpresaGestionadaId = null, EmpresaGestionadaNombre = null },
+             Fila(Guid.NewGuid(), EstadoGestionAutomatica.EnCurso)], Recuentos());
+        var d = Detalle(pasos);
+        d = d with { Resumen = d.Resumen with { EmpresaGestionadaId = null, EmpresaGestionadaNombre = null } };
+        var cut = Detallar(m, d);
+
+        cut.Markup.Should().NotContain("Construcciones Ebro S.L.");
+        cut.Find("[data-accion='primario']").Click();
+
+        cut.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"gestiones/{primera}"));
+    }
+
+    private ToastService Toasts => Services.GetRequiredService<ToastService>();
+
+    private void PulsarDeshacer(IRenderedComponent<GestionAutomaticaDetalle> cut)
+    {
+        var toast = Toasts.Mensajes.Should().ContainSingle().Subject;
+        toast.TextoAccion.Should().Be("Deshacer");
+        cut.InvokeAsync(() => Toasts.EjecutarAccionAsync(toast.Id)).GetAwaiter().GetResult();
     }
 
     [Fact]
@@ -773,7 +877,7 @@ public class GestionesAutomaticasPantallaTests : BunitContext
         cut.Find("[data-accion='primario']").Click();
         cut.WaitForAssertion(() => cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[1].AcreditacionId.ToString()));
 
-        cut.Find("[data-toast-accion]").Click();
+        PulsarDeshacer(cut);
 
         cut.WaitForAssertion(() => cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[0].AcreditacionId.ToString()));
     }
@@ -912,6 +1016,7 @@ public class GestionesAutomaticasPantallaTests : BunitContext
         public string? FalloAlMarcar { get; set; }
         public Action? AlMarcar { get; set; }
         public List<object> Enviados { get; } = [];
+        public List<Guid> DetallesPedidos { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -921,7 +1026,8 @@ public class GestionesAutomaticasPantallaTests : BunitContext
                     if (FallaListado) throw new InvalidOperationException("fallo simulado");
                     EstadoPedido = q.Estado;
                     return Responder<TResponse>(Listado);
-                case ObtenerGestionAutomaticaQuery:
+                case ObtenerGestionAutomaticaQuery qd:
+                    DetallesPedidos.Add(qd.Id);
                     if (FallaDetalle) throw new InvalidOperationException("fallo simulado");
                     return DetallePendiente is { } pendiente ? (Task<TResponse>)(object)pendiente : Responder<TResponse>(Detalle);
                 case MarcarAcreditacionAceptadaCommand c:

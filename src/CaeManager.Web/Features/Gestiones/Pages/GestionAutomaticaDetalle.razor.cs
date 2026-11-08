@@ -63,11 +63,14 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     private bool _guardando;
     private string? _errorGuardado;
 
-    private string? _toast;
-    private Func<Task>? _deshacer;
-
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private NavigationManager Navegacion { get; set; } = default!;
+
+    /// <summary>
+    /// El aviso «Paso guardado» con Deshacer es el toast del sistema de diseño: dura 8 s, se pausa con el puntero o el
+    /// foco y sobrevive a «Siguiente Gestión», que es justo cuando Deshacer hace falta.
+    /// </summary>
+    [Inject] private ToastService Toasts { get; set; } = default!;
 
     [Parameter] public Guid Id { get; set; }
 
@@ -77,11 +80,24 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
     private Guid _cargada;
+    private Guid? _pasoCargado;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_cargada == Id) return;
+        if (_cargada == Id)
+        {
+            // La misma Gestión con otro «?paso=» (Deshacer desde otra Gestión, enlace «En Gestión»): solo cambia el paso.
+            if (PasoSolicitado != _pasoCargado)
+            {
+                _pasoCargado = PasoSolicitado;
+                if (PasoSolicitado is { } paso) Abrir(paso);
+            }
+
+            return;
+        }
+
         _cargada = Id;
+        _pasoCargado = PasoSolicitado;
 
         // Otra Gestión en la misma instancia (Siguiente Gestión, enlace a la nueva): nada de la anterior sobrevive.
         _detalle = null;
@@ -91,48 +107,12 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         _soloPorHacer = true;
         _reabierta = false;
         _textoReabierta = string.Empty;
-        _toast = null;
-        _deshacer = null;
-        _deshacerPasoId = null;
-        _versionToast++;
         Abrir(PasoSolicitado ?? Guid.Empty);
         _abiertoId = PasoSolicitado;
         await CargarAsync();
     }
 
-    private Guid? _deshacerPasoId;
-    private int _versionToast;
-
-    private const int SegundosToast = 8;
-
-    /// <summary>El aviso de «Paso guardado» caduca a los 8 s (maqueta); un aviso posterior no lo hereda.</summary>
-    private void MostrarToast(string texto, Func<Task>? deshacer, Guid? pasoId)
-    {
-        _toast = texto;
-        _deshacer = deshacer;
-        _deshacerPasoId = pasoId;
-        var version = ++_versionToast;
-        _ = CaducarToastAsync(version);
-    }
-
-    private async Task CaducarToastAsync(int version)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(SegundosToast));
-            await InvokeAsync(() =>
-            {
-                if (version != _versionToast) return;
-                _toast = null;
-                _deshacer = null;
-                StateHasChanged();
-            });
-        }
-        catch (Exception)
-        {
-            // El componente ya no está: no hay nada que caducar.
-        }
-    }
+    private bool PasoRechazado => PasoAbierto?.Estado == EstadoAcreditacion.Rechazada;
 
     private IReadOnlyList<PasoGestionAutomaticaDto> Pasos => _detalle?.Pasos ?? [];
 
@@ -238,21 +218,30 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
 
     private async Task CargarAsync()
     {
+        // Si Id cambia con esta carga en vuelo, su respuesta es de la Gestión anterior: se descarta.
+        var pedida = Id;
         _cargando = _detalle is null;
         _error = false;
         try
         {
-            _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
-            _detalle = await Mediator.Send(new ObtenerGestionAutomaticaQuery(Id));
+            var puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+            var detalle = await Mediator.Send(new ObtenerGestionAutomaticaQuery(pedida));
+            if (pedida != Id) return;
+            _puedeEscribir = puedeEscribir;
+            _detalle = detalle;
         }
         catch (Exception)
         {
-            _error = true;
+            if (pedida == Id) _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (pedida == Id) _cargando = false;
         }
+
+        // Un rechazo ya corregido no deja el aviso de reapertura a la vista.
+        if (_reabierta && _detalle?.Pasos.Any(p => p.Estado == EstadoAcreditacion.Rechazada) != true)
+            _reabierta = false;
     }
 
     private void Abrir(Guid acreditacionId)
@@ -322,7 +311,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
                     {
                         var r = await Mediator.Send(new RestaurarAnotacionAcreditacionCommand(
                             previo.AcreditacionId, previo.EstadoPrevio, previo.VigenciaPrevia, previo.VersionResultante));
-                        if (r.EsFallido) MostrarToast(r.Error.Mensaje, null, null);
+                        if (r.EsFallido) Toasts.MostrarError(r.Error);
                     };
                     resultado = Result.Exito();
                     break;
@@ -345,7 +334,16 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
                 return;
             }
 
-            MostrarToast(Textos["GpPasoGuardado"].Value, deshacer, paso.AcreditacionId);
+            if (deshacer is null)
+                Toasts.Mostrar(Textos["GpPasoGuardado"].Value, TonoToast.Exito);
+            else
+            {
+                var gestionId = Id;
+                var pasoId = paso.AcreditacionId;
+                Toasts.Mostrar(Textos["GpPasoGuardado"].Value, TonoToast.Exito, Textos["GpDeshacer"].Value,
+                    () => DeshacerAsync(deshacer, gestionId, pasoId));
+            }
+
             _opcion = null;
             _hasta = null;
             _noSe = false;
@@ -374,17 +372,41 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         }
     }
 
-    private async Task DeshacerAsync()
+    /// <summary>
+    /// Deshacer del toast: restaura la anotación y reabre el paso. Si entretanto se pasó a otra Gestión («Siguiente
+    /// Gestión»), vuelve a la Gestión del paso con ese paso abierto.
+    /// </summary>
+    private async Task DeshacerAsync(Func<Task> accion, Guid gestionId, Guid pasoId)
     {
-        var accion = _deshacer;
-        var pasoId = _deshacerPasoId;
-        _deshacer = null;
-        _toast = null;
-        _versionToast++;
-        if (accion is null) return;
-        await accion();
-        await CargarAsync();
-        if (pasoId is { } id) Abrir(id);
+        try
+        {
+            await accion();
+        }
+        catch (Exception)
+        {
+            Toasts.Mostrar(Textos["GpErrorTitulo"].Value, TonoToast.Error);
+            return;
+        }
+
+        if (gestionId != Id)
+        {
+            Navegacion.NavigateTo($"gestiones/{gestionId}?paso={pasoId}");
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                await CargarAsync();
+                Abrir(pasoId);
+                StateHasChanged();
+            });
+        }
+        catch (Exception)
+        {
+            // La pantalla ya no está (se navegó fuera): la anotación ya se restauró y no queda nada que pintar.
+        }
     }
 
     /// <summary>
@@ -403,7 +425,7 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         }
         catch (Exception)
         {
-            MostrarToast(Textos["GpErrorTitulo"].Value, null, null);
+            Toasts.Mostrar(Textos["GpErrorTitulo"].Value, TonoToast.Error);
         }
     }
 }

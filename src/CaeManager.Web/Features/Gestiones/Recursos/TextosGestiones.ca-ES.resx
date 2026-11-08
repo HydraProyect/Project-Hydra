@@ -468,6 +468,9 @@
   <data name="GpOpcionesNoVigente" xml:space="preserve">
     <value>«Pujat» i «Validat» estan desactivats mentre el document no estigui vigent a TALVEG.</value>
   </data>
+  <data name="GpOpcionSubidoRechazada" xml:space="preserve">
+    <value>La plataforma va rebutjar aquest pas: per marcar-lo «Pujat» cal pujar abans una versió corregida del document.</value>
+  </data>
   <data name="GpOpcionNoPideDescripcion" xml:space="preserve">
     <value>No es tornarà a demanar en aquest accés.</value>
   </data>
