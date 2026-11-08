@@ -95,16 +95,97 @@
         if (panel && !panel.contains(e.target) && e.target !== abierto) poner(abierto, false, false);
     });
 
-    // Sombra y velo al desplazar.
+    // Sombra y velo al desplazar. El que desplaza es main.contenido (el shell mide la ventana,
+    // MainLayout.razor.css), no el documento. El scroll no burbujea: se escucha en captura y se
+    // filtra por el contenedor, que sobrevive a la navegación mejorada pero se relee cada vez.
+    const contenidoPrincipal = function () { return document.getElementById('contenido-principal'); };
     const marcarDesplazamiento = function () {
         const fija = document.querySelector('.cabecera-fija');
         if (!fija) return;
-        const desplazada = (window.scrollY || document.documentElement.scrollTop) > 4;
+        const contenido = contenidoPrincipal();
+        const desplazada = (contenido ? contenido.scrollTop : 0) > 4;
         if (desplazada) fija.setAttribute('data-desplazada', '');
         else fija.removeAttribute('data-desplazada');
     };
-    window.addEventListener('scroll', marcarDesplazamiento, { passive: true });
+    document.addEventListener('scroll', function (e) {
+        if (e.target === contenidoPrincipal()) marcarDesplazamiento();
+    }, { capture: true, passive: true });
     window.addEventListener('load', marcarDesplazamiento);
+
+    // Al cambiar de pantalla, .contenido vuelve arriba. Blazor solo devuelve arriba la ventana
+    // (window.scrollTo), que ya no desplaza: sin esto la pantalla nueva heredaría el scroll de la
+    // anterior. Solo si cambia la ruta: un envío de formulario a la misma URL no salta arriba, y
+    // un ancla (#) la resuelve el navegador.
+    let rutaMostrada = location.pathname + location.search;
+    const volverArribaSiCambiaLaPantalla = function () {
+        const ruta = location.pathname + location.search;
+        if (ruta === rutaMostrada) return;
+        rutaMostrada = ruta;
+        const contenido = contenidoPrincipal();
+        // 'instant': .contenido lleva scroll-behavior: smooth (base.css) y una pantalla nueva no se anima hasta arriba.
+        if (contenido && !location.hash) contenido.scrollTo({ top: 0, behavior: 'instant' });
+        marcarDesplazamiento();
+    };
+    // Mismo patrón que menu-lateral.js: si Blazor aún no expone addEventListener, se reintenta en load.
+    let navegacionEnganchada = false;
+    const engancharNavegacion = function () {
+        if (navegacionEnganchada || !window.Blazor || typeof window.Blazor.addEventListener !== 'function') return;
+        window.Blazor.addEventListener('enhancedload', volverArribaSiCambiaLaPantalla);
+        navegacionEnganchada = true;
+    };
+    engancharNavegacion();
+    window.addEventListener('load', engancharNavegacion);
+
+    // Teclado sin foco dentro de la página (carga inicial, sin clic): AvPág, RePág, Espacio,
+    // Inicio, Fin y las flechas desplazarían el documento, que ya no desplaza. Se aplican a
+    // .contenido. Solo con el foco en body: un control enfocado conserva sus teclas, y quien
+    // ya las haya atendido (defaultPrevented) gana.
+    // Un clic en texto no enfocable de otro scroller (menú lateral, panel de avisos) deja el foco
+    // en body: esas teclas son de ese scroller, no de .contenido.
+    // El clic deja de contar en cuanto el foco entra en algo que no es body (focusin) o se mueve con Tab:
+    // sin esto, un clic viejo en el menú lateral seguiría quitándole las teclas a .contenido.
+    let ultimoPulsado = null;
+    document.addEventListener('pointerdown', function (e) { ultimoPulsado = e.target; }, { capture: true, passive: true });
+    document.addEventListener('focusin', function (e) {
+        if (e.target !== document.body && e.target !== document.documentElement) ultimoPulsado = null;
+    }, { capture: true, passive: true });
+    const dentroDeOtroScroller = function (nodo, contenido) {
+        for (let n = nodo instanceof Element ? nodo : null; n && n !== contenido; n = n.parentElement) {
+            const oy = getComputedStyle(n).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return true;
+        }
+        return false;
+    };
+    // Mismo selector de modal que keytips.js y atajos-contexto.js; incluye <dialog> abierto con showModal() (ReconnectModal).
+    const SELECTOR_MODAL = '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], dialog:modal';
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Tab') { ultimoPulsado = null; return; }
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+        // Mayús + flecha, Inicio, Fin, RePág o AvPág extiende la selección: solo Mayús + Espacio (subir) es nuestro.
+        if (e.shiftKey && e.key !== ' ') return;
+        const activo = document.activeElement;
+        if (activo && activo !== document.body && activo !== document.documentElement) return;
+        if (document.querySelector(SELECTOR_MODAL)) return;
+        const contenido = contenidoPrincipal();
+        if (!contenido) return;
+        if (ultimoPulsado && ultimoPulsado.isConnected && dentroDeOtroScroller(ultimoPulsado, contenido)) return;
+        const pagina = contenido.clientHeight * 0.875;
+        let destino = null;
+        switch (e.key) {
+            case 'PageDown': destino = contenido.scrollTop + pagina; break;
+            case 'PageUp': destino = contenido.scrollTop - pagina; break;
+            case ' ': destino = contenido.scrollTop + (e.shiftKey ? -pagina : pagina); break;
+            case 'ArrowDown': destino = contenido.scrollTop + 40; break;
+            case 'ArrowUp': destino = contenido.scrollTop - 40; break;
+            case 'Home': destino = 0; break;
+            case 'End': destino = contenido.scrollHeight; break;
+            default: return;
+        }
+        e.preventDefault();
+        // Las flechas, sin animar: con la tecla mantenida cada paso se suma a un scrollTop ya asentado.
+        const flecha = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+        contenido.scrollTo(flecha ? { top: destino, behavior: 'instant' } : { top: destino });
+    });
 
     // Banda de avisos: descartar un aviso y plegar la banda cuando se queda vacía.
 
