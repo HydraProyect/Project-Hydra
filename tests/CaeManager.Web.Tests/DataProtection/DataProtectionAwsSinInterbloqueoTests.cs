@@ -672,7 +672,7 @@ public class DataProtectionAwsSinInterbloqueoTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Una_escritura_abandonada_con_el_SDK_real_falla_al_leer_el_cuerpo_en_vez_de_enviar_ceros(bool firmada)
+    public async Task Una_escritura_abandonada_con_el_SDK_real_falla_al_leer_el_cuerpo_en_vez_de_enviar_ceros(bool firmada)
     {
         // La petición del SDK real llega al manejador HTTP antes de que empiece la espera
         // (PlanificadorEnLinea y la espera de abajo), y el manejador no lee el cuerpo hasta
@@ -724,8 +724,8 @@ public class DataProtectionAwsSinInterbloqueoTests
         accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
         puerta.SetResult();
 
-        lectura.Task.Wait(EsperaMaxima).Should().BeTrue("el manejador intenta leer el cuerpo tras el vencimiento");
-        var (cuerpoLeido, error) = lectura.Task.Result;
+        // El manejador intenta leer el cuerpo tras el vencimiento.
+        var (cuerpoLeido, error) = await lectura.Task.WaitAsync(EsperaMaxima);
         cuerpoLeido.Should().BeNull("el SDK no puede entregar a la pila HTTP un cuerpo revocado, ni a ceros ni entero");
         error.Should().NotBeNull();
         Cadena(error!).Should().Contain(e => e is ObjectDisposedException, "lo que falla es la lectura del cuerpo revocado");
@@ -758,8 +758,8 @@ public class DataProtectionAwsSinInterbloqueoTests
         var trozo = new byte[16];
         var vias = new (string Via, Action Accion)[]
         {
-            ("Read(byte[])", () => cuerpo.Read(trozo, 0, trozo.Length)),
-            ("Read(Span)", () => cuerpo.Read(trozo.AsSpan())),
+            ("Read(byte[])", () => cuerpo.Read(trozo, 0, trozo.Length).Should().Be(0, "no debe llegar a leer")),
+            ("Read(Span)", () => cuerpo.Read(trozo.AsSpan()).Should().Be(0, "no debe llegar a leer")),
             ("ReadAsync(Memory)", () => cuerpo.ReadAsync(trozo.AsMemory()).AsTask().GetAwaiter().GetResult()),
             ("ReadAsync(byte[])", () => cuerpo.ReadAsync(trozo, 0, trozo.Length).GetAwaiter().GetResult()),
             ("ReadByte", () => cuerpo.ReadByte()),
@@ -780,7 +780,7 @@ public class DataProtectionAwsSinInterbloqueoTests
     }
 
     [Fact]
-    public void CuerpoRevocable_no_entrega_ceros_aunque_se_revoque_durante_una_lectura()
+    public async Task CuerpoRevocable_no_entrega_ceros_aunque_se_revoque_durante_una_lectura()
     {
         // Un lector en bucle y una revocación concurrente, sobre material sin ningún cero:
         // cada lectura entrega bytes íntegros o lanza. Sin el cerrojo compartido, una copia
@@ -824,7 +824,7 @@ public class DataProtectionAwsSinInterbloqueoTests
 
             leyendo.Wait(EsperaMaxima).Should().BeTrue("el lector debe estar leyendo antes de revocar");
             cuerpo.Revocar();
-            lector.Wait(EsperaMaxima).Should().BeTrue();
+            await lector.WaitAsync(EsperaMaxima);
             Volatile.Read(ref lecturasConCeros).Should().Be(0, $"vuelta {vuelta}: ninguna lectura entrega ceros");
         }
     }
