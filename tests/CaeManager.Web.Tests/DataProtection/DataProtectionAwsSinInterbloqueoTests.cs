@@ -72,6 +72,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         contexto.Publicaciones.Should().Be(0, "ninguna continuación debe intentar volver al contexto del llamante");
         elementos!.Select(e => (string?)e.Attribute("id")).Should().BeEquivalentTo("1", "2");
         s3.PrefijosListados.Should().Equal("claves-dp/");
+        s3.LlamadasSinTokenCancelable.Should().Be(0, "cada llamada al SDK debe recibir el token del límite");
     }
 
     [Fact]
@@ -89,6 +90,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         resultado.TerminoAntesDeLiberar.Should().BeTrue();
         resultado.Error.Should().BeNull();
         contexto.Publicaciones.Should().Be(0);
+        s3.LlamadasSinTokenCancelable.Should().Be(0);
         s3.Objetos.Should().ContainKey("claves-dp/key-3.xml");
         XElement.Parse(s3.Objetos["claves-dp/key-3.xml"]).Attribute("id")!.Value.Should().Be("3");
     }
@@ -122,6 +124,47 @@ public class DataProtectionAwsSinInterbloqueoTests
         resultadoDescifrado.Error.Should().BeNull();
         contextoDescifrado.Publicaciones.Should().Be(0);
         XNode.DeepEquals(descifrado, original).Should().BeTrue();
+        kms.LlamadasSinTokenCancelable.Should().Be(0, "cifrado y descifrado deben recibir el token del límite");
+    }
+
+    [Fact]
+    public void Un_descifrado_con_KMS_que_no_responde_se_corta_en_el_limite_y_cancela_la_peticion()
+    {
+        var kms = new KmsFalso { NoResponderAlDescifrar = true };
+        var cliente = kms.Crear();
+        var descifrador = new KmsXmlDecryptor(
+            new ServiceCollection().AddSingleton(cliente).BuildServiceProvider(),
+            TimeSpan.FromMilliseconds(300));
+
+        var accion = () => descifrador.Decrypt(new XElement(KmsXmlEncryptor.NombreElemento, Convert.ToBase64String([1, 2, 3])));
+
+        accion.Should().Throw<TimeoutException>().WithMessage("*KMS*");
+        SpinWait.SpinUntil(() => kms.TokenCancelado, EsperaMaxima).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Un_TimeoutException_de_la_propia_operacion_no_se_reetiqueta_como_limite_vencido()
+    {
+        var propia = new TimeoutException("del SDK");
+
+        var accion = () => LlamadaSincronaAws.Ejecutar<int>(_ => throw propia, EsperaMaxima, "La operación de prueba");
+
+        accion.Should().Throw<TimeoutException>().Which.Should().BeSameAs(propia);
+    }
+
+    [Fact]
+    public void Una_excepcion_de_la_operacion_llega_sin_envolver_en_AggregateException()
+    {
+        var accion = () => LlamadaSincronaAws.Ejecutar(
+            async _ =>
+            {
+                await Task.Yield();
+                throw new InvalidOperationException("acceso denegado por KMS");
+            },
+            EsperaMaxima,
+            "La operación de prueba");
+
+        accion.Should().Throw<InvalidOperationException>().WithMessage("acceso denegado por KMS");
     }
 
     [Fact]
@@ -278,13 +321,25 @@ public class DataProtectionAwsSinInterbloqueoTests
         public ConcurrentQueue<string> PrefijosListados { get; } = new();
         public bool NoResponder { get; init; }
         public bool TokenCancelado { get; private set; }
+        public int LlamadasSinTokenCancelable => Volatile.Read(ref _llamadasSinTokenCancelable);
+        private int _llamadasSinTokenCancelable;
+
+        private CancellationToken Anotar(CancellationToken token)
+        {
+            if (!token.CanBeCanceled)
+            {
+                Interlocked.Increment(ref _llamadasSinTokenCancelable);
+            }
+
+            return token;
+        }
 
         public IAmazonS3 Crear() => DobleAws<IAmazonS3>.Crear((metodo, argumentos) =>
             (metodo.Name, argumentos) switch
             {
-                ("ListObjectsV2Async", [ListObjectsV2Request peticion, CancellationToken token]) => ListarAsync(peticion, token),
-                ("GetObjectAsync", [string bucket, string clave, CancellationToken token]) => LeerAsync(bucket, clave, token),
-                ("PutObjectAsync", [PutObjectRequest peticion, CancellationToken token]) => EscribirAsync(peticion, token),
+                ("ListObjectsV2Async", [ListObjectsV2Request peticion, CancellationToken token]) => ListarAsync(peticion, Anotar(token)),
+                ("GetObjectAsync", [string bucket, string clave, CancellationToken token]) => LeerAsync(bucket, clave, Anotar(token)),
+                ("PutObjectAsync", [PutObjectRequest peticion, CancellationToken token]) => EscribirAsync(peticion, Anotar(token)),
                 _ => throw new NotSupportedException($"El doble de S3 no implementa {metodo}.")
             });
 
@@ -341,16 +396,32 @@ public class DataProtectionAwsSinInterbloqueoTests
 
         public ConcurrentQueue<string> KeyIdsUsados { get; } = new();
         public bool NoResponderNiAtenderCancelacion { get; init; }
+        public bool NoResponderAlDescifrar { get; init; }
+        public bool TokenCancelado { get; private set; }
+        public int LlamadasSinTokenCancelable => Volatile.Read(ref _llamadasSinTokenCancelable);
+        private int _llamadasSinTokenCancelable;
+
+        private CancellationToken Anotar(CancellationToken token)
+        {
+            if (!token.CanBeCanceled)
+            {
+                Interlocked.Increment(ref _llamadasSinTokenCancelable);
+            }
+
+            return token;
+        }
 
         public IAmazonKeyManagementService Crear() => DobleAws<IAmazonKeyManagementService>.Crear((metodo, argumentos) =>
             (metodo.Name, argumentos) switch
             {
-                ("EncryptAsync", [EncryptRequest peticion, CancellationToken _]) => CifrarAsync(peticion),
-                ("DecryptAsync", [DecryptRequest peticion, CancellationToken token]) => DescifrarAsync(peticion, token),
+                ("EncryptAsync", [EncryptRequest peticion, CancellationToken token]) => CifrarAsync(peticion, Anotar(token)),
+                ("DecryptAsync", [DecryptRequest peticion, CancellationToken token]) => DescifrarAsync(peticion, Anotar(token)),
                 _ => throw new NotSupportedException($"El doble de KMS no implementa {metodo}.")
             });
 
-        private async Task<EncryptResponse> CifrarAsync(EncryptRequest peticion)
+        // El token se recibe pero no se atiende a propósito: modela una capa que
+        // ignora la cancelación, para probar la espera acotada.
+        private async Task<EncryptResponse> CifrarAsync(EncryptRequest peticion, CancellationToken _)
         {
             KeyIdsUsados.Enqueue(peticion.KeyId);
             if (NoResponderNiAtenderCancelacion)
@@ -366,8 +437,21 @@ public class DataProtectionAwsSinInterbloqueoTests
             };
         }
 
-        private static async Task<DecryptResponse> DescifrarAsync(DecryptRequest peticion, CancellationToken token)
+        private async Task<DecryptResponse> DescifrarAsync(DecryptRequest peticion, CancellationToken token)
         {
+            if (NoResponderAlDescifrar)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    TokenCancelado = true;
+                    throw;
+                }
+            }
+
             await Task.Delay(20, token);
             var cifrado = Encoding.UTF8.GetString(peticion.CiphertextBlob.ToArray());
             cifrado.Should().StartWith(Prefijo);

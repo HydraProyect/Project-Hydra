@@ -24,7 +24,12 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// para cancelar la petición de verdad; la espera acotada garantiza el límite aunque
 /// alguna capa no lo atienda. Si salta, Data Protection recibe una excepción: en una
 /// recarga conserva el anillo anterior, y en la carga en frío el error sale a la vista
-/// en vez de quedarse esperando.
+/// en vez de quedarse esperando. Un límite vencido no garantiza que la operación no
+/// haya ocurrido: una escritura en S3 ya enviada puede completarse después, y Data
+/// Protection, que la da por fallida, generará otra clave; las dos son válidas.
+///
+/// Esto elimina el interbloqueo, no el bloqueo: el hilo del llamante sigue esperando
+/// (como mucho el límite), porque la interfaz de Data Protection es síncrona.
 /// </summary>
 internal static class LlamadaSincronaAws
 {
@@ -39,14 +44,21 @@ internal static class LlamadaSincronaAws
         ArgumentNullException.ThrowIfNull(operacion);
 
         using var cancelacion = new CancellationTokenSource(limite);
-        var tarea = Task.Run(() => operacion(cancelacion.Token), CancellationToken.None);
+        // El token se toma antes de Task.Run: si el pool tarda en arrancar la
+        // tarea y el origen ya se ha dispuesto, leerlo dentro lanzaría.
+        var token = cancelacion.Token;
+        var tarea = Task.Run(() => operacion(token), CancellationToken.None);
 
         try
         {
             return tarea.WaitAsync(limite, CancellationToken.None).GetAwaiter().GetResult();
         }
-        catch (TimeoutException ex)
+        catch (TimeoutException ex) when (!ReferenceEquals(ex, tarea.Exception?.InnerException))
         {
+            // Venció la espera acotada (no es un TimeoutException de la propia
+            // operación). Puede ganar al temporizador del origen: se cancela aquí
+            // para que la petición al SDK se corte de verdad antes del Dispose.
+            cancelacion.Cancel();
             throw Agotado(descripcion, limite, ex);
         }
         catch (OperationCanceledException ex) when (cancelacion.IsCancellationRequested)
