@@ -39,14 +39,12 @@ public class DataProtectionAwsSinInterbloqueoTests
     // carga no puede convertir un interbloqueo en un verde.
     private static readonly TimeSpan EsperaInterbloqueo = TimeSpan.FromSeconds(1);
 
-    // Límite de las pruebas que esperan un vencimiento. Si el pool no arranca la
-    // operación dentro de él, el puente ya no la invoca; los tests que necesitan que el
-    // doble se haya invocado lo comprueban de forma explícita para que, bajo una carga
-    // extrema, el fallo diga que la prueba no fue concluyente y no parezca un defecto.
-    // Dos segundos para que el arranque del pool tenga margen sin alargar mucho la suite;
-    // la dependencia de la planificación no desaparece, solo se aleja.
-    private static readonly TimeSpan LimiteCorto = TimeSpan.FromSeconds(2);
-    private const string SinArrancar = "la prueba solo es concluyente si el pool arrancó la operación antes del límite";
+    // Límite de las pruebas que esperan un vencimiento. Esas pruebas arrancan la operación
+    // con PlanificadorEnLinea, que la ejecuta antes de que empiece la espera, y su doble no
+    // termina hasta que el test lo suelta: el vencimiento no depende ni de cuándo llegue
+    // el pool a la operación ni de la carga, y el límite solo fija cuánto se espera.
+    private static readonly TimeSpan LimiteCorto = TimeSpan.FromMilliseconds(500);
+    private const string ArrancadaEnLinea = "PlanificadorEnLinea arranca la operación antes de que empiece la espera";
 
     [Fact]
     public void El_contexto_de_un_solo_hilo_interbloquea_el_patron_anterior_de_GetResult_directo()
@@ -112,7 +110,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         s3.Objetos.Should().ContainKey("claves-dp/key-3.xml");
         XElement.Parse(s3.Objetos["claves-dp/key-3.xml"]).Attribute("id")!.Value.Should().Be("3");
         s3.CuerposEnviados.Should().ContainSingle()
-            .Which.ToArray().Should().OnlyContain(b => b == 0, "los bytes del XML se borran al volver de StoreElement");
+            .Which.Borrado.Should().BeTrue("los bytes del XML se borran al volver de StoreElement");
     }
 
     [Fact]
@@ -155,15 +153,18 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void GetAllElements_aplica_el_limite_a_cada_peticion_y_no_a_la_lectura_entera()
     {
         // Cuatro peticiones (listado y tres descargas) que responden bien, cada una
-        // muy por debajo del límite, pero cuya suma lo supera. Cada petición tiene dos
-        // segundos de margen (el doble de su retraso) para el arranque en el pool; la
-        // suma (4 s) supera el límite por el retraso mismo, no por la planificación.
+        // muy por debajo del límite, pero cuya suma lo supera. La suma (4 s) supera el
+        // límite por el retraso mismo, así que el verde no puede venir de la carga: con un
+        // límite global la lectura vencería siempre. El arranque es en línea, sin pasar por
+        // el pool; lo que sí depende del reloj es que cada retraso de 1 s termine antes de
+        // 3 s, de modo que una máquina muy cargada podría dar un rojo falso, nunca un verde
+        // falso. Medir tiempo transcurrido es la propiedad misma: no hay señal que la sustituya.
         var limite = TimeSpan.FromSeconds(3);
         var s3 = new S3Falso { RetrasoPorPeticion = TimeSpan.FromSeconds(1) };
         s3.Objetos["claves-dp/key-1.xml"] = "<key id=\"1\" />";
         s3.Objetos["claves-dp/key-2.xml"] = "<key id=\"2\" />";
         s3.Objetos["claves-dp/key-3.xml"] = "<key id=\"3\" />";
-        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), limite);
+        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), limite, PlanificadorEnLinea.Instancia);
 
         var cronometro = Stopwatch.StartNew();
         var elementos = repositorio.GetAllElements();
@@ -186,29 +187,55 @@ public class DataProtectionAwsSinInterbloqueoTests
     }
 
     [Fact]
-    public void Una_escritura_que_S3_completa_tras_el_limite_se_da_por_vencida_aunque_acabe_ocurriendo()
+    public void Una_escritura_abandonada_antes_de_leer_el_cuerpo_no_retiene_la_clave_ni_puede_guardarla_corrupta()
     {
-        // Documenta la semántica: vencer el límite no deshace una petición ya enviada.
+        // La escritura sigue en curso tras el límite y aún no ha leído el cuerpo. Al volver
+        // StoreElement los bytes ya están a ceros (no se retienen mientras dure la
+        // operación abandonada), y la lectura tardía falla en vez de entregar esos ceros:
+        // S3 no guarda nada, ni la clave ni una clave corrupta.
         var s3 = new S3Falso { EscrituraRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
-        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto);
+        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto, PlanificadorEnLinea.Instancia);
 
         var accion = () => repositorio.StoreElement(new XElement("key", new XAttribute("id", "4")), "key-4");
 
         accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
-        s3.EscrituraIniciada.IsSet.Should().BeTrue(SinArrancar);
-        s3.Objetos.Should().NotContainKey("claves-dp/key-4.xml");
+        s3.EscrituraIniciada.IsSet.Should().BeTrue(ArrancadaEnLinea);
+        s3.EscrituraTerminada.IsSet.Should().BeFalse("la escritura abandonada sigue en curso");
+        s3.CuerposEnviados.Should().ContainSingle()
+            .Which.Borrado.Should().BeTrue("los bytes se borran al volver, aunque la escritura siga en curso");
 
         s3.EscrituraRetenida.SetResult();
 
         s3.EscrituraTerminada.Wait(EsperaMaxima).Should().BeTrue();
-        // El doble lee el cuerpo después de la puerta: si los bytes se hubieran borrado
-        // al vencer el límite, S3 habría guardado ceros y esto no sería XML.
-        XElement.Parse(s3.Objetos["claves-dp/key-4.xml"]).Attribute("id")!.Value.Should().Be(
-            "4", "la escritura tardía llega íntegra: la clave es válida aunque Data Protection genere otra");
-        SpinWait.SpinUntil(
-                () => s3.CuerposEnviados.TryPeek(out var cuerpo) && cuerpo.ToArray().All(b => b == 0),
-                EsperaMaxima)
-            .Should().BeTrue("terminada la escritura abandonada, sus bytes se borran");
+        s3.LecturasDelCuerpoFallidas.Should().ContainSingle()
+            .Which.Should().BeOfType<ObjectDisposedException>("leer un cuerpo revocado falla, no devuelve ceros");
+        s3.Objetos.Should().NotContainKey("claves-dp/key-4.xml", "una petición cuyo cuerpo no se puede leer no llega a guardarse");
+    }
+
+    [Fact]
+    public void Una_escritura_abandonada_que_ya_leyo_el_cuerpo_llega_integra_a_S3()
+    {
+        // Documenta la otra rama: vencer el límite no deshace una petición cuyo cuerpo ya
+        // se envió entero. La clave que acaba en S3 es la original, válida aunque Data
+        // Protection, que dio la escritura por fallida, genere otra.
+        var s3 = new S3Falso
+        {
+            LeerCuerpoAntesDeRetener = true,
+            EscrituraRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto, PlanificadorEnLinea.Instancia);
+
+        var accion = () => repositorio.StoreElement(new XElement("key", new XAttribute("id", "5")), "key-5");
+
+        accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
+        s3.EscrituraIniciada.IsSet.Should().BeTrue(ArrancadaEnLinea);
+        s3.CuerposEnviados.Should().ContainSingle().Which.Borrado.Should().BeTrue();
+
+        s3.EscrituraRetenida.SetResult();
+
+        s3.EscrituraTerminada.Wait(EsperaMaxima).Should().BeTrue();
+        s3.LecturasDelCuerpoFallidas.Should().BeEmpty();
+        XElement.Parse(s3.Objetos["claves-dp/key-5.xml"]).Attribute("id")!.Value.Should().Be("5");
     }
 
     [Fact]
@@ -231,13 +258,28 @@ public class DataProtectionAwsSinInterbloqueoTests
         TaskScheduler.UnobservedTaskException += AlNoObservada;
         try
         {
-            AbandonarUnaOperacionQueFallaTarde(mensajeTardio).Should().BeTrue(
-                "la limpieza de la operación abandonada debe haber terminado antes de recolectar");
+            var (tareaTardia, limpiezaTerminada) = AbandonarUnaOperacionQueFallaTarde(mensajeTardio);
+            limpiezaTerminada.Should().BeTrue("la limpieza de la operación abandonada debe haber terminado antes de recolectar");
 
-            // Control del instrumento: una tarea fallida que nadie observa, inalcanzable y
-            // creada después de la tardía. Que el recolector la avise demuestra que este
-            // bucle finaliza lo inalcanzable; sin ese aviso, una cola vacía no probaría
-            // que la excepción tardía se observó.
+            // Lo que hace concluyente el test: la tarea tardía concreta se vuelve
+            // inalcanzable. Su TaskExceptionHolder, al que solo apunta ella, se encola para
+            // finalizar en la misma recolección que limpia la referencia débil, y
+            // WaitForPendingFinalizers lo ejecuta; si su excepción no estuviera observada,
+            // ese finalizador la habría avisado.
+            SpinWait.SpinUntil(
+                    () =>
+                    {
+                        GC.Collect();
+                        GC.WaitForPendingFinalizers();
+                        return !tareaTardia.IsAlive;
+                    },
+                    EsperaMaxima)
+                .Should().BeTrue("la tarea tardía debe recolectarse para que su ausencia de aviso signifique algo");
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            // Control del instrumento: una tarea fallida que nadie observa. Que se avise
+            // demuestra que el manejador está suscrito y reconoce el mensaje.
             CrearTareaFallidaSinObservar(mensajeControl);
             SpinWait.SpinUntil(
                     () =>
@@ -248,14 +290,6 @@ public class DataProtectionAwsSinInterbloqueoTests
                     },
                     EsperaMaxima)
                 .Should().BeTrue("el instrumento debe ver una excepción que nadie observa");
-
-            // Dos vueltas más por si la continuación de limpieza, que avisa en su última
-            // instrucción, aún tenía la tarea tardía en la pila cuando se recolectó el control.
-            for (var i = 0; i < 2; i++)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
 
             avisadas.Should().NotContain(mensajeTardio, "la excepción tardía se observa al abandonar la operación");
         }
@@ -270,25 +304,29 @@ public class DataProtectionAwsSinInterbloqueoTests
     /// operación: en Debug el JIT alarga la vida de las variables locales hasta el final
     /// del método.
     /// </summary>
+    /// <remarks>
+    /// Abandona directamente la tarea que falla tarde, para poder seguirla con una
+    /// referencia débil: <c>LlamadaSincronaAws.Ejecutar</c> le pasa a
+    /// <c>LlamadaSincronaAws.Abandonar</c> la tarea que esperaba al vencer el límite; aquí
+    /// se le pasa una propia, sin depender de ese vencimiento, y se conserva el modo de
+    /// saber cuándo deja de ser alcanzable.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool AbandonarUnaOperacionQueFallaTarde(string mensaje)
+    private static (WeakReference Tarea, bool LimpiezaTerminada) AbandonarUnaOperacionQueFallaTarde(string mensaje)
     {
         var fallo = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var limpiezaTerminada = new ManualResetEventSlim();
 
-        var accion = () => LlamadaSincronaAws.Ejecutar(
-            _ => fallo.Task,
-            LimiteCorto,
-            "La operación de prueba",
+        LlamadaSincronaAws.Abandonar(
+            fallo.Task,
+            new CancellationTokenSource(),
             descartarResultadoTardio: null,
             liberarEntrada: limpiezaTerminada.Set);
-
-        accion.Should().Throw<TimeoutException>();
         fallo.SetException(new InvalidOperationException(mensaje));
 
         // liberarEntrada es lo último que hace la continuación de limpieza, después de
         // observar la excepción tardía y liberar la tarea.
-        return limpiezaTerminada.Wait(EsperaMaxima);
+        return (new WeakReference(fallo.Task), limpiezaTerminada.Wait(EsperaMaxima));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -300,12 +338,12 @@ public class DataProtectionAwsSinInterbloqueoTests
     {
         var kms = new KmsFalso { DescifradoRetenido = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously) };
         var cliente = kms.Crear();
-        var descifrador = new KmsXmlDecryptor(new ServiceCollection().AddSingleton(cliente).BuildServiceProvider(), LimiteCorto);
+        var descifrador = new KmsXmlDecryptor(new ServiceCollection().AddSingleton(cliente).BuildServiceProvider(), LimiteCorto, PlanificadorEnLinea.Instancia);
         var cifrado = Convert.ToBase64String(Encoding.UTF8.GetBytes("cifrado:<descriptor>secreto</descriptor>"));
 
         var accion = () => descifrador.Decrypt(new XElement(KmsXmlEncryptor.NombreElemento, cifrado));
         accion.Should().Throw<TimeoutException>().WithMessage("*KMS*");
-        kms.DescifradoIniciado.IsSet.Should().BeTrue(SinArrancar);
+        kms.DescifradoIniciado.IsSet.Should().BeTrue(ArrancadaEnLinea);
 
         kms.DescifradoRetenido.SetResult();
 
@@ -319,12 +357,12 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void Un_cifrado_que_vence_el_limite_borra_el_texto_plano_que_retiene_la_peticion()
     {
         var kms = new KmsFalso { NoResponderNiAtenderCancelacion = true };
-        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", LimiteCorto);
+        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", LimiteCorto, PlanificadorEnLinea.Instancia);
 
         var accion = () => cifrador.Encrypt(new XElement("descriptor", new XElement("masterKey", "secreto")));
 
         accion.Should().Throw<TimeoutException>();
-        kms.TextosPlanosRecibidos.Should().ContainSingle(SinArrancar)
+        kms.TextosPlanosRecibidos.Should().ContainSingle(ArrancadaEnLinea)
             .Which.ToArray().Should().OnlyContain(b => b == 0, "la petición abandonada no retiene el texto plano");
     }
 
@@ -559,6 +597,125 @@ public class DataProtectionAwsSinInterbloqueoTests
         actual.CabecerasDeContenido.Should().Equal(anterior.CabecerasDeContenido);
         actual.CabecerasAmz.Should().Equal(anterior.CabecerasAmz);
         actual.Cuerpo.Should().Equal(anterior.Cuerpo);
+        actual.LongitudDeclarada.Should().Be(anterior.Cuerpo.Length);
+    }
+
+    [Fact]
+    public void StoreElement_con_reintentos_del_SDK_real_repone_el_cuerpo_y_lo_reenvia_entero_con_su_Content_Length()
+    {
+        // El primer intento lee el cuerpo entero y falla con un 500, que el SDK reintenta:
+        // el reintento tiene que reponer el flujo (AutoResetStreamPosition) sin que se haya
+        // cerrado ni revocado entre intentos, y declarar la misma longitud.
+        var elemento = new XElement("key", new XAttribute("id", "1"), new XElement("descriptor", "secreto con eñe"));
+        var capturas = new ConcurrentQueue<PeticionCapturada>();
+        var intentos = 0;
+        var fabrica = new FabricaHttpDePrueba(async peticion =>
+        {
+            capturas.Enqueue(await PeticionCapturada.DeAsync(peticion));
+            if (Interlocked.Increment(ref intentos) == 1)
+            {
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                {
+                    Content = new StringContent(
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>InternalError</Code>"
+                        + "<Message>fallo de prueba</Message><RequestId>prueba</RequestId></Error>",
+                        Encoding.UTF8,
+                        "application/xml")
+                };
+            }
+
+            var respuesta = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) };
+            respuesta.Headers.ETag = new EntityTagHeaderValue("\"etag-de-prueba\"");
+            return respuesta;
+        });
+        using var cliente = new AmazonS3Client(
+            new Amazon.Runtime.AnonymousAWSCredentials(),
+            new AmazonS3Config
+            {
+                RegionEndpoint = Amazon.RegionEndpoint.EUWest1,
+                HttpClientFactory = fabrica,
+                MaxErrorRetry = 2
+            });
+
+        new S3XmlRepository(cliente, Opciones(), EsperaMaxima).StoreElement(elemento, "key-1");
+
+        capturas.Should().HaveCount(2, "el primer intento falla y el segundo tiene éxito");
+        var primero = capturas.ElementAt(0);
+        var segundo = capturas.ElementAt(1);
+        Encoding.UTF8.GetString(primero.Cuerpo).Should().Contain(
+            elemento.ToString(), "el primer intento envía el XML entero");
+        segundo.Cuerpo.Should().Equal(primero.Cuerpo, "el reintento repone el flujo y reenvía el cuerpo entero");
+        primero.LongitudDeclarada.Should().Be(primero.Cuerpo.Length);
+        segundo.LongitudDeclarada.Should().Be(segundo.Cuerpo.Length);
+        segundo.CabecerasDeContenido.Should().Equal(primero.CabecerasDeContenido);
+    }
+
+    [Fact]
+    public void Una_escritura_abandonada_con_el_SDK_real_falla_al_leer_el_cuerpo_en_vez_de_enviar_ceros()
+    {
+        // La petición del SDK real llega al manejador HTTP antes de que empiece la espera
+        // (PlanificadorEnLinea y la espera de abajo), y el manejador no lee el cuerpo hasta
+        // que StoreElement ha vuelto con el límite vencido y ha revocado el cuerpo.
+        using var peticionRecibida = new ManualResetEventSlim();
+        var puerta = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var lectura = new TaskCompletionSource<(byte[]? Cuerpo, Exception? Error)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var fabrica = new FabricaHttpDePrueba(async peticion =>
+        {
+            peticionRecibida.Set();
+            await puerta.Task;
+            try
+            {
+                var cuerpo = await peticion.Content!.ReadAsByteArrayAsync();
+                lectura.TrySetResult((cuerpo, null));
+            }
+            catch (Exception ex)
+            {
+                lectura.TrySetResult((null, ex));
+                throw;
+            }
+
+            var respuesta = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) };
+            respuesta.Headers.ETag = new EntityTagHeaderValue("\"etag-de-prueba\"");
+            return respuesta;
+        });
+        using var cliente = new AmazonS3Client(
+            new Amazon.Runtime.AnonymousAWSCredentials(),
+            new AmazonS3Config
+            {
+                RegionEndpoint = Amazon.RegionEndpoint.EUWest1,
+                HttpClientFactory = fabrica,
+                MaxErrorRetry = 0
+            });
+        // Reenvía al cliente real y no devuelve la tarea hasta que la petición está en el
+        // manejador: así el límite empieza a contar con la petición ya en curso.
+        var s3 = DobleAws<IAmazonS3>.Crear((metodo, argumentos) =>
+        {
+            var tarea = metodo.Invoke(cliente, argumentos);
+            peticionRecibida.Wait(EsperaMaxima).Should().BeTrue("la petición del SDK real debe llegar al manejador");
+            return tarea;
+        });
+        var repositorio = new S3XmlRepository(s3, Opciones(), LimiteCorto, PlanificadorEnLinea.Instancia);
+
+        var accion = () => repositorio.StoreElement(
+            new XElement("key", new XAttribute("id", "6"), new XElement("descriptor", "secreto")), "key-6");
+
+        accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
+        puerta.SetResult();
+
+        lectura.Task.Wait(EsperaMaxima).Should().BeTrue("el manejador intenta leer el cuerpo tras el vencimiento");
+        var (cuerpoLeido, error) = lectura.Task.Result;
+        cuerpoLeido.Should().BeNull("el SDK no puede entregar a la pila HTTP un cuerpo revocado, ni a ceros ni entero");
+        error.Should().NotBeNull();
+        Cadena(error!).Should().Contain(e => e is ObjectDisposedException, "lo que falla es la lectura del cuerpo revocado");
+
+        static IEnumerable<Exception> Cadena(Exception excepcion)
+        {
+            for (var actual = excepcion; actual is not null; actual = actual.InnerException)
+            {
+                yield return actual;
+            }
+        }
     }
 
     [Fact]
@@ -585,10 +742,13 @@ public class DataProtectionAwsSinInterbloqueoTests
                 return new TaskCompletionSource<int>().Task;
             },
             LimiteCorto,
-            "La operación de prueba");
+            "La operación de prueba",
+            descartarResultadoTardio: null,
+            liberarEntrada: null,
+            PlanificadorEnLinea.Instancia);
 
         accion.Should().Throw<TimeoutException>();
-        Volatile.Read(ref iniciada).Should().BeTrue(SinArrancar);
+        Volatile.Read(ref iniciada).Should().BeTrue(ArrancadaEnLinea);
         Volatile.Read(ref callbackTerminado).Should().BeFalse(
             "el llamante recibe el TimeoutException sin esperar al callback de cancelación");
 
@@ -604,12 +764,13 @@ public class DataProtectionAwsSinInterbloqueoTests
         var cliente = kms.Crear();
         var descifrador = new KmsXmlDecryptor(
             new ServiceCollection().AddSingleton(cliente).BuildServiceProvider(),
-            LimiteCorto);
+            LimiteCorto,
+            PlanificadorEnLinea.Instancia);
 
         var accion = () => descifrador.Decrypt(new XElement(KmsXmlEncryptor.NombreElemento, Convert.ToBase64String([1, 2, 3])));
 
         accion.Should().Throw<TimeoutException>().WithMessage("*KMS*");
-        kms.DescifradoIniciado.IsSet.Should().BeTrue(SinArrancar);
+        kms.DescifradoIniciado.IsSet.Should().BeTrue(ArrancadaEnLinea);
         SpinWait.SpinUntil(() => kms.TokenCancelado, EsperaMaxima).Should().BeTrue();
     }
 
@@ -642,13 +803,13 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void Una_llamada_a_S3_que_no_responde_se_corta_en_el_limite_y_cancela_la_peticion()
     {
         var s3 = new S3Falso { NoResponder = true };
-        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto);
+        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto, PlanificadorEnLinea.Instancia);
 
         var cronometro = Stopwatch.StartNew();
         var accion = () => repositorio.GetAllElements();
 
         accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
-        s3.PrefijosListados.Should().NotBeEmpty(SinArrancar);
+        s3.PrefijosListados.Should().NotBeEmpty(ArrancadaEnLinea);
         cronometro.Elapsed.Should().BeLessThan(EsperaMaxima);
         // La cancelación llega al doble en el pool, en paralelo con la excepción.
         SpinWait.SpinUntil(() => s3.TokenCancelado, EsperaMaxima).Should().BeTrue(
@@ -659,7 +820,7 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void Una_llamada_a_KMS_que_ignora_la_cancelacion_tambien_se_corta_en_el_limite()
     {
         var kms = new KmsFalso { NoResponderNiAtenderCancelacion = true };
-        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", LimiteCorto);
+        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", LimiteCorto, PlanificadorEnLinea.Instancia);
 
         var cronometro = Stopwatch.StartNew();
         var accion = () => cifrador.Encrypt(new XElement("descriptor"));
@@ -856,10 +1017,13 @@ public class DataProtectionAwsSinInterbloqueoTests
         Uri? Uri,
         IReadOnlyList<KeyValuePair<string, string>> CabecerasDeContenido,
         IReadOnlyList<KeyValuePair<string, string>> CabecerasAmz,
-        byte[] Cuerpo)
+        byte[] Cuerpo,
+        long? LongitudDeclarada)
     {
         public static async Task<PeticionCapturada> DeAsync(HttpRequestMessage peticion)
         {
+            // Antes de leer el cuerpo: es lo que la pila HTTP enviaría como Content-Length.
+            var longitud = peticion.Content?.Headers.ContentLength;
             var cuerpo = peticion.Content is null ? [] : await peticion.Content.ReadAsByteArrayAsync();
             var deContenido = peticion.Content is null
                 ? []
@@ -867,7 +1031,7 @@ public class DataProtectionAwsSinInterbloqueoTests
             var amz = Ordenar(peticion.Headers.Where(cabecera =>
                 cabecera.Key.StartsWith("x-amz-", StringComparison.OrdinalIgnoreCase)
                 && !cabecera.Key.Equals("x-amz-date", StringComparison.OrdinalIgnoreCase)));
-            return new PeticionCapturada(peticion.Method.Method, peticion.RequestUri, deContenido, amz, cuerpo);
+            return new PeticionCapturada(peticion.Method.Method, peticion.RequestUri, deContenido, amz, cuerpo, longitud);
         }
 
         private static List<KeyValuePair<string, string>> Ordenar(IEnumerable<KeyValuePair<string, IEnumerable<string>>> cabeceras) =>
@@ -893,11 +1057,19 @@ public class DataProtectionAwsSinInterbloqueoTests
         public TaskCompletionSource? EscrituraRetenida { get; init; }
 
         /// <summary>
-        /// Los flujos que llegaron como cuerpo de cada escritura, para comprobar después
-        /// que sus bytes se borran (<see cref="MemoryStream.ToArray"/> sigue leyéndolos
-        /// aunque el flujo esté liberado).
+        /// Si es cierto, la escritura lee el cuerpo entero antes de la puerta: modela una
+        /// petición que ya lo envió y solo espera la respuesta de S3.
         /// </summary>
-        public ConcurrentQueue<MemoryStream> CuerposEnviados { get; } = new();
+        public bool LeerCuerpoAntesDeRetener { get; init; }
+
+        /// <summary>
+        /// Los flujos que llegaron como cuerpo de cada escritura, para comprobar después
+        /// que sus bytes se borran.
+        /// </summary>
+        public ConcurrentQueue<S3XmlRepository.CuerpoRevocable> CuerposEnviados { get; } = new();
+
+        /// <summary>Lo que lanzó leer el cuerpo de una escritura, si falló.</summary>
+        public ConcurrentQueue<Exception> LecturasDelCuerpoFallidas { get; } = new();
 
         public ManualResetEventSlim EscrituraIniciada { get; } = new();
         public ManualResetEventSlim EscrituraTerminada { get; } = new();
@@ -971,11 +1143,12 @@ public class DataProtectionAwsSinInterbloqueoTests
         {
             peticion.BucketName.Should().Be("bucket-pruebas");
             peticion.ContentBody.Should().BeNull("el XML viaja en bytes que se pueden borrar, no en un string");
-            var cuerpo = peticion.InputStream.Should().BeOfType<MemoryStream>().Which;
+            var cuerpo = peticion.InputStream.Should().BeOfType<S3XmlRepository.CuerpoRevocable>().Which;
             CuerposEnviados.Enqueue(cuerpo);
             EscrituraIniciada.Set();
             try
             {
+                var leido = LeerCuerpoAntesDeRetener ? await LeerCuerpoAsync(cuerpo) : null;
                 if (EscrituraRetenida is not null)
                 {
                     await EscrituraRetenida.Task;
@@ -985,12 +1158,9 @@ public class DataProtectionAwsSinInterbloqueoTests
                     await Task.Delay(RetrasoPorPeticion, token);
                 }
 
-                // Se lee al final, como una petición que aún está enviando el cuerpo.
-                using (var lector = new StreamReader(cuerpo, Encoding.UTF8))
-                {
-                    Objetos[peticion.Key] = await lector.ReadToEndAsync(CancellationToken.None);
-                }
-
+                // Por defecto se lee al final, como una petición que aún está enviando el
+                // cuerpo. Solo se guarda lo que se pudo leer entero.
+                Objetos[peticion.Key] = leido ?? await LeerCuerpoAsync(cuerpo);
                 return new PutObjectResponse();
             }
             finally
@@ -998,6 +1168,60 @@ public class DataProtectionAwsSinInterbloqueoTests
                 EscrituraTerminada.Set();
             }
         }
+
+        private async Task<string> LeerCuerpoAsync(Stream cuerpo)
+        {
+            // Lee con ReadAsync en trozos, como la pila HTTP, sin consultar antes CanRead
+            // (un StreamReader rechazaría el flujo revocado en su constructor).
+            try
+            {
+                using var leido = new MemoryStream();
+                var trozo = new byte[16];
+                int leidos;
+                while ((leidos = await cuerpo.ReadAsync(trozo)) > 0)
+                {
+                    leido.Write(trozo, 0, leidos);
+                }
+
+                return Encoding.UTF8.GetString(leido.ToArray());
+            }
+            catch (Exception ex)
+            {
+                LecturasDelCuerpoFallidas.Enqueue(ex);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Arranca la tarea en el acto, en el hilo que la encola y sin su SynchronizationContext:
+    /// el doble llega a su primera espera antes de que <c>LlamadaSincronaAws</c> empiece la
+    /// suya, así que un vencimiento no depende de cuándo llegue el pool a la operación. Lo
+    /// que la operación continúe tras un <c>await</c> corre en el hilo que la reanude. No
+    /// sirve para los tests de interbloqueo, que necesitan que la operación corra fuera del
+    /// hilo del llamante.
+    /// </summary>
+    private sealed class PlanificadorEnLinea : TaskScheduler
+    {
+        public static readonly PlanificadorEnLinea Instancia = new();
+
+        protected override void QueueTask(Task task)
+        {
+            var contexto = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(null);
+            try
+            {
+                TryExecuteTask(task);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(contexto);
+            }
+        }
+
+        protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => false;
+
+        protected override IEnumerable<Task> GetScheduledTasks() => [];
     }
 
     private sealed class KmsFalso

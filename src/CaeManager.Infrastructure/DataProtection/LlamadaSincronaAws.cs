@@ -34,9 +34,12 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// vez de quedarse esperando.
 ///
 /// Operaciones abandonadas: una operación que no terminó en el límite sigue su curso
-/// hasta que el SDK atienda la cancelación. Una escritura en S3 ya enviada puede
+/// hasta que el SDK atienda la cancelación. Una escritura en S3 cuyo cuerpo ya se leyó entero puede
 /// completarse después, y Data Protection, que la da por fallida, generará otra clave;
-/// las dos son válidas. Cuando la operación abandonada termina, sea cual sea su estado,
+/// las dos son válidas. Una cuyo cuerpo aún no se había leído entero falla, porque
+    /// <see cref="S3XmlRepository"/> revoca el cuerpo al volver (ver
+    /// <see cref="S3XmlRepository.CuerpoRevocable"/>): S3 no llega a recibirlo completo.
+    /// Cuando la operación abandonada termina, sea cual sea su estado,
 /// una continuación encolada en el pool (nunca en el hilo del llamante, tampoco si la
 /// operación terminó justo al vencer la espera) observa su excepción tardía (no llega a
 /// <see cref="TaskScheduler.UnobservedTaskException"/>), pasa su resultado tardío por
@@ -80,7 +83,9 @@ internal static class LlamadaSincronaAws
 
     /// <param name="planificador">
     /// <see cref="TaskScheduler.Default"/> en producción (lo mismo que <c>Task.Run</c>);
-    /// los tests pasan uno que retiene el trabajo para simular un pool saturado.
+    /// los tests pasan uno que retiene el trabajo para simular un pool saturado, o uno
+    /// que la arranca en el acto (sin contexto) para que un vencimiento no dependa de
+    /// cuándo llegue el pool a la operación.
     /// </param>
     internal static T Ejecutar<T>(
         Func<CancellationToken, Task<T>> operacion,
@@ -143,7 +148,15 @@ internal static class LlamadaSincronaAws
         Func<CancellationToken, Task> operacion,
         TimeSpan limite,
         string descripcion,
-        Action? liberarEntrada = null)
+        Action? liberarEntrada = null) =>
+        Ejecutar(operacion, limite, descripcion, liberarEntrada, TaskScheduler.Default);
+
+    internal static void Ejecutar(
+        Func<CancellationToken, Task> operacion,
+        TimeSpan limite,
+        string descripcion,
+        Action? liberarEntrada,
+        TaskScheduler planificador)
     {
         ArgumentNullException.ThrowIfNull(operacion);
 
@@ -156,7 +169,8 @@ internal static class LlamadaSincronaAws
             limite,
             descripcion,
             descartarResultadoTardio: null,
-            liberarEntrada);
+            liberarEntrada,
+            planificador);
     }
 
     /// <summary>

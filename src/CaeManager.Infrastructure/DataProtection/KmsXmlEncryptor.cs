@@ -28,6 +28,7 @@ public class KmsXmlEncryptor : IXmlEncryptor
     private readonly IAmazonKeyManagementService _kms;
     private readonly string _keyId;
     private readonly TimeSpan _limite;
+    private readonly TaskScheduler _planificador;
 
     public KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId)
         : this(kms, keyId, LlamadaSincronaAws.LimitePorDefecto)
@@ -35,10 +36,17 @@ public class KmsXmlEncryptor : IXmlEncryptor
     }
 
     internal KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId, TimeSpan limite)
+        : this(kms, keyId, limite, TaskScheduler.Default)
+    {
+    }
+
+    /// <param name="planificador">Solo los tests pasan otro que <see cref="TaskScheduler.Default"/>.</param>
+    internal KmsXmlEncryptor(IAmazonKeyManagementService kms, string keyId, TimeSpan limite, TaskScheduler planificador)
     {
         _kms = kms;
         _keyId = keyId;
         _limite = limite;
+        _planificador = planificador;
     }
 
     public EncryptedXmlInfo Encrypt(XElement plaintextElement)
@@ -67,7 +75,10 @@ public class KmsXmlEncryptor : IXmlEncryptor
                     Plaintext = new MemoryStream(textoPlano)
                 }, token),
                 _limite,
-                "El cifrado con KMS de una clave de Data Protection");
+                "El cifrado con KMS de una clave de Data Protection",
+                descartarResultadoTardio: null,
+                liberarEntrada: null,
+                _planificador);
         }
         finally
         {

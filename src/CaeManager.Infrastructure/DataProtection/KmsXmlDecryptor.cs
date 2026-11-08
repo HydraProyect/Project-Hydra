@@ -21,19 +21,26 @@ public class KmsXmlDecryptor : IXmlDecryptor
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly TimeSpan _limite;
+    private readonly TaskScheduler _planificador;
 
     // Data Protection construye el descifrador con este constructor público
-    // (recibe IServiceProvider); el interno solo existe para acotar el límite
-    // de tiempo en los tests.
+    // (recibe IServiceProvider); los internos solo existen para acotar el límite
+    // de tiempo y elegir el planificador en los tests.
     public KmsXmlDecryptor(IServiceProvider serviceProvider)
         : this(serviceProvider, LlamadaSincronaAws.LimitePorDefecto)
     {
     }
 
     internal KmsXmlDecryptor(IServiceProvider serviceProvider, TimeSpan limite)
+        : this(serviceProvider, limite, TaskScheduler.Default)
+    {
+    }
+
+    internal KmsXmlDecryptor(IServiceProvider serviceProvider, TimeSpan limite, TaskScheduler planificador)
     {
         _serviceProvider = serviceProvider;
         _limite = limite;
+        _planificador = planificador;
     }
 
     public XElement Decrypt(XElement encryptedElement)
@@ -59,7 +66,9 @@ public class KmsXmlDecryptor : IXmlDecryptor
             }, token),
             _limite,
             "El descifrado con KMS de una clave de Data Protection",
-            static tardia => _ = BorrarFlujo(tardia.Plaintext));
+            static tardia => _ = BorrarFlujo(tardia.Plaintext),
+            liberarEntrada: null,
+            _planificador);
 
         var textoPlano = respuesta.Plaintext.ToArray();
         try
