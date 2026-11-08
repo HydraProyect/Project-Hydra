@@ -28,6 +28,9 @@ public class ParDeAcreditacionYaExistenteTests
     [Theory]
     [InlineData(PostgresErrorCodes.UniqueViolation, "IX_Empresas_TenantId_Cif")]
     [InlineData(PostgresErrorCodes.UniqueViolation, "IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId")]
+    // Mismo prefijo que el índice del par, otra restricción.
+    [InlineData(PostgresErrorCodes.UniqueViolation, "IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId_Cana_Otro")]
+    [InlineData(PostgresErrorCodes.UniqueViolation, "IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId_Cana")]
     [InlineData(PostgresErrorCodes.UniqueViolation, null)]
     [InlineData(PostgresErrorCodes.ForeignKeyViolation, IndiceDelPar)]
     public void Otro_choque_sigue_siendo_un_error(string sqlState, string? restriccion) =>

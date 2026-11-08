@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -77,7 +77,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.IntegrationTests.SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(

@@ -18,6 +18,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using FluentAssertions;
 using Xunit;
@@ -53,7 +54,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -184,6 +185,62 @@ public class CaminosDeAltaAcreditacionesTests
     }
 
     [Fact]
+    public async Task Crear_un_documento_de_empresa_se_serializa_y_lo_acredita_en_los_centros_de_plataforma_de_su_empresa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
+        var empresa = new CaeManager.Domain.Empresas.Empresa("Contrata Norte S.L.", "B10380186");
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(empresa);
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", empresa.Id));
+        var documentos = new DocumentoRepositorioFalso();
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        var handler = new CrearDocumentoCommandHandler(
+            documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
+            new ProyectosQueryContextFalso(), empresas, new UnitOfWorkFalso(),
+            new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion);
+
+        var resultado = await handler.Handle(
+            new CrearDocumentoCommand(null, null, empresa.Id, null, null, tipo.Id, Hoy, null, null, null),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEquivalentTo([(resultado.Valor, acceso.Id)]);
+        serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
+        documentos.Documentos.Should().ContainSingle("el Documento se agrega dentro de la operación serializada");
+    }
+
+    [Fact]
+    public async Task Crear_un_documento_de_trabajador_o_un_acceso_por_correo_no_se_serializa()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var tipo = mundo.Tipo(RequisitoDocumental.Si);
+        var centro = mundo.Centro();
+        mundo.Asignacion(trabajador, centro);
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
+        var crearDocumento = new CrearDocumentoCommandHandler(
+            new DocumentoRepositorioFalso(), mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
+            new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
+            new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion);
+        var crearAcceso = new CrearCanalGestionCommandHandler(
+            new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), new ProveedoresPlataformaCaeQueryContextFalso(),
+            mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso(), serializacion);
+
+        (await crearDocumento.Handle(
+            new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
+            CancellationToken.None)).EsExitoso.Should().BeTrue();
+        (await crearAcceso.Handle(
+            new CrearCanalGestionCommand(centro.Id, TipoCanalGestion.Email, "Correo CAE", null,
+                null, null, null, "cae@contratista.es", null, null),
+            CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        serializacion.Llamadas.Should().Be(0, "solo esperan entre sí las altas de la regla A-1");
+    }
+
+    [Fact]
     public async Task Crear_un_acceso_de_plataforma_acredita_ante_el_solo_los_documentos_que_su_centro_exige()
     {
         var mundo = new MundoAcreditaciones();
@@ -197,8 +254,9 @@ public class CaminosDeAltaAcreditacionesTests
         var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
         var proveedor = new ProveedorPlataformaCae("ctaima", "CTAIMA");
         proveedores.ListaProveedores.Add(proveedor);
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
         var handler = new CrearCanalGestionCommandHandler(
-            new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), proveedores, mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso());
+            new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), proveedores, mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso(), serializacion);
 
         var resultado = await handler.Handle(
             new CrearCanalGestionCommand(centro.Id, TipoCanalGestion.Plataforma, "Acceso subcontratas", proveedor.Id,
@@ -207,6 +265,8 @@ public class CaminosDeAltaAcreditacionesTests
 
         resultado.EsExitoso.Should().BeTrue();
         mundo.Agregadas.Should().BeEquivalentTo([(exigido.Id, resultado.Valor)]);
+        serializacion.Llamadas.Should().Be(1,
+            "el alta de un acceso de plataforma se serializa con la de un Documento de Empresa (regla A-1)");
     }
 
     private static byte[] DocxMinimo()
@@ -491,6 +551,41 @@ public class CaminosDeAltaAcreditacionesTests
     }
 
     [Fact]
+    public async Task Una_fila_incluida_que_la_misma_edicion_elimina_no_prevalece_sobre_la_serie_nueva()
+    {
+        // La edición quita la fila Incluido=true del Centro, pasa Requerido a Sí y restringe la serie a cuenta ajena.
+        // Tras guardar, el Centro sigue el valor general: el autónomo ya no tiene que presentarlo y su Documento no se
+        // acredita; el del trabajador por cuenta ajena sí (control de que la propagación ocurrió).
+        var mundo = new MundoAcreditaciones();
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var centro = mundo.Centro();
+        var acceso = mundo.AccesoPlataforma(centro);
+        var porCuentaAjena = mundo.Trabajador();
+        var autonomo = mundo.Trabajador("87654321X");
+        autonomo.CambiarTipoContratacion(TipoContratacion.Autonomo);
+        mundo.Asignacion(porCuentaAjena, centro);
+        mundo.Asignacion(autonomo, centro);
+        var documentoPorCuentaAjena = mundo.DocumentoDe(porCuentaAjena, tipo);
+        mundo.DocumentoDe(autonomo, tipo);
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        filas.Agregar(mundo.Requisito(tipo, centro, incluido: true));
+        var tipos = new TipoDocumentoRepositorioFalso();
+        tipos.Agregar(tipo);
+        var handler = new EditarTipoDocumentoCommandHandler(
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new EditarTipoDocumentoCommand(
+                tipo.Id, tipo.Nombre, 12, true, 1, RequisitoDocumental.Si, NaturalezaJuridica.RequisitoCliente,
+                null, null, null, null, null, [], TiposContratacionDeSerie: TiposContratacion.CuentaAjena),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        mundo.Agregadas.Should().BeEquivalentTo([(documentoPorCuentaAjena.Id, acceso.Id)],
+            "la fila eliminada en la misma edición ya no exige el tipo al autónomo");
+    }
+
+    [Fact]
     public async Task Editar_un_tipo_que_ya_se_exigia_de_serie_no_repara_acreditaciones()
     {
         // Solo el paso de no exigido a exigido es un alta: guardar el tipo sin cambiar Requerido no pone nada en juego
@@ -603,7 +698,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             cola, new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, "apto.pdf", null),

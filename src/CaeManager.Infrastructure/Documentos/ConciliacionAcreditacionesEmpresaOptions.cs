@@ -22,6 +22,19 @@ public class ConciliacionAcreditacionesEmpresaOptions
 {
     public const string SeccionConfiguracion = "ConciliacionAcreditacionesEmpresa";
 
-    /// <summary>Si es verdadero, la conciliación recorre todos los Tenants una vez, en segundo plano, al arrancar.</summary>
+    /// <summary>
+    /// Si es verdadero, la conciliación recorre todos los Tenants en segundo plano al arrancar, hasta completar una
+    /// pasada (ver <see cref="IntentosMaximos"/>).
+    /// </summary>
     public bool EjecutarAlArrancar { get; set; }
+
+    /// <summary>
+    /// Intentos de completar la pasada en esta instancia, contando el primero. Se reintenta cuando otra instancia tiene
+    /// el liderazgo (puede caerse a mitad: el bloqueo de líder se libera con su conexión) y cuando un Tenant propietario
+    /// o un lote falló. Repetirla no duplica nada. Agotados los intentos, se registra como error y se deja.
+    /// </summary>
+    public int IntentosMaximos { get; set; } = 12;
+
+    /// <summary>Espera entre intentos; la misma que el reintento del cierre mensual del Cuadro de dirección.</summary>
+    public TimeSpan EsperaEntreIntentos { get; set; } = TimeSpan.FromMinutes(15);
 }

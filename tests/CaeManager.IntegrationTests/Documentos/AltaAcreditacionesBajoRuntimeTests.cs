@@ -180,7 +180,16 @@ public class AltaAcreditacionesBajoRuntimeTests
     [Fact]
     public async Task El_disparador_concilia_cada_Tenant_en_su_ambito_bajo_RLS_y_repetirlo_no_duplica()
     {
-        await using var arnes = await CrearArnesAsync();
+        // El disparador resuelve la conciliación del contenedor, como en producción (AddApplication la registra; este
+        // arnés no monta Application). Sin este registro cada Tenant fallaba al resolverla y la pasada parecía terminada.
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(
+            datosDePruebaActivos: false, tenantActualPersonalizado: new TenantDelAmbitoOFijado(_tenant),
+            serviciosAdicionales: servicios => servicios.AddScoped<IConciliacionAcreditacionesEmpresaService>(sp =>
+            {
+                var contexto = sp.GetRequiredService<CaeManagerDbContext>();
+                return new ConciliacionAcreditacionesEmpresaService(
+                    contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto, contexto);
+            }));
         await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
         {
             propietarioBd.Tenants.AddRange(
@@ -202,10 +211,14 @@ public class AltaAcreditacionesBajoRuntimeTests
         _tenant.TenantId = null;
         var disparador = new ConciliacionAcreditacionesEmpresaHostedService(
             arnes.Servicios.GetRequiredService<IServiceScopeFactory>(), new LiderSiempre(),
-            NullLogger<ConciliacionAcreditacionesEmpresaHostedService>.Instance);
+            new ConciliacionAcreditacionesEmpresaOptions { EjecutarAlArrancar = true, IntentosMaximos = 1 },
+            TimeProvider.System, NullLogger<ConciliacionAcreditacionesEmpresaHostedService>.Instance);
 
-        await disparador.ProcesarAsync(CancellationToken.None);
-        await disparador.ProcesarAsync(CancellationToken.None);
+        var primera = await disparador.ProcesarAsync(CancellationToken.None);
+        primera.TenantsIncompletos.Should().BeEmpty("ningún Tenant falla: un fallo deja la pasada incompleta, no terminada");
+        primera.Creadas.Should().Be(2);
+        (await disparador.ConciliarHastaCompletarAsync(CancellationToken.None)).Should().BeTrue(
+            "el camino completo, con el líder y el reintento, completa la pasada a la primera");
 
         var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
         acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId],
@@ -271,25 +284,25 @@ public class AltaAcreditacionesBajoRuntimeTests
         }
 
         _tenant.TenantId = _otroTenant;
-        (await ConciliarAsync(arnes)).Should().Be(0, "desde otro Tenant no ve ni el Documento ni los Centros");
+        (await ConciliarAsync(arnes)).Creadas.Should().Be(0, "desde otro Tenant no ve ni el Documento ni los Centros");
         (await LeerComoPropietarioAsync(arnes, documento.Id)).Should().BeEmpty();
 
         _tenant.TenantId = _tenantPropietario;
-        (await ConciliarAsync(arnes)).Should().Be(2);
-        (await ConciliarAsync(arnes)).Should().Be(0, "idempotente");
+        (await ConciliarAsync(arnes)).Creadas.Should().Be(2);
+        (await ConciliarAsync(arnes)).Creadas.Should().Be(0, "idempotente");
 
         var acreditaciones = await LeerComoPropietarioAsync(arnes, documento.Id);
         acreditaciones.Select(a => a.CanalId).Should().BeEquivalentTo([escenario.CanalId, escenario.OtroCanalId]);
         acreditaciones.Should().OnlyContain(a => a.TenantId == _tenantPropietario);
     }
 
-    private static async Task<int> ConciliarAsync(ArnesDeArranqueRuntime arnes)
+    private static async Task<ResultadoConciliacionTenant> ConciliarAsync(ArnesDeArranqueRuntime arnes)
     {
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         (await contexto.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync())
             .Should().Be("cae_app_runtime");
-        return await new ConciliacionAcreditacionesEmpresaService(contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto)
+        return await new ConciliacionAcreditacionesEmpresaService(contexto, AltaAcreditacionesDePrueba.Con(contexto), contexto, contexto)
             .ConciliarTenantEnCursoAsync();
     }
 

@@ -41,6 +41,13 @@ public sealed record AltasConAcreditacion
     public IReadOnlyCollection<TipoDocumentoCentro> Requisitos { get; init; } = [];
 
     /// <summary>
+    /// Filas de Centro sobre un TipoDocumento que este mismo alta elimina, aún sin guardar: la base todavía las
+    /// devuelve, pero ya no deciden qué exige el Centro. Sin su fila, el Centro sigue el valor general del tipo
+    /// (Requerido y su serie), igual que tras el guardado. Una fila de <see cref="Requisitos"/> del mismo par prevalece.
+    /// </summary>
+    public IReadOnlyCollection<TipoDocumentoCentro> RequisitosEliminados { get; init; } = [];
+
+    /// <summary>
     /// Centros que este alta devuelve a <see cref="ModalidadGestionCae.ConGestionCae"/>
     /// (P1-X2). Prevalecen sobre la modalidad guardada, igual que
     /// <see cref="Requisitos"/> sobre la fila guardada: el Command los cambia y
@@ -291,6 +298,9 @@ public class AltaAcreditacionesPlataformaService(
                 .Where(tc => centroIds.Contains(tc.CentroId) && tipoIds.Contains(tc.TipoDocumentoId))
                 .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
+        // El estado final de la edición: lo que el alta elimina deja de decidir, y lo que agrega o cambia manda.
+        foreach (var eliminado in altas.RequisitosEliminados)
+            filaPorPar.Remove((eliminado.TipoDocumentoId, eliminado.CentroId));
         foreach (var requisito in altas.Requisitos)
             filaPorPar[(requisito.TipoDocumentoId, requisito.CentroId)] = requisito;
 

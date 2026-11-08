@@ -136,8 +136,10 @@ public class EditarTipoDocumentoCommandHandler(
             || (centrosDeGestion is not null && !centroIdsNuevos.All(centrosDeGestion.Contains)))
             return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));
 
-        foreach (var tc in actuales.Where(tc => !deseados.Contains(tc.CentroId)
-                                                && (centrosDeGestion is null || centrosDeGestion.Contains(tc.CentroId))))
+        var requisitosEliminados = actuales.Where(tc => !deseados.Contains(tc.CentroId)
+                                                        && (centrosDeGestion is null || centrosDeGestion.Contains(tc.CentroId)))
+            .ToList();
+        foreach (var tc in requisitosEliminados)
             tipoDocumentoCentroRepositorio.Eliminar(tc);
 
         var filaExcluidaPorCentroId = todasLasFilas.Where(tc => !tc.Incluido).ToDictionary(tc => tc.CentroId);
@@ -167,6 +169,9 @@ public class EditarTipoDocumentoCommandHandler(
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
         {
             Requisitos = requisitosNuevos,
+            // Las filas que esta edición elimina ya no deciden: sin ellas, el Centro sigue el Requerido y la serie
+            // nuevos (revisión Codex de la PR #2074, ronda 2, hallazgo 4).
+            RequisitosEliminados = requisitosEliminados,
             TiposQuePasanAExigirseDeSerie = pasaAExigirseDeSerie ? [tipoDocumento.Id] : [],
             // La serie que esta edición acaba de fijar, aún sin guardar: la guardada ya no es la que rige.
             SerieVigenteDeTipos = new Dictionary<Guid, TiposContratacion>

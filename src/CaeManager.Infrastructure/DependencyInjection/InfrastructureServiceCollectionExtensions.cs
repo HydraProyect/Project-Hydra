@@ -519,6 +519,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        // Regla A-1: el alta de un Documento de Empresa y la de un acceso de plataforma no se pierden el par entre sí.
+        services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
@@ -818,7 +820,10 @@ public static class InfrastructureServiceCollectionExtensions
         configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
             .Bind(opcionesConciliacionAcreditaciones);
         if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        {
+            services.AddSingleton(opcionesConciliacionAcreditaciones);
             services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();
+        }
 
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra

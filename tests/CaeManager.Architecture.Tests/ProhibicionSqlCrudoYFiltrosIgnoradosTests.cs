@@ -537,6 +537,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Decisión D-3: mismo candado, para que suspender y reactivar un Tenant no se pisen.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoEstadoOperativoTenant.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
 
+        // Regla A-1 (revisión Codex de la PR #2074): mismo candado, por Tenant, para que el alta de un
+        // Documento de Empresa y la de un acceso de plataforma no se pierdan el par. No toca filas.
+        [("src/CaeManager.Infrastructure/Persistence/SerializacionAltasAcreditacionEmpresa.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
         // Decisión del 2026-10-30, un Tenant no se queda sin Administrador: el candado de
         // los Administradores del Tenant (misma clave que app_bloquear_administradores_de_tenant,
         // que el runtime no puede ejecutar). Mismo régimen que el de cartera: no lee ni

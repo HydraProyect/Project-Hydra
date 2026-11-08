@@ -543,13 +543,22 @@ public class CaeManagerDbContext(
     /// </summary>
     private const int MaximoReintentosParAcreditacionYaExistente = 3;
 
-    /// <summary>Solo el índice único del par, no cualquier 23505: otra violación de unicidad sigue siendo un error.</summary>
+    /// <summary>
+    /// Nombre exacto del índice único del par en PostgreSQL: el que EF genera, recortado a 63 caracteres con «~»
+    /// (migración LineaBaseCompactada).
+    /// </summary>
+    internal const string IndiceUnicoParAcreditacion = "IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId_Cana~";
+
+    /// <summary>
+    /// Solo el índice único del par, no cualquier 23505: otra violación de unicidad sigue siendo un error, también la de
+    /// una restricción cuyo nombre empiece igual.
+    /// </summary>
     internal static bool EsParDeAcreditacionYaExistente(DbUpdateException ex) =>
         ex.InnerException is Npgsql.PostgresException
         {
             SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: { } restriccion
         }
-        && restriccion.StartsWith("IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId_Cana", StringComparison.Ordinal);
+        && string.Equals(restriccion, IndiceUnicoParAcreditacion, StringComparison.Ordinal);
 
     /// <summary>
     /// Desacopla las acreditaciones pendientes cuyo par ya está guardado (o, si la base aún no lo deja ver, las que

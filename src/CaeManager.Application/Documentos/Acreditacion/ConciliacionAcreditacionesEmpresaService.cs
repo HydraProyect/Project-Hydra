@@ -15,8 +15,9 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 ///
 /// <para>
 /// Cubre lo que el alta no alcanza: los datos anteriores a la regla A-1, los Documentos de Empresa creados por una
-/// instancia anterior durante el relevo azul/verde, y el par que dos altas simultáneas (un Documento y el acceso de
-/// su Centro) dejaron sin crear porque ninguna veía lo que la otra aún no había confirmado.
+/// instancia anterior durante el relevo azul/verde, y el par que dos altas simultáneas dejaron sin crear porque ninguna
+/// veía lo que la otra aún no había confirmado, por un camino que no se serializa: el alta de un Documento de Empresa
+/// y la de un acceso de plataforma sí se serializan (<see cref="ISerializacionAltasAcreditacionEmpresa"/>).
 /// </para>
 ///
 /// <para>
@@ -34,23 +35,40 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// </summary>
 public interface IConciliacionAcreditacionesEmpresaService
 {
-    /// <returns>Número de acreditaciones creadas en el Tenant en curso.</returns>
-    Task<int> ConciliarTenantEnCursoAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Una pasada sobre los Centros con acceso de plataforma del Tenant en curso, por lotes. Un lote que falla se
+    /// descarta entero y no impide los siguientes: el resultado lo cuenta y conserva su error, para que quien la invoca
+    /// no la dé por terminada y la repita.
+    /// </summary>
+    Task<ResultadoConciliacionTenant> ConciliarTenantEnCursoAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>Lo que dejó una pasada de la conciliación en un Tenant propietario.</summary>
+/// <param name="Creadas">Acreditaciones creadas y guardadas.</param>
+/// <param name="Lotes">Lotes de Centros recorridos.</param>
+/// <param name="Errores">Un error por cada lote que falló; ese lote no guardó nada.</param>
+public sealed record ResultadoConciliacionTenant(int Creadas, int Lotes, IReadOnlyList<Exception> Errores)
+{
+    public int LotesFallidos => Errores.Count;
+
+    /// <summary>Verdadero si todos los lotes se guardaron (o no tenían nada que crear).</summary>
+    public bool Completa => Errores.Count == 0;
 }
 
 public class ConciliacionAcreditacionesEmpresaService(
     ICentrosQueryContext centrosContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IDescarteCambiosPendientes descarte)
     : IConciliacionAcreditacionesEmpresaService
 {
     /// <summary>
-    /// Centros por guardado: acota la memoria del rastreo y el tamaño de las listas de la consulta en un Tenant con
-    /// muchos Centros. Cada lote se guarda entero o nada; uno ya guardado no se repite en la pasada siguiente.
+    /// Centros por guardado: acota el tamaño de las listas de la consulta en un Tenant con muchos Centros. Cada lote se
+    /// guarda entero o nada; uno ya guardado no se repite en la pasada siguiente.
     /// </summary>
     internal const int CentrosPorLote = 100;
 
-    public async Task<int> ConciliarTenantEnCursoAsync(CancellationToken cancellationToken = default)
+    public async Task<ResultadoConciliacionTenant> ConciliarTenantEnCursoAsync(CancellationToken cancellationToken = default)
     {
         // Solo el identificador del Centro: el acceso guarda credenciales cifradas que aquí no hacen falta.
         var centrosConPlataforma = await centrosContext.CanalesGestionDocumental
@@ -61,19 +79,40 @@ public class ConciliacionAcreditacionesEmpresaService(
             .ToListAsync(cancellationToken);
 
         var creadas = 0;
+        var lotes = 0;
+        var errores = new List<Exception>();
         foreach (var lote in centrosConPlataforma.Chunk(CentrosPorLote))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            lotes++;
 
-            var agregadas = await altaAcreditaciones.AgregarPendientesAsync(
-                new AltasConAcreditacion { CentrosAConciliar = lote, SoloDocumentosDeEmpresa = true }, cancellationToken);
-            if (agregadas == 0)
-                continue;
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-            creadas += agregadas;
+            try
+            {
+                var agregadas = await altaAcreditaciones.AgregarPendientesAsync(
+                    new AltasConAcreditacion { CentrosAConciliar = lote, SoloDocumentosDeEmpresa = true }, cancellationToken);
+                if (agregadas > 0)
+                {
+                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                    creadas += agregadas;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // El lote fallido no se arrastra al siguiente guardado: sin descartarlo, el lote siguiente volvería a
+                // intentar guardar lo mismo y fallaría con él.
+                errores.Add(ex);
+            }
+            finally
+            {
+                // Lo ya guardado tampoco se queda rastreado: la memoria del contexto no crece con los lotes del Tenant.
+                descarte.DescartarCambiosPendientes();
+            }
         }
 
-        return creadas;
+        return new ResultadoConciliacionTenant(creadas, lotes, errores);
     }
 }
