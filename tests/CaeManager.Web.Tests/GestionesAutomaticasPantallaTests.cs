@@ -62,7 +62,7 @@ public class GestionesAutomaticasPantallaTests : BunitContext
         var estados = pasos.Select(p => p.Estado).ToList();
         var resumen = new GestionAutomaticaResumenDto(
             GestionId, DocumentoId, origen, "Reconocimiento médico", "Laura Gil Pardo", EmpresaId, "Construcciones Ebro S.L.",
-            new DateTime(2026, 10, 23, 7, 12, 0, DateTimeKind.Utc), GestionAutomatica.ResolverEstado(sustituida, estados),
+            new DateTime(2026, 10, 23, 7, 12, 0, DateTimeKind.Utc), GestionAutomatica.ResolverEstado(sustituida, documentoSustituido: sustituida, estados),
             AvanceGestionAutomatica.De(estados), pasos.Select(p => p.Plataforma).Distinct().ToList(), estados.Contains(EstadoAcreditacion.Rechazada));
         return new GestionAutomaticaDetalleDto(
             resumen, null, sustituida ? new DateTime(2026, 10, 23, 7, 12, 0, DateTimeKind.Utc) : null, sustituidaPor,
