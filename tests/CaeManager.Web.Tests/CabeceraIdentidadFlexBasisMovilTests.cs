@@ -10,7 +10,7 @@ namespace CaeManager.Web.Tests;
 /// fila, en columna se convierte en una ALTURA de esa medida y deja un hueco vertical bajo el nombre. La regla de la página
 /// (con <c>::deep</c>) gana en especificidad a la móvil de la cabecera, así que la página tiene que anularla ella: una regla
 /// posterior, con el MISMO selector, dentro de un <c>@media (max-width: 600px)</c> (hasta 640 px) con <c>flex: none</c> o
-/// <c>flex-basis: 100% | auto | content</c>.
+/// <c>flex-basis: 100% | auto</c>.
 /// El ancho real lo mide el navegador (bUnit no calcula maquetación): aquí se fija que la hoja lo anula. Alcance: el bloque
 /// del nombre de la cabecera; otros <c>flex-basis</c> fijos de otras hojas no están auditados por este test.
 /// </summary>
@@ -79,9 +79,21 @@ public class CabeceraIdentidadFlexBasisMovilTests
     private static bool Selecciona(Regla r) =>
         r.Selector.Split(',').Any(s => s.Trim().EndsWith(Bloque, StringComparison.Ordinal));
 
+    // Una base fija es una longitud (px, rem, em, ch, vh, vw) o una función de longitud (calc, min, max, clamp) como base del flex:
+    // «flex: 1 1 300px», «flex: 1 300px», «flex: 300px» o «flex-basis: 300px».
+    private const string Longitud = @"(?:[\d.]+(?:px|rem|em|ch|vh|vw)\b|(?:calc|min|max|clamp)\()";
+
     private static bool FijaBasePx(Regla r) =>
-        Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex\s*:\s*[\d.]+\s+[\d.]+\s+[\d.]+(px|rem|em|ch)\b")
-        || Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex-basis\s*:\s*[\d.]+(px|rem|em|ch)\b");
+        Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex\s*:\s*(?:[\d.]+\s+){0,2}" + Longitud)
+        || Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex-basis\s*:\s*" + Longitud);
+
+    // Una regla aplica a 375 px si va sin @media o dentro de un @media (max-width: N) con N >= 600.
+    private static bool AplicaEnMovil(Regla r)
+    {
+        if (r.Media is null) return true;
+        var m = Regex.Match(r.Media, @"^@media \(max-width: ?(\d+)px\)$");
+        return m.Success && int.Parse(m.Groups[1].Value) >= 600;
+    }
 
     private static bool AnulaEnMovil(Regla r, Regla baseFija)
     {
@@ -91,7 +103,7 @@ public class CabeceraIdentidadFlexBasisMovilTests
         var ancho = int.Parse(m.Groups[1].Value);
         if (ancho is < 600 or > 640) return false;
         return Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex\s*:\s*none\b")
-               || Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex-basis\s*:\s*(100%|auto|content)\s*(;|$)");
+               || Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex-basis\s*:\s*(100%|auto)\s*(;|$)");
     }
 
     /// <summary>Bases fijas de <c>.cabecera-identidad-texto</c> en una hoja que no se anulan en móvil.</summary>
@@ -99,7 +111,7 @@ public class CabeceraIdentidadFlexBasisMovilTests
     {
         var reglas = Analizar(css);
         return reglas
-            .Where(r => r.Media is null && Selecciona(r) && FijaBasePx(r))
+            .Where(r => AplicaEnMovil(r) && Selecciona(r) && FijaBasePx(r))
             .Where(b => !reglas.Any(r => AnulaEnMovil(r, b)))
             .ToList();
     }
@@ -136,13 +148,14 @@ public class CabeceraIdentidadFlexBasisMovilTests
     [Fact]
     public void El_instrumento_ve_las_paginas_que_fijan_la_base_y_las_excepciones_siguen_siendo_hojas_reales()
     {
-        // Un recorrido que no encuentra nada no prueba nada: las páginas 360 que fijan la base tienen que aparecer.
-        var conBase = HojasDeLaApp()
-            .Where(h => Analizar(File.ReadAllText(h)).Any(r => r.Media is null && Selecciona(r) && FijaBasePx(r)))
+        // Un recorrido que no encuentra nada no prueba nada: las páginas 360 que estilan el bloque del nombre tienen que aparecer
+        // (que lo estilen, no que fijen una base: quitar la base es un arreglo legítimo).
+        var conBloque = HojasDeLaApp()
+            .Where(h => Analizar(File.ReadAllText(h)).Any(Selecciona))
             .Select(Relativa)
             .ToList();
 
-        conBase.Should().Contain(new[]
+        conBloque.Should().Contain(new[]
         {
             "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.css",
             "src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor.css",
@@ -177,5 +190,15 @@ public class CabeceraIdentidadFlexBasisMovilTests
         BasesSinAnular(baseFija + "@media (max-width: 640px) { .p ::deep .cabecera-identidad-texto { flex-basis: 100%; } }")
             .Should().BeEmpty("flex-basis: 100% también deja de ser una altura fija");
         BasesSinAnular(".p ::deep .cabecera-identidad-texto { flex: 1; min-width: 0; }").Should().BeEmpty("sin base en px no hay defecto");
+        BasesSinAnular(baseFija + "@media (max-width: 640px) { .p ::deep .cabecera-identidad-texto { flex-basis: content; } }")
+            .Should().HaveCount(1, "flex-basis: content no se acepta como anulación (soporte irregular)");
+
+        // Otras formas de fijar la base, y una base dentro de un @media que también aplica a 375 px.
+        foreach (var variante in new[] { "flex: 1 300px;", "flex: 300px;", "flex: 1 1 20rem;", "flex: 1 1 40vh;", "flex: 1 1 calc(100% - 40px);", "flex-basis: 300px;" })
+            BasesSinAnular($".p ::deep .cabecera-identidad-texto {{ {variante} }}").Should().HaveCount(1, variante);
+        BasesSinAnular("@media (max-width: 900px) { .p ::deep .cabecera-identidad-texto { flex: 1 1 300px; } }")
+            .Should().HaveCount(1, "una base dentro de un @media de 900 px aplica también a 375 px");
+        BasesSinAnular("@media (min-width: 901px) { .p ::deep .cabecera-identidad-texto { flex: 1 1 300px; } }")
+            .Should().BeEmpty("una base solo de escritorio no llega a 375 px");
     }
 }
