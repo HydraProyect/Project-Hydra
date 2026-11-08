@@ -30,14 +30,19 @@ public class InicioSesionMicrosoftTests
     [InlineData("invitada", false)]
     [InlineData("sin-mfa", true)]
     [InlineData("suspendido", false)]
+    [InlineData("en-uso", false)]
     public async Task El_callback_rechaza_la_cookie_externa_de_prueba_o_manipulada(string caso, bool manipulada)
     {
-        // La primera vinculación (cuenta hallada por correo) ya no se rechaza: va al TOTP
-        // o a su alta, ver La_primera_vinculacion_nunca_entra_directa_ni_guarda_el_vinculo.
+        // La primera vinculación de una invitación pendiente (cuenta hallada por correo, sin
+        // contraseña ni login externo) ya no se rechaza: va al TOTP o a su alta, ver
+        // La_primera_vinculacion_nunca_entra_directa_ni_guarda_el_vinculo. «en-uso» (D-L6, ALTO
+        // de Codex en la #2099): el correo coincide con una cuenta con contraseña y sin TOTP, y
+        // el token trae MFA; antes se daba de alta un TOTP nuevo y se vinculaba.
         var cuenta = new ApplicationUser { TenantId = TenantDestino };
         var usuarios = new UsuariosConVinculos
         {
             DuenaDeLaIdentidad = caso is "sin-mfa" or "invitada" or "suspendido" ? cuenta : null,
+            CuentaPorCorreo = caso == "en-uso" ? new ApplicationUser { TenantId = TenantDestino, PasswordHash = "hash-de-una-contrasena" } : null,
         };
         var vigilancia = new VigilanciaDePrueba();
         var builder = WebApplication.CreateSlimBuilder();
@@ -60,7 +65,7 @@ public class InicioSesionMicrosoftTests
         app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
         {
             var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba),
-                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "pwd"),
+                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", caso == "en-uso" ? "mfa" : "pwd"),
                 ("acct", caso == "invitada" ? "1" : "0"));
             var propiedades = new AuthenticationProperties();
             propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
@@ -85,7 +90,7 @@ public class InicioSesionMicrosoftTests
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var error = manipulada || caso == "invitada" ? "fallo" : caso == "suspendido" ? "sin-cuenta" : caso;
+        var error = manipulada || caso == "invitada" ? "fallo" : caso is "suspendido" or "en-uso" ? "sin-cuenta" : caso;
         respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
         usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
         respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
@@ -94,8 +99,12 @@ public class InicioSesionMicrosoftTests
             c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal)
             && c.Split(';')[0].Split('=', 2)[1].Length > 0,
             "ningún rechazo emite una sesión de aplicación");
+        (cookies ?? []).Should().NotContain(c =>
+            c.StartsWith(".AspNetCore.Identity.TwoFactorUserId=", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0,
+            "ningún rechazo deja un vínculo pendiente para LoginCon2fa, donde se daría de alta el TOTP");
         vigilancia.Resultados.Should().Equal(manipulada ? [] :
-            [caso is "sin-mfa" or "suspendido"
+            [caso is "sin-mfa" or "suspendido" or "en-uso"
                 ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado
                 : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
         await app.StopAsync();
@@ -340,6 +349,25 @@ public class InicioSesionMicrosoftTests
             selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(), claveVinculada: claveGuardada);
 
         destino.Should().Be(esperado);
+    }
+
+    /// <summary>
+    /// Hallazgo MEDIO de Codex en la #2099: el callback exigía correo antes de buscar el vínculo. Una identidad
+    /// ya vinculada entra aunque el token no traiga correo ni preferred_username; sin vínculo, no.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "/documentos")]
+    [InlineData("ninguna", "/cuenta/iniciar-sesion?errorSso=fallo")]
+    public async Task Sin_correo_en_el_token_entra_solo_la_identidad_ya_vinculada(string? claveVinculada, string esperado)
+    {
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(),
+            [(ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba), ("amr", "mfa")],
+            claveVinculada: claveVinculada);
+
+        destino.Should().Be(esperado);
+        if (claveVinculada is not null)
+            SinSesionDeAplicacion(cookies, "sin vínculo ni correo no hay cuenta con la que entrar");
     }
 
     [Fact]
@@ -597,14 +625,14 @@ public class InicioSesionMicrosoftTests
     [Fact]
     public void Identidad_ya_vinculada_a_una_cuenta_del_Tenant_destino_entra()
     {
-        InicioSesionMicrosoft.DecidirCuenta(TenantDestino, null, false, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(TenantDestino, null, false, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.EntrarConCuentaVinculada);
     }
 
     [Fact]
     public void Identidad_vinculada_a_una_cuenta_de_otro_Tenant_no_entra()
     {
-        InicioSesionMicrosoft.DecidirCuenta(OtroTenant, null, false, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(OtroTenant, null, false, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant);
     }
 
@@ -612,7 +640,7 @@ public class InicioSesionMicrosoftTests
     public void El_vinculo_manda_sobre_el_correo()
     {
         // Aunque el correo apunte a otra cuenta, la identidad vinculada decide.
-        InicioSesionMicrosoft.DecidirCuenta(TenantDestino, OtroTenant, true, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(TenantDestino, OtroTenant, true, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.EntrarConCuentaVinculada);
     }
 
@@ -622,22 +650,81 @@ public class InicioSesionMicrosoftTests
         // El caso que este cambio cierra: el correo de Entra es editable, y antes
         // bastaba con que coincidiera para entrar en la cuenta de otra organización
         // (o de Soporte TALVEG) sin su contraseña ni su segundo factor.
-        InicioSesionMicrosoft.DecidirCuenta(null, OtroTenant, false, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(null, OtroTenant, false, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant);
     }
 
     [Fact]
     public void Coincidencia_de_correo_con_una_cuenta_ya_vinculada_a_otra_identidad_no_entra()
     {
-        InicioSesionMicrosoft.DecidirCuenta(null, TenantDestino, true, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(null, TenantDestino, true, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad);
     }
 
     [Fact]
     public void Coincidencia_de_correo_en_el_Tenant_destino_sin_otra_identidad_vincula()
     {
-        InicioSesionMicrosoft.DecidirCuenta(null, TenantDestino, false, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(null, TenantDestino, false, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.VincularCuentaExistente);
+    }
+
+    /// <summary>
+    /// D-L6, hallazgo ALTO de Codex en la #2099: el correo solo vincula el alta inicial por invitación. Una
+    /// cuenta en uso sin vínculo de Microsoft no se vincula por correo, aunque sea del Tenant destino: su
+    /// TOTP se daría de alta en el mismo paso y la identidad del directorio se quedaría con ella.
+    /// </summary>
+    [Fact]
+    public void Coincidencia_de_correo_con_una_cuenta_en_uso_sin_vinculo_no_vincula()
+    {
+        InicioSesionMicrosoft.DecidirCuenta(null, TenantDestino, false, cuentaPorCorreoPendienteDeActivacion: false, TenantDestino)
+            .Should().Be(DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo);
+    }
+
+    /// <summary>
+    /// Con el UserManager: pendiente de activación es «sin contraseña y sin ningún login externo», la misma
+    /// regla que <c>CuentaUsuario.PendienteActivacion</c>. Con contraseña, o con un login de otro proveedor,
+    /// la cuenta está en uso y no se vincula por correo.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null, DecisionCuentaMicrosoft.VincularCuentaExistente)]
+    [InlineData("hash-de-una-contrasena", null, DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo)]
+    [InlineData(null, "OtroProveedor", DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo)]
+    public async Task Solo_una_invitacion_pendiente_se_vincula_por_correo(string? contrasena, string? otroProveedor, DecisionCuentaMicrosoft esperada)
+    {
+        var cuenta = new ApplicationUser { TenantId = TenantDestino, PasswordHash = contrasena };
+        var usuarios = new UsuariosConVinculos { CuentaPorCorreo = cuenta, ClaveVinculada = "ninguna" };
+        if (otroProveedor is not null)
+            usuarios.Vinculos.Add(new UserLoginInfo(otroProveedor, "clave-de-otro-proveedor", otroProveedor));
+
+        var (decision, encontrada) = await InicioSesionMicrosoft.ResolverCuentaAsync(usuarios,
+            new UserLoginInfo(AzureAdOptions.Esquema, ClavePrueba, "Microsoft"), "prueba@ejemplo.test", TenantDestino, claveHeredada: "sub-prueba");
+
+        decision.Should().Be(esperada);
+        encontrada.Should().BeSameAs(cuenta, "también el rechazo devuelve la cuenta, para la vigilancia de su Tenant");
+        usuarios.LlamadasAlta.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Hallazgo MEDIO de Codex en la #2099: el correo solo se exige para el alta por invitación. Una identidad
+    /// ya vinculada entra sin él; sin vínculo y sin correo se rechaza sin buscar ninguna cuenta por correo.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("  ")]
+    public async Task El_correo_solo_se_exige_sin_vinculo(string? email)
+    {
+        var cuenta = new ApplicationUser { TenantId = TenantDestino };
+        var vinculada = new UsuariosConVinculos { DuenaDeLaIdentidad = cuenta, ClaveVinculada = ClavePrueba, CuentaPorCorreo = cuenta };
+        var sinVinculo = new UsuariosConVinculos { ClaveVinculada = "ninguna", CuentaPorCorreo = cuenta };
+        var identidad = new UserLoginInfo(AzureAdOptions.Esquema, ClavePrueba, "Microsoft");
+
+        (await InicioSesionMicrosoft.ResolverCuentaAsync(vinculada, identidad, email, TenantDestino, claveHeredada: "sub-prueba"))
+            .Should().Be((DecisionCuentaMicrosoft.EntrarConCuentaVinculada, cuenta));
+        (await InicioSesionMicrosoft.ResolverCuentaAsync(sinVinculo, identidad, email, TenantDestino, claveHeredada: "sub-prueba"))
+            .Should().Be(((DecisionCuentaMicrosoft, ApplicationUser?))(DecisionCuentaMicrosoft.RechazarSinCorreo, null));
+        sinVinculo.BusquedasPorCorreo.Should().Be(0);
+        (await InicioSesionMicrosoft.ResolverCuentaAsync(sinVinculo, identidad, email, Guid.Empty)).Decision
+            .Should().Be(DecisionCuentaMicrosoft.RechazarSinTenantDestino, "sin Tenant destino manda ese rechazo");
     }
 
     [Fact]
@@ -645,7 +732,7 @@ public class InicioSesionMicrosoftTests
     {
         // Invitación previa (D-3): antes había alta automática sin rol, y como el
         // correo de Entra no está verificado, abría cuenta a cualquiera del directorio.
-        InicioSesionMicrosoft.DecidirCuenta(null, null, false, TenantDestino)
+        InicioSesionMicrosoft.DecidirCuenta(null, null, false, cuentaPorCorreoPendienteDeActivacion: true, TenantDestino)
             .Should().Be(DecisionCuentaMicrosoft.RechazarSinCuentaPrevia);
         Enum.GetNames<DecisionCuentaMicrosoft>().Should().NotContain(n => n.Contains("Crear", StringComparison.Ordinal),
             "ninguna decisión del inicio con Microsoft da de alta una cuenta");
@@ -671,7 +758,7 @@ public class InicioSesionMicrosoftTests
     [InlineData(false)]
     public void Sin_Tenant_destino_se_rechaza_siempre(bool conCuentaVinculada)
     {
-        InicioSesionMicrosoft.DecidirCuenta(conCuentaVinculada ? Guid.Empty : null, null, false, Guid.Empty)
+        InicioSesionMicrosoft.DecidirCuenta(conCuentaVinculada ? Guid.Empty : null, null, false, cuentaPorCorreoPendienteDeActivacion: true, Guid.Empty)
             .Should().Be(DecisionCuentaMicrosoft.RechazarSinTenantDestino);
     }
 
@@ -1090,7 +1177,13 @@ public class InicioSesionMicrosoftTests
 
         public ApplicationUser? CuentaPorCorreo { get; init; }
 
-        public override Task<ApplicationUser?> FindByEmailAsync(string email) => Task.FromResult(CuentaPorCorreo);
+        public int BusquedasPorCorreo { get; private set; }
+
+        public override Task<ApplicationUser?> FindByEmailAsync(string email)
+        {
+            BusquedasPorCorreo++;
+            return Task.FromResult(CuentaPorCorreo);
+        }
 
         public bool TotpActivado { get; init; }
 

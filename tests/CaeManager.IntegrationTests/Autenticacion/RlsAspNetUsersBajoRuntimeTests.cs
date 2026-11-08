@@ -439,6 +439,32 @@ public class RlsAspNetUsersBajoRuntimeTests
         }
     }
 
+    /// <summary>
+    /// D-L6 (hallazgo ALTO de Codex en la #2099): el correo solo vincula el alta inicial por invitación. Con
+    /// el UserManager real, una cuenta del Tenant destino que ya tiene contraseña está en uso y no se vincula
+    /// por correo a una identidad de Microsoft.
+    /// </summary>
+    [Fact]
+    public async Task Microsoft_no_vincula_por_correo_una_cuenta_en_uso()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var propia = await usuarios.FindByEmailAsync(e.PropiaX.Email!);
+            (await usuarios.AddPasswordAsync(propia!, "Contrasena-Propia-De-Prueba-2026!")).Succeeded.Should().BeTrue();
+
+            var (decision, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-atacante"), e.PropiaX.Email!, e.TenantX);
+
+            decision.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo);
+            cuenta!.Id.Should().Be(e.PropiaX.Id, "el rechazo se registra en la vigilancia de su Tenant");
+            (await usuarios.GetLoginsAsync(propia!)).Should().BeEmpty("no se vincula nada");
+        }
+    }
+
     private static string IdentityEndpointsExtensionsEsquema =>
         CaeManager.Web.Components.Account.IdentityEndpointsExtensions.EsquemaMicrosoft;
 

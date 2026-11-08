@@ -138,16 +138,11 @@ public static class IdentityEndpointsExtensions
             }
             var identidad = new UserLoginInfo(infoExterna.LoginProvider, claveEstable, infoExterna.ProviderDisplayName);
 
-            // El correo solo sirve para la primera vinculación de una cuenta creada por invitación.
+            // El correo solo sirve para la primera vinculación de una cuenta creada por
+            // invitación: se exige allí (RechazarSinCorreo), después de buscar el vínculo, para
+            // que una cuenta ya vinculada entre aunque el token no lo traiga (ASVS 4.0.3 V1.2.4).
             var email = infoExterna.Principal.FindFirstValue(ClaimTypes.Email)
                 ?? infoExterna.Principal.FindFirstValue("preferred_username");
-
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                logger.LogWarning("Login de Microsoft rechazado: la cuenta no trajo un email utilizable.");
-                await signInManager.SignOutAsync();
-                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-            }
 
             // Vuelta del SSO: todavía no hay sesión ni Tenant, y AspNetUsers tiene
             // RLS (P1-M1). Búsqueda, alta y vinculación del login pasan por el
@@ -176,6 +171,11 @@ public static class IdentityEndpointsExtensions
                     await signInManager.SignOutAsync();
                     return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
 
+                case DecisionCuentaMicrosoft.RechazarSinCorreo:
+                    logger.LogWarning("Login de Microsoft rechazado: la identidad no está vinculada y el token no trajo un email utilizable.");
+                    await signInManager.SignOutAsync();
+                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+
                 case DecisionCuentaMicrosoft.RechazarSinCuentaPrevia:
                     // Invitación previa (D-3): el inicio con Microsoft no crea cuentas.
                     // Sin cuenta no hay Tenant propietario ni persona a la que avisar, así
@@ -194,8 +194,11 @@ public static class IdentityEndpointsExtensions
 
                 case DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant:
                 case DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad:
+                case DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo:
                 case DecisionCuentaMicrosoft.RechazarCuentaDesactivada:
                     {
+                        // Cuenta en uso sin vínculo (D-L6): el correo solo vincula un alta por
+                        // invitación pendiente; el mensaje remite al Administrador del Tenant.
                         // Queda en la vigilancia del Tenant de la cuenta que se intentó
                         // abrir: es a quien le interesa saber que alguien lo intentó.
                         // No se confirma que exista: los tres reciben el mismo mensaje
