@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -14,8 +15,9 @@ namespace CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 /// se marca; si no, se le emite una del Tenant entero. Las carteras de apoyo no se tocan.
 ///
 /// <para>
-/// <b>Autoridad</b>, leída en Identity sobre el Tenant de origen, nunca en el claim: Coordinador
-/// CAE, Dirección CAE o Administrador del Operador CAE. Un Gestor CAE no puede. La operación
+/// <b>Autoridad</b>: el rol efectivo de la sesión en el Tenant de origen, confirmado por
+/// Identity (<see cref="PerfilQueAsume"/>), es Coordinador CAE, Dirección CAE o Administrador del
+/// Operador CAE. Un Gestor CAE no puede, aunque su cuenta tenga ya otro rol en Identity. La operación
 /// sale de las que su Operador CAE puede poner en una cartera
 /// (<see cref="ICatalogoIncorporacionCartera.ObtenerAsignablesAsync"/>): la de otro Operador CAE
 /// «no existe», sin revelar si existe.
@@ -130,12 +132,11 @@ public class AsumirPrincipalDeOperacionCommandHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            // Falla cerrado sin rol de negocio en la sesión (sesión privilegiada de plataforma,
-            // delegación retirada): Soporte TALVEG nunca es Operador CAE ni Gestor CAE.
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return Result.Fallo<Decision>(SinAutoridad);
-
-            if (!await PerfilQueAsume.LoTieneAsync(actorId.Value, origen.Value, directorioUsuarios, cancellationToken))
+            // Rol efectivo de la sesión en origen, confirmado por Identity; sin rol de negocio
+            // (Sesión Privilegiada de plataforma, delegación retirada) falla cerrado: Soporte
+            // TALVEG nunca es Operador CAE ni Gestor CAE.
+            if (!await PerfilQueAsume.LoTieneAsync(
+                    actorId.Value, origen.Value, currentUserService, directorioUsuarios, cancellationToken))
                 return Result.Fallo<Decision>(SinAutoridad);
 
             var operacion = (await catalogo.ObtenerAsignablesAsync(origen.Value, cancellationToken))
@@ -153,22 +154,26 @@ public class AsumirPrincipalDeOperacionCommandHandler(
 }
 
 /// <summary>
-/// Si una cuenta es hoy Coordinador CAE, Dirección CAE o Administrador activo de un Operador
-/// CAE: los perfiles que ven la alerta «sin principal» y pueden asumir. Una sola definición
-/// para la lectura y para la escritura. Se llama con el Tenant del Operador CAE como Tenant activo.
+/// Si la sesión de quien mira opera hoy como Coordinador CAE, Dirección CAE o Administrador de
+/// su Operador CAE: los perfiles que ven la alerta «sin principal» y pueden asumir. Una sola
+/// definición para la lectura y para la escritura. Se llama con el Tenant de origen del Operador
+/// CAE como <see cref="AmbitoTenantExplicito"/>.
+///
+/// <para>
+/// Decide el <b>rol efectivo de la sesión</b> en ese Tenant de origen, e Identity solo confirma
+/// que la cuenta sigue activa con ese mismo rol
+/// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>, decisión P7): una sesión
+/// de Gestor CAE no asume ni ve la alerta aunque la cuenta ya sea Coordinador CAE en Identity, y
+/// una sesión limitada a Consulta tampoco. Una Sesión Privilegiada de plataforma no tiene rol de
+/// negocio y falla cerrado. OWASP ASVS 4.0.3 V4.1.3 y V4.2.1.
+/// </para>
 /// </summary>
 public static class PerfilQueAsume
 {
     public static async Task<bool> LoTieneAsync(
-        Guid usuarioId, Guid operadorTenantId, IDirectorioUsuariosService directorioUsuarios,
-        CancellationToken cancellationToken)
-    {
-        foreach (var nivel in EscaladoDePrincipalDeCartera.Niveles)
-        {
-            if (await directorioUsuarios.EsCuentaActivaConRolAsync(usuarioId, operadorTenantId, nivel, cancellationToken))
-                return true;
-        }
-
-        return false;
-    }
+        Guid usuarioId, Guid operadorTenantId, ICurrentUserService currentUserService,
+        IDirectorioUsuariosService directorioUsuarios, CancellationToken cancellationToken) =>
+        await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+            usuarioId, operadorTenantId, EscaladoDePrincipalDeCartera.Niveles,
+            currentUserService, directorioUsuarios, cancellationToken) is not null;
 }

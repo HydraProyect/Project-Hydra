@@ -30,7 +30,17 @@ public class PrincipalSinRelevoTests
         public BloqueoCarteraUsuarioFalso Bloqueo { get; } = new();
         public DirectorioRolesEnOrigen Roles { get; } = new();
         public Guid? TenantOrigen { get; init; } = Operador;
-        public string? RolDeSesion { get; init; } = "Consulta";
+
+        // Sin fijarlo, la sesión de quien actúa tiene el rol que su cuenta tiene en Identity
+        // (lo normal: el rol con el que abrió sesión); fijarlo simula una sesión que diverge.
+        private string? _rolDeSesion = "Consulta";
+        private bool _rolDeSesionFijado;
+
+        public string? RolDeSesion
+        {
+            get => _rolDeSesion;
+            init { _rolDeSesion = value; _rolDeSesionFijado = true; }
+        }
 
         public Escenario()
         {
@@ -42,6 +52,7 @@ public class PrincipalSinRelevoTests
             var usuarioId = id ?? Guid.NewGuid();
             Roles.Asignar(usuarioId, tenant ?? Operador, rol);
             if (!activa) Roles.Desactivar(usuarioId);
+            if (usuarioId == Actor && !_rolDeSesionFijado) _rolDeSesion = rol;
             return usuarioId;
         }
 
@@ -266,17 +277,38 @@ public class PrincipalSinRelevoTests
     }
 
     [Fact]
-    public async Task El_perfil_se_lee_en_Identity_sobre_el_Tenant_de_origen_no_en_el_claim()
+    public async Task Decide_el_rol_de_la_sesion_en_origen_e_Identity_solo_lo_confirma()
     {
-        // El claim de la sesión dice Coordinador CAE; en Identity ya es Gestor CAE.
+        // La sesión es de Coordinador CAE; en Identity la cuenta ya es Gestor CAE.
         var degradado = new Escenario { RolDeSesion = "CoordinadorCae" };
         degradado.Cuenta("GestorCae", id: Actor);
         (await degradado.AsumirAsync()).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
 
-        // Y al revés: dentro de un Workspace operativo derivado el claim es el de la cartera.
-        var enOtroTenant = new Escenario { RolDeSesion = "GestorCae" };
-        enOtroTenant.Cuenta("Administrador", id: Actor);
-        (await enOtroTenant.AsumirAsync()).EsExitoso.Should().BeTrue();
+        // Y al revés (decisión P7): la sesión se abrió como Gestor CAE y la cuenta recibió después
+        // Coordinador CAE en Identity. El rol nuevo no autoriza hasta la sesión siguiente.
+        var ascendido = new Escenario { RolDeSesion = "GestorCae" };
+        ascendido.Cuenta("CoordinadorCae", id: Actor);
+        ascendido.Cartera(Apoyo);
+        (await ascendido.AsumirAsync()).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
+        ascendido.Principal().Should().BeNull();
+        ascendido.Catalogo.CambiosDeMarca.Should().BeEmpty();
+        ascendido.Transaccion.Ejecutadas.Should().Be(0);
+
+        // Una sesión limitada a Consulta de una cuenta de Dirección CAE, tampoco.
+        var limitada = new Escenario { RolDeSesion = "Consulta" };
+        limitada.Cuenta("DireccionCae", id: Actor);
+        (await limitada.AsumirAsync()).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
+    }
+
+    [Fact]
+    public async Task Con_el_rol_solo_en_otro_Tenant_no_se_asume()
+    {
+        // La sesión dice Administrador, pero Identity solo se lo da en otro Tenant.
+        var e = new Escenario { RolDeSesion = "Administrador" };
+        e.Cuenta("Administrador", tenant: OtroOperador, id: Actor);
+
+        (await e.AsumirAsync()).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
+        e.Transaccion.Ejecutadas.Should().Be(0);
     }
 
     [Fact]
@@ -372,14 +404,28 @@ public class PrincipalSinRelevoTests
     [InlineData("Consulta", false)]
     public async Task La_alerta_la_ven_Coordinador_CAE_Direccion_CAE_y_Administrador(string rol, bool laVe)
     {
-        // El claim dice lo contrario que Identity: manda Identity.
-        var e = new Escenario { RolDeSesion = laVe ? "GestorCae" : "Administrador" };
+        var e = new Escenario();
         e.Cuenta(rol, id: Actor);
 
         var alerta = await e.AlertaAsync();
 
         alerta.LaVe.Should().Be(laVe);
         alerta.Operaciones.Should().HaveCount(laVe ? 1 : 0);
+    }
+
+    [Theory]
+    [InlineData("GestorCae", "CoordinadorCae")] // la cuenta recibió Coordinador CAE tras abrir sesión
+    [InlineData("Consulta", "DireccionCae")]    // sesión limitada a Consulta por login local
+    [InlineData("CoordinadorCae", "GestorCae")] // la cuenta perdió Coordinador CAE con la sesión viva
+    public async Task La_alerta_la_decide_el_rol_de_la_sesion_en_origen_confirmado_por_Identity(
+        string rolDeSesion, string rolEnIdentity)
+    {
+        var e = new Escenario { RolDeSesion = rolDeSesion };
+        e.Cuenta(rolEnIdentity, id: Actor);
+
+        var alerta = await e.AlertaAsync();
+
+        alerta.Should().Be(AlertaDePrincipal.Ninguna, "ni las operaciones sin principal ni la acción de asumir se ofrecen");
     }
 
     [Fact]

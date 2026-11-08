@@ -528,6 +528,10 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
         // El claim dice Administrador; en Identity es Gestor CAE: no la ve.
         (await Alerta(_gestorB, Roles.Administrador, _operador.Id)).LaVe.Should().BeFalse();
+
+        // Y al revés (decisión P7, OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): la sesión es de Gestor CAE y la
+        // cuenta es Coordinador CAE en Identity: manda la sesión, no la ve.
+        (await Alerta(_coordinador, Roles.GestorCae, _operador.Id)).Should().Be(AlertaDePrincipal.Ninguna);
     }
 
     [Fact]
@@ -585,6 +589,10 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     {
         // El claim dice Administrador; en Identity, sobre su Tenant de origen, es Gestor CAE.
         (await Asumir(_gestorB, Roles.Administrador, _operador.Id, _operacionSinNadie))
+            .Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
+
+        // La sesión es de Gestor CAE; la cuenta es Coordinador CAE en Identity: manda la sesión (P7).
+        (await Asumir(_coordinador, Roles.GestorCae, _operador.Id, _operacionSinNadie))
             .Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
 
         // El Administrador de otro Operador CAE: esa operación no está entre las suyas.

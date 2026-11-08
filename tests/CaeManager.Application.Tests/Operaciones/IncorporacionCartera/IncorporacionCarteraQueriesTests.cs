@@ -28,13 +28,41 @@ public class IncorporacionCarteraQueriesTests
         _tenants.ListaTenants.Add(_empresa);
     }
 
-    // rolEnOrigen es el de la cuenta en su organización (Identity); rolFuera, el de la cartera en el
-    // Workspace operativo derivado abierto. Con uno abierto, el claim de sesión ya es rolFuera
-    // (RolEfectivoDelWorkspaceMiddleware), también dentro del ámbito de origen.
+    // rolEnOrigen es el de la cuenta en su organización (Identity) y el de la sesión en ese ámbito;
+    // rolFuera, el de la cartera en el Workspace operativo derivado abierto. Con uno abierto, el
+    // claim de sesión es rolFuera (RolEfectivoDelWorkspaceMiddleware), pero en el ámbito de origen
+    // el rol efectivo es el rol de sesión en origen conservado (decisión P7).
     private CurrentUserServicePorAmbito Como(Guid usuario, string? rolEnOrigen, string? rolFuera = null)
     {
         _directorio.Asignar(usuario, _operador, rolEnOrigen);
-        return new(usuario, _operador, rolFuera ?? rolEnOrigen, rolFuera);
+        return new(usuario, _operador, rolEnOrigen, rolFuera);
+    }
+
+    /// <summary>
+    /// Decisión P7 (OWASP ASVS 4.0.3 V4.1.3 y V4.2.1): manda el rol de la sesión en origen e
+    /// Identity solo lo confirma. Una sesión abierta como Gestor CAE no ve la bandeja de Coordinador
+    /// CAE aunque la cuenta ya lo sea en Identity, ni una sesión limitada a Consulta participa.
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", "CoordinadorCae")]
+    [InlineData("Consulta", "CoordinadorCae")]
+    [InlineData("Consulta", "GestorCae")]
+    [InlineData("CoordinadorCae", "GestorCae")]
+    public async Task Sin_el_mismo_rol_en_la_sesion_y_en_Identity_no_ve_la_bandeja_de_Coordinador_CAE_ni_participa_con_el_rol_de_Identity(
+        string rolDeSesion, string rolEnIdentity)
+    {
+        Nueva(_gestor);
+        _directorio.Asignar(_coordinador, _operador, rolEnIdentity);
+        var sesion = new CurrentUserServicePorAmbito(_coordinador, _operador, rolDeSesion, rolDeSesion);
+
+        var bandeja = await Bandeja(sesion).Handle(new ObtenerSolicitudesIncorporacionCarteraQuery(), CancellationToken.None);
+        var participa = await new ParticipaEnIncorporacionCarteraQueryHandler(sesion, _directorio)
+            .Handle(new ParticipaEnIncorporacionCarteraQuery(), CancellationToken.None);
+
+        (bandeja.EsFallido || !bandeja.Valor.EsCoordinadorCae).Should().BeTrue();
+        if (bandeja.EsExitoso)
+            bandeja.Valor.Pendientes.Should().BeEmpty();
+        participa.Should().BeFalse();
     }
 
     private ObtenerSolicitudesIncorporacionCarteraQueryHandler Bandeja(CurrentUserServicePorAmbito usuario) =>

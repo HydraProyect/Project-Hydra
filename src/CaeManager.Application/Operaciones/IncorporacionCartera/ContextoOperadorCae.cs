@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Operaciones.IncorporacionCartera;
@@ -19,20 +20,21 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera;
 /// </para>
 ///
 /// <para>
-/// <b>El rol se lee en Identity, no en el claim.</b> Dentro de un Workspace
-/// operativo derivado, <c>RolEfectivoDelWorkspaceMiddleware</c> sustituye el
-/// claim de rol por el de la Asignación de Cartera en ese Tenant propietario,
-/// y el circuito hereda el principal ya sustituido. En el ámbito del tenant de
-/// origen, <see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/> ya no
+/// <b>Decide el rol efectivo de la sesión en el tenant de origen, e Identity
+/// lo confirma</b> (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>,
+/// decisión P7). Dentro de un Workspace operativo derivado,
+/// <c>RolEfectivoDelWorkspaceMiddleware</c> sustituye el claim de rol por el de
+/// la Asignación de Cartera en ese Tenant propietario; en el ámbito del tenant
+/// de origen, <see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/> no
 /// devuelve ese claim sustituido sino el rol de sesión en origen conservado
-/// antes de la sustitución (decisión P7, 2026-09-23); aun así es un rol de
-/// SESIÓN, no de la cuenta: no falla cerrado con una cuenta desactivada. Por
-/// eso el rol sale de la cuenta en su tenant de origen
-/// (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>), que la
-/// selección de workspace no toca y que además falla cerrado con una cuenta
-/// desactivada. <c>ObtenerRolEfectivoAsync</c> solo se consulta para fallar
-/// cerrado cuando la sesión no tiene rol de negocio (sesión privilegiada de
-/// plataforma, delegación retirada).
+/// antes de la sustitución. Ese rol de sesión es el que manda: una sesión de
+/// Gestor CAE no resuelve como Coordinador CAE aunque la cuenta ya lo sea en
+/// Identity, y una sesión limitada a Consulta no participa. Identity solo
+/// confirma que la cuenta sigue activa con ese mismo rol en su tenant de
+/// origen (<see cref="IDirectorioUsuariosService.EsCuentaActivaConRolAsync"/>),
+/// para que una cuenta desactivada o degradada no siga operando con la sesión
+/// viva. Sin rol de negocio (Sesión Privilegiada de plataforma, delegación
+/// retirada), <see cref="Rol"/> es <c>null</c>. OWASP ASVS 4.0.3 V4.1.3 y V4.2.1.
 /// </para>
 ///
 /// <para>
@@ -46,6 +48,8 @@ public sealed record ContextoOperadorCae(Guid UsuarioId, Guid OperadorTenantId, 
 {
     public const string RolGestorCae = "GestorCae";
     public const string RolCoordinadorCae = "CoordinadorCae";
+
+    private static readonly string[] RolesQueParticipan = [RolCoordinadorCae, RolGestorCae];
 
     public bool EsGestorCae => Rol == RolGestorCae;
     public bool EsCoordinadorCae => Rol == RolCoordinadorCae;
@@ -74,16 +78,8 @@ public sealed record ContextoOperadorCae(Guid UsuarioId, Guid OperadorTenantId, 
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
-                return Result.Exito(new ContextoOperadorCae(usuarioId.Value, origen.Value, null));
-
-            var rol = await directorioUsuarios.EsCuentaActivaConRolAsync(
-                          usuarioId.Value, origen.Value, RolCoordinadorCae, cancellationToken)
-                ? RolCoordinadorCae
-                : await directorioUsuarios.EsCuentaActivaConRolAsync(
-                      usuarioId.Value, origen.Value, RolGestorCae, cancellationToken)
-                    ? RolGestorCae
-                    : null;
+            var rol = await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+                usuarioId.Value, origen.Value, RolesQueParticipan, currentUserService, directorioUsuarios, cancellationToken);
 
             return Result.Exito(new ContextoOperadorCae(usuarioId.Value, origen.Value, rol));
         }

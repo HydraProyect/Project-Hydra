@@ -47,10 +47,16 @@ public record RevocarApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 ///
 /// <para>
 /// <b>Autoridad</b>, resuelta sobre el Tenant de origen —una cuenta desactivada no debe seguir
-/// escribiendo— y decidida dentro de la transacción, ya con el candado. Para revocar decide el
-/// rol efectivo de la sesión en origen y Identity lo confirma
-/// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>); desasignarse y retirar
-/// lo concedido resuelven el rol con <see cref="ContextoOperadorCae"/>.
+/// escribiendo—. En las tres vías decide el rol efectivo de la sesión en origen e Identity lo
+/// confirma: para revocar, con <see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>;
+/// para desasignarse y retirar lo concedido, con <see cref="ContextoOperadorCae"/>, que aplica la
+/// misma regla. Se resuelve una vez antes de abrir la transacción, para fallar pronto y saber en
+/// qué Operador CAE cargar la propuesta, y <b>se vuelve a resolver dentro, ya con el candado</b>:
+/// si el rol o la activación de la cuenta cambiaron entre medias, no escribe. La jerarquía para
+/// revocar también se lee dentro. Ventana que queda: el candado es el del Gestor CAE de apoyo, no
+/// el de quien actúa, así que una desactivación o un cambio de rol de quien actúa que se confirme
+/// entre esa segunda lectura y el cierre de esta transacción no se serializa con ella (OWASP ASVS
+/// 4.0.3 V4.1.3 y V4.2.1).
 /// </para>
 ///
 /// <para>
@@ -139,6 +145,12 @@ public class TerminarApoyoCarteraCommandHandler(
                         return Result.Fallo(ErroresPropuestaApoyo.ApoyoNoEncontrado);
 
                     await bloqueoCartera.BloquearExclusivoAsync(propuesta.DestinatarioUsuarioId, ct);
+
+                    // El rol y la cuenta se vuelven a leer ya dentro de la transacción: si la
+                    // cuenta se desactivó o perdió el rol desde la primera lectura, no escribe.
+                    // OWASP ASVS 4.0.3 V4.1.3 y V4.2.1.
+                    if (await ResolverActorAsync(via, ct) != actor)
+                        return Result.Fallo(ErroresPropuestaApoyo.SinPermiso);
 
                     // La jerarquía de hoy, no la de cuando se propuso.
                     if (via == Via.Revocar
