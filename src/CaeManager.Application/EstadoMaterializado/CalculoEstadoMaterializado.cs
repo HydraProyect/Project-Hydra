@@ -85,8 +85,12 @@ public sealed record CalculoEstadoMaterializado(
     IReadOnlyList<FilaEstadoEntidad> Entidades,
     IReadOnlyList<FilaEstadoEnPlataforma> Plataforma)
 {
-    /// <summary>Versión de la regla de cálculo que se escribe en <c>VersionCalculo</c>: se sube al cambiar la regla.</summary>
-    public const int VersionDeLaRegla = 1;
+    /// <summary>
+    /// Versión de la regla de cálculo que se escribe en <c>VersionCalculo</c>: se sube al cambiar la regla. La 2 es la del
+    /// 2026-11-08: un documento de Empresa pendiente en la plataforma cuenta en los Centros de su Empresa sin Trabajadores
+    /// asignados (<c>PendientesEnPlataformaDeCentros</c>); una fila de la 1 se recalcula en vez de leerse.
+    /// </summary>
+    public const int VersionDeLaRegla = 2;
 }
 
 /// <summary>Una fila de <see cref="EstadoRequisito"/>.</summary>
