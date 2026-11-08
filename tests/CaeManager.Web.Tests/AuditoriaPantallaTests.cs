@@ -183,6 +183,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public void La_exportacion_esta_en_la_cabecera_y_arrastra_el_filtro_de_la_url()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar(entidad: "Documento");
 
         cut.Find(".cabecera-pagina .acciones-cabecera a.enlace-exportar").GetAttribute("href")
@@ -198,6 +199,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public void La_carga_inicial_acota_a_los_ultimos_90_dias_y_lo_muestra_en_un_campo_editable()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar();
 
         _mediador.Consultas[^1].DesdeUtc.Should().Be(DesdeUtcPorDefecto);
@@ -240,6 +242,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public async Task Cambiar_el_filtro_consulta_ese_tipo_desde_la_pagina_1_y_lo_lleva_a_la_url()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         _mediador.Filas.AddRange([Fila("Trabajador", "Creado"), Fila("Documento", "Creado")]);
         _mediador.TotalDeclarado = 45;
         var cut = Renderizar();
@@ -258,6 +261,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public async Task Paginar_pide_la_pagina_siguiente_sin_perder_el_filtro()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         _mediador.Filas.Add(Fila("Documento", "Creado"));
         _mediador.TotalDeclarado = 45;
         var cut = Renderizar(entidad: "Documento");
@@ -389,6 +393,7 @@ public class AuditoriaPantallaTests : BunitContext
     [Fact]
     public async Task Volver_atras_a_otra_url_recarga_la_tabla_con_el_filtro_de_esa_url()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         _mediador.Filas.AddRange([Fila("Documento", "Creado"), Fila("Trabajador", "Creado")]);
         var cut = Renderizar(entidad: "Documento");
         cut.FindAll("table.tabla-datos tbody tr").Should().ContainSingle("es el punto de partida: solo Documento");

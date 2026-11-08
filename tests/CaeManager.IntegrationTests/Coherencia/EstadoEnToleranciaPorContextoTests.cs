@@ -34,8 +34,13 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     private Guid _trabajadorId;
     private Guid _tipoId;
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
@@ -103,6 +108,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task Sin_tolerancia_el_vencido_se_ve_vencido_en_las_dos_vistas()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var (centro360, trabajador360, _) = await MedirAsync();
 
         centro360.Estado.Should().Be(EstadoDocumento.Vencido);
@@ -114,6 +120,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task Con_la_tolerancia_del_Cliente_empresarial_el_vencido_esta_en_tolerancia_hasta_su_ultimo_dia_en_las_dos_vistas()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await ConfigurarAsync(delCliente: 10);
         var hasta = DiaDeNegocio.Hoy().AddDays(-DiasVencido + 10);
 
@@ -130,6 +137,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_no_entra_en_el_porcentaje_el_documento_sigue_sin_estar_al_dia()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var (_, _, sinTolerancia) = await MedirAsync();
         await ConfigurarAsync(delCliente: 10);
 
@@ -144,6 +152,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_del_Centro_manda_sobre_la_del_Cliente_empresarial_en_los_dos_sentidos()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // El Centro la pone a 0 aunque el Cliente empresarial conceda 10: no hay tolerancia en ese Centro.
         await ConfigurarAsync(delCliente: 10, delCentro: 0);
         var (centroACero, trabajadorACero, _) = await MedirAsync();
@@ -154,6 +163,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task El_Centro_puede_conceder_tolerancia_aunque_el_Cliente_empresarial_no_la_conceda()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await ConfigurarAsync(delCentro: 30);
 
         var (centro360, trabajador360, _) = await MedirAsync();
@@ -166,6 +176,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task Agotada_la_tolerancia_vuelve_a_verse_vencido()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Venció hace 5 días y la tolerancia es de 4: el último día que valió fue ayer.
         await ConfigurarAsync(delCliente: DiasVencido - 1);
 
@@ -179,6 +190,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task El_ultimo_dia_de_tolerancia_todavia_esta_en_tolerancia()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Venció hace 5 días y la tolerancia es de 5: hoy es el último día que vale.
         await ConfigurarAsync(delCliente: DiasVencido);
 
@@ -191,6 +203,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_se_cuenta_desde_el_vencimiento_efectivo_del_Centro_cuando_impone_su_propia_periodicidad()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // El documento (emitido hace un año) dice que venció hace 5 días; el Centro impone 11 meses desde la emisión: para
         // ESE Centro venció hace un mes, y la tolerancia de 40 días se cuenta desde ahí.
         var hoy = DiaDeNegocio.Hoy();
@@ -209,6 +222,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task La_tolerancia_de_otro_Tipo_de_documento_no_se_aplica()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid otroTipo;
         await using (var contexto = CrearContexto())
         {
@@ -229,6 +243,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_vigente_no_pasa_a_en_tolerancia()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await ConfigurarAsync(delCliente: 365);
         await using (var contexto = CrearContexto())
         {
