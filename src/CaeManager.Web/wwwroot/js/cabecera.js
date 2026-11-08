@@ -95,16 +95,39 @@
         if (panel && !panel.contains(e.target) && e.target !== abierto) poner(abierto, false, false);
     });
 
-    // Sombra y velo al desplazar.
+    // Sombra y velo al desplazar. El que desplaza es main.contenido (el shell mide la ventana,
+    // MainLayout.razor.css), no el documento. El scroll no burbujea: se escucha en captura y se
+    // filtra por el contenedor, que sobrevive a la navegación mejorada pero se relee cada vez.
+    const contenidoPrincipal = function () { return document.getElementById('contenido-principal'); };
     const marcarDesplazamiento = function () {
         const fija = document.querySelector('.cabecera-fija');
         if (!fija) return;
-        const desplazada = (window.scrollY || document.documentElement.scrollTop) > 4;
+        const contenido = contenidoPrincipal();
+        const desplazada = (contenido ? contenido.scrollTop : 0) > 4;
         if (desplazada) fija.setAttribute('data-desplazada', '');
         else fija.removeAttribute('data-desplazada');
     };
-    window.addEventListener('scroll', marcarDesplazamiento, { passive: true });
+    document.addEventListener('scroll', function (e) {
+        if (e.target === contenidoPrincipal()) marcarDesplazamiento();
+    }, { capture: true, passive: true });
     window.addEventListener('load', marcarDesplazamiento);
+
+    // Al cambiar de pantalla, .contenido vuelve arriba. Blazor solo devuelve arriba la ventana
+    // (window.scrollTo), que ya no desplaza: sin esto la pantalla nueva heredaría el scroll de la
+    // anterior. Solo si cambia la ruta: un envío de formulario a la misma URL no salta arriba, y
+    // un ancla (#) la resuelve el navegador.
+    let rutaMostrada = location.pathname + location.search;
+    const volverArribaSiCambiaLaPantalla = function () {
+        const ruta = location.pathname + location.search;
+        if (ruta === rutaMostrada) return;
+        rutaMostrada = ruta;
+        const contenido = contenidoPrincipal();
+        // 'instant': .contenido lleva scroll-behavior: smooth (base.css) y una pantalla nueva no se anima hasta arriba.
+        if (contenido && !location.hash) contenido.scrollTo({ top: 0, behavior: 'instant' });
+        marcarDesplazamiento();
+    };
+    if (window.Blazor && typeof window.Blazor.addEventListener === 'function')
+        window.Blazor.addEventListener('enhancedload', volverArribaSiCambiaLaPantalla);
 
     // Banda de avisos: descartar un aviso y plegar la banda cuando se queda vacía.
 

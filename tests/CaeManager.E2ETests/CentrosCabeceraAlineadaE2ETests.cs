@@ -145,7 +145,8 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
                 Assert.Equal(0, caja.GetProperty("borde").GetDouble());
                 Assert.Equal(0, caja.GetProperty("radio").GetDouble());
             }
-            await page.EvaluateAsync("() => window.scrollTo(0, 0)");
+            // El que desplaza es main.contenido (el shell mide la ventana): la captura parte de arriba de él.
+            await page.EvaluateAsync("() => document.getElementById('contenido-principal')?.scrollTo({ top: 0, behavior: 'instant' })");
             var carpeta = Path.Combine(Path.GetTempPath(), "centros-fidelidad-local");
             Directory.CreateDirectory(carpeta);
             await page.ScreenshotAsync(new() { Path = Path.Combine(carpeta, $"centros-{tema}.png"), FullPage = true });
