@@ -32,6 +32,12 @@ public class SmtpEmailService(
     IOptions<SmtpEmailOptions> opciones,
     ILogger<SmtpEmailService> logger) : IEmailService
 {
+    /// <summary>Smtp:* sin configurar: no se intentó enviar.</summary>
+    public const string CodigoNoConfigurado = "Email.NoConfigurado";
+
+    /// <summary>El servidor rechazó la orden o las credenciales: el mensaje no se aceptó.</summary>
+    public const string CodigoErrorApi = "Email.ErrorApi";
+
     public async Task<Result> EnviarAsync(
         string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
         string? responderA = null,
@@ -42,7 +48,7 @@ public class SmtpEmailService(
         if (!config.EstaConfigurado)
         {
             logger.LogError("Se intentó enviar un correo sin Smtp:* configurado.");
-            return Result.Fallo(Error.Crear("Email.NoConfigurado", "El envío de correo no está configurado."));
+            return Result.Fallo(Error.Crear(CodigoNoConfigurado, "El envío de correo no está configurado."));
         }
 
         // Acotado: un valor absurdo desbordaría el Timeout (int de milisegundos) o CancelAfter.
@@ -105,12 +111,12 @@ public class SmtpEmailService(
         catch (SmtpCommandException ex)
         {
             logger.LogError(ex, "El servidor SMTP rechazó el envío de un correo: {StatusCode}.", ex.StatusCode);
-            return Result.Fallo(Error.Crear("Email.ErrorApi", "No pudimos enviar el correo."));
+            return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (ExcepcionAutenticacionSmtp ex)
         {
             logger.LogError(ex, "El servidor SMTP rechazó las credenciales configuradas.");
-            return Result.Fallo(Error.Crear("Email.ErrorApi", "No pudimos enviar el correo."));
+            return Result.Fallo(Error.Crear(CodigoErrorApi, "No pudimos enviar el correo."));
         }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or IOException or SmtpProtocolException or SslHandshakeException or ExcepcionAutenticacionTls)
         {
