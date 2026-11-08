@@ -9,7 +9,13 @@ namespace CaeManager.Web.Features.Calendario.Components;
 
 /// <summary>Un vencimiento del día tal como lo pinta «Detalle del día»: Estado y Tono ya resueltos por quien lo abre.</summary>
 /// <param name="Reclamable">Solo las filas reclamables llevan «Reclamar» y cuentan en «Reclamar los N».</param>
-public sealed record FilaDetalleDia(Guid DocumentoId, string Sujeto, string Documento, string Estado, TonoBadge Tono, bool Reclamable);
+/// <param name="EmpresaId">Titular al que se reclama (la Empresa de la fila); null si quien abre el día ya fija una sola, como la Semana por Empresa.</param>
+/// <param name="EmpresaNombre">Nombre de <paramref name="EmpresaId"/>, para distinguir las Empresas de un día que las mezcla.</param>
+public sealed record FilaDetalleDia(Guid DocumentoId, string Sujeto, string Documento, string Estado, TonoBadge Tono, bool Reclamable,
+    Guid? EmpresaId = null, string? EmpresaNombre = null);
+
+/// <summary>Los documentos reclamables de un día que van al mismo titular: el drawer de lote es de uno solo.</summary>
+internal sealed record GrupoReclamable(string? EmpresaNombre, IReadOnlyList<Guid> DocumentoIds);
 
 public partial class DetalleDia
 {
@@ -38,6 +44,23 @@ public partial class DetalleDia
     private bool PuedeReclamar => OnReclamar.HasDelegate && _puedeReclamar;
     private IReadOnlyList<Guid> ReclamablesIds => [.. Vencimientos.Where(v => v.Reclamable).Select(v => v.DocumentoId)];
     private bool MostrarPie => PuedeReclamar && ReclamablesIds.Count > 0;
+
+    private bool HayVariasEmpresas => Vencimientos.Where(v => v.EmpresaId is not null).Select(v => v.EmpresaId).Distinct().Count() > 1;
+
+    private IReadOnlyList<GrupoReclamable> GruposReclamables =>
+    [
+        .. Vencimientos.Where(v => v.Reclamable)
+            .GroupBy(v => v.EmpresaId)
+            .Select(g => new GrupoReclamable(g.Select(v => v.EmpresaNombre).FirstOrDefault(n => n is { Length: > 0 }), [.. g.Select(v => v.DocumentoId)]))
+            .OrderBy(g => g.EmpresaNombre, StringComparer.CurrentCultureIgnoreCase)
+    ];
+
+    // Con una sola Empresa el pie es «Reclamar los N» (o el documento); con varias, cada botón dice a cuál va.
+    private string EtiquetaReclamar(GrupoReclamable grupo)
+    {
+        var cuantos = grupo.DocumentoIds.Count == 1 ? Textos["ReclamarElDocumento"].Value : Textos["ReclamarLosN", grupo.DocumentoIds.Count].Value;
+        return GruposReclamables.Count > 1 && grupo.EmpresaNombre is { Length: > 0 } nombre ? $"{cuantos} · {nombre}" : cuantos;
+    }
 
     protected override async Task OnParametersSetAsync()
     {

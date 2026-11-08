@@ -5,9 +5,10 @@
 @* «Detalle del día» del mockup de Calendario: el mismo diálogo para el día del Mes y para la celda Empresa × día de la
    Semana por Empresa. Antetítulo con el día de la semana, fecha larga, «N vencimientos · M visita», una fila por
    vencimiento (sujeto en negrita, documento debajo, estado, Renovar y Reclamar), la sección de Visitas y el pie con
-   «Reclamar los N». Reclamar y el pie solo existen si el llamador puede reclamar (OnReclamar con manejador) y la
-   persona tiene un rol de gestión; el diálogo no decide a quién se reclama: devuelve los Documentos y quien lo abre
-   sabe el titular. *@
+   «Reclamar los N» (un botón por Empresa empleadora si el día mezcla varias, cada uno con su recuento). Reclamar y el
+   pie solo existen si el llamador puede reclamar (OnReclamar con manejador) y la persona tiene un rol de gestión; el
+   diálogo no decide a quién se reclama ni qué es reclamable: pinta lo que dice cada fila (Reclamable) y devuelve los
+   Documentos de la fila o de la Empresa pulsada; quien lo abre resuelve el titular. *@
 <div class="detalle-dia">
     <Modal Visible="@(Fecha is not null)" VisibleChanged="AlCambiarVisible"
            Sobretitulo="@Antetitulo" Titulo="@TituloFecha" Subtitulo="@Resumen"
@@ -24,7 +25,7 @@
                             <li class="detalle-dia-fila">
                                 <span class="detalle-dia-texto">
                                     <span class="detalle-dia-principal">@fila.Sujeto</span>
-                                    <span class="detalle-dia-secundaria">@fila.Documento</span>
+                                    <span class="detalle-dia-secundaria">@(HayVariasEmpresas && fila.EmpresaNombre is { Length: > 0 } empresa ? $"{fila.Documento} · {empresa}" : fila.Documento)</span>
                                 </span>
                                 <Badge Tono="fila.Tono">@fila.Estado</Badge>
                                 <span class="detalle-dia-acciones">
@@ -75,8 +76,15 @@
     private RenderFragment PieReclamar => __builder =>
     {
         <span class="detalle-dia-pie-texto">@Textos["AccionesSinSalir"]</span>
-        <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ReclamablesIds)">
-            @(ReclamablesIds.Count == 1 ? Textos["ReclamarElDocumento"] : Textos["ReclamarLosN", ReclamablesIds.Count])
-        </Boton>
+        @* Un drawer de lote es de un único titular: si el día mezcla Empresas, un botón por Empresa con su recuento. *@
+        <span class="detalle-dia-pie-botones">
+            @foreach (var grupo in GruposReclamables)
+            {
+                var ids = grupo.DocumentoIds;
+                <Boton Variante="VarianteBoton.Primario" OnClick="() => Reclamar(ids)">
+                    @EtiquetaReclamar(grupo)
+                </Boton>
+            }
+        </span>
     };
 }

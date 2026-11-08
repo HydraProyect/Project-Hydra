@@ -5,7 +5,9 @@ namespace CaeManager.Application.Tests.Reclamaciones;
 
 /// <summary>
 /// Fake de <see cref="IResolucionDestinatariosAgendaService"/> para los tests
-/// de EnviarReclamacionCommandHandler/EnviarReclamacionEmpresaCommandHandler:
+/// de EnviarReclamacionCommandHandler/EnviarReclamacionEmpresaCommandHandler y del
+/// lote de Trabajador real (ObtenerLoteReclamacionQueryHandler, que pide
+/// ResolverParaClientesAsync sin que se grabe la llamada):
 /// devuelve una respuesta fija por llamada y graba con qué la llamaron, sin
 /// reproducir la lógica real de resolución de agenda (esa la cubre
 /// ResolucionDestinatariosAgendaServiceTests).
@@ -27,7 +29,9 @@ public class ResolucionDestinatariosAgendaServiceFalso : IResolucionDestinatario
 
     public Task<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>> ResolverParaClientesAsync(
         Guid? centroId, IReadOnlyDictionary<Guid, IReadOnlyList<Guid>> tipoDocumentoIdsPorCliente, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("EnviarReclamacionCommandHandler usa ResolverAsync, no la versión por lote.");
+        // El lote de Trabajador (ObtenerLoteReclamacionQueryHandler) la pide para todos sus Clientes: todos reciben la misma respuesta.
+        Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<DestinatarioAgendaDto>>>(
+            tipoDocumentoIdsPorCliente.Keys.ToDictionary(id => id, _ => RespuestaResolverAsync));
 
     public Task<IReadOnlyList<DestinatarioAgendaDto>> ResolverParaEmpresaAsync(
         Guid empresaId, IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken = default)
