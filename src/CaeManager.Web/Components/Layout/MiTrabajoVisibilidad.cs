@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -35,6 +36,18 @@ public static class MiTrabajoVisibilidad
     /// todos los roles); Mi trabajo ya no era portada de ningún rol.
     /// </summary>
     public const string RutaAlternativa = "/gestiones";
+
+    /// <summary>
+    /// Registro de la opción para el host real: la enciende y luego deja que <c>MiTrabajo:Oculto</c> de la
+    /// configuración (appsettings, variable <c>MiTrabajo__Oculto</c>) la sobrescriba, de modo que <c>false</c> la revierte.
+    /// Lo llama <c>Program.cs</c>; un test lo compone con y sin ese valor y otro vigila que <c>Program.cs</c> lo llame.
+    /// </summary>
+    public static IServiceCollection RegistrarOpcion(this IServiceCollection servicios, IConfiguration configuracion)
+    {
+        servicios.Configure<MiTrabajoOptions>(opciones => opciones.Oculto = true);
+        servicios.Configure<MiTrabajoOptions>(configuracion.GetSection(MiTrabajoOptions.SeccionConfiguracion));
+        return servicios;
+    }
 
     /// <summary>
     /// Sin la opción configurada (un host de pruebas, otro host) Mi trabajo se comporta como siempre: solo

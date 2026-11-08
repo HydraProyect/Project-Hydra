@@ -126,6 +126,48 @@ public class MiTrabajoOcultoTests : BunitContext
         Render<EnlaceVolverAMiTrabajo>().FindAll("a[data-enlace='volver-mi-trabajo']").Should().BeEmpty();
     }
 
+    private static IServiceProvider HostReal(Dictionary<string, string?>? configuracion = null)
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(configuracion ?? []).Build();
+        return new ServiceCollection().RegistrarOpcion(config).BuildServiceProvider();
+    }
+
+    [Fact]
+    public void El_host_real_arranca_con_Mi_trabajo_oculto_si_la_configuracion_no_dice_nada()
+    {
+        MiTrabajoVisibilidad.EstaOculto(HostReal()).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MiTrabajo_Oculto_en_falso_revierte_la_ocultacion_del_host_real()
+    {
+        MiTrabajoVisibilidad.EstaOculto(HostReal(new() { ["MiTrabajo:Oculto"] = "false" })).Should().BeFalse();
+        MiTrabajoVisibilidad.EstaOculto(HostReal(new() { ["MiTrabajo:Oculto"] = "true" })).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Program_cs_registra_la_opcion_y_nadie_la_quita_en_silencio()
+    {
+        var carpeta = new DirectoryInfo(AppContext.BaseDirectory);
+        while (carpeta is not null && !File.Exists(Path.Combine(carpeta.FullName, "src", "CaeManager.Web", "Program.cs")))
+            carpeta = carpeta.Parent;
+        carpeta.Should().NotBeNull("el test lee Program.cs de este árbol");
+
+        File.ReadAllText(Path.Combine(carpeta!.FullName, "src", "CaeManager.Web", "Program.cs"))
+            .Should().Contain("MiTrabajoVisibilidad.RegistrarOpcion(builder.Services, builder.Configuration)");
+    }
+
+    [Fact]
+    public void El_enlace_Volver_a_Mi_trabajo_sigue_pintandose_con_la_opcion_en_falso()
+    {
+        Services.AddLocalization();
+        Services.AddSingleton<IOptions<MiTrabajoOptions>>(Options.Create(new MiTrabajoOptions { Oculto = false }));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/centros?volver=%2Fmi-trabajo");
+
+        Render<EnlaceVolverAMiTrabajo>().FindAll("a[data-enlace='volver-mi-trabajo']").Should().ContainSingle();
+    }
+
     private sealed class AntiforgeryFalso : AntiforgeryStateProvider
     {
         public override AntiforgeryRequestToken? GetAntiforgeryToken() => new("token-de-prueba", "__RequestVerificationToken");
