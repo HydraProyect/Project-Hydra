@@ -95,8 +95,14 @@ public class CaeManagerDbContext(
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
-        CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
+        CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
+        CaeManager.Application.Calendario.ICalendarioLaboralQueryContext
 {
+    public DbSet<CaeManager.Domain.CalendarioLaboral.FestivoOficial> FestivosOficiales => Set<CaeManager.Domain.CalendarioLaboral.FestivoOficial>();
+    IQueryable<CaeManager.Domain.CalendarioLaboral.FestivoOficial> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.FestivosOficiales => FestivosOficiales.AsNoTracking();
+    public DbSet<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona> CalendariosLaboralesPersona => Set<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona>();
+    IQueryable<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.CalendariosLaboralesPersona => CalendariosLaboralesPersona.AsNoTracking();
+
     public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
     IQueryable<CaeManager.Domain.Dashboard.TarifaOperadorCae> CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.TarifasOperadorCae => TarifasOperadorCae;
     void CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.Agregar(CaeManager.Domain.Dashboard.TarifaOperadorCae tarifa) => TarifasOperadorCae.Add(tarifa);

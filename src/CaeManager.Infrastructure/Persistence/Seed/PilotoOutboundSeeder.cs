@@ -501,6 +501,10 @@ public static class PilotoOutboundSeeder
             }
 
             await CrearCuentaPendienteDeActivacionAsync(userManager, logger, tenantOperadorId, cuentas.GestorPendienteDeActivacion, coordinadora.Id);
+
+            // Su calendario laboral (capas de /calendario), dato del Operador CAE externo: en este mismo ámbito.
+            await PilotoOutboundCalendarioLaboral.SembrarAsync(
+                dbContext, new PilotoOutboundEquipoIds(gestoraPrimera.Id, gestorSegundo.Id, coordinadora.Id), cancellationToken);
         }
 
 
