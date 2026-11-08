@@ -608,8 +608,9 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
             .Error.Should().Be(ErroresPropuestaApoyo.ApoyoFueraDeTuEquipo, "ya no le reporta ninguno de los dos");
         (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
 
-        // El claim de la sesión dentro del Tenant propietario es el de la cartera; el rol sale de Identity.
-        var resultado = await Terminar(_coordinadorAjeno, Roles.GestorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId),
+        // Con el Workspace operativo derivado del Tenant propietario abierto, el rol efectivo en el
+        // Tenant de origen sigue siendo el de la sesión en origen (decisión P7), que Identity confirma.
+        var resultado = await Terminar(_coordinadorAjeno, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId),
             tenantActivo: _beneficiario.Id);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
         (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Cerrada);

@@ -75,6 +75,54 @@ public class ObtenerEquipoDeCoordinadorQueryTests
         e2.Preguntados.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Decide el rol efectivo de la sesión en el Tenant de origen (decisión P7) e Identity lo
+    /// confirma: una cuenta de Coordinador CAE con la sesión limitada a Consulta, o abierta antes
+    /// del cambio de rol, no recibe el equipo; y la sesión de Coordinador CAE de una cuenta que ya
+    /// no lo es, tampoco.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", "CoordinadorCae")]
+    [InlineData("GestorCae", "CoordinadorCae")]
+    [InlineData("CoordinadorCae", "GestorCae")]
+    public async Task Sin_coincidir_el_rol_efectivo_de_la_sesion_y_el_de_Identity_no_recibe_el_equipo(string rolDeSesion, string rolEnIdentity)
+    {
+        var (handler, equipo) = Handler(rolEnIdentity, rolDeSesion);
+
+        (await handler.Handle(new ObtenerEquipoDeCoordinadorQuery(), default)).Should().BeEmpty();
+        equipo.Preguntados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_rol_de_Coordinador_CAE_en_otro_Tenant_no_da_el_equipo()
+    {
+        var directorio = new DirectorioRolesEnOrigen();
+        directorio.Asignar(Coordinador, Guid.NewGuid(), "CoordinadorCae");
+        var equipo = new EquipoFalso();
+
+        (await new ObtenerEquipoDeCoordinadorQueryHandler(
+                new CurrentUserServicePorAmbito(Coordinador, Operador, "CoordinadorCae"), directorio, equipo)
+            .Handle(new ObtenerEquipoDeCoordinadorQuery(), default)).Should().BeEmpty();
+        equipo.Preguntados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Soporte_TALVEG_sin_Sesion_Privilegiada_no_recibe_un_equipo_de_Coordinador_CAE()
+    {
+        // Cuenta de Soporte TALVEG con sesión normal y rol Administrador en el Tenant de TALVEG:
+        // no es Coordinador CAE de ningún Operador CAE.
+        var tenantTalveg = Guid.NewGuid();
+        var soporte = Guid.NewGuid();
+        var directorio = new DirectorioRolesEnOrigen();
+        directorio.Asignar(soporte, tenantTalveg, "Administrador");
+        var equipo = new EquipoFalso();
+
+        (await new ObtenerEquipoDeCoordinadorQueryHandler(
+                new CurrentUserServicePorAmbito(soporte, tenantTalveg, "Administrador"), directorio, equipo)
+            .Handle(new ObtenerEquipoDeCoordinadorQuery(), default)).Should().BeEmpty();
+        equipo.Preguntados.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task El_Coordinador_CAE_no_recibe_la_lista_de_empresas_asignables_del_alta()
     {

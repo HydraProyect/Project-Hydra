@@ -387,7 +387,7 @@ public class FinDeApoyoCarteraTests
     }
 
     [Fact]
-    public async Task El_rol_para_revocar_sale_de_Identity_y_no_del_claim_de_la_sesion()
+    public async Task El_rol_para_revocar_es_el_efectivo_de_la_sesion_en_origen_y_Identity_lo_confirma()
     {
         var e = new Escenario();
         var propuesta = await e.ApoyoAceptado();
@@ -403,9 +403,16 @@ public class FinDeApoyoCarteraTests
         (await e.Revocar(Direccion, propuesta.Id, rolDeSesion: "DireccionCae")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
         e.ElApoyoSigueIntacto(propuesta);
 
-        // Y al revés: dentro de un Workspace operativo derivado el claim es el de la cartera
-        // («GestorCae»), pero quien es Coordinador CAE en Identity sí revoca.
-        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "GestorCae")).EsExitoso.Should().BeTrue();
+        // Y al revés: Identity no sube el rol de la sesión. En el Tenant de origen el rol efectivo
+        // es el de la sesión en origen, conservado aunque haya un Workspace operativo derivado
+        // abierto (decisión P7); si es Gestor CAE —una sesión abierta antes de que la cuenta
+        // pasara a Coordinador CAE, o limitada por login local—, no revoca.
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "GestorCae")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "Consulta")).Error.Should().Be(ErroresPropuestaApoyo.SinPermiso);
+        e.ElApoyoSigueIntacto(propuesta);
+
+        // Control positivo: con la sesión de Coordinador CAE que Identity confirma, sí revoca.
+        (await e.Revocar(CoordinadorDeA, propuesta.Id, rolDeSesion: "CoordinadorCae")).EsExitoso.Should().BeTrue();
     }
 
     [Fact]

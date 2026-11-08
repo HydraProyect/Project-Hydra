@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios;
@@ -22,8 +23,9 @@ public interface IDirectorioEquipoCoordinador
 /// <summary>
 /// La lista de /usuarios para un Coordinador CAE: solo su equipo. El filtro vive aquí, no en la
 /// interfaz: la página no lee a ningún otro usuario cuando quien la abre es un Coordinador CAE.
-/// Vacía si quien pregunta no es un Coordinador CAE activo de su Operador CAE (leído en Identity
-/// sobre el Tenant de origen, no en el claim). Administrador y Dirección CAE usan la lista completa
+/// Vacía si quien pregunta no es Coordinador CAE como rol efectivo de la sesión en el Tenant de
+/// origen, confirmado en Identity sobre la cuenta activa de su Operador CAE
+/// (<see cref="Commands.AsignarCarteraGestorCae.AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>). Administrador y Dirección CAE usan la lista completa
 /// de siempre y no pasan por aquí.
 /// </summary>
 public record ObtenerEquipoDeCoordinadorQuery : IRequest<IReadOnlyList<MiembroDeEquipo>>;
@@ -34,7 +36,7 @@ public class ObtenerEquipoDeCoordinadorQueryHandler(
     IDirectorioEquipoCoordinador equipo)
     : IRequestHandler<ObtenerEquipoDeCoordinadorQuery, IReadOnlyList<MiembroDeEquipo>>
 {
-    private const string CoordinadorCae = "CoordinadorCae";
+    private static readonly string[] RolQueLee = ["CoordinadorCae"];
 
     public async Task<IReadOnlyList<MiembroDeEquipo>> Handle(
         ObtenerEquipoDeCoordinadorQuery request, CancellationToken cancellationToken)
@@ -46,8 +48,10 @@ public class ObtenerEquipoDeCoordinadorQueryHandler(
 
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
-            if (await currentUserService.ObtenerRolEfectivoAsync() is null
-                || !await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, CoordinadorCae, cancellationToken))
+            // Rol efectivo de la sesión en el Tenant de origen, confirmado en Identity: una sesión
+            // sin rol de negocio (Soporte TALVEG) o limitada a Consulta no recibe el equipo.
+            if (await AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync(
+                    actorId.Value, origen.Value, RolQueLee, currentUserService, directorioUsuarios, cancellationToken) is null)
                 return [];
 
             return await equipo.ObtenerEquipoAsync(actorId.Value, cancellationToken);

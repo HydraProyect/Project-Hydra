@@ -46,9 +46,11 @@ public record RevocarApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 /// </para>
 ///
 /// <para>
-/// <b>Autoridad</b>, leída en Identity sobre el Tenant de origen y nunca en el claim —dentro
-/// del Tenant propietario el claim es el de la cartera, y una cuenta desactivada no debe
-/// seguir escribiendo—, y decidida dentro de la transacción, ya con el candado.
+/// <b>Autoridad</b>, resuelta sobre el Tenant de origen —una cuenta desactivada no debe seguir
+/// escribiendo— y decidida dentro de la transacción, ya con el candado. Para revocar decide el
+/// rol efectivo de la sesión en origen y Identity lo confirma
+/// (<see cref="AutoridadSobreCarteraDeGestorCae.RolDeAutoridadAsync"/>); desasignarse y retirar
+/// lo concedido resuelven el rol con <see cref="ContextoOperadorCae"/>.
 /// </para>
 ///
 /// <para>
