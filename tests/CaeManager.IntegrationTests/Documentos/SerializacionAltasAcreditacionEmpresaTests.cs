@@ -83,10 +83,13 @@ public class SerializacionAltasAcreditacionEmpresaTests
 
         if (serializadas)
         {
+            // La conexión de B, abierta a mano para que EF no la suelte al pool: su PID es el que espera el candado.
+            await contextoB.Database.OpenConnectionAsync();
+            var pidB = await contextoB.Database.SqlQueryRaw<int>("SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
             var tareaB = Serializacion(contextoB).EjecutarAsync(AltaAccesoAsync);
 
-            // Control de la carrera: B ha llegado al candado mientras A lo tiene, y espera.
-            await EsperarCandadoEnEsperaAsync(arnes.CadenaPropietario);
+            // Control de la carrera: B ha llegado al candado del Tenant mientras A lo tiene, y espera.
+            await EsperarCandadoEnEsperaAsync(arnes.CadenaPropietario, pidB, ClaveDelCandado);
             tareaB.IsCompleted.Should().BeFalse("B no puede leer hasta que A confirme");
 
             soltarA.TrySetResult();
@@ -115,12 +118,14 @@ public class SerializacionAltasAcreditacionEmpresaTests
             datosDePruebaActivos: false, tenantActualPersonalizado: _tenant);
         await using var ambito = arnes.Servicios.CreateAsyncScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        // Abierta a mano: la comprobación posterior al COMMIT mira la misma sesión, no otra conexión del pool.
+        await contexto.Database.OpenConnectionAsync();
 
         var resultado = await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
         {
             var interior = await Serializacion(contexto).EjecutarAsync(async c =>
             {
-                (await CandadosConcedidosDeEstaSesionAsync(contexto, c)).Should().Be(1,
+                (await CandadosDelTenantConcedidosEnEstaSesionAsync(contexto, c)).Should().Be(1,
                     "el candado del Tenant se toma en la transacción ya abierta");
                 return Result.Exito();
             }, ct);
@@ -128,19 +133,30 @@ public class SerializacionAltasAcreditacionEmpresaTests
         });
 
         resultado.EsExitoso.Should().BeTrue();
-        (await CandadosConcedidosDeEstaSesionAsync(contexto, CancellationToken.None)).Should().Be(0,
+        (await CandadosDelTenantConcedidosEnEstaSesionAsync(contexto, CancellationToken.None)).Should().Be(0,
             "un candado de transacción se suelta con el COMMIT");
     }
 
     private SerializacionAltasAcreditacionEmpresa Serializacion(CaeManagerDbContext contexto) =>
         new(contexto, new TransaccionDeComando(contexto), _tenant);
 
-    private static Task<int> CandadosConcedidosDeEstaSesionAsync(CaeManagerDbContext contexto, CancellationToken ct) =>
+    /// <summary>La misma clave que <see cref="SerializacionAltasAcreditacionEmpresa"/>: espacio propio más el Tenant.</summary>
+    private string ClaveDelCandado => "app.altas_acreditacion_empresa:" + _tenant.TenantId;
+
+    /// <summary>
+    /// Un candado de asesoramiento con clave bigint aparece en <c>pg_locks</c> partido en <c>classid</c> (32 bits altos)
+    /// y <c>objid</c> (32 bits bajos), con <c>objsubid = 1</c>; se recompone para compararlo con la clave esperada.
+    /// </summary>
+    private const string EsElCandadoDeLaClave =
+        "locktype = 'advisory' AND objsubid = 1 AND ((classid::bigint << 32) | objid::bigint) = hashtextextended(@clave, 0)";
+
+    private Task<int> CandadosDelTenantConcedidosEnEstaSesionAsync(CaeManagerDbContext contexto, CancellationToken ct) =>
         contexto.Database.SqlQueryRaw<int>(
-                "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND granted AND pid = pg_backend_pid()")
+                $"SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE {EsElCandadoDeLaClave.Replace("@clave", "{0}")} AND granted AND pid = pg_backend_pid()",
+                ClaveDelCandado)
             .SingleAsync(ct);
 
-    private static async Task EsperarCandadoEnEsperaAsync(string cadenaPropietario)
+    private static async Task EsperarCandadoEnEsperaAsync(string cadenaPropietario, int pid, string clave)
     {
         await using var conexion = new NpgsqlConnection(cadenaPropietario);
         await conexion.OpenAsync();
@@ -148,11 +164,9 @@ public class SerializacionAltasAcreditacionEmpresaTests
         while (DateTime.UtcNow < limite)
         {
             await using var comando = new NpgsqlCommand(
-                """
-                SELECT count(*)::int FROM pg_locks
-                WHERE locktype = 'advisory' AND NOT granted
-                  AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
-                """, conexion);
+                $"SELECT count(*)::int FROM pg_locks WHERE {EsElCandadoDeLaClave} AND NOT granted AND pid = @pid", conexion);
+            comando.Parameters.AddWithValue("clave", clave);
+            comando.Parameters.AddWithValue("pid", pid);
             if ((int)(await comando.ExecuteScalarAsync())! > 0)
                 return;
             await Task.Delay(50);
