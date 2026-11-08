@@ -21,8 +21,7 @@ public class CabeceraIdentidadFlexBasisMovilTests
     /// <summary>Hojas con la base fija que este test no vigila, con su motivo (ruta relativa a la raíz, con '/').</summary>
     private static readonly Dictionary<string, string> Excepciones = new()
     {
-        ["src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.css"] =
-            "Centro 360 lo corrige y lo vigila la PR #2088 (CentroDetalleCabeceraMovilTests). Quitar esta entrada cuando #2088 esté en main.",
+        // Vacía: ninguna hoja está exenta. Una hoja nueva que aún no pueda cumplir se añade aquí con su motivo y la PR que la corrige.
     };
 
     private sealed record Regla(int Orden, string? Media, string Selector, string Cuerpo);
@@ -160,6 +159,7 @@ public class CabeceraIdentidadFlexBasisMovilTests
             "src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor.css",
             "src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor.css",
             "src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor.css",
+            "src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor.css",
         });
         foreach (var excepcion in Excepciones.Keys)
             File.Exists(Path.Combine(Raiz(), excepcion.Replace('/', Path.DirectorySeparatorChar)))
