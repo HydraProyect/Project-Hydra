@@ -204,22 +204,26 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
         || (clave == OpcionSubido && PasoRechazado)
         || clave == OpcionNoPide;
 
-    private static string? AtajoDeOpcion(string clave) => clave switch
-    {
-        OpcionSubido => AtajosPasosGestion.TeclaSubido,
-        OpcionValidado => AtajosPasosGestion.TeclaValidado,
-        _ => null
-    };
+    /// <summary>Tecla que elige la opción, o null si no tiene o si ahora no se puede elegir (no se anuncia un atajo muerto).</summary>
+    private string? AtajoDeOpcion(string clave) => OpcionDeshabilitada(clave)
+        ? null
+        : clave switch
+        {
+            OpcionSubido => AtajosPasosGestion.TeclaSubido,
+            OpcionValidado => AtajosPasosGestion.TeclaValidado,
+            _ => null
+        };
 
     /// <summary>
     /// Atajos del pie (§ 4.5, onKey de la maqueta): → o «s» hacen lo que «Siguiente» sin opción elegida (el siguiente
     /// paso por hacer o, si no queda, la Siguiente Gestión) y no guardan nada; ← es «Anterior»; 1 y 2 eligen
-    /// «Subido» y «Validado» con las mismas condiciones que su clic. Con un guardado en vuelo no se atienden: el
-    /// guardado abre él mismo el paso que toca. Qué tecla llega y desde dónde lo filtra atajos-pasos-gestion.js.
+    /// «Subido» y «Validado» con las mismas condiciones que su clic. Con un guardado en vuelo no se atienden (el
+    /// guardado abre él mismo el paso que toca), ni con la pantalla de error a la vista, que no enseña los pasos
+    /// aunque conserve el detalle anterior. Qué tecla llega y desde dónde lo filtra atajos-pasos-gestion.js.
     /// </summary>
     private async Task AtajoAsync(string tecla)
     {
-        if (_detalle is null || _guardando || PasoAbierto is null) return;
+        if (_detalle is null || _error || _guardando || PasoAbierto is null) return;
 
         switch (tecla)
         {

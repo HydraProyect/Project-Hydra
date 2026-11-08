@@ -352,13 +352,16 @@
                             <button type="button" class="gp-enlace" disabled="@(!PuedeGuardar || _guardando)" data-accion="guardar" @onclick="GuardarSoloAsync">@Textos["GpGuardar"]</button>
                         }
                         @* Indicadores del pie (§ 4.5, ATAJOS de la maqueta). Cada uno solo si su tecla hace algo aquí: sin poder
-                           marcar (Consulta, Gestión sustituida) no se enseñan 1 ni 2. *@
+                           marcar (Consulta, Gestión sustituida) no se enseñan 1 ni 2, ni el de una opción deshabilitada. *@
                         <span class="gp-atajos" role="group" aria-label="@Textos["GpAriaAtajos"]" data-atajos-pie="">
                             <span class="gp-atajo" data-atajo="siguiente"><kbd>→</kbd>@Textos["GpSiguiente"]</span>
                             <span class="gp-atajo" data-atajo="anterior"><kbd>←</kbd>@Textos["GpAnterior"]</span>
-                            @if (PuedeMarcar)
+                            @if (PuedeMarcar && !OpcionDeshabilitada(OpcionSubido))
                             {
                                 <span class="gp-atajo" data-atajo="subido"><kbd>1</kbd>@Textos["GpAtajoSubido"]</span>
+                            }
+                            @if (PuedeMarcar && !OpcionDeshabilitada(OpcionValidado))
+                            {
                                 <span class="gp-atajo" data-atajo="validado"><kbd>2</kbd>@Textos["GpAtajoValidado"]</span>
                             }
                         </span>

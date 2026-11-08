@@ -14,7 +14,21 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AtajosPasosGestionSincronizadoConJsTests
 {
-    private static readonly string Js = LeerJs("atajos-pasos-gestion.js");
+    /// <summary>El módulo sin comentarios: una guarda comentada no cuenta como guarda.</summary>
+    private static readonly string Js = SinComentarios(LeerJs("atajos-pasos-gestion.js"));
+
+    /// <summary>Cuerpo del manejador de keydown hasta el reenvío a C#: lo que tiene que pasar antes de actuar.</summary>
+    private static string AntesDeActuar()
+    {
+        var inicio = Js.IndexOf("const manejador = (evento) => {", StringComparison.Ordinal);
+        var actuar = Js.IndexOf("evento.preventDefault();", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThanOrEqualTo(0, "el módulo declara su manejador de keydown");
+        actuar.Should().BeGreaterThan(inicio, "el manejador cancela la tecla y la reenvía después de sus guardas");
+        Js.IndexOf("dotNetRef.invokeMethodAsync('RecibirAtajo', evento.key);", StringComparison.Ordinal)
+            .Should().BeGreaterThan(actuar, "la tecla se reenvía a C# después de cancelarla, nunca antes");
+        Regex.Matches(Js, @"preventDefault\(\)").Should().ContainSingle("solo se cancela la tecla que se atiende");
+        return Js[inicio..actuar];
+    }
 
     [Fact]
     public void Teclas_del_js_coinciden_con_las_que_atiende_el_componente()
@@ -29,41 +43,54 @@ public class AtajosPasosGestionSincronizadoConJsTests
         AtajosPasosGestion.Teclas.Should().NotContain("Tab", "los atajos no tocan la navegación por Tab");
     }
 
+    [Fact]
+    public void Una_tecla_que_no_es_de_la_pantalla_sale_lo_primero_sin_cancelarse_y_el_Tab_sigue_su_curso()
+    {
+        AntesDeActuar().TrimStart().Should().StartWith("const manejador = (evento) => {")
+            .And.Subject.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)[1]
+            .Should().Be("if (!TECLAS.includes(evento.key)) return;", "es la primera comprobación del manejador");
+    }
+
     [Theory]
     [InlineData("evento.ctrlKey")]
     [InlineData("evento.metaKey")]
     [InlineData("evento.altKey")]
     [InlineData("evento.shiftKey")]
-    public void Con_un_modificador_pulsado_la_tecla_no_es_de_la_pantalla(string modificador)
+    [InlineData("evento.defaultPrevented")]
+    [InlineData("evento.isComposing")]
+    [InlineData("evento.repeat")]
+    public void Con_un_modificador_o_una_tecla_ya_atendida_compuesta_o_mantenida_no_se_actua(string condicion)
     {
-        Regex.IsMatch(Js, @"if \((?:evento\.\w+ \|\| )*" + Regex.Escape(modificador) + @"(?: \|\| evento\.\w+)*\) return;")
-            .Should().BeTrue($"el manejador debe salir sin hacer nada con {modificador}");
+        Regex.IsMatch(AntesDeActuar(), @"if \((?:evento\.\w+ \|\| )*" + Regex.Escape(condicion) + @"(?: \|\| evento\.\w+)*\) return;")
+            .Should().BeTrue($"el manejador debe salir sin actuar con {condicion}, antes de cancelar la tecla");
     }
 
     [Fact]
     public void Con_el_foco_en_un_campo_de_texto_un_select_o_un_textarea_la_tecla_es_del_campo()
     {
-        var selector = Regex.Match(Js, @"const SELECTOR_CAMPO\s*=\s*'(?<s>[^']*)'");
-        selector.Success.Should().BeTrue();
-        selector.Groups["s"].Value.Split(',', StringSplitOptions.TrimEntries).Should().Contain(["input", "textarea", "select"]);
-        Js.Should().Contain("if (activo.isContentEditable || activo.matches?.(SELECTOR_CAMPO)) return;");
+        AntesDeActuar().Should().Contain("if (esCampoEditable(activo)) return;");
+        var funcion = Regex.Match(Js, @"function esCampoEditable\(activo\) \{(?<cuerpo>[^}]*)\}").Groups["cuerpo"].Value;
+        funcion.Should().Contain("activo.isContentEditable")
+            .And.Contain("activo.tagName === 'TEXTAREA'")
+            .And.Contain("activo.tagName === 'SELECT'")
+            .And.Contain("activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type)");
+        var noTexto = Regex.Match(Js, @"TIPOS_INPUT_NO_TEXTO = new Set\(\[(?<t>[^\]]*)\]\)").Groups["t"].Value;
+        Regex.Matches(noTexto, @"'(\w+)'").Select(m => m.Groups[1].Value)
+            .Should().NotContain(["text", "date", "search", "email", "number", "tel", "url", "password"],
+                "un campo donde se escribe nunca cuenta como «no texto»");
     }
 
     [Fact]
     public void Con_un_dialogo_modal_o_un_menu_abierto_la_tecla_no_es_de_la_pantalla()
     {
-        Js.Should().Contain("if (hayDialogoModalAbierto()) return;");
-        Js.Should().Contain("if (activo.closest?.(SELECTOR_SUPERFICIE_AJENA)) return;");
+        var antes = AntesDeActuar();
+        antes.Should().Contain("if (hayDialogoModalAbierto()) return;");
+        antes.Should().Contain("if (document.querySelector(SELECTOR_MENU_ABIERTO)) return;");
+        antes.Should().Contain("if (activo.closest?.(SELECTOR_SUPERFICIE_AJENA)) return;");
         Regex.Match(Js, @"const SELECTOR_SUPERFICIE_AJENA\s*=\s*'(?<s>[^']*)'").Groups["s"].Value
             .Should().Contain("[role=\"menu\"]").And.Contain("[role=\"dialog\"]");
-    }
-
-    [Fact]
-    public void Las_flechas_dentro_de_un_grupo_de_radios_o_de_pestanas_siguen_siendo_del_grupo()
-    {
-        Js.Should().Contain("if (FLECHAS.includes(evento.key) && activo.closest?.(SELECTOR_FLECHAS_PROPIAS)) return;");
-        Regex.Match(Js, @"const SELECTOR_FLECHAS_PROPIAS\s*=\s*'(?<s>[^']*)'").Groups["s"].Value
-            .Should().Contain("[role=\"radiogroup\"]").And.Contain("[role=\"tablist\"]");
+        Regex.Match(Js, @"const SELECTOR_MENU_ABIERTO\s*=\s*'(?<s>[^']*)'").Groups["s"].Value
+            .Should().Be("[aria-haspopup=\"menu\"][aria-expanded=\"true\"]");
     }
 
     [Fact]
@@ -79,6 +106,9 @@ public class AtajosPasosGestionSincronizadoConJsTests
         Js.Should().Contain("dispose: () => document.removeEventListener('keydown', manejador)");
     }
 
+    private static string SinComentarios(string js) =>
+        Regex.Replace(Regex.Replace(js, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline), @"^\s*//.*$|\s+//.*$", string.Empty, RegexOptions.Multiline)
+            .Replace("\r\n", "\n");
     private static string LeerJs(string fichero)
     {
         var actual = new DirectoryInfo(AppContext.BaseDirectory);

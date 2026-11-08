@@ -188,6 +188,9 @@ public partial class GestionesAutomaticasPantallaTests
         await cut.InvokeAsync(() => atajos.RecibirAtajo("2"));
 
         cut.FindAll("[data-opcion][aria-checked='true']").Should().BeEmpty();
+        cut.FindAll("[data-atajos-pie] [data-atajo]").Select(a => a.GetAttribute("data-atajo")).Should()
+            .Equal(["siguiente", "anterior"], "no se indica una tecla que no hace nada");
+        cut.FindAll("[data-opcion][aria-keyshortcuts]").Should().BeEmpty();
     }
 
     [Fact]
@@ -200,6 +203,8 @@ public partial class GestionesAutomaticasPantallaTests
 
         await cut.InvokeAsync(() => atajos.RecibirAtajo("1"));
         cut.FindAll("[data-opcion][aria-checked='true']").Should().BeEmpty("Subido sobre un rechazo necesita una versión corregida");
+        cut.FindAll("[data-atajos-pie] [data-atajo]").Select(a => a.GetAttribute("data-atajo")).Should().Equal("siguiente", "anterior", "validado");
+        cut.Find("[data-opcion='subido']").HasAttribute("aria-keyshortcuts").Should().BeFalse();
 
         await cut.InvokeAsync(() => atajos.RecibirAtajo("2"));
         cut.Find("[data-opcion='validado']").GetAttribute("aria-checked").Should().Be("true");
@@ -218,6 +223,57 @@ public partial class GestionesAutomaticasPantallaTests
 
         PasoAbiertoId(cut).Should().Be(pasos[0].AcreditacionId.ToString());
         cut.FindAll("[data-opcion][aria-checked='true']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Atajos_con_un_guardado_en_vuelo_no_cambian_el_paso_ni_la_opcion()
+    {
+        var pasos = SeisPasosNuevos();
+        var m = Montar();
+        var (cut, atajos) = DetallarConAtajos(m, Detalle(pasos));
+        var recarga = new TaskCompletionSource<GestionAutomaticaDetalleDto?>();
+
+        cut.Find("[data-opcion='subido']").Click();
+        m.DetallePendiente = recarga.Task;
+        cut.Find("[data-accion='guardar']").Click();
+        cut.WaitForAssertion(() => m.Enviados.Should().ContainSingle());
+        cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeTrue("el guardado sigue en vuelo: espera la recarga");
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("ArrowRight"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("2"));
+
+        PasoAbiertoId(cut).Should().Be(pasos[0].AcreditacionId.ToString(), "el guardado decide él mismo qué paso queda abierto");
+        cut.FindAll("[data-opcion][aria-checked='true']").Should().BeEmpty();
+
+        m.DetallePendiente = null;
+        await cut.InvokeAsync(() => recarga.SetResult(Detalle(pasos)));
+        cut.WaitForAssertion(() => cut.Find("[data-accion='primario']").HasAttribute("disabled").Should().BeFalse("el guardado terminó"));
+    }
+
+    [Fact]
+    public async Task Atajos_con_la_pantalla_de_error_a_la_vista_no_hacen_nada_y_no_dejan_una_opcion_oculta()
+    {
+        var pasos = SeisPasosNuevos();
+        var m = Montar();
+        var otra = Guid.NewGuid();
+        m.Listado = new ListadoGestionesAutomaticasDto([Fila(otra, EstadoGestionAutomatica.EnCurso)], Recuentos());
+        var (cut, atajos) = DetallarConAtajos(m, Detalle(pasos));
+        m.AlMarcar = () => m.FallaDetalle = true;
+
+        cut.Find("[data-opcion='subido']").Click();
+        cut.Find("[data-accion='guardar']").Click();
+        cut.WaitForAssertion(() => cut.Find("[data-estado='error']").Should().NotBeNull());
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("1"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("ArrowRight"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotEndWith($"gestiones/{otra}");
+
+        m.FallaDetalle = false;
+        m.AlMarcar = null;
+        cut.Find("[data-estado='error'] button").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[data-estado='error']").Should().BeEmpty());
+        cut.FindAll("[data-opcion][aria-checked='true']").Should().BeEmpty("la tecla pulsada sobre la pantalla de error no deja nada elegido");
+        PasoAbiertoId(cut).Should().Be(pasos[0].AcreditacionId.ToString());
     }
 
     [Fact]
