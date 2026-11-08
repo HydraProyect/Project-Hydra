@@ -417,7 +417,8 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
         // Gestión automática (§ 4.1 de la especificación de Gestión de varios pasos): una Gestión Sustituida sigue
         // listándose y abriéndose con el Documento renovado que la hizo nacer, así que su Documento se resuelve por Id
-        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos.
+        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos:
+        // que su Documento esté sustituido solo hace Sustituida a la Gestión que siga abierta (GestionAutomatica.ResolverEstado).
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
 

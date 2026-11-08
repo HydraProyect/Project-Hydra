@@ -52,6 +52,8 @@ public sealed record ListadoGestionesAutomaticasDto(
 /// cada cifra de <see cref="ListadoGestionesAutomaticasDto.RecuentosPorEstado"/> dice cuántas quedarían al marcar
 /// ese estado, y sale del mismo universo que las filas (<see cref="PasosVisiblesDeGestionesAutomaticas"/>).
 /// <paramref name="DocumentoId"/> da la Gestión de un Documento (enlace «se ha abierto la Gestión»).
+/// Una Gestión que sigue abierta con su Documento ya en el historial cuenta y filtra como Sustituida, la marcara o
+/// no la renovación (<see cref="GestionAutomatica.ResolverEstado"/>): ninguna cifra la da por abierta.
 /// </summary>
 public record ObtenerGestionesAutomaticasQuery(EstadoGestionAutomatica? Estado = null, Guid? DocumentoId = null)
     : IRequest<ListadoGestionesAutomaticasDto>;
@@ -113,13 +115,6 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .Select(g => new { g.NacidaPorUsuarioId, g.SustituidaEnUtc, g.SustituidaPorGestionId })
             .SingleAsync(cancellationToken);
 
-        // El enlace a la Gestión que la sustituyó solo sale si quien consulta también ve esa: su Id no puede revelar
-        // la existencia de una Gestión con todos sus pasos fuera de su cartera (mismo universo, D-7).
-        var sustitutaVisible = gestion.SustituidaPorGestionId is { } sustitutaId
-                               && (await PasosVisiblesDeGestionesAutomaticas.CargarAsync(
-                                   gestionesContext, documentosContext, centrosContext, proveedoresContext, alcanceDatos,
-                                   sustitutaId, documentoId: null, cancellationToken)).Count > 0;
-
         var documento = await documentosContext.Documentos
             .Where(d => d.Id == resumen.DocumentoId)
             .Select(d => new
@@ -130,9 +125,29 @@ public class ObtenerGestionAutomaticaQueryHandler(
                 d.FechaEmision,
                 d.FechaVencimiento,
                 d.EstadoVigencia,
-                d.ArchivoUrl
+                d.ArchivoUrl,
+                d.SustituidoEnUtc,
+                d.SustituidoPorDocumentoId
             })
             .SingleAsync(cancellationToken);
+
+        // Sustituida sin marca: la lectura la deriva porque su Documento ya está en el historial (ResolverEstado), y
+        // entonces el instante y la sustituta salen del Documento: cuándo se sustituyó y la Gestión del que lo sustituyó.
+        var sustituidaSinMarca = resumen.Estado == EstadoGestionAutomatica.Sustituida && gestion.SustituidaEnUtc is null;
+        var sustituidaEnUtc = gestion.SustituidaEnUtc ?? (sustituidaSinMarca ? documento.SustituidoEnUtc : null);
+        var sustitutaId = gestion.SustituidaPorGestionId;
+        if (sustitutaId is null && sustituidaSinMarca && documento.SustituidoPorDocumentoId is { } documentoSustitutoId)
+            sustitutaId = await gestionesContext.GestionesAutomaticas
+                .Where(g => g.DocumentoId == documentoSustitutoId)
+                .Select(g => (Guid?)g.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+
+        // El enlace a la Gestión que la sustituyó solo sale si quien consulta también ve esa: su Id no puede revelar
+        // la existencia de una Gestión con todos sus pasos fuera de su cartera (mismo universo, D-7).
+        var sustitutaVisible = sustitutaId is { } idSustituta
+                               && (await PasosVisiblesDeGestionesAutomaticas.CargarAsync(
+                                   gestionesContext, documentosContext, centrosContext, proveedoresContext, alcanceDatos,
+                                   idSustituta, documentoId: null, cancellationToken)).Count > 0;
         var operativo = await documentosContext.Documentos.Operativos().AnyAsync(d => d.Id == resumen.DocumentoId, cancellationToken);
 
         string? identificador = documento.TrabajadorId is { } trabajadorId
@@ -167,7 +182,7 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .ToList();
 
         return new GestionAutomaticaDetalleDto(
-            resumen, gestion.NacidaPorUsuarioId, gestion.SustituidaEnUtc, sustitutaVisible ? gestion.SustituidaPorGestionId : null,
+            resumen, gestion.NacidaPorUsuarioId, sustituidaEnUtc, sustitutaVisible ? sustitutaId : null,
             new DocumentoDeGestionAutomaticaDto(
                 documento.Id, documento.TrabajadorId, documento.EmpresaId, identificador, documento.FechaEmision,
                 documento.FechaVencimiento, documento.EstadoVigencia, operativo, vigente,
@@ -201,6 +216,7 @@ internal static class CabecerasGestionesAutomaticas
                     gestion.Origen,
                     gestion.CreadoEnUtc,
                     gestion.SustituidaEnUtc,
+                    DocumentoSustituido = documento.SustituidoEnUtc != null,
                     TipoNombre = tipo.Nombre,
                     documento.TrabajadorId,
                     documento.EmpresaId
@@ -234,7 +250,7 @@ internal static class CabecerasGestionesAutomaticas
                 return new GestionAutomaticaResumenDto(
                     c.Id, c.DocumentoId, c.Origen, c.TipoNombre, titular,
                     empresaGestionadaId, empresaGestionadaId is { } id ? empresas.GetValueOrDefault(id) : null,
-                    c.CreadoEnUtc, GestionAutomatica.ResolverEstado(c.SustituidaEnUtc is not null, estados),
+                    c.CreadoEnUtc, GestionAutomatica.ResolverEstado(c.SustituidaEnUtc is not null, c.DocumentoSustituido, estados),
                     AvanceGestionAutomatica.De(estados),
                     PasosVisiblesDeGestionesAutomaticas.Ordenar(deLaGestion).Select(p => p.Plataforma).Distinct().ToList(),
                     estados.Contains(EstadoAcreditacion.Rechazada));

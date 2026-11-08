@@ -63,8 +63,10 @@ public class GenerarDocumentoIndividualCommandHandlerTests
             Versiones, Plantillas, Documentos, new DocumentoGeneradoRepositorioFalso(), TiposDocumento,
             Empresas, Trabajadores, Centros, Contactos, Rellenador, Almacenamiento,
             new CurrentUserServiceFalso(sinUsuario ? null : usuarioActualId ?? Guid.NewGuid()),
-            alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, AltaAcreditaciones, new UnitOfWorkFalso(),
+            alcanceDatos ?? new AlcanceDatosServiceFalso(), Asignaciones, AltaAcreditaciones, UnitOfWork,
             GestionAutomatica);
+
+        public UnitOfWorkFalso UnitOfWork { get; } = new();
 
         public INacimientoGestionAutomaticaService GestionAutomatica { get; set; } = new NacimientoGestionAutomaticaQueRegistra();
     }
@@ -217,11 +219,16 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         Confirmar(entorno.Version,
             [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Nombre", FuenteDatoPlantilla.TrabajadorNombreCompleto)],
             usuarioId);
+        // Hallazgo 3 de la segunda ronda: lo que había agregado en el guardado, no después. Si la llamada al servicio
+        // pasara a después del SaveChanges, la Gestión seguiría en memoria al final pero no en esta foto.
+        var gestionesAlGuardar = new List<int>();
+        entorno.UnitOfWork.AlGuardar = () => gestionesAlGuardar.Add(gestiones.Lista.Count);
 
         var resultado = await entorno.CrearHandler(usuarioId).Handle(
             new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        gestionesAlGuardar.Should().Equal([1], "un solo guardado, y la Gestión ya estaba agregada cuando se hizo");
         var documento = entorno.Documentos.Documentos.Should().ContainSingle().Subject;
         var gestion = gestiones.Lista.Should().ContainSingle().Subject;
         gestion.DocumentoId.Should().Be(documento.Id);

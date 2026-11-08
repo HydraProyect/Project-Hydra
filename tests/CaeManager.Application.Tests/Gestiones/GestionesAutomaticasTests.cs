@@ -329,6 +329,86 @@ public class GestionesAutomaticasTests
         fila.TieneRechazo.Should().BeTrue();
     }
 
+    // ---------- Documento ya sustituido (hallazgos 1 y 2 de la segunda ronda de Codex sobre la PR #2072) ----------
+
+    [Fact]
+    public async Task Un_rechazo_confirmado_despues_de_que_la_renovacion_leyera_los_pasos_hechos_no_deja_dos_gestiones_abiertas()
+    {
+        // La carrera, en el orden en que se confirma: la renovación lee la Gestión anterior Cerrada y no la marca; otro
+        // Gestor CAE rechaza esa acreditación antes del commit (no toca el Documento, así que nada lo invalida).
+        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
+        var anterior = DocumentoDelTrabajador();
+        var acreditacionAnterior = Acreditar(anterior, acceso);
+        acreditacionAnterior.MarcarSubida();
+        acreditacionAnterior.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+        await Nacer(anterior);
+        var gestionAnterior = _gestiones.Lista.Single();
+        var nuevo = RenovacionDe(anterior);
+        Acreditar(nuevo, acceso);
+        await Nacer(nuevo, anterior);
+        gestionAnterior.EstaSustituida.Should().BeFalse("control: la renovación decidió con los pasos todos hechos");
+        var gestionNueva = _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id);
+
+        acreditacionAnterior.Rechazar(CausaRechazoAcreditacion.Ilegible, "Documento ilegible", Ahora.AddMinutes(1));
+
+        var listado = await Listar(new AlcanceDatosServiceFalso());
+        listado.Filas.Single(f => f.Id == gestionAnterior.Id).Estado.Should().Be(EstadoGestionAutomatica.Sustituida,
+            "su Documento ya es historial: reabrirla daría dos Gestiones En curso del mismo titular y tipo");
+        listado.RecuentosPorEstado[EstadoGestionAutomatica.EnCurso].Should().Be(1, "solo la de la renovación");
+        listado.Filas.Single(f => f.Id == gestionNueva.Id).Estado.Should().Be(EstadoGestionAutomatica.EnCurso);
+        var detalle = await Detalle(gestionAnterior.Id, new AlcanceDatosServiceFalso());
+        detalle!.SustituidaEnUtc.Should().Be(Ahora, "sin marca, el instante es el de la sustitución del Documento");
+        detalle.SustituidaPorGestionId.Should().Be(gestionNueva.Id, "y el enlace, la Gestión del Documento sustituto");
+    }
+
+    [Fact]
+    public async Task Un_paso_cerrado_despues_de_que_la_renovacion_la_marcara_sustituida_no_la_reabre_ni_la_cierra()
+    {
+        // La carrera inversa: la renovación la lee abierta y la marca; el último paso se valida antes del commit. El
+        // resultado es el de confirmar primero la renovación y después la validación, un orden posible: Sustituida.
+        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
+        var anterior = DocumentoDelTrabajador();
+        var acreditacionAnterior = Acreditar(anterior, acceso);
+        await Nacer(anterior);
+        var gestionAnterior = _gestiones.Lista.Single();
+        var nuevo = RenovacionDe(anterior);
+        Acreditar(nuevo, acceso);
+        await Nacer(nuevo, anterior);
+
+        acreditacionAnterior.MarcarSubida();
+        acreditacionAnterior.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+
+        var listado = await Listar(new AlcanceDatosServiceFalso());
+        listado.Filas.Single(f => f.Id == gestionAnterior.Id).Estado.Should().Be(EstadoGestionAutomatica.Sustituida);
+        listado.RecuentosPorEstado[EstadoGestionAutomatica.EnCurso].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task La_renovacion_de_la_ranura_anterior_de_un_relevo_no_deja_abierta_la_gestion_del_documento_historico()
+    {
+        // La ranura anterior no conoce las Gestiones: sustituye el Documento sin marcar la Gestión ni hacer nacer otra.
+        var anterior = DocumentoDelTrabajador();
+        Acreditar(anterior, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(anterior);
+        var gestionAnterior = _gestiones.Lista.Single();
+        (await Listar(new AlcanceDatosServiceFalso())).Filas.Single().Estado.Should().Be(EstadoGestionAutomatica.EnCurso,
+            "control: antes de la renovación está abierta");
+
+        RenovacionDe(anterior);
+
+        var todas = await Listar(new AlcanceDatosServiceFalso());
+        var enCurso = await Listar(new AlcanceDatosServiceFalso(), EstadoGestionAutomatica.EnCurso);
+        gestionAnterior.EstaSustituida.Should().BeFalse("control: nadie la marcó");
+        todas.Filas.Single().Estado.Should().Be(EstadoGestionAutomatica.Sustituida);
+        todas.RecuentosPorEstado[EstadoGestionAutomatica.EnCurso].Should().Be(0);
+        todas.RecuentosPorEstado[EstadoGestionAutomatica.Sustituida].Should().Be(1);
+        enCurso.Filas.Should().BeEmpty();
+        var detalle = await Detalle(gestionAnterior.Id, new AlcanceDatosServiceFalso());
+        detalle!.Resumen.Estado.Should().Be(EstadoGestionAutomatica.Sustituida);
+        detalle.SustituidaEnUtc.Should().Be(Ahora);
+        detalle.SustituidaPorGestionId.Should().BeNull("la ranura anterior no hizo nacer ninguna");
+    }
+
     [Fact]
     public async Task El_detalle_no_revela_la_gestion_sustituta_si_queda_fuera_de_la_cartera()
     {
