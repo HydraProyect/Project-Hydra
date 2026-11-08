@@ -206,6 +206,8 @@ public class DatosPruebaSeederDeterminismoTests
     [Fact]
     public async Task La_siembra_completa_garantiza_al_menos_una_visita_critica_y_una_urgente()
     {
+        // Siembra y medición leen el mismo «hoy» aunque el run cruce la medianoche de Madrid (mismo defecto que #2073).
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
         var tenantId = await CrearTenantConCatalogoAsync(arnes, "Tenant Determinismo F");
         await SembrarAsync(arnes, tenantId);
