@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Importacion.Maestra;
 using CaeManager.Application.Trabajadores;
@@ -73,7 +74,9 @@ public class EjecutarImportacionMaestraCommandHandler(
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IOperacionImportacionRepository operacionImportacionRepositorio,
-    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
+    IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EjecutarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>,
       IRequestHandler<PrevisualizarImportacionMaestraCommand, Result<ResultadoImportacionMaestraDto>>
 {
@@ -111,7 +114,23 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         try
         {
-            return await ProcesarAsync(plan, reemplazar, escribir, cancellationToken);
+            // Solo reemplazando se cambia la modalidad de un Centro existente, y solo una fila con gestión CAE puede
+            // devolverlo a ella: entonces sus accesos de plataforma reciben los Documentos de Empresa que exige (regla
+            // A-1), igual que en EstablecerGestionCaeCentro. Se serializa con el alta de un Documento de Empresa (ver
+            // ISerializacionAltasAcreditacionEmpresa), y se decide por el plan, no por una lectura: así toda la
+            // importación, desde la lectura de los Centros existentes, corre bajo el candado.
+            if (!escribir || !reemplazar || plan.Centros.All(c => c.SinGestionCae))
+                return await ProcesarAsync(plan, reemplazar, escribir, cancellationToken);
+
+            Result<ResultadoImportacionMaestraDto>? procesado = null;
+            var serializado = await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                procesado = await ProcesarAsync(plan, reemplazar, escribir, ct);
+                return procesado.EsExitoso ? Result.Exito() : Result.Fallo(procesado.Error);
+            }, cancellationToken);
+            if (serializado.EsExitoso)
+                return procesado!;
+            return procesado is { EsFallido: true } ? procesado : Result.Fallo<ResultadoImportacionMaestraDto>(serializado.Error);
         }
         catch
         {
@@ -375,6 +394,7 @@ public class EjecutarImportacionMaestraCommandHandler(
             await centrosContext.Centros.ToListAsync(cancellationToken), c => ClaveCentro(c.ClienteId, c.Nombre), c => c);
         var centrosCreados = 0;
         var centrosActualizados = 0;
+        var centrosQueVuelvenAGestionCae = new List<Guid>();
 
         foreach (var fila in plan.Centros)
         {
@@ -436,6 +456,9 @@ public class EjecutarImportacionMaestraCommandHandler(
                             }, out var error))
                     {
                         centrosActualizados++;
+                        if (escribir && modalidad0 == ModalidadGestionCae.SinGestionCae
+                            && modalidadResultante == ModalidadGestionCae.ConGestionCae)
+                            centrosQueVuelvenAGestionCae.Add(existente.Id);
                     }
                     else
                     {
@@ -563,6 +586,22 @@ public class EjecutarImportacionMaestraCommandHandler(
             sobrescritos, plan.Advertencias, [.. plan.Omitidos, .. omitidos]);
 
         if (!escribir) return resultado;
+
+        // Un Centro que vuelve a gestión CAE: sus accesos de plataforma reciben los Documentos de Empresa que exige
+        // (regla A-1), en el mismo guardado. Solo los de Empresa: los Documentos de Trabajador no cambian.
+        if (centrosQueVuelvenAGestionCae.Count > 0)
+        {
+            var accesosPlataforma = await centrosContext.CanalesGestionDocumental
+                .Where(c => centrosQueVuelvenAGestionCae.Contains(c.CentroId) && c.Tipo == TipoCanalGestion.Plataforma)
+                .ToListAsync(cancellationToken);
+            if (accesosPlataforma.Count > 0)
+                await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+                {
+                    Canales = accesosPlataforma,
+                    CentrosQueVuelvenAGestionCae = centrosQueVuelvenAGestionCae,
+                    SoloDocumentosDeEmpresa = true
+                }, cancellationToken);
+        }
 
         // Todo lo pendiente junto con la marca de la operación en un único guardado: si dos confirmaciones de la
         // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.

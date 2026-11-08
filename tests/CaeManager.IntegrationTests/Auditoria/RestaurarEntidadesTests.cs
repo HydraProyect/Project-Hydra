@@ -221,12 +221,65 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarCentroCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         (await contextoRestaurar.Centros.SingleAsync(c => c.Id == centroId)).EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Restaurar_un_centro_acredita_ante_su_acceso_de_plataforma_el_documento_de_empresa_creado_mientras_estaba_eliminado()
+    {
+        // Regla A-1 bajo RLS: el Documento de Empresa nace mientras el Centro está eliminado, así que su alta no lo ve.
+        // Al restaurarlo, el acceso de plataforma del Centro recibe el Documento; el acceso por correo, no.
+        Guid centroId, documentoId, accesoPlataformaId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente del Centro S.L.", "B12345674", false, null, null);
+            var empresa = new Empresa("Empresa del Centro S.L.", "B87654323");
+            var tipo = new TipoDocumento("Seguro de responsabilidad civil", 12, aplicaVencimientoAutomatico: true, orden: 1,
+                AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(empresa);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro a restaurar");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+            var accesoPlataforma = CaeManager.Domain.Centros.CanalGestionDocumental.DePlataforma(
+                centro.Id, "Plataforma", Guid.NewGuid(), null, null, null);
+            contexto.CanalesGestionDocumental.Add(accesoPlataforma);
+            contexto.CanalesGestionDocumental.Add(CaeManager.Domain.Centros.CanalGestionDocumental.PorEmail(
+                centro.Id, "Correo CAE", "cae@ejemplo.invalid", null));
+            centro.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, new DateOnly(2026, 1, 15),
+                VigenciaDocumento.VenceEl(new DateOnly(2031, 1, 15)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            (centroId, documentoId, accesoPlataformaId) = (centro.Id, documento.Id, accesoPlataforma.Id);
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        (await contextoRestaurar.AcreditacionesDocumentoPlataforma.CountAsync(a => a.DocumentoId == documentoId))
+            .Should().Be(0, "mientras el Centro está eliminado, la regla A-1 no lo ve");
+        var handler = new RestaurarCentroCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar,
+            AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
+
+        var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        await using var contextoComprobar = CrearContexto(_tenant);
+        (await contextoComprobar.AcreditacionesDocumentoPlataforma
+                .Where(a => a.DocumentoId == documentoId)
+                .Select(a => a.CanalGestionDocumentalId)
+                .ToListAsync())
+            .Should().BeEquivalentTo([accesoPlataformaId]);
     }
 
     [Fact]
@@ -255,7 +308,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]);
         var handler = new RestaurarCentroCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
 
@@ -286,7 +339,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarCentroCommandHandler(
-            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante);
+            contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante, AltaAcreditacionesDePrueba.Con(contextoAtacante), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarCentroCommand(centroId), CancellationToken.None);
 
@@ -409,7 +462,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarDocumentoCommandHandler(
             contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(),
-            contextoRestaurar, contextoRestaurar);
+            contextoRestaurar, contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 
@@ -432,7 +485,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var alcance = conCarteraDelCliente ? new AlcanceDatosServiceFalso(clienteIds: [clienteId]) : new AlcanceDatosServiceFalso();
         var handler = new RestaurarDocumentoCommandHandler(
-            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, contextoRestaurar);
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, alcance, contextoRestaurar, contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 
@@ -452,7 +505,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoRestaurar = CrearContexto(_tenant);
         var handler = new RestaurarDocumentoCommandHandler(
             contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant },
-            new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]), contextoRestaurar, contextoRestaurar);
+            new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]), contextoRestaurar, contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 
@@ -525,7 +578,7 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         await using var contextoAtacante = CrearContexto(_otroTenant);
         var handler = new RestaurarDocumentoCommandHandler(
             contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(),
-            contextoAtacante, contextoAtacante);
+            contextoAtacante, contextoAtacante, AltaAcreditacionesDePrueba.Con(contextoAtacante), new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
 

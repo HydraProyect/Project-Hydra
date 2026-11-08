@@ -100,7 +100,8 @@ public class AsignacionDeCarteraEnEscriturasTests
         var alcance = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, clienteIdsVisibles: [carteraDelCliente ? clienteEmpresarial : Guid.NewGuid()]);
         var handler = new RestaurarDocumentoCommandHandler(
-            documentos, new TenantActualFijo(documento.TenantId), alcance, proyectos, unitOfWork);
+            documentos, new TenantActualFijo(documento.TenantId), alcance, proyectos, unitOfWork,
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
 
@@ -128,7 +129,8 @@ public class AsignacionDeCarteraEnEscriturasTests
         // El Documento recién construido no tiene Tenant sellado (Guid.Empty): el Tenant actual del
         // test es ese mismo, para que solo decida la cartera.
         var handler = new RestaurarDocumentoCommandHandler(
-            documentos, new TenantActualFijo(documento.TenantId), alcance, new ProyectosQueryContextFalso(), unitOfWork);
+            documentos, new TenantActualFijo(documento.TenantId), alcance, new ProyectosQueryContextFalso(), unitOfWork,
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
         return (handler, documento, unitOfWork);
     }
 
@@ -232,7 +234,8 @@ public class AsignacionDeCarteraEnEscriturasTests
     {
         var (centro, tipo, _, _, filas) = MundoCentro();
         filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, null, null, null));
-        var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(filas, SinCartera(), new UnitOfWorkFalso());
+        var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
+            filas, SinCartera(), new UnitOfWorkFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
@@ -247,7 +250,8 @@ public class AsignacionDeCarteraEnEscriturasTests
         var (centro, tipo, _, _, filas) = MundoCentro();
         filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, null, null, null));
         var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
-            filas, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso());
+            filas, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso(),
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);

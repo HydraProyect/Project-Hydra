@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Application.Importacion;
 using CaeManager.Application.Importacion.Commands.EjecutarImportacionMaestra;
 using CaeManager.Application.Importacion.Maestra;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using FluentAssertions;
 using Xunit;
@@ -33,9 +34,12 @@ public class EjecutarImportacionMaestraTests
         public PlantillasFalsas.TrabajadoresQueryContextFalso Trabajadores { get; } = new();
         public EscenarioImportacionCombinada.RelacionesRegistradas Relaciones { get; } = new() { Permitir = true };
 
+        public AltaAcreditacionesPlataformaServiceFalso Altas { get; } = new();
+        public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
+
         public EjecutarImportacionMaestraCommandHandler Handler() => new(
             EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas, Trabajadores,
-            Operaciones, new Autorizacion(administrador));
+            Operaciones, new Autorizacion(administrador), Altas, Serializacion);
 
         public async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
             await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
@@ -329,5 +333,62 @@ public class EjecutarImportacionMaestraTests
 
         real.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Teléfono")
             .Which.ValorNuevo.Should().Be(trabajador.Telefono).And.Be("+34611222333");
+    }
+
+    [Fact]
+    public async Task Reemplazar_devuelve_a_gestion_CAE_un_Centro_existente_bajo_el_candado_y_entrega_sus_accesos_de_plataforma_solo_para_Documentos_de_Empresa()
+    {
+        // Regla A-1: el Centro que vuelve a gestión CAE recibe en sus accesos de plataforma los Documentos de Empresa que
+        // exige, igual que EstablecerGestionCaeCentro. El Centro se lee y se cambia bajo el candado.
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        e.Centros.ListaCentros.Add(centro);
+        var acceso = CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma", Guid.NewGuid(), null, null, null);
+        e.Centros.ListaCanalesGestionDocumental.Add(acceso);
+        e.Centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(centro.Id, "Correo CAE", "cae@ejemplo.invalid", null));
+        e.Serializacion.AlTomarElCandado = () =>
+        {
+            centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae, "el Centro se lee y se cambia bajo el candado");
+            e.Altas.Recibidas.Should().BeEmpty();
+        };
+
+        var r = await e.EjecutarAsync(
+            Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+                [FilaCentro() with { YaExiste = true }]), reemplazar: true);
+
+        r.EsExitoso.Should().BeTrue();
+        centro.GestionCae.Should().Be(ModalidadGestionCae.ConGestionCae);
+        e.Serializacion.Llamadas.Should().Be(1);
+        var alta = e.Altas.Recibidas.Should().ContainSingle().Subject;
+        alta.Canales.Should().BeEquivalentTo([acceso], "el acceso por correo nunca acredita");
+        alta.CentrosQueVuelvenAGestionCae.Should().BeEquivalentTo([centro.Id]);
+        alta.SoloDocumentosDeEmpresa.Should().BeTrue("los Documentos de Trabajador no cambian");
+    }
+
+    [Fact]
+    public async Task Completar_vacios_no_cambia_la_modalidad_ni_toma_el_candado()
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        e.Centros.ListaCentros.Add(centro);
+
+        var r = await e.EjecutarAsync(
+            Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+                [FilaCentro() with { YaExiste = true }]));
+
+        r.EsExitoso.Should().BeTrue();
+        centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae);
+        e.Serializacion.Llamadas.Should().Be(0);
+        e.Altas.Recibidas.Should().BeEmpty();
     }
 }

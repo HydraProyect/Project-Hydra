@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentValidation;
@@ -24,7 +25,8 @@ public class EliminarDocumentacionRequeridaCentroCommandValidator : AbstractVali
 }
 
 public class EliminarDocumentacionRequeridaCentroCommandHandler(
-    ITipoDocumentoCentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    ITipoDocumentoCentroRepository repositorio, IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EliminarDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EliminarDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -34,13 +36,26 @@ public class EliminarDocumentacionRequeridaCentroCommandHandler(
         if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
-        var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
-        if (fila is null)
+        // Quitar una exclusión de un tipo exigido de serie hace que el Centro pase a exigirlo: se serializa con el alta de
+        // un Documento de Empresa, igual que EstablecerDocumentacionRequeridaCentro (ver
+        // ISerializacionAltasAcreditacionEmpresa). Se toma siempre, sin mirar antes la fila ni el tipo: qué se borra y si
+        // el valor general es Sí se decide con lo releído bajo el candado.
+        return await serializacionAltas.EjecutarAsync(async ct =>
+        {
+            var fila = await repositorio.ObtenerPorParActualizadoAsync(request.TipoDocumentoId, request.CentroId, ct);
+            if (fila is null)
+                return Result.Exito();
+
+            repositorio.Eliminar(fila);
+            // El Centro vuelve al valor general del tipo; si es Sí, los Documentos de Empresa de ese tipo de quienes
+            // tienen actividad en él nacen pendientes de acreditar (regla A-1). Los de Trabajador no cambian.
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+            {
+                RequisitosRetirados = [fila],
+                SoloDocumentosDeEmpresa = true
+            }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
             return Result.Exito();
-
-        repositorio.Eliminar(fila);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+        }, cancellationToken);
     }
 }
