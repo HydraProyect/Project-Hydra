@@ -82,11 +82,12 @@ public class EjecutarImportacionMaestraCommandHandler(
 {
     private const string HojaEmpresas = "Empresas";
     private const string HojaClientes = "Clientes empresariales";
-
-    // La marca de la operación chocó en el índice único: otra confirmación de la misma operación ganó.
-    private bool operacionYaEjecutada;
     private const string HojaCentros = "Centros";
     private const string HojaTrabajadores = "Trabajadores";
+
+    // La marca de la operación chocó en el índice único: otra confirmación de la misma operación ganó. Se reinicia en
+    // cada ejecución, por si el handler se reutiliza.
+    private bool operacionYaEjecutada;
 
     public Task<Result<ResultadoImportacionMaestraDto>> Handle(
         EjecutarImportacionMaestraCommand request, CancellationToken cancellationToken) =>
@@ -99,6 +100,7 @@ public class EjecutarImportacionMaestraCommandHandler(
     private async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(
         PlanImportacionMaestraDto plan, bool reemplazar, bool escribir, CancellationToken cancellationToken)
     {
+        operacionYaEjecutada = false;
         if (!await autorizacionEscrituraEfectiva.EsActoDeAdministradorAsync(cancellationToken))
             return Result.Fallo<ResultadoImportacionMaestraDto>(Error.Crear(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar la importación de la plantilla maestra."));

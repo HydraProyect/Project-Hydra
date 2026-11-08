@@ -559,12 +559,13 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             await otraOperacion.SaveChangesAsync();
         }
 
-        var centros = await new CentroRepository(circuito).ListarActualizadosAsync();
-        centros.Should().Contain(rastreado);
-        rastreado.GestionCae.Should().Be(CaeManager.Domain.Centros.ModalidadGestionCae.SinGestionCae, "la modalidad que decide es la de la base");
+        // La lectura por Id va primero: ListarActualizadosAsync también releería el Centro restaurado.
         (await new CentroRepository(circuito).ObtenerIncluidoEliminadoActualizadoAsync(centroEliminadoId, _tenant))!
             .EstaEliminado.Should().BeFalse();
         eliminadoRastreado.EstaEliminado.Should().BeFalse();
+        var centros = await new CentroRepository(circuito).ListarActualizadosAsync();
+        centros.Should().Contain(rastreado);
+        rastreado.GestionCae.Should().Be(CaeManager.Domain.Centros.ModalidadGestionCae.SinGestionCae, "la modalidad que decide es la de la base");
         (await new DocumentoRepository(circuito).ObtenerIncluidoEliminadoActualizadoAsync(documentoId, _tenant))!
             .EstaEliminado.Should().BeFalse();
         documentoRastreado.EstaEliminado.Should().BeFalse();
