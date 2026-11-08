@@ -26,7 +26,10 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// recarga conserva el anillo anterior, y en la carga en frío el error sale a la vista
 /// en vez de quedarse esperando. Un límite vencido no garantiza que la operación no
 /// haya ocurrido: una escritura en S3 ya enviada puede completarse después, y Data
-/// Protection, que la da por fallida, generará otra clave; las dos son válidas.
+/// Protection, que la da por fallida, generará otra clave; las dos son válidas. Y si
+/// el token se cancela y el SDK responde con una excepción propia antes de que venza
+/// la espera, sale esa excepción y no un <see cref="TimeoutException"/>; para Data
+/// Protection es indiferente, porque trata igual cualquier fallo.
 ///
 /// Esto elimina el interbloqueo, no el bloqueo: el hilo del llamante sigue esperando
 /// (como mucho el límite), porque la interfaz de Data Protection es síncrona.
@@ -58,7 +61,16 @@ internal static class LlamadaSincronaAws
             // Venció la espera acotada (no es un TimeoutException de la propia
             // operación). Puede ganar al temporizador del origen: se cancela aquí
             // para que la petición al SDK se corte de verdad antes del Dispose.
-            cancelacion.Cancel();
+            try
+            {
+                cancelacion.Cancel();
+            }
+            catch (AggregateException)
+            {
+                // Un callback de cancelación del SDK que falla no debe sustituir
+                // al TimeoutException: la operación ya se da por vencida.
+            }
+
             throw Agotado(descripcion, limite, ex);
         }
         catch (OperationCanceledException ex) when (cancelacion.IsCancellationRequested)
