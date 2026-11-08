@@ -116,7 +116,7 @@
 .gp-campo-valor { font: var(--font-body-md); font-weight: 600; }
 .gp-campo-valor[data-tono="exito"] { color: var(--color-success-700); }
 .gp-campo-valor[data-tono="peligro"] { color: var(--color-danger-700); }
-.gp-nota-acceso { padding: 10px 12px; border-left: 3px solid var(--color-primary-500); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
+.gp-nota-acceso { padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
 
 .gp-opciones { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
 .gp-opciones legend { padding: 0 0 8px; }

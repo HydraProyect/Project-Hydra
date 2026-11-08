@@ -726,6 +726,16 @@ public class GestionesAutomaticasPantallaTests : BunitContext
     }
 
     [Fact]
+    public void Sustituida_sin_Gestion_nueva_visible_en_la_cartera_no_enseña_enlace()
+    {
+        var m = Montar();
+        var cut = Detallar(m, Detalle(SeisPasosNuevos(), sustituida: true, sustituidaPor: null));
+
+        cut.Find("[data-aviso='sustituida']").TextContent.Should().Contain("Esta Gestión se cerró");
+        cut.FindAll("[data-aviso='sustituida'] a").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Un_rechazo_sobre_una_Gestion_pendiente_de_validar_la_reabre_y_lo_dice()
     {
         var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Subida, Hecho = true }).ToList();
