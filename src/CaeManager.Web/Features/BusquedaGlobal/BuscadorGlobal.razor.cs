@@ -1298,10 +1298,13 @@ public partial class BuscadorGlobal
 
             _resultado = resultado;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             // Se canceló porque el usuario siguió escribiendo, cerró el
-            // palette o el componente se está destruyendo — ignorar.
+            // palette o el componente se está destruyendo — ignorar. Una
+            // cancelación que NO viene de nuestro token (un handler que se
+            // cancela por su cuenta) es un fallo y cae en el catch de abajo:
+            // decir «Sin resultados» cuando la búsqueda no terminó engaña.
         }
         catch (Exception ex) when (generacion == _generacionBusqueda)
         {
