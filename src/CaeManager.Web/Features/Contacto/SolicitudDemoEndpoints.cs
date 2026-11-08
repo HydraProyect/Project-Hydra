@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using CaeManager.Application.Common;
+using CaeManager.Application.Contacto;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Net.Http.Headers;

@@ -1,8 +1,8 @@
 using System.Net;
-using CaeManager.Web.Features.Contacto;
+using CaeManager.Application.Contacto;
 using FluentAssertions;
 
-namespace CaeManager.Web.Tests;
+namespace CaeManager.Application.Tests.Contacto;
 
 /// <summary>
 /// Validación en servidor y composición del correo del formulario de demo de
@@ -242,15 +242,5 @@ public class SolicitudDemoValidacionTests
 
         cuerpo.Should().Contain("81 a 150")
             .And.Contain(WebUtility.HtmlEncode("Pasar las auditorías, Lo que me piden mis Clientes"));
-    }
-
-    [Theory]
-    [InlineData("203.0.113.7", "203.0.113.7")]
-    [InlineData("::ffff:203.0.113.7", "203.0.113.7")]
-    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64")]
-    [InlineData("2001:db8:1:2::1", "2001:db8:1:2::/64")]
-    public void La_clave_del_limite_agrupa_ipv6_por_su_64(string ip, string clave)
-    {
-        SolicitudDemoEndpoints.ClaveIp(IPAddress.Parse(ip)).Should().Be(clave);
     }
 }

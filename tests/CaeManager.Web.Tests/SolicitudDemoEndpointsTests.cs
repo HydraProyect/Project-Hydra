@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using CaeManager.Application.Common;
+using CaeManager.Application.Contacto;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Email;
 using CaeManager.Web.Features.Contacto;
@@ -253,6 +254,16 @@ public class SolicitudDemoEndpointsTests
         using var respuesta = await servidor.Cliente.GetAsync(SolicitudDemoEndpoints.Ruta);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
+    }
+
+    [Theory]
+    [InlineData("203.0.113.7", "203.0.113.7")]
+    [InlineData("::ffff:203.0.113.7", "203.0.113.7")]
+    [InlineData("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64")]
+    [InlineData("2001:db8:1:2::1", "2001:db8:1:2::/64")]
+    public void La_clave_del_limite_agrupa_ipv6_por_su_64(string ip, string clave)
+    {
+        SolicitudDemoEndpoints.ClaveIp(IPAddress.Parse(ip)).Should().Be(clave);
     }
 
     private static HttpRequestMessage Preflight(string origen)

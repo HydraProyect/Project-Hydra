@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
-namespace CaeManager.Web.Features.Contacto;
+namespace CaeManager.Application.Contacto;
 
 /// <summary>
 /// Cuerpo JSON del formulario «Pedir una demo» de la web pública (talveg.es,
