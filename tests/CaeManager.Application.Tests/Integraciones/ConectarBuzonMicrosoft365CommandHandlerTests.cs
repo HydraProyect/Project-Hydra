@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Domain.Empresas;
@@ -53,12 +54,19 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         reclamacionRepositorio.VecesGuardado.Should().Be(1);
     }
 
+    private const string Directorio = "11111111-2222-3333-4444-555555555555";
+
+    private static ConectarBuzonMicrosoft365Command ComandoCompartido(Guid? gestorPropietarioId = null, string? refreshToken = null, Guid? consentidoPor = null) =>
+        new("piloto@tenant.com", "Buzón piloto", ClienteId: null, "token-aplicacion", refreshToken, "https://hydra.local",
+            GestorPropietarioId: gestorPropietarioId, DirectorioEntraId: Directorio,
+            ConsentidoPorUsuarioId: consentidoPor ?? Guid.NewGuid());
+
     /// <summary>
-    /// Un buzón compartido es su propia Conexión en el Tenant propietario donde se conecta: se reclama igual que
-    /// cualquier buzón, pero sin suscripción (Microsoft no admite notificaciones delegadas sobre él).
+    /// Un buzón compartido es su propia Conexión en el Tenant propietario donde se conecta (DN-3): se reclama igual
+    /// que cualquier buzón y se suscribe por <c>users/{buzón}</c>, pero no guarda el refresh token de nadie.
     /// </summary>
     [Fact]
-    public async Task Conecta_un_buzon_compartido_sin_suscripcion_y_con_reclamacion_global()
+    public async Task Conecta_un_buzon_compartido_con_suscripcion_reclamacion_global_y_sin_credencial()
     {
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
@@ -68,18 +76,17 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
         var handler = CrearHandler(
             conexionRepositorio, credencialRepositorio, suscripcionRepositorio, reclamacionRepositorio,
             new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient);
+        var usuarioId = Guid.NewGuid();
 
-        var resultado = await handler.Handle(
-            new ConectarBuzonMicrosoft365Command(
-                "piloto@tenant.com", "Buzón piloto", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
-                EsBuzonCompartido: true),
-            CancellationToken.None);
+        var resultado = await handler.Handle(ComandoCompartido(consentidoPor: usuarioId), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        conexionRepositorio.Conexiones.Should().ContainSingle(c => c.BuzonEmail == "piloto@tenant.com" && c.EsBuzonCompartido);
-        credencialRepositorio.Credenciales.Should().ContainSingle(c => c.RefreshToken == "refresh-token");
-        suscripcionRepositorio.Suscripciones.Should().BeEmpty();
-        graphClient.VecesSuscrito.Should().Be(0);
+        conexionRepositorio.Conexiones.Should().ContainSingle(c =>
+            c.BuzonEmail == "piloto@tenant.com" && c.EsBuzonCompartido && c.DirectorioEntraId == Directorio &&
+            c.ConsentidoPorUsuarioId == usuarioId);
+        credencialRepositorio.Credenciales.Should().BeEmpty("un buzón compartido se abre con el token de aplicación");
+        suscripcionRepositorio.Suscripciones.Should().ContainSingle();
+        graphClient.BuzonesUsados.Should().ContainSingle().Which.Should().Be(new BuzonGraph("piloto@tenant.com", EsCompartido: true));
         reclamacionRepositorio.Reclamaciones.Should().ContainSingle(
             r => r.BuzonEmail == "piloto@tenant.com" && r.TenantPropietarioId == TenantId);
     }
@@ -87,12 +94,31 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     [Fact]
     public void El_validador_rechaza_un_buzon_compartido_con_Gestor_propietario()
     {
-        var resultado = new ConectarBuzonMicrosoft365CommandValidator().Validate(
-            new ConectarBuzonMicrosoft365Command(
-                "piloto@tenant.com", "Buzón piloto", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
-                GestorPropietarioId: Guid.NewGuid(), EsBuzonCompartido: true));
+        new ConectarBuzonMicrosoft365CommandValidator().Validate(ComandoCompartido(gestorPropietarioId: Guid.NewGuid()))
+            .IsValid.Should().BeFalse();
+    }
 
-        resultado.IsValid.Should().BeFalse();
+    /// <summary>Decisión R1 (2026-11-08): el compartido es el buzón del Tenant (en Outbound, el Tenant beneficiario), nunca de una Empresa.</summary>
+    [Fact]
+    public void El_validador_rechaza_un_buzon_compartido_de_una_Empresa()
+    {
+        new ConectarBuzonMicrosoft365CommandValidator().Validate(ComandoCompartido() with { ClienteId = Guid.NewGuid() })
+            .IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_validador_rechaza_un_buzon_compartido_que_trae_un_refresh_token()
+    {
+        new ConectarBuzonMicrosoft365CommandValidator().Validate(ComandoCompartido(refreshToken: "refresh-de-una-persona"))
+            .IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void El_validador_exige_el_refresh_token_al_buzon_propio()
+    {
+        new ConectarBuzonMicrosoft365CommandValidator().Validate(
+                new ConectarBuzonMicrosoft365Command("cae@tenant.com", "Buzón CAE", null, "access-token", null, "https://hydra.local"))
+            .IsValid.Should().BeFalse();
     }
 
     /// <summary>

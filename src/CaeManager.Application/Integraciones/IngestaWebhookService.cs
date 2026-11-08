@@ -115,7 +115,7 @@ public class IngestaWebhookService(
 
     private async Task IngerirMensajeAsync(ConexionIntegracion conexion, string mensajeId, CancellationToken cancellationToken)
     {
-        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (accessTokenResultado.EsFallido)
             throw new InvalidOperationException(accessTokenResultado.Error.Mensaje);
 

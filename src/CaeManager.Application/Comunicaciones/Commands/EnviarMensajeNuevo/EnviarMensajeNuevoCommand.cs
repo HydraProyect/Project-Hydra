@@ -111,7 +111,7 @@ public class EnviarMensajeNuevoCommandHandler(
         await registroSalida.RegistrarSalidaAsync(
             request.Origen, conexion.Id, request.Destinatarios, request.Copia, request.Adjuntos, cancellationToken);
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<Guid>(tokenResultado.Error);
 

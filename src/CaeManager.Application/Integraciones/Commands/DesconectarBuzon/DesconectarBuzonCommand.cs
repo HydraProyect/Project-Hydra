@@ -47,7 +47,7 @@ public class DesconectarBuzonCommandHandler(
             // en unos días (ver RenovacionSuscripcionWebhookHostedService,
             // que deja de renovarla porque la conexión ya está
             // deshabilitada) — no bloquea la desconexión local.
-            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
             if (accessTokenResultado.EsExitoso)
             {
                 var eliminarResultado = await graphClient.EliminarSuscripcionAsync(

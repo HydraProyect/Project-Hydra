@@ -100,7 +100,8 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
     [Fact]
     public async Task Las_dos_consultas_leen_un_buzon_compartido_por_su_propia_direccion()
     {
-        var conexion = new ConexionIntegracion("piloto@tenant.com", "Buzón piloto", esBuzonCompartido: true);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();

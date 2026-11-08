@@ -63,14 +63,27 @@ public class ConexionIntegracion : EntidadBase
     public ProveedorIntegracion Proveedor { get; private set; }
 
     /// <summary>
-    /// Buzón compartido de Exchange abierto por delegación (permisos <c>Mail.Read.Shared</c> y
-    /// <c>Mail.Send.Shared</c>) en vez del buzón propio de quien consintió: <see cref="BuzonEmail"/> es
-    /// la dirección del compartido y las llamadas a Graph van por <c>/users/{BuzonEmail}</c>, no por
-    /// <c>/me</c>. Graph no admite suscripciones delegadas sobre él, así que no tiene
-    /// <c>SuscripcionWebhook</c>. El Tenant propietario de lo que entra es el de esta fila, como en
+    /// Buzón compartido de Exchange, abierto con el token de aplicación del directorio
+    /// <see cref="DirectorioEntraId"/> y no con el de una persona: <see cref="BuzonEmail"/> es la
+    /// dirección del compartido y las llamadas a Graph van por <c>/users/{BuzonEmail}</c>, no por
+    /// <c>/me</c>. Lo que la aplicación puede abrir en ese directorio lo acota el ámbito de RBAC for
+    /// Applications de su administrador de Exchange. No tiene <c>CredencialIntegracion</c>: no se guarda
+    /// el refresh token de nadie. El Tenant propietario de lo que entra es el de esta fila, como en
     /// cualquier otra conexión. Nunca es el buzón personal de un Gestor CAE.
     /// </summary>
     public bool EsBuzonCompartido { get; private set; }
+
+    /// <summary>
+    /// Directorio Entra (GUID) del buzón compartido, tomado del inicio de sesión en Microsoft de quien
+    /// lo dio de alta; nunca lo escribe nadie. Null en el buzón propio, que se abre con su token delegado.
+    /// </summary>
+    public string? DirectorioEntraId { get; private set; }
+
+    /// <summary>
+    /// Usuario de TALVEG que completó el alta (propuesta de buzones compartidos, § 5.3): a quién avisar
+    /// cuando la conexión deja de funcionar. Null en las conexiones anteriores a este campo.
+    /// </summary>
+    public Guid? ConsentidoPorUsuarioId { get; private set; }
 
     private ConexionIntegracion()
     {
@@ -79,7 +92,7 @@ public class ConexionIntegracion : EntidadBase
     public ConexionIntegracion(
         string buzonEmail, string nombre, Guid? clienteId = null,
         ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365, Guid? gestorPropietarioId = null,
-        bool esBuzonCompartido = false)
+        Guid? consentidoPorUsuarioId = null)
     {
         if (clienteId is not null && gestorPropietarioId is not null)
         {
@@ -87,13 +100,7 @@ public class ConexionIntegracion : EntidadBase
                 "Un buzón personal de un gestor no puede pertenecer a la vez a un Cliente.", nameof(gestorPropietarioId));
         }
 
-        if (esBuzonCompartido && gestorPropietarioId is not null)
-            throw new ArgumentException("Un buzón compartido no puede ser el buzón personal de un gestor.", nameof(esBuzonCompartido));
-
-        if (esBuzonCompartido && proveedor != ProveedorIntegracion.Microsoft365)
-            throw new ArgumentException("Solo un buzón de Microsoft 365 puede ser compartido.", nameof(esBuzonCompartido));
-
-        EsBuzonCompartido = esBuzonCompartido;
+        ConsentidoPorUsuarioId = consentidoPorUsuarioId;
 
         EstablecerBuzonEmail(buzonEmail);
         EstablecerNombre(nombre);
@@ -102,6 +109,27 @@ public class ConexionIntegracion : EntidadBase
         Estado = EstadoConexionIntegracion.Habilitada;
         Proveedor = proveedor;
         FechaConectadaUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Buzón compartido de Microsoft 365 del directorio <paramref name="directorioEntraId"/> (ver <see cref="EsBuzonCompartido"/>).
+    /// Es el buzón de su Tenant propietario, que en Outbound es el Tenant beneficiario (decisión R1, 2026-11-08):
+    /// nunca de una Empresa contraparte ni de un Gestor CAE.
+    /// </summary>
+    public static ConexionIntegracion CrearBuzonCompartido(
+        string buzonEmail, string nombre, string directorioEntraId, Guid consentidoPorUsuarioId)
+    {
+        if (!Guid.TryParse(directorioEntraId, out var directorio) || directorio == Guid.Empty)
+            throw new ArgumentException("El directorio de Microsoft debe ser un GUID.", nameof(directorioEntraId));
+
+        if (consentidoPorUsuarioId == Guid.Empty)
+            throw new ArgumentException("El alta de un buzón compartido debe tener un usuario.", nameof(consentidoPorUsuarioId));
+
+        return new ConexionIntegracion(buzonEmail, nombre, consentidoPorUsuarioId: consentidoPorUsuarioId)
+        {
+            EsBuzonCompartido = true,
+            DirectorioEntraId = directorio.ToString("D"),
+        };
     }
 
     public void FijarResponsable(Guid? usuarioId)

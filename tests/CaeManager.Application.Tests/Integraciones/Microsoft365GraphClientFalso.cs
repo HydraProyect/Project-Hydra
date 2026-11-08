@@ -57,6 +57,11 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
 
+    public string DirectorioDevuelto { get; set; } = "11111111-2222-3333-4444-555555555555";
+
+    public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) =>
+        Task.FromResult(Result.Exito(DirectorioDevuelto));
+
     /// <summary>Cada buzón sobre el que se pidió algo a Graph, en orden: prueba que una conexión compartida no cae en /me.</summary>
     public List<BuzonGraph> BuzonesUsados { get; } = [];
 

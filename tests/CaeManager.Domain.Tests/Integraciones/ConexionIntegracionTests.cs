@@ -26,26 +26,47 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void Por_defecto_no_es_un_buzon_compartido_y_se_puede_crear_como_tal()
+    public void Por_defecto_no_es_un_buzon_compartido_ni_tiene_directorio()
     {
-        new ConexionIntegracion("cae@cliente.com", "Buzón CAE").EsBuzonCompartido.Should().BeFalse();
-        new ConexionIntegracion("piloto@cliente.com", "Buzón piloto", esBuzonCompartido: true).EsBuzonCompartido.Should().BeTrue();
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+
+        conexion.EsBuzonCompartido.Should().BeFalse();
+        conexion.DirectorioEntraId.Should().BeNull();
     }
 
     [Fact]
-    public void Rechaza_un_buzon_compartido_con_Gestor_propietario()
+    public void Un_buzon_compartido_es_de_Microsoft365_sin_Gestor_y_guarda_el_directorio_normalizado_y_quien_lo_dio_de_alta()
     {
-        var accion = () => new ConexionIntegracion(
-            "piloto@cliente.com", "Buzón piloto", gestorPropietarioId: Guid.NewGuid(), esBuzonCompartido: true);
+        var usuarioId = Guid.NewGuid();
+
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@cliente.com", "Buzón piloto", "{AABBCCDD-0000-1111-2222-333344445555}", usuarioId);
+
+        conexion.EsBuzonCompartido.Should().BeTrue();
+        conexion.Proveedor.Should().Be(ProveedorIntegracion.Microsoft365);
+        conexion.GestorPropietarioId.Should().BeNull();
+        conexion.DirectorioEntraId.Should().Be("aabbccdd-0000-1111-2222-333344445555");
+        conexion.ConsentidoPorUsuarioId.Should().Be(usuarioId);
+    }
+
+    [Theory]
+    [InlineData("common")]
+    [InlineData("organizations")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("")]
+    public void Rechaza_un_buzon_compartido_sin_un_directorio_GUID(string directorio)
+    {
+        var accion = () => ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@cliente.com", "Buzón piloto", directorio, Guid.NewGuid());
 
         accion.Should().Throw<ArgumentException>();
     }
 
     [Fact]
-    public void Rechaza_un_buzon_compartido_de_un_proveedor_que_no_es_Microsoft365()
+    public void Rechaza_un_buzon_compartido_sin_usuario_que_lo_diera_de_alta()
     {
-        var accion = () => new ConexionIntegracion(
-            "34600000000", "Línea", proveedor: ProveedorIntegracion.WhatsApp, esBuzonCompartido: true);
+        var accion = () => ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@cliente.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.Empty);
 
         accion.Should().Throw<ArgumentException>();
     }

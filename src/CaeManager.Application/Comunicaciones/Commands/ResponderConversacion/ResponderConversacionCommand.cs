@@ -153,7 +153,7 @@ public class ResponderConversacionCommandHandler(
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.Respuesta, conexion.Id, [ultimoMensajeEntrante.Remitente], copia: null, adjuntos, cancellationToken);
 
-        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (accessTokenResultado.EsFallido)
             return Result.Fallo<Mensaje>(accessTokenResultado.Error);
 

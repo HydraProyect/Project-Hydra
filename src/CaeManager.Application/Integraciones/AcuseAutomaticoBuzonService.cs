@@ -81,7 +81,7 @@ public class AcuseAutomaticoBuzonService(
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.AcuseAutomatico, conexion.Id, [destinatario], copia: null, adjuntos: null, cancellationToken);
 
-        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
         {
             logger.LogWarning(

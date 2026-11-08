@@ -43,7 +43,7 @@ public class ObtenerEstructuraBuzonQueryHandler(
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(tokenResultado.Error);
 

@@ -132,7 +132,7 @@ public class RenovacionSuscripcionWebhookHostedService(
             if (conexion is null || conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
                 continue;
 
-            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(suscripcion.ConexionIntegracionId, stoppingToken);
+            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, stoppingToken);
             if (accessTokenResultado.EsFallido)
             {
                 logger.LogWarning(

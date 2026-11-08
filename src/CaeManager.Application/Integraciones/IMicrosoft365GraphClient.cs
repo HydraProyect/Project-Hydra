@@ -118,10 +118,18 @@ public interface IMicrosoft365GraphClient
     Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Comprueba, antes de dar de alta un buzón compartido, que quien consintió
-    /// puede leer su Bandeja de entrada. Graph no permite listar los buzones
-    /// compartidos a los que una persona tiene acceso, así que la dirección la
-    /// escribe quien conecta y esta sonda es la única prueba de acceso.
+    /// Directorio Entra (GUID) de la cuenta del token delegado <paramref name="accessToken"/>, leído de
+    /// <c>/organization</c>: el directorio de un buzón compartido sale de quien inició sesión, nunca de lo que
+    /// escriba alguien en un formulario.
+    /// </summary>
+    Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Comprueba, antes de dar de alta un buzón compartido, que el token de aplicación
+    /// de su directorio puede leer su Bandeja de entrada, es decir, que el buzón está
+    /// dentro del ámbito de RBAC for Applications. Graph no lista los buzones de ese
+    /// ámbito, así que la dirección la escribe quien conecta y esta sonda es la única
+    /// prueba de acceso.
     /// </summary>
     Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
 

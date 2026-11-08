@@ -118,25 +118,43 @@ public static class ConectarMicrosoft365Endpoints
                 !string.Equals(buzonCompartido, buzonResultado.Valor, StringComparison.OrdinalIgnoreCase);
             var buzonConectado = esCompartido ? buzonCompartido! : buzonResultado.Valor;
 
+            var accessToken = tokensResultado.Valor.AccessToken;
+            string? refreshToken = tokensResultado.Valor.RefreshToken;
+            string? directorioEntraId = null;
             if (esCompartido)
             {
-                // La única prueba de que esta persona puede abrir el compartido: Graph no lista los
-                // compartidos accesibles, y sin esta sonda se daría de alta una conexión que falla
-                // en la primera lectura.
+                // El compartido se abre con el token de aplicación del directorio de quien inició
+                // sesión, nunca con el suyo: su refresh token no se guarda. El directorio sale del
+                // inicio de sesión, no de un campo que alguien pueda escribir. Es el buzón del Tenant
+                // de la sesión (decisión R1): sin Empresa ni Gestor CAE, que el validador rechaza.
+                var directorio = await graphClient.ObtenerDirectorioAsync(tokensResultado.Valor.AccessToken, cancellationToken);
+                if (directorio.EsFallido)
+                    return Results.LocalRedirect("/integraciones?error=autenticacion");
+
+                var tokenAplicacion = await graphClient.ObtenerTokenAplicacionAsync(directorio.Valor, cancellationToken);
+                if (tokenAplicacion.EsFallido)
+                    return Results.LocalRedirect("/integraciones?error=sin-acceso-compartido");
+
+                // La única prueba de que el buzón está en el ámbito de RBAC for Applications de ese
+                // directorio: Graph no lista ese ámbito, y sin esta sonda se daría de alta una conexión
+                // que falla en la primera lectura.
                 var acceso = await graphClient.ComprobarAccesoBuzonAsync(
-                    tokensResultado.Valor.AccessToken, new BuzonGraph(buzonConectado, EsCompartido: true), cancellationToken);
+                    tokenAplicacion.Valor.AccessToken, new BuzonGraph(buzonConectado, EsCompartido: true), cancellationToken);
                 if (acceso.EsFallido)
                 {
                     return Results.LocalRedirect(acceso.Error.Codigo == "Integraciones.Microsoft365.SinAccesoBuzon"
                         ? "/integraciones?error=sin-acceso-compartido"
                         : "/integraciones?error=autenticacion");
                 }
+
+                accessToken = tokenAplicacion.Valor.AccessToken;
+                refreshToken = null;
+                directorioEntraId = directorio.Valor;
             }
 
             var comando = new ConectarBuzonMicrosoft365Command(
-                buzonConectado, buzonConectado, clienteId,
-                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId,
-                EsBuzonCompartido: esCompartido);
+                buzonConectado, buzonConectado, clienteId, accessToken, refreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId,
+                DirectorioEntraId: directorioEntraId, ConsentidoPorUsuarioId: usuarioId.Value);
 
             var resultado = await mediator.Send(comando, cancellationToken);
             return resultado.EsExitoso

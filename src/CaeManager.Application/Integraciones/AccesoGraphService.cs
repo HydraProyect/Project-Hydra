@@ -17,9 +17,26 @@ namespace CaeManager.Application.Integraciones;
 /// refresh token, más pequeña es la ventana en la que dos operaciones
 /// concurrentes sobre la misma conexión pueden competir por el mismo
 /// refresco (ver <see cref="CredencialIntegracion.Version"/>).
+///
+/// Un buzón compartido (<see cref="ConexionIntegracion.EsBuzonCompartido"/>) no tiene credencial: se abre
+/// con el token de aplicación de su directorio, y por eso todo el que tenga la conexión a mano debe pedir
+/// el token con la sobrecarga que la recibe. La que recibe solo el Id falla cerrada ante un compartido
+/// (<c>ConexionIntegracion.SinCredencial</c>): nunca cae en el token de una persona.
 /// </summary>
 public class AccesoGraphService(ICredencialIntegracionRepository credencialRepositorio, IMicrosoft365GraphClient graphClient)
 {
+    public async Task<Result<string>> ObtenerAccessTokenVigenteAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
+    {
+        if (!conexion.EsBuzonCompartido)
+            return await ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+
+        if (conexion.DirectorioEntraId is not { } directorio)
+            return Result.Fallo<string>(Error.Crear(
+                "ConexionIntegracion.SinDirectorio", "Este buzón compartido no tiene directorio de Microsoft."));
+
+        var token = await graphClient.ObtenerTokenAplicacionAsync(directorio, cancellationToken);
+        return token.EsFallido ? Result.Fallo<string>(token.Error) : Result.Exito(token.Valor.AccessToken);
+    }
     public async Task<Result<string>> ObtenerAccessTokenVigenteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken)
     {
         var credencial = await credencialRepositorio.ObtenerPorConexionAsync(conexionIntegracionId, cancellationToken);

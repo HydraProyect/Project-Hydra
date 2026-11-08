@@ -8,10 +8,16 @@ public class ConexionIntegracionConfiguration : IEntityTypeConfiguration<Conexio
 {
     public void Configure(EntityTypeBuilder<ConexionIntegracion> builder)
     {
-        builder.ToTable("ConexionesIntegracion");
+        // Un buzón compartido solo se abre con el token de aplicación de su directorio, y nunca es el buzón
+        // personal de un Gestor CAE: la base de datos lo garantiza aunque una escritura salte la fábrica.
+        builder.ToTable("ConexionesIntegracion", t => t.HasCheckConstraint(
+            "CK_ConexionesIntegracion_BuzonCompartidoConDirectorio",
+            $"NOT \"{nameof(ConexionIntegracion.EsBuzonCompartido)}\" OR " +
+            $"(\"{nameof(ConexionIntegracion.DirectorioEntraId)}\" IS NOT NULL AND \"{nameof(ConexionIntegracion.GestorPropietarioId)}\" IS NULL)"));
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.BuzonEmail).IsRequired().HasMaxLength(ConexionIntegracion.LongitudMaximaBuzonEmail);
+        builder.Property(c => c.DirectorioEntraId).HasMaxLength(36);
         builder.Property(c => c.Nombre).IsRequired().HasMaxLength(ConexionIntegracion.LongitudMaximaNombre);
         builder.Property(c => c.UltimoError).HasMaxLength(ConexionIntegracion.LongitudMaximaUltimoError);
 

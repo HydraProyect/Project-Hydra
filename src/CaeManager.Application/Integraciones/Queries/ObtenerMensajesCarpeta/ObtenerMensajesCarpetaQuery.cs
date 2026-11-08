@@ -35,7 +35,7 @@ public class ObtenerMensajesCarpetaQueryHandler(
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(tokenResultado.Error);
 

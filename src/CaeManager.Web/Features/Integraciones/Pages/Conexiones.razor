@@ -3,6 +3,9 @@
 @attribute [Authorize(Roles = CaeManager.Infrastructure.Identity.Roles.Administrador)]
 @inherits CaeManager.Web.Components.PaginaIntegrableConfiguracionBase
 @using CaeManager.Domain.Integraciones
+@using CaeManager.Web.Features.Integraciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosConexiones> Textos
 
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
@@ -16,8 +19,7 @@
             Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
             Cada conexión pertenece a una empresa sin rol CAE concreta, a la organización propia si se deja en blanco
             o al buzón personal de un Gestor CAE.
-            Para conectar un buzón compartido de Microsoft 365 al que tengas acceso total, escribe su dirección
-            antes de conectar; déjala vacía para conectar tu propio buzón.
+            @Textos["AyudaBuzonCompartido"]
             Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
             webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
         </Descripcion>
@@ -31,7 +33,8 @@
 
     <div class="acciones-conexion-buzon">
         <CampoSelect Etiqueta="Empresa sin rol CAE (opcional)" Valor="@(_clienteSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarCliente" Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null)">
+                     ValorChanged="SeleccionarCliente"
+                     Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
             <option value="">Buzón de la organización propia</option>
             @foreach (var cliente in _clientes)
             {
@@ -50,8 +53,9 @@
             }
         </CampoSelect>
 
-        <CampoTexto Etiqueta="Buzón compartido (opcional)" Valor="@_buzonCompartido" ValorChanged="FijarBuzonCompartido"
-                    Placeholder="nombre@dominio.es" Type="email" Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null)" />
+        <CampoTexto Etiqueta="@Textos["EtiquetaBuzonCompartido"]" Valor="@_buzonCompartido" ValorChanged="FijarBuzonCompartido"
+                    Placeholder="@Textos["PlaceholderBuzonCompartido"]" Type="email"
+                    Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null || _clienteSeleccionadoId is not null)" />
 
         <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
@@ -86,7 +90,7 @@
                             @conexion.BuzonEmail
                             @if (conexion.EsBuzonCompartido)
                             {
-                                <Badge Tono="TonoBadge.Neutro">Compartido</Badge>
+                                <Badge Tono="TonoBadge.Neutro">@Textos["InsigniaCompartido"]</Badge>
                             }
                         </td>
                         <td>@DescribirPropietario(conexion)</td>

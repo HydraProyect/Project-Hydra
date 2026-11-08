@@ -66,6 +66,9 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         interno.ObtenerBuzonEmailAsync(accessToken, cancellationToken);
 
+    public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) =>
+        interno.ObtenerDirectorioAsync(accessToken, cancellationToken);
+
     public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
         interno.ComprobarAccesoBuzonAsync(accessToken, buzon, cancellationToken);
 

@@ -99,7 +99,7 @@ public class MigrarConversacionACorreoCommandHandler(
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.MigracionACorreo, conexion.Id, [request.EmailDestino], copia: null, adjuntos: null, cancellationToken);
 
-        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion.Id, cancellationToken);
+        var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo(tokenResultado.Error);
 

@@ -383,15 +383,13 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private const string CodigoCancelado = "cancelado";
 
     // «solicitud» (state caducado o de otra cuenta) cae en el mensaje genérico.
-    private static string MensajeError(string codigo) => codigo switch
+    private string MensajeError(string codigo) => codigo switch
     {
         CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
         "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
-        "buzon-compartido" => "La dirección del buzón compartido no es válida.",
-        "sin-acceso-compartido" =>
-            "Tu cuenta de Microsoft no puede abrir ese buzón compartido. Comprueba la dirección y que tengas acceso total a él; " +
-            "si conectaste antes de esta opción, vuelve a conectar para conceder los permisos de buzones compartidos.",
+        "buzon-compartido" => Textos["ErrorBuzonCompartidoInvalido"],
+        "sin-acceso-compartido" => Textos["ErrorSinAccesoCompartido"],
         _ => "No pudimos completar la conexión."
     };
 

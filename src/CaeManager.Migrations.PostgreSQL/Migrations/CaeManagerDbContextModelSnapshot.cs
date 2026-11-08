@@ -7820,8 +7820,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ConsentidoPorUsuarioId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreadoEnUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DirectorioEntraId")
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
 
                     b.Property<DateTime?>("EliminadoEnUtc")
                         .HasColumnType("timestamp with time zone");
@@ -7877,7 +7884,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
 
-                    b.ToTable("ConexionesIntegracion", (string)null);
+                    b.ToTable("ConexionesIntegracion", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConexionesIntegracion_BuzonCompartidoConDirectorio", "NOT \"EsBuzonCompartido\" OR (\"DirectorioEntraId\" IS NOT NULL AND \"GestorPropietarioId\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.ConexionPlataformaCae", b =>

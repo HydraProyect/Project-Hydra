@@ -394,6 +394,7 @@ public class GuardaEnvioCorreoTests
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();
         public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -157,6 +157,47 @@ public class Microsoft365BuzonCompartidoRutasTests
             .And.NotContain("refresh_token");
     }
 
+    [Fact]
+    public async Task El_token_de_aplicacion_de_un_directorio_se_reutiliza_mientras_esta_vigente()
+    {
+        var directorio = Guid.NewGuid().ToString();
+        var handler = new AnotaPeticionesHandler(cuerpo: """{"access_token":"app","expires_in":3599}""");
+        var cliente = new Microsoft365GraphClient(
+            new HttpClient(handler),
+            Options.Create(new Microsoft365GraphOptions { ClientId = "cliente", ClientSecret = "secreto" }),
+            NullLogger<Microsoft365GraphClient>.Instance);
+
+        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be("app");
+        (await cliente.ObtenerTokenAplicacionAsync(directorio, CancellationToken.None)).Valor.AccessToken.Should().Be("app");
+
+        handler.Peticiones.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task El_directorio_se_lee_de_organization_con_el_token_delegado()
+    {
+        var handler = new AnotaPeticionesHandler(cuerpo: """{"value":[{"id":"AABBCCDD-0000-1111-2222-333344445555"}]}""");
+
+        var resultado = await Cliente(handler).ObtenerDirectorioAsync("token", CancellationToken.None);
+
+        resultado.Valor.Should().Be("aabbccdd-0000-1111-2222-333344445555");
+        handler.Peticiones.Should().ContainSingle().Which.Url.Should().StartWith($"{Raiz}organization");
+    }
+
+    [Theory]
+    [InlineData("""{"value":[]}""")]
+    [InlineData("""{"value":[{"id":"aabbccdd-0000-1111-2222-333344445555"},{"id":"11111111-0000-1111-2222-333344445555"}]}""")]
+    [InlineData("""{"value":[{"id":"no-es-un-guid"}]}""")]
+    [InlineData("""{"value":[{"id":"00000000-0000-0000-0000-000000000000"}]}""")]
+    [InlineData("no es json")]
+    public async Task Un_directorio_ausente_ambiguo_o_mal_formado_no_se_adivina(string cuerpo)
+    {
+        var resultado = await Cliente(new AnotaPeticionesHandler(cuerpo: cuerpo)).ObtenerDirectorioAsync("token", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.DirectorioInvalido");
+    }
+
     private sealed class CapturaCuerpoHandler(string respuesta) : HttpMessageHandler
     {
         public string? Url { get; private set; }

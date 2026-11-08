@@ -37,6 +37,8 @@ public class Microsoft365GraphClient(
 
     private const string ScopeAplicacion = "https://graph.microsoft.com/.default";
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, TokenAplicacionGraphDto> TokensAplicacion = new();
+
     private const string RaizGraph = "https://graph.microsoft.com/v1.0/";
 
     // Máximo permitido por Graph para suscripciones sobre mensajes de
@@ -101,6 +103,12 @@ public class Microsoft365GraphClient(
             return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                 "Integraciones.Microsoft365.DirectorioInvalido", "El directorio de Microsoft no es válido."));
 
+        // Un token por directorio para todos sus buzones compartidos: sin esta caché cada lectura, envío o
+        // notificación pediría uno nuevo a Entra. Se descarta cinco minutos antes de caducar.
+        var claveCache = $"{opciones.Value.ClientId}|{directorio:D}";
+        if (TokensAplicacion.TryGetValue(claveCache, out var cacheado) && cacheado.ExpiraUtc > DateTime.UtcNow.AddMinutes(5))
+            return Result.Exito(cacheado);
+
         var endpoint = $"https://login.microsoftonline.com/{directorio:D}/oauth2/v2.0/token";
         var contenido = new Dictionary<string, string>
         {
@@ -131,7 +139,9 @@ public class Microsoft365GraphClient(
                 return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                     "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
 
-            return Result.Exito(new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600)));
+            var token = new TokenAplicacionGraphDto(cuerpo.AccessToken, DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600));
+            TokensAplicacion[claveCache] = token;
+            return Result.Exito(token);
         }
         catch (HttpRequestException ex)
         {
@@ -234,6 +244,40 @@ public class Microsoft365GraphClient(
         {
             logger.LogError(ex, "Fallo de red al leer el perfil de Microsoft Graph.");
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+    }
+
+    public async Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken)
+    {
+        using var peticion = NuevaPeticionGraph(HttpMethod.Get, $"{RaizGraph}organization?$select=id", accessToken);
+
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (!respuesta.IsSuccessStatusCode)
+                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el directorio de Microsoft."));
+
+            using var documento = await JsonDocument.ParseAsync(
+                await respuesta.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            // Una cuenta de trabajo pertenece a un único directorio: más de uno, o ninguno, no se adivina.
+            if (!documento.RootElement.TryGetProperty("value", out var organizaciones) ||
+                organizaciones.ValueKind != JsonValueKind.Array || organizaciones.GetArrayLength() != 1 ||
+                !organizaciones[0].TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
+                !Guid.TryParse(id.GetString(), out var directorio) || directorio == Guid.Empty)
+            {
+                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
+            }
+
+            return Result.Exito(directorio.ToString("D"));
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al leer el directorio de Microsoft Graph.");
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (JsonException)
+        {
+            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
         }
     }
 
