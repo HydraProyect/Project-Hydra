@@ -27,8 +27,9 @@ namespace CaeManager.Web.Features.Contacto;
 /// <item>CORS con lista cerrada de orígenes exactos, sin <c>null</c> ni credenciales (V14.5.3), y además
 /// el servidor rechaza con 403 cualquier <c>Origin</c> fuera de esa lista: CORS solo lo aplica el
 /// navegador.</item>
-/// <item>Solo <c>POST</c> con <c>Content-Type: application/json</c>; otro tipo, 415, y otro método, 405
-/// en JSON (V13.2.1, V13.2.5).</item>
+/// <item>Solo <c>POST</c> con <c>Content-Type: application/json</c>; otro tipo, 415, y GET, HEAD, PUT,
+/// PATCH o DELETE, 405 en JSON (V13.2.1, V13.2.5). Un método fuera de esa lista (TRACE, OPTIONS sin
+/// preflight) recibe la respuesta por defecto de la aplicación, sin llegar a este código.</item>
 /// <item>Cuerpo acotado a <see cref="MaximoBytes"/> mientras se lee (con un tope de respaldo en Kestrel), no por la
 /// cabecera <c>Content-Length</c> que declara el remitente (V11.1.4).</item>
 /// <item>JSON estricto: sin propiedades desconocidas ni duplicadas, profundidad acotada (V5.1.1, V5.1.4).</item>
@@ -39,8 +40,9 @@ namespace CaeManager.Web.Features.Contacto;
 /// global por hora que acota el correo que llega a info@talveg.es aunque el envío venga de muchas IP
 /// (V11.1.4).</item>
 /// <item>Campo trampa antispam (V11.1.4): con valor se descarta sin enviar y con la misma respuesta.</item>
-/// <item>Sin CSRF que defender: no lee cookies ni sesión y no actúa con la autoridad de nadie
-/// (V4.2.2, V13.2.3 no aplican); exigir JSON obliga además al navegador a hacer preflight.</item>
+/// <item>Funcionalidad no autenticada protegida por antiautomatización (V4.2.2): límite por IP, cupo
+/// global y campo trampa. No hay CSRF que defender: no lee cookies ni sesión y no actúa con la
+/// autoridad de nadie (V13.2.3 no aplica); exigir JSON obliga además al navegador a hacer preflight.</item>
 /// <item>Correo sin inyección: asunto fijo, destinatario fijo, valores codificados para HTML y el
 /// correo de quien escribe validado como dirección ASCII exacta antes de ir a <c>Reply-To</c>
 /// (V5.2.3, V5.3.1).</item>
@@ -59,11 +61,14 @@ namespace CaeManager.Web.Features.Contacto;
 /// </para>
 ///
 /// <para>
-/// <b>Riesgo asumido</b>: quien mande formularios válidos desde muchas IP agota el cupo global y deja
-/// el formulario en 503 <c>cupo-agotado</c> hasta que la ventana corre. Es el precio de acotar el
-/// correo; el agotamiento se registra como error para que avise, y el formulario debe ofrecer
-/// escribir a info@talveg.es ante cualquier 429 o 503. Frenar el envío distribuido de verdad pide un
-/// desafío antirrobot de terceros, que es una decisión de producto aparte.
+/// <b>Riesgo asumido</b>: quien mande formularios válidos desde varias particiones del límite por IP
+/// agota el cupo global y deja el formulario en 503 <c>cupo-agotado</c> mientras siga haciéndolo. No
+/// hacen falta muchos equipos: un solo prefijo IPv6 /48 da 65.536 particiones /64, y bastan 12 para
+/// gastar las 60 plazas de una hora. Es el precio de acotar el correo que llega a info@talveg.es. El
+/// agotamiento se registra como error una vez por episodio, no en cada rechazo, para que avise sin
+/// volverse ruido. El formulario debe ofrecer escribir a info@talveg.es ante cualquier 429 o 503.
+/// Frenar el envío distribuido de verdad pide un desafío antirrobot de terceros, que es una decisión
+/// de producto aparte.
 /// </para>
 /// </summary>
 public static class SolicitudDemoEndpoints
@@ -78,6 +83,9 @@ public static class SolicitudDemoEndpoints
 
     /// <summary>Un formulario lleno al máximo de todos los campos ronda 1,5 KB en UTF-8; el resto es margen.</summary>
     public const int MaximoBytes = 8 * 1024;
+
+    /// <summary>Tope de respaldo para Kestrel, algo mayor que <see cref="MaximoBytes"/>.</summary>
+    public const int TopeKestrel = MaximoBytes + 1024;
 
     public static IReadOnlyList<string> OrigenesPermitidos { get; } = ["https://talveg.es", "https://www.talveg.es"];
 
@@ -150,6 +158,15 @@ public static class SolicitudDemoEndpoints
         PrepararRespuestaApi(contexto);
         var request = contexto.Request;
 
+        // Antes de cualquier rechazo: si no, Kestrel drenaría con su tope por
+        // defecto (30 MB) el cuerpo de una petición ya contestada. Respaldo, no el
+        // borde: con el tope exacto, Kestrel corta un cuerpo chunked de justo
+        // MaximoBytes (medido en SolicitudDemoEndpointsTests); el borde exacto lo
+        // pone LeerCuerpoAcotadoAsync.
+        var tope = contexto.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (tope is { IsReadOnly: false })
+            tope.MaxRequestBodySize = TopeKestrel;
+
         if (!OrigenPermitido(contexto))
             return Error(StatusCodes.Status403Forbidden, "origen-no-permitido");
 
@@ -203,9 +220,10 @@ public static class SolicitudDemoEndpoints
         }
 
         // Después de validar: lo que no pasa no gasta cupo de correo, solo el de su IP.
-        if (!cupoGlobal.IntentarReservar(out var reserva, out var reintentarEn))
+        if (!cupoGlobal.IntentarReservar(out var reserva, out var reintentarEn, out var primerRechazo))
         {
-            logger.LogError("Solicitud de demo rechazada: cupo global de envíos agotado.");
+            if (primerRechazo)
+                logger.LogError("Solicitud de demo rechazada: cupo global de envíos agotado.");
             contexto.Response.Headers.RetryAfter = ((int)Math.Ceiling(reintentarEn.TotalSeconds)).ToString(CultureInfo.InvariantCulture);
             return Error(StatusCodes.Status503ServiceUnavailable, "cupo-agotado");
         }
@@ -221,7 +239,14 @@ public static class SolicitudDemoEndpoints
                 responderA: solicitud.Correo,
                 cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            // Cancela quien llama (conexión cerrada): SmtpEmailService solo lanza esto
+            // antes de que el servidor acepte el mensaje, así que no salió nada.
+            cupoGlobal.Liberar(reserva);
+            throw;
+        }
+        catch (Exception ex)
         {
             // Solo el tipo: el mensaje de una excepción de correo puede llevar direcciones.
             cupoGlobal.Liberar(reserva);
@@ -304,21 +329,15 @@ public static class SolicitudDemoEndpoints
 
     /// <summary>
     /// <c>Content-Length</c> lo declara el remitente: el tope exacto lo pone este
-    /// bucle mientras lee, y Kestrel (<see cref="IHttpMaxRequestBodySizeFeature"/>)
-    /// uno de respaldo algo mayor. Devuelve null si se pasa — el llamador contesta 413.
+    /// bucle mientras lee, y Kestrel (<see cref="IHttpMaxRequestBodySizeFeature"/>,
+    /// fijado en <see cref="RecibirAsync"/>) uno de respaldo algo mayor. Devuelve
+    /// null si se pasa — el llamador contesta 413.
     /// </summary>
     private static async Task<byte[]?> LeerCuerpoAcotadoAsync(HttpContext contexto, CancellationToken cancellationToken)
     {
         var request = contexto.Request;
         if (request.ContentLength is > MaximoBytes)
             return null;
-
-        // Respaldo, no el borde: Kestrel corta un cuerpo chunked de exactamente
-        // MaximoBytes (medido en SolicitudDemoEndpointsTests), así que lleva un
-        // margen. Lo que evita es que Kestrel drene megas de un cuerpo ya rechazado.
-        var tope = contexto.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (tope is { IsReadOnly: false })
-            tope.MaxRequestBodySize = MaximoBytes + 1024;
 
         using var destino = new MemoryStream();
         var lote = new byte[2048];
@@ -377,8 +396,14 @@ public sealed class CupoGlobalSolicitudDemo(int limitePorHora, TimeProvider relo
 
     private readonly Lock cerrojo = new();
 
-    /// <summary>Reserva una plaza; si no queda ninguna, dice cuándo se libera la primera.</summary>
-    public bool IntentarReservar(out DateTimeOffset reserva, out TimeSpan reintentarEn)
+    private bool agotado;
+
+    /// <summary>
+    /// Reserva una plaza; si no queda ninguna, dice cuándo se libera la primera y
+    /// si este es el primer rechazo del episodio (para avisar una vez, no en cada
+    /// petición rechazada).
+    /// </summary>
+    public bool IntentarReservar(out DateTimeOffset reserva, out TimeSpan reintentarEn, out bool primerRechazo)
     {
         lock (cerrojo)
         {
@@ -389,11 +414,15 @@ public sealed class CupoGlobalSolicitudDemo(int limitePorHora, TimeProvider relo
             {
                 reserva = default;
                 reintentarEn = reservas.Min() + Ventana - ahora;
+                primerRechazo = !agotado;
+                agotado = true;
                 return false;
             }
 
+            agotado = false;
             reserva = ahora;
             reintentarEn = TimeSpan.Zero;
+            primerRechazo = false;
             reservas.Add(ahora);
             return true;
         }

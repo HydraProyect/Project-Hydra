@@ -314,6 +314,36 @@ public class SolicitudDemoEndpointsTests
         (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"no-disponible\"}");
     }
 
+    [Fact]
+    public async Task Un_cuerpo_chunked_por_encima_del_tope_de_kestrel_es_413_en_json()
+    {
+        // Lo corta Kestrel con BadHttpRequestException 413 en vez del bucle: la rama del catch.
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync();
+
+        using var respuesta = await servidor.PostSinLongitudAsync(new byte[SolicitudDemoEndpoints.TopeKestrel * 4]);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"demasiado-grande\"}");
+    }
+
+    [Fact]
+    public async Task Si_quien_llama_cancela_durante_el_envio_la_plaza_vuelve_al_cupo()
+    {
+        var cupo = new CupoGlobalSolicitudDemo(1, TimeProvider.System);
+        var correo = new CorreoFalso { Excepcion = new OperationCanceledException() };
+        var contexto = new DefaultHttpContext();
+        contexto.Request.Method = HttpMethods.Post;
+        contexto.Request.Headers.Origin = OrigenTalveg;
+        contexto.Request.ContentType = "application/json";
+        contexto.Request.Body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(CuerpoBueno()));
+
+        var recibir = () => SolicitudDemoEndpoints.RecibirAsync(
+            contexto, correo, cupo, NullLogger<SolicitudDemoPeticion>.Instance, CancellationToken.None);
+
+        await recibir.Should().ThrowAsync<OperationCanceledException>();
+        cupo.IntentarReservar(out _, out _, out _).Should().BeTrue("la conexión cerrada no llegó a enviar nada");
+    }
+
     [Theory]
     [InlineData("GET")]
     [InlineData("PUT")]
