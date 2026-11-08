@@ -236,7 +236,7 @@ public partial class Cliente360PaginaTests : BunitContext
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public void El_bloqueo_de_plataforma_es_un_rotulo_junto_al_nombre_sin_contador(int cantidad)
+    public void El_bloqueo_de_plataforma_se_dice_una_sola_vez_en_la_fila(int cantidad)
     {
         var (id, mediador) = ClienteBase();
         var centro = Centro("Centro solo plataforma", EstadoCentro.Bloqueado) with
@@ -247,7 +247,11 @@ public partial class Cliente360PaginaTests : BunitContext
         mediador.Centros.Add(centro);
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.Find(".fila-relacion-titulo .cliente360-bloqueo-plataforma").TextContent.Should().Be("Bloqueo de la plataforma CAE");
+        // 2026-11-08 (petición de Chris): ningún aviso se repite en la misma fila. La pastilla de estado ya dice
+        // «Bloqueo de la plataforma CAE», así que el rótulo junto al nombre no se pinta.
+        cut.FindAll(".fila-relacion-titulo .cliente360-bloqueo-plataforma").Should().BeEmpty();
+        cut.Find(".fila-relacion-estado").TextContent.Trim().Should().Be("Bloqueo de la plataforma CAE");
+        cut.Find("li.fila-relacion").TextContent.Split("Bloqueo de la plataforma CAE").Should().HaveCount(2, "se dice exactamente una vez");
         // Z5-2: el rótulo no convive con «Todo validado»; el texto de la fila nombra el bloqueo (maqueta 21-10).
         cut.Find(".fila-relacion-detalle").TextContent.Should().Be(
             "Empresas: Ibertec GmbH" + (cantidad == 1 ? "1 documento bloquea el acceso" : "2 documentos bloquean el acceso"));
@@ -686,7 +690,10 @@ public partial class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("1 vencido").And.Contain("1 pendiente")
-            .And.Contain("1 trabajador bloqueado").And.NotContain("2 vencidos");
+            .And.NotContain("2 vencidos");
+        // Tercer motivo: va en el «+1» hacia el Centro 360 (2026-11-08), sin duplicar al Trabajador.
+        cut.Find(".fila-relacion-detalle a.avisos-recortados-mas").GetAttribute("aria-label").Should()
+            .StartWith("1 más: 1 trabajador bloqueado.");
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("0 de 1");
     }
 
@@ -861,6 +868,29 @@ public partial class Cliente360PaginaTests : BunitContext
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos");
         filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.Todo validado en la plataforma");
         cut.FindAll("li.fila-relacion").Should().OnlyContain(f => f.TextContent.Contains("Empresas: Montajes Ebro S.L."));
+    }
+
+    /// <summary>
+    /// Petición de Chris del 2026-11-08: una fila de Centro no acumula avisos. Muestra dos recuentos y el resto va en
+    /// «+N», que enlaza al Centro 360 y nombra lo que esconde.
+    /// </summary>
+    [Fact]
+    public void Con_mas_de_dos_motivos_la_fila_muestra_dos_y_un_mas_N_al_Centro_360()
+    {
+        var (id, mediador) = ClienteBase();
+        var barakaldo = Centro("Planta Barakaldo", EstadoCentro.Vencido, vencidas: 3, proximas: 2, empresa: "Montajes Ebro S.L.");
+        mediador.Centros.Add(barakaldo);
+        mediador.Bloqueos.Add(Bloqueo(id, "Planta Barakaldo", Guid.NewGuid(), "Juan Pérez") with { CentroId = barakaldo.Id });
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        var avisos = cut.Find("li.fila-relacion [data-pieza='avisos-recortados']");
+        avisos.TextContent.Should().StartWith("3 vencidos · 1 trabajador bloqueado").And.NotContain("por vencer ·");
+        var mas = avisos.QuerySelector("a.avisos-recortados-mas")!;
+        mas.TextContent.Should().Be("+1");
+        mas.GetAttribute("href").Should().Be($"/centros/{barakaldo.Id}");
+        mas.GetAttribute("aria-label").Should().Contain("2 por vencer").And.Contain("Planta Barakaldo");
     }
 
     [Fact]

@@ -167,7 +167,7 @@
                                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros" Tono="TonoDeFilaCentro(centro)"
                                                       HrefFila="@($"/centros/{centro.Id}")" OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
                                             <JuntoAlNombre>
-                                                @if (centro.Recuentos.Bloqueos.Count > 0)
+                                                @if (RotularBloqueoJuntoAlNombre(centro))
                                                 {
                                                     <span class="cliente360-bloqueo-plataforma">@Textos["RotuloBloqueoPlataforma"]</span>
                                                 }

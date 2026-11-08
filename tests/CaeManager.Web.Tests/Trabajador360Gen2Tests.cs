@@ -1636,6 +1636,39 @@ public partial class Trabajador360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Segundo nivel (decisión de Chris del 2026-11-08): el Centro desplegado no mete una tarjeta dentro de la fila.
+    /// Los requisitos van en la lista anidada, en la misma superficie, y el requisito con problema se marca con su
+    /// <c>data-tono</c> (acento lateral en el CSS), no con otra caja.
+    /// </summary>
+    [Fact]
+    public async Task El_centro_desplegado_lista_los_requisitos_sin_tarjeta_interior()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Paula", "Aguilar Cordero");
+        mediador.Centros[id] =
+        [
+            Centro("Plataforma logística de Illescas", "Logística Burcena, S.A.", EstadoDocumento.Faltante,
+                Documento("Entrega de EPI", EstadoDocumento.Faltante, existe: false),
+                Documento("Documento de identidad", EstadoDocumento.Vigente))
+        ];
+
+        var cut = Renderizar(id);
+        AbrirCentros(cut);
+        await cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].ClickAsync(new MouseEventArgs());
+
+        var desplegado = cut.Find(".trabajador360-centros .fila-relacion-desplegado");
+        desplegado.QuerySelectorAll(".lista-relaciones-tarjeta, [data-pieza='tarjeta']").Should().BeEmpty();
+        var lista = desplegado.QuerySelector("ul.lista-relaciones-anidada[data-pieza='lista-anidada']");
+        lista.Should().NotBeNull();
+        var tonos = lista!.QuerySelectorAll("li.fila-relacion-compacta")
+            .ToDictionary(f => SinEspaciosDeMas(f.QuerySelector(".fila-relacion-nombre")!.TextContent), f => f.GetAttribute("data-tono"));
+        tonos["Entrega de EPI"].Should().NotBeNull("el requisito con problema conserva su tono para el acento lateral");
+        tonos["Documento de identidad"].Should().BeNull();
+    }
+
+    /// <summary>
     /// «Sin confirmar» no tiene fecha de vencimiento y esa celda no puede quedar en «—»: «—» oculta un estado
     /// conocido (decisión del propietario, 2026-10-03). Dice «Sin confirmar» con el mismo aviso ámbar que Centro 360;
     /// un estado sin fecha que no es ni «Sin caducidad» ni «Sin confirmar» (un hueco) sigue en «—», sin aviso.

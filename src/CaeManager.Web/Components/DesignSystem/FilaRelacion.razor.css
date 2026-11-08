@@ -1,12 +1,16 @@
 /* .fila-rel y compañía, de los mockups Cliente 360 / Empresa 360. */
 .fila-relacion {
+    /* Relleno de la fila en variables: el bloque desplegado lo anula con
+       márgenes negativos para cubrir la fila de borde a borde. */
+    --fila-relleno-x: var(--space-4);
+    --fila-relleno-y: var(--space-2);
     position: relative;
     min-height: 48px;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-4);
+    padding: var(--fila-relleno-y) var(--fila-relleno-x);
     border-top: var(--border-default);
     transition: background-color 120ms;
 }
@@ -44,9 +48,11 @@
 .fila-relacion.fila-relacion-compacta {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
     gap: var(--space-3);
+    --fila-relleno-x: 0px;
+    --fila-relleno-y: 7px;
     min-height: 0;
     margin-inline: 0;
-    padding: 7px 0;
+    padding: var(--fila-relleno-y) var(--fila-relleno-x);
 }
 
 .fila-relacion-compacta > .fila-relacion-estado { grid-column: 2; grid-row: 1; }
@@ -194,8 +200,10 @@ a.fila-relacion-nombre:focus-visible,
     /* El resaltado y el tinte sobresalen del contenido de la tarjeta lo que
        mide este relleno lateral, en TODAS las filas: así el texto no cambia
        de columna entre una fila teñida y una sin teñir. */
+    --fila-relleno-x: var(--space-3);
+    --fila-relleno-y: 10px;
     margin-inline: calc(-1 * var(--space-3));
-    padding: 10px var(--space-3);
+    padding: var(--fila-relleno-y) var(--fila-relleno-x);
     border-top: 1px solid var(--color-fila-divisor);
 }
 
@@ -247,7 +255,8 @@ a.fila-relacion-nombre:focus-visible,
     background-color: var(--color-warning-50);
 }
 
-.fila-relacion[data-tono]:hover {
+/* Con el cursor dentro del bloque desplegado, la fila del nombre no cambia. */
+.fila-relacion[data-tono]:hover:where(:not(:has(.fila-relacion-desplegado:hover))) {
     background-position: 0 0;
 }
 
@@ -294,14 +303,60 @@ a.fila-relacion-nombre:focus-visible,
     }
 }
 
-/* Bloque desplegado bajo la fila: a todo el ancho, con la sangría que deja
-   el botón de desplegar más su separación (22 + 12). */
+/*
+  Segundo nivel (decisión de Chris del 2026-11-08, «un solo tratamiento»):
+  el bloque desplegado es la MISMA superficie que la tarjeta, sin gris ni
+  tarjeta interior. Los márgenes negativos anulan el relleno de la fila, así
+  que el bloque tapa de borde a borde el tinte de la fila con problema: el
+  tinte se queda en la línea del nombre y no baja a los requisitos. La
+  sangría izquierda es la del botón de desplegar más su separación (22 + 12).
+*/
 .fila-relacion-desplegado {
-    flex-basis: 100%;
+    flex-basis: calc(100% + 2 * var(--fila-relleno-x));
     grid-column: 1 / -1;
-    padding: var(--space-2) var(--space-3) var(--space-2) 34px;
-    border-radius: var(--radius-md);
-    background: var(--color-surface-subtle);
+    margin: var(--space-2) calc(-1 * var(--fila-relleno-x)) calc(-1 * var(--fila-relleno-y));
+    padding: var(--space-1) var(--fila-relleno-x) var(--space-1) calc(var(--fila-relleno-x) + 34px);
+    border-top: 1px solid var(--color-fila-divisor);
+    background: var(--color-surface);
+}
+
+/*
+  Subfila con problema dentro del bloque desplegado: sin fondo. El estado lo
+  dicen la etiqueta y un acento lateral de 3 px. Ninguna de estas reglas pone
+  background-color con [data-tono="…"] delante de la llave: las dos únicas
+  reglas de color del tinte siguen siendo las de arriba (FilaRespondeAlCursorTests).
+*/
+/* El mismo segundo nivel existe en los listados (/centros, /clientes…): la
+   fila desplegada de la tarjeta-fila-acordeon (list-page.css) anida estas
+   filas y recibe el mismo trato. */
+.fila-relacion-desplegado .fila-relacion[data-tono],
+.tarjeta-fila-acordeon-contenido .fila-relacion[data-tono] {
+    background-image: none;
+    background-color: transparent;
+    transition: background-color 120ms;
+}
+
+.fila-relacion-desplegado .fila-relacion[data-tono]:hover,
+.tarjeta-fila-acordeon-contenido .fila-relacion[data-tono]:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.fila-relacion-desplegado .fila-relacion[data-tono="peligro"],
+.tarjeta-fila-acordeon-contenido .fila-relacion[data-tono="peligro"] {
+    box-shadow: inset 3px 0 0 var(--color-danger-500);
+}
+
+.fila-relacion-desplegado .fila-relacion[data-tono="advertencia"],
+.tarjeta-fila-acordeon-contenido .fila-relacion[data-tono="advertencia"] {
+    box-shadow: inset 3px 0 0 var(--color-warning-500);
+}
+
+/* La subfila compacta no tiene relleno lateral y el acento necesita aire:
+   todas las subfilas lo ganan por igual, así el texto no cambia de columna
+   entre una subfila con acento y otra sin él. */
+.fila-relacion-desplegado .fila-relacion-compacta {
+    padding-left: var(--space-3);
+    margin-left: calc(-1 * var(--space-3));
 }
 
 /* Pantalla estrecha: las tres columnas fijas (384 px) dejarían la identidad
