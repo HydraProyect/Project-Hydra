@@ -27,7 +27,10 @@ public class CentroDetalleCabeceraMovilTests
         var css = Css();
 
         css.Should().MatchRegex(@"\.cabecera-identidad-texto\s*\{[^}]*flex\s*:\s*1 1 300px", "en fila el bloque sigue pidiendo 300 px de ancho");
-        Regex.IsMatch(css, @"@media \(max-width: 600px\)\s*\{\s*\.contenedor-pagina ::deep \.cabecera-identidad-texto\s*\{[^}]*flex\s*:\s*none[^}]*min-width\s*:\s*0")
+        Regex.IsMatch(css, @"@media \(max-width: 600px\)\s*\{\s*\.contenedor-pagina ::deep \.cabecera-identidad-texto\s*\{[^}]*flex\s*:\s*none\s*;[^}]*min-width\s*:\s*0\s*;")
             .Should().BeTrue("el mismo corte de 600 px de CabeceraIdentidad: en columna el bloque mide lo que su contenido");
+        css.IndexOf("@media (max-width: 600px)", StringComparison.Ordinal)
+            .Should().BeGreaterThan(css.IndexOf("flex: 1 1 300px", StringComparison.Ordinal),
+                "las dos reglas empatan en especificidad y gana la que va después: el bloque móvil tiene que ir tras la base");
     }
 }
