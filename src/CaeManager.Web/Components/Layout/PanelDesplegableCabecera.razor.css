@@ -75,11 +75,12 @@
     position: relative;
     display: grid;
     place-items: center;
-    width: 36px;
-    height: 36px;
+    /* Marco de Design (.tvm-ico): 40×40, radio 10. */
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: 0;
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-md);
     background: none;
     color: var(--color-text-muted);
     cursor: pointer;

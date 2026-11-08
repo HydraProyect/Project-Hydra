@@ -97,9 +97,15 @@
     min-width: 2.5em;
     text-align: right;
     margin-right: var(--space-3);
-    font: var(--font-caption);
+    /* Maqueta «Empresa 360»: la cifra de la fila es 14 px peso 400 (no 12/500). */
+    font: 400 0.875rem/1.25rem var(--font-family);
     font-variant-numeric: tabular-nums;
     color: var(--color-text-muted);
+}
+
+/* El DNI/NIE de la fila de trabajador es de 13 px en la maqueta; mismo ajuste que Cliente 360 y Trabajador 360. */
+.contenedor-pagina ::deep .fila-relacion-detalle {
+    font-size: 13px;
 }
 
 /* Tarjeta «Se pide la documentación a» de la columna lateral (maqueta «Empresa 360»). */
