@@ -44,8 +44,15 @@ public class ListaDesignBordeHerramientasTests
         claro.Should().MatchRegex(@"--color-border-control\s*:\s*var\(--color-neutral-500\)");
         Contraste(bordeClaro, Color(claro, "--color-neutral-0")).Should().BeGreaterThanOrEqualTo(3.0, "borde de control sobre la superficie, tema claro");
 
-        Contraste(Color(oscuro, "--color-border-control"), Color(oscuro, "--color-surface"))
+        // El fondo bajo el puntero es --color-surface-hover; en claro resuelve a --color-neutral-100.
+        claro.Should().MatchRegex(@"--color-surface\s*:\s*var\(--color-neutral-0\)").And.MatchRegex(@"--color-surface-hover\s*:\s*var\(--color-neutral-100\)");
+        Contraste(bordeClaro, Color(claro, "--color-neutral-100")).Should().BeGreaterThanOrEqualTo(3.0, "borde de control sobre la superficie bajo el puntero, tema claro");
+
+        var bordeOscuro = Color(oscuro, "--color-border-control");
+        Contraste(bordeOscuro, Color(oscuro, "--color-surface"))
             .Should().BeGreaterThanOrEqualTo(3.0, "borde de control sobre la superficie, tema oscuro");
+        Contraste(bordeOscuro, Color(oscuro, "--color-surface-hover"))
+            .Should().BeGreaterThanOrEqualTo(3.0, "borde de control sobre la superficie bajo el puntero, tema oscuro");
     }
 
     private static string Cuerpo(string css, string patronSelector)

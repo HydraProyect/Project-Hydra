@@ -64,7 +64,8 @@ public partial class CuadroDireccionTests
 
         cut.Find("[data-kpi=facturacion] .cuadro-kpi-etiqueta").TextContent.Trim().Should().Be("Cuota del mes");
         cut.Markup.Should().Contain("Cuota y gestiones por mes")
-            .And.NotContain("Facturación estimada").And.NotContain("Facturación y gestiones por mes");
+            .And.NotContain("Facturación estimada").And.NotContain("Facturación y gestiones por mes")
+            .And.Contain("Barras: cuota.").And.NotContain("Barras: facturación estimada");
     }
 
     [Fact]

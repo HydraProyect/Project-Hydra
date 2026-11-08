@@ -379,7 +379,7 @@
     <value>Cuota y gestiones por mes</value>
   </data>
   <data name="EvolucionNota" xml:space="preserve">
-    <value>Barras: facturación estimada. Línea: gestiones del mes.</value>
+    <value>Barras: cuota. Línea: gestiones del mes.</value>
   </data>
   <data name="SerieFacturacion" xml:space="preserve">
     <value>Facturación</value>
