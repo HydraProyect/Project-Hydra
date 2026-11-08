@@ -9,8 +9,9 @@
 # Este Caddy es el único proceso de la máquina que puede ocupar el 80/443, así
 # que también sirve el segundo dominio de staging (ver
 # docker-compose.staging.yml) en vez de que staging levante su propio Caddy —
-# dos Caddy no pueden competir por los mismos puertos del host. La ACME_EMAIL
-# de arriba aplica a los certificados de ambos dominios.
+# dos Caddy no pueden competir por los mismos puertos del host. Por lo mismo
+# sirve la web pública de talveg.es y www.talveg.es (bloques del final). La
+# ACME_EMAIL de arriba aplica a los certificados de todos esos dominios.
 {
 	email {$ACME_EMAIL}
 }
@@ -92,7 +93,10 @@ staging.talveg.es {
 # /opt/talveg (que cada despliegue mueve a otro SHA con `git checkout
 # --detach`): se suben a mano a /srv/talveg-web del host, que el compose monta
 # de solo lectura en el mismo camino. Así un despliegue de la aplicación no
-# toca la web, y subir la web no exige desplegar.
+# toca la web, y subir la web no exige desplegar, siempre que se escriba
+# DENTRO del directorio (rsync o cp al contenido): sustituir el directorio
+# entero (rm -rf + mv) deja al contenedor viendo el viejo hasta recrearlo,
+# igual que pasa con un bind de fichero suelto.
 #
 # Los bloques de la aplicación ({$DOMINIO} y staging.talveg.es) no cambian:
 # estos dos bloques solo añaden nombres de sitio nuevos, con su certificado
@@ -120,28 +124,52 @@ talveg.es {
 	encode zstd gzip
 	import cabeceras_web_publica
 
-	# Caché larga solo para /estatico/ (fuentes, imágenes, JS); el HTML se
-	# queda sin Cache-Control para que un cambio de la web se vea al instante.
+	# Caché larga solo para /estatico/ (fuentes, imágenes, JS). Lo demás (el
+	# HTML) va con no-cache: el navegador revalida cada vez (304 si no cambió)
+	# en vez de aplicar una caché heurística por Last-Modified que podría
+	# servir días una página ya cambiada. Un fichero de /estatico/ que cambie de
+	# contenido tiene que cambiar de nombre, o tarda hasta una semana en verse.
+	@no_estatico not path /estatico/*
 	header /estatico/* Cache-Control "public, max-age=604800"
+	header @no_estatico Cache-Control "no-cache"
 
 	# Rutas de la web anterior (agosto) que aún pueden estar enlazadas o
-	# indexadas: /login lleva a la aplicación y /en/ ya no existe.
-	redir /login https://app.talveg.es/ 301
-	redir /en/* / 301
+	# indexadas: /login lleva a la aplicación y /en/ ya no existe. Con y sin
+	# barra final.
+	@login_antiguo path /login /login/
+	@ingles_antiguo path /en /en/*
+	redir @login_antiguo https://app.talveg.es/ 301
+	redir @ingles_antiguo / 301
 
-	file_server
+	# Ni listado de directorios (no hay `browse`) ni ficheros o carpetas que
+	# empiecen por punto (.git, .env, .DS_Store) si se suben por descuido.
+	#
+	# file_server SIGUE los enlaces simbólicos, también los que apuntan fuera
+	# de la raíz, y dentro de este contenedor está /data con las claves
+	# privadas TLS de todos los dominios. La raíz no es una frontera: la web se
+	# sube sin enlaces (rsync --no-links, o comprobar que `find /srv/talveg-web
+	# -type l` sale vacío). Caddy no tiene opción para no seguirlos.
+	file_server {
+		hide .*
+	}
 
 	# Página 404 propia con su código 404, no un 200. Las cabeceras se importan
 	# otra vez porque Caddy descarta las de la ruta principal al pasar a
 	# handle_errors (medido el 2026-11-09 con la imagen del compose: sin este
 	# import el 404 salía sin HSTS ni X-Frame-Options y con Server). Si falta
-	# /404.html, la respuesta es un 404 vacío.
+	# /404.html, la respuesta es un 404 vacío. Cualquier otro error (405 a un
+	# POST, 403, 5xx) va al segundo manejador, con las mismas cabeceras y un
+	# cuerpo de texto con su código.
 	handle_errors 404 {
 		import cabeceras_web_publica
 		rewrite * /404.html
 		file_server {
 			status 404
 		}
+	}
+	handle_errors {
+		import cabeceras_web_publica
+		respond "{err.status_code} {err.status_text}" {err.status_code}
 	}
 }
 
