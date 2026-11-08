@@ -168,6 +168,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // El Mes compone la Empresa empleadora de cada vencimiento y su «Reclamar» con la regla de la Semana por Empresa; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IEmpresasQueryContext"),
+        // Y excluye de «Reclamar» a los voluntarios inactivos (ActividadVoluntarios), como la Semana; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IProyectosQueryContext"),
+        // Y solo ofrece «Reclamar» con la Asignación reclamable del lote (AsignacionesReclamables); solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IAsignacionesQueryContext"),
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "ICentrosQueryContext"),
         // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),

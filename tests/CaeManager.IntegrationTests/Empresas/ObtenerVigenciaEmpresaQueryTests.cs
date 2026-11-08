@@ -25,8 +25,13 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly TenantActualAmbiental _tenantActual = new() { TenantId = Guid.NewGuid() };
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
     }
@@ -93,6 +98,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task La_matriz_cruza_Trabajadores_de_la_Empresa_con_lo_que_exigen_sus_Centros()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var e = await SembrarAsync();
 
         var matriz = await ConsultarAsync(e.EmpresaId);
@@ -125,6 +131,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task La_periodicidad_del_Centro_viaja_en_la_columna_y_manda_sobre_la_fecha_del_documento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // El tipo dura 12 meses; este Centro pide 24. La regla del dominio (VencimientoEfectivo) dice emisión + 24 meses.
         var e = await SembrarAsync(periodicidadAptitudDelCentro: 24);
 
@@ -141,6 +148,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task Un_Centro_sin_gestion_CAE_no_exige_nada_y_su_columna_no_sale_si_nadie_la_tiene()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var e = await SembrarAsync(ModalidadGestionCae.SinGestionCae);
 
         var matriz = await ConsultarAsync(e.EmpresaId);
@@ -153,6 +161,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task Una_Empresa_fuera_de_alcance_no_devuelve_nada()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var e = await SembrarAsync();
 
         var matriz = await ConsultarAsync(e.EmpresaId, new AlcanceDatosServiceFalso(empresaIds: [e.OtraEmpresaId]));
@@ -165,6 +174,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task Un_Centro_fuera_de_alcance_no_exige_ni_se_lista()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var e = await SembrarAsync();
 
         var matriz = await ConsultarAsync(e.EmpresaId, new AlcanceDatosServiceFalso(centroIds: []));
@@ -178,6 +188,7 @@ public class ObtenerVigenciaEmpresaQueryTests : IAsyncLifetime
     [Fact]
     public async Task Un_Trabajador_fuera_de_cartera_no_sale()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var e = await SembrarAsync();
 
         var matriz = await ConsultarAsync(e.EmpresaId, new AlcanceDatosServiceFalso(trabajadorIds: [e.NoraId]));

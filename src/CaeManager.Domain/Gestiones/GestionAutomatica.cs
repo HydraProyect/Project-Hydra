@@ -15,7 +15,11 @@ namespace CaeManager.Domain.Gestiones;
 /// <b>El paso no tiene estado propio</b> (§ 4.3): su estado es el de su acreditación, que se cambia con los
 /// mismos comandos que el panel «Gestionar» de Centro 360. Por eso la Gestión no guarda «en curso» ni
 /// «cerrada»: los resuelve <see cref="ResolverEstado"/> leyendo esas acreditaciones, y un rechazo posterior la
-/// reabre sin hacer nada más (D-6). Lo único que guarda es lo que no se puede derivar: que se sustituyó.
+/// reabre sin hacer nada más (D-6) mientras su Documento siga operativo. Lo único que guarda es lo que no se puede
+/// derivar: cuándo se sustituyó y por cuál. Que una Gestión abierta de un Documento ya sustituido es Sustituida lo
+/// deriva también la lectura, haya marca o no (<see cref="ResolverEstado"/>): un rechazo sobre una acreditación del
+/// Documento histórico no la reabre, y sin marca deja de leerse Sustituida si todos sus pasos llegan a cerrarse
+/// (entonces es Cerrada: tampoco queda abierta).
 /// </para>
 ///
 /// <para>
@@ -114,19 +118,34 @@ public class GestionAutomatica : EntidadBase
     /// Estado de la Gestión (§ 4.4) a partir del estado de las acreditaciones de los pasos que la persona ve
     /// (D-7). Sustituida manda sobre todo. Con algún paso por hacer, En curso; con todos hechos y alguno solo
     /// subido, Pendiente de validar (sigue abierta, D-15); con todos validados o «no lo pide», Cerrada.
+    ///
+    /// <para>
+    /// <paramref name="documentoSustituido"/>: su Documento ya está en el historial (otro lo sustituyó). Entonces la
+    /// Gestión no puede seguir abierta: si no está Cerrada, es Sustituida aunque nadie la marcara (§ 4.4, «se renovó
+    /// el documento con la Gestión abierta»). La marca persistida (<paramref name="sustituida"/>) guarda el instante y
+    /// el enlace cuando la renovación la vio abierta, pero no es la única vía: la decisión de marcarla se toma con
+    /// estados de acreditación que otro guardado puede cambiar antes del commit sin tocar el Documento (un rechazo o
+    /// una validación concurrentes), la ranura anterior de un relevo renueva sin conocer las Gestiones, y un rechazo
+    /// posterior sobre una acreditación del Documento histórico reabriría una Gestión Cerrada. Derivarlo aquí hace que
+    /// el estado visible dependa solo de lo confirmado, no del orden en que se confirmó.
+    /// </para>
     /// </summary>
-    public static EstadoGestionAutomatica ResolverEstado(bool sustituida, IEnumerable<EstadoAcreditacion> estadosDePasos)
+    public static EstadoGestionAutomatica ResolverEstado(
+        bool sustituida, bool documentoSustituido, IEnumerable<EstadoAcreditacion> estadosDePasos)
     {
         if (sustituida)
             return EstadoGestionAutomatica.Sustituida;
 
         var estados = estadosDePasos.ToList();
-        if (estados.Count == 0 || estados.Any(e => !PasoHecho(e)))
-            return EstadoGestionAutomatica.EnCurso;
+        var porSusPasos = estados.Count == 0 || estados.Any(e => !PasoHecho(e))
+            ? EstadoGestionAutomatica.EnCurso
+            : estados.Any(e => e == EstadoAcreditacion.Subida)
+                ? EstadoGestionAutomatica.PendienteDeValidar
+                : EstadoGestionAutomatica.Cerrada;
 
-        return estados.Any(e => e == EstadoAcreditacion.Subida)
-            ? EstadoGestionAutomatica.PendienteDeValidar
-            : EstadoGestionAutomatica.Cerrada;
+        return documentoSustituido && porSusPasos != EstadoGestionAutomatica.Cerrada
+            ? EstadoGestionAutomatica.Sustituida
+            : porSusPasos;
     }
 }
 

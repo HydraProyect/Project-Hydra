@@ -20,6 +20,9 @@ namespace CaeManager.Application.Gestiones;
 /// confirmada y la Gestión (un fallo deshace las dos), los pasos son exactamente las acreditaciones de ese acto (las
 /// agregadas sin guardar del Documento, no lo que haya en la base cuando se procese un evento) y la sustitución de
 /// la Gestión anterior va en la transacción de la renovación, protegida por la versión del Documento anterior.
+/// La marca de sustitución es la mejor información del acto (instante y enlace), no la garantía: si una acreditación
+/// cambia a la vez, o si la renovación la hace la ranura anterior de un relevo, la lectura sigue tratando como
+/// Sustituida la Gestión abierta de un Documento ya sustituido (<c>GestionAutomatica.ResolverEstado</c>).
 /// </para>
 ///
 /// <para>
@@ -90,13 +93,16 @@ public class NacimientoGestionAutomaticaService(
         if (anterior is null || anterior.EstaSustituida)
             return;
 
-        // El estado de la Gestión, no el de lo que ve quien renueva: todos sus pasos, leídos de la base.
+        // El estado de la Gestión, no el de lo que ve quien renueva: todos sus pasos, leídos de la base. Esta lectura
+        // puede quedar obsoleta antes del commit (otro guardado cambia una acreditación sin tocar el Documento) y no se
+        // bloquea: la marca solo fija el instante y el enlace. Que la Gestión de un Documento sustituido no quede
+        // abierta no depende de acertar aquí, sino de la lectura (ResolverEstado con documentoSustituido).
         var acreditacionIds = anterior.Pasos.Select(p => p.AcreditacionId).ToArray();
         var estados = await documentosContext.AcreditacionesDocumentoPlataforma
             .Where(a => acreditacionIds.Contains(a.Id))
             .Select(a => a.Estado)
             .ToListAsync(cancellationToken);
-        if (GestionAutomatica.ResolverEstado(sustituida: false, estados) == EstadoGestionAutomatica.Cerrada)
+        if (GestionAutomatica.ResolverEstado(sustituida: false, documentoSustituido: false, estados) == EstadoGestionAutomatica.Cerrada)
             return;
 
         anterior.Sustituir(nuevaId, reloj.GetUtcNow().UtcDateTime);

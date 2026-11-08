@@ -83,6 +83,7 @@ public class CrearDocumentoCommandHandler(
     IPublisher publisher,
     IAlcanceDatosService alcanceDatos,
     IVerificadorArchivoAlmacenado verificadorArchivo,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     INacimientoGestionAutomaticaService gestionAutomatica)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
@@ -172,6 +173,30 @@ public class CrearDocumentoCommandHandler(
             && !await verificadorArchivo.EsDocumentoValidoAsync(request.ArchivoUrl, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Documento.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
+        // Un Documento de Empresa se acredita en los accesos de plataforma de los Centros de su Empresa (regla A-1):
+        // su alta se serializa con la de un acceso de plataforma para que ninguna de las dos se pierda el par por leer
+        // antes de que la otra confirme (ver ISerializacionAltasAcreditacionEmpresa).
+        var guardado = ambitoSolicitado == AmbitoAplicacion.Empresa
+            ? await serializacionAltas.EjecutarAsync(ct => GuardarAsync(request, tipoDocumento, ambitoSolicitado, documento, ct), cancellationToken)
+            : await GuardarAsync(request, tipoDocumento, ambitoSolicitado, documento, cancellationToken);
+        if (guardado.EsFallido)
+            return Result.Fallo<Guid>(guardado.Error);
+
+        // Después del commit: este documento puede ser el último que le faltaba al
+        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
+        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
+
+        return Result.Exito(documento.Id);
+    }
+
+    /// <summary>
+    /// El Documento, sus acreditaciones y sus análisis en un solo guardado. Puede ejecutarse más de una vez dentro de la
+    /// serialización (reintento de la transacción): todo lo que guarda se agrega aquí dentro.
+    /// </summary>
+    private async Task<Result> GuardarAsync(
+        CrearDocumentoCommand request, TipoDocumento tipoDocumento, AmbitoAplicacion ambitoSolicitado, Documento documento,
+        CancellationToken cancellationToken)
+    {
         repositorio.Agregar(documento);
 
         // Acreditación por plataforma destino: al nacer el Documento, una
@@ -232,12 +257,7 @@ public class CrearDocumentoCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        // Después del commit: este documento puede ser el último que le faltaba al
-        // expediente de una visita pendiente (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.5).
-        await publisher.Publish(new DocumentacionCambiadaEvent(documento.Id), cancellationToken);
-
-        return Result.Exito(documento.Id);
+        return Result.Exito();
     }
 
     private static Error PropietarioNoEncontrado(AmbitoAplicacion ambito) => Error.Crear(

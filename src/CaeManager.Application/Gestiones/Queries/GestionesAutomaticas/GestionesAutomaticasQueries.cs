@@ -52,6 +52,8 @@ public sealed record ListadoGestionesAutomaticasDto(
 /// cada cifra de <see cref="ListadoGestionesAutomaticasDto.RecuentosPorEstado"/> dice cuántas quedarían al marcar
 /// ese estado, y sale del mismo universo que las filas (<see cref="PasosVisiblesDeGestionesAutomaticas"/>).
 /// <paramref name="DocumentoId"/> da la Gestión de un Documento (enlace «se ha abierto la Gestión»).
+/// Una Gestión que sigue abierta con su Documento ya en el historial cuenta y filtra como Sustituida, la marcara o
+/// no la renovación (<see cref="GestionAutomatica.ResolverEstado"/>): ninguna cifra la da por abierta.
 /// </summary>
 public record ObtenerGestionesAutomaticasQuery(EstadoGestionAutomatica? Estado = null, Guid? DocumentoId = null)
     : IRequest<ListadoGestionesAutomaticasDto>;
@@ -73,7 +75,8 @@ public class ObtenerGestionesAutomaticasQueryHandler(
             gestionId: null, request.DocumentoId, cancellationToken);
 
         var resumenes = await CabecerasGestionesAutomaticas.ResumirAsync(
-            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, cancellationToken);
+            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, alcanceDatos,
+            cancellationToken);
 
         var recuentos = Enum.GetValues<EstadoGestionAutomatica>()
             .ToDictionary(e => e, e => resumenes.Count(r => r.Estado == e));
@@ -105,20 +108,14 @@ public class ObtenerGestionAutomaticaQueryHandler(
             return null;
 
         var resumen = (await CabecerasGestionesAutomaticas.ResumirAsync(
-            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, cancellationToken))
+            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, alcanceDatos,
+            cancellationToken))
             .Single();
 
         var gestion = await gestionesContext.GestionesAutomaticas
             .Where(g => g.Id == request.Id)
             .Select(g => new { g.NacidaPorUsuarioId, g.SustituidaEnUtc, g.SustituidaPorGestionId })
             .SingleAsync(cancellationToken);
-
-        // El enlace a la Gestión que la sustituyó solo sale si quien consulta también ve esa: su Id no puede revelar
-        // la existencia de una Gestión con todos sus pasos fuera de su cartera (mismo universo, D-7).
-        var sustitutaVisible = gestion.SustituidaPorGestionId is { } sustitutaId
-                               && (await PasosVisiblesDeGestionesAutomaticas.CargarAsync(
-                                   gestionesContext, documentosContext, centrosContext, proveedoresContext, alcanceDatos,
-                                   sustitutaId, documentoId: null, cancellationToken)).Count > 0;
 
         var documento = await documentosContext.Documentos
             .Where(d => d.Id == resumen.DocumentoId)
@@ -130,9 +127,29 @@ public class ObtenerGestionAutomaticaQueryHandler(
                 d.FechaEmision,
                 d.FechaVencimiento,
                 d.EstadoVigencia,
-                d.ArchivoUrl
+                d.ArchivoUrl,
+                d.SustituidoEnUtc,
+                d.SustituidoPorDocumentoId
             })
             .SingleAsync(cancellationToken);
+
+        // Sustituida sin marca: la lectura la deriva porque su Documento ya está en el historial (ResolverEstado), y
+        // entonces el instante y la sustituta salen del Documento: cuándo se sustituyó y la Gestión del que lo sustituyó.
+        var sustituidaSinMarca = resumen.Estado == EstadoGestionAutomatica.Sustituida && gestion.SustituidaEnUtc is null;
+        var sustituidaEnUtc = gestion.SustituidaEnUtc ?? (sustituidaSinMarca ? documento.SustituidoEnUtc : null);
+        var sustitutaId = gestion.SustituidaPorGestionId;
+        if (sustitutaId is null && sustituidaSinMarca && documento.SustituidoPorDocumentoId is { } documentoSustitutoId)
+            sustitutaId = await gestionesContext.GestionesAutomaticas
+                .Where(g => g.DocumentoId == documentoSustitutoId)
+                .Select(g => (Guid?)g.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+
+        // El enlace a la Gestión que la sustituyó solo sale si quien consulta también ve esa: su Id no puede revelar
+        // la existencia de una Gestión con todos sus pasos fuera de su cartera (mismo universo, D-7).
+        var sustitutaVisible = sustitutaId is { } idSustituta
+                               && (await PasosVisiblesDeGestionesAutomaticas.CargarAsync(
+                                   gestionesContext, documentosContext, centrosContext, proveedoresContext, alcanceDatos,
+                                   idSustituta, documentoId: null, cancellationToken)).Count > 0;
         var operativo = await documentosContext.Documentos.Operativos().AnyAsync(d => d.Id == resumen.DocumentoId, cancellationToken);
 
         string? identificador = documento.TrabajadorId is { } trabajadorId
@@ -167,7 +184,7 @@ public class ObtenerGestionAutomaticaQueryHandler(
             .ToList();
 
         return new GestionAutomaticaDetalleDto(
-            resumen, gestion.NacidaPorUsuarioId, gestion.SustituidaEnUtc, sustitutaVisible ? gestion.SustituidaPorGestionId : null,
+            resumen, gestion.NacidaPorUsuarioId, sustituidaEnUtc, sustitutaVisible ? sustitutaId : null,
             new DocumentoDeGestionAutomaticaDto(
                 documento.Id, documento.TrabajadorId, documento.EmpresaId, identificador, documento.FechaEmision,
                 documento.FechaVencimiento, documento.EstadoVigencia, operativo, vigente,
@@ -176,14 +193,19 @@ public class ObtenerGestionAutomaticaQueryHandler(
     }
 }
 
-/// <summary>Cabecera (título, Empresa gestionada, estado, avance) de las Gestiones que tienen pasos visibles.</summary>
+/// <summary>
+/// Cabecera (título, Empresa gestionada, estado, avance) de las Gestiones que tienen pasos visibles. La Empresa
+/// gestionada de un Documento de Trabajador es su Empresa empleadora y solo se informa si está en algún alcance de
+/// cartera de quien consulta (<see cref="AlcanceDatosServiceExtensions.EmpresaEnAlgunAlcanceDeCarteraAsync"/>); si
+/// no, llega null, id y nombre a la vez.
+/// </summary>
 internal static class CabecerasGestionesAutomaticas
 {
     public static async Task<List<GestionAutomaticaResumenDto>> ResumirAsync(
         IReadOnlyCollection<PasoVisibleGestionAutomatica> pasos, IGestionesQueryContext gestionesContext,
         IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
         IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext,
-        CancellationToken cancellationToken)
+        IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken)
     {
         if (pasos.Count == 0)
             return [];
@@ -201,6 +223,7 @@ internal static class CabecerasGestionesAutomaticas
                     gestion.Origen,
                     gestion.CreadoEnUtc,
                     gestion.SustituidaEnUtc,
+                    DocumentoSustituido = documento.SustituidoEnUtc != null,
                     TipoNombre = tipo.Nombre,
                     documento.TrabajadorId,
                     documento.EmpresaId
@@ -210,12 +233,27 @@ internal static class CabecerasGestionesAutomaticas
         var trabajadorIds = cabeceras.Where(c => c.TrabajadorId != null).Select(c => c.TrabajadorId!.Value).Distinct().ToArray();
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
-            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, t.EmpresaId })
+            // La Empresa empleadora: EmpresaId ?? SubcontrataId, como RequisitosObligatoriosIncumplidos y
+            // CalculoEstadoCentroService (CK_Trabajadores_EmpresaXorSubcontrata: solo una de las dos). SubcontrataId es
+            // deuda terminológica legacy: aquí identifica la Empresa empleadora contraparte.
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, EmpresaEmpleadoraId = t.EmpresaId ?? t.SubcontrataId })
             .ToDictionaryAsync(t => t.Id, cancellationToken);
 
-        var empresaIds = cabeceras.Select(c => c.EmpresaId)
-            .Concat(trabajadores.Values.Select(t => t.EmpresaId))
-            .Where(e => e != null).Select(e => e!.Value).Distinct().ToArray();
+        // Ver al Trabajador no da a ver a quién emplea: la Empresa empleadora solo se nombra si está en algún alcance de
+        // cartera de quien consulta (la regla de la Semana por Empresa y del Mes). Si no, la Gestión sigue viéndose
+        // —su universo es el del Trabajador y el Centro— pero sin Empresa gestionada, como el Mes deja el vencimiento
+        // sin Empresa. La Empresa de un Documento de Empresa ya la filtró el universo (alcance de gestión).
+        var empleadorasEnAlcance = new HashSet<Guid>();
+        foreach (var empleadora in trabajadores.Values.Where(t => t.EmpresaEmpleadoraId != null)
+                     .Select(t => t.EmpresaEmpleadoraId!.Value).Distinct())
+        {
+            if (await alcanceDatos.EmpresaEnAlgunAlcanceDeCarteraAsync(empleadora, cancellationToken))
+                empleadorasEnAlcance.Add(empleadora);
+        }
+
+        var empresaIds = cabeceras.Where(c => c.EmpresaId != null).Select(c => c.EmpresaId!.Value)
+            .Concat(empleadorasEnAlcance)
+            .Distinct().ToArray();
         var empresas = await empresasContext.Empresas
             .Where(e => empresaIds.Contains(e.Id))
             .Select(e => new { e.Id, e.RazonSocial })
@@ -225,7 +263,14 @@ internal static class CabecerasGestionesAutomaticas
         return cabeceras.Select(c =>
             {
                 var trabajador = c.TrabajadorId is { } tId ? trabajadores.GetValueOrDefault(tId) : null;
-                var empresaGestionadaId = c.EmpresaId ?? trabajador?.EmpresaId;
+                var empleadoraVisible = trabajador?.EmpresaEmpleadoraId is { } empleadoraId && empleadorasEnAlcance.Contains(empleadoraId)
+                    ? empleadoraId
+                    : (Guid?)null;
+                // Id y nombre van juntos, como en el Mes: una Empresa que la consulta no encuentra (dada de baja) no deja
+                // un id sin rótulo.
+                var empresaGestionadaId = (c.EmpresaId ?? empleadoraVisible) is { } gestionada && empresas.ContainsKey(gestionada)
+                    ? gestionada
+                    : (Guid?)null;
                 var titular = trabajador?.Nombre
                               ?? (c.EmpresaId is { } eId ? empresas.GetValueOrDefault(eId) : null)
                               ?? string.Empty;
@@ -234,7 +279,7 @@ internal static class CabecerasGestionesAutomaticas
                 return new GestionAutomaticaResumenDto(
                     c.Id, c.DocumentoId, c.Origen, c.TipoNombre, titular,
                     empresaGestionadaId, empresaGestionadaId is { } id ? empresas.GetValueOrDefault(id) : null,
-                    c.CreadoEnUtc, GestionAutomatica.ResolverEstado(c.SustituidaEnUtc is not null, estados),
+                    c.CreadoEnUtc, GestionAutomatica.ResolverEstado(c.SustituidaEnUtc is not null, c.DocumentoSustituido, estados),
                     AvanceGestionAutomatica.De(estados),
                     PasosVisiblesDeGestionesAutomaticas.Ordenar(deLaGestion).Select(p => p.Plataforma).Distinct().ToList(),
                     estados.Contains(EstadoAcreditacion.Rechazada));

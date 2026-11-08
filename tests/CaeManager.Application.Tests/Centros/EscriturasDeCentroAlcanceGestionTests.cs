@@ -166,7 +166,7 @@ public class EscriturasDeCentroAlcanceGestionTests
 
         CrearCanalGestion => await new CrearCanalGestionCommandHandler(
                 _canales, alcance, new ProveedoresPlataformaCaeQueryContextFalso(), _centrosContexto,
-                new AltaAcreditacionesPlataformaServiceFalso(), _unitOfWork)
+                new AltaAcreditacionesPlataformaServiceFalso(), _unitOfWork, new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa())
             .Handle(
                 new CrearCanalGestionCommand(
                     _centro.Id, TipoCanalGestion.Email, "Avisos de visitas", null, null, null, null, "visitas@ejemplo.test", null, null),

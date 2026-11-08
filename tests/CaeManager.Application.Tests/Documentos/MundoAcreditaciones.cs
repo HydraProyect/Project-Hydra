@@ -48,9 +48,21 @@ internal sealed class MundoAcreditaciones
         return trabajador;
     }
 
-    public Centro Centro(string nombre = "Planta Norte")
+    /// <summary>
+    /// Trabajador de la Empresa del mundo dado de alta con <see cref="Domain.Trabajadores.Trabajador.DeSubcontrata"/>:
+    /// <c>EmpresaId</c> nulo y su Empresa en <c>SubcontrataId</c>.
+    /// </summary>
+    public Trabajador TrabajadorDeSubcontrata(string dni = "87654321X")
     {
-        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), nombre);
+        var trabajador = Domain.Trabajadores.Trabajador.DeSubcontrata(EmpresaId, "Luis", "Gómez", dni);
+        TrabajadoresContexto.ListaTrabajadores.Add(trabajador);
+        return trabajador;
+    }
+
+    /// <summary>Un Centro de otra Empresa del Tenant, salvo que se pase <paramref name="empresaId"/>.</summary>
+    public Centro Centro(string nombre = "Planta Norte", Guid? empresaId = null)
+    {
+        var centro = new Centro(Guid.NewGuid(), empresaId ?? Guid.NewGuid(), nombre);
         CentrosContexto.ListaCentros.Add(centro);
         return centro;
     }

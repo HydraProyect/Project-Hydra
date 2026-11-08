@@ -221,6 +221,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IRelevanciaCaeService, RelevanciaCaeService>();
         services.AddScoped<IMotorCoincidenciaConversacionesService, MotorCoincidenciaConversacionesService>();
         services.AddScoped<IAltaAcreditacionesPlataformaService, AltaAcreditacionesPlataformaService>();
+        services.AddScoped<IConciliacionAcreditacionesEmpresaService, ConciliacionAcreditacionesEmpresaService>();
         services.AddScoped<Gestiones.INacimientoGestionAutomaticaService, Gestiones.NacimientoGestionAutomaticaService>();
         services.AddScoped<CaeManager.Application.Common.Archivos.IVerificadorArchivoAlmacenado, CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado>();
         services.AddScoped<IPaqueteDocumentalVisitaService, PaqueteDocumentalVisitaService>();

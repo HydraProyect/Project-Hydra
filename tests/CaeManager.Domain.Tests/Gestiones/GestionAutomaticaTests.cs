@@ -81,41 +81,68 @@ public class GestionAutomaticaTests
     [Fact]
     public void Con_algun_paso_por_hacer_esta_en_curso()
     {
-        GestionAutomatica.ResolverEstado(false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.PendienteDeSubir])
+        GestionAutomatica.ResolverEstado(false, false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.PendienteDeSubir])
             .Should().Be(EstadoGestionAutomatica.EnCurso);
     }
 
     [Fact]
     public void Un_rechazo_la_devuelve_a_en_curso_aunque_lo_demas_este_validado()
     {
-        GestionAutomatica.ResolverEstado(false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.Rechazada])
+        GestionAutomatica.ResolverEstado(false, false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.Rechazada])
             .Should().Be(EstadoGestionAutomatica.EnCurso);
     }
 
     [Fact]
     public void Todos_hechos_con_alguno_solo_subido_queda_pendiente_de_validar()
     {
-        GestionAutomatica.ResolverEstado(false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.Subida])
+        GestionAutomatica.ResolverEstado(false, false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.Subida])
             .Should().Be(EstadoGestionAutomatica.PendienteDeValidar);
     }
 
     [Fact]
     public void Todos_validados_o_no_requeridos_la_cierran()
     {
-        GestionAutomatica.ResolverEstado(false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.NoRequerida])
+        GestionAutomatica.ResolverEstado(false, false, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.NoRequerida])
             .Should().Be(EstadoGestionAutomatica.Cerrada);
     }
 
     [Fact]
     public void Sustituida_manda_sobre_el_estado_de_los_pasos()
     {
-        GestionAutomatica.ResolverEstado(true, [EstadoAcreditacion.Aceptada])
+        GestionAutomatica.ResolverEstado(true, false, [EstadoAcreditacion.Aceptada])
             .Should().Be(EstadoGestionAutomatica.Sustituida);
+    }
+
+    // Hallazgos 1 y 2 de la segunda ronda de Codex sobre la PR #2072: con el Documento en el historial, la Gestión no
+    // puede seguir abierta, la marcara o no la renovación (relevo, o estados leídos que cambiaron antes del commit).
+    [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Rechazada)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    public void Abierta_con_el_documento_ya_sustituido_es_sustituida_aunque_no_se_marcara(EstadoAcreditacion abierto)
+    {
+        GestionAutomatica.ResolverEstado(false, documentoSustituido: true, [EstadoAcreditacion.Aceptada, abierto])
+            .Should().Be(EstadoGestionAutomatica.Sustituida);
+        GestionAutomatica.ResolverEstado(false, documentoSustituido: false, [EstadoAcreditacion.Aceptada, abierto])
+            .Should().NotBe(EstadoGestionAutomatica.Sustituida, "control: con el Documento operativo sigue abierta");
+    }
+
+    [Fact]
+    public void Cerrada_con_el_documento_ya_sustituido_sigue_cerrada()
+    {
+        GestionAutomatica.ResolverEstado(false, documentoSustituido: true, [EstadoAcreditacion.Aceptada, EstadoAcreditacion.NoRequerida])
+            .Should().Be(EstadoGestionAutomatica.Cerrada, "solo se sustituye la que sigue abierta (§ 4.1 regla 4)");
+    }
+
+    [Fact]
+    public void Sin_pasos_visibles_y_con_el_documento_sustituido_no_queda_abierta()
+    {
+        GestionAutomatica.ResolverEstado(false, documentoSustituido: true, []).Should().Be(EstadoGestionAutomatica.Sustituida);
     }
 
     [Fact]
     public void Sin_pasos_visibles_no_se_da_por_cerrada()
     {
-        GestionAutomatica.ResolverEstado(false, []).Should().Be(EstadoGestionAutomatica.EnCurso);
+        GestionAutomatica.ResolverEstado(false, false, []).Should().Be(EstadoGestionAutomatica.EnCurso);
     }
 }

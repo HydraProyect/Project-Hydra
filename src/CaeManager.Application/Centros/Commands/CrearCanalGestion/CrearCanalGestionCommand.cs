@@ -72,7 +72,8 @@ public class CrearCanalGestionCommandValidator : AbstractValidator<CrearCanalGes
 public class CrearCanalGestionCommandHandler(
     ICanalGestionDocumentalRepository repositorio, IAlcanceDatosService alcanceDatos,
     IProveedoresPlataformaCaeQueryContext proveedoresContext, ICentrosQueryContext centrosContext,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<CrearCanalGestionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
@@ -106,16 +107,24 @@ public class CrearCanalGestionCommandHandler(
         if (existentes.Count == 0)
             canal.MarcarComoPrincipal();
 
-        repositorio.Agregar(canal);
-
         // Un acceso de plataforma nuevo es un sitio más donde acreditar: los
         // Documentos que el Centro exige a quienes ya trabajan en él nacen
         // pendientes de subir a este acceso. Un acceso por correo no acredita.
-        // Mismo SaveChangesAsync que el acceso.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, cancellationToken);
+        // Mismo SaveChangesAsync que el acceso. El de plataforma se serializa con
+        // el alta de un Documento de Empresa (ver ISerializacionAltasAcreditacionEmpresa):
+        // sin ello, las dos altas simultáneas se pierden el par entre sí.
+        async Task<Result> GuardarAsync(CancellationToken ct)
+        {
+            repositorio.Agregar(canal);
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Canales = [canal] }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        var guardado = canal.Tipo == TipoCanalGestion.Plataforma
+            ? await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken)
+            : await GuardarAsync(cancellationToken);
 
-        return Result.Exito(canal.Id);
+        return guardado.EsExitoso ? Result.Exito(canal.Id) : Result.Fallo<Guid>(guardado.Error);
     }
 }

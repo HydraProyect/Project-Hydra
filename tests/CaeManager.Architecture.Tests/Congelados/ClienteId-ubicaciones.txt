@@ -231,27 +231,30 @@ src/CaeManager.Application/Proyectos/Queries/ObtenerTecnicosProyecto/ObtenerTecn
 src/CaeManager.Application/Proyectos/Queries/ObtenerVehiculosProyecto/ObtenerVehiculosProyectoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerVisitasProyecto/ObtenerVisitasProyectoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Proyectos/Queries/RequisitosEvento/RequisitosEventoQueries.cs :: ClienteId = 9
+# Condición del lote de reclamación a la Empresa empleadora (2026-11-07), extraída de ObtenerLoteReclamacionQuery y de
+# EnviarReclamacionEmpresaEmpleadoraCommand: Asignación activa -> Centro -> Centro.ClienteId, columna legacy de Cliente
+# empresarial, con el alcance de Clientes visibles leído aquí. El lote, el envío y el Mes la usan sin nombrar ClienteId:
+# el saldo neto baja.
+src/CaeManager.Application/Reclamaciones/AsignacionesReclamables.cs :: ClienteId = 1
+src/CaeManager.Application/Reclamaciones/AsignacionesReclamables.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Reclamaciones/AsignacionesReclamables.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ClienteId = 8
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: ClienteId = 4
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/RegistroEnvioReclamacionService.cs :: clienteIdDelBuzon = 2
-# «Gestionar» a la Empresa empleadora (2026-10-18): el envío revalida lo reclamable con el mismo join que
+# «Gestionar» a la Empresa empleadora (2026-10-18): el envío revalida lo reclamable con la misma condición que
 # ObtenerLoteReclamacionQuery (Asignación activa -> Centro -> Centro.ClienteId, columna legacy de Cliente
 # empresarial) y el mismo alcance de Clientes visibles, para no ofrecer ni aceptar lo que el lote no trae.
-# El join queda duplicado con el de EnviarReclamacionCommand a sabiendas: unificarlo es un incremento propio.
-src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ClienteId = 1
-src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
+# Desde 2026-11-07 esa condición vive en Reclamaciones/AsignacionesReclamables.cs (ver su línea) y el envío solo
+# pasa el alcance. EnviarReclamacionCommand conserva su copia en línea a sabiendas: unificarlo es un incremento propio.
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteId = 1
-src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacionEmpresaEmpleadora/EnviarReclamacionEmpresaEmpleadoraCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ClienteId = 10
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteId = 7
 src/CaeManager.Application/Reclamaciones/PendientesDeReclamacionService.cs :: clienteIdsVisibles = 3
-src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacion/ObtenerLoteReclamacionQuery.cs :: ClienteId = 12
-src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacion/ObtenerLoteReclamacionQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
-src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacion/ObtenerLoteReclamacionQuery.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacion/ObtenerLoteReclamacionQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerLoteReclamacionPorFiltro/ObtenerLoteReclamacionPorFiltroQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionAEmpresaEmpleadora/ObtenerReclamacionAEmpresaEmpleadoraQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/Queries/ObtenerReclamacionAEmpresaEmpleadora/ObtenerReclamacionAEmpresaEmpleadoraQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1

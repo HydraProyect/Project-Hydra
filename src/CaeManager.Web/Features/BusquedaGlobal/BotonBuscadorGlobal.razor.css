@@ -7,11 +7,12 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    background-color: var(--color-surface-subtle);
+    /* Marco de Design (.tvm-busca): fondo surface y radio md; el borde sigue siendo de control. */
+    background-color: var(--color-surface);
     /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
        (DDL-062/063). --color-border no lo alcanza (1,44:1). */
     border: var(--border-control);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     padding: var(--space-1) var(--space-3);
     color: var(--color-text-muted);
     font: var(--font-body-md);
@@ -34,11 +35,12 @@
 }
 
 .atajo-teclado {
-    font: var(--font-body-sm);
-    padding: 1px var(--space-1);
-    border-radius: var(--radius-sm);
-    border: var(--border-default);
-    border-bottom-width: 2px;
+    /* Marco de Design (.tvm-busca kbd): 11/14 peso 600, relleno 2/6, radio 4, borde fuerte sobre fondo sutil. */
+    font: 600 0.6875rem/0.875rem var(--font-family);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--color-border-strong);
+    background-color: var(--color-surface-subtle);
     margin-left: auto;
     color: var(--color-text-muted);
 }

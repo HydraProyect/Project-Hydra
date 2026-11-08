@@ -50,9 +50,16 @@
     color: inherit;
 }
 
-/* Sin filas en ese estado: sigue pulsable (se puede desmarcar), pero cede protagonismo. */
-.franja-estado-boton-vacio:not([aria-pressed="true"]) {
-    opacity: 0.6;
+/* Sin filas en ese estado: sigue pulsable (se puede desmarcar), pero cede protagonismo. Se atenúan el punto y
+   la cifra, nunca el texto entero: una opacidad sobre el botón dejaba el nombre a 2,92:1 en oscuro, por debajo
+   del 4,5:1 de WCAG 1.4.3 para un control activo. */
+.franja-estado-boton-vacio:not([aria-pressed="true"]) .franja-estado-punto {
+    opacity: 0.45;
+}
+
+.franja-estado-boton-vacio:not([aria-pressed="true"]) .franja-estado-recuento {
+    color: var(--color-text-muted);
+    font-weight: 400;
 }
 
 .franja-estado-punto {

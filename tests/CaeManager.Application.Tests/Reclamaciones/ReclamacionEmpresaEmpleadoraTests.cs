@@ -14,13 +14,16 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Empresas;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -48,6 +51,7 @@ public class ReclamacionEmpresaEmpleadoraTests
     private readonly ResolucionDestinatariosAgendaServiceFalso _agenda = new();
     private readonly RegistroEnvioReclamacionServiceFalso _registro = new();
     private readonly ReclamacionesQueryContextFalso _reclamaciones = new();
+    private readonly ProyectosQueryContextFalso _proyectos = new();
 
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente SA", "B12345674", false, null, null);
     private readonly Empresa _contratista = new("Contratista SL", "B12345674");
@@ -100,7 +104,7 @@ public class ReclamacionEmpresaEmpleadoraTests
     }
 
     private ReclamacionEmpresaEmpleadoraService Servicio(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae") =>
-        new(_trabajadores, _empresas, _catalogo, alcance ?? new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con(rol), _agenda, Destinos());
+        new(_trabajadores, _empresas, _catalogo, alcance ?? new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con(rol), _agenda, Destinos(), _proyectos);
 
     private DestinoDeReclamacionesEnviadasService Destinos() => new(_reclamaciones, _documentos, _trabajadores, _empresas, _asignaciones, _centros);
 
@@ -501,6 +505,150 @@ public class ReclamacionEmpresaEmpleadoraTests
         resultado.EsFallido.Should().BeTrue($"el {fuera} no es visible y el lote tampoco lo ofrecería");
         resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
         _registro.VecesLlamado.Should().Be(0);
+    }
+
+    // ---- Voluntarios y ámbito del Tipo: la regla del Mes y la Semana ----
+
+    private Trabajador VoluntarioDeSevilla(bool activo)
+    {
+        var voluntario = DeContratista("Vera", "00000005M", _sevilla);
+        voluntario.CambiarTipoContratacion(TipoContratacion.Voluntario);
+        if (activo)
+        {
+            // Un voluntario está activo mientras participa en un Evento sin terminar (ActividadVoluntarios).
+            var evento = Proyecto.Crear(_cliente.Id, _centro.Id, "Evento Demo", Hoy.AddDays(-1), Hoy.AddDays(30), null, TipoProyecto.Evento);
+            _proyectos.ListaProyectos.Add(evento);
+            _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(evento.Id, voluntario.Id, Hoy.AddDays(-1)));
+        }
+        return voluntario;
+    }
+
+    [Fact]
+    public async Task El_documento_de_un_voluntario_inactivo_hace_fallar_el_envio_entero()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var delVoluntario = DocumentoQueVence(VoluntarioDeSevilla(activo: false));
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, delVoluntario.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("el Mes y la Semana no lo ofrecen y el lote tampoco: todo o nada");
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_documento_de_un_voluntario_activo_sale_en_el_envio()
+    {
+        var delVoluntario = DocumentoQueVence(VoluntarioDeSevilla(activo: true));
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [delVoluntario.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.UltimosDocumentoIds.Should().Equal(delVoluntario.Id);
+    }
+
+    [Fact]
+    public async Task El_lote_no_ofrece_lo_de_un_voluntario_inactivo_ni_a_la_Empresa_ni_al_Cliente_y_si_lo_de_uno_activo()
+    {
+        var inactivo = VoluntarioDeSevilla(activo: false);
+        var activo = Trabajador.DeEmpresa(_contratista.Id, "Alba", "Pérez", "00000006Y");
+        activo.FijarDelegacionEmpresaYOficio(_sevilla, null);
+        activo.CambiarTipoContratacion(TipoContratacion.Voluntario);
+        _trabajadores.ListaTrabajadores.Add(activo);
+        var evento = Proyecto.Crear(_cliente.Id, _centro.Id, "Evento Demo", Hoy.AddDays(-1), Hoy.AddDays(30), null, TipoProyecto.Evento);
+        _proyectos.ListaProyectos.Add(evento);
+        _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(evento.Id, activo.Id, Hoy.AddDays(-1)));
+
+        var reagrupados = await Servicio().ReagruparAsync(
+            [LoteDelCliente(Reclamable(inactivo), Reclamable(activo))], CancellationToken.None);
+
+        reagrupados.LotesCliente.Should().BeEmpty("caer de vuelta al Cliente reclamaría lo que la regla excluye");
+        reagrupados.LotesEmpresaEmpleadora.Should().ContainSingle()
+            .Which.Documentos.Select(d => d.TrabajadorId).Should().Equal(activo.Id);
+    }
+
+    [Fact]
+    public async Task Un_documento_de_Trabajador_de_un_Tipo_de_ambito_Empresa_hace_fallar_el_envio_entero()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var tipoEmpresa = new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.Add(tipoEmpresa);
+        var deAmbitoEmpresa = Documento.DeTrabajador(_anaSevilla.Id, tipoEmpresa.Id, Hoy.AddYears(-1), VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
+        _documentos.ListaDocumentos.Add(deAmbitoEmpresa);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id, deAmbitoEmpresa.Id]), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("el Mes y la Semana solo ofrecen Tipos de ámbito Trabajador desde la fila de un Trabajador");
+        resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    /// <summary>El lote de Trabajador REAL (ObtenerLoteReclamacionQueryHandler) sobre los mismos dobles que el envío.</summary>
+    private ObtenerLoteReclamacionQueryHandler LoteDeTrabajador()
+    {
+        var alcance = new AlcanceDatosServiceFalso();
+        var configuracion = new ConfiguracionQueryContextFalso();
+        configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 7));
+        return new(configuracion, _documentos, _tipos, _trabajadores, _asignaciones, _centros, _empresas, _reclamaciones, alcance, _agenda,
+            PendientesDeReclamacionPruebas.Crear(_documentos, _tipos, _trabajadores, _asignaciones, _centros, _empresas, alcance));
+    }
+
+    /// <summary>Un Documento que cuelga de un Trabajador con un Tipo de ámbito Empresa: la aplicación no lo crea, la base podría tenerlo.</summary>
+    private Documento DeTrabajadorConTipoDeAmbitoEmpresa(Trabajador trabajador, VigenciaDocumento vigencia)
+    {
+        var tipoEmpresa = new TipoDocumento("Certificado de la Seguridad Social", null, false, 1, AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.Add(tipoEmpresa);
+        var documento = Documento.DeTrabajador(trabajador.Id, tipoEmpresa.Id, Hoy.AddYears(-1), vigencia);
+        _documentos.ListaDocumentos.Add(documento);
+        return documento;
+    }
+
+    [Fact]
+    public async Task Un_sin_confirmar_de_Trabajador_de_un_Tipo_de_ambito_Empresa_hace_fallar_el_envio_entero()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var deAmbitoEmpresa = DeTrabajadorConTipoDeAmbitoEmpresa(_anaSevilla, VigenciaDocumento.SinConfirmar);
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [deAna.Id], Pendientes: [PendienteSinFecha.SinConfirmar(deAmbitoEmpresa.Id)]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue("la vía «Sin confirmar» aplica la misma regla de ámbito que la vía con fecha: todo o nada");
+        resultado.Error.Codigo.Should().Be(PendientesDeReclamacionService.ErrorDesactualizados().Codigo);
+        _registro.VecesLlamado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Lo_que_el_lote_ofrece_a_la_Delegacion_lo_acepta_el_envio_y_un_Tipo_de_ambito_Empresa_no_se_ofrece()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var sinConfirmarDeAna = DocumentoSinConfirmarDeTrabajador(_anaSevilla);
+        var venceDeAmbitoEmpresa = DeTrabajadorConTipoDeAmbitoEmpresa(_anaSevilla, VigenciaDocumento.VenceEl(Hoy.AddDays(10)));
+        var sinConfirmarDeAmbitoEmpresa = DeTrabajadorConTipoDeAmbitoEmpresa(_anaSevilla, VigenciaDocumento.SinConfirmar);
+
+        var lotesCliente = await LoteDeTrabajador().Handle(new ObtenerLoteReclamacionQuery(IncluirPendientesSinFecha: true), CancellationToken.None);
+        var sevilla = (await Servicio().ReagruparAsync(lotesCliente, CancellationToken.None))
+            .LotesEmpresaEmpleadora.Single(l => l.EmpresaEmpleadora!.DelegacionEmpresaId == _sevilla.Id);
+        var pendientesOfrecidos = sevilla.PendientesSinFecha ?? [];
+
+        sevilla.Documentos.Select(d => d.DocumentoId).Should().Equal([deAna.Id], "un Tipo de ámbito Empresa no es de la vía del Trabajador");
+        sevilla.Documentos.Select(d => d.DocumentoId).Should().NotContain(venceDeAmbitoEmpresa.Id);
+        pendientesOfrecidos.Select(p => p.DocumentoId).Should().Contain(sinConfirmarDeAna.Id)
+            .And.NotContain(sinConfirmarDeAmbitoEmpresa.Id);
+
+        // Coherencia lote ↔ envío: enviar exactamente lo ofrecido sale entero.
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(
+                _contratista.Id, _sevilla.Id, [.. sevilla.Documentos.Select(d => d.DocumentoId)],
+                Pendientes: [.. pendientesOfrecidos.Select(p => p.ComoPedido())]),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.UltimosDocumentoIds.Should().BeEquivalentTo([deAna.Id, sinConfirmarDeAna.Id]);
     }
 
     // ---- Lo que se pide sin fecha ----

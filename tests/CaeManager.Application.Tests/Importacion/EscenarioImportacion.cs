@@ -54,6 +54,9 @@ internal sealed class EscenarioImportacion
     public OperacionImportacionRepositorioFalso OperacionImportacionRepositorio { get; } = new();
     public DocumentosFalsos.AcreditacionDocumentoPlataformaRepositorioFalso AcreditacionRepositorio { get; } = new();
 
+    /// <summary>Cuenta si la importación serializó su guardado con el alta de un Documento de Empresa (regla A-1).</summary>
+    public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
+
     public Trabajador? TrabajadorExistente { get; private set; }
     public Centro? CentroExistente { get; private set; }
     public TipoDocumento? TipoDocumentoExistente { get; private set; }
@@ -149,7 +152,8 @@ internal sealed class EscenarioImportacion
         new AltaAcreditacionesPlataformaService(
             AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto,
             TiposDocumentoContexto, AcreditacionRepositorio),
-        alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso());
+        alcance ?? new ClientesFalsos.AlcanceDatosServiceFalso(),
+        Serializacion);
 
     public RecorteDeAnalisisAlAmbito Recorte(string? rol, IAlcanceDatosService alcance) => new(
         new AutorizacionEscrituraEfectiva(

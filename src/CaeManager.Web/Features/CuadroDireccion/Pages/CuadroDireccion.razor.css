@@ -563,9 +563,11 @@
     .cuadro-bloque ::deep .tarjeta { padding: 16px; }
     .cuadro ::deep .pestanas-lista-envuelta { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
     .cuadro-barra > * { flex: 1 1 auto; min-width: 0; }
-    .cuadro-periodo { display: flex; }
-    .cuadro-momento { flex: 1 1 auto; justify-content: space-between; }
-    .cuadro-momento button { padding: 0 8px; }
+    /* Los tres momentos se apilan en columna con las flechas a los lados (maqueta a 375: .tv-seg de 3 filas de
+       34 px). En fila, «Año 3 sep 2026» desbordaba la caja de 266 px y quedaba debajo de «›». */
+    .cuadro-periodo { display: flex; justify-content: center; height: auto; }
+    .cuadro-momento { flex: 0 1 auto; flex-direction: column; align-items: stretch; height: auto; }
+    .cuadro-momento button { text-align: left; line-height: 22px; }
     .cuadro-select { width: 100%; }
     .cuadro-espaciador { display: none; }
     .cuadro-barra ::deep .boton { width: 100%; }

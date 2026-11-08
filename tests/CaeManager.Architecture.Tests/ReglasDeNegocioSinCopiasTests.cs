@@ -322,6 +322,10 @@ public class ReglasDeNegocioSinCopiasTests
         // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
         // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
+        // Gestión automática (segunda ronda de Codex sobre la PR #2072): la cabecera necesita saber si el Documento de la
+        // Gestión ya está sustituido para no darla por abierta (GestionAutomatica.ResolverEstado). No filtra Documentos ni
+        // pregunta si están en uso: la Gestión se lista igual, y la mitad «no eliminado» no aplica a esta pregunta.
+        ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 1,
     };
 
     [Fact]
@@ -417,7 +421,8 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
         // Gestión automática (§ 4.1 de la especificación de Gestión de varios pasos): una Gestión Sustituida sigue
         // listándose y abriéndose con el Documento renovado que la hizo nacer, así que su Documento se resuelve por Id
-        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos.
+        // aunque ya no sea operativo; la ficha dice si lo es con `.Operativos()`. No decide estado ni cifras de Documentos:
+        // que su Documento esté sustituido solo hace Sustituida a la Gestión que siga abierta (GestionAutomatica.ResolverEstado).
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
 

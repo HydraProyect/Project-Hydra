@@ -112,7 +112,7 @@ public class AuditoriaModalidadGestionCaeTests : IAsyncLifetime
         {
             var resultado = await new EstablecerGestionCaeCentroCommandHandler(
                     new CentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto),
-                    new AlcanceDatosServiceFalso(), contexto)
+                    new AlcanceDatosServiceFalso(), contexto, new SerializacionAltasSinBloqueo())
                 .Handle(new EstablecerGestionCaeCentroCommand(centroId, ModalidadGestionCae.ConGestionCae), CancellationToken.None);
             resultado.EsExitoso.Should().BeTrue();
         }

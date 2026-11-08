@@ -393,6 +393,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Un_re_arranque_con_la_fecha_de_demostracion_ya_pasada_avisa_y_no_escribe_porque_no_queda_nada_por_sembrar()
     {
+        // Un único instante: «ayer» y el «hoy» con que la siembra decide que esa fecha ya pasó salen del mismo reloj (issue #2073).
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var antes = await fixture.Arnes.RecuentoAsync();
         var avisos = new ArnesPilotoOutbound.RegistroDeAvisos();
         var ayer = ArnesPilotoOutbound.Configurar(DiaDeNegocio.Hoy().AddDays(-1));
@@ -775,6 +777,50 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             salida.WriteLine($"MEDIDO {tenant.Clave}: {deEmpresaYaAcreditados} documentos de Empresa acreditados en el Centro con plataforma; una Asignación nueva añade {deEmpresaNuevos}");
             deEmpresaYaAcreditados.Should().BeGreaterThan(0, $"control {tenant.Clave}: la Empresa propia tiene documentos que acreditar allí");
             deEmpresaNuevos.Should().Be(0, $"{tenant.Clave}: la siembra ya acreditó lo que la regla de alta exige para la Empresa en ese Centro");
+        }
+    }
+
+    /// <summary>
+    /// Regla A-1 del 2026-11-08: un Documento de Empresa se acredita en los Centros de su Empresa (<c>Centro.EmpresaId</c>)
+    /// gestionados por plataforma aunque nadie esté asignado allí. Se vuelve a poner en juego el acceso de plataforma ya
+    /// sembrado con el servicio real, sin guardar: la Empresa del Centro no tiene ningún documento que la siembra no hubiera
+    /// acreditado, y el control comprueba que el Centro es de la Empresa propia. Es una guarda de no regresión de la
+    /// siembra («no deja nada por acreditar»): en todos los perfiles el Centro con plataforma ya tiene Trabajadores propios
+    /// asignados, así que no discrimina la regla nueva de la anterior. El caso sin Trabajadores lo fijan los tests
+    /// unitarios de <c>AltaAcreditacionesPlataformaServiceTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_poner_en_juego_el_acceso_de_plataforma_no_acredita_ningun_documento_de_la_Empresa_del_Centro_que_la_siembra_no_hubiera_acreditado()
+    {
+        var conPlataforma = CatalogoPilotoOutbound.Tenants.Where(t => t.CentroConPlataforma is not null).ToList();
+        conPlataforma.Should().NotBeEmpty("control: algún perfil tiene un Centro con plataforma");
+
+        foreach (var tenant in conPlataforma)
+        {
+            var (centroEsDeLaPropia, deEmpresaYaAcreditados, deEmpresaNuevos) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, sp) =>
+            {
+                var canal = await db.CanalesGestionDocumental.AsNoTracking().SingleAsync(c => c.Tipo == TipoCanalGestion.Plataforma);
+                var propia = await db.Empresas.AsNoTracking().Where(e => e.EsPropia).Select(e => e.Id).SingleAsync();
+                var empresaDelCentro = await db.Centros.AsNoTracking().Where(c => c.Id == canal.CentroId).Select(c => c.EmpresaId).SingleAsync();
+                var documentosDeEmpresa = await db.Documentos.AsNoTracking().Operativos()
+                    .Where(d => d.EmpresaId == empresaDelCentro && d.TrabajadorId == null).Select(d => d.Id).ToListAsync();
+                var yaAcreditados = await db.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                    .CountAsync(a => a.CanalGestionDocumentalId == canal.Id && documentosDeEmpresa.Contains(a.DocumentoId));
+
+                await sp.GetRequiredService<IAltaAcreditacionesPlataformaService>().AgregarPendientesAsync(
+                    new AltasConAcreditacion { Canales = [canal] });
+
+                // Sin SaveChanges: lo agregado se queda en el seguimiento de este ámbito y se descarta con él.
+                var nuevos = db.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+                    .Where(e => e.State == EntityState.Added && documentosDeEmpresa.Contains(e.Entity.DocumentoId))
+                    .Count();
+                return (empresaDelCentro == propia, yaAcreditados, nuevos);
+            });
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {deEmpresaYaAcreditados} documentos de la Empresa del Centro acreditados; volver a poner en juego el acceso añade {deEmpresaNuevos}");
+            centroEsDeLaPropia.Should().BeTrue($"control {tenant.Clave}: el Centro con plataforma es de la Empresa propia");
+            deEmpresaYaAcreditados.Should().BeGreaterThan(0, $"control {tenant.Clave}: la Empresa del Centro tiene documentos que acreditar allí");
+            deEmpresaNuevos.Should().Be(0, $"{tenant.Clave}: la siembra ya acreditó lo que la regla de alta exige para la Empresa del Centro");
         }
     }
 
@@ -1397,6 +1443,7 @@ public class PilotoOutboundNoEscribeTests(PilotoOutboundSinSiembraFixture fixtur
     [InlineData("+10", "*queda a más de 9 días de hoy*")]
     public async Task Con_la_fecha_de_demostracion_ausente_ilegible_pasada_o_lejana_se_niega_antes_de_escribir(string? fecha, string mensaje)
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var valor = fecha is not null && (fecha[0] is '-' or '+')
             ? DiaDeNegocio.Hoy().AddDays(int.Parse(fecha)).ToString("yyyy-MM-dd")
             : fecha;

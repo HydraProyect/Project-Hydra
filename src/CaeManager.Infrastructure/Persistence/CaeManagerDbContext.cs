@@ -95,8 +95,14 @@ public class CaeManagerDbContext(
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
-        CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
+        CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext,
+        CaeManager.Application.Calendario.ICalendarioLaboralQueryContext
 {
+    public DbSet<CaeManager.Domain.CalendarioLaboral.FestivoOficial> FestivosOficiales => Set<CaeManager.Domain.CalendarioLaboral.FestivoOficial>();
+    IQueryable<CaeManager.Domain.CalendarioLaboral.FestivoOficial> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.FestivosOficiales => FestivosOficiales.AsNoTracking();
+    public DbSet<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona> CalendariosLaboralesPersona => Set<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona>();
+    IQueryable<CaeManager.Domain.CalendarioLaboral.CalendarioLaboralPersona> CaeManager.Application.Calendario.ICalendarioLaboralQueryContext.CalendariosLaboralesPersona => CalendariosLaboralesPersona.AsNoTracking();
+
     public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
     IQueryable<CaeManager.Domain.Dashboard.TarifaOperadorCae> CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.TarifasOperadorCae => TarifasOperadorCae;
     void CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.Agregar(CaeManager.Domain.Dashboard.TarifaOperadorCae tarifa) => TarifasOperadorCae.Add(tarifa);
@@ -493,6 +499,119 @@ public class CaeManagerDbContext(
     // invocan todas las demás (SaveChangesAsync(ct) incluida): así ningún camino de guardado
     // asíncrono escapa a la traducción.
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        // Las auditorías que el llamador agregó a mano antes de guardar: un reintento las conserva. Las que el
+        // interceptor construye en cada intento se descartan y se vuelven a construir.
+        HashSet<RegistroAuditoria>? auditoriasDelLlamador = null;
+        for (var intento = 1; ; intento++)
+        {
+            if (intento == 1)
+                auditoriasDelLlamador = AuditoriasPendientesSinDetectarCambios();
+            try
+            {
+                return await GuardarTraduciendoAsync(acceptAllChangesOnSuccess, cancellationToken);
+            }
+            catch (DbUpdateException ex) when (intento <= MaximoReintentosParAcreditacionYaExistente
+                                               && EsParDeAcreditacionYaExistente(ex))
+            {
+                // Otra operación simultánea guardó el mismo par (Documento, acceso de plataforma) entre la lectura de la
+                // regla de alta y este guardado: el par ya existe, que es lo que el alta quería. Se quitan del guardado
+                // las acreditaciones que ya están en la base y se repite con el resto; el alta no falla por eso.
+                if (!await DescartarAcreditacionesYaExistentesAsync(auditoriasDelLlamador!, cancellationToken))
+                    throw;
+            }
+        }
+    }
+
+    private HashSet<RegistroAuditoria> AuditoriasPendientesSinDetectarCambios()
+    {
+        // Sin DetectChanges: una auditoría solo entra por Add, que ya la deja en Added. El guardado detecta después.
+        var deteccionAutomatica = ChangeTracker.AutoDetectChangesEnabled;
+        ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            return ChangeTracker.Entries<RegistroAuditoria>()
+                .Where(e => e.State == EntityState.Added)
+                .Select(e => e.Entity)
+                .ToHashSet(ReferenceEqualityComparer.Instance as IEqualityComparer<RegistroAuditoria>);
+        }
+        finally
+        {
+            ChangeTracker.AutoDetectChangesEnabled = deteccionAutomatica;
+        }
+    }
+
+    /// <summary>
+    /// Cada reintento quita al menos una acreditación del guardado: el tope solo corta una carrera que se repitiera
+    /// sin fin, nunca un guardado legítimo.
+    /// </summary>
+    private const int MaximoReintentosParAcreditacionYaExistente = 3;
+
+    /// <summary>
+    /// Nombre exacto del índice único del par en PostgreSQL: el que EF genera, recortado a 63 caracteres con «~»
+    /// (migración LineaBaseCompactada).
+    /// </summary>
+    internal const string IndiceUnicoParAcreditacion = "IX_AcreditacionesDocumentoPlataforma_TenantId_DocumentoId_Cana~";
+
+    /// <summary>
+    /// Solo el índice único del par, no cualquier 23505: otra violación de unicidad sigue siendo un error, también la de
+    /// una restricción cuyo nombre empiece igual.
+    /// </summary>
+    internal static bool EsParDeAcreditacionYaExistente(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException
+        {
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: { } restriccion
+        }
+        && string.Equals(restriccion, IndiceUnicoParAcreditacion, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Desacopla las acreditaciones pendientes cuyo par ya está guardado (o, si la base aún no lo deja ver, las que
+    /// repiten un par dentro del mismo guardado) y las auditorías que el interceptor construyó en el intento fallido, que el
+    /// reintento vuelve a construir para lo que de verdad se guarde; las del llamador se conservan. Con un guardado
+    /// dentro de una transacción explícita, EF deshace hasta su punto de guardado automático, así que la transacción
+    /// sigue utilizable. Devuelve falso si no hay nada que quitar.
+    /// </summary>
+    private async Task<bool> DescartarAcreditacionesYaExistentesAsync(
+        IReadOnlySet<RegistroAuditoria> auditoriasDelLlamador, CancellationToken cancellationToken)
+    {
+        var pendientes = ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+            .Where(e => e.State == EntityState.Added)
+            .ToList();
+        if (pendientes.Count == 0)
+            return false;
+
+        var documentoIds = pendientes.Select(e => e.Entity.DocumentoId).Distinct().ToArray();
+        var guardados = (await AcreditacionesDocumentoPlataforma.AsNoTracking()
+                .Where(a => documentoIds.Contains(a.DocumentoId))
+                .Select(a => new { a.DocumentoId, a.CanalGestionDocumentalId })
+                .ToListAsync(cancellationToken))
+            .Select(a => (a.DocumentoId, a.CanalGestionDocumentalId))
+            .ToHashSet();
+
+        var yaExistentes = pendientes
+            .Where(e => guardados.Contains((e.Entity.DocumentoId, e.Entity.CanalGestionDocumentalId)))
+            .ToList();
+        // Si la base aún no deja ver el par que chocó, solo se quita lo que se repite dentro del propio guardado (se
+        // conserva uno por par). Nada más se descarta a ciegas: sin un par identificado, el choque sigue siendo un error.
+        if (yaExistentes.Count == 0)
+            yaExistentes = pendientes
+                .GroupBy(e => (e.Entity.DocumentoId, e.Entity.CanalGestionDocumentalId))
+                .SelectMany(g => g.Skip(1))
+                .ToList();
+        if (yaExistentes.Count == 0)
+            return false;
+
+        var auditoriasDelIntento = ChangeTracker.Entries<RegistroAuditoria>()
+            .Where(e => e.State == EntityState.Added && !auditoriasDelLlamador.Contains(e.Entity))
+            .ToList();
+        foreach (var entrada in yaExistentes)
+            entrada.State = EntityState.Detached;
+        foreach (var entrada in auditoriasDelIntento)
+            entrada.State = EntityState.Detached;
+        return true;
+    }
+
+    private async Task<int> GuardarTraduciendoAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken)
     {
         try
         {

@@ -77,8 +77,13 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     private Guid _trabajadorDeMontajes;
     private Guid _vehiculoDeMontajes;
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var tenantPorAmbito = new TenantActualPorAmbito();
         var opcionesPropietario = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
@@ -114,6 +119,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_lectura_va_bajo_RLS_efectiva_y_lo_que_no_debe_contar_existe()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         (await _runtime.Documentos.IgnoreQueryFilters().CountAsync(d => d.Id == _documentoAjeno)).Should().Be(0,
             "sin filtro global de EF, solo RLS puede ocultar el Documento del Tenant ajeno");
         (await _runtime.Empresas.IgnoreQueryFilters().CountAsync(e => e.Id == _gemelaAjena)).Should().Be(0);
@@ -139,6 +145,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_listado_cuenta_solo_Empresas_propias_y_no_expone_Clientes_empresariales_ni_Empresas_subcontratistas(bool conRecuentosPorEstado)
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var propias = await _runtime.Empresas.Where(e => e.EsPropia).Select(e => e.Id).ToListAsync();
         propias.Should().BeEquivalentTo([_montajes, _reformas]);
         (await _runtime.Empresas.CountAsync()).Should().Be(6, "las cuatro Empresas contraparte existen en el Tenant propietario");
@@ -172,6 +179,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_filtro_de_Empresas_propias_conserva_el_ambito_efectivo_del_usuario()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var handler = new ObtenerEmpresasQueryHandler(
             _runtime, new AlcanceDatosServiceFalso(empresaIds: [_montajes, _clienteDentro, _elevaciones]),
             new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
@@ -190,6 +198,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_desglose_cuenta_solo_los_documentos_operativos_de_ambito_Empresa_del_Tenant_de_la_sesion(bool conRecuentosPorEstado)
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
@@ -231,6 +240,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_desglose_pedido_con_el_Id_de_una_Empresa_de_otro_Tenant_no_devuelve_nada_suyo()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var servicio = new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime);
 
         var desgloses = await servicio.CalcularDesgloseAsync(
@@ -261,6 +271,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Sin_RLS_el_filtro_global_de_Tenant_basta_para_que_el_desglose_no_cuente_al_Tenant_ajeno()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
 
         // Control del instrumento: en esta conexión no hay RLS que oculte los documentos de la gemela.
@@ -284,6 +295,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task El_peor_estado_de_las_incidencias_coincide_con_el_estado_de_la_fila(bool conRecuentosPorEstado)
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerSinCartera().Handle(
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
@@ -317,6 +329,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Sin_pedir_el_desglose_no_se_consulta_y_las_filas_llegan_sin_el(bool conRecuentosPorEstado)
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         _contador.Reiniciar();
 
         // Sin ConDesgloseDocumental: lo que se mide es el valor por defecto de la consulta.
@@ -345,6 +358,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_por_id_devuelve_el_mismo_desglose_que_la_fila_de_la_pagina()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var consultaDeFila = new ObtenerEmpresasQuery(
             Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: _montajes, ConDesgloseDocumental: true);
         var pagina = await HandlerSinCartera().Handle(
@@ -376,6 +390,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Un_Gestor_CAE_con_cartera_acotada_no_recibe_filas_ni_desglose_de_fuera_de_su_alcance(bool conRecuentosPorEstado)
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var resultado = await HandlerDelGestor().Handle(
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
@@ -426,7 +441,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
         var hoy = DiaDeNegocio.Hoy();
-        var ahora = DateTime.UtcNow;
+        var ahora = _instante.UtcDateTime;
 
         var clienteDentro = Empresa.CrearComoCliente("Cervezas Duff Ibérica", "B12345674", false, null, null);
         var clienteFuera = Empresa.CrearComoCliente("Central Nuclear de Springfield", "B87654323", false, null, null);

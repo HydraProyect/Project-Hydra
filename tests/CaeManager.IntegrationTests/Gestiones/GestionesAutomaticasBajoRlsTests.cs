@@ -151,6 +151,55 @@ public class GestionesAutomaticasBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_rechazo_confirmado_mientras_la_renovacion_decide_no_deja_abierta_la_gestion_del_documento_historico()
+    {
+        // Hallazgo 2 de la segunda ronda de Codex: la renovación lee los pasos de la Gestión anterior todos hechos y no la
+        // marca; antes de su commit, otra conexión rechaza esa acreditación. El rechazo no toca la versión del Documento,
+        // así que las dos se confirman. La lectura no debe dar por abierta la Gestión del Documento histórico.
+        using (AmbitoTenantExplicito.Establecer(_tenantSesion))
+        {
+            var validada = await _propietario.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion);
+            validada.MarcarSubida();
+            validada.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+            await _propietario.SaveChangesAsync();
+        }
+        var gestionAnteriorId = await NacerComoPropietarioAsync(_tenantSesion, _propio.Documento);
+
+        await using var renovacion = CrearRuntime();
+        var anterior = await renovacion.Documentos.SingleAsync(d => d.Id == _propio.Documento);
+        var hoy = DiaDeNegocio.Hoy();
+        var nuevo = anterior.NuevoDelMismoTitular(hoy, VigenciaDocumento.VenceEl(hoy.AddYears(1)), $"tenant/{Guid.NewGuid():N}.pdf", null, null);
+        renovacion.Documentos.Add(nuevo);
+        anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        new AcreditacionDocumentoPlataformaRepository(renovacion).Agregar(new AcreditacionDocumentoPlataforma(nuevo.Id, _propio.Canal));
+        (await AltaAcreditacionesDePrueba.GestionAutomatica(renovacion, Usuario()).AgregarAsync(nuevo, anterior))
+            .Should().NotBeNull("control: la renovación hace nacer su Gestión");
+
+        await using (var rechazo = CrearRuntime())
+        {
+            var acreditacion = await rechazo.AcreditacionesDocumentoPlataforma.SingleAsync(a => a.Id == _propio.Acreditacion);
+            acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Documento ilegible", DateTime.UtcNow);
+            await rechazo.SaveChangesAsync();
+        }
+        await renovacion.SaveChangesAsync();
+
+        await using (var comprobacion = CrearPropietarioLimpio())
+            (await comprobacion.GestionesAutomaticas.IgnoreQueryFilters().SingleAsync(g => g.Id == gestionAnteriorId))
+                .SustituidaEnUtc.Should().BeNull("control del instrumento: la renovación decidió con los pasos hechos y la carrera ocurrió");
+
+        await using var consulta = CrearRuntime();
+        var listado = await new ObtenerGestionesAutomaticasQueryHandler(consulta, consulta, consulta, consulta, consulta, consulta, consulta, Alcance(consulta))
+            .Handle(new ObtenerGestionesAutomaticasQuery(), CancellationToken.None);
+        var filaAnterior = listado.Filas.Single(f => f.Id == gestionAnteriorId);
+        filaAnterior.TieneRechazo.Should().BeTrue("control: el rechazo se confirmó");
+        filaAnterior.Estado.Should().Be(EstadoGestionAutomatica.Sustituida);
+        listado.Filas
+            .Where(f => f.Estado is EstadoGestionAutomatica.EnCurso or EstadoGestionAutomatica.PendienteDeValidar)
+            .Select(f => f.DocumentoId)
+            .Should().Equal([nuevo.Id], "solo queda abierta la Gestión del Documento vigente");
+    }
+
+    [Fact]
     public async Task Los_pasos_son_solo_las_acreditaciones_agregadas_del_Documento_nacido_en_el_ChangeTracker_real()
     {
         await using (var runtime = CrearRuntime())
