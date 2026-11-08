@@ -923,7 +923,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// esta página tiene pintado es de un Tenant al que ya no accede. Va a «Mi trabajo» con <c>sinAcceso=true</c>
     /// para avisarlo; <c>forceLoad</c> hace que el arranque normal vuelva a resolver el Tenant activo y el acceso.
     /// </summary>
-    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
+    /// <remarks>Con Mi trabajo oculto (<see cref="CaeManager.Web.Components.Layout.MiTrabajoVisibilidad"/>) va directo a Gestiones: el aviso es de Mi trabajo y no se muestra.</remarks>
+    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo(
+        CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.EstaOculto(ServiciosMiTrabajo)
+            ? CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.RutaAlternativa
+            : "/mi-trabajo?sinAcceso=true",
+        forceLoad: true);
+
+    [Inject] private IServiceProvider ServiciosMiTrabajo { get; set; } = default!;
 
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, ClienteId, _detalle?.RazonSocial ?? string.Empty, "informacion");
