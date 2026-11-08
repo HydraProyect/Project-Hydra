@@ -399,6 +399,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "request.TenantBeneficiarioId, solo tras comprobar que está en ObtenerClientesAutorizadosQuery; después exige AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Infrastructure/Comunicaciones/CierreConversacionesResueltasHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-17: cierre automático de conversaciones 4 días Resueltas)"),
+        ["src/CaeManager.Infrastructure/Gestiones/ConciliacionGestionesAutomaticasHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId de ListarTenantsAsync, que recorre todos los Tenants (activos y suspendidos) desde el propio servicio con ITenantsQueryContext, un CreateScope por búsqueda y por lote, mismo patrón que CierreConversacionesResueltasHostedService (2026-11-08: conciliación de Gestiones automáticas del relevo, PR #2072); solo un test la sustituye para fijar la lista"),
         ["src/CaeManager.Infrastructure/Comunicaciones/PropuestaRecordatoriosConversacionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreConversacionesResueltasHostedService (2026-10-18: propuesta de recordatorio a los 2 días laborables de espera de respuesta externa)"),
         ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] =

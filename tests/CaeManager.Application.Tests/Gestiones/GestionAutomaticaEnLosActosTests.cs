@@ -85,8 +85,11 @@ public class GestionAutomaticaEnLosActosTests
         var resultado = await Renovar().Handle(NuevoRenovar(anterior.Id, "tenant/apto-renovado.pdf"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        _guardado.Fotos.Should().ContainSingle();
-        var gestionNueva = _mundo.Gestiones.Lista.Single(g => g.DocumentoId == resultado.Valor);
+        // La Gestión nueva se busca en la fotografía del único guardado, no en la lista que sigue cambiando después:
+        // una agregada tras el SaveChanges no se habría confirmado con el Documento (BAJO de la ronda 3 de Codex).
+        var foto = _guardado.Fotos.Should().ContainSingle().Subject;
+        var gestionNueva = foto.Should().ContainSingle(g => g.DocumentoId == resultado.Valor,
+            "la Gestión nueva se guarda con el Documento renovado").Subject;
         gestionNueva.Origen.Should().Be(OrigenGestionAutomatica.RenovacionDocumento);
         _guardado.SustituidasAlGuardar.Should().Equal(gestionAnterior.Id);
         gestionAnterior.SustituidaPorGestionId.Should().Be(gestionNueva.Id);

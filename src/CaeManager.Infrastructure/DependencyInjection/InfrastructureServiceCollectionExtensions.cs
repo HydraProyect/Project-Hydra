@@ -812,6 +812,14 @@ public static class InfrastructureServiceCollectionExtensions
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
         services.AddHostedService<Comunicaciones.CierreConversacionesResueltasHostedService>();
 
+        // Conciliación de Gestiones automáticas: hace nacer la de los actos con archivo que la ranura anterior atendió
+        // sin ella durante el relevo del despliegue que introduce la función. Solo si quien despliega la enciende; apagada
+        // por defecto (ver ConciliacionGestionesAutomaticasOptions): cuándo corre en producción no lo decide el código.
+        var seccionConciliacionGestiones = configuration.GetSection(Gestiones.ConciliacionGestionesAutomaticasOptions.SeccionConfiguracion);
+        services.Configure<Gestiones.ConciliacionGestionesAutomaticasOptions>(seccionConciliacionGestiones);
+        if (seccionConciliacionGestiones.GetValue<bool>(nameof(Gestiones.ConciliacionGestionesAutomaticasOptions.EjecutarAlArrancar)))
+            services.AddHostedService<Gestiones.ConciliacionGestionesAutomaticasHostedService>();
+
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra
         // siempre (barato, sin llamadas hasta que alguien lo invoca); el

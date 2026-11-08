@@ -44,7 +44,25 @@ public interface INacimientoGestionAutomaticaService
     /// </summary>
     /// <returns>La Gestión que nació, o null si no nació ninguna.</returns>
     Task<GestionAutomatica?> AgregarAsync(Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Agrega, sin guardar, la Gestión de cada acto ya confirmado que nació sin ella (la conciliación de
+    /// <c>IConciliacionGestionesAutomaticasService</c>), con la misma regla que <see cref="AgregarAsync"/>: con archivo,
+    /// un paso por cada acreditación del acto ante un acceso de Plataforma, y sin pasos no nace. No marca la Gestión
+    /// del Documento anterior: esa sustitución la deriva la lectura (<c>GestionAutomatica.ResolverEstado</c>), y la
+    /// Gestión nace sin autor conocido, porque quien hizo el acto no queda en el Documento.
+    /// </summary>
+    /// <returns>Las Gestiones que nacieron, una por acto como mucho.</returns>
+    Task<IReadOnlyList<GestionAutomatica>> AgregarDeActosSinGestionAsync(
+        IReadOnlyCollection<ActoSinGestionAutomatica> actos, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Un acto ya confirmado (alta o renovación con archivo, o generación desde plantilla) que no hizo nacer su Gestión:
+/// el Documento que nació, si nació renovando otro, y las acreditaciones que ese mismo acto hizo nacer.
+/// </summary>
+public sealed record ActoSinGestionAutomatica(
+    Documento Nacido, bool NacioPorRenovacion, IReadOnlyCollection<AcreditacionDocumentoPlataforma> AcreditacionesDelActo);
 
 public class NacimientoGestionAutomaticaService(
     IGestionAutomaticaRepository repositorio,
@@ -58,32 +76,75 @@ public class NacimientoGestionAutomaticaService(
     public async Task<GestionAutomatica?> AgregarAsync(
         Documento nacido, Documento? sustituido, CancellationToken cancellationToken = default)
     {
+        // Sin archivo no hay acto que haga nacer (NacerYAgregar) y tampoco se toca la Gestión anterior.
+        if (string.IsNullOrWhiteSpace(nacido.ArchivoUrl))
+            return null;
+
+        var delActo = acreditaciones.AgregadasSinGuardar(nacido.Id);
+        var canalesDePlataforma = await CanalesDePlataformaAsync(delActo, cancellationToken);
+        var nueva = NacerYAgregar(
+            nacido, sustituido is not null, delActo, canalesDePlataforma, await currentUserService.ObtenerUsuarioActualIdAsync());
+
+        if (sustituido is not null)
+            await SustituirLaAnteriorSiSigueAbiertaAsync(sustituido, nueva?.Id, cancellationToken);
+
+        return nueva;
+    }
+
+    public async Task<IReadOnlyList<GestionAutomatica>> AgregarDeActosSinGestionAsync(
+        IReadOnlyCollection<ActoSinGestionAutomatica> actos, CancellationToken cancellationToken = default)
+    {
+        // Una sola consulta de accesos para todos los actos del lote: la regla es la misma que la del acto en curso.
+        var canalesDePlataforma = await CanalesDePlataformaAsync(
+            actos.SelectMany(a => a.AcreditacionesDelActo).ToList(), cancellationToken);
+
+        var nacidas = new List<GestionAutomatica>();
+        foreach (var acto in actos)
+        {
+            var nueva = NacerYAgregar(
+                acto.Nacido, acto.NacioPorRenovacion, acto.AcreditacionesDelActo, canalesDePlataforma, nacidaPorUsuarioId: null);
+            if (nueva is not null)
+                nacidas.Add(nueva);
+        }
+
+        return nacidas;
+    }
+
+    /// <summary>
+    /// La regla de nacimiento (§ 4.1): sin archivo no nace; con él, un paso por cada acreditación del acto ante un acceso
+    /// de Plataforma (los de correo nunca dan pasos, D-14), y sin pasos tampoco nace (regla 2).
+    /// </summary>
+    private GestionAutomatica? NacerYAgregar(
+        Documento nacido, bool nacioPorRenovacion, IEnumerable<AcreditacionDocumentoPlataforma> delActo,
+        IReadOnlySet<Guid> canalesDePlataforma, Guid? nacidaPorUsuarioId)
+    {
         // El disparador es el acto con archivo: un alta sin archivo no hace nacer ninguna Gestión. Una renovación
         // siempre trae archivo nuevo (sin él es una corrección de fechas, que no llama aquí).
         if (string.IsNullOrWhiteSpace(nacido.ArchivoUrl))
             return null;
 
-        var delActo = acreditaciones.AgregadasSinGuardar(nacido.Id);
-        var canalIds = delActo.Select(a => a.CanalGestionDocumentalId).Distinct().ToArray();
+        var origen = nacioPorRenovacion ? OrigenGestionAutomatica.RenovacionDocumento : OrigenGestionAutomatica.AltaDocumento;
+        var nueva = GestionAutomatica.Nacer(
+            nacido.Id, origen,
+            delActo.Where(a => a.DocumentoId == nacido.Id && canalesDePlataforma.Contains(a.CanalGestionDocumentalId))
+                .Select(a => a.Id),
+            nacidaPorUsuarioId);
+        if (nueva is not null)
+            repositorio.Agregar(nueva);
+        return nueva;
+    }
+
+    private async Task<IReadOnlySet<Guid>> CanalesDePlataformaAsync(
+        IReadOnlyCollection<AcreditacionDocumentoPlataforma> acreditacionesDelActo, CancellationToken cancellationToken)
+    {
+        var canalIds = acreditacionesDelActo.Select(a => a.CanalGestionDocumentalId).Distinct().ToArray();
         var canalesDePlataforma = new HashSet<Guid>();
         if (canalIds.Length > 0)
             canalesDePlataforma.UnionWith(await centrosContext.CanalesGestionDocumental
                 .Where(c => canalIds.Contains(c.Id) && c.Tipo == TipoCanalGestion.Plataforma)
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken));
-
-        var origen = sustituido is null ? OrigenGestionAutomatica.AltaDocumento : OrigenGestionAutomatica.RenovacionDocumento;
-        var nueva = GestionAutomatica.Nacer(
-            nacido.Id, origen,
-            delActo.Where(a => canalesDePlataforma.Contains(a.CanalGestionDocumentalId)).Select(a => a.Id),
-            await currentUserService.ObtenerUsuarioActualIdAsync());
-        if (nueva is not null)
-            repositorio.Agregar(nueva);
-
-        if (sustituido is not null)
-            await SustituirLaAnteriorSiSigueAbiertaAsync(sustituido, nueva?.Id, cancellationToken);
-
-        return nueva;
+        return canalesDePlataforma;
     }
 
     private async Task SustituirLaAnteriorSiSigueAbiertaAsync(

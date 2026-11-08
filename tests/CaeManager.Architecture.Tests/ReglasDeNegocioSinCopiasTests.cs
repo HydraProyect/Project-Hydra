@@ -425,6 +425,10 @@ public class ReglasDeNegocioSinCopiasTests
         // que su Documento esté sustituido solo hace Sustituida a la Gestión que siga abierta (GestionAutomatica.ResolverEstado).
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/GestionesAutomaticasQueries.cs"] = 2,
         ["src/CaeManager.Application/Gestiones/Queries/GestionesAutomaticas/PasosVisiblesDeGestionesAutomaticas.cs"] = 1,
+        // Conciliación de Gestiones automáticas: los Documentos que concilia salen con `.Operativos()`; el tercer lector
+        // busca el Documento anterior (historial) de cada uno solo para saber si nació por renovación (su Origen). No
+        // decide estado, alertas ni cifras.
+        ["src/CaeManager.Application/Gestiones/ConciliacionGestionesAutomaticasService.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
