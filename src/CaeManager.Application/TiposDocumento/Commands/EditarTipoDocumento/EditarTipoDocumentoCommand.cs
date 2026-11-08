@@ -81,7 +81,11 @@ public class EditarTipoDocumentoCommandHandler(
 
     private async Task<Result> EditarAsync(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
     {
-        var tipoDocumento = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
+        // Bajo el candado, lo confirmado en la base: el contexto (uno por circuito) puede rastrear el tipo y sus filas
+        // de antes de esperar, con un Requerido o un Incluido viejos. Con ellos, el comando no vería que empieza a
+        // exigir el tipo, y volver a pedir lo que otra edición acababa de quitar no sería un cambio para EF (revisión
+        // Codex de la PR #2074, ronda 4, hallazgos 1 y 2).
+        var tipoDocumento = await repositorio.ObtenerPorIdActualizadoAsync(request.Id, cancellationToken);
         if (tipoDocumento is null)
             return Result.Fallo(Error.Crear("TipoDocumento.NoEncontrado", "No encontramos este tipo de documento."));
 
@@ -125,7 +129,7 @@ public class EditarTipoDocumentoCommandHandler(
         // Incluido=false, no se crea una segunda — se convierte a Incluido=true, que es
         // precisamente lo que marcar ese centro aquí significa: "la fila explícita
         // manda" de § 0.4, no una fila nueva por cada origen.
-        var todasLasFilas = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoAsync(tipoDocumento.Id, cancellationToken);
+        var todasLasFilas = await tipoDocumentoCentroRepositorio.ObtenerPorTipoDocumentoActualizadoAsync(tipoDocumento.Id, cancellationToken);
         var actuales = todasLasFilas.Where(tc => tc.Incluido).ToList();
         var deseados = request.CentroIds.Distinct().ToHashSet();
         var actualesCentroIds = actuales.Select(tc => tc.CentroId).ToHashSet();

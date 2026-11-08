@@ -9,6 +9,15 @@ public class AsignacionRepositorioFalso : IAsignacionRepository
     public Task<Asignacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Asignaciones.FirstOrDefault(a => a.Id == id));
 
+    /// <summary>Cuántas veces se pidió lo confirmado: sin contexto que rastree, la propia lista.</summary>
+    public int LecturasActualizadas { get; private set; }
+
+    public Task<Asignacion?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        LecturasActualizadas++;
+        return ObtenerPorIdAsync(id, cancellationToken);
+    }
+
     public Task<bool> ExisteActivaAsync(Guid trabajadorId, Guid centroId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Asignaciones.Any(a => a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.FechaBaja is null));
 

@@ -8,6 +8,10 @@ public class TipoDocumentoRepository(CaeManagerDbContext dbContext) : ITipoDocum
     public Task<TipoDocumento?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.TiposDocumento.Include(t => t.Aliases).FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
+    public async Task<TipoDocumento?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(
+            dbContext.TiposDocumento.Include(t => t.Aliases).Where(t => t.Id == id), cancellationToken)).FirstOrDefault();
+
     public Task<bool> ExisteConNombreAsync(string nombre, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.TiposDocumento.AnyAsync(
             t => t.Nombre == nombre && (excluirId == null || t.Id != excluirId),

@@ -4,6 +4,12 @@ public interface IAsignacionRepository
 {
     Task<Asignacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Como <see cref="ObtenerPorIdAsync"/>, pero con lo confirmado en la base aunque el contexto ya rastreara la
+    /// Asignación (no tiene token de concurrencia): para leer bajo el candado de las altas con acreditación.
+    /// </summary>
+    Task<Asignacion?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default);
+
     Task<bool> ExisteActivaAsync(Guid trabajadorId, Guid centroId, CancellationToken cancellationToken = default);
 
     /// <summary>

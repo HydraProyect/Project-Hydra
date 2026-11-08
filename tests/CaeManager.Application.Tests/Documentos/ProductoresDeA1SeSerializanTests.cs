@@ -194,7 +194,7 @@ public class ProductoresDeA1SeSerializanTests
     }
 
     [Fact]
-    public async Task Dejar_de_exigir_un_tipo_en_un_centro_no_toma_el_candado()
+    public async Task Dejar_de_exigir_un_tipo_en_un_centro_tambien_toma_el_candado_porque_escribe_la_misma_fila()
     {
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
@@ -209,7 +209,7 @@ public class ProductoresDeA1SeSerializanTests
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
-        serializacion.Llamadas.Should().Be(0);
+        serializacion.Llamadas.Should().Be(1, "la exclusión y la exigencia de la misma fila se ordenan (revisión Codex de la PR #2074, ronda 4)");
     }
 
     [Fact]

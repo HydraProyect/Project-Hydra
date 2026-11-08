@@ -46,19 +46,6 @@ public class CrearAsignacionCommandHandler(
         if (!await autoridad.PuedeModificarAsignacionesDelCentroAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Asignacion.CentroNoEncontrado", "No encontramos este centro."));
 
-        if (await repositorio.ExisteActivaAsync(request.TrabajadorId, request.CentroId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear(
-                "Asignacion.YaActiva", "Este trabajador ya está dado de alta en este centro."));
-
-        // DEC-19: dos vigencias solapadas del mismo trío son una
-        // contradicción de datos, no solo dos filas simultáneamente
-        // abiertas. Distinto de "YaActiva" (arriba): esto también atrapa un
-        // alta nueva cuyo rango pisa el de una asignación YA CERRADA.
-        if (await repositorio.ExisteSolapeAsync(request.TrabajadorId, request.CentroId, request.FechaAlta, null, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear(
-                "Asignacion.SolapaConOtra",
-                "Este trabajador ya tuvo una asignación a este centro cuyo periodo se solapa con esta fecha de alta."));
-
         var asignacion = new Asignacion(request.TrabajadorId, request.CentroId, request.FechaAlta);
 
         // Estar asignado es estar de alta en la plataforma del Centro: los
@@ -69,9 +56,25 @@ public class CrearAsignacionCommandHandler(
         // sin ello, el Documento no ve la Asignación, la Asignación no ve el
         // Documento y el par del Centro de otra Empresa se pierde (revisión
         // Codex de la PR #2074, ronda 3, hallazgo 4). La Asignación se agrega
-        // dentro: un reintento empieza con el contexto vacío.
+        // dentro: un reintento empieza con el contexto vacío. Las comprobaciones
+        // de existencia y de solape también van dentro, con consultas a la base:
+        // otra alta o reapertura del mismo trío confirmada mientras esta
+        // esperaba se ve (revisión Codex de la PR #2074, ronda 4).
         var guardado = await serializacionAltas.EjecutarAsync(async ct =>
         {
+            if (await repositorio.ExisteActivaAsync(request.TrabajadorId, request.CentroId, ct))
+                return Result.Fallo(Error.Crear(
+                    "Asignacion.YaActiva", "Este trabajador ya está dado de alta en este centro."));
+
+            // DEC-19: dos vigencias solapadas del mismo trío son una
+            // contradicción de datos, no solo dos filas simultáneamente
+            // abiertas. Distinto de "YaActiva" (arriba): esto también atrapa un
+            // alta nueva cuyo rango pisa el de una asignación YA CERRADA.
+            if (await repositorio.ExisteSolapeAsync(request.TrabajadorId, request.CentroId, request.FechaAlta, null, ct))
+                return Result.Fallo(Error.Crear(
+                    "Asignacion.SolapaConOtra",
+                    "Este trabajador ya tuvo una asignación a este centro cuyo periodo se solapa con esta fecha de alta."));
+
             repositorio.Agregar(asignacion);
             await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = [asignacion] }, ct);
             await unitOfWork.SaveChangesAsync(ct);

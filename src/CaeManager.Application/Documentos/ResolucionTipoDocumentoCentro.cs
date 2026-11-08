@@ -44,4 +44,22 @@ public static class ResolucionTipoDocumentoCentro
         TiposContratacion tiposContratacionDeSerie, TipoContratacion tipoContratacion) =>
         Aplica(filaPorPar, tipoDocumentoId, centroId,
             esObligatorioPorDefecto && tiposContratacionDeSerie.Incluye(tipoContratacion));
+
+    /// <summary>
+    /// Igual que la sobrecarga general, pero sobre el <see cref="TipoDocumentoCentro.Incluido"/> de cada fila explícita
+    /// y no sobre la entidad: para quien lee las filas con una proyección, que siempre trae lo confirmado en la base y
+    /// no una instancia que el contexto rastreara antes (revisión Codex de la PR #2074, ronda 4, hallazgo 1).
+    /// </summary>
+    public static bool Aplica(
+        IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), bool> incluidoPorPar,
+        Guid tipoDocumentoId, Guid centroId, bool esObligatorioPorDefecto) =>
+        incluidoPorPar.TryGetValue((tipoDocumentoId, centroId), out var incluido) ? incluido : esObligatorioPorDefecto;
+
+    /// <summary>Igual que la sobrecarga por Trabajador, sobre el <c>Incluido</c> de cada fila explícita.</summary>
+    public static bool Aplica(
+        IReadOnlyDictionary<(Guid TipoDocumentoId, Guid CentroId), bool> incluidoPorPar,
+        Guid tipoDocumentoId, Guid centroId, bool esObligatorioPorDefecto,
+        TiposContratacion tiposContratacionDeSerie, TipoContratacion tipoContratacion) =>
+        Aplica(incluidoPorPar, tipoDocumentoId, centroId,
+            esObligatorioPorDefecto && tiposContratacionDeSerie.Incluye(tipoContratacion));
 }

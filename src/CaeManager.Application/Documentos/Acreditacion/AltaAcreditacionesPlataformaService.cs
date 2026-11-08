@@ -294,15 +294,20 @@ public class AltaAcreditacionesPlataformaService(
             altas.Trabajadores,
             candidatos.Where(c => c.Documento.TrabajadorId is not null).Select(c => c.Documento.TrabajadorId!.Value).ToHashSet(),
             cancellationToken);
-        var filaPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
+        // Proyección, no entidades: una consulta con seguimiento devolvería la instancia que el contexto (uno por
+        // circuito en Blazor Server) rastreó antes del candado, con el Incluido de entonces, y no la fila que otra alta
+        // confirmó mientras esta esperaba; el par se perdería (revisión Codex de la PR #2074, ronda 4, hallazgo 1). Lo
+        // que el propio alta cambia llega por Requisitos y RequisitosEliminados, no por el rastreo.
+        var incluidoPorPar = (await tiposDocumentoContext.TiposDocumentoCentros
                 .Where(tc => centroIds.Contains(tc.CentroId) && tipoIds.Contains(tc.TipoDocumentoId))
+                .Select(tc => new { tc.TipoDocumentoId, tc.CentroId, tc.Incluido })
                 .ToListAsync(cancellationToken))
-            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
+            .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId), tc => tc.Incluido);
         // El estado final de la edición: lo que el alta elimina deja de decidir, y lo que agrega o cambia manda.
         foreach (var eliminado in altas.RequisitosEliminados)
-            filaPorPar.Remove((eliminado.TipoDocumentoId, eliminado.CentroId));
+            incluidoPorPar.Remove((eliminado.TipoDocumentoId, eliminado.CentroId));
         foreach (var requisito in altas.Requisitos)
-            filaPorPar[(requisito.TipoDocumentoId, requisito.CentroId)] = requisito;
+            incluidoPorPar[(requisito.TipoDocumentoId, requisito.CentroId)] = requisito.Incluido;
 
         // Accesos de plataforma de cada Centro: la base, más los del propio alta.
         var canalesPorCentro = (await centrosContext.CanalesGestionDocumental
@@ -329,8 +334,8 @@ public class AltaAcreditacionesPlataformaService(
             var aplica = documento.TrabajadorId is { } trabajadorId
                          && tipoContratacionDeTrabajador.TryGetValue(trabajadorId, out var tipoContratacion)
                 ? ResolucionTipoDocumentoCentro.Aplica(
-                    filaPorPar, documento.TipoDocumentoId, centroId, esObligatorio, serie, tipoContratacion)
-                : ResolucionTipoDocumentoCentro.Aplica(filaPorPar, documento.TipoDocumentoId, centroId, esObligatorio);
+                    incluidoPorPar, documento.TipoDocumentoId, centroId, esObligatorio, serie, tipoContratacion)
+                : ResolucionTipoDocumentoCentro.Aplica(incluidoPorPar, documento.TipoDocumentoId, centroId, esObligatorio);
             if (!aplica)
                 continue;
 

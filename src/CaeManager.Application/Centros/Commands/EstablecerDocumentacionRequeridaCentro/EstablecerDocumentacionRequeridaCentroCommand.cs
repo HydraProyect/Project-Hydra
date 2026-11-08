@@ -78,7 +78,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         if (tipo.Archivado && request.Incluido)
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.TipoDocumentoArchivado", "Ese tipo de documento está archivado; exige su sustituto."));
 
-        var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
+        // Lo confirmado, no la copia que el contexto del circuito rastreara antes: decide qué clave de archivo es nueva.
+        var fila = await repositorio.ObtenerPorParActualizadoAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
 
         // OWASP ASVS 4.0.3 V12.1/V12.2: la clave de archivo y el nombre original llegan del cliente; se validan en
         // servidor (el formulario Blazor ya lo hace, otros llamadores no). El endpoint de descarga deriva del nombre
@@ -109,10 +110,12 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // SaveChangesAsync que la fila.
         async Task<Result> GuardarAsync(CancellationToken ct)
         {
-            // Para el reintento, que empieza con el contexto vacío: la fila de arriba ya no está rastreada y se vuelve
-            // a leer. En el primer intento la lectura devuelve la misma instancia rastreada; si no había fila, consulta
-            // otra vez la base y ve la que otro haya confirmado mientras esta esperaba.
-            var actual = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, ct);
+            // Se vuelve a leer bajo el candado, con lo confirmado en la base: la fila de arriba (o la que el contexto,
+            // uno por circuito, rastreara antes) puede tener el Incluido de antes de esperar. Con ese valor viejo, pedir
+            // lo que otra operación acababa de cambiar no sería un cambio para EF, que no guardaría nada, y el comando
+            // devolvería éxito con la base intacta (revisión Codex de la PR #2074, ronda 4, hallazgo 2). En el
+            // reintento, que empieza con el contexto vacío, la lectura consulta la base igualmente.
+            var actual = await repositorio.ObtenerPorParActualizadoAsync(request.TipoDocumentoId, request.CentroId, ct);
             if (actual is null)
             {
                 actual = new TipoDocumentoCentro(
@@ -136,10 +139,11 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
         // Pasar a exigir el tipo se serializa con el alta de un Documento de Empresa (ver
         // ISerializacionAltasAcreditacionEmpresa): sin ello, el Documento lee el requisito antiguo, esta edición no ve el
         // Documento y el par se pierde (revisión Codex de la PR #2074, ronda 3, hallazgo 2). Dejar de exigirlo no da de
-        // alta nada que pueda perderse.
-        return request.Incluido
-            ? await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken)
-            : await GuardarAsync(cancellationToken);
+        // alta nada, pero escribe la misma fila: sin el candado, una exclusión que leyó antes de que una exigencia
+        // confirmara podría no guardar nada, o mezclar sus campos con los de la otra; con él, las dos escrituras de la
+        // fila se ordenan y la segunda lee lo que confirmó la primera (revisión Codex de la PR #2074, ronda 4,
+        // hallazgo 2).
+        return await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken);
     }
 
     private static bool ExtensionCoincide(string archivoUrl, string? nombreOriginal) =>

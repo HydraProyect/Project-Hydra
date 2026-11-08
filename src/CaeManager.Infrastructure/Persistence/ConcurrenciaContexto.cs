@@ -254,6 +254,41 @@ public static class ConcurrenciaContexto
         return entrada.State == EntityState.Detached ? null : entidad;
     }
 
+    /// <summary>
+    /// Para entidades sin <see cref="IVersionable"/>, que no tienen token de concurrencia: ejecuta la consulta normal y
+    /// relee cada instancia que el contexto (uno por circuito en Blazor Server) ya tenía rastreada sin cambios, porque EF
+    /// no reemplaza sus valores al materializar otra consulta. Sin la relectura, quien decide bajo el candado de
+    /// <c>ISerializacionAltasAcreditacionEmpresa</c> vería el valor de antes de esperar y no el que otra operación
+    /// confirmó mientras tanto; y asignar ese valor viejo no cambiaría nada para EF, que no guardaría la escritura
+    /// (revisión Codex de la PR #2074, ronda 4, hallazgo 2). Una instancia con cambios de la operación en curso no se
+    /// relee: la relectura los perdería en silencio. Las filas que desaparecieron entre la consulta y la relectura no se
+    /// devuelven.
+    /// </summary>
+    public static async Task<List<T>> ListarActualesAsync<T>(
+        this DbContext contexto, IQueryable<T> consulta, CancellationToken cancellationToken = default)
+        where T : class
+    {
+        var rastreadas = contexto.ChangeTracker.Entries<T>()
+            .Where(e => e.State == EntityState.Unchanged)
+            .Select(e => (object)e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
+        var entidades = await consulta.ToListAsync(cancellationToken);
+        var actuales = new List<T>(entidades.Count);
+        foreach (var entidad in entidades)
+        {
+            if (rastreadas.Contains(entidad))
+            {
+                var entrada = contexto.Entry(entidad);
+                await entrada.ReloadAsync(cancellationToken);
+                if (entrada.State == EntityState.Detached)
+                    continue;
+            }
+
+            actuales.Add(entidad);
+        }
+
+        return actuales;
+    }
+
     private static bool ArrastraGuardadoFallido(EntityEntry entrada)
     {
         var version = entrada.Property(nameof(IVersionable.Version));
