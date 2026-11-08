@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
@@ -68,7 +69,8 @@ public class RenovarDocumentoCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IPublisher publisher, IUnitOfWork unitOfWork,
-    IVerificadorArchivoAlmacenado verificadorArchivo)
+    IVerificadorArchivoAlmacenado verificadorArchivo,
+    INacimientoGestionAutomaticaService gestionAutomatica)
     : IRequestHandler<RenovarDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RenovarDocumentoCommand request, CancellationToken cancellationToken)
@@ -161,6 +163,12 @@ public class RenovarDocumentoCommandHandler(
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
 
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [nuevo] }, cancellationToken);
+
+        // Solo la renovación con archivo nuevo hace nacer la Gestión automática, con las acreditaciones que se acaban
+        // de agregar, y cierra como Sustituida la que siguiera abierta del anterior (§ 4.1, regla 4). Todo en este
+        // mismo guardado, protegido por la versión del anterior: dos renovaciones a la vez no pueden confirmarse
+        // las dos. La corrección de fechas no llega aquí.
+        await gestionAutomatica.AgregarAsync(nuevo, anterior, cancellationToken);
 
         // La mensualidad entra por aquí, no por Crear: el certificado de agosto reemplaza al de julio renovándolo.
         // Sin este reencolado, el archivo nuevo jamás se validaría. Mismo SaveChangesAsync que el resto del cambio —

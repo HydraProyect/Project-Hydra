@@ -201,6 +201,7 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         // La importación agrega las acreditaciones de plataforma de su alta
         // (IAltaAcreditacionesPlataformaService), igual que en producción.
         servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
+        servicios.AddSingleton<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
 
         return servicios.BuildServiceProvider();
     }

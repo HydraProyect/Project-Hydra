@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -32,6 +33,13 @@ internal sealed class MundoAcreditaciones
 
     public AltaAcreditacionesPlataformaService Servicio() =>
         new(AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto, TiposDocumentoContexto, Acreditaciones);
+
+    /// <summary>Las Gestiones automáticas que nacen en los actos del mundo (lo agregado y lo guardado, sin distinguir).</summary>
+    public Gestiones.GestionesAutomaticasEnMemoria Gestiones { get; } = new();
+
+    /// <summary>El servicio REAL de nacimiento de la Gestión automática, sobre las acreditaciones de este mundo.</summary>
+    public NacimientoGestionAutomaticaService GestionAutomatica(Guid? usuarioId = null) =>
+        new(Gestiones, Acreditaciones, DocumentosContexto, CentrosContexto, new CurrentUserServiceFalso(usuarioId), TimeProvider.System);
 
     public Trabajador Trabajador(string dni = "12345678Z")
     {
@@ -103,6 +111,7 @@ internal sealed class MundoAcreditaciones
     {
         DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.AddRange(Acreditaciones.Acreditaciones);
         Acreditaciones.Acreditaciones.Clear();
+        Acreditaciones.MarcarGuardadas();
     }
 
     public IEnumerable<(Guid DocumentoId, Guid CanalId)> Agregadas =>

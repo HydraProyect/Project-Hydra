@@ -96,6 +96,19 @@ public static class AlcanceDatosServiceExtensions
         return ids is null || empresaIds.All(ids.Contains);
     }
 
+    /// <summary>
+    /// La Empresa está en alguno de los alcances de cartera del usuario —Empresa, Cliente empresarial o
+    /// Subcontrata—: la regla con la que <c>ContarVencenEstaSemanaDeEmpresaQuery</c>, <c>ObtenerSemanaPorEmpresaQuery</c>
+    /// y <c>ObtenerVencimientosMesQuery</c> deciden si pueden nombrar a la Empresa empleadora de un Trabajador visible
+    /// (esas tres la escriben todavía en línea; llevarlas a este método es un incremento aparte). Ver a un Trabajador no
+    /// basta para ver a quién emplea.
+    /// </summary>
+    public static async Task<bool> EmpresaEnAlgunAlcanceDeCarteraAsync(
+        this IAlcanceDatosService alcance, Guid empresaId, CancellationToken cancellationToken = default) =>
+        await alcance.EmpresaVisibleAsync(empresaId, cancellationToken)
+        || await alcance.ClienteVisibleAsync(empresaId, cancellationToken)
+        || await alcance.SubcontrataVisibleAsync(empresaId, cancellationToken);
+
     public static async Task<bool> SubcontrataVisibleAsync(
         this IAlcanceDatosService alcance, Guid subcontrataId, CancellationToken cancellationToken = default)
     {

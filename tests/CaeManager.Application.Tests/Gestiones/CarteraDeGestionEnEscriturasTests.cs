@@ -69,5 +69,9 @@ public class CarteraDeGestionEnEscriturasTests
     private sealed class GestionesContext(Gestion gestion) : IGestionesQueryContext
     {
         public IQueryable<Gestion> Gestiones => new TestAsyncQueryable<Gestion>(new[] { gestion }.AsQueryable());
+        public IQueryable<GestionAutomatica> GestionesAutomaticas =>
+            new TestAsyncQueryable<GestionAutomatica>(Array.Empty<GestionAutomatica>().AsQueryable());
+        public IQueryable<PasoGestionAutomatica> PasosGestionAutomatica =>
+            new TestAsyncQueryable<PasoGestionAutomatica>(Array.Empty<PasoGestionAutomatica>().AsQueryable());
     }
 }

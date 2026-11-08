@@ -382,6 +382,7 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
         servicios.AddSingleton<IDocumentoRepository, DocumentoRepository>();
         servicios.AddSingleton<ITrabajoAnalisisDocumentoRepository, TrabajoAnalisisDocumentoRepository>();
         servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
+        servicios.AddSingleton<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
 
         return servicios.BuildServiceProvider();
     }

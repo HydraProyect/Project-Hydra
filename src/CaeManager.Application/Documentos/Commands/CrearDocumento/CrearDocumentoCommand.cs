@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Documentos.Verificacion;
 using CaeManager.Application.Empresas;
@@ -81,7 +82,8 @@ public class CrearDocumentoCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IPublisher publisher,
     IAlcanceDatosService alcanceDatos,
-    IVerificadorArchivoAlmacenado verificadorArchivo)
+    IVerificadorArchivoAlmacenado verificadorArchivo,
+    INacimientoGestionAutomaticaService gestionAutomatica)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -179,6 +181,10 @@ public class CrearDocumentoCommandHandler(
         // caminos de alta. Mismo SaveChangesAsync que el Documento: o se
         // confirman juntas o ninguna.
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
+
+        // Un alta con archivo hace nacer la Gestión automática con las acreditaciones que se acaban de agregar (§ 4.1
+        // de la especificación «Gestión de varios pasos»), en el mismo guardado: o nacen juntos o no nace nada.
+        await gestionAutomatica.AgregarAsync(documento, sustituido: null, cancellationToken);
 
         // Los dos análisis pesados se encolan en vez de ejecutarse aquí: son
         // llamadas a un modelo externo, con su latencia, y hacerlas dentro del

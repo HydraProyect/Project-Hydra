@@ -7592,6 +7592,79 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Gestiones", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Gestiones.GestionAutomatica", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("NacidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Origen")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SustituidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SustituidaPorGestionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DocumentoId")
+                        .IsUnique();
+
+                    b.ToTable("GestionesAutomaticas", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Gestiones.PasoGestionAutomatica", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcreditacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GestionAutomaticaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AcreditacionId");
+
+                    b.HasIndex("TenantId", "GestionAutomaticaId", "AcreditacionId")
+                        .IsUnique();
+
+                    b.ToTable("PasosGestionAutomatica", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Importacion.HistorialImportacion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -12494,6 +12567,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Gestiones.GestionAutomatica", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.Documento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Gestiones.PasoGestionAutomatica", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcreditacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Gestiones.GestionAutomatica", null)
+                        .WithMany("Pasos")
+                        .HasForeignKey("TenantId", "GestionAutomaticaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Incidencias.Incidencia", b =>
                 {
                     b.HasOne("CaeManager.Domain.Centros.Centro", null)
@@ -13125,6 +13225,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumento", b =>
                 {
                     b.Navigation("Aliases");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Gestiones.GestionAutomatica", b =>
+                {
+                    b.Navigation("Pasos");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Integraciones.LineaWhatsApp", b =>
