@@ -35,8 +35,21 @@ public class GestionAutomaticaDetalleHojaDeEstilosTests
     [Fact]
     public void Los_valores_copiables_del_documento_se_alinean_a_la_izquierda_bajo_su_clave()
     {
-        Reglas(".gp-campo ::deep .boton-copiar-en-linea")
-            .Should().Contain(c => Regex.IsMatch(c, @"(^|;|\s)text-align\s*:\s*left"),
-                "BotonCopiar es un <button> a ancho de celda y un botón centra su texto por defecto");
+        const string selector = ".gp-campo ::deep .boton-copiar-en-linea";
+        var reglas = Reglas(selector);
+        reglas.Should().Contain(c => Regex.IsMatch(c, @"(^|;|\s)text-align\s*:\s*left"),
+            "BotonCopiar es un <button> a ancho de celda y un botón centra su texto por defecto");
+        reglas.Should().Contain(c => Regex.IsMatch(c, @"(^|;|\s)align-self\s*:\s*flex-start"),
+            "en la maqueta el valor copiable mide lo que su texto: el hueco de al lado no copia y la confirmación sale junto al valor");
+    }
+
+    [Fact]
+    public void La_regla_de_los_valores_copiables_no_esta_dentro_de_una_media_query()
+    {
+        var css = Regex.Replace(Css(), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        var primeraMedia = css.IndexOf("@media", StringComparison.Ordinal);
+        var regla = css.IndexOf(".gp-campo ::deep .boton-copiar-en-linea", StringComparison.Ordinal);
+        regla.Should().BeGreaterThanOrEqualTo(0);
+        (primeraMedia < 0 || regla < primeraMedia).Should().BeTrue("la alineación vale a todos los anchos, no solo en pantallas estrechas");
     }
 }

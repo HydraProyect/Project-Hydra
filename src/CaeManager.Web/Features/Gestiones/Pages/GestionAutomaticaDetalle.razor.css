@@ -113,8 +113,10 @@
 .gp-campo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .gp-campo-clave { font: var(--font-caption); color: var(--color-text-muted); }
 .gp-campo-valor { font: var(--font-body-md); font-weight: 600; }
-/* El valor copiable es un <button> (BotonCopiar) que ocupa toda la celda: un botón centra su texto por defecto y la maqueta alinea los valores a la izquierda, bajo su clave. */
-.gp-campo ::deep .boton-copiar-en-linea { text-align: left; }
+/* El valor copiable es un <button> (BotonCopiar) dentro de una columna flex: se estira a toda la celda y centra su texto por defecto.
+   La maqueta lo deja a la izquierda, bajo su clave, y del ancho de su texto (align-self), para que el hueco de al lado no copie nada
+   y la confirmación de copiado salga junto al valor. */
+.gp-campo ::deep .boton-copiar-en-linea { text-align: left; align-self: flex-start; }
 .gp-campo-valor[data-tono="exito"]{ color: var(--color-success-700); }
 .gp-campo-valor[data-tono="peligro"] { color: var(--color-danger-700); }
 .gp-nota-acceso { white-space: pre-wrap; padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
