@@ -115,7 +115,8 @@ internal static class ArmadoPaqueteDocumental
 
         // Con tope, el zip se escribe a través de un flujo que corta en cuanto un byte lo pasaría: durante la copia de un
         // Documento, al añadir el índice y al escribir el directorio central al cerrar. Así el tope es sobre los bytes que
-        // se entregan, y la memoria nunca crece por encima de él.
+        // se entregan. No acota la memoria: el MemoryStream duplica su capacidad y ToArray() copia, así que el pico por petición
+        // puede rondar el doble o el triple del tope.
         var conTope = maximoBytes is { } limite ? new FlujoConTope(memoria, limite) : null;
         try
         {

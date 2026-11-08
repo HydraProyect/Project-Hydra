@@ -738,6 +738,26 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void La_descarga_lleva_su_propio_limite_de_tiempo_y_no_el_de_60_segundos_de_la_interop()
+    {
+        // Sin token propio, Blazor Server corta la llamada a JS a los 60 s por defecto aunque el zip siga llegando.
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        cut.WaitForAssertion(() => modulo.Tokens.Should().ContainSingle());
+        modulo.Tokens.Single().CanBeCanceled.Should().BeTrue("la llamada lleva el límite propio de la descarga");
+        modulo.Tokens.Single().IsCancellationRequested.Should().BeFalse();
+        BotonPaqueteEmpresa.TiempoMaximoDeDescarga.Should().BeGreaterThan(TimeSpan.FromMinutes(1),
+            "un paquete de hasta 200 MiB no cabe en el minuto de la interop por defecto");
+    }
+
+    [Fact]
     public void Cambiar_de_destino_mientras_se_genera_no_cambia_el_paquete_que_se_descarga()
     {
         // La importación del módulo se queda pendiente: es la espera en la que, sin la corrección, se podía cambiar a «Todo lo
@@ -789,12 +809,15 @@ public partial class Empresa360PaginaTests : BunitContext
     {
         public List<string> Rutas { get; } = [];
 
+        public List<CancellationToken> Tokens { get; } = [];
+
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
             InvokeAsync<TValue>(identifier, CancellationToken.None, args);
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
         {
             identifier.Should().Be("descargar");
+            Tokens.Add(cancellationToken);
             Rutas.Add((string)args![0]!);
             return ValueTask.FromResult((TValue)(object)new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
         }

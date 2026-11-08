@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Empresas.PaqueteDocumental;
+using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -31,6 +31,12 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private bool _generando;
     private string? _errorDescarga;
     private IJSObjectReference? _modulo;
+
+    /// <summary>
+    /// Lo que se espera a que el servidor construya el zip y el navegador lo reciba entero. Pública, sin
+    /// <c>InternalsVisibleTo</c> en CaeManager.Web, para fijarla en un test.
+    /// </summary>
+    public static readonly TimeSpan TiempoMaximoDeDescarga = TimeSpan.FromMinutes(10);
 
     /// <summary>
     /// La ruta del zip para el destino con el que se calculó el resumen que se está anunciando
@@ -132,7 +138,11 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descarga-archivo.js");
-            var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", ruta, "paquete-documental.zip");
+            // Sin token, Blazor Server corta la llamada a los 60 s por defecto y un paquete cerca de los 200 MiB, entre
+            // construirlo, registrar las aperturas y transferirlo, puede tardar más: el navegador seguiría descargando mientras
+            // el diálogo dice que falló, y un reintento duplicaría las aperturas DEC-36. Con token, solo manda este límite.
+            using var limite = new CancellationTokenSource(TiempoMaximoDeDescarga);
+            var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", limite.Token, ruta, "paquete-documental.zip");
             if (!respuesta.Ok)
                 _errorDescarga = MensajeDeDescarga(respuesta);
         }

@@ -172,7 +172,9 @@ public class DescargarPaqueteEmpresaQueryHandler(
 
         // Todas las aperturas o ninguna: cada registro guarda por su cuenta, así que van en una sola transacción. Si uno falla
         // (la excepción de fallo en cerrado o cualquier otra), se deshacen los anteriores y la excepción sigue hacia arriba:
-        // no queda constancia de aperturas de un paquete que no se entregó, ni se entrega uno sin constancia.
+        // no queda constancia de aperturas de un paquete que no se construyó, ni se entrega uno sin constancia. La confirmación
+        // ocurre antes de escribir la respuesta: si el cliente aborta después, quedan aperturas de un zip no recibido (lado
+        // conservador, inevitable).
         await transaccion.EjecutarAsync(async ct =>
         {
             foreach (var documentoId in zip.DocumentoIds)
