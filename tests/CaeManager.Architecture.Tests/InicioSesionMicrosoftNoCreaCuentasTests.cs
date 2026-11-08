@@ -54,8 +54,10 @@ public class InicioSesionMicrosoftNoCreaCuentasTests
             "el vínculo nuevo es exactamente el de la decisión de vincular por correo");
         sinEspacios.Should().MatchRegex(@"DecidirSegundoFactor\([^;]*,vinculoNuevo\);",
             "la decisión del segundo factor recibe si el vínculo es nuevo");
-        callback.Should().Contain("PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null, altaTotp)",
+        callback.Should().Contain("PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? identidad : null, altaTotp)",
             "el desvío al TOTP de un vínculo nuevo deja la identidad pendiente en la cookie de dos pasos");
+        sinEspacios.Should().Contain("varidentidad=newUserLoginInfo(infoExterna.LoginProvider,claveEstable,",
+            "la identidad que se vincula lleva la clave estable oid + tid, nunca el sub del manejador");
 
         sinEspacios.Should().NotContain("AddLoginAsync(", "el callback no guarda vínculos: la primera vinculación pasa siempre por el TOTP");
         sinEspacios.Should().NotContain("CompletarVinculoPendienteAsync(",

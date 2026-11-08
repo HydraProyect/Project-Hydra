@@ -379,10 +379,18 @@ public static class InicioSesionMicrosoft
         ArgumentNullException.ThrowIfNull(userManager);
         ArgumentNullException.ThrowIfNull(identidad);
 
-        var vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, identidad.ProviderKey);
-        if (vinculada is null && !string.IsNullOrWhiteSpace(claveHeredada)
-            && !string.Equals(claveHeredada, identidad.ProviderKey, StringComparison.Ordinal))
-            vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, claveHeredada);
+        // Primero la clave estable; solo si no hay vínculo con ella, la heredada.
+        string[] claves = !string.IsNullOrWhiteSpace(claveHeredada)
+            && !string.Equals(claveHeredada, identidad.ProviderKey, StringComparison.Ordinal)
+            ? [identidad.ProviderKey, claveHeredada]
+            : [identidad.ProviderKey];
+        ApplicationUser? vinculada = null;
+        foreach (var clave in claves)
+        {
+            vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, clave);
+            if (vinculada is not null)
+                break;
+        }
         ApplicationUser? porCorreo = null;
         var porCorreoTieneOtraIdentidad = false;
         if (vinculada is null)
