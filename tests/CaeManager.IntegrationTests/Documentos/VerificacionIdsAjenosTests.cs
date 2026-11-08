@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -54,7 +54,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
     public async Task CrearAsignacion_rechaza_un_TrabajadorId_inexistente()
     {
         await using var contexto = CrearContexto();
-        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto);
+        var handler = new CrearAsignacionCommandHandler(new AsignacionRepository(contexto), new AutoridadAsignacionesServiceFalso(contexto), AltaAcreditacionesDePrueba.Con(contexto), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1)),
@@ -77,7 +77,8 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.IntegrationTests.SerializacionAltasSinBloqueo(),
+            AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(
@@ -125,7 +126,7 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var handler = new EditarTipoDocumentoCommandHandler(
-            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto);
+            new TipoDocumentoRepository(contexto), new TipoDocumentoCentroRepository(contexto), contexto, AltaAcreditacionesDePrueba.Con(contexto), new AlcanceDatosServiceFalso(), contexto, new SerializacionAltasSinBloqueo());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

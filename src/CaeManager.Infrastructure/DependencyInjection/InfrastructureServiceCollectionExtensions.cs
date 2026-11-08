@@ -65,6 +65,20 @@ namespace CaeManager.Infrastructure.DependencyInjection;
 
 public static class InfrastructureServiceCollectionExtensions
 {
+    /// <summary>
+    /// Regla A-1: el alta de un Documento de Empresa y la de un acceso de plataforma no se pierden el par entre sí.
+    /// Registra la serialización y la transacción de Command de la que depende (TryAdd: si ya está registrada, se
+    /// respeta). Exige un <see cref="CaeManagerDbContext"/> y un <see cref="ITenantActual"/> registrados; los contenedores
+    /// de prueba que montan <c>AddApplication()</c> a mano lo llaman para no divergir del registro de producción.
+    /// </summary>
+    public static IServiceCollection AddSerializacionAltasAcreditacionEmpresa(this IServiceCollection services)
+    {
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
+            .TryAddScoped<ITransaccionDeComando, TransaccionDeComando>(services);
+        services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
@@ -489,6 +503,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
+        services.AddScoped<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();
@@ -519,6 +534,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
+        services.AddSerializacionAltasAcreditacionEmpresa();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
@@ -810,6 +826,18 @@ public static class InfrastructureServiceCollectionExtensions
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
         services.AddHostedService<Comunicaciones.CierreConversacionesResueltasHostedService>();
+
+        // Conciliación de la regla A-1 (acreditaciones de los Documentos de Empresa en todos los Centros de plataforma
+        // de su Empresa): una pasada al arrancar, solo si quien despliega la enciende. Apagada por defecto (ver
+        // ConciliacionAcreditacionesEmpresaOptions): cuándo corre en producción no lo decide el código.
+        var opcionesConciliacionAcreditaciones = new Documentos.ConciliacionAcreditacionesEmpresaOptions();
+        configuration.GetSection(Documentos.ConciliacionAcreditacionesEmpresaOptions.SeccionConfiguracion)
+            .Bind(opcionesConciliacionAcreditaciones);
+        if (opcionesConciliacionAcreditaciones.EjecutarAlArrancar)
+        {
+            services.AddSingleton(opcionesConciliacionAcreditaciones);
+            services.AddHostedService<Documentos.ConciliacionAcreditacionesEmpresaHostedService>();
+        }
 
         // Tramo 1 bis del MVP-1 de formatos (corte mínimo, 2026-08-14):
         // sondeo del sumario diario del BOE. El cliente HTTP se registra

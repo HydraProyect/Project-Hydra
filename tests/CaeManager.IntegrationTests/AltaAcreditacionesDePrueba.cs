@@ -1,4 +1,6 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
 
@@ -14,4 +16,13 @@ public static class AltaAcreditacionesDePrueba
 {
     public static AltaAcreditacionesPlataformaService Con(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, contexto, new AcreditacionDocumentoPlataformaRepository(contexto));
+
+    /// <summary>
+    /// El servicio real de <see cref="INacimientoGestionAutomaticaService"/> sobre el mismo contexto: la Gestión
+    /// automática nace en el mismo guardado que el Documento y sus acreditaciones, como en producción.
+    /// </summary>
+    public static NacimientoGestionAutomaticaService GestionAutomatica(
+        CaeManagerDbContext contexto, ICurrentUserService? usuario = null) =>
+        new(new GestionAutomaticaRepository(contexto), new AcreditacionDocumentoPlataformaRepository(contexto),
+            contexto, contexto, usuario ?? new CurrentUserServiceFalso(), TimeProvider.System);
 }

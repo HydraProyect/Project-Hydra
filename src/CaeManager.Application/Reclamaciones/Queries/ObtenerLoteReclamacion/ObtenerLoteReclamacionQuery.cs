@@ -8,7 +8,6 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
-using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -109,8 +108,8 @@ public class ObtenerLoteReclamacionQueryHandler(
         ObtenerLoteReclamacionQuery request, CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var asignacionesReclamables = await AsignacionesReclamables.DeAsync(
+            asignacionesContext.Asignaciones, centrosContext.Centros, alcanceDatos, cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
@@ -121,19 +120,17 @@ public class ObtenerLoteReclamacionQueryHandler(
             where request.TrabajadorId == null || documento.TrabajadorId == request.TrabajadorId
             where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            join asignacion in asignacionesContext.Asignaciones on trabajador.Id equals asignacion.TrabajadorId
-            where asignacion.FechaBaja == null
-            where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
+            // Solo Tipos de ámbito Trabajador: la misma regla con la que el envío revalida (TiposDocumentoReclamablesDeTrabajador).
+            join tipoDocumento in TiposDocumentoReclamablesDeTrabajador.De(tiposDocumentoContext.TiposDocumento)
+                on documento.TipoDocumentoId equals tipoDocumento.Id
+            // Asignación activa a un Centro visible con gestión CAE de un Cliente empresarial visible: LA condición del lote,
+            // que reutilizan el envío a la Empresa empleadora y el «Reclamable» del Mes (AsignacionesReclamables).
+            join asignacion in asignacionesReclamables
+                on trabajador.Id equals asignacion.TrabajadorId
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-            // P1-X2: un Centro sin gestión CAE no exige documentación, así que
-            // tampoco da pie a reclamarla (ObtenerLoteReclamacion y
-            // EnviarReclamacion comparten el filtro: lo que no se ofrece no se envía).
-            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             where request.CentroId == null || centro.Id == request.CentroId
             where request.ClienteId == null || centro.ClienteId == request.ClienteId
             where request.TipoDocumentoIds == null || request.TipoDocumentoIds.Contains(tipoDocumento.Id)
-            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new
             {

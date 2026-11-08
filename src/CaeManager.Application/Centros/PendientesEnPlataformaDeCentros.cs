@@ -41,8 +41,10 @@ public sealed record PendienteEnPlataformaDeCentro(
 /// Centro (decisión del 2026-10-10). La <b>Empresa</b> en dos casos: en los Centros de su Empresa
 /// (<c>Centro.EmpresaId</c>) aunque no tengan ningún Trabajador asignado, porque un Centro puede exigir solo documentos de
 /// Empresa (decisión del 2026-11-08, que sustituye al filtro por actividad que la regla del 2026-10-10 aplicaba también a
-/// los documentos de Empresa); y en cualquier Centro donde tenga algún Trabajador suyo con Asignación activa (la del
-/// Trabajador, o su Subcontrata si no tiene Empresa), que es como cuenta una Subcontrata en el Centro de otra Empresa. Un
+/// los documentos de Empresa y que es la misma con la que se da de alta su acreditación,
+/// <see cref="Documentos.Acreditacion.IAltaAcreditacionesPlataformaService"/>); y en cualquier Centro donde tenga
+/// algún Trabajador suyo con Asignación activa (la del Trabajador, o su Subcontrata si no tiene Empresa), que es como cuenta
+/// una Subcontrata en el Centro de otra Empresa. Un
 /// Centro de otra Empresa sin Trabajadores de esta no cuenta. Con esto, la acreditación de Empresa de un Centro de su
 /// Empresa sin Trabajadores no pasa a Bloqueado por rechazo (<see cref="CalculoEstadoCentroService"/>, que no filtra por
 /// actividad) sin haber estado Pendiente. Queda una asimetría conocida: el rechazo de un documento de Empresa cuenta en

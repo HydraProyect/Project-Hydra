@@ -6,7 +6,6 @@ using CaeManager.Application.Empresas;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
-using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -18,8 +17,9 @@ namespace CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa
 /// Envía el lote de «Gestionar» de documentos de Trabajador a la Empresa que los emplea (decisión de Chris, 2026-10-18): al
 /// contacto de reclamación de la Delegación (<paramref name="DelegacionEmpresaId"/>) o, sin ella, a la agenda de la Empresa.
 /// Hermano de <see cref="EnviarReclamacionCommand"/> (el mismo lote, dirigido al Cliente del Centro) y con sus mismas reglas:
-/// lo que se ofrece es lo que se acepta (misma ventana, Asignación activa, Centro con gestión CAE y alcance visible), todo
-/// o nada, la selección manual de destinatarios se filtra contra lo resuelto y nada sale sin que el Gestor CAE lo confirme
+/// lo que se ofrece es lo que se acepta (misma ventana, Asignación activa, Centro con gestión CAE y alcance visible, con
+/// <see cref="AsignacionesReclamables"/>; Tipo de Documento de ámbito Trabajador; ningún voluntario inactivo, con
+/// <c>ActividadVoluntarios</c>, como la Semana y el Mes), todo o nada, la selección manual de destinatarios se filtra contra lo resuelto y nada sale sin que el Gestor CAE lo confirme
 /// en pantalla. La cola común —buzón, envío, registro y evento— es <see cref="IRegistroEnvioReclamacionService"/>.
 ///
 /// <para>
@@ -128,10 +128,12 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
         var idsSolicitados = todosLosIds.Where(id => !idsEmpresa.Contains(id)).ToList();
 
         // Mismo alcance y misma ventana que el lote (ObtenerLoteReclamacionQuery): un Id fuera de ellos falla igual que uno
-        // ya renovado, sin decir que existe.
+        // ya renovado, sin decir que existe. Los voluntarios inactivos ya no están en trabajadorIdsDelLote
+        // (TrabajadoresDelDestinoAsync), con la regla de la Semana y el Mes; y solo viajan documentos de un Tipo de ámbito
+        // Trabajador, con la misma regla que el lote y sus pendientes (TiposDocumentoReclamablesDeTrabajador).
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        var asignacionesReclamables = await AsignacionesReclamables.DeAsync(
+            asignacionesContext.Asignaciones, centrosContext.Centros, alcanceDatos, cancellationToken);
 
         var filas = (await (
                 from documento in documentosContext.Documentos.Reclamables(hoy)
@@ -140,13 +142,9 @@ public class EnviarReclamacionEmpresaEmpleadoraCommandHandler(
                 where trabajadorIdsDelLote.Contains(documento.TrabajadorId!.Value)
                 where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
                 join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-                join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-                join asignacion in asignacionesContext.Asignaciones on trabajador.Id equals asignacion.TrabajadorId
-                where asignacion.FechaBaja == null
-                where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
-                join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
-                where centro.GestionCae != ModalidadGestionCae.SinGestionCae
-                where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
+                join tipoDocumento in TiposDocumentoReclamablesDeTrabajador.De(tiposDocumentoContext.TiposDocumento)
+                    on documento.TipoDocumentoId equals tipoDocumento.Id
+                where asignacionesReclamables.Any(asignacion => asignacion.TrabajadorId == trabajador.Id)
                 select new
                 {
                     DocumentoId = documento.Id,

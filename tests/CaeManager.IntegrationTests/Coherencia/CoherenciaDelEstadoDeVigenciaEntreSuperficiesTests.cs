@@ -395,7 +395,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             Comprobar("Informe de vigencia", caso, filasInforme.GetValueOrDefault(caso.DocumentoTrabajadorId), Muestra.Todo);
 
         // 8. Calendario de vencimientos: solo lo que tiene fecha.
-        var calendario = new ObtenerVencimientosMesQueryHandler(c, c, c, c, alcance);
+        var calendario = new ObtenerVencimientosMesQueryHandler(c, c, c, c, c, c, c, c, alcance);
         var enCalendario = new Dictionary<Guid, EstadoDocumento>();
         foreach (var mes in Enumerable.Range(-1, 4).Select(delta => new DateOnly(_hoy.Year, _hoy.Month, 1).AddMonths(delta)).Distinct())
         {

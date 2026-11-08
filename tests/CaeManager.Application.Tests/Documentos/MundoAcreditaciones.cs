@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -33,6 +34,13 @@ internal sealed class MundoAcreditaciones
     public AltaAcreditacionesPlataformaService Servicio() =>
         new(AsignacionesContexto, CentrosContexto, TrabajadoresContexto, DocumentosContexto, TiposDocumentoContexto, Acreditaciones);
 
+    /// <summary>Las Gestiones automáticas que nacen en los actos del mundo (lo agregado y lo guardado, sin distinguir).</summary>
+    public Gestiones.GestionesAutomaticasEnMemoria Gestiones { get; } = new();
+
+    /// <summary>El servicio REAL de nacimiento de la Gestión automática, sobre las acreditaciones de este mundo.</summary>
+    public NacimientoGestionAutomaticaService GestionAutomatica(Guid? usuarioId = null) =>
+        new(Gestiones, Acreditaciones, DocumentosContexto, CentrosContexto, new CurrentUserServiceFalso(usuarioId), TimeProvider.System);
+
     public Trabajador Trabajador(string dni = "12345678Z")
     {
         var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(EmpresaId, "Ana", "Pérez", dni);
@@ -40,9 +48,21 @@ internal sealed class MundoAcreditaciones
         return trabajador;
     }
 
-    public Centro Centro(string nombre = "Planta Norte")
+    /// <summary>
+    /// Trabajador de la Empresa del mundo dado de alta con <see cref="Domain.Trabajadores.Trabajador.DeSubcontrata"/>:
+    /// <c>EmpresaId</c> nulo y su Empresa en <c>SubcontrataId</c>.
+    /// </summary>
+    public Trabajador TrabajadorDeSubcontrata(string dni = "87654321X")
     {
-        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), nombre);
+        var trabajador = Domain.Trabajadores.Trabajador.DeSubcontrata(EmpresaId, "Luis", "Gómez", dni);
+        TrabajadoresContexto.ListaTrabajadores.Add(trabajador);
+        return trabajador;
+    }
+
+    /// <summary>Un Centro de otra Empresa del Tenant, salvo que se pase <paramref name="empresaId"/>.</summary>
+    public Centro Centro(string nombre = "Planta Norte", Guid? empresaId = null)
+    {
+        var centro = new Centro(Guid.NewGuid(), empresaId ?? Guid.NewGuid(), nombre);
         CentrosContexto.ListaCentros.Add(centro);
         return centro;
     }
@@ -103,6 +123,7 @@ internal sealed class MundoAcreditaciones
     {
         DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.AddRange(Acreditaciones.Acreditaciones);
         Acreditaciones.Acreditaciones.Clear();
+        Acreditaciones.MarcarGuardadas();
     }
 
     public IEnumerable<(Guid DocumentoId, Guid CanalId)> Agregadas =>

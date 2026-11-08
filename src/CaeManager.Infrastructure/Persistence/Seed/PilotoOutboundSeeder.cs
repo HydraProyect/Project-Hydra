@@ -1331,11 +1331,11 @@ public static class PilotoOutboundSeeder
         /// que siguen en uso.
         ///
         /// <para>
-        /// También cada documento exigido de la Empresa propia, Aceptado hasta su propio vencimiento: la Empresa tiene
-        /// Trabajadores asignados en ese Centro, y la regla de alta del producto (<c>AltaAcreditacionesPlataformaService</c>,
-        /// P0-7) los habría acreditado allí con la primera Asignación. Sin ellos, la primera Asignación que se hace a mano en
-        /// la demostración los acreditaba todos de golpe, y Mi trabajo pasaba de cero a una propagación pendiente por
-        /// documento de Empresa sin que nadie hubiera tocado ninguno.
+        /// También cada documento exigido de la Empresa propia, Aceptado hasta su propio vencimiento: el Centro es de la
+        /// Empresa (<c>Centro.EmpresaId</c>), y la regla de alta del producto (<c>AltaAcreditacionesPlataformaService</c>,
+        /// P0-7) los acredita allí al darlos de alta, tenga o no Trabajadores asignados. Sin ellos, la primera acción que
+        /// los pone en juego en la demostración (una Asignación, un acceso o un requisito) los acreditaba todos de golpe, y
+        /// Mi trabajo pasaba de cero a una propagación pendiente por documento de Empresa sin que nadie hubiera tocado ninguno.
         /// </para>
         /// </summary>
         private async Task AcreditacionesExternasAsync(
@@ -1395,12 +1395,12 @@ public static class PilotoOutboundSeeder
                 }
             }
 
-            // Los de la Empresa propia, solo si tiene alguien asignado en ese Centro: es lo que pide la regla de alta. Van
-            // después de los de los Trabajadores para no consumir la receta de rechazos y subidas. Los Trabajadores propios son
-            // los primeros tenant.Trabajadores; los de detrás son de Subcontrata y no dan actividad a la Empresa propia.
-            if (activas.Any(a => a.Key < tenant.Trabajadores && a.Value.Contains(c)))
-                foreach (var documento in documentosDeEmpresa)
-                    AceptarEnPlataforma(documento, canal.Id);
+            // Los de la Empresa propia, tenga o no a alguien asignado en ese Centro: todos los Centros del piloto son suyos
+            // (Centro.EmpresaId) y la regla de alta acredita allí sus documentos aunque nadie esté asignado. En los perfiles
+            // actuales el Centro con plataforma ya tiene Trabajadores propios, así que el resultado de la siembra no cambia.
+            // Van después de los de los Trabajadores para no consumir la receta de rechazos y subidas.
+            foreach (var documento in documentosDeEmpresa)
+                AceptarEnPlataforma(documento, canal.Id);
 
             // En el escaparate, también los de cada Subcontrata, aceptados en el portal con la caducidad que tienen aquí.
             if (tenant.AcreditaDocumentosDeEmpresa)

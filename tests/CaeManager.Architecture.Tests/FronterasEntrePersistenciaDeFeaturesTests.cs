@@ -168,6 +168,13 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Calendario.ObtenerVencimientosMesQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Calendario.ObtenerVencimientosMesQueryHandler", "ITrabajadoresQueryContext"),
+        // El Mes compone la Empresa empleadora de cada vencimiento y su «Reclamar» con la regla de la Semana por Empresa; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IEmpresasQueryContext"),
+        // Y excluye de «Reclamar» a los voluntarios inactivos (ActividadVoluntarios), como la Semana; solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IProyectosQueryContext"),
+        // Y solo ofrece «Reclamar» con la Asignación reclamable del lote (AsignacionesReclamables); solo lee.
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "IAsignacionesQueryContext"),
+        ("Calendario.ObtenerVencimientosMesQueryHandler", "ICentrosQueryContext"),
         // Semana por Empresa compone vencimientos visibles y el historial de envío; no escribe fuera de Calendario.
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IDocumentosQueryContext"),
         ("Calendario.ObtenerSemanaPorEmpresaQueryHandler", "IEmpresasQueryContext"),
@@ -620,6 +627,21 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
+        // Gestión automática (especificación de Gestión de varios pasos, § 4.1): agrupa las acreditaciones en
+        // plataforma de un Documento, así que sus consultas leen Documentos y accesos de Centro y resuelven además la
+        // cabecera (Tipo, titular, Empresa gestionada) y el nombre de la plataforma.
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentrosQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaRepository"),

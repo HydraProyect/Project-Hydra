@@ -18,8 +18,39 @@ namespace CaeManager.IntegrationTests;
 /// </summary>
 public class InvalidadorAlcanceComposicionTests
 {
+    /// <summary>
+    /// CrearDocumento, RenovarDocumento y GenerarDocumentoIndividual hacen nacer la Gestión automática dentro del acto:
+    /// con la composición real, el servicio y su repositorio se resuelven. Si falta el registro del repositorio, crear
+    /// cualquier Documento falla al activar el handler.
+    /// </summary>
+    [Fact]
+    public void La_composicion_real_resuelve_el_nacimiento_de_la_gestion_automatica_y_su_repositorio()
+    {
+        using var proveedor = ProveedorConLaComposicionReal();
+        using var scope = proveedor.CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository>()
+            .Should().BeOfType<CaeManager.Infrastructure.Persistence.Repositories.GestionAutomaticaRepository>();
+        scope.ServiceProvider.GetRequiredService<CaeManager.Application.Gestiones.INacimientoGestionAutomaticaService>()
+            .Should().BeOfType<CaeManager.Application.Gestiones.NacimientoGestionAutomaticaService>();
+    }
+
     [Fact]
     public void El_invalidador_y_el_servicio_de_alcance_son_la_misma_instancia_dentro_de_un_scope()
+    {
+        using var proveedor = ProveedorConLaComposicionReal();
+        using var scope = proveedor.CreateScope();
+        using var otroScope = proveedor.CreateScope();
+
+        var alcance = scope.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
+        var invalidador = scope.ServiceProvider.GetRequiredService<IInvalidadorAlcance>();
+
+        alcance.Should().BeOfType<AlcanceDatosService>();
+        invalidador.Should().BeSameAs(alcance);
+        otroScope.ServiceProvider.GetRequiredService<IInvalidadorAlcance>().Should().NotBeSameAs(invalidador);
+    }
+
+    private static ServiceProvider ProveedorConLaComposicionReal()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -38,17 +69,8 @@ public class InvalidadorAlcanceComposicionTests
         builder.Services.AddScoped<IActorAuditoria, ActorSinResolver>();
         builder.Services.AddScoped<ICurrentUserService>(_ => new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", Guid.NewGuid()));
 
-        using var proveedor = builder.Services.BuildServiceProvider(
+        return builder.Services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = false });
-        using var scope = proveedor.CreateScope();
-        using var otroScope = proveedor.CreateScope();
-
-        var alcance = scope.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
-        var invalidador = scope.ServiceProvider.GetRequiredService<IInvalidadorAlcance>();
-
-        alcance.Should().BeOfType<AlcanceDatosService>();
-        invalidador.Should().BeSameAs(alcance);
-        otroScope.ServiceProvider.GetRequiredService<IInvalidadorAlcance>().Should().NotBeSameAs(invalidador);
     }
 
     private sealed class SinSeleccion : IClienteActivoSeleccionado

@@ -52,6 +52,18 @@
     min-width: 260px;
 }
 
+/*
+  A 375 px la cabecera compartida pasa a columna (CabeceraIdentidad.razor.css, max-width: 600px): el 1 1 300px de arriba
+  deja de ser un ancho mínimo y se convierte en una ALTURA de 300 px para el bloque del nombre (medido: tarjeta de 518 px
+  con ~165 px vacíos entre el nombre y «Programar visita»). En columna el bloque mide lo que su contenido.
+*/
+@media (max-width: 600px) {
+    .contenedor-pagina ::deep .cabecera-identidad-texto {
+        flex: none;
+        min-width: 0;
+    }
+}
+
 .contenedor-pagina ::deep .cabecera-identidad-acciones {
     flex-shrink: 1;
     max-width: 100%;

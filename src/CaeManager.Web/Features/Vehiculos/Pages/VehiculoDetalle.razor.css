@@ -61,6 +61,18 @@
     flex: 1 1 380px;
 }
 
+/*
+  A 375 px la cabecera compartida pasa a columna (CabeceraIdentidad.razor.css, max-width: 600px): el 1 1 380px de arriba
+  deja de ser un ancho mínimo y se convierte en una ALTURA de 380 px para el bloque de la matrícula. En columna el bloque
+  mide lo que su contenido. Mismo defecto y misma anulación que Centro 360 (PR #2088); la vigila CabeceraIdentidadFlexBasisMovilTests.
+*/
+@media (max-width: 600px) {
+    .vehiculo360 ::deep .cabecera-identidad-texto {
+        flex: none;
+        min-width: 0;
+    }
+}
+
 .vehiculo360 ::deep .cabecera-identidad-titulo {
     margin-top: 6px;
     font: 700 28px/34px var(--font-family);

@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -252,6 +253,98 @@ public static class ConcurrenciaContexto
         var entrada = contexto.Entry(entidad);
         await entrada.ReloadAsync(cancellationToken);
         return entrada.State == EntityState.Detached ? null : entidad;
+    }
+
+    /// <summary>
+    /// Para entidades sin <see cref="IVersionable"/>, que no tienen token de concurrencia: ejecuta la consulta normal y
+    /// relee cada instancia que el contexto (uno por circuito en Blazor Server) ya tenía rastreada sin cambios, porque EF
+    /// no reemplaza sus valores al materializar otra consulta. Sin la relectura, quien decide bajo el candado de
+    /// <c>ISerializacionAltasAcreditacionEmpresa</c> vería el valor de antes de esperar y no el que otra operación
+    /// confirmó mientras tanto; y asignar ese valor viejo no cambiaría nada para EF, que no guardaría la escritura
+    /// (revisión Codex de la PR #2074, ronda 4, hallazgo 2). Una instancia con cambios de la operación en curso no se
+    /// relee: la relectura los perdería en silencio. Las filas que desaparecieron entre la consulta y la relectura no se
+    /// devuelven.
+    /// <para>
+    /// El filtro va aparte de la <paramref name="fuente"/> (con sus <c>Include</c>) porque también decide, en memoria,
+    /// qué instancias rastreadas sin cambios pertenecían al conjunto: las que la consulta ya no devuelve las borró, o las
+    /// sacó del filtro, otra operación, y se desacoplan. Sin eso seguirían <c>Unchanged</c> con los valores de antes y un
+    /// guardado posterior que las tocase chocaría con una fila que ya no existe (revisión puente de la PR #2074, previa a
+    /// la ronda 5, hallazgo 1). El filtro solo puede leer propiedades escalares: se evalúa sobre la instancia rastreada,
+    /// sin cargar navegaciones. Desacoplar no saca la instancia de la colección de un principal rastreado, y el siguiente
+    /// DetectChanges la volvería a adjuntar: para un <typeparamref name="T"/> con navegación de colección inversa, usa
+    /// <see cref="RecargarColeccionAsync"/> desde el principal. Hoy ninguno de los llamadores la tiene
+    /// (<c>Asignacion</c>, <c>TipoDocumento</c> y <c>TipoDocumentoCentro</c>).
+    /// </para>
+    /// </summary>
+    public static async Task<List<T>> ListarActualesAsync<T>(
+        this DbContext contexto, IQueryable<T> fuente, Expression<Func<T, bool>> filtro,
+        CancellationToken cancellationToken = default)
+        where T : class
+    {
+        // Se relee toda rastreada sin cambios que la consulta devuelva, cumpla o no el filtro con sus valores viejos; el
+        // filtro en memoria solo decide qué rastreadas pertenecían al conjunto y, si la consulta ya no las trae, se
+        // desacoplan.
+        var perteneceAlConjunto = filtro.Compile(preferInterpretation: true);
+        var rastreadas = contexto.ChangeTracker.Entries<T>()
+            .Where(e => e.State == EntityState.Unchanged)
+            .Select(e => (object)e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
+        var entidades = await fuente.Where(filtro).ToListAsync(cancellationToken);
+        var devueltas = new HashSet<object>(entidades, ReferenceEqualityComparer.Instance);
+        foreach (var desaparecida in rastreadas.Where(e => !devueltas.Contains(e) && perteneceAlConjunto((T)e)).ToList())
+            contexto.Entry(desaparecida).State = EntityState.Detached;
+
+        var actuales = new List<T>(entidades.Count);
+        foreach (var entidad in entidades)
+        {
+            if (rastreadas.Contains(entidad))
+            {
+                var entrada = contexto.Entry(entidad);
+                await entrada.ReloadAsync(cancellationToken);
+                if (entrada.State == EntityState.Detached)
+                    continue;
+            }
+
+            actuales.Add(entidad);
+        }
+
+        return actuales;
+    }
+
+    /// <summary>
+    /// Complemento de <see cref="ListarActualesAsync"/> para una colección del agregado: <c>ReloadAsync</c> solo repone
+    /// los escalares del principal, y una consulta con <c>Include</c> añade a la colección las filas nuevas pero no quita
+    /// las que otra operación borró. Relee la colección: los elementos rastreados sin cambios que siguen existiendo se
+    /// releen, y los que ya no existen se desacoplan y salen de la colección, para que un guardado que la reemplace no
+    /// intente borrar una fila que ya no está (<see cref="DbUpdateConcurrencyException"/>). Los elementos con cambios
+    /// de la operación en curso no se tocan (revisión puente de la PR #2074, previa a la ronda 5, hallazgo 2).
+    /// </summary>
+    public static async Task RecargarColeccionAsync<T, THijo>(
+        this DbContext contexto, T principal, Expression<Func<T, IEnumerable<THijo>>> navegacion,
+        CancellationToken cancellationToken = default)
+        where T : class
+        where THijo : class
+    {
+        var coleccion = contexto.Entry(principal).Collection(navegacion);
+        var sinCambios = (coleccion.CurrentValue ?? [])
+            .Where(h => contexto.Entry(h).State == EntityState.Unchanged)
+            .ToList();
+        var existentes = new HashSet<object>(await coleccion.Query().ToListAsync(cancellationToken),
+            ReferenceEqualityComparer.Instance);
+        var accesor = coleccion.Metadata.GetCollectionAccessor()
+                      ?? throw new InvalidOperationException($"La navegación {coleccion.Metadata.Name} no admite cambios.");
+        foreach (var hijo in sinCambios)
+        {
+            var entrada = contexto.Entry(hijo);
+            if (existentes.Contains(hijo))
+            {
+                await entrada.ReloadAsync(cancellationToken);
+                if (entrada.State != EntityState.Detached)
+                    continue;
+            }
+
+            entrada.State = EntityState.Detached;
+            accesor.Remove(principal, hijo);
+        }
     }
 
     private static bool ArrastraGuardadoFallido(EntityEntry entrada)

@@ -44,10 +44,23 @@ public class EstablecerGestionCaeCentroCommandHandler(
     ICentrosQueryContext centrosContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EstablecerGestionCaeCentroCommand, Result>
 {
-    public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// Volver a gestión CAE se serializa con el alta de un Documento de Empresa (ver
+    /// <see cref="ISerializacionAltasAcreditacionEmpresa"/>): sin ello, la reactivación no ve el Documento nuevo, el
+    /// Documento ve todavía el Centro sin gestión CAE y el par se pierde (revisión Codex de la PR #2074, ronda 3,
+    /// hallazgo 3). Se decide por la modalidad pedida, no por la guardada, para no leer antes del candado; dejar la
+    /// gestión CAE no da de alta nada que pueda perderse. Todo se lee dentro: un reintento empieza con el contexto vacío.
+    /// </summary>
+    public async Task<Result> Handle(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken) =>
+        request.Modalidad == ModalidadGestionCae.ConGestionCae
+            ? await serializacionAltas.EjecutarAsync(ct => EstablecerAsync(request, ct), cancellationToken)
+            : await EstablecerAsync(request, cancellationToken);
+
+    private async Task<Result> EstablecerAsync(EstablecerGestionCaeCentroCommand request, CancellationToken cancellationToken)
     {
         var centro = await repositorio.ObtenerPorIdAsync(request.CentroId, cancellationToken);
         if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(centro.Id, cancellationToken))

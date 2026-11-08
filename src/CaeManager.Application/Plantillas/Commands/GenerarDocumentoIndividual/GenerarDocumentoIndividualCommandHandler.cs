@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -25,7 +26,8 @@ namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 /// datos ya conocidos, no hace falta releerlo), a diferencia de
 /// <c>CrearDocumentoCommandHandler</c>, que sí lo hace para un PDF subido a
 /// mano. Las acreditaciones de plataforma sí nacen igual que en el alta manual
-/// (<see cref="IAltaAcreditacionesPlataformaService"/>).
+/// (<see cref="IAltaAcreditacionesPlataformaService"/>), y con ellas la Gestión automática
+/// (<see cref="INacimientoGestionAutomaticaService"/>): es un alta con archivo.
 /// </summary>
 public class GenerarDocumentoIndividualCommandHandler(
     IPlantillaDocumentoVersionRepository versionRepositorio,
@@ -42,8 +44,10 @@ public class GenerarDocumentoIndividualCommandHandler(
     ICurrentUserService usuarioActual,
     IAlcanceDatosService alcanceDatos,
     IAsignacionRepository asignacionRepositorio,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    INacimientoGestionAutomaticaService gestionAutomatica)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
     public async Task<Result<GenerarDocumentoIndividualResultadoDto>> Handle(
@@ -196,10 +200,6 @@ public class GenerarDocumentoIndividualCommandHandler(
             AmbitoAplicacion.Cliente => Documento.DeCliente(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl),
             _ => Documento.DeEmpresa(request.OwnerId, plantilla.TipoDocumentoId, fechaEmision, vigencia, archivoUrl)
         };
-        documentoRepositorio.Agregar(documento);
-
-        // Mismo SaveChangesAsync que el Documento: o se confirman juntos o ninguno.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
 
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));
@@ -242,12 +242,38 @@ public class GenerarDocumentoIndividualCommandHandler(
             version.Id, documento.Id, datosUtilizadosJson, idUsuario, ahoraUtc,
             trabajadorId: trabajadorId, empresaId: empresaId, centroId: request.CentroId,
             conAvisos: camposObligatoriosVacios.Count > 0 || valoresNoReconocidos.Count > 0);
-        documentoGeneradoRepositorio.Agregar(documentoGenerado);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // Un Documento de Empresa se acredita en los accesos de plataforma de los Centros de su Empresa (regla A-1): su
+        // alta se serializa con la de un acceso de plataforma, igual que en CrearDocumentoCommandHandler (ver
+        // ISerializacionAltasAcreditacionEmpresa).
+        var guardado = plantilla.AmbitoAplicacion == AmbitoAplicacion.Empresa
+            ? await serializacionAltas.EjecutarAsync(ct => GuardarAsync(documento, documentoGenerado, ct), cancellationToken)
+            : await GuardarAsync(documento, documentoGenerado, cancellationToken);
+        if (guardado.EsFallido)
+            return Result.Fallo<GenerarDocumentoIndividualResultadoDto>(guardado.Error);
 
         return Result.Exito(new GenerarDocumentoIndividualResultadoDto(
             documentoGenerado.Id, documento.Id, camposObligatoriosVacios, valoresNoReconocidos));
+    }
+
+    /// <summary>
+    /// El Documento, sus acreditaciones y su registro de generación en un solo guardado: o se confirman juntos o
+    /// ninguno. Puede ejecutarse más de una vez dentro de la serialización (reintento de la transacción, que empieza con
+    /// el contexto vacío): todo lo que guarda se agrega aquí dentro.
+    /// </summary>
+    private async Task<Result> GuardarAsync(Documento documento, DocumentoGenerado documentoGenerado, CancellationToken cancellationToken)
+    {
+        documentoRepositorio.Agregar(documento);
+        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
+
+        // Generar desde plantilla es un alta con archivo: hace nacer la Gestión automática igual que el alta manual,
+        // con las acreditaciones recién agregadas y en el mismo guardado. Va aquí dentro, después de
+        // AgregarPendientesAsync, para que la vea y para que un reintento de la serialización la vuelva a agregar.
+        await gestionAutomatica.AgregarAsync(documento, sustituido: null, cancellationToken);
+        documentoGeneradoRepositorio.Agregar(documentoGenerado);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return Result.Exito();
     }
 
     /// <summary>Si varios contactos comparten el mismo rol, se queda con el primero — comportamiento razonable para MVP, sin criterio de desempate.</summary>

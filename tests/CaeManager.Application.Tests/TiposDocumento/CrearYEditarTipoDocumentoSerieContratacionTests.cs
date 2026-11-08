@@ -30,7 +30,8 @@ public class CrearYEditarTipoDocumentoSerieContratacionTests
 
     private static EditarTipoDocumentoCommandHandler HandlerEditar(TipoDocumentoRepositorioFalso repositorio) =>
         new(repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(),
+            new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
     [Fact]
     public async Task Crear_sin_serie_pide_de_serie_a_todos()
