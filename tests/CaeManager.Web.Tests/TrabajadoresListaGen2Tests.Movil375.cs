@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Bunit;
+using CaeManager.Domain.Documentos;
 using FluentAssertions;
 
 namespace CaeManager.Web.Tests;
@@ -30,6 +31,27 @@ public partial class TrabajadoresListaGen2Tests
             "col-registrados-vigentes", "celda-estado-trabajador", "tarjeta-fila-acordeon-acciones"
         ];
         fila.Children.Select(c => esperadas.FirstOrDefault(c.ClassList.Contains)).Should().Equal(esperadas);
+    }
+
+    [Fact]
+    public void El_boton_del_chevron_de_la_fila_con_incidencias_lleva_la_misma_clase_de_celda()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Almacen = { ConDesglose(Trabajador("Ana", "Alonso"), 3, 2, IncidenciaDe("Seguro de responsabilidad civil", EstadoDocumento.Vencido, -10)) }
+        });
+
+        var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
+        fila.Children[0].ClassList.Should().Contain(["boton-expandir-fila", "celda-chevron-trabajador"],
+            "sin esa clase el botón perdería los 24 px fijos del apilado y Empresa, Registrados vigentes y Estado quedarían desalineados");
+        fila.Children[0].TagName.Should().Be("BUTTON");
+    }
+
+    [Fact]
+    public void La_casilla_de_seleccion_mide_16_px_para_que_cuadre_la_sangria_de_64_px_del_apilado()
+    {
+        Regex.IsMatch(CssListaTrabajadores(), @"\.seleccion-trabajador[^{]*input\[type=""checkbox""\]\s*\{[^}]*width\s*:\s*16px[^}]*height\s*:\s*16px[^}]*margin\s*:\s*0")
+            .Should().BeTrue();
     }
 
     [Fact]
