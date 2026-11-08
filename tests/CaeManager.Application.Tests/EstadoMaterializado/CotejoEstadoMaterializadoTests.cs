@@ -127,6 +127,31 @@ public class CotejoEstadoMaterializadoTests
     }
 
     [Fact]
+    public void Una_acreditacion_de_otra_version_con_las_mismas_columnas_la_rehace_su_Centro_sin_discrepancia()
+    {
+        var acreditacion = Acreditacion(Trabajador);
+
+        var diferencias = Comparar(Calculo(plataforma: [acreditacion]),
+            plataforma: [Guardada(acreditacion, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Total.Should().Be(0);
+        diferencias.Plataforma.DeOtraVersion.Should().Be(1);
+        diferencias.Raices.CentroIds.Should().Equal(Centro);
+    }
+
+    [Fact]
+    public void Una_fila_de_otra_version_que_sobra_sigue_siendo_discrepancia()
+    {
+        var sobra = Par(AmbitoAplicacion.Empresa, Empresa);
+
+        var diferencias = Comparar(Calculo(), [Guardada(sobra, version: CalculoEstadoMaterializado.VersionDeLaRegla - 1)]);
+
+        diferencias.Pares.Sobran.Should().Be(1);
+        diferencias.DeOtraVersion.Should().Be(0);
+        diferencias.Total.Should().Be(1);
+    }
+
+    [Fact]
     public void Lo_que_falta_y_lo_que_sobra_se_cuentan_aparte()
     {
         var falta = Par(AmbitoAplicacion.Trabajador, Trabajador);
