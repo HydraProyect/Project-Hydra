@@ -187,6 +187,19 @@ public class CambiarSegundoFactorDelTenantPorPlataformaCommandTests
             _tenant.Id, parametros)).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Con_la_concesion_revocada_en_otra_pestana_la_seccion_no_existe_aunque_la_memo_la_conserve()
+    {
+        var parametros = new ParametroSistema(30, 15);
+        var sesionMemoizada = new SesionMemoizadaRevocada(Sesion(CapacidadPrivilegio.AjusteSegundoFactorTenant));
+
+        var resultado = await new ObtenerAjusteSegundoFactorPorPlataformaQueryHandler(
+                sesionMemoizada, new TenantActualFalso(_tenant.Id), new ConfiguracionFalsa(parametros))
+            .Handle(new ObtenerAjusteSegundoFactorPorPlataformaQuery(), CancellationToken.None);
+
+        resultado.Should().BeNull();
+    }
+
     private Task<AjusteSegundoFactorPorPlataformaDto?> Consulta(
         SesionPrivilegiadaActiva? sesion, Guid tenantActivo, ParametroSistema parametros) =>
         new ObtenerAjusteSegundoFactorPorPlataformaQueryHandler(
@@ -221,6 +234,17 @@ public class CambiarSegundoFactorDelTenantPorPlataformaCommandTests
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(sesion);
+    }
+
+    // La memo del circuito aún conserva la sesión; la base ya no la reconoce porque su
+    // concesión se revocó después de la primera resolución.
+    private sealed class SesionMemoizadaRevocada(SesionPrivilegiadaActiva memoizada) : ISesionPrivilegiadaActual
+    {
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(memoizada);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(null);
     }
 
     private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual

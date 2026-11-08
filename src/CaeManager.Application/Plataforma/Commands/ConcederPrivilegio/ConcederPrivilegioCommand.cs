@@ -12,10 +12,15 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// capacidades acotadas que admiten concesión por un tercero:
 /// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> (PD-A3),
 /// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/> (ADR-011 § 8.7, punto 3:
-/// Soporte TALVEG restablece la 2FA del Administrador único de ese Tenant) o
+/// Soporte TALVEG restablece la 2FA del Administrador único de ese Tenant),
 /// <see cref="CapacidadPrivilegio.RevocacionOperadorCaeExterno"/> (enmienda de ADR-004
 /// § 12.2 del 2026-10-26: Soporte TALVEG revoca la Delegación de un Operador CAE externo a
-/// petición de ese Tenant propietario).
+/// petición de ese Tenant propietario),
+/// <see cref="CapacidadPrivilegio.ConcesionAdministrador"/> (decisión del 2026-10-30: un Actor
+/// de Plataforma TALVEG concede Administrador en un Tenant sin Administrador que pueda actuar) o
+/// <see cref="CapacidadPrivilegio.AjusteSegundoFactorTenant"/> (decisión del 2026-11-08: un Actor
+/// de Plataforma TALVEG cambia la exigencia de segundo factor para todos los perfiles del Tenant).
+/// La lista ejecutable es <see cref="CapacidadesConcedibles"/>.
 ///
 /// <para>
 /// <b>Segunda vía de concesión, no una generalización de la primera.</b>

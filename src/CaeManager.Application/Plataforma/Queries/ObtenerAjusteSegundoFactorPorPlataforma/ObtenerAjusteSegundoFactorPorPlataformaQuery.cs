@@ -14,6 +14,9 @@ public record AjusteSegundoFactorPorPlataformaDto(bool ExigeSegundoFactorTodosLo
 /// <c>AjusteSegundoFactorTenant</c>, sin simulación y con el Tenant operado igual al Tenant
 /// objetivo: fuera de ese caso la sección no existe. No autoriza nada: el cambio lo decide
 /// <c>CambiarSegundoFactorDelTenantPorPlataformaCommand</c> y lo vuelve a comprobar la base.
+/// Revalida la sesión como el comando: con la memo de <c>ObtenerAsync</c>, una concesión
+/// revocada en otra pestaña seguiría mostrando el estado del segundo factor del Tenant
+/// hasta la siguiente revalidación del circuito.
 /// </summary>
 public record ObtenerAjusteSegundoFactorPorPlataformaQuery : IRequest<AjusteSegundoFactorPorPlataformaDto?>;
 
@@ -26,7 +29,7 @@ public class ObtenerAjusteSegundoFactorPorPlataformaQueryHandler(
     public async Task<AjusteSegundoFactorPorPlataformaDto?> Handle(
         ObtenerAjusteSegundoFactorPorPlataformaQuery request, CancellationToken cancellationToken)
     {
-        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not { } sesion
+        if (await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not { } sesion
             || sesion.Capacidad != CapacidadPrivilegio.AjusteSegundoFactorTenant
             || sesion.UsuarioSimuladoId is not null
             || tenantActual.TenantId != sesion.TenantObjetivoId)
