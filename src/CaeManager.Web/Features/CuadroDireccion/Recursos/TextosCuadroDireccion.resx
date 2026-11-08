@@ -334,7 +334,7 @@
     <value>Mostrar «{0}»</value>
   </data>
   <data name="KpiFacturacion" xml:space="preserve">
-    <value>Facturación estimada</value>
+    <value>Cuota del mes</value>
   </data>
   <data name="KpiFacturacionSub" xml:space="preserve">
     <value>{0} vs mes anterior · tarifas de hoy</value>
@@ -376,7 +376,7 @@
     <value>{0} está en {1} % de cumplimiento documental.</value>
   </data>
   <data name="EvolucionTitulo" xml:space="preserve">
-    <value>Facturación y gestiones por mes</value>
+    <value>Cuota y gestiones por mes</value>
   </data>
   <data name="EvolucionNota" xml:space="preserve">
     <value>Barras: facturación estimada. Línea: gestiones del mes.</value>
