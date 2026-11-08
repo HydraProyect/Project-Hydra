@@ -6,6 +6,7 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Dashboard.Components;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
