@@ -16,23 +16,46 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// clave lo cifró, así que descifrar sigue funcionando después de rotarla —
 /// que es justo lo que permite rotar sin quedarse sin poder leer lo anterior.
 /// </summary>
-public class KmsXmlDecryptor(IServiceProvider serviceProvider) : IXmlDecryptor
+public class KmsXmlDecryptor : IXmlDecryptor
 {
+    private readonly IServiceProvider _serviceProvider;
+    private readonly TimeSpan _limite;
+
+    // Data Protection construye el descifrador con este constructor público
+    // (recibe IServiceProvider); el interno solo existe para acotar el límite
+    // de tiempo en los tests.
+    public KmsXmlDecryptor(IServiceProvider serviceProvider)
+        : this(serviceProvider, LlamadaSincronaAws.LimitePorDefecto)
+    {
+    }
+
+    internal KmsXmlDecryptor(IServiceProvider serviceProvider, TimeSpan limite)
+    {
+        _serviceProvider = serviceProvider;
+        _limite = limite;
+    }
+
     public XElement Decrypt(XElement encryptedElement)
     {
         ArgumentNullException.ThrowIfNull(encryptedElement);
 
-        var kms = serviceProvider.GetService(typeof(IAmazonKeyManagementService)) as IAmazonKeyManagementService
+        var kms = _serviceProvider.GetService(typeof(IAmazonKeyManagementService)) as IAmazonKeyManagementService
             ?? throw new InvalidOperationException(
                 "Hay claves de Data Protection cifradas con KMS pero KMS no está configurado. " +
                 "Sin él no se pueden descifrar las credenciales guardadas: revisa DataProtection:Kms en la configuración.");
 
         var cifrado = Convert.FromBase64String(encryptedElement.Value);
 
-        var respuesta = kms.DecryptAsync(new DecryptRequest
-        {
-            CiphertextBlob = new MemoryStream(cifrado)
-        }).GetAwaiter().GetResult();
+        // Data Protection descifra el descriptor de una clave la primera vez que
+        // la usa, en el hilo de quien la usa (que puede ser un circuito de
+        // Blazor): ver LlamadaSincronaAws para el porqué del puente.
+        var respuesta = LlamadaSincronaAws.Ejecutar(
+            token => kms.DecryptAsync(new DecryptRequest
+            {
+                CiphertextBlob = new MemoryStream(cifrado)
+            }, token),
+            _limite,
+            "El descifrado con KMS de una clave de Data Protection");
 
         return XElement.Parse(Encoding.UTF8.GetString(respuesta.Plaintext.ToArray()));
     }
