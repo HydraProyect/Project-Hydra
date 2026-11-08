@@ -87,9 +87,21 @@ public static class InicioSesionMicrosoft
     private static readonly string[] TiposClaimAmr = ["amr", "http://schemas.microsoft.com/claims/authnmethodsreferences"];
 
     /// <summary>
+    /// Métodos de <c>amr</c> que acreditan por sí solos la MFA: lista cerrada (regla del
+    /// login corporativo, D-L6 de 2026-11-08). <c>mfa</c>; <c>ngcmfa</c>, que Entra emite
+    /// como equivalente de <c>mfa</c> para credenciales avanzadas (Windows Hello, clave de
+    /// acceso); y <c>fido</c>, llave FIDO2, a la que Entra exige verificación del usuario.
+    /// Cualquier otro valor (<c>pwd</c>, <c>otp</c>, <c>wiaormfa</c>…) no cuenta, ni
+    /// combinado con otros. ASVS 4.0.3 V4.3.1 y V2.9.
+    /// </summary>
+    public static readonly IReadOnlyList<string> MetodosAmrMultifactor = ["mfa", "ngcmfa", "fido"];
+
+    /// <summary>
     /// Si el token de Microsoft acredita la MFA (decisión D-2, exactamente en este
-    /// orden): el contexto de autenticación configurado en <c>acrs</c>; si no, <c>mfa</c>
-    /// en <c>amr</c>. Sin contexto configurado, <c>acrs</c> no se mira.
+    /// orden): el contexto de autenticación configurado en <c>acrs</c>; si no, un método
+    /// de <see cref="MetodosAmrMultifactor"/> en <c>amr</c>. Sin contexto configurado,
+    /// <c>acrs</c> no se mira. <c>acr</c> nunca cuenta: dice el nivel que pidió la
+    /// aplicación, no qué métodos se usaron.
     /// </summary>
     public static bool MfaAcreditadaPorMicrosoft(ClaimsPrincipal principalExterno, string? contextoAutenticacionMfa)
     {
@@ -100,7 +112,50 @@ public static class InicioSesionMicrosoft
             return true;
 
         return principalExterno.Claims.Where(c => TiposClaimAmr.Contains(c.Type, StringComparer.Ordinal))
-            .SelectMany(Valores).Contains("mfa", StringComparer.Ordinal);
+            .SelectMany(Valores).Any(metodo => MetodosAmrMultifactor.Contains(metodo, StringComparer.Ordinal));
+    }
+
+    // «oid» y «tid» llegan con su nombre o, con el mapeo de entrada del manejador, con estos.
+    private static readonly string[] TiposClaimOid = ["oid", "http://schemas.microsoft.com/identity/claims/objectidentifier"];
+    private static readonly string[] TiposClaimTid = ["tid", "http://schemas.microsoft.com/identity/claims/tenantid"];
+
+    /// <summary>
+    /// La clave con la que se vincula una identidad de Microsoft a una cuenta de TALVEG:
+    /// <c>oid</c> + <c>tid</c> del token de ID, como <c>{oid}.{tid}</c> en forma canónica
+    /// (GUID en minúsculas). Es el identificador que Microsoft da por inmutable para una
+    /// persona de un directorio; el correo y <c>preferred_username</c> los edita quien
+    /// administra el directorio (hueco 2 del análisis del login corporativo, D-L6;
+    /// ASVS 4.0.3 V3.5.3, OWASP Top 10 A07:2021).
+    /// <para>
+    /// <c>null</c>, y el callback rechaza, si falta <c>oid</c> o <c>tid</c>, si no son GUID (o son el GUID vacío),
+    /// si vienen repetidos con valores distintos o si <c>tid</c> no es el directorio
+    /// configurado en <see cref="AzureAdOptions.TenantId"/> cuando este es un GUID (con un
+    /// nombre de dominio, el emisor ya lo valida el manejador).
+    /// </para>
+    /// </summary>
+    public static string? ClaveIdentidadEstable(ClaimsPrincipal principalExterno, string? tenantIdConfigurado)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+
+        if (GuidUnico(principalExterno, TiposClaimOid) is not { } oid
+            || GuidUnico(principalExterno, TiposClaimTid) is not { } tid)
+            return null;
+
+        if (Guid.TryParse(tenantIdConfigurado, out var directorio) && directorio != tid)
+            return null;
+
+        return $"{oid:D}.{tid:D}";
+    }
+
+    private static Guid? GuidUnico(ClaimsPrincipal principal, string[] tipos)
+    {
+        var valores = principal.Claims
+            .Where(c => tipos.Contains(c.Type, StringComparer.Ordinal))
+            .Select(c => Guid.TryParse(c.Value.Trim(), out var g) && g != Guid.Empty ? g : (Guid?)null)
+            .ToList();
+        return valores.Count > 0 && valores.All(v => v is not null) && valores.Distinct().Count() == 1
+            ? valores[0]
+            : null;
     }
 
     /// <summary>
@@ -114,7 +169,8 @@ public static class InicioSesionMicrosoft
     /// factor nuevo en la cuenta. Cuando hay vínculo, se guarda solo al superar el TOTP
     /// (<see cref="CompletarVinculoPendienteAsync"/>). La MFA de Microsoft prueba quién controla
     /// la identidad del directorio, no que sea la persona de la cuenta: el vínculo se decide por
-    /// el correo, que en Entra edita quien administra el directorio.
+    /// el correo, que en Entra edita quien administra el directorio, y por eso solo se llega
+    /// aquí con una cuenta pendiente de activación (<see cref="DecidirCuenta"/>).
     /// </para>
     /// <para>
     /// Inicios posteriores, con la identidad ya vinculada (D-2): sesión directa si Microsoft
@@ -238,13 +294,20 @@ public static class InicioSesionMicrosoft
         ArgumentNullException.ThrowIfNull(usuario);
         ArgumentNullException.ThrowIfNull(vinculo);
 
-        switch (DecidirVinculoTrasTotp(await userManager.GetLoginsAsync(usuario), vinculo.ProviderKey))
+        var vinculos = await userManager.GetLoginsAsync(usuario);
+        switch (DecidirVinculoTrasTotp(vinculos, vinculo.ProviderKey))
         {
             case DecisionVinculoTrasTotp.YaVinculada:
                 return true;
             case DecisionVinculoTrasTotp.RechazarOtraIdentidad:
                 return false;
         }
+
+        // El vínculo pendiente es de una primera vinculación por correo, que solo vale para una
+        // invitación sin activar: si la cuenta se activó (contraseña) o entró con otro login
+        // entre el callback y el TOTP, ya está en uso y no se vincula (D-L6, ASVS 4.0.3 V3.7.1).
+        if (!CuentaSinActivar(usuario, vinculos))
+            return false;
 
         // La identidad pudo quedar vinculada a otra cuenta entre el callback y el TOTP
         // (la cookie de dos pasos vive minutos): no se vincula. Se mira antes de
@@ -307,33 +370,102 @@ public static class InicioSesionMicrosoft
     /// (<c>AspNetUserLogins</c>) y el correo se resuelven antes de que haya Tenant.
     /// Devuelve la cuenta con la que se entra, la que hay que vincular o, en un
     /// rechazo, la que se intentó abrir (para la vigilancia de su Tenant).
+    /// <para>
+    /// <paramref name="identidad"/> lleva la clave <c>oid</c> + <c>tid</c>
+    /// (<see cref="ClaveIdentidadEstable"/>). Camino de compatibilidad: los vínculos
+    /// guardados antes de esa clave llevan la del manejador OpenID Connect
+    /// (<paramref name="claveHeredada"/>, el <c>sub</c> del token, que Entra emite por
+    /// persona y aplicación y tampoco cambia). Si no hay vínculo con la clave nueva, se
+    /// busca con la heredada: es la misma persona del mismo directorio, firmada en el
+    /// mismo token, así que ninguna cuenta ya vinculada se queda fuera ni puede abrirla
+    /// otra identidad. El correo solo se mira sin vínculo con ninguna de las dos.
+    /// </para>
+    /// <para>
+    /// <paramref name="email"/> solo hace falta para ese último paso, el alta inicial por
+    /// invitación: una identidad ya vinculada entra aunque el token no traiga correo
+    /// (<see cref="DecisionCuentaMicrosoft.RechazarSinCorreo"/> solo sin vínculo). Y la
+    /// cuenta hallada por correo solo se vincula si sigue pendiente de activación: sin
+    /// contraseña y sin ningún login externo, la misma regla que
+    /// <c>CuentaUsuario.PendienteActivacion</c> («la persona nunca entró»). Una cuenta en
+    /// uso no se vincula por un correo que edita el directorio (D-L6; ASVS 4.0.3 V1.2.4 y
+    /// V3.7.1, OWASP Top 10 A07:2021); hoy no hay otra vía para vincularla.
+    /// </para>
     /// </summary>
     public static async Task<(DecisionCuentaMicrosoft Decision, ApplicationUser? Cuenta)> ResolverCuentaAsync(
-        UserManager<ApplicationUser> userManager, UserLoginInfo identidad, string email, Guid tenantDestino)
+        UserManager<ApplicationUser> userManager, UserLoginInfo identidad, string? email, Guid tenantDestino, string? claveHeredada = null)
     {
         ArgumentNullException.ThrowIfNull(userManager);
         ArgumentNullException.ThrowIfNull(identidad);
 
-        var vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, identidad.ProviderKey);
+        // Primero la clave estable; solo si no hay vínculo con ella, la heredada.
+        string[] claves = !string.IsNullOrWhiteSpace(claveHeredada)
+            && !string.Equals(claveHeredada, identidad.ProviderKey, StringComparison.Ordinal)
+            ? [identidad.ProviderKey, claveHeredada]
+            : [identidad.ProviderKey];
+        ApplicationUser? vinculada = null;
+        foreach (var clave in claves)
+        {
+            vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, clave);
+            if (vinculada is not null)
+                break;
+        }
+        // Sin vínculo, el correo es lo único con qué seguir: sin él no hay alta por invitación
+        // que buscar. Con vínculo no se pide (antes el callback rechazaba sin correo antes de
+        // buscar el vínculo y dejaba fuera a una cuenta ya vinculada).
+        if (vinculada is null && string.IsNullOrWhiteSpace(email) && tenantDestino != Guid.Empty)
+            return (DecisionCuentaMicrosoft.RechazarSinCorreo, null);
+
         ApplicationUser? porCorreo = null;
         var porCorreoTieneOtraIdentidad = false;
-        if (vinculada is null)
+        var porCorreoPendienteDeActivacion = false;
+        if (vinculada is null && !string.IsNullOrWhiteSpace(email))
         {
             porCorreo = await userManager.FindByEmailAsync(email);
             if (porCorreo is not null)
-                porCorreoTieneOtraIdentidad = (await userManager.GetLoginsAsync(porCorreo))
-                    .Any(l => l.LoginProvider == identidad.LoginProvider);
+            {
+                var vinculos = await userManager.GetLoginsAsync(porCorreo);
+                porCorreoTieneOtraIdentidad = vinculos.Any(l => l.LoginProvider == identidad.LoginProvider);
+                porCorreoPendienteDeActivacion = CuentaSinActivar(porCorreo, vinculos);
+            }
         }
 
-        var decision = DecidirCuenta(vinculada?.TenantId, porCorreo?.TenantId, porCorreoTieneOtraIdentidad, tenantDestino);
+        var decision = DecidirCuenta(vinculada?.TenantId, porCorreo?.TenantId, porCorreoTieneOtraIdentidad,
+            porCorreoPendienteDeActivacion, tenantDestino);
         var cuenta = decision switch
         {
             DecisionCuentaMicrosoft.EntrarConCuentaVinculada => vinculada,
             DecisionCuentaMicrosoft.VincularCuentaExistente => porCorreo,
-            DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant or DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad => vinculada ?? porCorreo,
+            DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant or DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad
+                or DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo => vinculada ?? porCorreo,
             _ => null,
         };
         return (ComprobarCuentaActiva(decision, cuenta, DateTimeOffset.UtcNow), cuenta);
+    }
+
+    /// <summary>
+    /// El correo con el que se busca un alta por invitación: <c>email</c> o, si falta o viene
+    /// vacío, <c>preferred_username</c>. <c>null</c> si ninguno trae un valor utilizable.
+    /// </summary>
+    public static string? CorreoDelToken(ClaimsPrincipal principalExterno)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+        return new[] { principalExterno.FindFirstValue(ClaimTypes.Email), principalExterno.FindFirstValue("preferred_username") }
+            .FirstOrDefault(valor => !string.IsNullOrWhiteSpace(valor));
+    }
+
+    /// <summary>
+    /// Si la cuenta sigue en alta por invitación sin activar: sin contraseña y sin ningún login
+    /// externo, la misma regla que <c>CuentaUsuario.PendienteActivacion</c> («la persona nunca
+    /// entró»). Es la única cuenta que el correo puede vincular (D-L6). Se comprueba en el
+    /// callback y otra vez en <c>LoginCon2fa</c>, antes de dar de alta el TOTP y antes de guardar
+    /// el vínculo: la cookie de dos pasos vive minutos, y si la invitación se activa entretanto
+    /// la cuenta ya está en uso.
+    /// </summary>
+    public static bool CuentaSinActivar(ApplicationUser cuenta, IEnumerable<UserLoginInfo> vinculosDeLaCuenta)
+    {
+        ArgumentNullException.ThrowIfNull(cuenta);
+        ArgumentNullException.ThrowIfNull(vinculosDeLaCuenta);
+        return string.IsNullOrEmpty(cuenta.PasswordHash) && !vinculosDeLaCuenta.Any();
     }
 
     /// <summary>
@@ -354,13 +486,19 @@ public static class InicioSesionMicrosoft
     /// Con qué cuenta de TALVEG entra una identidad de Microsoft.
     ///
     /// <para>
-    /// Primero manda el vínculo ya guardado (proveedor + clave de la identidad, que
-    /// no cambia aunque cambie el correo). Solo sin vínculo se mira el correo, y el
+    /// Primero manda el vínculo ya guardado (proveedor + <c>oid</c> y <c>tid</c> de la
+    /// identidad, o el <c>sub</c> de un vínculo anterior a esa clave; ninguno cambia
+    /// aunque cambie el correo). Solo sin vínculo se mira el correo, y solo para la
+    /// primera vinculación de una cuenta creada antes por invitación. El
     /// correo de Entra es un atributo editable por quien administra el directorio:
     /// no prueba que la persona sea la dueña de una cuenta de TALVEG. Por eso una
     /// coincidencia de correo solo se acepta en el Tenant propietario declarado para
-    /// este inicio de sesión (<see cref="AzureAdOptions.TenantHydraId"/>) y solo si
-    /// esa cuenta no está ya vinculada a otra identidad de Microsoft. Fuera de ese
+    /// este inicio de sesión (<see cref="AzureAdOptions.TenantHydraId"/>), solo si
+    /// esa cuenta no está ya vinculada a otra identidad de Microsoft y solo si sigue
+    /// pendiente de activación (sin contraseña ni login externo: la persona nunca
+    /// entró). Una cuenta en uso sin vínculo no se vincula por correo: la MFA de
+    /// Microsoft prueba quién controla la identidad del directorio, no la cuenta de
+    /// TALVEG, y su TOTP se daría de alta en el mismo paso (D-L6). Fuera de ese
     /// Tenant —otra organización, Soporte TALVEG o cualquier Actor de Plataforma— no
     /// se entra nunca por Microsoft, ni con vínculo previo.
     /// </para>
@@ -376,9 +514,11 @@ public static class InicioSesionMicrosoft
     /// <param name="tenantCuentaVinculada">Tenant propietario de la cuenta ya vinculada a esta identidad, si la hay.</param>
     /// <param name="tenantCuentaPorCorreo">Tenant propietario de la cuenta con el mismo correo, si la hay (solo se consulta sin vínculo).</param>
     /// <param name="cuentaPorCorreoTieneOtraIdentidadMicrosoft">La cuenta con el mismo correo ya está vinculada a otra identidad de Microsoft.</param>
+    /// <param name="cuentaPorCorreoPendienteDeActivacion">La cuenta con el mismo correo sigue en alta por invitación: sin contraseña y sin ningún login externo.</param>
     /// <param name="tenantDestino">El Tenant propietario declarado en <see cref="AzureAdOptions.TenantHydraId"/>.</param>
     public static DecisionCuentaMicrosoft DecidirCuenta(
-        Guid? tenantCuentaVinculada, Guid? tenantCuentaPorCorreo, bool cuentaPorCorreoTieneOtraIdentidadMicrosoft, Guid tenantDestino)
+        Guid? tenantCuentaVinculada, Guid? tenantCuentaPorCorreo, bool cuentaPorCorreoTieneOtraIdentidadMicrosoft,
+        bool cuentaPorCorreoPendienteDeActivacion, Guid tenantDestino)
     {
         if (tenantDestino == Guid.Empty)
             return DecisionCuentaMicrosoft.RechazarSinTenantDestino;
@@ -393,9 +533,12 @@ public static class InicioSesionMicrosoft
             if (porCorreo != tenantDestino)
                 return DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant;
 
-            return cuentaPorCorreoTieneOtraIdentidadMicrosoft
-                ? DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad
-                : DecisionCuentaMicrosoft.VincularCuentaExistente;
+            if (cuentaPorCorreoTieneOtraIdentidadMicrosoft)
+                return DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad;
+
+            return cuentaPorCorreoPendienteDeActivacion
+                ? DecisionCuentaMicrosoft.VincularCuentaExistente
+                : DecisionCuentaMicrosoft.RechazarCuentaEnUsoSinVinculo;
         }
 
         return DecisionCuentaMicrosoft.RechazarSinCuentaPrevia;
@@ -408,8 +551,18 @@ public enum DecisionCuentaMicrosoft
     /// <summary>La identidad ya estaba vinculada a una cuenta del Tenant destino.</summary>
     EntrarConCuentaVinculada,
 
-    /// <summary>Cuenta del Tenant destino con el mismo correo y sin otra identidad de Microsoft: se vincula.</summary>
+    /// <summary>Cuenta del Tenant destino con el mismo correo, sin otra identidad de Microsoft y pendiente de activación (alta por invitación): se vincula.</summary>
     VincularCuentaExistente,
+
+    /// <summary>
+    /// Cuenta del Tenant destino con el mismo correo, sin vínculo de Microsoft, pero en uso (tiene
+    /// contraseña o ya entró con un login externo): el correo no prueba que la identidad sea su
+    /// dueña. Lo resuelve el Administrador del Tenant (D-L6).
+    /// </summary>
+    RechazarCuentaEnUsoSinVinculo,
+
+    /// <summary>Sin vínculo y sin correo ni <c>preferred_username</c> en el token: no hay alta por invitación que buscar.</summary>
+    RechazarSinCorreo,
 
     /// <summary>Ninguna cuenta con ese correo en el Tenant destino: no se crea nada; la tiene que dar de alta antes un Administrador.</summary>
     RechazarSinCuentaPrevia,
@@ -430,7 +583,7 @@ public enum DecisionCuentaMicrosoft
 /// <summary>Resultado de <see cref="InicioSesionMicrosoft.DecidirSegundoFactor"/>.</summary>
 public enum SegundoFactorMicrosoft
 {
-    /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con <c>mfa</c>).</summary>
+    /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con un método de <see cref="InicioSesionMicrosoft.MetodosAmrMultifactor"/>).</summary>
     SesionDirecta,
 
     /// <summary>Se pide el TOTP de TALVEG antes de emitir la sesión: sin MFA de Microsoft, o en la primera vinculación.</summary>
