@@ -16,7 +16,9 @@ namespace CaeManager.Application.Centros.Commands.EstablecerRelacionDeEntradaCen
 /// <see cref="CaeManager.Application.Centros.Queries.PapelDeEntradaEnCentro"/> a partir del ancla (ADR-011).
 ///
 /// Autorización: rol de escritura (<see cref="AutorizacionEscrituraBehavior"/>) y alcance de gestión del Gestor
-/// CAE sobre el Centro; fuera de alcance responde igual que un Centro inexistente. La arista se busca en el
+/// CAE sobre el Centro; fuera de alcance responde igual que un Centro inexistente, y lo mismo si el Centro ya
+/// tiene un ancla cuya X no está entre los Clientes empresariales visibles de quien la quita o la cambia (no se
+/// confirma que haya un ancla fuera de su Asignación de Cartera). La arista se busca en el
 /// Tenant propietario actual (filtro global y RLS) y su cliente X tiene que estar entre los Clientes
 /// empresariales visibles de quien la fija: una arista de otro Tenant, inexistente o con X fuera de su cartera
 /// responde lo mismo, para no revelar cuál de las tres es. La FK compuesta con <c>TenantId</c> repite en la base
@@ -43,6 +45,9 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
     IUnitOfWork unitOfWork)
     : IRequestHandler<EstablecerRelacionDeEntradaCentroCommand, Result>
 {
+    private static readonly Error CentroNoEncontrado =
+        Error.Crear("Centro.NoEncontrado", "No encontramos este centro.");
+
     private static readonly Error RelacionNoEncontrada =
         Error.Crear("Centro.RelacionEntradaNoEncontrada", "No encontramos esa relación empresarial.");
 
@@ -51,12 +56,14 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
     {
         var centro = await repositorio.ObtenerPorIdAsync(request.CentroId, cancellationToken);
         if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(centro.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Centro.NoEncontrado", "No encontramos este centro."));
+            return Result.Fallo(CentroNoEncontrado);
 
         if (ConcurrenciaOptimista.Verificar(centro, request.Version, "este centro") is { } conflicto)
             return Result.Fallo(conflicto);
 
-        // Quitar o cambiar un ancla también exige ver a su X: quien no la ve no pisa lo que no sabe que hay.
+        // Quitar o cambiar un ancla también exige ver a su X: quien no la ve no pisa lo que no sabe que hay. Responde
+        // como un Centro fuera de alcance, el mismo error de arriba, y no con uno propio que confirme que hay un
+        // ancla hacia alguien fuera de su Asignación de Cartera.
         if (centro.RelacionEmpresarialEntradaId is { } anclaActual)
         {
             var xActual = await empresasContext.RelacionesEmpresariales.AsNoTracking()
@@ -64,8 +71,7 @@ public class EstablecerRelacionDeEntradaCentroCommandHandler(
                 .Select(r => (Guid?)r.ClienteId)
                 .FirstOrDefaultAsync(cancellationToken);
             if (xActual is { } x && !await alcanceDatos.ClienteVisibleAsync(x, cancellationToken))
-                return Result.Fallo(Error.Crear("Centro.RelacionEntradaFueraDeCartera",
-                    "La contratista principal indicada en este centro no está en tu cartera."));
+                return Result.Fallo(CentroNoEncontrado);
         }
 
         if (request.RelacionEmpresarialId is not { } relacionId)

@@ -55,14 +55,28 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
         var conFicha = conNotaInterna
             && await alcanceDatos.CentroParaGestionVisibleAsync(request.Id, cancellationToken);
 
-        var detalle = await (
+        var fila = await (
             from centro in centrosContext.Centros
                 // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
                 // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where centro.Id == request.Id
-            select new CentroDetalleDto(
+            // Papel por Centro: el ancla y su X se leen en esta misma sentencia (sin SQL aparte para la ficha), en el
+            // Tenant propietario del Centro y con lo que fijó Centro.AnclarRelacionDeEntrada vuelto a comprobar.
+            // Si X está o no en la cartera de quien mira lo decide PapelDeEntradaEnCentro.ResolverAsync.
+            from ancla in empresasContext.RelacionesEmpresariales
+                .Where(r => r.Id == centro.RelacionEmpresarialEntradaId
+                    && r.TenantId == centro.TenantId
+                    && r.ProveedoraId == centro.EmpresaId
+                    && r.ClienteId != centro.ClienteId)
+                .DefaultIfEmpty()
+            from contratistaPrincipal in empresasContext.Empresas
+                .Where(x => ancla != null && x.Id == ancla.ClienteId)
+                .DefaultIfEmpty()
+            select new
+            {
+                Detalle = new CentroDetalleDto(
                 centro.Id, centro.ClienteId, cliente.RazonSocial, centro.EmpresaId, empresa.RazonSocial, centro.Nombre,
                 centro.CodigoCentro, centro.Direccion, centro.Contacto, centro.ContratoVigenteHasta, centro.Version,
                 centro.GestionCae,
@@ -75,13 +89,15 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
                 conFicha ? centro.TrabajosEnAltura : null,
                 conFicha ? centro.EspaciosConfinados : null,
                 conFicha ? centro.AtmosferasExplosivas : null, conFicha,
-                conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc))
+                conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc),
+                ContratistaPrincipalId = ancla != null ? (Guid?)ancla.ClienteId : null,
+                ContratistaPrincipalRazonSocial = contratistaPrincipal != null ? contratistaPrincipal.RazonSocial : null,
+            })
             .FirstOrDefaultAsync(cancellationToken);
-        if (detalle is null) return null;
+        if (fila is null) return null;
 
-        // Papel por Centro: se calcula del ancla, con X filtrado por los Clientes empresariales visibles.
-        var papel = await PapelDeEntradaEnCentro.CalcularAsync(
-            request.Id, centrosContext, empresasContext, alcanceDatos, cancellationToken);
-        return detalle with { PapelDeEntrada = papel };
+        var papel = await PapelDeEntradaEnCentro.ResolverAsync(
+            fila.ContratistaPrincipalId, fila.ContratistaPrincipalRazonSocial, alcanceDatos, cancellationToken);
+        return fila.Detalle with { PapelDeEntrada = papel };
     }
 }
