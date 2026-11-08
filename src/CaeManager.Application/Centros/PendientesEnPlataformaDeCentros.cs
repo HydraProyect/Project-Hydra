@@ -43,8 +43,10 @@ public sealed record PendienteEnPlataformaDeCentro(
 /// Empresa (decisión del 2026-11-08, que sustituye al filtro por actividad que la regla del 2026-10-10 aplicaba también a
 /// los documentos de Empresa); y en cualquier Centro donde tenga algún Trabajador suyo con Asignación activa (la del
 /// Trabajador, o su Subcontrata si no tiene Empresa), que es como cuenta una Subcontrata en el Centro de otra Empresa. Un
-/// Centro de otra Empresa sin Trabajadores de esta no cuenta. Es la misma regla de contexto que el rechazo: la acreditación
-/// de Empresa de un Centro sin Trabajadores no pasa a Bloqueado sin haber estado Pendiente.
+/// Centro de otra Empresa sin Trabajadores de esta no cuenta. Con esto, la acreditación de Empresa de un Centro de su
+/// Empresa sin Trabajadores no pasa a Bloqueado por rechazo (<see cref="CalculoEstadoCentroService"/>, que no filtra por
+/// actividad) sin haber estado Pendiente. Queda una asimetría conocida: el rechazo de un documento de Empresa cuenta en
+/// cualquier Centro, y el Pendiente no cuenta en un Centro de otra Empresa donde ya no tenga Trabajadores asignados.
 /// </para>
 ///
 /// <para>

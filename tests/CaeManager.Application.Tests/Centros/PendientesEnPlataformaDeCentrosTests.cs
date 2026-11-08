@@ -117,6 +117,34 @@ public class PendientesEnPlataformaDeCentrosTests
     }
 
     [Fact]
+    public async Task Un_documento_de_una_Subcontrata_subido_sin_validar_cuenta_en_el_Centro_donde_tiene_un_Trabajador_asignado_y_no_donde_no()
+    {
+        var mundo = new MundoAcreditaciones();
+        var subcontrataId = Guid.NewGuid();
+        var trabajador = Domain.Trabajadores.Trabajador.DeSubcontrata(subcontrataId, "Luis", "Gómez", "87654321X");
+        mundo.TrabajadoresContexto.ListaTrabajadores.Add(trabajador);
+        var (centroConTrabajador, plataformaCon) = CentroConPlataforma(mundo, Guid.NewGuid());
+        var (centroSinTrabajador, plataformaSin) = CentroConPlataforma(mundo, Guid.NewGuid());
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "RNT");
+        var documento = Documento.DeEmpresa(subcontrataId, tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(5)));
+        mundo.DocumentosContexto.ListaDocumentos.Add(documento);
+        foreach (var plataforma in new[] { plataformaCon, plataformaSin })
+        {
+            var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, plataforma.Id);
+            acreditacion.MarcarSubida();
+            mundo.DocumentosContexto.ListaAcreditacionesDocumentoPlataforma.Add(acreditacion);
+        }
+        mundo.Asignacion(trabajador, centroConTrabajador);
+
+        var pendientes = await Cargar(mundo, centroConTrabajador, centroSinTrabajador);
+
+        pendientes.Should().ContainSingle("solo el Centro donde la Subcontrata tiene un Trabajador asignado (su Empresa es la Subcontrata)")
+            .Which.Should().Match<PendienteEnPlataformaDeCentro>(p =>
+                p.CentroId == centroConTrabajador.Id && p.EmpresaId == subcontrataId
+                && p.EstadoAcreditacion == EstadoAcreditacion.Subida);
+    }
+
+    [Fact]
     public async Task Un_documento_de_Empresa_pendiente_no_cuenta_en_su_Centro_si_el_Centro_no_exige_el_tipo()
     {
         var mundo = new MundoAcreditaciones();

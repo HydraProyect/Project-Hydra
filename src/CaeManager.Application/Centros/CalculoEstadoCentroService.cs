@@ -698,6 +698,9 @@ public class CalculoEstadoCentroService(
     /// bloqueo de personas (<see cref="PendientesEnPlataformaDeCentros"/>: documento efectivo, vigencia del requisito en el
     /// Centro), para que el porcentaje no discrepe de ellos. Solo baja el porcentaje el Pendiente de un tipo que el Centro
     /// marca «bloquea el acceso»: lo obligatorio configurado (decisión 3 del 2026-10-10). Un Centro sin plataforma no devuelve ninguno.
+    /// Los pares de Empresa salen de las Empresas con Trabajadores asignados (<see cref="ObtenerParesDeEmpresaAsync"/>): el
+    /// Pendiente de Empresa de un Centro sin Trabajadores (decisión del 2026-11-08) pone el Centro en «Pendiente», pero no
+    /// tiene par al que bajar el porcentaje.
     /// </summary>
     private async Task<IReadOnlyList<PendienteEnPlataformaDeCentro>> PendientesQueBajanElPorcentajeAsync(
         List<Guid> conGestionCae, DateOnly hoy, CancellationToken cancellationToken) =>
