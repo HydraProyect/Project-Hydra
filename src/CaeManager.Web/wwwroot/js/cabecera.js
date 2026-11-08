@@ -142,8 +142,13 @@
     // ya las haya atendido (defaultPrevented) gana.
     // Un clic en texto no enfocable de otro scroller (menú lateral, panel de avisos) deja el foco
     // en body: esas teclas son de ese scroller, no de .contenido.
+    // El clic deja de contar en cuanto el foco entra en algo que no es body (focusin) o se mueve con Tab:
+    // sin esto, un clic viejo en el menú lateral seguiría quitándole las teclas a .contenido.
     let ultimoPulsado = null;
     document.addEventListener('pointerdown', function (e) { ultimoPulsado = e.target; }, { capture: true, passive: true });
+    document.addEventListener('focusin', function (e) {
+        if (e.target !== document.body && e.target !== document.documentElement) ultimoPulsado = null;
+    }, { capture: true, passive: true });
     const dentroDeOtroScroller = function (nodo, contenido) {
         for (let n = nodo instanceof Element ? nodo : null; n && n !== contenido; n = n.parentElement) {
             const oy = getComputedStyle(n).overflowY;
@@ -151,11 +156,16 @@
         }
         return false;
     };
+    // Mismo selector de modal que keytips.js y atajos-contexto.js; incluye <dialog> abierto con showModal() (ReconnectModal).
+    const SELECTOR_MODAL = '[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], dialog:modal';
     document.addEventListener('keydown', function (e) {
+        if (e.key === 'Tab') { ultimoPulsado = null; return; }
         if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+        // Mayús + flecha, Inicio, Fin, RePág o AvPág extiende la selección: solo Mayús + Espacio (subir) es nuestro.
+        if (e.shiftKey && e.key !== ' ') return;
         const activo = document.activeElement;
         if (activo && activo !== document.body && activo !== document.documentElement) return;
-        if (document.querySelector('[aria-modal="true"]')) return;
+        if (document.querySelector(SELECTOR_MODAL)) return;
         const contenido = contenidoPrincipal();
         if (!contenido) return;
         if (ultimoPulsado && ultimoPulsado.isConnected && dentroDeOtroScroller(ultimoPulsado, contenido)) return;

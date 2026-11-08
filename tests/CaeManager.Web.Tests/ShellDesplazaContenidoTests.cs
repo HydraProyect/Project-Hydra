@@ -142,13 +142,55 @@ public class ShellDesplazaContenidoTests
             "Blazor solo devuelve arriba la ventana; .contenido conservaría el scroll de la pantalla anterior");
         js.Should().MatchRegex(@"window\.addEventListener\('load',\s*engancharNavegacion\)",
             "si Blazor aún no expone addEventListener, el enganche se reintenta en load en vez de perderse en silencio");
-        js.Should().MatchRegex(@"case 'PageDown'[\s\S]*?case 'End'[\s\S]*?contenido\.scrollTo\(",
-            "con el foco en body, las teclas de desplazamiento irían al documento, que ya no desplaza");
-        js.Should().MatchRegex(@"activo !== document\.body", "un control enfocado conserva sus teclas");
-        js.Should().MatchRegex(@"dentroDeOtroScroller\(ultimoPulsado, contenido\)\) return",
-            "tras un clic en otro scroller (menú lateral, avisos) las teclas son de ese scroller");
         js.Should().MatchRegex(@"contenido\.scrollTo\(\{\s*top:\s*0,\s*behavior:\s*'instant'\s*\}\)",
             ".contenido lleva scroll-behavior: smooth (base.css): la vuelta arriba al cambiar de pantalla no se anima");
+    }
+
+    [Fact]
+    public void El_teclado_de_la_cabecera_cumple_su_contrato_ejecutando_el_script()
+    {
+        // Las guardas del manejador de teclado (modal, foco, Ctrl/Alt/Meta, Mayús, defaultPrevented, clic en otro scroller,
+        // caducidad del clic) se prueban por su efecto, no por el texto: js/cabeceraTeclado.test.mjs evalúa cabecera.js con un
+        // document falso. Necesita Node (el mismo del job deploy-script-tests); sin él esta prueba falla en vez de saltarse.
+        var prueba = Path.Combine(Raiz(), "tests", "CaeManager.Web.Tests", "js", "cabeceraTeclado.test.mjs");
+        File.Exists(prueba).Should().BeTrue();
+        var info = new System.Diagnostics.ProcessStartInfo("node", $"--test \"{prueba}\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        System.Diagnostics.Process proceso;
+        try { proceso = System.Diagnostics.Process.Start(info)!; }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            throw new InvalidOperationException("Hace falta Node en el PATH para ejecutar js/cabeceraTeclado.test.mjs: " + ex.Message, ex);
+        }
+        using (proceso)
+        {
+            var salida = proceso.StandardOutput.ReadToEndAsync();
+            var error = proceso.StandardError.ReadToEndAsync();
+            proceso.WaitForExit(TimeSpan.FromSeconds(60)).Should().BeTrue("node --test no debe colgarse");
+            proceso.ExitCode.Should().Be(0, "las pruebas de Node fallaron:\n" + salida.Result + error.Result);
+            salida.Result.Should().MatchRegex(@"(?m)\bpass [1-9]\d*\s*$","node --test debe haber ejecutado casos (un 0 de 0 no prueba nada)");
+        }
+    }
+
+    [Fact]
+    public void El_selector_de_modal_del_teclado_de_la_cabecera_es_el_mismo_que_el_de_keytips_y_atajos_de_contexto()
+    {
+        var cabecera = Regex.Match(Leer("wwwroot", "js", "cabecera.js"), @"SELECTOR_MODAL\s*=\s*'([^']+)'");
+        var keytips = Regex.Match(Leer("wwwroot", "js", "keytips.js"), @"SELECTOR_DIALOGO\s*=\s*'([^']+)'");
+        cabecera.Success.Should().BeTrue();
+        keytips.Success.Should().BeTrue();
+        cabecera.Groups[1].Value.Should().Be(keytips.Groups[1].Value,
+            "un <dialog> abierto con showModal() (ReconnectModal) o un alertdialog también es un modal: el teclado es suyo");
+        // atajos-contexto.js lo parte en dos literales con el mismo contenido.
+        var atajos = Regex.Replace(Leer("wwwroot", "js", "atajos-contexto.js"), @"\s+", " ");
+        foreach (var parte in cabecera.Groups[1].Value.Split(", "))
+            atajos.Should().Contain(parte);
+        Regex.Replace(Leer("wwwroot", "js", "cabecera.js"), @"//.*", string.Empty)
+            .Should().MatchRegex(@"document\.querySelector\(SELECTOR_MODAL\)\)\s*return", "la guarda existe");
     }
 
     [Fact]

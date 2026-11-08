@@ -149,7 +149,13 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
             await page.EvaluateAsync("() => document.getElementById('contenido-principal')?.scrollTo({ top: 0, behavior: 'instant' })");
             var carpeta = Path.Combine(Path.GetTempPath(), "centros-fidelidad-local");
             Directory.CreateDirectory(carpeta);
+            // El shell mide la ventana, así que el documento nunca es más alto que ella y FullPage recortaría la captura al
+            // alto de la ventana. Para ver .contenido entero se agranda la ventana hasta que le cabe todo, y se restaura.
+            var altoVentana = await page.EvaluateAsync<int>(
+                "() => { const c = document.getElementById('contenido-principal'); return c ? Math.ceil(c.scrollHeight + window.innerHeight - c.clientHeight) : window.innerHeight; }");
+            await page.SetViewportSizeAsync(1266, Math.Clamp(altoVentana, 800, 12000));
             await page.ScreenshotAsync(new() { Path = Path.Combine(carpeta, $"centros-{tema}.png"), FullPage = true });
+            await page.SetViewportSizeAsync(1266, 800);
         }
     }
 
