@@ -22,7 +22,8 @@
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-trabajadores-seleccion {
-    grid-template-columns: 28px 24px minmax(200px, 2fr) minmax(180px, 1.6fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+    /* Los mínimos de Trabajador, Empresa y Estado bajan a 180, 160 y 150: la rejilla pide 840 px y cabe a 1200 px con barra de desplazamiento. */
+    grid-template-columns: 28px 24px minmax(180px, 2fr) minmax(160px, 1.6fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
 }
 
 /*
@@ -96,6 +97,8 @@
 .col-sort-desc .col-title::after { content: " ↓"; }
 
 .seleccion-trabajador { display: flex; align-items: center; justify-content: center; }
+/* 16 px sin margen: la sangría de 64 px del apilado (casilla + chevron + dos huecos) cuenta con esa anchura, como en Centros. */
+.seleccion-trabajador ::deep input[type="checkbox"] { width: 16px; height: 16px; margin: 0; }
 .acciones-trabajador { display: flex; justify-content: flex-end; }
 
 /* Celda «Trabajador»: nombre (600) con su pastilla y debajo «DNI» y el documento, en pequeño. */
@@ -258,4 +261,78 @@
     font: var(--font-caption);
     font-weight: 600;
     white-space: nowrap;
+}
+
+
+/*
+  Pantalla estrecha (<= 1199 px, el mismo corte que las listas de Empresas y Centros: #2063 y #2066): la rejilla de seis
+  pistas pide 856 px (840 con selección múltiple) y la tarjeta mide el viewport menos ~326 px de barra lateral, así que
+  entre 901 y 1199 px se salía por la derecha sin scroll (a 1024 px, 683 px de tarjeta frente a 841 de rejilla) y por
+  debajo de 900 px lista-design.css le da 860 px mínimos y la tarjeta desplaza en horizontal, con Registrados vigentes y
+  Estado documental fuera de pantalla. Se sigue la salida de Centros: una caja flexible por fila con el chevron, el
+  Trabajador y el icono 360 en la primera línea y, debajo, con la sangría del chevron, Empresa, Registrados vigentes y
+  Estado. El orden de las celdas en el documento no cambia (teclado y lectores de pantalla); solo se recoloca con `order`.
+*/
+@media (max-width: 1199px) {
+    /* lista-design.css (.lista-design.lista-design .tarjeta-listado-contenido > *, 0,3,0) fija min-width: 860px: se gana con más especificidad. */
+    .lista-design.lista-design .tarjeta-listado-contenido > .marco-lista-trabajadores {
+        min-width: 0;
+    }
+
+    .marco-lista-trabajadores .rejilla-trabajadores {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 12px;
+    }
+
+    /* Cabecera: la casilla «seleccionar página» y los tres rótulos que ordenan; el resto sobra. */
+    .marco-lista-trabajadores .cabecera-columnas-trabajadores > span:not(.seleccion-trabajador):not(.cabecera-orden-trabajador) {
+        display: none;
+    }
+
+    .marco-lista-trabajadores .cabecera-columnas-trabajadores {
+        gap: 6px var(--space-4);
+    }
+
+    .marco-lista-trabajadores .rejilla-trabajadores > .seleccion-trabajador {
+        flex: none;
+    }
+
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .celda-chevron-trabajador {
+        flex: 0 0 24px;
+        width: 24px;
+    }
+
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .celda-identidad-trabajador {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .tarjeta-fila-acordeon-acciones {
+        flex: none;
+    }
+
+    /* Empresa, Registrados vigentes y Estado: cada uno en su línea, bajo el nombre (24 px de chevron + 12 px de hueco). */
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .celda-empresa-trabajador,
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .col-registrados-vigentes,
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-cabecera > .celda-estado-trabajador {
+        order: 2;
+        flex: 1 1 100%;
+        box-sizing: border-box;
+        padding-left: 36px;
+    }
+
+    /* Con selección múltiple entra la casilla (16 px + 12 px de hueco) delante del chevron. */
+    .marco-lista-trabajadores .rejilla-trabajadores-seleccion.tarjeta-fila-acordeon-cabecera > .celda-empresa-trabajador,
+    .marco-lista-trabajadores .rejilla-trabajadores-seleccion.tarjeta-fila-acordeon-cabecera > .col-registrados-vigentes,
+    .marco-lista-trabajadores .rejilla-trabajadores-seleccion.tarjeta-fila-acordeon-cabecera > .celda-estado-trabajador {
+        padding-left: 64px;
+    }
+
+    /* La fila desplegada no necesita la sangría de escritorio (56/100 px): la fila ya es una tarjeta estrecha. */
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-contenido,
+    .marco-lista-trabajadores .tarjeta-fila-acordeon-contenido.contenido-con-seleccion {
+        padding-left: var(--space-4);
+    }
 }
