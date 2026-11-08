@@ -22,7 +22,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <list type="bullet">
     /// <item>Contexto: el RLS firmado. Actor = <c>app_ctx_usuario_id()</c>, Tenant =
     /// <c>app_ctx_tenant_id()</c>.</item>
-    /// <item>Motivo: no vacío y de 500 caracteres como mucho.</item>
+    /// <item>Motivo: no vacío ni solo de espacios en blanco (la misma regla que
+    /// <c>string.IsNullOrWhiteSpace</c>: tabuladores, saltos de línea y espacios Unicode cuentan como
+    /// blanco) y, recortado como con <c>string.Trim()</c>, de 500 caracteres como mucho.</item>
     /// <item>Sesión: la que se nombra, abierta, dentro de su ventana, sin simulación, sobre el
     /// Tenant del contexto, del actor del contexto, y amparada por una concesión vigente de esta
     /// capacidad, por Tenant, que alcanza ese Tenant y que concedió otra persona.</item>
@@ -37,6 +39,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Administrador del Tenant. Si el valor ya es el pedido, devuelve <c>sin_cambios</c> y no
     /// escribe ni audita. Las sesiones del Tenant lo reciben en la siguiente revalidación de su sello,
     /// como con <c>ActualizarSeguridadAccesoCommand</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Concurrencia con el cierre de la sesión, la revocación de la concesión y la retirada del
+    /// alcance: la comprobación que ampara el <c>UPDATE</c> se hace con las filas de la sesión, la
+    /// concesión y el alcance bloqueadas (<c>FOR SHARE</c>) y la de <c>ParametrosSistema</c> tomada
+    /// (<c>FOR UPDATE</c>), en una sentencia posterior a los candados y con la hora leída en ella,
+    /// como <c>app_registrar_actividad_soporte_por_sesion</c>. Un cierre o una revocación confirmados
+    /// antes se ven; uno posterior espera a que el acto se confirme. Una comprobación previa sin
+    /// candados evita que una sesión que no podría ampararlo llegue a bloquear filas.
     /// </para>
     ///
     /// <para>
@@ -105,14 +117,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'contexto_no_valido';
                   END IF;
 
-                  v_motivo := btrim(p_motivo);
+                  -- Recorta los mismos caracteres que string.Trim() de .NET (char.IsWhiteSpace) y
+                  -- rechaza lo que string.IsNullOrWhiteSpace rechazaría: un motivo solo de
+                  -- tabuladores, saltos de línea o espacios Unicode tampoco vale. La clase se escribe
+                  -- con escapes y no con [[:space:]], que depende de la intercalación de la base.
+                  v_motivo := regexp_replace(p_motivo,
+                    '^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$',
+                    '', 'g');
                   IF v_motivo IS NULL OR v_motivo = '' OR char_length(v_motivo) > 500 THEN
                     RETURN 'motivo_no_valido';
                   END IF;
 
-                  -- La sesión: abierta, sin simular a nadie, sobre el Tenant del contexto, del
-                  -- actor del contexto, y amparada por una concesión vigente de esta capacidad,
-                  -- por Tenant, que alcanza ese Tenant y que concedió otra persona.
+                  -- Primera comprobación, sin candados: lo que no podría ampararse ni siquiera
+                  -- llega a bloquear filas. La sesión: abierta, sin simular a nadie, sobre el
+                  -- Tenant del contexto, del actor del contexto, y amparada por una concesión
+                  -- vigente de esta capacidad, por Tenant, que alcanza ese Tenant y que concedió
+                  -- otra persona.
                   IF NOT EXISTS (
                       SELECT 1
                       FROM public."SesionesPrivilegiadas" s
@@ -150,6 +170,27 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'sesion_no_autorizada';
                   END IF;
 
+                  -- Candados, siempre en este orden: sesión y concesión (FOR SHARE OF s, c), la
+                  -- fila de alcance (FOR SHARE OF t) y la de ParametrosSistema (FOR UPDATE), como
+                  -- app_registrar_actividad_soporte_por_sesion. Un cierre o una revocación en curso
+                  -- se espera; uno posterior espera a que termine esta transacción. Los escritores
+                  -- (CerrarSesionPrivilegiadaCommand, RevocarConcesionPrivilegioCommand,
+                  -- ActualizarSeguridadAccesoCommand) actualizan una sola fila por transacción, así
+                  -- que este orden no cierra un ciclo con ninguno de ellos.
+                  PERFORM 1
+                  FROM public."SesionesPrivilegiadas" s
+                  JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
+                  WHERE s."Id" = p_sesion
+                    AND s."TenantObjetivoId" = v_tenant
+                    AND c."UsuarioPlataformaId" = v_actor
+                  FOR SHARE OF s, c;
+                  PERFORM 1
+                  FROM public."TenantsAlcanzadosPorConcesion" t
+                  JOIN public."SesionesPrivilegiadas" s ON s."ConcesionPrivilegioId" = t."ConcesionPrivilegioId"
+                  WHERE s."Id" = p_sesion
+                    AND t."TenantId" = v_tenant
+                  FOR SHARE OF t;
+
                   -- La fila del Tenant objetivo, y solo esa. Tomarla serializa con un cambio del
                   -- Administrador del Tenant hecho a la vez.
                   SELECT p."Id", p."ExigeSegundoFactorTodosLosPerfiles" INTO v_parametros, v_antes
@@ -160,19 +201,35 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'parametros_no_encontrados';
                   END IF;
 
-                  -- La espera puede ser larga: lo que se cerró, revocó o caducó mientras tanto ya
-                  -- no ampara el acto. Cada sentencia ve aquí lo confirmado hasta ese momento.
-                  v_ahora := clock_timestamp();
-                  IF NOT EXISTS (
-                      SELECT 1
-                      FROM public."SesionesPrivilegiadas" s
-                      JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
-                      WHERE s."Id" = p_sesion
-                        AND s."CerradaEnUtc" IS NULL
-                        AND s."ExpiraEnUtc" > v_ahora
-                        AND c."Estado" = 'Vigente'
-                        AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora))
-                  THEN
+                  -- Comprobación definitiva, con las filas ya bloqueadas y una instantánea nueva
+                  -- (READ COMMITTED toma una por sentencia): ve el último estado confirmado de la
+                  -- sesión, la concesión y el alcance, que ya no puede cambiar hasta que esta
+                  -- transacción termine. La hora la lee esta misma sentencia, después de los
+                  -- candados (subconsulta reloj, ver RegistraActividadSoportePorSesionPrivilegiada),
+                  -- y es la que fecha la auditoría.
+                  SELECT reloj.ahora INTO v_ahora
+                  FROM (SELECT clock_timestamp() AS ahora) reloj
+                  CROSS JOIN public."SesionesPrivilegiadas" s
+                  JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
+                  WHERE s."Id" = p_sesion
+                    AND s."TenantObjetivoId" = v_tenant
+                    AND s."UsuarioSimuladoId" IS NULL
+                    AND s."CerradaEnUtc" IS NULL
+                    AND s."InicioEnUtc" <= reloj.ahora
+                    AND s."ExpiraEnUtc" > reloj.ahora
+                    AND c."UsuarioPlataformaId" = v_actor
+                    AND c."Capacidad" = 'AjusteSegundoFactorTenant'
+                    AND c."Estado" = 'Vigente'
+                    AND c."EsAlcanceGlobal" = false
+                    AND c."VigenciaDesde" <= reloj.ahora
+                    AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > reloj.ahora)
+                    AND c."ConcedidaPorUsuarioId" IS NOT NULL
+                    AND c."ConcedidaPorUsuarioId" <> c."UsuarioPlataformaId"
+                    AND EXISTS (
+                        SELECT 1 FROM public."TenantsAlcanzadosPorConcesion" t
+                        WHERE t."ConcesionPrivilegioId" = c."Id" AND t."TenantId" = v_tenant)
+                  LIMIT 1;
+                  IF NOT FOUND THEN
                     RETURN 'sesion_no_autorizada';
                   END IF;
 

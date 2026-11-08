@@ -143,6 +143,17 @@ public class PlataformaAjustaSegundoFactorTenantBajoRuntimeTests : IAsyncLifetim
             .Should().Be("cambiado");
     }
 
+    [Fact]
+    public async Task Los_blancos_alrededor_del_motivo_se_recortan_como_con_Trim()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+
+        (await CambiarComoPlataformaAsync(_tenantA, sesion, motivo: "\t\r\n\u00A0" + new string('a', 500) + "\u3000\n"))
+            .Should().Be("cambiado", "recortado, el motivo tiene 500 caracteres");
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().ContainSingle()
+            .Which.DatosDespues.Should().Contain("\"" + new string('a', 500) + "\"");
+    }
+
     // ── Cada precondición de la función, incumplida ──────────────────────────
 
     [Fact]
@@ -225,6 +236,9 @@ public class PlataformaAjustaSegundoFactorTenantBajoRuntimeTests : IAsyncLifetim
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("\t")]
+    [InlineData("\r\n\t \v\f")]
+    [InlineData("\u00A0\u2003\u3000\u2028")]
     public async Task Sin_motivo_no_cambia(string motivo)
     {
         var sesion = await AbrirSesionConCapacidadAsync();
@@ -317,6 +331,113 @@ WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" 
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
                 "la capacidad abre un acto por la función, no un camino de escritura");
         (await ExigeAsync(_tenantA)).Should().BeFalse();
+    }
+
+    // ── Concurrencia con el cierre, la revocación y la retirada del alcance ──
+
+    // Una escritura en curso (sin confirmar) sobre la sesión, la concesión o el alcance: la
+    // primera comprobación, sin candados, no la ve y pasa; la función tiene que esperar a su
+    // candado y, cuando se confirma, rechazar con lo confirmado. Sin los FOR SHARE la función no
+    // espera (la barrera falla) y cambia la exigencia con una sesión que ya no la ampara.
+    [Theory]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    [InlineData(@"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;")]
+    [InlineData(@"UPDATE ""TenantsAlcanzadosPorConcesion"" SET ""TenantId"" = gen_random_uuid() WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    public async Task Un_cierre_una_revocacion_o_una_retirada_del_alcance_en_curso_se_esperan_y_se_respetan(string escrituraEnCurso)
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+
+        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
+        await retenedor.OpenAsync();
+        await using var transaccion = await retenedor.BeginTransactionAsync();
+        await using (var orden = new NpgsqlCommand(escrituraEnCurso, retenedor, transaccion))
+        {
+            orden.Parameters.AddWithValue("u", sesion);
+            (await orden.ExecuteNonQueryAsync()).Should().Be(1, "la preparación tiene que tocar una fila");
+        }
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var pid = await PidAsync(contexto);
+        var llamada = LlamarFuncionAsync(contexto, sesion, true, Motivo);
+
+        (await QuedaEsperandoUnCandadoAsync(pid, llamada)).Should().BeTrue(
+            "control positivo: la función tiene que esperar a la escritura en curso, no decidir sin verla");
+        await transaccion.CommitAsync();
+
+        (await llamada).Should().Be("sesion_no_autorizada");
+        (await ExigeAsync(_tenantA)).Should().BeFalse();
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
+    }
+
+    // El orden contrario: la función ya tiene la sesión y la concesión y espera la fila de
+    // ParametrosSistema (un cambio del Administrador del Tenant en curso). Una revocación que llega
+    // entonces espera a que el acto se confirme, y no se confirma entre la comprobación y el UPDATE.
+    [Fact]
+    public async Task Una_revocacion_que_llega_mientras_la_funcion_espera_los_parametros_espera_al_acto()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+
+        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
+        await retenedor.OpenAsync();
+        await using var transaccion = await retenedor.BeginTransactionAsync();
+        await using (var orden = new NpgsqlCommand(
+            @"SELECT 1 FROM ""ParametrosSistema"" WHERE ""TenantId"" = @u FOR UPDATE;", retenedor, transaccion))
+        {
+            orden.Parameters.AddWithValue("u", _tenantA);
+            (await orden.ExecuteScalarAsync()).Should().Be(1);
+        }
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var pidFuncion = await PidAsync(contexto);
+        var llamada = LlamarFuncionAsync(contexto, sesion, true, Motivo);
+        (await QuedaEsperandoUnCandadoAsync(pidFuncion, llamada)).Should().BeTrue(
+            "control positivo: la función espera la fila de ParametrosSistema");
+
+        await using var revocador = new NpgsqlConnection(_cadenaConexion);
+        await revocador.OpenAsync();
+        int pidRevocador;
+        await using (var consulta = new NpgsqlCommand("SELECT pg_backend_pid();", revocador))
+            pidRevocador = (int)(await consulta.ExecuteScalarAsync())!;
+        await using var revocacion = new NpgsqlCommand(
+            @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);",
+            revocador);
+        revocacion.Parameters.AddWithValue("u", sesion);
+        var revocar = revocacion.ExecuteNonQueryAsync();
+        (await QuedaEsperandoUnCandadoAsync(pidRevocador, revocar)).Should().BeTrue(
+            "la revocación espera al candado que la función tiene sobre la concesión");
+
+        await transaccion.CommitAsync();
+
+        (await llamada).Should().Be("cambiado", "la revocación no se confirmó antes de la comprobación");
+        (await revocar).Should().Be(1, "y se confirma después del acto");
+        (await ExigeAsync(_tenantA)).Should().BeTrue();
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().ContainSingle();
+    }
+
+    // Deja la conexión del contexto abierta: si EF la cerrara entre consultas, la llamada podría
+    // salir del pool por otra conexión física y el pid no sería el suyo.
+    private static async Task<int> PidAsync(CaeManagerDbContext contexto)
+    {
+        await contexto.Database.OpenConnectionAsync();
+        return await contexto.Database.SqlQuery<int>($"SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
+    }
+
+    // Barrera: el proceso está esperando un candado (no ha terminado ni fallado todavía).
+    private async Task<bool> QuedaEsperandoUnCandadoAsync(int pid, Task tarea)
+    {
+        await using var observador = new NpgsqlConnection(_cadenaConexion);
+        await observador.OpenAsync();
+        for (var intento = 0; intento < 100 && !tarea.IsCompleted; intento++)
+        {
+            await using var consulta = new NpgsqlCommand(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = @pid AND NOT granted);", observador);
+            consulta.Parameters.AddWithValue("pid", pid);
+            if ((bool)(await consulta.ExecuteScalarAsync())!)
+                return true;
+            await Task.Delay(100);
+        }
+
+        return false;
     }
 
     // ── Preparación y lectura ────────────────────────────────────────────────

@@ -46,19 +46,19 @@ namespace CaeManager.Application.Common;
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
 /// prueba aquí.
 ///
-/// <b>Tres excepciones, cada una atada a su capacidad y a su propia lista de
-/// comandos.</b> Las dos primeras, capacidades de acción acotada de ADR-011 § 8.7,
+/// <b>Cinco excepciones, cada una atada a su capacidad y a su propia lista de
+/// comandos.</b> Las cuatro primeras, capacidades de acción acotada de ADR-011 § 8.7,
 /// punto 3: una sesión con capacidad <c>RestablecimientoSegundoFactor</c> deja pasar
-/// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y una con
+/// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, una con
 /// <c>RevocacionOperadorCaeExterno</c> solo un
-/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, <c>ConcesionAdministrador</c> solo
-/// un <see cref="IComandoDeConcesionAdministrador"/> y <c>AjusteSegundoFactorTenant</c> solo un
+/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, una con <c>ConcesionAdministrador</c> solo
+/// un <see cref="IComandoDeConcesionAdministrador"/> y una con <c>AjusteSegundoFactorTenant</c> solo un
 /// <see cref="IComandoDeAjusteSegundoFactorTenant"/>, cada una solo en su Tenant
 /// objetivo. Ninguna es camino de escritura —la conexión sigue con el rol de solo
 /// lectura—: el acto lo ejecuta una función de la base que repite las
 /// comprobaciones.
 ///
-/// <b>La tercera, PD-A3, con tres condiciones a la vez, no una.</b>
+/// <b>La quinta, PD-A3, con tres condiciones a la vez, no una.</b>
 /// Una sesión con <c>TieneCaminoDeEscritura</c> (hoy solo <c>Aprovisionamiento</c>
 /// — <c>BreakGlass</c> permite escribir en el modelo pero su fase todavía no
 /// existe) deja pasar el comando solo si además es
