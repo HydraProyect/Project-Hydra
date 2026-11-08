@@ -143,12 +143,21 @@ talveg.es {
 
 	# Ni listado de directorios (no hay `browse`) ni ficheros o carpetas que
 	# empiecen por punto (.git, .env, .DS_Store) si se suben por descuido.
+	# Excepción única: /.well-known/, que la web publica a propósito (p. ej.
+	# tdmrep.json, la reserva de minería de textos y datos, señal legal) y que
+	# `hide .*` ocultaría porque compara cada componente de la ruta. Se sirve en
+	# su propio `handle`, sin el hide; lo demás sigue oculto por defecto en vez
+	# de depender de una lista de nombres que siempre se queda corta. Los retos
+	# ACME no pasan por aquí: Caddy los atiende antes de las rutas del sitio.
 	#
 	# file_server SIGUE los enlaces simbólicos, también los que apuntan fuera
 	# de la raíz, y dentro de este contenedor está /data con las claves
 	# privadas TLS de todos los dominios. La raíz no es una frontera: la web se
 	# sube sin enlaces (rsync --no-links, o comprobar que `find /srv/talveg-web
 	# -type l` sale vacío). Caddy no tiene opción para no seguirlos.
+	handle /.well-known/* {
+		file_server
+	}
 	file_server {
 		hide .*
 	}
