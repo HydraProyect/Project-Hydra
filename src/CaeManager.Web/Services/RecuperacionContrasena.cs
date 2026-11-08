@@ -200,7 +200,7 @@ public sealed class RecuperacionContrasena(
         var enlace = EnlacesPublicos.Activacion(basePublica, usuario.Id, codigo);
         var cuerpo = $"""
             <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en {Marca.Nombre}.</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(enlace)}">Restablecer mi contraseña</a></p>
+            {BotonCorreo.Html("Restablecer mi contraseña", enlace)}
             <p>Este enlace caduca en 60 minutos. Si no fuiste tú, puedes ignorar este correo — tu contraseña actual sigue siendo válida.</p>
             """;
         var resultado = await correo.EnviarAsync(usuario.Email!, $"Restablece tu contraseña — {Marca.Nombre}", cuerpo,

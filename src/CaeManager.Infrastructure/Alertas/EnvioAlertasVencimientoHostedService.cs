@@ -226,7 +226,7 @@ public class EnvioAlertasVencimientoHostedService(
 
         var enlace = string.IsNullOrWhiteSpace(urlBase)
             ? string.Empty
-            : $"""<p><a href="{WebUtility.HtmlEncode(urlBase.TrimEnd('/'))}/alertas">Ver el detalle en Alertas</a></p>""";
+            : BotonCorreo.Html("Ver el detalle en Alertas", $"{urlBase.TrimEnd('/')}/alertas");
 
         var cuerpo = $"""
             <p>Resumen diario de documentación pendiente en {Marca.Nombre}:</p>

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
+using CaeManager.Application.Common;
 using CaeManager.Domain.AltaAutonoma;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -129,14 +130,14 @@ public sealed class ServicioRegistroAlta(
 
     private static string CuerpoVerificacion(Uri enlace) => $"""
         <p>Hemos recibido una solicitud para crear una cuenta en TALVEG con este correo.</p>
-        <p><a href="{WebUtility.HtmlEncode(enlace.AbsoluteUri)}">Confirmar mi correo</a></p>
+        {BotonCorreo.Html("Confirmar mi correo", enlace.AbsoluteUri)}
         <p>El enlace caduca a las 24 horas y solo vale una vez. Si no has sido tú, ignora este mensaje: sin confirmar el correo no se crea nada.</p>
         """;
 
     private static string CuerpoCuentaExistente(Uri basePublica) => $"""
         <p>Alguien ha intentado crear una cuenta en TALVEG con este correo, pero ya tienes una.</p>
-        <p><a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/iniciar-sesion").AbsoluteUri)}">Iniciar sesión</a>
-        o, si no recuerdas la contraseña, <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}">restablecerla</a>.</p>
+        {BotonCorreo.Html("Iniciar sesión", new Uri(basePublica, "cuenta/iniciar-sesion").AbsoluteUri)}
+        <p>Si no recuerdas la contraseña, puedes <a href="{WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}" style="color:#122A21;text-decoration:underline;">restablecerla aquí</a>: {WebUtility.HtmlEncode(new Uri(basePublica, "cuenta/olvide-contrasena").AbsoluteUri)}</p>
         <p>Si no has sido tú, ignora este mensaje: tu cuenta no ha cambiado.</p>
         """;
 }

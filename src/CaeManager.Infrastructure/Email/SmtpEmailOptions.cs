@@ -1,10 +1,13 @@
 namespace CaeManager.Infrastructure.Email;
 
 /// <summary>
-/// Configuración del envío de correo vía SMTP (buzón corporativo alojado en
-/// dinahosting, no Microsoft 365 — el MX de talveg.es resuelve a
-/// mail.talveg.es, un servidor SMTP/IMAP tradicional, no a Exchange Online).
-/// Sin las cinco variables configuradas, el envío de correo queda inerte: las
+/// Configuración del envío de correo vía SMTP. Se escribió para el buzón
+/// corporativo de dinahosting (mail.talveg.es), cuando el MX de talveg.es
+/// apuntaba allí. Esa premisa ya no vale: medido el 2026-11-08, el MX de
+/// talveg.es es <c>talveg-es.mail.protection.outlook.com</c> (Microsoft 365) y
+/// el SPF autoriza tanto a Microsoft 365 como a mail.talveg.es. Qué servidor
+/// usa cada entorno lo decide <c>Smtp__Host</c> en su configuración, no este
+/// comentario. Sin las cinco variables configuradas, el envío de correo queda inerte: las
 /// acciones que lo disparan (usuario pendiente, asignación de rol) siguen
 /// funcionando igual, solo que sin notificación — mismo patrón que
 /// Sentry/Backups/Anthropic/AzureAd.
@@ -40,9 +43,10 @@ public class SmtpEmailOptions
     /// de Development (URL absoluta https): los enlaces de activación y de
     /// recuperación de contraseña se construyen con ella, nunca con el Host de la
     /// petición, y sin ella la aplicación no arranca (ValidadorUrlBasePublica,
-    /// registrado con ValidateOnStart en Program.cs). En Development puede faltar y se usa el Host local. También
-    /// permite servir la franja de marca del sistema de correo como imagen (los
-    /// clientes de correo la descargan por HTTP, no la reciben incrustada).
+    /// registrado con ValidateOnStart en Program.cs). En Development puede faltar y se usa el Host local. La
+    /// plantilla de marca del correo ya no la usa: desde noviembre de 2026 la
+    /// franja de marca es texto, no una imagen servida desde esta URL, para que
+    /// el correo se lea igual con las imágenes bloqueadas.
     /// </summary>
     public string? UrlBasePublica { get; set; }
 

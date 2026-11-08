@@ -1345,7 +1345,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
             <p>Se ha creado tu acceso a {Marca.Nombre}. Para entrar, establece tu contraseña:</p>
-            <p><a href="{System.Net.WebUtility.HtmlEncode(enlaceActivacion)}">Establecer mi contraseña</a></p>
+            {BotonCorreo.Html("Establecer mi contraseña", enlaceActivacion)}
             <p>El enlace caduca en {MinutosCaducidadActivacion} minutos y solo puede usarse una vez. Si caduca, pide a quien te dio de alta que te envíe uno nuevo.</p>
             """;
 

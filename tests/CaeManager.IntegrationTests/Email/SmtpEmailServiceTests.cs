@@ -303,14 +303,21 @@ public class SmtpEmailServiceEnvolverEnPlantillaDeMarcaTests
         html.Should().Contain("TALVEG");
     }
 
+    /// <summary>
+    /// Hasta noviembre de 2026, con <c>UrlBasePublica</c> la franja era una imagen
+    /// (<c>/img/correo/franja-marca.png</c>). Con las imágenes de remitentes externos bloqueadas
+    /// —lo habitual en muchas organizaciones— dejaba un hueco: ahora es texto siempre.
+    /// </summary>
     [Fact]
-    public void Con_UrlBasePublica_la_franja_de_marca_es_una_imagen_servida_por_esa_url()
+    public void Con_UrlBasePublica_la_franja_de_marca_sigue_siendo_texto_no_imagen()
     {
         var html = SmtpEmailService.EnvolverEnPlantillaDeMarca(
             "<p>contenido</p>", TipoAvisoCorreo.Transaccional,
             new SmtpEmailOptions { UrlBasePublica = "https://app.talveg.es" });
 
-        html.Should().Contain("<img src=\"https://app.talveg.es/img/correo/franja-marca.png\"");
+        html.Should().NotContain("<img");
+        html.Should().NotContain("franja-marca.png");
+        html.Should().Contain(">TALVEG<");
     }
 
     [Fact]
@@ -481,7 +488,7 @@ public class SmtpEmailServiceConstruirMensajeTests
             TipoAvisoCorreo.Requerimiento, responderA, Opciones(), NullLogger.Instance);
 
         mensaje.ReplyTo.Mailboxes.Should().BeEmpty();
-        Assert.IsType<TextPart>(mensaje.Body).Text.Should().NotContain(
+        mensaje.HtmlBody.Should().NotContain(
             "Puedes responder a este mensaje",
             "sin Reply-To real el pie no puede prometer una respuesta que no llegaría a nadie");
     }
@@ -493,7 +500,8 @@ public class SmtpEmailServiceConstruirMensajeTests
             "contacto@refrielectric.example", "Documentación pendiente", "<p>Nos faltan los EPI.</p>",
             TipoAvisoCorreo.Requerimiento, "marta@arcosspa.example", Opciones(), NullLogger.Instance);
 
-        var cuerpo = Assert.IsType<TextPart>(mensaje.Body);
-        cuerpo.Text.Should().Contain("Puedes responder a este mensaje: tu respuesta le llegará directamente a esa persona");
+        mensaje.HtmlBody.Should().Contain("Puedes responder a este mensaje: tu respuesta le llegará directamente a esa persona");
+        mensaje.TextBody.Should().Contain("Puedes responder a este mensaje: tu respuesta le llegará directamente a esa persona",
+            "la parte de texto plano dice lo mismo que el HTML");
     }
 }
