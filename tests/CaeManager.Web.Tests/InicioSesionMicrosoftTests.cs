@@ -371,6 +371,18 @@ public class InicioSesionMicrosoftTests
     }
 
     [Fact]
+    public void El_correo_del_token_cae_a_preferred_username_si_email_falta_o_viene_vacio()
+    {
+        InicioSesionMicrosoft.CorreoDelToken(Externo((ClaimTypes.Email, "a@ejemplo.test"), ("preferred_username", "b@ejemplo.test")))
+            .Should().Be("a@ejemplo.test");
+        InicioSesionMicrosoft.CorreoDelToken(Externo((ClaimTypes.Email, " "), ("preferred_username", "b@ejemplo.test")))
+            .Should().Be("b@ejemplo.test");
+        InicioSesionMicrosoft.CorreoDelToken(Externo(("preferred_username", "b@ejemplo.test"))).Should().Be("b@ejemplo.test");
+        InicioSesionMicrosoft.CorreoDelToken(Externo((ClaimTypes.Email, ""), ("preferred_username", ""))).Should().BeNull();
+        InicioSesionMicrosoft.CorreoDelToken(Externo(("oid", OidPrueba))).Should().BeNull();
+    }
+
+    [Fact]
     public async Task El_vinculo_se_busca_primero_por_oid_y_tid()
     {
         var cuenta = new ApplicationUser { TenantId = TenantDestino };

@@ -141,8 +141,7 @@ public static class IdentityEndpointsExtensions
             // El correo solo sirve para la primera vinculación de una cuenta creada por
             // invitación: se exige allí (RechazarSinCorreo), después de buscar el vínculo, para
             // que una cuenta ya vinculada entre aunque el token no lo traiga (ASVS 4.0.3 V1.2.4).
-            var email = new[] { infoExterna.Principal.FindFirstValue(ClaimTypes.Email), infoExterna.Principal.FindFirstValue("preferred_username") }
-                .FirstOrDefault(valor => !string.IsNullOrWhiteSpace(valor));
+            var email = InicioSesionMicrosoft.CorreoDelToken(infoExterna.Principal);
 
             // Vuelta del SSO: todavía no hay sesión ni Tenant, y AspNetUsers tiene
             // RLS (P1-M1). Búsqueda, alta y vinculación del login pasan por el

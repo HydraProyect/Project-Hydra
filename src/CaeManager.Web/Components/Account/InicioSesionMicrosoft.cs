@@ -443,6 +443,17 @@ public static class InicioSesionMicrosoft
     }
 
     /// <summary>
+    /// El correo con el que se busca un alta por invitación: <c>email</c> o, si falta o viene
+    /// vacío, <c>preferred_username</c>. <c>null</c> si ninguno trae un valor utilizable.
+    /// </summary>
+    public static string? CorreoDelToken(ClaimsPrincipal principalExterno)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+        return new[] { principalExterno.FindFirstValue(ClaimTypes.Email), principalExterno.FindFirstValue("preferred_username") }
+            .FirstOrDefault(valor => !string.IsNullOrWhiteSpace(valor));
+    }
+
+    /// <summary>
     /// Si la cuenta sigue en alta por invitación sin activar: sin contraseña y sin ningún login
     /// externo, la misma regla que <c>CuentaUsuario.PendienteActivacion</c> («la persona nunca
     /// entró»). Es la única cuenta que el correo puede vincular (D-L6). Se comprueba en el

@@ -99,6 +99,37 @@ public class InicioSesionMicrosoftNoCreaCuentasTests
         }
     }
 
+    /// <summary>
+    /// Fallo cerrado del callback (revisión puente de la #2099): el <c>switch</c> sobre la decisión de cuenta
+    /// solo deja seguir a Entrar y Vincular, y cualquier otro valor, incluido uno nuevo sin su caso, sale con
+    /// <c>errorSso=fallo</c> en vez de seguir hacia el TOTP o la sesión. Y el correo se lee con
+    /// <c>CorreoDelToken</c>, después de abrir el ámbito de identificación y sin rechazo previo al vínculo.
+    /// </summary>
+    [Fact]
+    public void El_callback_falla_cerrado_ante_una_decision_sin_tratar_y_no_exige_correo_antes_del_vinculo()
+    {
+        var callback = SinEspacios(LimpiadorDeComentarios.Quitar(
+            File.ReadAllText(Absoluta("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs")), razor: false));
+
+        var inicio = callback.IndexOf("switch(decision){", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(0);
+        var fin = callback.IndexOf("if(usuarioisnull)", inicio, StringComparison.Ordinal);
+        fin.Should().BeGreaterThan(inicio);
+        var conmutador = callback[inicio..fin];
+        conmutador.Should().Contain(
+            "caseDecisionCuentaMicrosoft.EntrarConCuentaVinculada:caseDecisionCuentaMicrosoft.VincularCuentaExistente:break;",
+            "solo estas dos decisiones siguen adelante");
+        conmutador.Should().MatchRegex(@"default:(?:(?!case).)*?awaitsignInManager\.SignOutAsync\(\);returnResults\.LocalRedirect\(""/cuenta/iniciar-sesion\?errorSso=fallo""\);}$",
+            "el default cierra la sesión externa y sale con errorSso=fallo, al final del switch");
+        foreach (var valor in Enum.GetNames<CaeManager.Web.Components.Account.DecisionCuentaMicrosoft>()
+                     .Where(v => v.StartsWith("Rechazar", StringComparison.Ordinal)))
+            conmutador.Should().Contain($"caseDecisionCuentaMicrosoft.{valor}:", $"{valor} tiene su caso explícito");
+
+        callback.Should().Contain("varemail=InicioSesionMicrosoft.CorreoDelToken(infoExterna.Principal);");
+        callback.Should().NotContain("if(string.IsNullOrWhiteSpace(email))",
+            "el correo solo se exige sin vínculo, dentro de ResolverCuentaAsync");
+    }
+
     private static string SinEspacios(string texto) => string.Concat(texto.Where(c => !char.IsWhiteSpace(c)));
 
     private static List<int> Posiciones(string texto, string patron)
