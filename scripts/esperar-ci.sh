@@ -285,9 +285,11 @@ run_jobs_tsv() {
 }
 
 run_es_obsoleto() {
-  local run_id="$1"
-  gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null \
-    | grep -qi -- "$MENSAJE_RUN_OBSOLETO"
+  local run_id="$1" log
+  # Log capturado entero antes de buscar: con pipefail, `gh … | grep -q` da
+  # fallo por SIGPIPE si gh sigue escribiendo tras el primer acierto.
+  log="$(gh run view "$run_id" --repo "$REPO" --log-failed 2>/dev/null)" || return 1
+  grep -qi -- "$MENSAJE_RUN_OBSOLETO" <<<"$log"
 }
 
 # --- Veredicto final: UNA línea a stdout, log de progreso a stderr -------

@@ -134,7 +134,9 @@ seccion_no_vacia() {
   # esta misma PR). No cubre comentarios HTML repartidos en varias líneas:
   # ese caso queda como hueco aceptado, no vale la complejidad para un check
   # que no es `required`.
-  printf '%s' "$1" | sed -E 's/<!--.*-->//g' | grep -qE '[^[:space:]]'
+  local sin_comentarios
+  sin_comentarios="$(sed -E 's/<!--.*-->//g' <<<"$1")"
+  grep -qE '[^[:space:]]' <<<"$sin_comentarios"
 }
 
 PROBLEMAS=0
@@ -153,10 +155,10 @@ elif grep -qxF "$FICHERO_ROLES_CLUSTER" "$FICHEROS"; then
          "cae_app_aprovisionamiento de #674 rompió staging porque ningún adaptador de" \
          "despliegue ejecuta roles-de-cluster.sql — el paso manual hay que declararlo."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! printf '%s' "$SECCION" | grep -qi 'staging'; then
+  elif ! grep -qi 'staging' <<<"$SECCION"; then
     echo "PROBLEMA  La sección 'Paso operativo en servidores' no menciona 'staging'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif ! printf '%s' "$SECCION" | grep -qi 'producci'; then
+  elif ! grep -qi 'producci' <<<"$SECCION"; then
     echo "PROBLEMA  La sección 'Paso operativo en servidores' no menciona 'producción'."
     PROBLEMAS=$((PROBLEMAS + 1))
   else
@@ -180,7 +182,7 @@ else
          "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: líneas 'Revisor:'," \
          "'Refutación:' y el veredicto ('sin hallazgos' o 'aceptados N, rechazados M')."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qiE 'resultados?[[:space:]-]+abajo'; then
+  elif grep -qiE 'resultados?[[:space:]-]+abajo' <<<"$SECCION"; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
          "(el mismo que #673 dejó sin rellenar)."
     PROBLEMAS=$((PROBLEMAS + 1))
@@ -189,10 +191,10 @@ else
   # runs 35831818412 y 35832823379: "sin hallazgos nuevos pendientes de esta
   # pasada" dio rojo sin ser un marcador de relleno). El \b de cierre limita
   # la detección a la palabra exacta "pendiente".
-  elif printf '%s' "$SECCION" | grep -qiE '\bpendiente\b'; then
+  elif grep -qiE '\bpendiente\b' <<<"$SECCION"; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'pendiente'."
     PROBLEMAS=$((PROBLEMAS + 1))
-  elif printf '%s' "$SECCION" | grep -qE '\bTODOs?\b'; then
+  elif grep -qE '\bTODOs?\b' <<<"$SECCION"; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'TODO'."
     PROBLEMAS=$((PROBLEMAS + 1))
   # Las tres comprobaciones siguientes miran la FORMA, no la verdad: suben el

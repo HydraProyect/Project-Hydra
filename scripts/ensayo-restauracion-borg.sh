@@ -174,7 +174,11 @@ fi
 # propia app (la app tiene techo de 3 GB) y compite por RAM y disco con el stack
 # real de una máquina pequeña; un ensayo no puede tumbar lo que ensaya. Si aquí
 # ya corre el stack (contenedor caemanager-app o caemanager-db), se niega.
-if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qxE 'caemanager-(app|db)'; then
+# Nombres capturados antes de buscar: con pipefail, `docker ps | grep -q` daba
+# fallo por SIGPIPE si docker seguía escribiendo tras el primer acierto, y la
+# guarda no saltaba justo con el stack real presente.
+NOMBRES_EN_HOST="$(docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+if grep -qxE 'caemanager-(app|db)' <<<"$NOMBRES_EN_HOST"; then
     if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
         echo "ERROR: en este host existe el stack real (caemanager-app / caemanager-db)."
         echo "       Ejecuta el ensayo en otra máquina (tu equipo con Docker, o un servidor temporal)."

@@ -282,11 +282,11 @@ main() {
     fi
     log "Verificación previa del muestreo del VPS (10 s)."
     salida_pre="$(ssh_muestreo 10 2 2>&1)"
-    if printf '%s' "$salida_pre" | grep -q "Hay un despliegue en curso"; then
+    if grep -q "Hay un despliegue en curso" <<<"$salida_pre"; then
         echo "El VPS reporta un despliegue en curso. No se carga nada." >&2; return 6
     fi
     if ! motivo_pre="$(evaluar_cierre "$salida_pre" 10 2 0 previo)"; then
-        if printf '%s' "$salida_pre" | grep -q "=== Muestreo de memoria (REC-196/P33)"; then
+        if grep -q "=== Muestreo de memoria (REC-196/P33)" <<<"$salida_pre"; then
             # El modo existe y arrancó: lo que falla es la máquina (docker lento), no el despliegue.
             echo "El VPS ofrece el modo muestreo-memoria pero la prueba de 10 s no dio lecturas válidas: ${motivo_pre}. No se carga nada (¿docker lento? no hace falta desplegar de nuevo). Final de la salida:" >&2
             printf '%s\n' "$salida_pre" | tail -6 >&2; return 4
