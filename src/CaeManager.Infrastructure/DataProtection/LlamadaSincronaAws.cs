@@ -200,10 +200,12 @@ internal static class LlamadaSincronaAws
                 }
                 finally
                 {
-                    InvocarSinLanzar(liberar);
-
                     // Libera el evento del núcleo que creó AsyncWaitHandle.
                     t.Dispose();
+
+                    // Lo último: quien espere a la liberación de la entrada encuentra la
+                    // limpieza ya hecha.
+                    InvocarSinLanzar(liberar);
                 }
             },
             (descartarResultadoTardio, liberarEntrada),

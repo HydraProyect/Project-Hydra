@@ -249,8 +249,8 @@ public class DataProtectionAwsSinInterbloqueoTests
                     EsperaMaxima)
                 .Should().BeTrue("el instrumento debe ver una excepción que nadie observa");
 
-            // Dos vueltas más por si la continuación de limpieza aún retenía la tarea
-            // tardía (la libera justo después de avisar) cuando se recolectó el control.
+            // Dos vueltas más por si la continuación de limpieza, que avisa en su última
+            // instrucción, aún tenía la tarea tardía en la pila cuando se recolectó el control.
             for (var i = 0; i < 2; i++)
             {
                 GC.Collect();
@@ -286,8 +286,8 @@ public class DataProtectionAwsSinInterbloqueoTests
         accion.Should().Throw<TimeoutException>();
         fallo.SetException(new InvalidOperationException(mensaje));
 
-        // liberarEntrada corre en la continuación de limpieza después de observar la
-        // excepción tardía.
+        // liberarEntrada es lo último que hace la continuación de limpieza, después de
+        // observar la excepción tardía y liberar la tarea.
         return limpiezaTerminada.Wait(EsperaMaxima);
     }
 
