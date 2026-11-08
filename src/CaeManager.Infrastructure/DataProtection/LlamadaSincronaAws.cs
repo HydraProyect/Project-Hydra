@@ -47,7 +47,7 @@ internal static class LlamadaSincronaAws
         // El token se toma antes de Task.Run: si el pool tarda en arrancar la
         // tarea y el origen ya se ha dispuesto, leerlo dentro lanzaría.
         var token = cancelacion.Token;
-        var tarea = Task.Run(() => operacion(token), CancellationToken.None);
+        var tarea = operacion(token); // MUTACION: sin Task.Run
 
         try
         {
