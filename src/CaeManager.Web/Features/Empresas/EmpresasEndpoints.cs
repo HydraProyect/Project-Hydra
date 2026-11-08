@@ -58,6 +58,7 @@ public static class EmpresasEndpoints
             // fetch y enseña este texto en pantalla.
             if (resultado.Error.Equals(AutorizacionPaqueteEmpresa.NoEncontrada))
                 return Results.NotFound();
+            CabecerasArchivoSensible.ProhibirCache(contexto);
             var prohibido = resultado.Error.Equals(AutorizacionPaqueteEmpresa.RolSinDescarga)
                 || resultado.Error.Equals(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
             return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8",

@@ -14,7 +14,8 @@ function nombreDeContentDisposition(cabecera) {
 }
 
 export async function descargar(ruta, nombrePorDefecto) {
-    if (typeof ruta !== 'string' || !ruta.startsWith('/') || ruta.startsWith('//')) {
+    // Solo una ruta de la propia aplicación: «//host» y «/\host» (que el navegador normaliza a «//host») salen fuera.
+    if (typeof ruta !== 'string' || !ruta.startsWith('/') || ruta.startsWith('//') || ruta.includes('\\')) {
         return { ok: false, estado: 0, mensaje: null };
     }
 

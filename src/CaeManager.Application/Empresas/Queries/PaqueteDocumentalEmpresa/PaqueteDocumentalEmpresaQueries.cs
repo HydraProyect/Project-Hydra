@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Auditoria;
@@ -57,6 +58,10 @@ public static class AutorizacionPaqueteEmpresa
     public static readonly Error DemasiadoGrande = Error.Crear(
         "PaqueteEmpresa.DemasiadoGrande",
         $"El paquete pasa de {IPaqueteDocumentalEmpresaService.MaximoArchivos} archivos. Elige un Cliente concreto para prepararlo.");
+
+    public static readonly Error DemasiadoPesado = Error.Crear(
+        "PaqueteEmpresa.DemasiadoPesado",
+        $"El paquete pasa de {PaqueteDocumentalEmpresaService.MaximoBytes / (1024 * 1024)} MB. Elige un Cliente concreto para prepararlo.");
 
     public static readonly Error ArchivosNoDisponibles = Error.Crear(
         "PaqueteEmpresa.ArchivosNoDisponibles",
@@ -150,6 +155,10 @@ public class DescargarPaqueteEmpresaQueryHandler(
         catch (PaqueteEmpresaDemasiadoGrandeException)
         {
             return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.DemasiadoGrande);
+        }
+        catch (PaqueteDocumentalDemasiadoPesadoException)
+        {
+            return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.DemasiadoPesado);
         }
         catch (PaqueteEmpresaSinArchivosException)
         {

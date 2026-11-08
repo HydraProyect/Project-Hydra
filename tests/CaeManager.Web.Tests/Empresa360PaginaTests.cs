@@ -694,6 +694,48 @@ public partial class Empresa360PaginaTests : BunitContext
         recuentos.GetAttribute("aria-atomic").Should().Be("true");
     }
 
+    [Fact]
+    public void Mientras_carga_el_destino_nuevo_se_queda_el_resumen_los_botones_siguen_y_Generar_esta_deshabilitado()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        var arbeko = cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko");
+        var espera = new TaskCompletionSource();
+        mediador.Retener = q => q is ObtenerResumenPaqueteEmpresaQuery ? espera.Task : null;
+
+        arbeko.Click();
+
+        cut.Find("[role=dialog]").TextContent.Should().NotContain("Calculando el paquete", "solo la primera carga sustituye el cuerpo");
+        cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("true");
+        cut.FindAll(".paquete-destino").Should().HaveCount(3);
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").HasAttribute("disabled").Should().BeTrue(
+            "mientras carga, lo anunciado aún es el destino anterior");
+
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("false"));
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public void La_respuesta_de_un_destino_ya_superado_no_pisa_el_resumen_del_destino_pulsado()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        mediador.ResumenPaquete = q => Result.Exito(new ResumenPaqueteEmpresaDto(
+            "Montajes Ebro SL", Destinos, q.ClienteEmpresarialId, q.ClienteEmpresarialId == OtroClientePaqueteId ? 7 : 40, 0, 0, []));
+        var espera = new TaskCompletionSource();
+        mediador.Retener = q => q is ObtenerResumenPaqueteEmpresaQuery { ClienteEmpresarialId: var c } && c == OtroClientePaqueteId ? espera.Task : null;
+
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        espera.SetResult();
+
+        cut.WaitForAssertion(() => cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("false"));
+        cut.Find(".paquete-recuento-incluye .paquete-cifra").TextContent.Trim().Should().Be("40",
+            "la respuesta de Grupo Arbeko llegó tarde y se descarta: está pulsado «Todo lo vigente»");
+    }
+
     private BunitJSModuleInterop ModuloDescarga(BotonPaqueteEmpresa.RespuestaDescarga respuesta)
     {
         var modulo = JSInterop.SetupModule("./js/descarga-archivo.js");

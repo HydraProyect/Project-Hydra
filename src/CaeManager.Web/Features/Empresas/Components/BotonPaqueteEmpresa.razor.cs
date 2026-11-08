@@ -26,6 +26,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private bool _destinoInicialElegido;
     private Guid? _destinoId;
     private ResumenPaqueteEmpresaDto? _resumen;
+    private int _versionCarga;
     private bool _generando;
     private string? _errorDescarga;
     private IJSObjectReference? _modulo;
@@ -56,14 +57,21 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         await CargarAsync();
     }
 
+    /// <summary>
+    /// Cada carga lleva su versión: si el Gestor CAE cambia de destino antes de que llegue la respuesta anterior, esa
+    /// respuesta se descarta, para que el diálogo nunca anuncie el resumen de un destino con otro pulsado. Mientras carga,
+    /// «Generar ZIP» está deshabilitado.
+    /// </summary>
     private async Task CargarAsync()
     {
+        var version = ++_versionCarga;
         _cargando = true;
         _error = false;
         _mensajeError = null;
         try
         {
             var resultado = await Mediator.Send(new ObtenerResumenPaqueteEmpresaQuery(EmpresaId, _destinoId));
+            if (version != _versionCarga) return;
             if (resultado.EsFallido)
             {
                 _error = true;
@@ -72,22 +80,24 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
                 return;
             }
 
-            _resumen = resultado.Valor;
-
-            // La maqueta abre con el primer Cliente empresarial elegido: es lo que se le pide al Gestor CAE.
+            // La maqueta abre con el primer Cliente empresarial elegido: es lo que se le pide al Gestor CAE. El resumen de
+            // «Todo lo vigente» de esta primera consulta no se pinta: solo da los destinos.
             if (!_destinoInicialElegido)
             {
                 _destinoInicialElegido = true;
-                if (_resumen.Destinos.Count > 0)
+                if (resultado.Valor.Destinos.Count > 0)
                 {
-                    _destinoId = _resumen.Destinos[0].ClienteEmpresarialId;
+                    _destinoId = resultado.Valor.Destinos[0].ClienteEmpresarialId;
                     await CargarAsync();
+                    return;
                 }
             }
+
+            _resumen = resultado.Valor;
         }
-        catch (Exception) when (!_abierto)
+        catch (Exception) when (!_abierto || version != _versionCarga)
         {
-            // Cerrado mientras cargaba: no hay nada que pintar.
+            // Cerrado mientras cargaba, o ya superada por otra carga: no hay nada que pintar.
         }
         catch (Exception)
         {
@@ -96,13 +106,14 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         }
         finally
         {
-            _cargando = false;
+            if (version == _versionCarga)
+                _cargando = false;
         }
     }
 
     private async Task GenerarAsync()
     {
-        if (_generando || !OfreceGenerar) return;
+        if (_generando || _cargando || !OfreceGenerar) return;
 
         _generando = true;
         _errorDescarga = null;

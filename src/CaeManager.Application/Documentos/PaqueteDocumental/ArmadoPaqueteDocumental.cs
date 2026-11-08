@@ -90,14 +90,23 @@ internal static class ArmadoPaqueteDocumental
     /// (<see cref="PresupuestoMemoriaAgotadoException"/>) o con la operación cancelada no se prueba otra copia: el paquete
     /// entero falla, porque saltarse documentos daría por completo un paquete al que le faltan.
     /// <paramref name="ubicar"/> da la carpeta (ya saneada; la decide quien llama) y el nombre sin extensión de cada copia.
+    /// <para>
+    /// Opcionales, solo para el paquete de Empresa (el de la Visita no los pasa y no cambia): <paramref name="maximoBytes"/>
+    /// corta con <see cref="PaqueteDocumentalDemasiadoPesadoException"/> en cuanto el zip en memoria lo supera, y
+    /// <paramref name="anexoOmitidos"/> recibe, si algún documento entró, los grupos de los que no se pudo abrir ninguna copia
+    /// y puede devolver un texto que se añade en la raíz del zip antes de cerrarlo.
+    /// </para>
     /// </summary>
     internal static async Task<(byte[] Bytes, IReadOnlyList<(Guid DocumentoId, Guid TipoDocumentoId)> Documentos)?> ConstruirZipAsync(
         IReadOnlyList<IReadOnlyList<Copia>> grupos,
         Func<Copia, (string Carpeta, string Nombre)> ubicar,
         IFileStorageService almacenamiento,
         ILogger logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? maximoBytes = null,
+        Func<IReadOnlyList<IReadOnlyList<Copia>>, (string Nombre, string Contenido)?>? anexoOmitidos = null)
     {
+        var omitidos = new List<IReadOnlyList<Copia>>();
         using var memoria = new MemoryStream();
         // Sin distinguir mayúsculas: quien extrae el zip lo hace en Windows, donde «ANA» y «Ana» son el mismo fichero.
         var nombresUsados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -107,6 +116,7 @@ internal static class ArmadoPaqueteDocumental
         {
             foreach (var grupo in grupos)
             {
+                var agregadosAntes = agregados.Count;
                 foreach (var documento in grupo)
                 {
                     Stream contenido;
@@ -133,8 +143,22 @@ internal static class ArmadoPaqueteDocumental
                     }
 
                     agregados.Add((documento.Id, documento.TipoDocumentoId));
+                    if (maximoBytes is { } tope && memoria.Length > tope)
+                        throw new PaqueteDocumentalDemasiadoPesadoException(tope);
                     break; // uno por titular y tipo
                 }
+
+                if (agregados.Count == agregadosAntes)
+                    omitidos.Add(grupo);
+            }
+
+            if (anexoOmitidos is not null && agregados.Count > 0 && omitidos.Count > 0
+                && anexoOmitidos(omitidos) is { } anexo)
+            {
+                // En la raíz: las copias van siempre dentro de una carpeta, así que no puede chocar con ninguna.
+                var entradaAnexo = zip.CreateEntry(anexo.Nombre, CompressionLevel.Fastest);
+                await using var escritor = new StreamWriter(entradaAnexo.Open(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                await escritor.WriteAsync(anexo.Contenido.AsMemory(), cancellationToken);
             }
         }
 
@@ -177,3 +201,7 @@ internal static class ArmadoPaqueteDocumental
     private static string Sanear(string texto) =>
         string.Concat(texto.Select(c => c < ' ' || CaracteresNoValidosEnNombre.Contains(c) ? '_' : c));
 }
+
+/// <summary>El zip en memoria pasó de su tope de bytes: no se sigue armando.</summary>
+internal sealed class PaqueteDocumentalDemasiadoPesadoException(long maximoBytes)
+    : Exception($"El paquete documental pasa de {maximoBytes} bytes.");

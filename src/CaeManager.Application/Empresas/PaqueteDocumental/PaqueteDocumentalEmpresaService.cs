@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
@@ -170,31 +169,27 @@ public class PaqueteDocumentalEmpresaService(
             throw new PaqueteEmpresaDemasiadoGrandeException(grupos.Count);
 
         var tipos = await NombresTipoAsync(grupos.SelectMany(g => g).Select(d => d.TipoDocumentoId), cancellationToken);
+        var carpetas = CarpetasDeTrabajador(universo.Trabajadores.Values);
 
         // «ZIP con carpetas por Trabajador» (maqueta § C): Empresa/<Tipo> y Trabajadores/<Nombre Apellidos>/<Tipo>.
-        var zip = await ArmadoPaqueteDocumental.ConstruirZipAsync(grupos, documento =>
-        {
-            var tipoNombre = tipos.GetValueOrDefault(documento.TipoDocumentoId, "Documento");
-            if (documento.TrabajadorId is { } trabajadorId && universo.Trabajadores.TryGetValue(trabajadorId, out var trabajador))
-            {
-                var carpetaTrabajador = ArmadoPaqueteDocumental.SanearSegmento($"{trabajador.Nombre} {trabajador.Apellidos}");
-                return ($"Trabajadores/{(carpetaTrabajador.Length == 0 ? "Trabajador" : carpetaTrabajador)}", tipoNombre);
-            }
-
-            return ("Empresa", tipoNombre);
-        }, almacenamiento, logger, cancellationToken);
-
-        if (zip is null) throw new PaqueteEmpresaSinArchivosException();
-
         // El paquete de la Visita omite con un aviso en el registro el documento cuyo archivo no se abre; este sale de la mano
         // del Gestor CAE hacia el Cliente, así que lo dice dentro del zip, en un índice en la raíz (fuera de las carpetas
         // Empresa/ y Trabajadores/, con las que no puede chocar). El paquete de la Visita no cambia.
-        var entraron = zip.Value.Documentos.Select(d => d.DocumentoId).ToHashSet();
-        var noIncluidos = grupos
-            .Where(g => !g.Any(c => entraron.Contains(c.Id)))
-            .Select(g => DescribirPar(g[0], tipos, universo.Trabajadores))
-            .ToList();
-        var bytes = noIncluidos.Count == 0 ? zip.Value.Bytes : AnadirLeeme(zip.Value.Bytes, noIncluidos);
+        var noIncluidos = new List<string>();
+        var zip = await ArmadoPaqueteDocumental.ConstruirZipAsync(grupos, documento =>
+        {
+            var tipoNombre = tipos.GetValueOrDefault(documento.TipoDocumentoId, "Documento");
+            return documento.TrabajadorId is { } trabajadorId && carpetas.TryGetValue(trabajadorId, out var carpeta)
+                ? ($"Trabajadores/{carpeta}", tipoNombre)
+                : ("Empresa", tipoNombre);
+        }, almacenamiento, logger, cancellationToken, MaximoBytes, omitidos =>
+        {
+            noIncluidos.AddRange(omitidos.Select(g => DescribirPar(g[0], tipos, universo.Trabajadores, carpetas)));
+            return noIncluidos.Count == 0 ? null : (NombreLeeme, TextoLeeme(noIncluidos));
+        });
+
+        if (zip is null) throw new PaqueteEmpresaSinArchivosException();
+        var bytes = zip.Value.Bytes;
 
         var destino = ArmadoPaqueteDocumental.SanearSegmento(razonSocialCliente ?? "Todo lo vigente").Replace(' ', '-');
         var empresa = ArmadoPaqueteDocumental.SanearSegmento(universo.RazonSocial).Replace(' ', '-');
@@ -206,30 +201,55 @@ public class PaqueteDocumentalEmpresaService(
     /// <summary>El índice que el zip lleva en la raíz cuando algún archivo no se pudo abrir.</summary>
     public const string NombreLeeme = "LEEME - documentos no incluidos.txt";
 
+    /// <summary>
+    /// Tope de bytes del zip en memoria, además del de archivos (OWASP API4:2023): 200 archivos de hasta 10 MiB no caben en
+    /// el presupuesto de memoria de documentos. Pasado el tope, la descarga responde como demasiado grande.
+    /// </summary>
+    public const long MaximoBytes = 200L * 1024 * 1024;
+
+    /// <summary>
+    /// La carpeta de cada Trabajador, «Nombre Apellidos». Dos Trabajadores con el mismo nombre (sin distinguir mayúsculas)
+    /// no comparten carpeta: el segundo, por orden de Id, lleva « (2)», para que el Cliente empresarial no mezcle los
+    /// documentos de uno con los del otro.
+    /// </summary>
+    private static Dictionary<Guid, string> CarpetasDeTrabajador(IEnumerable<TrabajadorDelPaquete> trabajadores)
+    {
+        var carpetas = new Dictionary<Guid, string>();
+        var grupos = trabajadores
+            .Select(t =>
+            {
+                var nombre = ArmadoPaqueteDocumental.SanearSegmento($"{t.Nombre} {t.Apellidos}");
+                return (t.Id, Nombre: nombre.Length == 0 ? "Trabajador" : nombre);
+            })
+            .GroupBy(t => t.Nombre, StringComparer.OrdinalIgnoreCase);
+        foreach (var grupo in grupos)
+        {
+            var orden = 0;
+            foreach (var (id, nombre) in grupo.OrderBy(t => t.Id))
+                carpetas[id] = ++orden == 1 ? nombre : $"{nombre} ({orden})";
+        }
+
+        return carpetas;
+    }
+
     private static string DescribirPar(
-        ArmadoPaqueteDocumental.Copia copia, IReadOnlyDictionary<Guid, string> tipos, IReadOnlyDictionary<Guid, TrabajadorDelPaquete> trabajadores)
+        ArmadoPaqueteDocumental.Copia copia, IReadOnlyDictionary<Guid, string> tipos,
+        IReadOnlyDictionary<Guid, TrabajadorDelPaquete> trabajadores, IReadOnlyDictionary<Guid, string> carpetas)
     {
         var tipo = tipos.GetValueOrDefault(copia.TipoDocumentoId, "Documento");
-        return copia.TrabajadorId is { } id && trabajadores.TryGetValue(id, out var trabajador)
-            ? $"{tipo} · {trabajador.Nombre} {trabajador.Apellidos}"
+        return copia.TrabajadorId is { } id && trabajadores.ContainsKey(id) && carpetas.TryGetValue(id, out var carpeta)
+            ? $"{tipo} · {carpeta}"
             : $"{tipo} · Empresa";
     }
 
-    private static byte[] AnadirLeeme(byte[] zip, IReadOnlyList<string> noIncluidos)
+    private static string TextoLeeme(IReadOnlyList<string> noIncluidos)
     {
-        using var memoria = new MemoryStream();
-        memoria.Write(zip);
-        using (var archivo = new ZipArchive(memoria, ZipArchiveMode.Update, leaveOpen: true))
-        {
-            var entrada = archivo.CreateEntry(NombreLeeme, CompressionLevel.Fastest);
-            using var escritor = new StreamWriter(entrada.Open(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-            escritor.WriteLine("Estos documentos debían ir en el paquete y no se pudo abrir su archivo, así que no están incluidos:");
-            escritor.WriteLine();
-            foreach (var linea in noIncluidos)
-                escritor.WriteLine($"- {linea}");
-        }
-
-        return memoria.ToArray();
+        var texto = new StringBuilder();
+        texto.AppendLine("Estos documentos debían ir en el paquete y no se pudo abrir su archivo, así que no están incluidos:");
+        texto.AppendLine();
+        foreach (var linea in noIncluidos)
+            texto.AppendLine($"- {linea}");
+        return texto.ToString();
     }
 
     private static (Guid? TrabajadorId, Guid TipoDocumentoId) Clave(IReadOnlyList<ArmadoPaqueteDocumental.Copia> grupo) =>

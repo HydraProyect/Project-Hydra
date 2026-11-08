@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas.PaqueteDocumental;
 using CaeManager.Application.Empresas.Queries.PaqueteDocumentalEmpresa;
 using CaeManager.Application.Plataforma;
@@ -280,6 +281,38 @@ public class PaqueteDocumentalEmpresaQueriesTests
         resumen.Valor.Should().BeEquivalentTo(new { Incluye = 2, PuedeDescargar = false });
         descarga.Error.Should().Be(AutorizacionPaqueteEmpresa.SesionPrivilegiadaSinDescarga);
         _registro.Registrados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Dos_Trabajadores_con_el_mismo_nombre_no_comparten_carpeta_en_el_zip()
+    {
+        var otraAna = Trabajador.DeEmpresa(_empresa.Id, "ANA", "GARCIA", "11111111H");
+        _trabajadores.ListaTrabajadores.Add(otraAna);
+        DocumentoDeTrabajador(otraAna, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi-otra-ana");
+        // El segundo por orden de Id lleva « (2)» detrás de su propio nombre.
+        var esperado = _ana.Id.CompareTo(otraAna.Id) < 0
+            ? new Dictionary<string, string> { ["Trabajadores/Ana Garcia/Entrega de EPI.pdf"] = "epi-ana", ["Trabajadores/ANA GARCIA (2)/Entrega de EPI.pdf"] = "epi-otra-ana" }
+            : new Dictionary<string, string> { ["Trabajadores/ANA GARCIA/Entrega de EPI.pdf"] = "epi-otra-ana", ["Trabajadores/Ana Garcia (2)/Entrega de EPI.pdf"] = "epi-ana" };
+
+        var zip = LeerZip((await DescargarAsync(null)).Valor.Contenido);
+
+        zip.Where(e => e.Key.StartsWith("Trabajadores/Ana", StringComparison.OrdinalIgnoreCase))
+            .Should().BeEquivalentTo(esperado, "cada Trabajador tiene su carpeta: el Cliente empresarial no puede mezclar documentos de dos personas");
+    }
+
+    [Fact]
+    public async Task El_zip_en_memoria_se_corta_al_pasar_su_tope_de_bytes()
+    {
+        var grupos = new List<IReadOnlyList<ArmadoPaqueteDocumental.Copia>>
+        {
+            new[] { new ArmadoPaqueteDocumental.Copia(_epiAna.Id, _ana.Id, _epi.Id, _epiAna.ArchivoUrl!) },
+            new[] { new ArmadoPaqueteDocumental.Copia(_epiLuis.Id, _luis.Id, _epi.Id, _epiLuis.ArchivoUrl!) },
+        };
+
+        var construir = () => ArmadoPaqueteDocumental.ConstruirZipAsync(
+            grupos, c => ("Trabajadores", c.Id.ToString()), _almacenamiento, NullLogger.Instance, CancellationToken.None, maximoBytes: 10);
+
+        await construir.Should().ThrowAsync<PaqueteDocumentalDemasiadoPesadoException>();
     }
 
     [Fact]
