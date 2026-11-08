@@ -726,6 +726,59 @@ public class GestionesAutomaticasPantallaTests : BunitContext
     }
 
     [Fact]
+    public void Rechazar_el_ultimo_paso_con_Guardar_y_siguiente_reabre_y_se_queda_en_la_Gestion()
+    {
+        var pasos = SeisPasosNuevos().Select(p => p with { Estado = EstadoAcreditacion.Subida, Hecho = true }).ToList();
+        var m = Montar();
+        var cut = Detallar(m, Detalle(pasos));
+        m.AlMarcar = () => m.Detalle = Detalle(pasos.Select((p, i) => i == 0 ? p with { Estado = EstadoAcreditacion.Rechazada, Hecho = false } : p).ToList());
+
+        cut.Find("[data-filtro-pasos='todos']").Click();
+        cut.Find($"[data-paso='{pasos[0].AcreditacionId}']").Click();
+        cut.Find("[data-opcion='rechazado']").Click();
+        cut.Find("[data-campos-opcion='rechazado'] select").Change(nameof(CausaRechazoAcreditacion.Otro));
+        cut.Find("[data-campos-opcion='rechazado'] textarea").Input("Motivo");
+        cut.Find("[data-accion='primario']").Click();
+
+        cut.WaitForAssertion(() => cut.Find("[data-aviso='reabierta']").Should().NotBeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("gestiones/").And.NotContain("mi-trabajo");
+    }
+
+    [Fact]
+    public void Cambiar_de_Gestion_en_la_misma_instancia_no_arrastra_el_aviso_ni_el_toast()
+    {
+        var pasos = SeisPasosNuevos();
+        var m = Montar();
+        var cut = Detallar(m, Detalle(pasos));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+        cut.Find("[data-accion='guardar']").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[data-toast]").Should().ContainSingle());
+
+        var otra = Guid.NewGuid();
+        cut.Render(p => p.Add(x => x.Id, otra));
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-toast]").Should().BeEmpty());
+        cut.FindAll("[data-aviso='reabierta']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Deshacer_reabre_el_paso_restaurado()
+    {
+        var pasos = SeisPasosNuevos();
+        var m = Montar();
+        var cut = Detallar(m, Detalle(pasos));
+        cut.Find("[data-opcion='validado']").Click();
+        cut.Find("[data-campos-opcion='validado'] input[type='checkbox']").Change(true);
+        cut.Find("[data-accion='primario']").Click();
+        cut.WaitForAssertion(() => cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[1].AcreditacionId.ToString()));
+
+        cut.Find("[data-toast-accion]").Click();
+
+        cut.WaitForAssertion(() => cut.Find("[data-paso-abierto]").GetAttribute("data-paso-abierto").Should().Be(pasos[0].AcreditacionId.ToString()));
+    }
+
+    [Fact]
     public void Sustituida_sin_Gestion_nueva_visible_en_la_cartera_no_enseña_enlace()
     {
         var m = Montar();
