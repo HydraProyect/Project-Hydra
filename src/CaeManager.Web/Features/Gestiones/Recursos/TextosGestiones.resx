@@ -612,4 +612,13 @@
   <data name="AutoAriaAvance" xml:space="preserve">
     <value>Avance de la Gestión</value>
   </data>
+  <data name="GpAriaAtajos" xml:space="preserve">
+    <value>Atajos de teclado</value>
+  </data>
+  <data name="GpAtajoSubido" xml:space="preserve">
+    <value>Subido</value>
+  </data>
+  <data name="GpAtajoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
 </root>

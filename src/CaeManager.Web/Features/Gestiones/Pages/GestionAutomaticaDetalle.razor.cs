@@ -191,6 +191,59 @@ public partial class GestionAutomaticaDetalle : CaeManager.Web.Components.Pagina
             yield return ("GpCampoEstadoTalveg", documento.FechaVencimiento is { } v && v < DiaDeNegocio.Hoy() ? Textos["GpVencidoEl", vence!] : Textos["GpNoVigenteValor"], false, "peligro");
     }
 
+    /// <summary>Se pueden marcar pasos: con escritura y en una Gestión no sustituida.</summary>
+    private bool PuedeMarcar => _puedeEscribir && _detalle is { } d && d.Resumen.Estado != EstadoGestionAutomatica.Sustituida;
+
+    /// <summary>
+    /// Opción de «¿Cómo ha quedado?» que no se ofrece. La misma regla para el clic y para su atajo (1, 2). Subido sobre
+    /// un paso rechazado lo rechaza el comando (RechazadaSinVersionNueva): hace falta una versión corregida del
+    /// Documento. «No lo pide» espera su comando (D-20).
+    /// </summary>
+    private bool OpcionDeshabilitada(string clave) =>
+        (clave is OpcionSubido or OpcionValidado && _detalle?.Documento.VigenteEnTalveg != true)
+        || (clave == OpcionSubido && PasoRechazado)
+        || clave == OpcionNoPide;
+
+    private static string? AtajoDeOpcion(string clave) => clave switch
+    {
+        OpcionSubido => AtajosPasosGestion.TeclaSubido,
+        OpcionValidado => AtajosPasosGestion.TeclaValidado,
+        _ => null
+    };
+
+    /// <summary>
+    /// Atajos del pie (§ 4.5, onKey de la maqueta): → o «s» hacen lo que «Siguiente» sin opción elegida (el siguiente
+    /// paso por hacer o, si no queda, la Siguiente Gestión) y no guardan nada; ← es «Anterior»; 1 y 2 eligen
+    /// «Subido» y «Validado» con las mismas condiciones que su clic. Con un guardado en vuelo no se atienden: el
+    /// guardado abre él mismo el paso que toca. Qué tecla llega y desde dónde lo filtra atajos-pasos-gestion.js.
+    /// </summary>
+    private async Task AtajoAsync(string tecla)
+    {
+        if (_detalle is null || _guardando || PasoAbierto is null) return;
+
+        switch (tecla)
+        {
+            case AtajosPasosGestion.TeclaSiguiente or AtajosPasosGestion.TeclaSiguienteLetra:
+                if (SiguientePorHacer() is { } siguiente) Abrir(siguiente.AcreditacionId);
+                else await SiguienteGestionAsync();
+                break;
+            case AtajosPasosGestion.TeclaAnterior:
+                Anterior();
+                break;
+            case AtajosPasosGestion.TeclaSubido:
+                ElegirConAtajo(OpcionSubido);
+                break;
+            case AtajosPasosGestion.TeclaValidado:
+                ElegirConAtajo(OpcionValidado);
+                break;
+        }
+    }
+
+    private void ElegirConAtajo(string clave)
+    {
+        if (PuedeMarcar && !OpcionDeshabilitada(clave)) ElegirOpcion(clave);
+    }
+
     private bool PuedeGuardar => _opcion switch
     {
         OpcionSubido => true,

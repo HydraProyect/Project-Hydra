@@ -142,6 +142,10 @@
 .gp-pie { position: sticky; bottom: 0; z-index: 2; margin-top: var(--space-4); display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: 12px 24px; border-top: 1px solid var(--color-border); background: var(--color-surface); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 .gp-enlace { border: 0; background: none; padding: 0 4px; color: var(--color-primary-500); font: var(--font-label); cursor: pointer; }
 .gp-enlace:disabled { opacity: .45; cursor: not-allowed; }
+/* Indicadores de los atajos del pie (ATAJOS de la maqueta): a la derecha, en texto suave. */
+.gp-atajos { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font: var(--font-caption); color: var(--color-text-muted); }
+.gp-atajo { display: inline-flex; gap: 4px; align-items: center; }
+.gp-atajo kbd { font: 600 10px/14px var(--font-family); padding: 1px 5px; border-radius: var(--radius-sm); border: 1px solid var(--color-border-strong); background: var(--color-surface-subtle); }
 
 /* Estados de pantalla */
 .gp-estado { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-12) var(--space-6); }

@@ -23,7 +23,7 @@ namespace CaeManager.Web.Tests;
 /// y detalle con sus pasos. Cada elemento, estado y rol de la maqueta tiene su aserción. Todo sale de las consultas
 /// ObtenerGestionesAutomaticasQuery y ObtenerGestionAutomaticaQuery; los comandos son los de «Gestionar» de Centro 360.
 /// </summary>
-public class GestionesAutomaticasPantallaTests : BunitContext
+public partial class GestionesAutomaticasPantallaTests : BunitContext
 {
     private static readonly Guid GestionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     private static readonly Guid DocumentoId = Guid.Parse("22222222-2222-2222-2222-222222222222");

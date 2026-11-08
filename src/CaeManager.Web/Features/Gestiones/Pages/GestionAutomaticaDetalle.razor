@@ -25,6 +25,7 @@
 <PageTitle>@TituloGestion — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina gp-pagina">
+    <AtajosPasosGestion OnAtajo="AtajoAsync" />
     <nav class="gp-migas" aria-label="@Textos["AutoAriaMigas"]">
         <span>@Textos["AutoMigaOperacion"]</span><span aria-hidden="true" class="gp-miga-sep">›</span>
         <a href="gestiones/automaticas">@Textos["AutoMigaGestiones"]</a><span aria-hidden="true" class="gp-miga-sep">›</span>
@@ -284,19 +285,15 @@
                             </section>
                         }
 
-                        @if (_puedeEscribir && estado != EstadoGestionAutomatica.Sustituida)
+                        @if (PuedeMarcar)
                         {
                             <fieldset class="gp-opciones" role="radiogroup" aria-label="@Textos["GpComoHaQuedado"]" data-opciones="">
                                 <legend class="gp-etiqueta">@Textos["GpComoHaQuedado"]</legend>
                                 @foreach (var (clave, estadoPaso, titulo, descripcion) in Opciones)
                                 {
-                                    // Subido sobre un paso rechazado lo rechaza el comando (RechazadaSinVersionNueva): hace falta una
-                                    // versión corregida del Documento, así que la opción no se ofrece.
-                                    var deshabilitada = (clave is OpcionSubido or OpcionValidado && !_detalle.Documento.VigenteEnTalveg)
-                                                        || (clave == OpcionSubido && PasoRechazado)
-                                                        || clave == OpcionNoPide;
                                     <button type="button" role="radio" class="gp-opcion" aria-checked="@(_opcion == clave ? "true" : "false")"
-                                            disabled="@deshabilitada" data-opcion="@clave" @onclick="() => ElegirOpcion(clave)">
+                                            disabled="@OpcionDeshabilitada(clave)" data-opcion="@clave" aria-keyshortcuts="@AtajoDeOpcion(clave)"
+                                            @onclick="() => ElegirOpcion(clave)">
                                         <span class="gp-radio" aria-hidden="true"></span>
                                         <span class="gp-opcion-texto">
                                             <span class="bp bp-@PresentacionGestionAutomatica.TonoPaso(estadoPaso)">@Textos[titulo]</span>
@@ -345,12 +342,26 @@
                     </div>
 
                     <div class="gp-pie">
-                        <button type="button" class="gp-boton gp-boton-secundario gp-boton-medio" disabled="@(IndiceAbierto <= 0)" data-accion="anterior" @onclick="Anterior">@Textos["GpAnterior"]</button>
-                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_opcion is not null && !PuedeGuardar || _guardando)" data-accion="primario" OnClick="PrimarioAsync">@TextoPrimario</Boton>
+                        <button type="button" class="gp-boton gp-boton-secundario gp-boton-medio" disabled="@(IndiceAbierto <= 0)" data-accion="anterior"
+                                aria-keyshortcuts="@AtajosPasosGestion.TeclaAnterior" @onclick="Anterior">@Textos["GpAnterior"]</button>
+                        @* Sin opción elegida el primario hace lo mismo que →; con una elegida, guarda, y → no guarda. *@
+                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_opcion is not null && !PuedeGuardar || _guardando)" data-accion="primario"
+                               aria-keyshortcuts="@(_opcion is null ? AtajosPasosGestion.TeclaSiguiente : null)" OnClick="PrimarioAsync">@TextoPrimario</Boton>
                         @if (_opcion is not null && _puedeEscribir)
                         {
                             <button type="button" class="gp-enlace" disabled="@(!PuedeGuardar || _guardando)" data-accion="guardar" @onclick="GuardarSoloAsync">@Textos["GpGuardar"]</button>
                         }
+                        @* Indicadores del pie (§ 4.5, ATAJOS de la maqueta). Cada uno solo si su tecla hace algo aquí: sin poder
+                           marcar (Consulta, Gestión sustituida) no se enseñan 1 ni 2. *@
+                        <span class="gp-atajos" role="group" aria-label="@Textos["GpAriaAtajos"]" data-atajos-pie="">
+                            <span class="gp-atajo" data-atajo="siguiente"><kbd>→</kbd>@Textos["GpSiguiente"]</span>
+                            <span class="gp-atajo" data-atajo="anterior"><kbd>←</kbd>@Textos["GpAnterior"]</span>
+                            @if (PuedeMarcar)
+                            {
+                                <span class="gp-atajo" data-atajo="subido"><kbd>1</kbd>@Textos["GpAtajoSubido"]</span>
+                                <span class="gp-atajo" data-atajo="validado"><kbd>2</kbd>@Textos["GpAtajoValidado"]</span>
+                            }
+                        </span>
                     </div>
                 </section>
             }
