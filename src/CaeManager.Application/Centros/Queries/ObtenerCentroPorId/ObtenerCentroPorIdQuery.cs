@@ -57,8 +57,8 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
 
         var detalle = await (
             from centro in centrosContext.Centros
-            // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
-            // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
+                // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
+                // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             where centro.Id == request.Id
