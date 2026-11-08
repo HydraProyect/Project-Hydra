@@ -83,3 +83,71 @@ staging.talveg.es {
 		import relevo_app
 	}
 }
+
+# Web pública estática de talveg.es (el ápice) y su www. La sirve este mismo
+# Caddy por la razón de la cabecera: es el único proceso de la máquina que
+# puede ocupar el 80/443, así que un servidor web aparte no podría escuchar ahí.
+#
+# Los ficheros de la web NO viven en este repositorio ni en el checkout de
+# /opt/talveg (que cada despliegue mueve a otro SHA con `git checkout
+# --detach`): se suben a mano a /srv/talveg-web del host, que el compose monta
+# de solo lectura en el mismo camino. Así un despliegue de la aplicación no
+# toca la web, y subir la web no exige desplegar.
+#
+# Los bloques de la aplicación ({$DOMINIO} y staging.talveg.es) no cambian:
+# estos dos bloques solo añaden nombres de sitio nuevos, con su certificado
+# propio, y no comparten cabeceras ni rutas con ellos.
+#
+# Cabeceras de seguridad aquí y no en los HTML, para que valgan también en
+# fuentes, imágenes y la página de error. Sin Content-Security-Policy de
+# momento: las páginas llevan estilos en línea y una CSP útil exige quitarlos
+# o enumerar sus hashes; queda como incremento aparte. Sin includeSubDomains en
+# HSTS: el ápice no decide por los subdominios de la aplicación. Sin brotli:
+# el Caddy de serie no lo trae; zstd y gzip bastan.
+(cabeceras_web_publica) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}
+
+talveg.es {
+	root * /srv/talveg-web
+	encode zstd gzip
+	import cabeceras_web_publica
+
+	# Caché larga solo para /estatico/ (fuentes, imágenes, JS); el HTML se
+	# queda sin Cache-Control para que un cambio de la web se vea al instante.
+	header /estatico/* Cache-Control "public, max-age=604800"
+
+	# Rutas de la web anterior (agosto) que aún pueden estar enlazadas o
+	# indexadas: /login lleva a la aplicación y /en/ ya no existe.
+	redir /login https://app.talveg.es/ 301
+	redir /en/* / 301
+
+	file_server
+
+	# Página 404 propia con su código 404, no un 200. Las cabeceras se importan
+	# otra vez porque Caddy descarta las de la ruta principal al pasar a
+	# handle_errors (medido el 2026-11-09 con la imagen del compose: sin este
+	# import el 404 salía sin HSTS ni X-Frame-Options y con Server). Si falta
+	# /404.html, la respuesta es un 404 vacío.
+	handle_errors 404 {
+		import cabeceras_web_publica
+		rewrite * /404.html
+		file_server {
+			status 404
+		}
+	}
+}
+
+# www solo redirige al ápice, conservando ruta y consulta; lleva las mismas
+# cabeceras para que el primer salto ya fije HSTS.
+www.talveg.es {
+	import cabeceras_web_publica
+	redir https://talveg.es{uri} permanent
+}
