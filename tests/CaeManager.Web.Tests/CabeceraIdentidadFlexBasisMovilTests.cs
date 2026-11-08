@@ -87,12 +87,12 @@ public class CabeceraIdentidadFlexBasisMovilTests
         Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex\s*:\s*(?:[\d.]+\s+){0,2}" + Longitud)
         || Regex.IsMatch(r.Cuerpo, @"(?<![-\w])flex-basis\s*:\s*" + Longitud);
 
-    // Una regla aplica a 375 px si va sin @media o dentro de un @media (max-width: N) con N >= 600.
+    // Una regla aplica a 375 px si va sin @media o dentro de un @media (max-width: N) con N >= 375.
     private static bool AplicaEnMovil(Regla r)
     {
         if (r.Media is null) return true;
         var m = Regex.Match(r.Media, @"^@media \(max-width: ?(\d+)px\)$");
-        return m.Success && int.Parse(m.Groups[1].Value) >= 600;
+        return m.Success && int.Parse(m.Groups[1].Value) >= 375;
     }
 
     private static bool AnulaEnMovil(Regla r, Regla baseFija)
@@ -142,7 +142,7 @@ public class CabeceraIdentidadFlexBasisMovilTests
 
         infractoras.Should().BeEmpty(
             "a ≤600 px la cabecera compartida pasa a columna y el flex-basis en px se vuelve una altura: hay que añadir tras la base un "
-            + "@media (max-width: 600px) con el mismo selector y «flex: none; min-width: 0;» (ver CentroDetalle.razor.css)");
+            + "@media (max-width: 600px) con el mismo selector y «flex: none; min-width: 0;» (ver VehiculoDetalle.razor.css)");
     }
 
     [Fact]
@@ -198,6 +198,8 @@ public class CabeceraIdentidadFlexBasisMovilTests
             BasesSinAnular($".p ::deep .cabecera-identidad-texto {{ {variante} }}").Should().HaveCount(1, variante);
         BasesSinAnular("@media (max-width: 900px) { .p ::deep .cabecera-identidad-texto { flex: 1 1 300px; } }")
             .Should().HaveCount(1, "una base dentro de un @media de 900 px aplica también a 375 px");
+        BasesSinAnular("@media (max-width: 480px) { .p ::deep .cabecera-identidad-texto { flex: 1 1 300px; } }")
+            .Should().HaveCount(1, "una base dentro de un @media de 480 px aplica a 375 px");
         BasesSinAnular("@media (min-width: 901px) { .p ::deep .cabecera-identidad-texto { flex: 1 1 300px; } }")
             .Should().BeEmpty("una base solo de escritorio no llega a 375 px");
     }
