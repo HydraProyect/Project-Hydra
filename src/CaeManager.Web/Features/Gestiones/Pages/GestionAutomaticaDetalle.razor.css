@@ -113,7 +113,9 @@
 .gp-campo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .gp-campo-clave { font: var(--font-caption); color: var(--color-text-muted); }
 .gp-campo-valor { font: var(--font-body-md); font-weight: 600; }
-.gp-campo-valor[data-tono="exito"] { color: var(--color-success-700); }
+/* El valor copiable es un <button> (BotonCopiar) que ocupa toda la celda: un botón centra su texto por defecto y la maqueta alinea los valores a la izquierda, bajo su clave. */
+.gp-campo ::deep .boton-copiar-en-linea { text-align: left; }
+.gp-campo-valor[data-tono="exito"]{ color: var(--color-success-700); }
 .gp-campo-valor[data-tono="peligro"] { color: var(--color-danger-700); }
 .gp-nota-acceso { white-space: pre-wrap; padding: 10px 12px; border: 1px solid var(--color-primary-200); border-radius: var(--radius-md); background: var(--color-primary-50); color: var(--color-primary-700); font: var(--font-body-md); }
 
