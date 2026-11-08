@@ -77,7 +77,8 @@ public class VerificacionIdsAjenosTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
             contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(),
+            AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(

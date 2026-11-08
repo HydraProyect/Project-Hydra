@@ -136,7 +136,8 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
             new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new AcreditacionDocumentoPlataformaRepository(contexto), AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo());
+            new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo(),
+            AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
 
     /// <summary>Documento de la Empresa de la siembra con un archivo ya guardado (la clave vive en su fila).</summary>
     private async Task<(Guid DocumentoId, string ArchivoUrl)> SembrarDocumentoConArchivoAsync(string archivoUrl = "archivos/original.pdf")

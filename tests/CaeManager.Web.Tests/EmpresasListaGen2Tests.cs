@@ -378,6 +378,39 @@ public partial class EmpresasListaGen2Tests : BunitContext
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
         ConsultasDeClientes(mediador).Should().Be(0, "la fila desplegada ya no pregunta por los Clientes de nadie");
     }
+
+    /// <summary>
+    /// La lista a 375 px (hoy una tabla de 893 px con «Cumplimiento» y «Estado documental» fuera de pantalla) se
+    /// recoloca por CSS: cada celda de la fila se coloca por su clase, no por su posición, porque la casilla de la
+    /// selección múltiple desplaza todas. Este test fija que las clases existen; que la lista no desborda lo mide
+    /// EmpresasCabeceraAlineadaE2ETests, porque en bUnit no hay maquetación. Como la cabecera de columnas desaparece,
+    /// «Cumplimiento» y «Detecciones» llevan su propio rótulo (oculto en escritorio por CSS). El guion de «sin
+    /// detecciones» lleva su marca para poder ocultarse y solo él: con detecciones la pastilla sigue visible.
+    /// </summary>
+    [Fact]
+    public void Cada_celda_de_la_fila_lleva_la_clase_con_la_que_la_lista_se_recoloca_en_pantallas_estrechas()
+    {
+        var mediador = new MediatorFalso();
+        mediador.Almacen.Add(Empresa("Montajes Norte S.L.", cumplimiento: 80));
+        mediador.Almacen.Add(Empresa("Aislamientos Sur S.L.", detecciones: 2));
+        var cut = Renderizar(mediador);
+
+        foreach (var razonSocial in new[] { "Montajes Norte S.L.", "Aislamientos Sur S.L." })
+        {
+            var fila = Tarjeta(cut, razonSocial).QuerySelector(".tarjeta-fila-acordeon-cabecera")!;
+            foreach (var clase in new[] { "celda-estado-empresa", "celda-cumplimiento-empresa", "celda-detecciones-empresa", "celda-acciones-empresa" })
+                fila.QuerySelector(":scope > ." + clase).Should().NotBeNull($"«{razonSocial}» necesita la celda .{clase}");
+        }
+
+        Tarjeta(cut, "Montajes Norte S.L.").QuerySelector(".celda-detecciones-vacia")
+            .Should().NotBeNull("sin detecciones, el guion lleva la marca que lo oculta en pantallas estrechas");
+        var conDetecciones = Tarjeta(cut, "Aislamientos Sur S.L.");
+        conDetecciones.QuerySelector(".celda-detecciones-vacia").Should().BeNull();
+        conDetecciones.QuerySelector(".celda-detecciones-empresa .badge-deteccion").Should().NotBeNull();
+        conDetecciones.QuerySelector(".celda-detecciones-empresa .rotulo-celda-empresa")!.TextContent.Trim().Should().Be("Detecciones");
+        Tarjeta(cut, "Montajes Norte S.L.").QuerySelector(".celda-cumplimiento-empresa .rotulo-celda-empresa")!.TextContent.Trim().Should().Be("Cumplimiento");
+    }
+
     // ------------------------------------------------------------------ Cabecera
 
     /// <summary>

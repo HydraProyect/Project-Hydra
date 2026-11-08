@@ -16,7 +16,7 @@ public class GestionAutomaticaConfiguration : IEntityTypeConfiguration<GestionAu
         builder.Ignore(g => g.EstaSustituida);
 
         // Una Gestión automática por Documento: alta y renovación con archivo hacen nacer siempre un Documento
-        // nuevo, así que el Documento identifica el acto y un evento repetido no crea una segunda (idempotencia).
+        // nuevo, así que el Documento identifica el acto y la base no admite dos Gestiones del mismo acto.
         builder.HasIndex(g => new { g.TenantId, g.DocumentoId }).IsUnique();
 
         // Tenant propietario = el del Documento: la clave foránea compuesta impide colgarla de un Documento de

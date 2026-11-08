@@ -53,7 +53,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -550,7 +550,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             cola, new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, "apto.pdf", null),

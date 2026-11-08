@@ -1,6 +1,4 @@
-using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Gestiones;
-using CaeManager.Application.Gestiones.Eventos;
 using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -15,14 +13,15 @@ using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Gestiones;
 
 /// <summary>
-/// Gestión automática de varios pasos (§ 4.1-4.4 de la especificación del 2026-10-23): nacimiento al dar de
-/// alta o renovar con archivo, sustitución, idempotencia y el universo de pasos visibles por cartera (D-7).
+/// Gestión automática de varios pasos (§ 4.1-4.4 de la especificación del 2026-10-23): nacimiento dentro del acto
+/// (<see cref="NacimientoGestionAutomaticaService"/>) a partir de las acreditaciones que ese acto agregó, sustitución,
+/// y el universo de pasos visibles por cartera (D-7). Cómo la piden los Commands lo prueba
+/// <see cref="GestionAutomaticaEnLosActosTests"/>.
 /// </summary>
 public class GestionesAutomaticasTests
 {
@@ -36,7 +35,7 @@ public class GestionesAutomaticasTests
     private readonly TiposDocumentoQueryContextFalso _tipos = new();
     private readonly ProveedoresPlataformaCaeQueryContextFalso _proveedores = new();
     private readonly GestionesAutomaticasEnMemoria _gestiones = new();
-    private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly AcreditacionDocumentoPlataformaRepositorioFalso _delActo = new();
     private readonly Guid _usuarioId = Guid.NewGuid();
 
     private readonly Empresa _empresa = new("Construcciones Ebro S.L.", "B87654323");
@@ -56,20 +55,20 @@ public class GestionesAutomaticasTests
     // ---------- Nacimiento ----------
 
     [Fact]
-    public async Task Al_dar_de_alta_nace_una_sola_gestion_con_un_paso_por_acceso_de_plataforma()
+    public async Task Al_nacer_con_archivo_nace_una_sola_gestion_con_un_paso_por_acceso_de_plataforma()
     {
         var documento = DocumentoDelTrabajador();
         var norte = Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
         var sur = Acreditar(documento, AccesoPlataforma(Centro("Almacén Sur"), "Dokify"));
 
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        var devuelta = await Nacer(documento);
 
         var gestion = _gestiones.Lista.Should().ContainSingle().Subject;
+        devuelta.Should().BeSameAs(gestion);
         gestion.DocumentoId.Should().Be(documento.Id);
         gestion.Origen.Should().Be(OrigenGestionAutomatica.AltaDocumento);
         gestion.NacidaPorUsuarioId.Should().Be(_usuarioId);
         gestion.Pasos.Select(p => p.AcreditacionId).Should().BeEquivalentTo([norte.Id, sur.Id]);
-        _unitOfWork.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
@@ -82,51 +81,83 @@ public class GestionesAutomaticasTests
         _centros.ListaCanalesGestionDocumental.Add(correo);
         Acreditar(documento, correo);
 
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
 
         _gestiones.Lista.Single().Pasos.Select(p => p.AcreditacionId).Should().Equal(plataforma.Id);
     }
 
     [Fact]
-    public async Task Sin_acreditaciones_no_nace_gestion_ni_se_guarda_nada()
+    public async Task Sin_accesos_de_plataforma_no_nace_gestion_porque_no_hay_nada_que_gestionar()
     {
+        // Hallazgo 7 de la primera ronda de Codex, rechazado por decisión: la Gestión automática existe para
+        // actualizar plataformas; un alta con archivo sin ningún acceso de plataforma no tiene pasos ni Gestión.
         var documento = DocumentoDelTrabajador();
 
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        (await Nacer(documento)).Should().BeNull();
 
         _gestiones.Lista.Should().BeEmpty();
-        _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
-    public async Task El_mismo_evento_repetido_no_crea_una_segunda_gestion()
+    public async Task Un_alta_sin_archivo_no_hace_nacer_gestion_aunque_tenga_acreditaciones()
     {
-        var documento = DocumentoDelTrabajador();
+        // Hallazgo 1 de la primera ronda de Codex: el disparador fijado es «alta y renovación con archivo».
+        var documento = DocumentoDelTrabajador(archivoUrl: null);
         Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
 
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        (await Nacer(documento)).Should().BeNull();
 
-        _gestiones.Lista.Should().ContainSingle();
-        _unitOfWork.VecesGuardado.Should().Be(1);
+        _gestiones.Lista.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Los_pasos_son_solo_las_acreditaciones_que_agrego_el_acto()
+    {
+        // Hallazgo 8 de la primera ronda de Codex: los pasos salen de lo que el acto agregó sin guardar, no de lo que
+        // haya en la base para ese Documento cuando se procese.
+        var documento = DocumentoDelTrabajador();
+        var delActo = Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        var yaGuardada = new AcreditacionDocumentoPlataforma(documento.Id, AccesoPlataforma(Centro("Almacén Sur"), "Dokify").Id);
+        _documentos.ListaAcreditacionesDocumentoPlataforma.Add(yaGuardada);
+
+        await Nacer(documento);
+
+        _gestiones.Lista.Single().Pasos.Select(p => p.AcreditacionId).Should().Equal(delActo.Id);
+    }
+
+    [Fact]
+    public async Task Las_acreditaciones_sin_guardar_de_otro_Documento_no_son_pasos_de_este()
+    {
+        // Un mismo guardado puede llevar acreditaciones agregadas de varios Documentos (división de un PDF, por ejemplo):
+        // cada Gestión toma solo las de su Documento.
+        var documento = DocumentoDelTrabajador();
+        var otro = DocumentoDelTrabajador("tenant/otro.pdf");
+        var propia = Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        Acreditar(otro, AccesoPlataforma(Centro("Almacén Sur"), "Dokify"));
+
+        var gestion = await new NacimientoGestionAutomaticaService(
+                _gestiones, _delActo, _documentos, _centros, new CurrentUserServiceFalso(_usuarioId, "GestorCae"), new RelojFijo(Ahora))
+            .AgregarAsync(documento, sustituido: null, CancellationToken.None);
+
+        gestion!.Pasos.Select(p => p.AcreditacionId).Should().Equal(propia.Id);
     }
 
     [Fact]
     public async Task Renovar_con_la_gestion_anterior_abierta_la_cierra_como_sustituida_con_enlace_a_la_nueva()
     {
-        var centro = Centro("Planta Norte");
-        var acceso = AccesoPlataforma(centro, "Nalanda");
+        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
         var anterior = DocumentoDelTrabajador();
         Acreditar(anterior, acceso);
-        await Publicar(new DocumentoNacidoEvent(anterior.Id));
+        await Nacer(anterior);
         var gestionAnterior = _gestiones.Lista.Single();
 
         var nuevo = RenovacionDe(anterior);
         Acreditar(nuevo, acceso);
-        await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
+        await Nacer(nuevo, anterior);
 
         var gestionNueva = _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id);
         gestionNueva.Origen.Should().Be(OrigenGestionAutomatica.RenovacionDocumento);
+        gestionNueva.Pasos.Should().ContainSingle("la acreditación del anterior es historial: no entra en la nueva");
         gestionAnterior.EstaSustituida.Should().BeTrue();
         gestionAnterior.SustituidaEnUtc.Should().Be(Ahora);
         gestionAnterior.SustituidaPorGestionId.Should().Be(gestionNueva.Id);
@@ -138,12 +169,12 @@ public class GestionesAutomaticasTests
         var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
         var anterior = DocumentoDelTrabajador();
         Acreditar(anterior, acceso).MarcarNoRequerida();
-        await Publicar(new DocumentoNacidoEvent(anterior.Id));
+        await Nacer(anterior);
         var gestionAnterior = _gestiones.Lista.Single();
 
         var nuevo = RenovacionDe(anterior);
         Acreditar(nuevo, acceso);
-        await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
+        await Nacer(nuevo, anterior);
 
         gestionAnterior.EstaSustituida.Should().BeFalse();
         _gestiones.Lista.Should().HaveCount(2);
@@ -154,63 +185,14 @@ public class GestionesAutomaticasTests
     {
         var anterior = DocumentoDelTrabajador();
         Acreditar(anterior, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
-        await Publicar(new DocumentoNacidoEvent(anterior.Id));
+        await Nacer(anterior);
 
         var nuevo = RenovacionDe(anterior);
-        await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
+        await Nacer(nuevo, anterior);
 
         var gestionAnterior = _gestiones.Lista.Should().ContainSingle().Subject;
         gestionAnterior.EstaSustituida.Should().BeTrue();
         gestionAnterior.SustituidaPorGestionId.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task Un_fallo_al_guardar_no_se_propaga_al_alta_del_documento()
-    {
-        var documento = DocumentoDelTrabajador();
-        Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
-        _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException("caída simulada");
-
-        var publicar = () => Publicar(new DocumentoNacidoEvent(documento.Id));
-
-        await publicar.Should().NotThrowAsync();
-        _gestiones.Descartadas.Should().ContainSingle().Which.DocumentoId.Should().Be(documento.Id,
-            "la Gestión que no se pudo guardar no puede quedarse en el contexto para el siguiente guardado");
-    }
-
-    [Fact]
-    public async Task Un_fallo_al_guardar_la_sustitucion_descarta_tambien_la_anterior_modificada()
-    {
-        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
-        var anterior = DocumentoDelTrabajador();
-        Acreditar(anterior, acceso);
-        await Publicar(new DocumentoNacidoEvent(anterior.Id));
-        var gestionAnterior = _gestiones.Lista.Single();
-        var nuevo = RenovacionDe(anterior);
-        Acreditar(nuevo, acceso);
-        _unitOfWork.ExcepcionAlGuardar = new InvalidOperationException("caída simulada");
-
-        await Publicar(new DocumentoNacidoEvent(nuevo.Id, anterior.Id));
-
-        _gestiones.Descartadas.Select(g => g.Id).Should().BeEquivalentTo(
-            [gestionAnterior.Id, _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id).Id]);
-    }
-
-    [Fact]
-    public async Task Un_evento_que_dice_sustituir_un_Documento_que_no_esta_sustituido_por_el_nuevo_no_toca_su_gestion()
-    {
-        var acceso = AccesoPlataforma(Centro("Planta Norte"), "Nalanda");
-        var otro = DocumentoDelTrabajador();
-        Acreditar(otro, acceso);
-        await Publicar(new DocumentoNacidoEvent(otro.Id));
-        var gestionDelOtro = _gestiones.Lista.Single();
-
-        var nuevo = DocumentoDelTrabajador();
-        Acreditar(nuevo, acceso);
-        await Publicar(new DocumentoNacidoEvent(nuevo.Id, otro.Id));
-
-        gestionDelOtro.EstaSustituida.Should().BeFalse("el evento trae coordenadas, no autoridad");
-        _gestiones.Lista.Should().HaveCount(2);
     }
 
     // ---------- Universo visible ----------
@@ -223,7 +205,7 @@ public class GestionesAutomaticasTests
         var sur = Centro("Almacén Sur");
         Acreditar(documento, AccesoPlataforma(norte, "Nalanda")).MarcarSubida();
         Acreditar(documento, AccesoPlataforma(sur, "Dokify"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
             empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [norte.Id]);
 
@@ -242,7 +224,7 @@ public class GestionesAutomaticasTests
     {
         var documento = DocumentoDelTrabajador();
         Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
         var fueraDeCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
             empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [Guid.NewGuid()]);
 
@@ -256,7 +238,7 @@ public class GestionesAutomaticasTests
         var documento = DocumentoDelTrabajador();
         var centro = Centro("Planta Norte");
         Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
         var sinElTrabajador = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()],
             centroIdsVisibles: [centro.Id]);
 
@@ -267,11 +249,11 @@ public class GestionesAutomaticasTests
     [Fact]
     public async Task La_gestion_de_un_documento_de_Empresa_se_ve_por_la_Empresa_gestionada_y_no_fuera_de_ella()
     {
-        var documento = Documento.DeEmpresa(_empresa.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        var documento = Documento.DeEmpresa(_empresa.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)), "tenant/escrituras.pdf");
         _documentos.ListaDocumentos.Add(documento);
         var centro = Centro("Planta Norte");
         Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
 
         var conLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [centro.Id]);
         var sinLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [Guid.NewGuid()], centroIdsVisibles: [centro.Id]);
@@ -287,7 +269,7 @@ public class GestionesAutomaticasTests
     {
         var documento = DocumentoDelTrabajador();
         Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
 
         (await Listar(new AlcanceDatosServiceFalso(ladoDeGestion: false))).Filas.Should().BeEmpty();
     }
@@ -299,7 +281,7 @@ public class GestionesAutomaticasTests
         Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
         Acreditar(documento, AccesoPlataforma(Centro("Almacén Sur"), "Nalanda"));
         Acreditar(documento, AccesoPlataforma(Centro("Base Este"), "Dokify"));
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
 
         var detalle = await Detalle(_gestiones.Lista.Single().Id, new AlcanceDatosServiceFalso());
 
@@ -315,10 +297,10 @@ public class GestionesAutomaticasTests
     {
         var abierta = DocumentoDelTrabajador();
         Acreditar(abierta, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
+        await Nacer(abierta);
         var cerrada = DocumentoDelTrabajador();
         Acreditar(cerrada, AccesoPlataforma(Centro("Almacén Sur"), "Dokify")).MarcarNoRequerida();
-        await Publicar(new DocumentoNacidoEvent(abierta.Id));
-        await Publicar(new DocumentoNacidoEvent(cerrada.Id));
+        await Nacer(cerrada);
 
         var todas = await Listar(new AlcanceDatosServiceFalso());
         var enCurso = await Listar(new AlcanceDatosServiceFalso(), EstadoGestionAutomatica.EnCurso);
@@ -337,7 +319,7 @@ public class GestionesAutomaticasTests
         var acreditacion = Acreditar(documento, AccesoPlataforma(Centro("Planta Norte"), "Nalanda"));
         acreditacion.MarcarSubida();
         acreditacion.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
-        await Publicar(new DocumentoNacidoEvent(documento.Id));
+        await Nacer(documento);
         (await Listar(new AlcanceDatosServiceFalso())).Filas.Single().Estado.Should().Be(EstadoGestionAutomatica.Cerrada);
 
         acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Documento ilegible", Ahora);
@@ -347,13 +329,42 @@ public class GestionesAutomaticasTests
         fila.TieneRechazo.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task El_detalle_no_revela_la_gestion_sustituta_si_queda_fuera_de_la_cartera()
+    {
+        // Hallazgo 10 de la primera ronda de Codex: el enlace a la sustituta solo sale si quien consulta la ve.
+        var norte = Centro("Planta Norte");
+        var sur = Centro("Almacén Sur");
+        var anterior = DocumentoDelTrabajador();
+        Acreditar(anterior, AccesoPlataforma(norte, "Nalanda"));
+        await Nacer(anterior);
+        var gestionAnterior = _gestiones.Lista.Single();
+        var nuevo = RenovacionDe(anterior);
+        Acreditar(nuevo, AccesoPlataforma(sur, "Dokify"));
+        await Nacer(nuevo, anterior);
+        var gestionNueva = _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id);
+        var soloNorte = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [norte.Id]);
+
+        var fueraDeCartera = await Detalle(gestionAnterior.Id, soloNorte);
+        var conAccesoTotal = await Detalle(gestionAnterior.Id, new AlcanceDatosServiceFalso());
+
+        fueraDeCartera!.SustituidaEnUtc.Should().Be(Ahora, "la sustitución en sí sí se ve: es de la Gestión visible");
+        fueraDeCartera.SustituidaPorGestionId.Should().BeNull();
+        conAccesoTotal!.SustituidaPorGestionId.Should().Be(gestionNueva.Id, "control positivo: quien la ve recibe el enlace");
+    }
+
     // ---------- Montaje ----------
 
-    private Task Publicar(DocumentoNacidoEvent evento) =>
-        new CrearGestionAutomaticaAlNacerDocumentoHandler(
-                _gestiones, _documentos, _centros, new CurrentUserServiceFalso(_usuarioId, "GestorCae"), _unitOfWork,
-                new RelojFijo(Ahora), NullLogger<CrearGestionAutomaticaAlNacerDocumentoHandler>.Instance)
-            .Handle(evento, CancellationToken.None);
+    private async Task<GestionAutomatica?> Nacer(Documento documento, Documento? sustituido = null)
+    {
+        var gestion = await new NacimientoGestionAutomaticaService(
+                _gestiones, _delActo, _documentos, _centros, new CurrentUserServiceFalso(_usuarioId, "GestorCae"), new RelojFijo(Ahora))
+            .AgregarAsync(documento, sustituido, CancellationToken.None);
+        // Como el guardado del Command: lo agregado en este acto ya no es del siguiente.
+        _delActo.MarcarGuardadas();
+        return gestion;
+    }
 
     private Task<ListadoGestionesAutomaticasDto> Listar(AlcanceDatosServiceFalso alcance, EstadoGestionAutomatica? estado = null) =>
         new ObtenerGestionesAutomaticasQueryHandler(
@@ -365,16 +376,16 @@ public class GestionesAutomaticasTests
                 _gestiones, _documentos, _centros, _proveedores, _trabajadores, _empresas, _tipos, alcance)
             .Handle(new ObtenerGestionAutomaticaQuery(id), CancellationToken.None);
 
-    private Documento DocumentoDelTrabajador()
+    private Documento DocumentoDelTrabajador(string? archivoUrl = "tenant/reconocimiento.pdf")
     {
-        var documento = Documento.DeTrabajador(_trabajador.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        var documento = Documento.DeTrabajador(_trabajador.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)), archivoUrl);
         _documentos.ListaDocumentos.Add(documento);
         return documento;
     }
 
     private Documento RenovacionDe(Documento anterior)
     {
-        var nuevo = DocumentoDelTrabajador();
+        var nuevo = DocumentoDelTrabajador("tenant/reconocimiento-renovado.pdf");
         anterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, Ahora);
         return nuevo;
     }
@@ -399,9 +410,14 @@ public class GestionesAutomaticasTests
         return canal;
     }
 
+    /// <summary>
+    /// Una acreditación que el acto en curso acaba de agregar (sin guardar) y que, para las consultas, ya está en la
+    /// base: el nacimiento la lee de lo agregado y las consultas del contexto de consulta.
+    /// </summary>
     private AcreditacionDocumentoPlataforma Acreditar(Documento documento, CanalGestionDocumental canal)
     {
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        _delActo.Agregar(acreditacion);
         _documentos.ListaAcreditacionesDocumentoPlataforma.Add(acreditacion);
         return acreditacion;
     }
@@ -425,12 +441,5 @@ internal sealed class GestionesAutomaticasEnMemoria : IGestionesQueryContext, IG
     public Task<GestionAutomatica?> ObtenerPorDocumentoIdAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Lista.FirstOrDefault(g => g.DocumentoId == documentoId));
 
-    public Task<bool> ExisteParaDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Lista.Any(g => g.DocumentoId == documentoId));
-
     public void Agregar(GestionAutomatica gestion) => Lista.Add(gestion);
-
-    public List<GestionAutomatica> Descartadas { get; } = [];
-
-    public void Descartar(IEnumerable<GestionAutomatica> gestiones) => Descartadas.AddRange(gestiones);
 }

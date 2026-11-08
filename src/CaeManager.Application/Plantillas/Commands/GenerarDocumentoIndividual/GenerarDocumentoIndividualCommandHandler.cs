@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos.Acreditacion;
+using CaeManager.Application.Gestiones;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -25,7 +26,8 @@ namespace CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 /// datos ya conocidos, no hace falta releerlo), a diferencia de
 /// <c>CrearDocumentoCommandHandler</c>, que sí lo hace para un PDF subido a
 /// mano. Las acreditaciones de plataforma sí nacen igual que en el alta manual
-/// (<see cref="IAltaAcreditacionesPlataformaService"/>).
+/// (<see cref="IAltaAcreditacionesPlataformaService"/>), y con ellas la Gestión automática
+/// (<see cref="INacimientoGestionAutomaticaService"/>): es un alta con archivo.
 /// </summary>
 public class GenerarDocumentoIndividualCommandHandler(
     IPlantillaDocumentoVersionRepository versionRepositorio,
@@ -43,7 +45,8 @@ public class GenerarDocumentoIndividualCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IAsignacionRepository asignacionRepositorio,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    INacimientoGestionAutomaticaService gestionAutomatica)
     : IRequestHandler<GenerarDocumentoIndividualCommand, Result<GenerarDocumentoIndividualResultadoDto>>
 {
     public async Task<Result<GenerarDocumentoIndividualResultadoDto>> Handle(
@@ -200,6 +203,10 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         // Mismo SaveChangesAsync que el Documento: o se confirman juntos o ninguno.
         await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Documentos = [documento] }, cancellationToken);
+
+        // Generar desde plantilla es un alta con archivo: hace nacer la Gestión automática igual que el alta manual,
+        // con las acreditaciones recién agregadas y en el mismo guardado.
+        await gestionAutomatica.AgregarAsync(documento, sustituido: null, cancellationToken);
 
         var datosUtilizadosJson = JsonSerializer.Serialize(
             valoresPorElemento.ToDictionary(par => par.Key.EtiquetaVisible, par => par.Value));

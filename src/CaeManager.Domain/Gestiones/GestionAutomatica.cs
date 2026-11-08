@@ -5,10 +5,11 @@ namespace CaeManager.Domain.Gestiones;
 
 /// <summary>
 /// Gestión automática de varios pasos (especificación «Gestión de varios pasos y Mi trabajo», 2026-10-23, § 4).
-/// Nace sola cuando nace un Documento de Trabajador o de Empresa, por alta (con o sin archivo: el disparador
-/// fijado es el alta) o por renovación con archivo nuevo, y agrupa en <b>una sola</b> Gestión las acreditaciones en plataforma
-/// (<see cref="AcreditacionDocumentoPlataforma"/>) que ese mismo acto hizo nacer: un paso por acceso de
-/// plataforma (D-5). La corrección de fechas sin archivo no la hace nacer: no nace ningún Documento.
+/// Nace sola cuando nace un Documento de Trabajador o de Empresa con archivo, por alta con archivo (también la
+/// generada desde plantilla) o por renovación con archivo nuevo, y agrupa en <b>una sola</b> Gestión las
+/// acreditaciones en plataforma (<see cref="AcreditacionDocumentoPlataforma"/>) que ese mismo acto hizo nacer: un
+/// paso por acceso de plataforma (D-5). Ni el alta sin archivo ni la corrección de fechas sin archivo la hacen
+/// nacer. Nace en el mismo guardado que el acto (<c>INacimientoGestionAutomaticaService</c>), no después.
 ///
 /// <para>
 /// <b>El paso no tiene estado propio</b> (§ 4.3): su estado es el de su acreditación, que se cambia con los
@@ -26,7 +27,7 @@ namespace CaeManager.Domain.Gestiones;
 ///
 /// <para>
 /// Una por Documento (índice único): como alta y renovación con archivo hacen nacer siempre un Documento
-/// nuevo, el Documento identifica el acto, y un mismo evento repetido no puede crear dos Gestiones.
+/// nuevo, el Documento identifica el acto, y la base no admite dos Gestiones del mismo acto.
 /// </para>
 /// </summary>
 public class GestionAutomatica : EntidadBase
