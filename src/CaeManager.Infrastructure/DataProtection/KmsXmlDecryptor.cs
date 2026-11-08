@@ -76,10 +76,12 @@ public class KmsXmlDecryptor : IXmlDecryptor
     }
 
     /// <summary>
-    /// Sobrescribe con ceros el contenido de un flujo en memoria si admite escritura
-    /// (el SDK construye <c>Plaintext</c> como un <see cref="MemoryStream"/> sobre los
-    /// bytes recibidos) y lo libera. No lanza: también se usa sobre respuestas tardías,
-    /// donde nadie observaría el fallo.
+    /// Sobrescribe con ceros el contenido de un flujo en memoria si admite escritura y
+    /// desplazamiento, y lo libera. Que el SDK construya <c>Plaintext</c> como un
+    /// <see cref="MemoryStream"/> escribible sobre los bytes recibidos es una suposición
+    /// no verificada contra AWSSDK.KeyManagementService: si no lo fuera, el texto plano
+    /// no se borra (sin aviso) y solo se libera el flujo. No lanza: también se usa sobre
+    /// respuestas tardías, donde nadie observaría el fallo.
     /// </summary>
     internal static void BorrarFlujo(MemoryStream? flujo)
     {

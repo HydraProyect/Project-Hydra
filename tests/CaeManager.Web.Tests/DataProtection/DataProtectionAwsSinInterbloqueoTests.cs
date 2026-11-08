@@ -36,8 +36,12 @@ public class DataProtectionAwsSinInterbloqueoTests
     // carga no puede convertir un interbloqueo en un verde.
     private static readonly TimeSpan EsperaInterbloqueo = TimeSpan.FromSeconds(1);
 
-    // Límite de las pruebas que esperan un vencimiento: solo acota cuánto tardan.
-    private static readonly TimeSpan LimiteCorto = TimeSpan.FromMilliseconds(300);
+    // Límite de las pruebas que esperan un vencimiento. Si el pool no arranca la
+    // operación dentro de él, el puente ya no la invoca; los tests que necesitan que el
+    // doble se haya invocado lo comprueban de forma explícita para que, bajo una carga
+    // extrema, el fallo diga que la prueba no fue concluyente y no parezca un defecto.
+    private static readonly TimeSpan LimiteCorto = TimeSpan.FromSeconds(1);
+    private const string SinArrancar = "la prueba solo es concluyente si el pool arrancó la operación antes del límite";
 
     [Fact]
     public void El_contexto_de_un_solo_hilo_interbloquea_el_patron_anterior_de_GetResult_directo()
@@ -182,6 +186,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         var accion = () => repositorio.StoreElement(new XElement("key", new XAttribute("id", "4")), "key-4");
 
         accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
+        s3.EscrituraIniciada.IsSet.Should().BeTrue(SinArrancar);
         s3.Objetos.Should().NotContainKey("claves-dp/key-4.xml");
 
         s3.EscrituraRetenida.SetResult();
@@ -216,6 +221,7 @@ public class DataProtectionAwsSinInterbloqueoTests
 
             var accion = () => repositorio.StoreElement(new XElement("key"), "key-5");
             accion.Should().Throw<TimeoutException>();
+            s3.EscrituraIniciada.IsSet.Should().BeTrue(SinArrancar);
 
             s3.EscrituraRetenida.SetResult();
             s3.EscrituraTerminada.Wait(EsperaMaxima).Should().BeTrue();
@@ -246,6 +252,7 @@ public class DataProtectionAwsSinInterbloqueoTests
 
         var accion = () => descifrador.Decrypt(new XElement(KmsXmlEncryptor.NombreElemento, cifrado));
         accion.Should().Throw<TimeoutException>().WithMessage("*KMS*");
+        kms.DescifradoIniciado.IsSet.Should().BeTrue(SinArrancar);
 
         kms.DescifradoRetenido.SetResult();
 
@@ -264,7 +271,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         var accion = () => cifrador.Encrypt(new XElement("descriptor", new XElement("masterKey", "secreto")));
 
         accion.Should().Throw<TimeoutException>();
-        kms.TextosPlanosRecibidos.Should().ContainSingle()
+        kms.TextosPlanosRecibidos.Should().ContainSingle(SinArrancar)
             .Which.ToArray().Should().OnlyContain(b => b == 0, "la petición abandonada no retiene el texto plano");
     }
 
@@ -304,10 +311,12 @@ public class DataProtectionAwsSinInterbloqueoTests
         var hiloLlamante = Environment.CurrentManagedThreadId;
         var hiloCallback = 0;
         var callbackTerminado = false;
+        var iniciada = false;
 
         var accion = () => LlamadaSincronaAws.Ejecutar<int>(
             token =>
             {
+                Volatile.Write(ref iniciada, true);
                 // Un callback de cancelación que bloquea, como podría registrar una capa
                 // del SDK: si corriera en el hilo del llamante, lo retendría.
                 token.Register(() =>
@@ -322,6 +331,7 @@ public class DataProtectionAwsSinInterbloqueoTests
             "La operación de prueba");
 
         accion.Should().Throw<TimeoutException>();
+        Volatile.Read(ref iniciada).Should().BeTrue(SinArrancar);
         Volatile.Read(ref callbackTerminado).Should().BeFalse(
             "el llamante recibe el TimeoutException sin esperar al callback de cancelación");
 
@@ -337,11 +347,12 @@ public class DataProtectionAwsSinInterbloqueoTests
         var cliente = kms.Crear();
         var descifrador = new KmsXmlDecryptor(
             new ServiceCollection().AddSingleton(cliente).BuildServiceProvider(),
-            TimeSpan.FromMilliseconds(300));
+            LimiteCorto);
 
         var accion = () => descifrador.Decrypt(new XElement(KmsXmlEncryptor.NombreElemento, Convert.ToBase64String([1, 2, 3])));
 
         accion.Should().Throw<TimeoutException>().WithMessage("*KMS*");
+        kms.DescifradoIniciado.IsSet.Should().BeTrue(SinArrancar);
         SpinWait.SpinUntil(() => kms.TokenCancelado, EsperaMaxima).Should().BeTrue();
     }
 
@@ -374,13 +385,13 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void Una_llamada_a_S3_que_no_responde_se_corta_en_el_limite_y_cancela_la_peticion()
     {
         var s3 = new S3Falso { NoResponder = true };
-        var limite = TimeSpan.FromMilliseconds(300);
-        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), limite);
+        var repositorio = new S3XmlRepository(s3.Crear(), Opciones(), LimiteCorto);
 
         var cronometro = Stopwatch.StartNew();
         var accion = () => repositorio.GetAllElements();
 
         accion.Should().Throw<TimeoutException>().WithMessage("*S3*");
+        s3.PrefijosListados.Should().NotBeEmpty(SinArrancar);
         cronometro.Elapsed.Should().BeLessThan(EsperaMaxima);
         // La cancelación llega al doble en el pool, en paralelo con la excepción.
         SpinWait.SpinUntil(() => s3.TokenCancelado, EsperaMaxima).Should().BeTrue(
@@ -391,7 +402,7 @@ public class DataProtectionAwsSinInterbloqueoTests
     public void Una_llamada_a_KMS_que_ignora_la_cancelacion_tambien_se_corta_en_el_limite()
     {
         var kms = new KmsFalso { NoResponderNiAtenderCancelacion = true };
-        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", TimeSpan.FromMilliseconds(300));
+        var cifrador = new KmsXmlEncryptor(kms.Crear(), "alias/data-protection", LimiteCorto);
 
         var cronometro = Stopwatch.StartNew();
         var accion = () => cifrador.Encrypt(new XElement("descriptor"));
@@ -561,6 +572,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         /// <summary>Si se fija, la escritura retenida falla con este mensaje al liberarse.</summary>
         public string? FalloDeLaEscrituraRetenida { get; init; }
 
+        public ManualResetEventSlim EscrituraIniciada { get; } = new();
         public ManualResetEventSlim EscrituraTerminada { get; } = new();
         public bool TokenCancelado { get; private set; }
         public int LlamadasSinTokenCancelable => Volatile.Read(ref _llamadasSinTokenCancelable);
@@ -631,6 +643,7 @@ public class DataProtectionAwsSinInterbloqueoTests
         private async Task<PutObjectResponse> EscribirAsync(PutObjectRequest peticion, CancellationToken token)
         {
             peticion.BucketName.Should().Be("bucket-pruebas");
+            EscrituraIniciada.Set();
             try
             {
                 if (EscrituraRetenida is not null)
@@ -671,6 +684,8 @@ public class DataProtectionAwsSinInterbloqueoTests
         /// responde: modela una respuesta que llega después del límite.
         /// </summary>
         public TaskCompletionSource? DescifradoRetenido { get; init; }
+
+        public ManualResetEventSlim DescifradoIniciado { get; } = new();
         public bool TokenCancelado { get; private set; }
         public int LlamadasSinTokenCancelable => Volatile.Read(ref _llamadasSinTokenCancelable);
         private int _llamadasSinTokenCancelable;
@@ -714,6 +729,7 @@ public class DataProtectionAwsSinInterbloqueoTests
 
         private async Task<DecryptResponse> DescifrarAsync(DecryptRequest peticion, CancellationToken token)
         {
+            DescifradoIniciado.Set();
             if (NoResponderAlDescifrar)
             {
                 try

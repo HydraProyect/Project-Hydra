@@ -39,9 +39,9 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// las dos son válidas. Su excepción tardía se observa (no llega a
 /// <see cref="TaskScheduler.UnobservedTaskException"/>) y su resultado tardío pasa por
 /// <c>descartarResultadoTardio</c> para que quien llama pueda borrar material sensible.
-/// Si el SDK responde a la cancelación con una excepción propia antes de que venza la
-/// espera, sale esa excepción y no un <see cref="TimeoutException"/>; para Data
-/// Protection es indiferente, porque trata igual cualquier fallo.
+/// Como la cancelación solo se pide después de vencer la espera, un límite vencido
+/// siempre llega como <see cref="TimeoutException"/>, y cualquier otra excepción
+/// (incluida una <see cref="OperationCanceledException"/> del SDK) es de la operación.
 ///
 /// Esto elimina el interbloqueo, no el bloqueo: el hilo del llamante sigue esperando
 /// (hasta el límite), porque la interfaz de Data Protection es síncrona.
@@ -76,7 +76,10 @@ internal static class LlamadaSincronaAws
         ArgumentNullException.ThrowIfNull(operacion);
         ArgumentNullException.ThrowIfNull(planificador);
 
-        var cancelacion = new CancellationTokenSource(limite);
+        // Sin temporizador propio: el plazo lo pone la espera de abajo, y la única
+        // cancelación es la de Abandonar. Un temporizador del origen dispararía en
+        // un hilo del pool (con retraso si está saturado) y en carrera con la espera.
+        var cancelacion = new CancellationTokenSource();
         // El token se toma antes de encolar: la tarea puede arrancar cuando el
         // origen ya no deba tocarse.
         var token = cancelacion.Token;
@@ -98,22 +101,17 @@ internal static class LlamadaSincronaAws
             throw Agotado(descripcion, limite, causa: null);
         }
 
-        var cancelada = cancelacion.IsCancellationRequested;
-        if (!cancelada)
-        {
-            // Con el origen sin cancelar su temporizador sigue vivo y hay que
-            // liberarlo. Un origen cancelado ya lo cerró al cancelarse, y no se
-            // dispone porque sus callbacks pueden estar aún en curso.
-            cancelacion.Dispose();
-        }
-
+        // La tarea terminó dentro del plazo y el origen no se llegó a cancelar: una
+        // OperationCanceledException que salga aquí es de la propia operación.
         try
         {
             return tarea.GetAwaiter().GetResult();
         }
-        catch (OperationCanceledException ex) when (cancelada)
+        finally
         {
-            throw Agotado(descripcion, limite, ex);
+            // Libera el evento del núcleo que creó AsyncWaitHandle.
+            tarea.Dispose();
+            cancelacion.Dispose();
         }
     }
 
@@ -133,8 +131,8 @@ internal static class LlamadaSincronaAws
 
     /// <summary>
     /// Fuera del camino crítico del llamante: no espera a nada y no ejecuta callbacks
-    /// ajenos en su hilo. El origen no se dispone: está cancelado (su temporizador ya
-    /// está cerrado) y la operación o los callbacks pueden seguir usándolo.
+    /// ajenos en su hilo. El origen no se dispone: no tiene temporizador que liberar, y
+    /// la operación o los callbacks de la cancelación pueden seguir usándolo.
     /// </summary>
     private static void Abandonar<T>(Task<T> tarea, CancellationTokenSource cancelacion, Action<T>? descartarResultadoTardio)
     {
@@ -160,6 +158,9 @@ internal static class LlamadaSincronaAws
                 {
                     descartar(t.Result);
                 }
+
+                // Libera el evento del núcleo que creó AsyncWaitHandle.
+                t.Dispose();
             },
             descartarResultadoTardio,
             CancellationToken.None,
