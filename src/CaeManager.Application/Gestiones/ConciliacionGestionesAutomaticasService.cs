@@ -66,9 +66,12 @@ public class ConciliacionGestionesAutomaticasService(
 
     /// <summary>
     /// Distancia máxima entre la creación del Documento y la de una acreditación para que sea del mismo acto. El acto
-    /// construye las dos en la misma petición, con segundos de diferencia; una acreditación posterior es de otro acto.
+    /// construye las dos en la misma petición, con el archivo ya subido y a milisegundos de distancia; una acreditación
+    /// posterior es de otro acto (una Asignación o un acceso de Plataforma nuevos sobre un Documento ya existente) y no
+    /// entra en la Gestión, como en el flujo normal. Un minuto deja margen a una petición lenta sin abarcar el gesto
+    /// siguiente de la persona.
     /// </summary>
-    internal static readonly TimeSpan ToleranciaDelActo = TimeSpan.FromMinutes(5);
+    internal static readonly TimeSpan ToleranciaDelActo = TimeSpan.FromMinutes(1);
 
     public async Task<IReadOnlyList<Guid>> BuscarDocumentosSinGestionAsync(
         DateTime desdeUtc, CancellationToken cancellationToken = default)

@@ -3,6 +3,7 @@ using CaeManager.Application.Gestiones;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Gestiones;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -37,6 +38,7 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
             "un lote solo lleva Documentos que encontró la búsqueda de su mismo Tenant");
         resultado.Completa.Should().BeTrue();
         resultado.Creadas.Should().Be(4);
+        conciliacion.Ambitos.Should().Be(4, "un ámbito de servicios para la búsqueda de cada Tenant y otro para cada lote");
         AmbitoTenantExplicito.TenantIdActual.Should().BeNull("el ámbito de cada Tenant se cierra al terminar con él");
     }
 
@@ -98,7 +100,8 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
 
         completa.Should().NotBeNull();
         lider.Intentos.Should().Be(3, "si el líder cae o no termina, esta instancia retoma en vez de rendirse");
-        conciliacion.Busquedas.Should().ContainSingle();
+        conciliacion.Busquedas.Should().Equal([(TenantA, Desde), (TenantB, Desde)],
+            "una sola pasada, la del turno con liderazgo, sobre los dos Tenants");
     }
 
     [Fact]
@@ -113,8 +116,81 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
         completa.Should().NotBeNull();
         completa!.Completa.Should().BeTrue();
         lider.Intentos.Should().Be(2, "la segunda pasada se completa y ya no hay más");
-        conciliacion.Busquedas.Select(b => b.Desde).Should().Equal([Desde, Desde],
-            "los reintentos miran la misma ventana, anclada al arranque");
+        conciliacion.Busquedas.Should().Equal([(TenantA, Desde), (TenantB, Desde), (TenantA, Desde), (TenantB, Desde)],
+            "dos pasadas sobre los dos Tenants, y los reintentos miran la misma ventana, anclada al arranque");
+    }
+
+    [Fact]
+    public async Task Una_ventana_que_desborda_la_fecha_se_registra_y_no_tumba_el_host()
+    {
+        var conciliacion = new ConciliacionFalsa();
+
+        var completa = await Disparador(conciliacion, ventana: TimeSpan.MaxValue).EjecutarHastaCompletarAsync(CancellationToken.None);
+
+        completa.Should().BeNull();
+        conciliacion.Busquedas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_cancelacion_dentro_del_ultimo_lote_se_propaga_y_no_se_cuenta_como_lote_fallido()
+    {
+        // En el último lote del último Tenant: si se contara como lote fallido, la pasada terminaría sin lanzar.
+        using var parada = new CancellationTokenSource();
+        var conciliacion = new ConciliacionFalsa
+        {
+            AlConciliar = () =>
+            {
+                parada.Cancel();
+                parada.Token.ThrowIfCancellationRequested();
+            },
+        };
+        conciliacion.SinGestion[TenantB] = Ids(1);
+
+        var pasada = () => Disparador(conciliacion).ProcesarAsync(Desde, parada.Token);
+
+        await pasada.Should().ThrowAsync<OperationCanceledException>();
+        conciliacion.Lotes.Should().ContainSingle().Which.Tenant.Should().Be(TenantB);
+    }
+
+    [Fact]
+    public async Task La_cancelacion_dentro_de_la_ultima_busqueda_se_propaga_y_no_se_cuenta_como_Tenant_fallido()
+    {
+        // En la búsqueda del último Tenant: si se contara como Tenant fallido, la pasada terminaría sin lanzar.
+        using var parada = new CancellationTokenSource();
+        var busquedas = 0;
+        var conciliacion = new ConciliacionFalsa
+        {
+            AlBuscar = () =>
+            {
+                if (++busquedas < 2)
+                    return;
+                parada.Cancel();
+                parada.Token.ThrowIfCancellationRequested();
+            },
+        };
+
+        var pasada = () => Disparador(conciliacion).ProcesarAsync(Desde, parada.Token);
+
+        await pasada.Should().ThrowAsync<OperationCanceledException>();
+        conciliacion.Busquedas.Select(b => b.Tenant).Should().Equal(TenantA, TenantB);
+    }
+
+    [Fact]
+    public void Va_apagada_por_defecto_y_solo_se_registra_si_la_configuracion_la_enciende()
+    {
+        static bool Registrada(Dictionary<string, string?> valores)
+        {
+            var servicios = new ServiceCollection();
+            var configuracion = new ConfigurationBuilder().AddInMemoryCollection(valores).Build();
+            global::CaeManager.Infrastructure.DependencyInjection.InfrastructureServiceCollectionExtensions.AddConciliacionGestionesAutomaticas(servicios, configuracion);
+            return servicios.Any(s => s.ImplementationType == typeof(ConciliacionGestionesAutomaticasHostedService));
+        }
+
+        var seccion = ConciliacionGestionesAutomaticasOptions.SeccionConfiguracion;
+        Registrada([]).Should().BeFalse("sin configuración no corre: encenderla es decisión de quien despliega");
+        Registrada(new() { [$"{seccion}:EjecutarAlArrancar"] = "false" }).Should().BeFalse();
+        Registrada(new() { [$"{seccion}:EjecutarAlArrancar"] = "true" }).Should().BeTrue();
+        new ConciliacionGestionesAutomaticasOptions().EjecutarAlArrancar.Should().BeFalse();
     }
 
     [Fact]
@@ -146,7 +222,7 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
     private static IReadOnlyList<Guid> Ids(int cuantos) => Enumerable.Range(0, cuantos).Select(_ => Guid.NewGuid()).ToList();
 
     private static DisparadorConTenantsFijos Disparador(
-        ConciliacionFalsa conciliacion, IEleccionLiderService? lider = null, int maximoIntentos = 12)
+        ConciliacionFalsa conciliacion, IEleccionLiderService? lider = null, int maximoIntentos = 12, TimeSpan? ventana = null)
     {
         var servicios = new ServiceCollection()
             .AddScoped<IConciliacionGestionesAutomaticasService>(_ => conciliacion.NuevoAmbito())
@@ -155,7 +231,7 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
         {
             EjecutarAlArrancar = true,
             // Ventana de un día hasta el arranque fijado por el reloj de abajo: Desde.
-            Ventana = TimeSpan.FromDays(1),
+            Ventana = ventana ?? TimeSpan.FromDays(1),
             EsperaInicial = TimeSpan.Zero,
             IntervaloReintento = TimeSpan.Zero,
             MaximoIntentos = maximoIntentos,
@@ -184,11 +260,12 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
         public Guid? TenantQueFallaAlBuscar { get; init; }
         public int? LoteQueFalla { get; set; }
         public Action? AlConciliar { get; init; }
-        private int _ambitos;
+        public Action? AlBuscar { get; init; }
+        public int Ambitos { get; private set; }
 
         public IConciliacionGestionesAutomaticasService NuevoAmbito()
         {
-            _ambitos++;
+            Ambitos++;
             return new Ambito(this);
         }
 
@@ -198,6 +275,7 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
             {
                 var tenant = AmbitoTenantExplicito.TenantIdActual ?? throw new InvalidOperationException("Sin Tenant en curso.");
                 mundo.Busquedas.Add((tenant, desdeUtc));
+                mundo.AlBuscar?.Invoke();
                 if (tenant == mundo.TenantQueFallaAlBuscar)
                     throw new InvalidOperationException("Sin conexión.");
                 return Task.FromResult(mundo.SinGestion.GetValueOrDefault(tenant, []));

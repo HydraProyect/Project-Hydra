@@ -89,6 +89,22 @@ public class ConciliacionGestionesAutomaticasServiceTests
     }
 
     [Fact]
+    public async Task El_lote_no_hace_nacer_la_de_un_Documento_sustituido_o_eliminado_entre_la_busqueda_y_el_lote()
+    {
+        // La ranura anterior puede renovar o eliminar el Documento después de que la búsqueda lo encontrara: el lote
+        // vuelve a filtrar por operativos y no se fía de la lista que recibe.
+        var (sustituido, _) = ActoSinGestion();
+        var sustituto = sustituido.NuevoDelMismoTitular(Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(2)), "tenant/nuevo.pdf", null, null);
+        sustituido.SustituirPor(sustituto, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        var (eliminado, _) = ActoSinGestion();
+        eliminado.MarcarComoEliminado(Guid.NewGuid());
+        var (operativo, _) = ActoSinGestion();
+
+        (await Servicio().ConciliarLoteAsync([sustituido.Id, eliminado.Id, operativo.Id])).Should().Be(1,
+            "solo nace la del Documento que sigue operativo; los otros dos, control negativo en el mismo lote");
+    }
+
+    [Fact]
     public async Task Sin_acreditaciones_de_plataforma_del_acto_no_nace_ninguna_ni_se_guarda()
     {
         var soloCorreo = DocumentoConArchivo();

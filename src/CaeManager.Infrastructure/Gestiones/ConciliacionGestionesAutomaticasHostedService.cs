@@ -46,7 +46,11 @@ public class ConciliacionGestionesAutomaticasHostedService(
 {
     internal const string ClaveLiderazgo = "conciliacion-gestiones-automaticas";
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => EjecutarHastaCompletarAsync(stoppingToken);
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
+        await EjecutarHastaCompletarAsync(stoppingToken);
+    }
 
     /// <summary>
     /// El bucle de intentos. Interno para que un test lo ejercite sin el host. Devuelve la pasada completa, o null si
@@ -55,13 +59,16 @@ public class ConciliacionGestionesAutomaticasHostedService(
     internal async Task<ResultadoPasada?> EjecutarHastaCompletarAsync(CancellationToken stoppingToken)
     {
         using var ambitoActor = AmbitoActorAuditoria.EstablecerSistema();
-        var config = opciones.Value;
-
-        // La ventana se ancla al arranque, no a cada intento: los reintentos miran los mismos Documentos.
-        var desdeUtc = reloj.GetUtcNow().UtcDateTime - config.Ventana;
 
         try
         {
+            // Dentro del try: una sección mal escrita (un TimeSpan ilegible) o una ventana que desborda la fecha se
+            // registran en vez de dejar fallida la tarea del servicio, que pararía el host.
+            var config = opciones.Value;
+
+            // La ventana se ancla al arranque, no a cada intento: los reintentos miran los mismos Documentos.
+            var desdeUtc = reloj.GetUtcNow().UtcDateTime - config.Ventana;
+
             await Task.Delay(config.EsperaInicial, reloj, stoppingToken);
 
             for (var intento = 1; intento <= config.MaximoIntentos; intento++)
@@ -111,7 +118,8 @@ public class ConciliacionGestionesAutomaticasHostedService(
         }
         catch (Exception ex)
         {
-            // Nunca tumba el host: una configuración inválida (una espera negativa) o un fallo inesperado se registran.
+            // Nunca tumba el host: una configuración inválida (ilegible, una espera negativa o una ventana que desborda
+            // la fecha) o un fallo inesperado se registran.
             logger.LogError(ex, "La conciliación de Gestiones automáticas se detuvo por un error.");
         }
 
