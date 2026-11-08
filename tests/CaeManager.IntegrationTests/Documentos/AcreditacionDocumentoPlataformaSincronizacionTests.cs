@@ -274,7 +274,7 @@ public class AcreditacionDocumentoPlataformaSincronizacionTests : IAsyncLifetime
             new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
             new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new AcreditacionDocumentoPlataformaRepository(contexto), AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo());
+            new SerializacionAltasSinBloqueo(), new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo());
 
     private static CrearDocumentoCommandHandler ConstruirHandlerCrear(CaeManagerDbContext contexto) =>
         new(

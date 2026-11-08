@@ -65,6 +65,20 @@ namespace CaeManager.Infrastructure.DependencyInjection;
 
 public static class InfrastructureServiceCollectionExtensions
 {
+    /// <summary>
+    /// Regla A-1: el alta de un Documento de Empresa y la de un acceso de plataforma no se pierden el par entre sí.
+    /// Registra la serialización y la transacción de Command de la que depende (TryAdd: si ya está registrada, se
+    /// respeta). Exige un <see cref="CaeManagerDbContext"/> y un <see cref="ITenantActual"/> registrados; los contenedores
+    /// de prueba que montan <c>AddApplication()</c> a mano lo llaman para no divergir del registro de producción.
+    /// </summary>
+    public static IServiceCollection AddSerializacionAltasAcreditacionEmpresa(this IServiceCollection services)
+    {
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
+            .TryAddScoped<ITransaccionDeComando, TransaccionDeComando>(services);
+        services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment entorno)
     {
@@ -519,8 +533,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
         services.AddScoped<CaeManager.Application.Comercial.Common.IBloqueoSuscripcionStripe, BloqueoSuscripcionStripe>();
         services.AddScoped<CaeManager.Application.Tenants.IBloqueoEstadoOperativoTenant, BloqueoEstadoOperativoTenant>();
-        // Regla A-1: el alta de un Documento de Empresa y la de un acceso de plataforma no se pierden el par entre sí.
-        services.AddScoped<CaeManager.Application.Documentos.Acreditacion.ISerializacionAltasAcreditacionEmpresa, SerializacionAltasAcreditacionEmpresa>();
+        services.AddSerializacionAltasAcreditacionEmpresa();
         services.AddScoped<CaeManager.Application.Tenants.IEstadoOperativoTenant, EstadoOperativoTenant>();
         services.AddScoped<CaeManager.Application.Usuarios.IAdministradoresDelTenant, AdministradoresDelTenant>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();

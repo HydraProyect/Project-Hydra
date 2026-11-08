@@ -18,6 +18,7 @@ using CaeManager.Domain.DocumentosIa;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -142,6 +143,8 @@ public class CrearDocumentoCommandBloqueadoParaConsultaTests : IAsyncLifetime
         // patrón "contexto, contexto, contexto" que ya usan los tests de
         // integración de Documentos, solo que aquí lo arma el contenedor.
         servicios.AddSingleton(_dbContext);
+        // El handler depende de la serialización de altas de A-1: el mismo registro que producción.
+        servicios.AddSerializacionAltasAcreditacionEmpresa();
         servicios.AddSingleton<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<ITrabajadoresQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

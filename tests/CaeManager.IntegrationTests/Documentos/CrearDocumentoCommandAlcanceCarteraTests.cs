@@ -26,6 +26,7 @@ using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -361,6 +362,8 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
         servicios.AddSingleton(_ => CrearContexto(tenant));
         servicios.AddSingleton<IAlcanceDatosService>(sp => new AlcanceDatosService(
             sp.GetRequiredService<CaeManagerDbContext>(), usuario, tenantActual, new SesionPrivilegiadaAusente()));
+        // CrearDocumento da el alta bajo la serialización de A-1: el mismo registro que producción.
+        servicios.AddSerializacionAltasAcreditacionEmpresa();
 
         servicios.AddSingleton<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddSingleton<IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
