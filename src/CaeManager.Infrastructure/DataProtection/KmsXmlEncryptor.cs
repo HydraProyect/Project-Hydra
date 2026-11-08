@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Amazon.KeyManagementService;
@@ -44,22 +45,34 @@ public class KmsXmlEncryptor : IXmlEncryptor
     {
         ArgumentNullException.ThrowIfNull(plaintextElement);
 
-        var textoPlano = plaintextElement.ToString(SaveOptions.DisableFormatting);
-
-        // La interfaz de Data Protection es síncrona y el SDK de KMS solo es
-        // asíncrono: LlamadaSincronaAws ejecuta la llamada fuera del
-        // SynchronizationContext del llamante y con un límite de tiempo. Ocurre
-        // una vez por creación de clave (cada 90 días por defecto), pero puede
-        // ocurrir en el hilo de un circuito de Blazor si coincide con una carga
-        // en frío o una recarga forzada del anillo.
-        var respuesta = LlamadaSincronaAws.Ejecutar(
-            token => _kms.EncryptAsync(new EncryptRequest
-            {
-                KeyId = _keyId,
-                Plaintext = new MemoryStream(Encoding.UTF8.GetBytes(textoPlano))
-            }, token),
-            _limite,
-            "El cifrado con KMS de una clave de Data Protection");
+        // La clausura solo retiene estos bytes, que se borran al salir aunque la
+        // petición quede abandonada tras el límite: si aún no se había serializado,
+        // KMS recibe ceros y el resultado ya nadie lo usa. No alcanza a las copias
+        // que el SDK haga al serializar ni al string intermedio, que es inmutable y
+        // vive lo que tarde el recolector.
+        var textoPlano = Encoding.UTF8.GetBytes(plaintextElement.ToString(SaveOptions.DisableFormatting));
+        EncryptResponse respuesta;
+        try
+        {
+            // La interfaz de Data Protection es síncrona y el SDK de KMS solo es
+            // asíncrono: LlamadaSincronaAws ejecuta la llamada fuera del
+            // SynchronizationContext del llamante y con un límite de tiempo. Ocurre
+            // una vez por creación de clave (cada 90 días por defecto), pero puede
+            // ocurrir en el hilo de un circuito de Blazor si coincide con una carga
+            // en frío o una recarga forzada del anillo.
+            respuesta = LlamadaSincronaAws.Ejecutar(
+                token => _kms.EncryptAsync(new EncryptRequest
+                {
+                    KeyId = _keyId,
+                    Plaintext = new MemoryStream(textoPlano)
+                }, token),
+                _limite,
+                "El cifrado con KMS de una clave de Data Protection");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(textoPlano);
+        }
 
         var cifrado = Convert.ToBase64String(respuesta.CiphertextBlob.ToArray());
 

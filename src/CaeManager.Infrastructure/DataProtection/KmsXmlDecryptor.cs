@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Amazon.KeyManagementService;
@@ -49,14 +50,60 @@ public class KmsXmlDecryptor : IXmlDecryptor
         // Data Protection descifra el descriptor de una clave la primera vez que
         // la usa, en el hilo de quien la usa (que puede ser un circuito de
         // Blazor): ver LlamadaSincronaAws para el porqué del puente.
+        // Si la respuesta llega después del límite, nadie la usa: su texto plano se
+        // borra en cuanto llega en vez de quedar en una tarea abandonada.
         var respuesta = LlamadaSincronaAws.Ejecutar(
             token => kms.DecryptAsync(new DecryptRequest
             {
                 CiphertextBlob = new MemoryStream(cifrado)
             }, token),
             _limite,
-            "El descifrado con KMS de una clave de Data Protection");
+            "El descifrado con KMS de una clave de Data Protection",
+            static tardia => BorrarFlujo(tardia.Plaintext));
 
-        return XElement.Parse(Encoding.UTF8.GetString(respuesta.Plaintext.ToArray()));
+        var textoPlano = respuesta.Plaintext.ToArray();
+        try
+        {
+            return XElement.Parse(Encoding.UTF8.GetString(textoPlano));
+        }
+        finally
+        {
+            // El XElement devuelto es lo que Data Protection necesita; las copias
+            // intermedias en bytes no tienen por qué sobrevivir a esta llamada.
+            CryptographicOperations.ZeroMemory(textoPlano);
+            BorrarFlujo(respuesta.Plaintext);
+        }
+    }
+
+    /// <summary>
+    /// Sobrescribe con ceros el contenido de un flujo en memoria si admite escritura
+    /// (el SDK construye <c>Plaintext</c> como un <see cref="MemoryStream"/> sobre los
+    /// bytes recibidos) y lo libera. No lanza: también se usa sobre respuestas tardías,
+    /// donde nadie observaría el fallo.
+    /// </summary>
+    internal static void BorrarFlujo(MemoryStream? flujo)
+    {
+        if (flujo is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (flujo.CanWrite && flujo.CanSeek)
+            {
+                var longitud = checked((int)flujo.Length);
+                flujo.Position = 0;
+                flujo.Write(new byte[longitud]);
+            }
+        }
+        catch (Exception ex) when (ex is NotSupportedException or ObjectDisposedException or IOException or OverflowException)
+        {
+            // Un flujo que no se deja sobrescribir se libera igualmente.
+        }
+        finally
+        {
+            flujo.Dispose();
+        }
     }
 }
