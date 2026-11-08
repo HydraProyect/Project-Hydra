@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
@@ -196,6 +197,39 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
         var (trasCambio, relleno) = await FotoYRellenoAsync(tenant);
         relleno.Except(trasCambio).Should().BeEmpty("la corrección por raíces dejó el par y sus entidades como el relleno");
         trasCambio.Except(relleno).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Las_filas_de_otra_version_de_la_regla_con_los_mismos_valores_se_reescriben_sin_aviso()
+    {
+        var tenant = await TenantConMasCambiosProgramadosAsync();
+        await ReiniciarAsync(tenant);
+        var hoy = DiaDeNegocio.Hoy();
+        const int anterior = CalculoEstadoMaterializado.VersionDeLaRegla - 1;
+
+        // Lo que deja una subida de VersionDeLaRegla: filas con los mismos valores escritas con la versión anterior.
+        await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            await db.Database.ExecuteSqlAsync($"""UPDATE "EstadosRequisito" SET "VersionCalculo" = {anterior} WHERE "TenantId" = {tenant}""");
+            await db.Database.ExecuteSqlAsync($"""UPDATE "EstadosPlataforma" SET "VersionCalculo" = {anterior} WHERE "TenantId" = {tenant}""");
+            await db.Database.ExecuteSqlAsync($"""UPDATE "EstadosEntidad" SET "VersionCalculo" = {anterior} WHERE "TenantId" = {tenant}""");
+            return 0;
+        });
+
+        var alerta = new AlertaFalsa();
+        var resultado = await CambioDeDiaAsync(tenant, hoy, alerta);
+
+        salida.WriteLine($"Cotejo: {resultado.Cotejo}");
+        resultado.Estado.Should().Be(EstadoCambioDeDia.Hecho);
+        resultado.Cotejo!.Total.Should().Be(0, "una fila de otra versión con los mismos valores no es una discrepancia");
+        resultado.Cotejo.DeOtraVersion.Should().BeGreaterThan(0);
+        alerta.Mensajes.Should().BeEmpty("una migración de regla prevista no es una discrepancia operativa");
+
+        var deOtraVersion = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+            await db.Set<EstadoRequisito>().CountAsync(r => r.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla)
+            + await db.Set<EstadoEnPlataforma>().CountAsync(p => p.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla)
+            + await db.Set<EstadoEntidad>().CountAsync(e => e.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla));
+        deOtraVersion.Should().Be(0, "el cotejo encola su recálculo igual y la cola las reescribe con la versión vigente");
     }
 
     [Fact]

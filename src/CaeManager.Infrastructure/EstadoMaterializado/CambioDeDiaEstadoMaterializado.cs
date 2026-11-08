@@ -30,8 +30,10 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// para lo calculado y lo guardado) recalcula el Tenant entero por lotes, sin escribir, y lo compara con lo guardado
 /// (<see cref="CotejoEstadoMaterializado"/>). Repone lo que la cola no recoge: los cambios guardados con el contexto de
 /// otro Tenant o con un contexto creado a mano, un guardado síncrono que no llegó a recalcular y una caída entre el
-/// guardado y el recálculo. Si encuentra diferencias, deja un aviso con los recuentos (sin datos personales), encola las
-/// raíces que las corrigen y vuelve a drenar la cola.</item>
+/// guardado y el recálculo. Si encuentra discrepancias, deja un aviso con los recuentos (sin datos personales), encola las
+/// raíces que las corrigen y vuelve a drenar la cola. Las filas que solo son de otra versión de la regla (el recálculo
+/// previsto al subir <see cref="CalculoEstadoMaterializado.VersionDeLaRegla"/>) se corrigen igual, pero con un registro
+/// informativo y sin aviso en el canal de alertas: una migración de regla prevista no es una discrepancia operativa.</item>
 /// <item><b>Marca.</b> <c>UltimoDiaProcesado</c> = hoy, solo hacia delante. Significa «el cambio de día de hoy está hecho»:
 /// pasada, cola drenada y cotejo hecho (con sus correcciones ya encoladas o hechas). Con la marca al día, repetir no hace
 /// nada: el cambio de día es idempotente por día.</item>
@@ -97,24 +99,38 @@ public sealed class CambioDeDiaEstadoMaterializado(
         if (diferencias is null)
             return Aplazado(tenant, hoy, version.UltimoDiaProcesado, raicesDeLaPasada);
 
-        if (diferencias.Total > 0)
+        if (diferencias.HayQueCorregir)
         {
             var raicesCotejo = diferencias.Raices;
             var corregirTenantEntero = diferencias.Huerfanas > 0 || raicesCotejo.Cuantas > RecalculoEstadoEnLinea.MaximoRaicesEnCola;
-            var mensaje =
-                $"Cotejo nocturno del estado materializado: el Tenant propietario {tenant} tenía {diferencias.Total} filas distintas " +
-                $"del recálculo completo del día {hoy:yyyy-MM-dd} ({diferencias}). Se corrigen encolando " +
-                (corregirTenantEntero ? "el Tenant entero." : $"{raicesCotejo.Cuantas} raíces.");
-            logger.LogWarning(
-                "Cotejo nocturno del estado materializado: el Tenant propietario {TenantId} tenía {Diferencias} filas distintas del recálculo completo del día {Dia} ({Detalle}); se corrigen encolando {Correccion}.",
-                tenant, diferencias.Total, hoy, diferencias.ToString(), corregirTenantEntero ? "el Tenant entero" : $"{raicesCotejo.Cuantas} raíces");
-            // Un LogWarning no llega a Sentry (su nivel mínimo de evento es Error): el aviso va por el canal de alertas.
-            alerta.Emitir(mensaje, NivelAlertaOperativa.Aviso);
+            var correccion = corregirTenantEntero ? "el Tenant entero" : $"{raicesCotejo.Cuantas} raíces";
+            string motivo;
+            if (diferencias.Total > 0)
+            {
+                var mensaje =
+                    $"Cotejo nocturno del estado materializado: el Tenant propietario {tenant} tenía {diferencias.Total} filas distintas " +
+                    $"del recálculo completo del día {hoy:yyyy-MM-dd} ({diferencias}). Se corrigen encolando {correccion}.";
+                logger.LogWarning(
+                    "Cotejo nocturno del estado materializado: el Tenant propietario {TenantId} tenía {Diferencias} filas distintas del recálculo completo del día {Dia} ({Detalle}); se corrigen encolando {Correccion}.",
+                    tenant, diferencias.Total, hoy, diferencias.ToString(), correccion);
+                // Un LogWarning no llega a Sentry (su nivel mínimo de evento es Error): el aviso va por el canal de alertas.
+                alerta.Emitir(mensaje, NivelAlertaOperativa.Aviso);
+                motivo = "Cotejo nocturno: diferencias";
+            }
+            else
+            {
+                // Solo filas con los mismos valores escritas con otra versión de la regla: el recálculo previsto tras subir
+                // VersionDeLaRegla, no una discrepancia. Se corrigen igual, con un registro informativo y sin aviso.
+                logger.LogInformation(
+                    "Cotejo nocturno del estado materializado: el Tenant propietario {TenantId} tenía {Filas} filas de otra versión de la regla con los mismos valores del recálculo completo del día {Dia}; se reescriben con la versión {Version} encolando {Correccion}.",
+                    tenant, diferencias.DeOtraVersion, hoy, CalculoEstadoMaterializado.VersionDeLaRegla, correccion);
+                motivo = "Cotejo nocturno: otra versión de la regla";
+            }
 
             if (corregirTenantEntero)
-                await ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenant, "Cotejo nocturno: diferencias");
+                await ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenant, motivo);
             else
-                await ColaEstadoMaterializado.EncolarRaicesAsync(dbContext, tenant, raicesCotejo, "Cotejo nocturno: diferencias");
+                await ColaEstadoMaterializado.EncolarRaicesAsync(dbContext, tenant, raicesCotejo, motivo);
 
             // La corrección ya está encolada: aunque la cola no se drene ahora, la recoge su propio ciclo. El cotejo de hoy
             // está hecho.
