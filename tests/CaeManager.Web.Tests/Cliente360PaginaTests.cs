@@ -693,7 +693,7 @@ public partial class Cliente360PaginaTests : BunitContext
             .And.NotContain("2 vencidos");
         // Tercer motivo: va en el «+1» hacia el Centro 360 (2026-11-08), sin duplicar al Trabajador.
         cut.Find(".fila-relacion-detalle a.avisos-recortados-mas").GetAttribute("aria-label").Should()
-            .StartWith("1 más: 1 trabajador bloqueado.");
+            .StartWith("+1: 1 trabajador bloqueado.");
         cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("0 de 1");
     }
 
@@ -886,7 +886,7 @@ public partial class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         var avisos = cut.Find("li.fila-relacion [data-pieza='avisos-recortados']");
-        avisos.TextContent.Should().StartWith("3 vencidos · 1 trabajador bloqueado").And.NotContain("por vencer ·");
+        avisos.TextContent.Should().StartWith("3 vencidos · 1 trabajador bloqueado").And.NotContain("por vencer");
         var mas = avisos.QuerySelector("a.avisos-recortados-mas")!;
         mas.TextContent.Should().Be("+1");
         mas.GetAttribute("href").Should().Be($"/centros/{barakaldo.Id}");

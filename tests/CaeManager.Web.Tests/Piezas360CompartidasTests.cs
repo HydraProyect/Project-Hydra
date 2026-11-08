@@ -425,7 +425,7 @@ public class Piezas360CompartidasTests : BunitContext
         mas.GetAttribute("href").Should().Be("/centros/abc");
         mas.GetAttribute("data-ocultos").Should().Be("2");
         mas.GetAttribute("aria-label").Should().Be(
-            "2 más: 3 pendientes de validación · 2 por vencer. Se ven en la página de Plataforma logística de Illescas");
+            "+2: 3 pendientes de validación · 2 por vencer. Se ven en la página de Plataforma logística de Illescas");
         mas.GetAttribute("title").Should().Be(mas.GetAttribute("aria-label"));
     }
 

@@ -336,6 +336,13 @@ a.fila-relacion-nombre:focus-visible,
     transition: background-color 120ms;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .fila-relacion-desplegado .fila-relacion[data-tono],
+    .tarjeta-fila-acordeon-contenido .fila-relacion[data-tono] {
+        transition: none;
+    }
+}
+
 .fila-relacion-desplegado .fila-relacion[data-tono]:hover,
 .tarjeta-fila-acordeon-contenido .fila-relacion[data-tono]:hover {
     background-color: var(--color-surface-hover);
