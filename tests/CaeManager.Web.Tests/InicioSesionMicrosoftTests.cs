@@ -59,7 +59,7 @@ public class InicioSesionMicrosoftTests
         // Solo el arnés emite esta cookie sintética; el callback y su autenticación son reales.
         app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
         {
-            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
+            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba),
                 (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "pwd"),
                 ("acct", caso == "invitada" ? "1" : "0"));
             var propiedades = new AuthenticationProperties();
@@ -150,7 +150,7 @@ public class InicioSesionMicrosoftTests
         // con prompt=login al volver de Microsoft.
         app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
         {
-            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
+            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba),
                 (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", mfaMicrosoft ? "mfa" : "pwd"));
             var propiedades = new AuthenticationProperties();
             propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
@@ -164,6 +164,9 @@ public class InicioSesionMicrosoftTests
             return InicioSesionMicrosoft.VinculoPendiente(principal) is null ? "sin-vinculo"
                 : InicioSesionMicrosoft.AltaTotpPendiente(principal) ? "alta" : "vinculo";
         });
+        app.MapGet("/leer-clave-pendiente", async (HttpContext contexto) =>
+            InicioSesionMicrosoft.VinculoPendiente(
+                (await contexto.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Principal)?.ProviderKey ?? "");
         await app.StartAsync();
         using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
         using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(app.Urls.Single()) };
@@ -210,6 +213,11 @@ public class InicioSesionMicrosoftTests
         lectura.Headers.Add("Cookie", dosPasos!.Split(';')[0]);
         using var leida = await cliente.SendAsync(lectura);
         (await leida.Content.ReadAsStringAsync()).Should().Be(totp ? "vinculo" : "alta");
+        using var lecturaClave = new HttpRequestMessage(HttpMethod.Get, "/leer-clave-pendiente");
+        lecturaClave.Headers.Add("Cookie", dosPasos.Split(';')[0]);
+        using var clave = await cliente.SendAsync(lecturaClave);
+        (await clave.Content.ReadAsStringAsync()).Should().Be($"{OidPrueba}.{TidPrueba}",
+            "el vínculo que se guardará es oid + tid, nunca el sub ni el correo");
         vigilancia.Resultados.Should().Equal([CaeManager.Domain.Seguridad.ResultadoInicioSesion.SegundoFactorRequerido]);
         await app.StopAsync();
     }
@@ -245,6 +253,165 @@ public class InicioSesionMicrosoftTests
         sesiones.Registradas.Should().Be(1);
     }
 
+    // ── Login corporativo: MFA probada en el token y vínculo por oid + tid (D-L6) ──
+
+    private static (string, string)[] TokenVinculado(params (string, string)[] extra) =>
+        [(ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba), (ClaimTypes.Email, "prueba@ejemplo.test"), .. extra];
+
+    private static void SinSesionDeAplicacion(List<string> cookies, string porque) =>
+        cookies.Should().NotContain(c => c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0, porque);
+
+    /// <summary>Prueba 1: token sin MFA de una cuenta con TOTP configurado → se pide el TOTP de TALVEG, sin sesión antes.</summary>
+    [Theory]
+    [InlineData("pwd")]
+    [InlineData("[\"pwd\",\"otp\"]")]
+    [InlineData("wiaormfa")]
+    public async Task Token_sin_MFA_de_una_cuenta_con_TOTP_pide_el_TOTP_de_TALVEG(string amr)
+    {
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(), TokenVinculado(("amr", amr)), totp: true);
+
+        destino.Should().Be("/cuenta/verificar-2fa?ReturnUrl=%2Fdocumentos");
+        SinSesionDeAplicacion(cookies, "sin MFA probada, la sesión espera al TOTP de TALVEG");
+    }
+
+    /// <summary>Prueba 2: amr de la lista cerrada, o el contexto de autenticación configurado en acrs → sesión sin TOTP.</summary>
+    [Theory]
+    [InlineData("amr", "mfa", null)]
+    [InlineData("amr", "[\"pwd\",\"ngcmfa\"]", null)]
+    [InlineData("http://schemas.microsoft.com/claims/authnmethodsreferences", "fido", null)]
+    [InlineData("acrs", "c1", "c1")]
+    public async Task Token_con_MFA_probada_no_pide_el_TOTP(string tipo, string valor, string? contexto)
+    {
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(), TokenVinculado((tipo, valor)), totp: true, contexto: contexto);
+
+        destino.Should().Be("/documentos");
+        cookies.Should().ContainSingle(c => c.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0);
+    }
+
+    /// <summary>Prueba 3: acr solo, aunque coincida con el contexto configurado, no prueba MFA.</summary>
+    [Theory]
+    [InlineData("acr")]
+    [InlineData("http://schemas.microsoft.com/claims/authnclassreference")]
+    public async Task Acr_solo_no_cuenta_como_MFA(string tipo)
+    {
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(),
+            TokenVinculado((tipo, "c1"), (tipo, "1"), ("amr", "pwd")), totp: true, contexto: "c1");
+
+        destino.Should().Be("/cuenta/verificar-2fa?ReturnUrl=%2Fdocumentos");
+        SinSesionDeAplicacion(cookies, "acr dice el nivel pedido, no los métodos usados");
+    }
+
+    [Theory]
+    [InlineData("sin-oid")]
+    [InlineData("sin-tid")]
+    [InlineData("otro-directorio")]
+    public async Task Sin_oid_y_tid_del_directorio_configurado_no_se_entra(string caso)
+    {
+        (string, string)[] token = caso switch
+        {
+            "sin-oid" => [(ClaimTypes.NameIdentifier, "sub-prueba"), ("tid", TidPrueba), (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")],
+            "sin-tid" => [(ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")],
+            _ => [(ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", "0d0d0d0d-0000-4000-8000-000000000000"),
+                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")],
+        };
+
+        var (destino, cookies) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(), token);
+
+        destino.Should().Be("/cuenta/iniciar-sesion?errorSso=fallo");
+        SinSesionDeAplicacion(cookies, "sin clave estable no hay con qué buscar el vínculo");
+    }
+
+    /// <summary>
+    /// Camino de compatibilidad: un vínculo guardado antes de la clave oid + tid lleva el sub del manejador.
+    /// La misma identidad sigue entrando; una identidad con otro sub y otro oid no lo encuentra.
+    /// </summary>
+    [Theory]
+    [InlineData("sub-prueba", "/documentos")]
+    [InlineData("sub-de-otra-persona", "/cuenta/iniciar-sesion?errorSso=sin-cuenta")]
+    public async Task Un_vinculo_anterior_por_sub_sigue_valiendo_solo_para_su_identidad(string claveGuardada, string esperado)
+    {
+        var (destino, _) = await PedirCallbackDirectoAsync<SignInManagerCuentaDesactivada>(
+            selloVigente: true, new VigilanciaDePrueba(), new SesionesDePrueba(), claveVinculada: claveGuardada);
+
+        destino.Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task El_vinculo_se_busca_primero_por_oid_y_tid()
+    {
+        var cuenta = new ApplicationUser { TenantId = TenantDestino };
+        var usuarios = new UsuariosConVinculos { DuenaDeLaIdentidad = cuenta, ClaveVinculada = ClavePrueba };
+
+        var (decision, encontrada) = await InicioSesionMicrosoft.ResolverCuentaAsync(usuarios,
+            new UserLoginInfo(AzureAdOptions.Esquema, ClavePrueba, "Microsoft"), "prueba@ejemplo.test", TenantDestino, claveHeredada: "sub-prueba");
+
+        decision.Should().Be(DecisionCuentaMicrosoft.EntrarConCuentaVinculada);
+        encontrada.Should().BeSameAs(cuenta);
+        usuarios.ClavesBuscadas.Should().Equal([ClavePrueba], "con vínculo por oid + tid no se mira la clave heredada");
+    }
+
+    /// <summary>Prueba 4: correo coincidente con una cuenta ya vinculada a otro oid → no vincula ni entra.</summary>
+    [Theory]
+    [InlineData("6f1e2d3c-4b5a-4968-8776-000000000999.9b1c2d3e-0000-4000-8000-00000000c0de")]
+    [InlineData("sub-de-otra-persona")]
+    public async Task Correo_coincidente_con_otro_oid_no_vincula(string claveDeLaOtraIdentidad)
+    {
+        var cuenta = new ApplicationUser { TenantId = TenantDestino };
+        var usuarios = new UsuariosConVinculos { CuentaPorCorreo = cuenta, ClaveVinculada = "ninguna" };
+        usuarios.Vinculos.Add(new UserLoginInfo(AzureAdOptions.Esquema, claveDeLaOtraIdentidad, "Microsoft"));
+
+        var (decision, _) = await InicioSesionMicrosoft.ResolverCuentaAsync(usuarios,
+            new UserLoginInfo(AzureAdOptions.Esquema, ClavePrueba, "Microsoft"), "prueba@ejemplo.test", TenantDestino, claveHeredada: "sub-prueba");
+
+        decision.Should().Be(DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad);
+        usuarios.LlamadasAlta.Should().Be(0);
+    }
+
+    [Fact]
+    public void La_clave_estable_es_oid_y_tid_en_forma_canonica()
+    {
+        InicioSesionMicrosoft.ClaveIdentidadEstable(
+            Externo(("oid", OidPrueba.ToUpperInvariant()), ("tid", TidPrueba)), TidPrueba).Should().Be(ClavePrueba);
+        InicioSesionMicrosoft.ClaveIdentidadEstable(Externo(
+            ("http://schemas.microsoft.com/identity/claims/objectidentifier", OidPrueba),
+            ("http://schemas.microsoft.com/identity/claims/tenantid", TidPrueba)), null).Should().Be(ClavePrueba, "mapeo de entrada");
+        InicioSesionMicrosoft.ClaveIdentidadEstable(
+            Externo(("oid", OidPrueba), ("tid", TidPrueba)), "contoso.onmicrosoft.com").Should().Be(ClavePrueba,
+            "con un nombre de dominio el emisor lo valida el manejador");
+    }
+
+    [Theory]
+    [InlineData("no-es-un-guid", TidPrueba, null)]
+    [InlineData(OidPrueba, "no-es-un-guid", null)]
+    [InlineData(OidPrueba, "0d0d0d0d-0000-4000-8000-000000000000", TidPrueba)]
+    public void Sin_oid_y_tid_validos_no_hay_clave(string oid, string tid, string? directorio)
+    {
+        InicioSesionMicrosoft.ClaveIdentidadEstable(Externo(("oid", oid), ("tid", tid)), directorio ?? TidPrueba).Should().BeNull();
+        InicioSesionMicrosoft.ClaveIdentidadEstable(Externo(("oid", OidPrueba), ("oid", "6f1e2d3c-4b5a-4968-8776-000000000999"),
+            ("tid", TidPrueba)), null).Should().BeNull("dos oid distintos");
+        InicioSesionMicrosoft.ClaveIdentidadEstable(Externo(("email", "prueba@ejemplo.test")), null).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("mfa", true)]
+    [InlineData("ngcmfa", true)]
+    [InlineData("fido", true)]
+    [InlineData("pwd", false)]
+    [InlineData("otp", false)]
+    [InlineData("wiaormfa", false)]
+    [InlineData("MFA", false)]
+    public void La_lista_de_metodos_amr_multifactor_es_cerrada(string metodo, bool esperado)
+    {
+        InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(Externo(("amr", "pwd"), ("amr", metodo)), null).Should().Be(esperado);
+        InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(Externo(("acr", metodo), ("acr", "c1")), "c1").Should().BeFalse("acr nunca cuenta");
+    }
+
     private static async Task ComprobarCallbackRechazadoAsync<TSignInManager>()
         where TSignInManager : SignInManager<ApplicationUser>
     {
@@ -267,11 +434,19 @@ public class InicioSesionMicrosoftTests
     /// anterior. Devuelve a dónde redirige y las Set-Cookie de esa respuesta.
     /// </summary>
     private static async Task<(string Destino, List<string> Cookies)> PedirCallbackDirectoAsync<TSignInManager>(
-        bool selloVigente, VigilanciaDePrueba vigilancia, SesionesDePrueba sesiones)
+        bool selloVigente, VigilanciaDePrueba vigilancia, SesionesDePrueba sesiones,
+        (string Tipo, string Valor)[]? token = null, bool totp = false, string? contexto = null, string? claveVinculada = null)
         where TSignInManager : SignInManager<ApplicationUser>
     {
         var cuenta = new ApplicationUser { TenantId = TenantDestino, SecurityStamp = "sello-cargado-antes-del-cambio" };
-        var usuarios = new UsuariosConVinculos { DuenaDeLaIdentidad = cuenta };
+        var usuarios = new UsuariosConVinculos
+        {
+            DuenaDeLaIdentidad = cuenta,
+            ClaveVinculada = claveVinculada,
+            TotpActivado = totp,
+        };
+        token ??= [(ClaimTypes.NameIdentifier, "sub-prueba"), ("oid", OidPrueba), ("tid", TidPrueba),
+            (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")];
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
@@ -282,7 +457,12 @@ public class InicioSesionMicrosoftTests
         builder.Services.AddIdentityCore<ApplicationUser>().AddSignInManager<TSignInManager>();
         builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
         builder.Services.AddSingleton<IUserClaimsPrincipalFactory<ApplicationUser>>(new PrincipalesDePrueba());
-        builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
+        builder.Services.Configure<AzureAdOptions>(o =>
+        {
+            o.TenantHydraId = TenantDestino;
+            o.TenantId = TidPrueba;
+            o.ContextoAutenticacionMfa = contexto;
+        });
         builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
         builder.Services.AddSingleton<IRegistroSesionesUsuario>(sesiones);
         builder.Services.AddSingleton<ISelloSeguridadCuenta>(new SellosDePrueba(selloVigente));
@@ -295,8 +475,7 @@ public class InicioSesionMicrosoftTests
         {
             var propiedades = new AuthenticationProperties();
             propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
-            await contexto.SignInAsync(IdentityConstants.ExternalScheme, Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
-                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "mfa")), propiedades);
+            await contexto.SignInAsync(IdentityConstants.ExternalScheme, Externo(token), propiedades);
         });
         app.MapGet("/sesion-previa-de-prueba", (HttpContext contexto) =>
             contexto.SignInAsync(IdentityConstants.ApplicationScheme, Externo((ClaimTypes.NameIdentifier, "sesion-previa"))));
@@ -406,6 +585,11 @@ public class InicioSesionMicrosoftTests
 
     private static readonly Guid TenantDestino = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
     private static readonly Guid OtroTenant = Guid.Parse("00000000-0000-0000-0000-0000000000bb");
+
+    // oid y tid de la identidad de Microsoft de prueba, ya en forma canónica.
+    private const string OidPrueba = "6f1e2d3c-4b5a-4968-8776-655443322110";
+    private const string TidPrueba = "9b1c2d3e-0000-4000-8000-00000000c0de";
+    private static readonly string ClavePrueba = $"{OidPrueba}.{TidPrueba}";
 
     // ── Con qué cuenta entra una identidad de Microsoft ─────────────────────
 
@@ -893,8 +1077,15 @@ public class InicioSesionMicrosoftTests
         public override Task<IList<UserLoginInfo>> GetLoginsAsync(ApplicationUser user) =>
             Task.FromResult<IList<UserLoginInfo>>([.. Vinculos]);
 
-        public override Task<ApplicationUser?> FindByLoginAsync(string loginProvider, string providerKey) =>
-            Task.FromResult(DuenaDeLaIdentidad);
+        /// <summary>Con valor, <see cref="DuenaDeLaIdentidad"/> solo se encuentra con esa clave de vínculo.</summary>
+        public string? ClaveVinculada { get; init; }
+        public List<string> ClavesBuscadas { get; } = [];
+
+        public override Task<ApplicationUser?> FindByLoginAsync(string loginProvider, string providerKey)
+        {
+            ClavesBuscadas.Add(providerKey);
+            return Task.FromResult(ClaveVinculada is null || ClaveVinculada == providerKey ? DuenaDeLaIdentidad : null);
+        }
 
         public ApplicationUser? CuentaPorCorreo { get; init; }
 

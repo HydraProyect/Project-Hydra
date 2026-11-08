@@ -87,9 +87,21 @@ public static class InicioSesionMicrosoft
     private static readonly string[] TiposClaimAmr = ["amr", "http://schemas.microsoft.com/claims/authnmethodsreferences"];
 
     /// <summary>
+    /// Métodos de <c>amr</c> que acreditan por sí solos la MFA: lista cerrada (regla del
+    /// login corporativo, D-L6 de 2026-11-08). <c>mfa</c>; <c>ngcmfa</c>, que Entra emite
+    /// como equivalente de <c>mfa</c> para credenciales avanzadas (Windows Hello, clave de
+    /// acceso); y <c>fido</c>, llave FIDO2, a la que Entra exige verificación del usuario.
+    /// Cualquier otro valor (<c>pwd</c>, <c>otp</c>, <c>wiaormfa</c>…) no cuenta, ni
+    /// combinado con otros. ASVS 4.0.3 V4.3.1 y V2.9.
+    /// </summary>
+    public static readonly IReadOnlyList<string> MetodosAmrMultifactor = ["mfa", "ngcmfa", "fido"];
+
+    /// <summary>
     /// Si el token de Microsoft acredita la MFA (decisión D-2, exactamente en este
-    /// orden): el contexto de autenticación configurado en <c>acrs</c>; si no, <c>mfa</c>
-    /// en <c>amr</c>. Sin contexto configurado, <c>acrs</c> no se mira.
+    /// orden): el contexto de autenticación configurado en <c>acrs</c>; si no, un método
+    /// de <see cref="MetodosAmrMultifactor"/> en <c>amr</c>. Sin contexto configurado,
+    /// <c>acrs</c> no se mira. <c>acr</c> nunca cuenta: dice el nivel que pidió la
+    /// aplicación, no qué métodos se usaron.
     /// </summary>
     public static bool MfaAcreditadaPorMicrosoft(ClaimsPrincipal principalExterno, string? contextoAutenticacionMfa)
     {
@@ -100,7 +112,50 @@ public static class InicioSesionMicrosoft
             return true;
 
         return principalExterno.Claims.Where(c => TiposClaimAmr.Contains(c.Type, StringComparer.Ordinal))
-            .SelectMany(Valores).Contains("mfa", StringComparer.Ordinal);
+            .SelectMany(Valores).Any(metodo => MetodosAmrMultifactor.Contains(metodo, StringComparer.Ordinal));
+    }
+
+    // «oid» y «tid» llegan con su nombre o, con el mapeo de entrada del manejador, con estos.
+    private static readonly string[] TiposClaimOid = ["oid", "http://schemas.microsoft.com/identity/claims/objectidentifier"];
+    private static readonly string[] TiposClaimTid = ["tid", "http://schemas.microsoft.com/identity/claims/tenantid"];
+
+    /// <summary>
+    /// La clave con la que se vincula una identidad de Microsoft a una cuenta de TALVEG:
+    /// <c>oid</c> + <c>tid</c> del token de ID, como <c>{oid}.{tid}</c> en forma canónica
+    /// (GUID en minúsculas). Es el identificador que Microsoft da por inmutable para una
+    /// persona de un directorio; el correo y <c>preferred_username</c> los edita quien
+    /// administra el directorio (hueco 2 del análisis del login corporativo, D-L6;
+    /// ASVS 4.0.3 V3.5.3, OWASP Top 10 A07:2021).
+    /// <para>
+    /// <c>null</c>, y el callback rechaza, si falta <c>oid</c> o <c>tid</c>, si no son GUID,
+    /// si vienen repetidos con valores distintos o si <c>tid</c> no es el directorio
+    /// configurado en <see cref="AzureAdOptions.TenantId"/> cuando este es un GUID (con un
+    /// nombre de dominio, el emisor ya lo valida el manejador).
+    /// </para>
+    /// </summary>
+    public static string? ClaveIdentidadEstable(ClaimsPrincipal principalExterno, string? tenantIdConfigurado)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+
+        if (GuidUnico(principalExterno, TiposClaimOid) is not { } oid
+            || GuidUnico(principalExterno, TiposClaimTid) is not { } tid)
+            return null;
+
+        if (Guid.TryParse(tenantIdConfigurado, out var directorio) && directorio != tid)
+            return null;
+
+        return $"{oid:D}.{tid:D}";
+    }
+
+    private static Guid? GuidUnico(ClaimsPrincipal principal, string[] tipos)
+    {
+        var valores = principal.Claims
+            .Where(c => tipos.Contains(c.Type, StringComparer.Ordinal))
+            .Select(c => Guid.TryParse(c.Value.Trim(), out var g) ? g : (Guid?)null)
+            .ToList();
+        return valores.Count > 0 && valores.All(v => v is not null) && valores.Distinct().Count() == 1
+            ? valores[0]
+            : null;
     }
 
     /// <summary>
@@ -307,14 +362,27 @@ public static class InicioSesionMicrosoft
     /// (<c>AspNetUserLogins</c>) y el correo se resuelven antes de que haya Tenant.
     /// Devuelve la cuenta con la que se entra, la que hay que vincular o, en un
     /// rechazo, la que se intentó abrir (para la vigilancia de su Tenant).
+    /// <para>
+    /// <paramref name="identidad"/> lleva la clave <c>oid</c> + <c>tid</c>
+    /// (<see cref="ClaveIdentidadEstable"/>). Camino de compatibilidad: los vínculos
+    /// guardados antes de esa clave llevan la del manejador OpenID Connect
+    /// (<paramref name="claveHeredada"/>, el <c>sub</c> del token, que Entra emite por
+    /// persona y aplicación y tampoco cambia). Si no hay vínculo con la clave nueva, se
+    /// busca con la heredada: es la misma persona del mismo directorio, firmada en el
+    /// mismo token, así que ninguna cuenta ya vinculada se queda fuera ni puede abrirla
+    /// otra identidad. El correo solo se mira sin vínculo con ninguna de las dos.
+    /// </para>
     /// </summary>
     public static async Task<(DecisionCuentaMicrosoft Decision, ApplicationUser? Cuenta)> ResolverCuentaAsync(
-        UserManager<ApplicationUser> userManager, UserLoginInfo identidad, string email, Guid tenantDestino)
+        UserManager<ApplicationUser> userManager, UserLoginInfo identidad, string email, Guid tenantDestino, string? claveHeredada = null)
     {
         ArgumentNullException.ThrowIfNull(userManager);
         ArgumentNullException.ThrowIfNull(identidad);
 
         var vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, identidad.ProviderKey);
+        if (vinculada is null && !string.IsNullOrWhiteSpace(claveHeredada)
+            && !string.Equals(claveHeredada, identidad.ProviderKey, StringComparison.Ordinal))
+            vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, claveHeredada);
         ApplicationUser? porCorreo = null;
         var porCorreoTieneOtraIdentidad = false;
         if (vinculada is null)
@@ -354,8 +422,10 @@ public static class InicioSesionMicrosoft
     /// Con qué cuenta de TALVEG entra una identidad de Microsoft.
     ///
     /// <para>
-    /// Primero manda el vínculo ya guardado (proveedor + clave de la identidad, que
-    /// no cambia aunque cambie el correo). Solo sin vínculo se mira el correo, y el
+    /// Primero manda el vínculo ya guardado (proveedor + <c>oid</c> y <c>tid</c> de la
+    /// identidad, o el <c>sub</c> de un vínculo anterior a esa clave; ninguno cambia
+    /// aunque cambie el correo). Solo sin vínculo se mira el correo, y solo para la
+    /// primera vinculación de una cuenta creada antes por invitación. El
     /// correo de Entra es un atributo editable por quien administra el directorio:
     /// no prueba que la persona sea la dueña de una cuenta de TALVEG. Por eso una
     /// coincidencia de correo solo se acepta en el Tenant propietario declarado para

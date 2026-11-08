@@ -120,6 +120,25 @@ public static class IdentityEndpointsExtensions
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
 
+            // Clave del vínculo: oid + tid del token, nunca el correo (hueco 2 del login
+            // corporativo, D-L6; ASVS 4.0.3 V3.5.3). Sin ellos, o con el tid de otro
+            // directorio, no se sigue: sin clave estable no hay con qué buscar ni guardar
+            // el vínculo. La clave del manejador (sub) solo sirve para encontrar los
+            // vínculos guardados antes de este cambio (ResolverCuentaAsync).
+            var claveEstable = InicioSesionMicrosoft.ClaveIdentidadEstable(infoExterna.Principal, opcionesAzureAd.Value.TenantId);
+            if (claveEstable is null)
+            {
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("Login de Microsoft rechazado: el token de la identidad {ClaveIdentidad} no trae oid y tid válidos del directorio configurado.",
+                        infoExterna.ProviderKey);
+                await vigilancia.RegistrarAsync(null, opcionesAzureAd.Value.TenantDestino,
+                    MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Fallido);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+            var identidad = new UserLoginInfo(infoExterna.LoginProvider, claveEstable, infoExterna.ProviderDisplayName);
+
+            // El correo solo sirve para la primera vinculación de una cuenta creada por invitación.
             var email = infoExterna.Principal.FindFirstValue(ClaimTypes.Email)
                 ?? infoExterna.Principal.FindFirstValue("preferred_username");
 
@@ -145,7 +164,8 @@ public static class IdentityEndpointsExtensions
             // o de Soporte TALVEG, se vinculaba a ella y entraba sin su contraseña ni
             // su segundo factor.
             var tenantDestino = opcionesAzureAd.Value.TenantDestino;
-            var (decision, usuario) = await InicioSesionMicrosoft.ResolverCuentaAsync(userManager, infoExterna, email, tenantDestino);
+            var (decision, usuario) = await InicioSesionMicrosoft.ResolverCuentaAsync(
+                userManager, identidad, email, tenantDestino, claveHeredada: infoExterna.ProviderKey);
 
             switch (decision)
             {
@@ -167,7 +187,7 @@ public static class IdentityEndpointsExtensions
                     // necesita es que le den de alta.
                     loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                         .LogWarning("Login de Microsoft rechazado: ninguna cuenta del Tenant {TenantId} tiene el correo de la identidad {ClaveIdentidad}.",
-                            tenantDestino, infoExterna.ProviderKey);
+                            tenantDestino, identidad.ProviderKey);
                     await vigilancia.RegistrarAsync(null, tenantDestino, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Fallido);
                     await signInManager.SignOutAsync();
                     return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
@@ -264,7 +284,7 @@ public static class IdentityEndpointsExtensions
                 // sesión la emite Identity al verificar el código, con el proveedor
                 // externo, y SignInManagerCuentaDesactivada le pone la marca de inicio con SSO.
                 await httpContext.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
-                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null, altaTotp));
+                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? identidad : null, altaTotp));
                 await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
                 loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                     .LogInformation(altaTotp

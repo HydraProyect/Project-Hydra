@@ -343,6 +343,36 @@ public class RlsAspNetUsersBajoRuntimeTests
         }
     }
 
+    /// <summary>
+    /// Camino de compatibilidad de la clave oid + tid (D-L6): un vínculo guardado antes con el sub
+    /// del manejador se encuentra con la clave heredada, con el UserManager real y sin Tenant; la
+    /// clave heredada de otra persona no lo encuentra, y su correo no vincula una segunda identidad.
+    /// </summary>
+    [Fact]
+    public async Task Microsoft_encuentra_el_vinculo_anterior_por_sub_solo_para_su_identidad()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var claveNueva = "6f1e2d3c-4b5a-4968-8776-655443322110.9b1c2d3e-0000-4000-8000-00000000c0de";
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var propia = await usuarios.FindByEmailAsync(e.PropiaX.Email!);
+            (await usuarios.AddLoginAsync(propia!, IdentidadMicrosoft("sub-heredado"))).Succeeded.Should().BeTrue();
+
+            var (misma, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft(claveNueva), "otro-correo@ejemplo.test", e.TenantX, claveHeredada: "sub-heredado");
+            misma.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.EntrarConCuentaVinculada);
+            cuenta!.Id.Should().Be(e.PropiaX.Id);
+
+            var (otra, _) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("6f1e2d3c-4b5a-4968-8776-000000000999.9b1c2d3e-0000-4000-8000-00000000c0de"),
+                e.PropiaX.Email!, e.TenantX, claveHeredada: "sub-de-otra-persona");
+            otra.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad);
+        }
+    }
+
     [Fact]
     public async Task Microsoft_no_entra_con_un_vinculo_de_otro_Tenant()
     {
