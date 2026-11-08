@@ -150,11 +150,12 @@ public class SerializacionAltasAcreditacionEmpresaTests
     private const string EsElCandadoDeLaClave =
         "locktype = 'advisory' AND objsubid = 1 AND ((classid::bigint << 32) | objid::bigint) = hashtextextended(@clave, 0)";
 
+    private const string CandadosDelTenantConcedidosEnEstaSesion =
+        "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND objsubid = 1 " +
+        "AND ((classid::bigint << 32) | objid::bigint) = hashtextextended({0}, 0) AND granted AND pid = pg_backend_pid()";
+
     private Task<int> CandadosDelTenantConcedidosEnEstaSesionAsync(CaeManagerDbContext contexto, CancellationToken ct) =>
-        contexto.Database.SqlQueryRaw<int>(
-                $"SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE {EsElCandadoDeLaClave.Replace("@clave", "{0}")} AND granted AND pid = pg_backend_pid()",
-                ClaveDelCandado)
-            .SingleAsync(ct);
+        contexto.Database.SqlQueryRaw<int>(CandadosDelTenantConcedidosEnEstaSesion, ClaveDelCandado).SingleAsync(ct);
 
     private static async Task EsperarCandadoEnEsperaAsync(string cadenaPropietario, int pid, string clave)
     {
