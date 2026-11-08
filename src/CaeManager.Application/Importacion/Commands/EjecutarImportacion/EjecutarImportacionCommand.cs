@@ -119,7 +119,8 @@ public class EjecutarImportacionCommandHandler(
     IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EjecutarImportacionCommand, Result<ResultadoImportacionDto>>
 {
     // Restaura en Application el límite que ya exponen las 4 páginas de importación (@attribute [Authorize(Roles = ConCargaMasivaCsv)]):
@@ -661,13 +662,7 @@ public class EjecutarImportacionCommandHandler(
         // Trabajador y de su Empresa que ese Centro exige. Una importación
         // repetida no crea Documentos ni Asignaciones nuevas, así que tampoco
         // duplica acreditaciones.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
-        {
-            Documentos = documentosNuevos,
-            Asignaciones = asignacionesNuevas,
-            Trabajadores = trabajadoresNuevos,
-        }, cancellationToken);
-
+        //
         // Guarda TODO lo pendiente (Empresa/Trabajador/Documento/Asignación/
         // Acreditación de los bucles de arriba, junto con la fila de OperacionImportacion
         // agregada al principio) en un único SaveChangesAsync — así, si dos
@@ -675,7 +670,34 @@ public class EjecutarImportacionCommandHandler(
         // el índice único de OperacionImportacion y su transacción entera se
         // descarta: ninguna de sus filas llega a escribirse. Ver el comentario
         // de la clase y de OperacionImportacion.cs para el diseño completo.
-        if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+        var yaEjecutada = false;
+        async Task<Result> GuardarAsync(CancellationToken ct)
+        {
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion
+            {
+                Documentos = documentosNuevos,
+                Asignaciones = asignacionesNuevas,
+                Trabajadores = trabajadoresNuevos,
+            }, ct);
+
+            if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(ct))
+                return Result.Exito();
+
+            // Fallo para que la transacción de la serialización se deshaga; el llamante lo traduce a «ya ejecutada».
+            yaEjecutada = true;
+            return Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."));
+        }
+
+        // Una Asignación nueva pone en juego los Documentos de la Empresa del Trabajador en un Centro de otra Empresa:
+        // se serializa con el alta de un Documento de Empresa, igual que CrearAsignacionCommand (revisión Codex de la
+        // PR #2074, ronda 3, hallazgo 4). Lo importado ya está agregado al contexto, así que la serialización no
+        // reintenta: un fallo transitorio falla la importación en vez de confirmar solo una parte.
+        if (asignacionesNuevas.Count > 0)
+            await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken);
+        else
+            await GuardarAsync(cancellationToken);
+
+        if (yaEjecutada)
             return ResultadoImportacionDto.YaEjecutada();
 
         return new ResultadoImportacionDto(

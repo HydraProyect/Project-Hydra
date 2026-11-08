@@ -55,7 +55,7 @@ public class CrearYEditarTipoDocumentoAliasesTests
         tipo.EstablecerAliases(["TC2"]);
         repositorio.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            repositorio, new TipoDocumentoCentroRepositorioFalso(), new CentrosQueryContextFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

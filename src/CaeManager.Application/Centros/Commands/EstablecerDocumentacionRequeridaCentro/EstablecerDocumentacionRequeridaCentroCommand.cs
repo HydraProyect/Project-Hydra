@@ -52,7 +52,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
     IUnitOfWork unitOfWork,
-    IVerificadorArchivoAlmacenado verificadorArchivo)
+    IVerificadorArchivoAlmacenado verificadorArchivo,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -101,31 +102,44 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
                     || !await ArchivoRequisitoEsValidoAsync(archivoUrl, cancellationToken))))
                 return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));
         }
-        if (fila is null)
-        {
-            fila = new TipoDocumentoCentro(
-                request.TipoDocumentoId, request.CentroId, request.Incluido,
-                request.PeriodicidadEspecialMeses, request.BloqueaAcceso, request.ArchivoUrl, request.NombreArchivoOriginal,
-                request.ToleranciaDias);
-            repositorio.Agregar(fila);
-        }
-        else
-        {
-            fila.Actualizar(
-                request.Incluido, request.PeriodicidadEspecialMeses, request.BloqueaAcceso,
-                request.ArchivoUrl, request.NombreArchivoOriginal, request.ToleranciaDias);
-        }
-
         // Si el Centro pasa a exigir el tipo, los Documentos de ese tipo de
         // quienes ya trabajan en él nacen pendientes de acreditar ante sus
         // accesos de plataforma. Si deja de exigirlo, no se retira ninguna
         // acreditación (ver IAltaAcreditacionesPlataformaService). Mismo
         // SaveChangesAsync que la fila.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = [fila] }, cancellationToken);
+        async Task<Result> GuardarAsync(CancellationToken ct)
+        {
+            // Para el reintento, que empieza con el contexto vacío: la fila de arriba ya no está rastreada y se vuelve
+            // a leer. En el primer intento la lectura devuelve la misma instancia rastreada; si no había fila, consulta
+            // otra vez la base y ve la que otro haya confirmado mientras esta esperaba.
+            var actual = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, ct);
+            if (actual is null)
+            {
+                actual = new TipoDocumentoCentro(
+                    request.TipoDocumentoId, request.CentroId, request.Incluido,
+                    request.PeriodicidadEspecialMeses, request.BloqueaAcceso, request.ArchivoUrl, request.NombreArchivoOriginal,
+                    request.ToleranciaDias);
+                repositorio.Agregar(actual);
+            }
+            else
+            {
+                actual.Actualizar(
+                    request.Incluido, request.PeriodicidadEspecialMeses, request.BloqueaAcceso,
+                    request.ArchivoUrl, request.NombreArchivoOriginal, request.ToleranciaDias);
+            }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Requisitos = [actual] }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }
 
-        return Result.Exito();
+        // Pasar a exigir el tipo se serializa con el alta de un Documento de Empresa (ver
+        // ISerializacionAltasAcreditacionEmpresa): sin ello, el Documento lee el requisito antiguo, esta edición no ve el
+        // Documento y el par se pierde (revisión Codex de la PR #2074, ronda 3, hallazgo 2). Dejar de exigirlo no da de
+        // alta nada que pueda perderse.
+        return request.Incluido
+            ? await serializacionAltas.EjecutarAsync(GuardarAsync, cancellationToken)
+            : await GuardarAsync(cancellationToken);
     }
 
     private static bool ExtensionCoincide(string archivoUrl, string? nombreOriginal) =>

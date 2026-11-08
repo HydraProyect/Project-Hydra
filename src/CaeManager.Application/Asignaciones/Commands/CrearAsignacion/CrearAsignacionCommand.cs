@@ -20,7 +20,8 @@ public class CrearAsignacionCommandValidator : AbstractValidator<CrearAsignacion
 
 public class CrearAsignacionCommandHandler(
     IAsignacionRepository repositorio, IAutoridadAsignacionesService autoridad,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<CrearAsignacionCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearAsignacionCommand request, CancellationToken cancellationToken)
@@ -59,16 +60,24 @@ public class CrearAsignacionCommandHandler(
                 "Este trabajador ya tuvo una asignación a este centro cuyo periodo se solapa con esta fecha de alta."));
 
         var asignacion = new Asignacion(request.TrabajadorId, request.CentroId, request.FechaAlta);
-        repositorio.Agregar(asignacion);
 
         // Estar asignado es estar de alta en la plataforma del Centro: los
         // Documentos del Trabajador y de su Empresa que ese Centro exige nacen
         // pendientes de acreditar ante cada acceso de plataforma del Centro.
-        // Mismo SaveChangesAsync que la Asignación.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = [asignacion] }, cancellationToken);
+        // Mismo SaveChangesAsync que la Asignación. Se serializa con el alta de
+        // un Documento de Empresa (ver ISerializacionAltasAcreditacionEmpresa):
+        // sin ello, el Documento no ve la Asignación, la Asignación no ve el
+        // Documento y el par del Centro de otra Empresa se pierde (revisión
+        // Codex de la PR #2074, ronda 3, hallazgo 4). La Asignación se agrega
+        // dentro: un reintento empieza con el contexto vacío.
+        var guardado = await serializacionAltas.EjecutarAsync(async ct =>
+        {
+            repositorio.Agregar(asignacion);
+            await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = [asignacion] }, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result.Exito();
+        }, cancellationToken);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito(asignacion.Id);
+        return guardado.EsExitoso ? Result.Exito(asignacion.Id) : Result.Fallo<Guid>(guardado.Error);
     }
 }

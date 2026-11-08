@@ -65,10 +65,21 @@ public class EditarTipoDocumentoCommandValidator : AbstractValidator<EditarTipoD
 public class EditarTipoDocumentoCommandHandler(
     ITipoDocumentoRepository repositorio, ITipoDocumentoCentroRepository tipoDocumentoCentroRepositorio,
     ICentrosQueryContext centrosContext, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
+    ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<EditarTipoDocumentoCommand, Result>
 {
-    public async Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// La edición puede empezar a exigir el tipo (de serie o en Centros nuevos), así que se serializa con el alta de un
+    /// Documento de Empresa (ver <see cref="ISerializacionAltasAcreditacionEmpresa"/>): sin ello, el Documento lee el
+    /// requisito antiguo, la edición no ve el Documento y el par se pierde (revisión Codex de la PR #2074, ronda 3,
+    /// hallazgo 2). Saber si la empieza a exigir pide leer el tipo y sus filas, así que se serializa siempre y todo se
+    /// lee dentro: un reintento empieza con el contexto vacío.
+    /// </summary>
+    public Task<Result> Handle(EditarTipoDocumentoCommand request, CancellationToken cancellationToken) =>
+        serializacionAltas.EjecutarAsync(ct => EditarAsync(request, ct), cancellationToken);
+
+    private async Task<Result> EditarAsync(EditarTipoDocumentoCommand request, CancellationToken cancellationToken)
     {
         var tipoDocumento = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (tipoDocumento is null)

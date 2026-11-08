@@ -119,7 +119,7 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
         tipo.Archivar(null);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var exigir = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),

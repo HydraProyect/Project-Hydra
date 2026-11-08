@@ -4,7 +4,12 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 
 /// <summary>
 /// Serializa, dentro de un Tenant, las altas que ponen un Documento de Empresa ante los accesos de plataforma de sus
-/// Centros (regla A-1): el alta de un Documento de Empresa y el de un acceso de plataforma.
+/// Centros (regla A-1): el alta de un Documento de Empresa (crear, renovar con archivo, generar desde plantilla) y toda
+/// operación que cambie a qué Centros llega: el alta de un acceso de plataforma, empezar a exigir un tipo en un Centro o
+/// de serie (EstablecerDocumentacionRequeridaCentro, EditarTipoDocumento), volver a gestión CAE
+/// (EstablecerGestionCaeCentro) y crear o reabrir una Asignación (CrearAsignacion, CrearAsignaciones,
+/// ReactivarAsignacion, EjecutarImportacion con Asignaciones nuevas). Revisión Codex de la PR #2074, ronda 3, hallazgos
+/// 2 a 4.
 ///
 /// <para>
 /// Sin ella, las dos altas simultáneas leen antes de que la otra confirme: el Documento no ve el acceso nuevo, el acceso
@@ -17,7 +22,9 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// <para>
 /// La clave es el Tenant, no la Empresa: el acceso de un Centro afecta a los Documentos de su Empresa y de las Empresas
 /// de quienes trabajan en él, y derivar ese conjunto exigiría una lectura previa al candado. Solo esperan entre sí estas
-/// dos altas, y el candado dura lo que su guardado. Mismo mecanismo que <c>IBloqueoEstadoOperativoTenant</c>; el candado
+/// operaciones, y el candado dura lo que su guardado. Cada una lo toma al empezar su transacción, antes de cualquier otro
+/// candado de la operación; dentro de la misma transacción, volver a pedirlo no espera (PostgreSQL lo cuenta otra vez y
+/// lo suelta todo al terminar). Mismo mecanismo que <c>IBloqueoEstadoOperativoTenant</c>; el candado
 /// no toca ninguna tabla, así que la RLS no interviene, y <c>cae_app_runtime</c> no necesita ningún privilegio para él.
 /// </para>
 ///

@@ -350,7 +350,7 @@ public class CentroSinGestionCaeTests
         var sinGestion = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, centroIdsVisibles: [_conGestion.Id], centroIdsParaGestion: []);
 
-        var resultado = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), sinGestion, unidad)
+        var resultado = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), sinGestion, unidad, new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa())
             .Handle(new EstablecerGestionCaeCentroCommand(_conGestion.Id, ModalidadGestionCae.SinGestionCae), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
@@ -360,7 +360,7 @@ public class CentroSinGestionCaeTests
         var conGestion = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, centroIdsVisibles: [_conGestion.Id], centroIdsParaGestion: [_conGestion.Id]);
 
-        var permitido = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), conGestion, unidad)
+        var permitido = await new EstablecerGestionCaeCentroCommandHandler(repositorio, _centros, new MundoAcreditaciones().Servicio(), conGestion, unidad, new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa())
             .Handle(new EstablecerGestionCaeCentroCommand(_conGestion.Id, ModalidadGestionCae.SinGestionCae), CancellationToken.None);
 
         permitido.EsExitoso.Should().BeTrue();
@@ -385,7 +385,8 @@ public class CentroSinGestionCaeTests
         repositorio.Agregar(centro);
         var unidad = new UnitOfWorkFalso();
         EstablecerGestionCaeCentroCommandHandler Handler() =>
-            new(repositorio, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unidad);
+            new(repositorio, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unidad,
+                new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await Handler().Handle(
             new EstablecerGestionCaeCentroCommand(centro.Id, ModalidadGestionCae.ConGestionCae), CancellationToken.None);

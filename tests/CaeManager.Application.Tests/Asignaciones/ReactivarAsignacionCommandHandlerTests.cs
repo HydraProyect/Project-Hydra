@@ -33,7 +33,7 @@ public class ReactivarAsignacionCommandHandlerTests
     }
 
     private Task<Domain.Common.Result> Reactivar(Guid id, AutoridadFalsa? autoridad = null) =>
-        new ReactivarAsignacionCommandHandler(_repositorio, autoridad ?? new AutoridadFalsa(), _altaAcreditaciones, _unitOfWork)
+        new ReactivarAsignacionCommandHandler(_repositorio, autoridad ?? new AutoridadFalsa(), _altaAcreditaciones, _unitOfWork, new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa())
             .Handle(new ReactivarAsignacionCommand(id), CancellationToken.None);
 
     [Fact]

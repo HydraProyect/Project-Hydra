@@ -130,7 +130,7 @@ public class CaminosDeAltaAcreditacionesTests
         var deLaEmpresa = mundo.DocumentoDeEmpresa(mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC"));
         mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.No, nombre: "Carné de carretillero"));
         var handler = new CrearAsignacionCommandHandler(
-            new AsignacionRepositorioFalso(), new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso());
+            new AsignacionRepositorioFalso(), new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new CrearAsignacionCommand(trabajador.Id, centro.Id, Hoy), CancellationToken.None);
 
@@ -155,7 +155,7 @@ public class CaminosDeAltaAcreditacionesTests
         var cerrada = new Domain.Asignaciones.Asignacion(trabajador.Id, centro.Id, Hoy.AddDays(-30));
         cerrada.DarDeBaja(Hoy);
         repositorio.Asignaciones.Add(cerrada);
-        var handler = new ReactivarAsignacionCommandHandler(repositorio, new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso());
+        var handler = new ReactivarAsignacionCommandHandler(repositorio, new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new ReactivarAsignacionCommand(cerrada.Id), CancellationToken.None);
 
@@ -176,7 +176,7 @@ public class CaminosDeAltaAcreditacionesTests
         var centroQueNoLoExige = mundo.Centro("Planta Sur");
         mundo.AccesoPlataforma(centroQueNoLoExige);
         var handler = new CrearAsignacionesCommandHandler(
-            new AsignacionRepositorioFalso(), mundo.AsignacionesContexto, new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso());
+            new AsignacionRepositorioFalso(), mundo.AsignacionesContexto, new AutoridadTotal(), mundo.Servicio(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new CrearAsignacionesCommand([trabajador.Id], [centroQueLoExige.Id, centroQueNoLoExige.Id], Hoy), CancellationToken.None);
@@ -400,7 +400,7 @@ public class CaminosDeAltaAcreditacionesTests
         var unit = new UnitOfWorkFalso();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
             mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
-            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
             centro.Id, tipo.Id, incluido, null, false, clave, nombreOriginal, 5), CancellationToken.None);
@@ -425,7 +425,7 @@ public class CaminosDeAltaAcreditacionesTests
         var unit = new UnitOfWorkFalso();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
             mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
-            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
             centro.Id, tipo.Id, true, null, false, claveNueva, "nueva.pdf", null), CancellationToken.None);
@@ -455,7 +455,7 @@ public class CaminosDeAltaAcreditacionesTests
         var unit = new UnitOfWorkFalso();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
             mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
-            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
             centro.Id, tipo.Id, true, null, false, clave, "archivo.pdf", 5), CancellationToken.None);
@@ -498,7 +498,7 @@ public class CaminosDeAltaAcreditacionesTests
         var unit = new UnitOfWorkFalso();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
             mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
-            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
             centro.Id, tipo.Id, true, null, false, clave, "archivo.pdf", null), CancellationToken.None);
@@ -539,7 +539,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.Si, nombre: "Reconocimiento médico"));
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),
@@ -562,7 +562,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, tipo);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: false, null, false, null, null, ToleranciaDias: null),
@@ -585,7 +585,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
@@ -614,7 +614,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
@@ -648,7 +648,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
@@ -673,7 +673,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipos = new TipoDocumentoRepositorioFalso();
         tipos.Agregar(tipo);
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            tipos, new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(
@@ -702,7 +702,7 @@ public class CaminosDeAltaAcreditacionesTests
         tipos.Agregar(tipo);
         var filas = new TipoDocumentoCentroRepositorioFalso();
         var handler = new EditarTipoDocumentoCommandHandler(
-            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            tipos, filas, mundo.CentrosContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
 
         var resultado = await handler.Handle(
             new EditarTipoDocumentoCommand(

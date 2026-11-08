@@ -365,6 +365,14 @@ public class AltaAcreditacionesPlataformaService(
         return resultado;
     }
 
+    /// <summary>
+    /// Empresa empleadora de cada Trabajador: <c>EmpresaId ?? SubcontrataId</c>, la misma que usan el cumplimiento del
+    /// Centro (<c>RequisitosObligatoriosIncumplidos</c>) y los pendientes en plataforma (<c>PendientesEnPlataformaDeCentros</c>).
+    /// Un Trabajador creado con <see cref="Trabajador.DeSubcontrata"/> tiene <c>EmpresaId</c> nulo y su Empresa en
+    /// <c>SubcontrataId</c> (deuda terminológica: la FK apunta a Empresas, ver <c>TrabajadorConfiguration</c>); sin ella,
+    /// los Documentos de esa Empresa no llegaban por la vía de la Asignación (revisión Codex de la PR #2074, ronda 3,
+    /// hallazgo 1).
+    /// </summary>
     private async Task<Dictionary<Guid, Guid?>> CargarEmpresaDeTrabajadorAsync(
         IReadOnlyCollection<Trabajador> trabajadoresNuevos, IReadOnlySet<Guid> trabajadorIds, IReadOnlySet<Guid> empresaIds,
         CancellationToken cancellationToken)
@@ -374,14 +382,19 @@ public class AltaAcreditacionesPlataformaService(
         var empresaIdsConsulta = empresaIds.ToArray();
         if (trabajadorIds.Count > 0 || empresaIds.Count > 0)
             foreach (var t in await trabajadoresContext.Trabajadores
-                         .Where(t => trabajadorIdsConsulta.Contains(t.Id) || (t.EmpresaId != null && empresaIdsConsulta.Contains(t.EmpresaId.Value)))
-                         .Select(t => new { t.Id, t.EmpresaId })
+                         .Where(t => trabajadorIdsConsulta.Contains(t.Id)
+                             || (t.EmpresaId != null && empresaIdsConsulta.Contains(t.EmpresaId.Value))
+                             || (t.SubcontrataId != null && empresaIdsConsulta.Contains(t.SubcontrataId.Value)))
+                         .Select(t => new { t.Id, EmpresaEmpleadoraId = t.EmpresaId ?? t.SubcontrataId })
                          .ToListAsync(cancellationToken))
-                resultado[t.Id] = t.EmpresaId;
+                resultado[t.Id] = t.EmpresaEmpleadoraId;
 
-        foreach (var t in trabajadoresNuevos.Where(t =>
-                     trabajadorIds.Contains(t.Id) || (t.EmpresaId is not null && empresaIds.Contains(t.EmpresaId.Value))))
-            resultado[t.Id] = t.EmpresaId;
+        foreach (var t in trabajadoresNuevos)
+        {
+            var empresaEmpleadoraId = t.EmpresaId ?? t.SubcontrataId;
+            if (trabajadorIds.Contains(t.Id) || (empresaEmpleadoraId is not null && empresaIds.Contains(empresaEmpleadoraId.Value)))
+                resultado[t.Id] = empresaEmpleadoraId;
+        }
 
         return resultado;
     }

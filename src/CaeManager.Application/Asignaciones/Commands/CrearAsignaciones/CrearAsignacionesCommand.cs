@@ -58,7 +58,7 @@ public class CrearAsignacionesCommandValidator : AbstractValidator<CrearAsignaci
 public class CrearAsignacionesCommandHandler(
     IAsignacionRepository repositorio, IAsignacionesQueryContext asignacionesContext,
     IAutoridadAsignacionesService autoridad, IAltaAcreditacionesPlataformaService altaAcreditaciones,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
     : IRequestHandler<CrearAsignacionesCommand, Result<ResultadoAsignacionLoteDto>>
 {
     public async Task<Result<ResultadoAsignacionLoteDto>> Handle(CrearAsignacionesCommand request, CancellationToken cancellationToken)
@@ -148,7 +148,6 @@ public class CrearAsignacionesCommandHandler(
                 }
 
                 var asignacion = new Asignacion(trabajadorId, centroId, request.FechaAlta);
-                repositorio.Agregar(asignacion);
                 asignacionesNuevas.Add(asignacion);
                 creadas++;
             }
@@ -159,10 +158,23 @@ public class CrearAsignacionesCommandHandler(
                 $"{solapadas} combinación(es) se omitieron: la fecha de alta solapa con un periodo ya registrado (activo o cerrado) para ese mismo trabajador y centro.");
 
         // Misma regla que CrearAsignacionCommand, para todo el lote a la vez y en
-        // el mismo SaveChangesAsync.
-        await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, cancellationToken);
-
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // el mismo SaveChangesAsync, bajo la misma serialización (revisión Codex
+        // de la PR #2074, ronda 3, hallazgo 4). Las Asignaciones se agregan
+        // dentro: un reintento empieza con el contexto vacío. Sin Asignaciones
+        // nuevas no hay nada que guardar ni que serializar.
+        if (asignacionesNuevas.Count > 0)
+        {
+            var guardado = await serializacionAltas.EjecutarAsync(async ct =>
+            {
+                foreach (var asignacion in asignacionesNuevas)
+                    repositorio.Agregar(asignacion);
+                await altaAcreditaciones.AgregarPendientesAsync(new AltasConAcreditacion { Asignaciones = asignacionesNuevas }, ct);
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }, cancellationToken);
+            if (guardado.EsFallido)
+                return Result.Fallo<ResultadoAsignacionLoteDto>(guardado.Error);
+        }
 
         return Result.Exito(new ResultadoAsignacionLoteDto(creadas, yaActivas, solapadas, errores));
     }
