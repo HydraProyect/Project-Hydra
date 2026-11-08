@@ -18,6 +18,7 @@ using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -48,7 +49,9 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
             }));
 
         Guid tenantPropio, tenantOtro, proveedorId;
-        await using (var propietario = CrearContextoPropietario(arnes.CadenaPropietario))
+        // Sin auditoría: fuera de todo ámbito, el registro «Creado» del Tenant no tendría Tenant resuelto que sellar, y
+        // ni los Tenants ni el Proveedor necesitan alta auditada.
+        await using (var propietario = CrearContextoPropietario(arnes.CadenaPropietario, auditar: false))
         {
             var propio = new Tenant("Tenant propietario de la conciliación");
             var otro = new Tenant("Otro Tenant propietario");
@@ -252,12 +255,14 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
     /// el mismo guardado del acto, no el test. Así la conciliación, que acota las acreditaciones del acto por ese registro,
     /// se mide contra el instante que produce el cableado de producción.
     /// </summary>
-    private static CaeManagerDbContext CrearContextoPropietario(string cadenaPropietario)
+    private static CaeManagerDbContext CrearContextoPropietario(string cadenaPropietario, bool auditar = true)
     {
         var tenant = new TenantDelAmbito();
+        var sellado = new TenantSelladoInterceptor(tenant);
+        IInterceptor[] interceptores = auditar ? [new AuditoriaInterceptor(new ActorDeSiembra()), sellado] : [sellado];
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(cadenaPropietario)
-            .AddInterceptors(new AuditoriaInterceptor(new ActorDeSiembra()), new TenantSelladoInterceptor(tenant))
+            .AddInterceptors(interceptores)
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant);
     }
