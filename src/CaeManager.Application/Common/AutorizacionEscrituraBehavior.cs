@@ -51,8 +51,9 @@ namespace CaeManager.Application.Common;
 /// punto 3: una sesión con capacidad <c>RestablecimientoSegundoFactor</c> deja pasar
 /// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y una con
 /// <c>RevocacionOperadorCaeExterno</c> solo un
-/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/> y <c>ConcesionAdministrador</c> solo
-/// un <see cref="IComandoDeConcesionAdministrador"/>, cada una solo en su Tenant
+/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, <c>ConcesionAdministrador</c> solo
+/// un <see cref="IComandoDeConcesionAdministrador"/> y <c>AjusteSegundoFactorTenant</c> solo un
+/// <see cref="IComandoDeAjusteSegundoFactorTenant"/>, cada una solo en su Tenant
 /// objetivo. Ninguna es camino de escritura —la conexión sigue con el rol de solo
 /// lectura—: el acto lo ejecuta una función de la base que repite las
 /// comprobaciones.
@@ -191,6 +192,25 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
                 if (tenantActual.TenantId != sesion.TenantObjetivoId)
                     return CrearRespuestaFallo<TResponse>(Error.Crear(
                         "Autorizacion.ConcesionAdministradorFueraDelTenantObjetivo",
+                        "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
+
+                return await next(cancellationToken);
+            }
+
+            // Cuarta capacidad acotada (decisión del 2026-11-08): cambiar la exigencia de segundo
+            // factor para todos los perfiles del Tenant. Un solo comando, solo en el Tenant objetivo,
+            // y la escritura la hace app_cambiar_segundo_factor_tenant_por_plataforma, no esta
+            // conexión (ASVS 4.0.3 V4.1.3, V4.2.1).
+            if (sesion.Capacidad == CapacidadPrivilegio.AjusteSegundoFactorTenant)
+            {
+                if (request is not IComandoDeAjusteSegundoFactorTenant)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ComandoFueraDelAjusteSegundoFactor",
+                        "Esta sesión solo permite cambiar la exigencia de verificación en dos pasos de la organización."));
+
+                if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.AjusteSegundoFactorFueraDelTenantObjetivo",
                         "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
                 return await next(cancellationToken);
