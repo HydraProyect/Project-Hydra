@@ -57,11 +57,11 @@ public static class AutorizacionPaqueteEmpresa
 
     public static readonly Error DemasiadoGrande = Error.Crear(
         "PaqueteEmpresa.DemasiadoGrande",
-        $"El paquete pasa de {IPaqueteDocumentalEmpresaService.MaximoArchivos} archivos. Elige un Cliente concreto para prepararlo.");
+        $"El paquete pasa de {IPaqueteDocumentalEmpresaService.MaximoArchivos} archivos. Elige un Cliente empresarial concreto para prepararlo.");
 
     public static readonly Error DemasiadoPesado = Error.Crear(
         "PaqueteEmpresa.DemasiadoPesado",
-        $"El paquete pasa de {PaqueteDocumentalEmpresaService.MaximoBytes / (1024 * 1024)} MB. Elige un Cliente concreto para prepararlo.");
+        $"El paquete pasa de {PaqueteDocumentalEmpresaService.MaximoBytes / (1024 * 1024)} MB. Elige un Cliente empresarial concreto para prepararlo.");
 
     public static readonly Error ArchivosNoDisponibles = Error.Crear(
         "PaqueteEmpresa.ArchivosNoDisponibles",

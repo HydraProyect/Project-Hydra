@@ -73,7 +73,7 @@
     <value>Res del que demana aquest destí és vigent: no es genera el paquet.</value>
   </data>
   <data name="PasaDelLimite" xml:space="preserve">
-    <value>El paquet passa de {0} fitxers, el màxim que es prepara al moment. Tria un Client concret per generar-lo.</value>
+    <value>El paquet passa de {0} fitxers, el màxim que es prepara al moment. Tria un Client empresarial concret per generar-lo.</value>
   </data>
   <data name="SesionPrivilegiadaSinDescarga" xml:space="preserve">
     <value>En una sessió privilegiada de plataforma pots veure el resum del paquet, però no descarregar-lo.</value>

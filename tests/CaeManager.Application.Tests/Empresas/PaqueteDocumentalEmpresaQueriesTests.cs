@@ -48,6 +48,7 @@ public class PaqueteDocumentalEmpresaQueriesTests
     private AlcanceDatosServiceFalso _alcance = new();
     private string? _rol = "GestorCae";
     private SesionPrivilegiadaActiva? _sesionPrivilegiada;
+    private long _maximoBytes = PaqueteDocumentalEmpresaService.MaximoBytes;
 
     private readonly Empresa _empresa = new("Contratista Demo SL", "B12345674");
     private readonly Empresa _cliente = Empresa.CrearComoCliente("Refrielectric SA", "A58818501", false, null, null);
@@ -316,6 +317,15 @@ public class PaqueteDocumentalEmpresaQueriesTests
     }
 
     [Fact]
+    public async Task Un_paquete_de_Empresa_que_pasa_su_tope_de_bytes_responde_como_demasiado_pesado_y_no_registra_nada()
+    {
+        _maximoBytes = 10;
+
+        (await DescargarAsync(_cliente.Id)).Error.Should().Be(AutorizacionPaqueteEmpresa.DemasiadoPesado);
+        _registro.Registrados.Should().BeEmpty("no se entrega nada, así que no hay acceso que registrar");
+    }
+
+    [Fact]
     public async Task Sin_Sesion_Privilegiada_el_resumen_permite_descargar()
     {
         (await ResumirAsync(_cliente.Id)).Valor.PuedeDescargar.Should().BeTrue();
@@ -333,7 +343,7 @@ public class PaqueteDocumentalEmpresaQueriesTests
     {
         var servicio = new PaqueteDocumentalEmpresaService(
             _empresas, _trabajadores, _documentos, _tipos, _asignaciones, _centros, _calculo, _almacenamiento, _alcance,
-            NullLogger<PaqueteDocumentalEmpresaService>.Instance);
+            NullLogger<PaqueteDocumentalEmpresaService>.Instance) { MaximoBytesZip = _maximoBytes };
         var usuario = new CurrentUserServiceFalso(rol: _rol);
         var sesion = new SesionPrivilegiadaFija(_sesionPrivilegiada);
         return new Handlers(

@@ -182,7 +182,7 @@ public class PaqueteDocumentalEmpresaService(
             return documento.TrabajadorId is { } trabajadorId && carpetas.TryGetValue(trabajadorId, out var carpeta)
                 ? ($"Trabajadores/{carpeta}", tipoNombre)
                 : ("Empresa", tipoNombre);
-        }, almacenamiento, logger, cancellationToken, MaximoBytes, omitidos =>
+        }, almacenamiento, logger, cancellationToken, MaximoBytesZip, omitidos =>
         {
             noIncluidos.AddRange(omitidos.Select(g => DescribirPar(g[0], tipos, universo.Trabajadores, carpetas)));
             return noIncluidos.Count == 0 ? null : (NombreLeeme, TextoLeeme(noIncluidos));
@@ -206,6 +206,9 @@ public class PaqueteDocumentalEmpresaService(
     /// el presupuesto de memoria de documentos. Pasado el tope, la descarga responde como demasiado grande.
     /// </summary>
     public const long MaximoBytes = 200L * 1024 * 1024;
+
+    /// <summary>El tope que se aplica; solo los tests lo bajan, para probar el corte sin armar 200 MiB.</summary>
+    internal long MaximoBytesZip { get; init; } = MaximoBytes;
 
     /// <summary>
     /// La carpeta de cada Trabajador, «Nombre Apellidos». Dos Trabajadores con el mismo nombre (sin distinguir mayúsculas)

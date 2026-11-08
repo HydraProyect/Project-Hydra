@@ -649,7 +649,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var dialogo = cut.Find("[role=dialog]");
         dialogo.QuerySelectorAll("button").Should().NotContain(b => b.TextContent.Trim() == "Generar ZIP");
-        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("pasa de 200 archivos").And.Contain("Elige un Cliente concreto");
+        dialogo.QuerySelector(".paquete-aviso")!.TextContent.Should().Contain("pasa de 200 archivos").And.Contain("Elige un Cliente empresarial concreto");
     }
 
     [Fact]
