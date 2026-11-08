@@ -600,12 +600,15 @@ public class DataProtectionAwsSinInterbloqueoTests
         actual.LongitudDeclarada.Should().Be(anterior.Cuerpo.Length);
     }
 
-    [Fact]
-    public void StoreElement_con_reintentos_del_SDK_real_repone_el_cuerpo_y_lo_reenvia_entero_con_su_Content_Length()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StoreElement_con_reintentos_del_SDK_real_repone_el_cuerpo_y_lo_reenvia_entero_con_su_Content_Length(bool firmada)
     {
         // El primer intento lee el cuerpo entero y falla con un 500, que el SDK reintenta:
         // el reintento tiene que reponer el flujo (AutoResetStreamPosition) sin que se haya
-        // cerrado ni revocado entre intentos, y declarar la misma longitud.
+        // cerrado ni revocado entre intentos, y declarar la longitud de lo que envía. Con
+        // firma, el SDK lee el flujo para firmar el cuerpo (y lo trocea si usa aws-chunked).
         var elemento = new XElement("key", new XAttribute("id", "1"), new XElement("descriptor", "secreto con eñe"));
         var capturas = new ConcurrentQueue<PeticionCapturada>();
         var intentos = 0;
@@ -629,7 +632,7 @@ public class DataProtectionAwsSinInterbloqueoTests
             return respuesta;
         });
         using var cliente = new AmazonS3Client(
-            new Amazon.Runtime.AnonymousAWSCredentials(),
+            Credenciales(firmada),
             new AmazonS3Config
             {
                 RegionEndpoint = Amazon.RegionEndpoint.EUWest1,
@@ -642,16 +645,34 @@ public class DataProtectionAwsSinInterbloqueoTests
         capturas.Should().HaveCount(2, "el primer intento falla y el segundo tiene éxito");
         var primero = capturas.ElementAt(0);
         var segundo = capturas.ElementAt(1);
-        Encoding.UTF8.GetString(primero.Cuerpo).Should().Contain(
-            elemento.ToString(), "el primer intento envía el XML entero");
-        segundo.Cuerpo.Should().Equal(primero.Cuerpo, "el reintento repone el flujo y reenvía el cuerpo entero");
-        primero.LongitudDeclarada.Should().Be(primero.Cuerpo.Length);
-        segundo.LongitudDeclarada.Should().Be(segundo.Cuerpo.Length);
+        foreach (var intento in new[] { primero, segundo })
+        {
+            Encoding.UTF8.GetString(intento.Cuerpo).Should().Contain(
+                elemento.ToString(), "cada intento envía el XML entero, también el reintento");
+            intento.LongitudDeclarada.Should().Be(intento.Cuerpo.Length, "Content-Length es lo que se envía");
+        }
+
         segundo.CabecerasDeContenido.Should().Equal(primero.CabecerasDeContenido);
+        if (!firmada)
+        {
+            // Con firma, cada intento se firma de nuevo y las firmas de los trozos pueden
+            // cambiar; sin ella el cuerpo es el mismo byte a byte.
+            segundo.Cuerpo.Should().Equal(primero.Cuerpo);
+        }
     }
 
-    [Fact]
-    public void Una_escritura_abandonada_con_el_SDK_real_falla_al_leer_el_cuerpo_en_vez_de_enviar_ceros()
+    /// <summary>
+    /// Sin firma, o con una firma SigV4 calculada con credenciales inventadas para el test:
+    /// el manejador HTTP de prueba no las comprueba y nada sale a la red.
+    /// </summary>
+    private static Amazon.Runtime.AWSCredentials Credenciales(bool firmada) => firmada
+        ? new Amazon.Runtime.BasicAWSCredentials("clave-de-acceso-inventada", "secreto-inventado-para-el-test")
+        : new Amazon.Runtime.AnonymousAWSCredentials();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Una_escritura_abandonada_con_el_SDK_real_falla_al_leer_el_cuerpo_en_vez_de_enviar_ceros(bool firmada)
     {
         // La petición del SDK real llega al manejador HTTP antes de que empiece la espera
         // (PlanificadorEnLinea y la espera de abajo), y el manejador no lee el cuerpo hasta
@@ -680,7 +701,7 @@ public class DataProtectionAwsSinInterbloqueoTests
             return respuesta;
         });
         using var cliente = new AmazonS3Client(
-            new Amazon.Runtime.AnonymousAWSCredentials(),
+            Credenciales(firmada),
             new AmazonS3Config
             {
                 RegionEndpoint = Amazon.RegionEndpoint.EUWest1,
@@ -715,6 +736,97 @@ public class DataProtectionAwsSinInterbloqueoTests
             {
                 yield return actual;
             }
+        }
+    }
+
+    [Fact]
+    public void CuerpoRevocable_entrega_un_prefijo_y_tras_revocar_falla_por_todas_las_vias_sin_devolver_datos()
+    {
+        var original = Encoding.UTF8.GetBytes("<key id=\"7\"><descriptor>secreto</descriptor></key>");
+        var bytes = (byte[])original.Clone();
+        var cuerpo = new S3XmlRepository.CuerpoRevocable(bytes);
+        var prefijo = new byte[10];
+        cuerpo.ReadExactly(prefijo);
+        prefijo.Should().Equal(original.Take(10), "antes de revocar se lee el XML original");
+
+        cuerpo.Revocar();
+
+        bytes.Should().OnlyContain(b => b == 0, "revocar borra el búfer propio");
+        cuerpo.Borrado.Should().BeTrue();
+        cuerpo.CanRead.Should().BeFalse();
+        cuerpo.CanSeek.Should().BeFalse();
+        var trozo = new byte[16];
+        var vias = new (string Via, Action Accion)[]
+        {
+            ("Read(byte[])", () => cuerpo.Read(trozo, 0, trozo.Length)),
+            ("Read(Span)", () => cuerpo.Read(trozo.AsSpan())),
+            ("ReadAsync(Memory)", () => cuerpo.ReadAsync(trozo.AsMemory()).AsTask().GetAwaiter().GetResult()),
+            ("ReadAsync(byte[])", () => cuerpo.ReadAsync(trozo, 0, trozo.Length).GetAwaiter().GetResult()),
+            ("ReadByte", () => cuerpo.ReadByte()),
+            ("CopyTo", () => cuerpo.CopyTo(new MemoryStream())),
+            ("CopyToAsync", () => cuerpo.CopyToAsync(new MemoryStream()).GetAwaiter().GetResult()),
+            ("BeginRead", () => cuerpo.EndRead(cuerpo.BeginRead(trozo, 0, trozo.Length, null, null))),
+            ("Length", () => _ = cuerpo.Length),
+            ("Position", () => _ = cuerpo.Position),
+            ("Seek", () => cuerpo.Seek(0, SeekOrigin.Begin)),
+        };
+        foreach (var (via, accion) in vias)
+        {
+            accion.Should().Throw<Exception>($"{via} no puede leer ni reponer un cuerpo revocado");
+        }
+
+        trozo.Should().OnlyContain(b => b == 0, "ninguna vía llegó a copiar nada en el búfer de destino");
+        cuerpo.Dispose();
+        cuerpo.Dispose();
+    }
+
+    [Fact]
+    public void CuerpoRevocable_no_entrega_ceros_aunque_se_revoque_durante_una_lectura()
+    {
+        // Un lector en bucle y una revocación concurrente, sobre material sin ningún cero:
+        // cada lectura entrega bytes íntegros o lanza. Sin el cerrojo compartido, una copia
+        // que coincidiera con el borrado entregaría ceros. El verde es determinista; que el
+        // test detecte la ausencia del cerrojo es probabilístico (de ahí las vueltas).
+        for (var vuelta = 0; vuelta < 200; vuelta++)
+        {
+            var bytes = new byte[256 * 1024];
+            Array.Fill(bytes, (byte)'k');
+            var cuerpo = new S3XmlRepository.CuerpoRevocable(bytes);
+            using var leyendo = new ManualResetEventSlim();
+            var lecturasConCeros = 0;
+            var lector = Task.Run(() =>
+            {
+                var trozo = new byte[64 * 1024];
+                try
+                {
+                    while (true)
+                    {
+                        var leidos = cuerpo.Read(trozo, 0, trozo.Length);
+                        if (leidos == 0)
+                        {
+                            cuerpo.Seek(0, SeekOrigin.Begin);
+                            continue;
+                        }
+
+                        if (trozo.AsSpan(0, leidos).IndexOf((byte)0) >= 0)
+                        {
+                            Interlocked.Increment(ref lecturasConCeros);
+                            return;
+                        }
+
+                        leyendo.Set();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Lo esperado tras revocar.
+                }
+            });
+
+            leyendo.Wait(EsperaMaxima).Should().BeTrue("el lector debe estar leyendo antes de revocar");
+            cuerpo.Revocar();
+            lector.Wait(EsperaMaxima).Should().BeTrue();
+            Volatile.Read(ref lecturasConCeros).Should().Be(0, $"vuelta {vuelta}: ninguna lectura entrega ceros");
         }
     }
 

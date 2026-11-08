@@ -34,17 +34,17 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// vez de quedarse esperando.
 ///
 /// Operaciones abandonadas: una operación que no terminó en el límite sigue su curso
-/// hasta que el SDK atienda la cancelación. Una escritura en S3 cuyo cuerpo ya se leyó entero puede
-/// completarse después, y Data Protection, que la da por fallida, generará otra clave;
-/// las dos son válidas. Una cuyo cuerpo aún no se había leído entero falla, porque
-    /// <see cref="S3XmlRepository"/> revoca el cuerpo al volver (ver
-    /// <see cref="S3XmlRepository.CuerpoRevocable"/>): S3 no llega a recibirlo completo.
-    /// Cuando la operación abandonada termina, sea cual sea su estado,
-/// una continuación encolada en el pool (nunca en el hilo del llamante, tampoco si la
-/// operación terminó justo al vencer la espera) observa su excepción tardía (no llega a
+/// hasta que el SDK atienda la cancelación. Una escritura en S3 cuyo cuerpo ya se leyó
+/// entero puede completarse después, y Data Protection, que la da por fallida, generará
+/// otra clave; las dos son válidas. Una cuyo cuerpo aún no se había leído entero falla,
+/// porque <see cref="S3XmlRepository"/> revoca el cuerpo al volver (ver
+/// <see cref="S3XmlRepository.CuerpoRevocable"/>): S3 no llega a recibirlo completo.
+/// Cuando la operación abandonada termina, sea cual sea su estado, una continuación
+/// encolada en el pool (nunca en el hilo del llamante, tampoco si la operación terminó
+/// justo al vencer la espera) observa su excepción tardía (no llega a
 /// <see cref="TaskScheduler.UnobservedTaskException"/>), pasa su resultado tardío por
-/// <c>descartarResultadoTardio</c> y llama a <c>liberarEntrada</c>, para que quien llama
-/// pueda borrar material sensible. Como la cancelación solo se pide después de vencer la
+/// <c>descartarResultadoTardio</c> y, como último paso, llama a <c>liberarEntrada</c>.
+/// Como la cancelación solo se pide después de vencer la
 /// espera, un límite vencido siempre llega como <see cref="TimeoutException"/>, y
 /// cualquier otra excepción (incluida una <see cref="OperationCanceledException"/> del
 /// SDK) es de la operación.
@@ -70,8 +70,12 @@ internal static class LlamadaSincronaAws
     /// su desenlace: al volver, si terminó dentro del plazo, o desde el pool cuando la
     /// operación abandonada termina, o cuando el pool llega a una que no había arrancado y
     /// la descarta por cancelada (con el pool saturado, eso ocurre al recuperarse). Es el
-    /// momento seguro para borrar una entrada que la operación aún podría estar enviando.
-    /// Si lanza, la excepción se observa y se descarta.
+    /// momento seguro para borrar una entrada que la operación aún podría estar enviando y
+    /// que no se pueda revocar antes. Si lanza, la excepción se observa y se descarta.
+    /// Hoy ningún llamador de producción lo usa: el material sensible se borra por otras
+    /// vías (S3 revoca su cuerpo al volver, el cifrado pone a ceros su entrada al salir y
+    /// el descifrado borra la respuesta tardía con <c>descartarResultadoTardio</c>). Los
+    /// tests lo usan como señal de que la limpieza tardía terminó.
     /// </param>
     internal static T Ejecutar<T>(
         Func<CancellationToken, Task<T>> operacion,

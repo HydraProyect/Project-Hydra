@@ -82,8 +82,9 @@ public class S3XmlRepository : IXmlRepository
     /// <remarks>
     /// El XML puede llevar la clave maestra sin cifrar (cuando no hay KMS ni certificado,
     /// en los entornos que lo permiten), así que viaja en un <see cref="CuerpoRevocable"/>
-    /// que se revoca y se borra al volver, termine la escritura o venza el límite: una
-    /// escritura abandonada no retiene esos bytes más allá de esta llamada. Si el SDK aún
+    /// que se revoca y se borra al volver, termine la escritura o venza el límite: el búfer
+    /// propio no sobrevive a esta llamada aunque la escritura siga en curso (las copias que
+    /// ya hubieran hecho el SDK o la pila HTTP quedan fuera, ver abajo). Si el SDK aún
     /// no había leído el cuerpo entero, su siguiente lectura falla en vez de entregar ceros,
     /// así que S3 no puede guardar una clave corrupta; la escritura se pierde, y Data
     /// Protection, que ya la dio por fallida, generará otra clave.
