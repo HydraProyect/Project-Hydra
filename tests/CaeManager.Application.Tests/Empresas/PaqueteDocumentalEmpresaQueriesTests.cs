@@ -343,7 +343,10 @@ public class PaqueteDocumentalEmpresaQueriesTests
     {
         var servicio = new PaqueteDocumentalEmpresaService(
             _empresas, _trabajadores, _documentos, _tipos, _asignaciones, _centros, _calculo, _almacenamiento, _alcance,
-            NullLogger<PaqueteDocumentalEmpresaService>.Instance) { MaximoBytesZip = _maximoBytes };
+            NullLogger<PaqueteDocumentalEmpresaService>.Instance)
+        {
+            MaximoBytesZip = _maximoBytes,
+        };
         var usuario = new CurrentUserServiceFalso(rol: _rol);
         var sesion = new SesionPrivilegiadaFija(_sesionPrivilegiada);
         return new Handlers(
