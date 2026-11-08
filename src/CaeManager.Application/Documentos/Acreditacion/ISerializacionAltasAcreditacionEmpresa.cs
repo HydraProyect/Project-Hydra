@@ -32,6 +32,14 @@ namespace CaeManager.Application.Documentos.Acreditacion;
 /// La operación puede ejecutarse más de una vez (estrategia de reintentos, ver <see cref="Common.ITransaccionDeComando"/>):
 /// tiene que agregar y leer dentro lo que guarda. Si ya hay una transacción en curso, la usa y el candado dura lo que ella.
 /// </para>
+///
+/// <para>
+/// Ninguna decisión tomada con lo leído antes de llamar aquí vale dentro de la operación: una validación, una exención
+/// («es la clave que ya tenía», «no cambió»), una comprobación de duplicado o de estado se vuelve a tomar sobre lo que la
+/// operación relee bajo el candado. Lo leído antes solo sirve para rechazar pronto, porque un rechazo no escribe nada.
+/// Quedan fuera los datos que no cambian (Ids, Tenant propietario) y los que ninguna operación escribe bajo este candado,
+/// porque releerlos aquí no ordenaría nada. Revisión Codex de la PR #2074, rondas 3, 4 y 6.
+/// </para>
 /// </summary>
 public interface ISerializacionAltasAcreditacionEmpresa
 {

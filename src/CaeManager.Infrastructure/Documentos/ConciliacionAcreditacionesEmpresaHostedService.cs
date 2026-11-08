@@ -207,7 +207,10 @@ public class ConciliacionAcreditacionesEmpresaHostedService(
 /// <param name="Tenants">Tenants recorridos.</param>
 /// <param name="TenantsIncompletos">Tenants propietarios con un fallo propio o con algún lote fallido.</param>
 /// <param name="LotesFallidos">Lotes fallidos, sumados entre Tenants.</param>
-/// <param name="Creadas">Acreditaciones creadas y guardadas.</param>
+/// <param name="Creadas">
+/// Suma de <see cref="ResultadoConciliacionTenant.Creadas"/>: una cota superior de las acreditaciones insertadas, solo
+/// para el registro.
+/// </param>
 public sealed record ResultadoPasadaConciliacion(int Tenants, IReadOnlyList<Guid> TenantsIncompletos, int LotesFallidos, int Creadas)
 {
     public bool Completa => TenantsIncompletos.Count == 0;

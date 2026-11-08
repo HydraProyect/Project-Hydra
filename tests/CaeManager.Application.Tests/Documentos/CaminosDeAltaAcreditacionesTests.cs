@@ -470,10 +470,12 @@ public class CaminosDeAltaAcreditacionesTests
     // Revisión Codex de la PR #2074, ronda 6: la clave X se lee antes del candado como la existente (exenta); mientras
     // esta operación espera, otra cambia X por Y y confirma. Bajo el candado, pedir X ya no es conservar la clave: es una
     // clave nueva frente a la fila releída, y se valida como tal. «propia-valida» es el control: la misma carrera con
-    // una X que sí supera la validación se admite y se guarda.
+    // una X que sí supera la validación se admite y se guarda. En «fila-borrada» la otra operación borra la fila en vez de
+    // cambiarla: sin fila, X tampoco es la existente.
     [Theory]
     [InlineData("contenido-no-valido", false)]
     [InlineData("tenant-ajeno", false)]
+    [InlineData("fila-borrada", false)]
     [InlineData("propia-valida", true)]
     public async Task Requisito_de_centro_valida_contra_la_fila_releida_bajo_el_candado_la_clave_que_otra_operacion_cambio_mientras_esperaba(
         string caso, bool admitida)
@@ -485,7 +487,7 @@ public class CaminosDeAltaAcreditacionesTests
         var tipo = mundo.Tipo(RequisitoDocumental.No);
         var almacen = new FileStorageServiceFalso { TenantId = caso == "tenant-ajeno" ? Guid.NewGuid() : tenantPropietario };
         var claveX = await almacen.GuardarAsync(
-            new MemoryStream(caso == "contenido-no-valido" ? "MZ"u8.ToArray() : "%PDF-1.7"u8.ToArray()), "archivo.pdf");
+            new MemoryStream(caso is "contenido-no-valido" or "fila-borrada" ? "MZ"u8.ToArray() : "%PDF-1.7"u8.ToArray()), "archivo.pdf");
         almacen.TenantId = tenantPropietario;
         var claveY = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "otro.pdf");
         var filas = new TipoDocumentoCentroRepositorioFalso();
@@ -495,7 +497,11 @@ public class CaminosDeAltaAcreditacionesTests
         var unit = new UnitOfWorkFalso();
         var serializacion = new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa
         {
-            AlTomarElCandado = () => fila.Actualizar(true, null, false, claveY, "otro.pdf", null)
+            AlTomarElCandado = () =>
+            {
+                if (caso == "fila-borrada") filas.Eliminar(fila);
+                else fila.Actualizar(true, null, false, claveY, "otro.pdf", null);
+            }
         };
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
             mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
@@ -514,7 +520,10 @@ public class CaminosDeAltaAcreditacionesTests
         else
         {
             resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
-            filas.Relaciones.Single().ArchivoUrl.Should().Be(claveY, "la clave que confirmó la otra operación se queda");
+            if (caso == "fila-borrada")
+                filas.Relaciones.Should().BeEmpty("el borrado que confirmó la otra operación se queda");
+            else
+                filas.Relaciones.Single().ArchivoUrl.Should().Be(claveY, "la clave que confirmó la otra operación se queda");
         }
     }
 
