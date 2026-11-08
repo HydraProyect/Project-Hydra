@@ -267,10 +267,12 @@ public class CaminosDeAltaAcreditacionesTests
     }
 
     [Fact]
-    public async Task Renovar_un_documento_de_empresa_que_otra_renovacion_sustituyo_mientras_esperaba_el_candado_no_lo_sustituye_dos_veces()
+    public async Task Renovar_un_documento_de_empresa_cuya_relectura_bajo_el_candado_ya_esta_en_el_historial_no_lo_sustituye_dos_veces()
     {
-        // Lo que se comprobó antes del candado se vuelve a comprobar dentro: otra renovación que confirmó mientras esta
-        // esperaba ya dejó el anterior en el historial.
+        // Modela la relectura del reintento, que con EF trae la fila confirmada: otra renovación ya dejó el anterior en
+        // el historial. El repositorio falso devuelve la instancia que la simulación modifica. En el primer intento con
+        // EF la relectura no refresca la instancia rastreada y quien protege es la versión del guardado; eso no lo mide
+        // este test.
         var mundo = new MundoAcreditaciones();
         var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa, "Seguro RC");
         mundo.AccesoPlataforma(mundo.Centro("Planta sin personal", mundo.EmpresaId));

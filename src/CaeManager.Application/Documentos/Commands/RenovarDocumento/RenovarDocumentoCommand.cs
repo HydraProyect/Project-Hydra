@@ -137,10 +137,12 @@ public class RenovarDocumentoCommandHandler(
         {
             var guardado = await serializacionAltas.EjecutarAsync(async ct =>
             {
-                // Un reintento de la serialización empieza con el contexto vacío: el anterior del primer intento ya
-                // está desligado y marcado como sustituido en memoria. Se vuelve a leer, ya bajo el candado, y se
-                // comprueba de nuevo que sigue siendo el vigente que vio quien renueva. En el primer intento es la
-                // misma instancia rastreada.
+                // Para el reintento de la serialización, que empieza con el contexto vacío: el anterior del primer
+                // intento ya está desligado y marcado como sustituido en memoria, así que se vuelve a leer y se
+                // comprueba otra vez que sigue siendo el vigente que vio quien renueva. En el primer intento la lectura
+                // devuelve la misma instancia rastreada, sin refrescar: una renovación ajena confirmada mientras esta
+                // esperaba el candado no se ve aquí, sino en el guardado, por la versión del anterior
+                // (Concurrencia.Conflicto).
                 var vigente = await repositorio.ObtenerPorIdAsync(anterior.Id, ct);
                 if (vigente is null)
                     return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
