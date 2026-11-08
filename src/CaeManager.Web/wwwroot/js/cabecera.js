@@ -140,12 +140,25 @@
     // Inicio, Fin y las flechas desplazarían el documento, que ya no desplaza. Se aplican a
     // .contenido. Solo con el foco en body: un control enfocado conserva sus teclas, y quien
     // ya las haya atendido (defaultPrevented) gana.
+    // Un clic en texto no enfocable de otro scroller (menú lateral, panel de avisos) deja el foco
+    // en body: esas teclas son de ese scroller, no de .contenido.
+    let ultimoPulsado = null;
+    document.addEventListener('pointerdown', function (e) { ultimoPulsado = e.target; }, { capture: true, passive: true });
+    const dentroDeOtroScroller = function (nodo, contenido) {
+        for (let n = nodo instanceof Element ? nodo : null; n && n !== contenido; n = n.parentElement) {
+            const oy = getComputedStyle(n).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return true;
+        }
+        return false;
+    };
     document.addEventListener('keydown', function (e) {
         if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
         const activo = document.activeElement;
         if (activo && activo !== document.body && activo !== document.documentElement) return;
+        if (document.querySelector('[aria-modal="true"]')) return;
         const contenido = contenidoPrincipal();
         if (!contenido) return;
+        if (ultimoPulsado && ultimoPulsado.isConnected && dentroDeOtroScroller(ultimoPulsado, contenido)) return;
         const pagina = contenido.clientHeight * 0.875;
         let destino = null;
         switch (e.key) {
@@ -159,7 +172,9 @@
             default: return;
         }
         e.preventDefault();
-        contenido.scrollTo({ top: destino });
+        // Las flechas, sin animar: con la tecla mantenida cada paso se suma a un scrollTop ya asentado.
+        const flecha = e.key === 'ArrowDown' || e.key === 'ArrowUp';
+        contenido.scrollTo(flecha ? { top: destino, behavior: 'instant' } : { top: destino });
     });
 
     // Banda de avisos: descartar un aviso y plegar la banda cuando se queda vacía.

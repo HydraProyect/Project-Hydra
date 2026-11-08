@@ -142,8 +142,11 @@ public class ShellDesplazaContenidoTests
             "Blazor solo devuelve arriba la ventana; .contenido conservaría el scroll de la pantalla anterior");
         js.Should().MatchRegex(@"window\.addEventListener\('load',\s*engancharNavegacion\)",
             "si Blazor aún no expone addEventListener, el enganche se reintenta en load en vez de perderse en silencio");
-        js.Should().MatchRegex(@"case 'PageDown'[\s\S]*?case 'End'[\s\S]*?contenido\.scrollTo\(\{ top: destino \}\)",
+        js.Should().MatchRegex(@"case 'PageDown'[\s\S]*?case 'End'[\s\S]*?contenido\.scrollTo\(",
             "con el foco en body, las teclas de desplazamiento irían al documento, que ya no desplaza");
+        js.Should().MatchRegex(@"activo !== document\.body", "un control enfocado conserva sus teclas");
+        js.Should().MatchRegex(@"dentroDeOtroScroller\(ultimoPulsado, contenido\)\) return",
+            "tras un clic en otro scroller (menú lateral, avisos) las teclas son de ese scroller");
         js.Should().MatchRegex(@"contenido\.scrollTo\(\{\s*top:\s*0,\s*behavior:\s*'instant'\s*\}\)",
             ".contenido lleva scroll-behavior: smooth (base.css): la vuelta arriba al cambiar de pantalla no se anima");
     }
