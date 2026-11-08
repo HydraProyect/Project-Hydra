@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones;
-using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -9,6 +8,7 @@ using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Coordinacion;
 using CaeManager.Infrastructure.Gestiones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -165,7 +165,6 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, semilla.Canal);
         propietario.Documentos.Add(documento);
         propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
-        AltaAuditada(propietario, documento.Id);
         await propietario.SaveChangesAsync();
         return semilla with { Documento = documento.Id, Acreditacion = acreditacion.Id };
     }
@@ -185,7 +184,6 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         documentoAnterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         var acreditacion = new AcreditacionDocumentoPlataforma(nuevo.Id, semilla.Canal);
         propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
-        AltaAuditada(propietario, nuevo.Id);
         await propietario.SaveChangesAsync();
         return (anterior, semilla with { Documento = nuevo.Id, Acreditacion = acreditacion.Id });
     }
@@ -201,7 +199,6 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         var documento = Documento.DeTrabajador(semilla.Trabajador, semilla.Tipo, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)),
             $"tenant/{Guid.NewGuid():N}.pdf");
         propietario.Documentos.Add(documento);
-        AltaAuditada(propietario, documento.Id);
         await propietario.SaveChangesAsync();
 
         var existente = await propietario.CanalesGestionDocumental.SingleAsync(c => c.Id == semilla.Canal);
@@ -212,11 +209,6 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         await propietario.SaveChangesAsync();
         return documento.Id;
     }
-
-    /// <summary>El registro «Creado» que el interceptor de auditoría agrega en el guardado del acto.</summary>
-    private static void AltaAuditada(CaeManagerDbContext propietario, Guid documentoId) =>
-        propietario.RegistrosAuditoria.Add(new RegistroAuditoria(
-            nameof(Documento), documentoId, "Creado", null, null, null, TipoActorAuditoria.Desconocido));
 
     /// <summary>
     /// Una renovación de la ranura anterior: el Documento anterior tenía su Gestión, el nuevo nace con su acreditación y
@@ -238,7 +230,6 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
         documentoAnterior.SustituirPor(nuevo, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
         var acreditacion = new AcreditacionDocumentoPlataforma(nuevo.Id, semilla.Canal);
         propietario.AcreditacionesDocumentoPlataforma.Add(acreditacion);
-        AltaAuditada(propietario, nuevo.Id);
         await propietario.SaveChangesAsync();
         return (semilla with { Documento = nuevo.Id, Acreditacion = acreditacion.Id }, gestionAnterior.Id);
     }
@@ -256,12 +247,17 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
             .Should().Be(1);
     }
 
+    /// <summary>
+    /// La siembra pasa por el <see cref="AuditoriaInterceptor"/> real: el alta «Creado» de cada Documento la escribe él en
+    /// el mismo guardado del acto, no el test. Así la conciliación, que acota las acreditaciones del acto por ese registro,
+    /// se mide contra el instante que produce el cableado de producción.
+    /// </summary>
     private static CaeManagerDbContext CrearContextoPropietario(string cadenaPropietario)
     {
         var tenant = new TenantDelAmbito();
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(cadenaPropietario)
-            .AddInterceptors(new TenantSelladoInterceptor(tenant))
+            .AddInterceptors(new AuditoriaInterceptor(new ActorDeSiembra()), new TenantSelladoInterceptor(tenant))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant);
     }
@@ -269,6 +265,15 @@ public class ConciliacionGestionesAutomaticasBajoRuntimeTests
     private sealed class TenantDelAmbito : ITenantActual
     {
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
+    }
+
+    private sealed class ActorDeSiembra : IActorAuditoria
+    {
+        private static readonly ActorAuditoria Actor = ActorAuditoria.Normal(null);
+
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(Actor);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => Actor;
     }
 
     private sealed class LiderSiempre : IEleccionLiderService

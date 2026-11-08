@@ -123,10 +123,13 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
         conciliacion.Lotes.Should().ContainSingle("el Tenant siguiente no empieza tras la parada");
     }
 
-    [Fact]
-    public async Task La_cancelacion_dentro_del_ultimo_lote_se_propaga_y_no_se_divide_ni_se_cuenta_como_fallo()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task La_cancelacion_dentro_del_ultimo_lote_se_propaga_y_no_se_divide_ni_se_cuenta_como_fallo(int documentos)
     {
         // En el último lote del último Tenant: si se contara como fallo, la pasada terminaría sin lanzar.
+        // Con un solo Documento no hay división que vuelva a comprobar la parada: es el caso que lo fija.
         using var parada = new CancellationTokenSource();
         var conciliacion = new ConciliacionFalsa
         {
@@ -136,7 +139,7 @@ public class ConciliacionGestionesAutomaticasHostedServiceTests
                 parada.Token.ThrowIfCancellationRequested();
             },
         };
-        conciliacion.SinGestion[TenantB] = Ids(2);
+        conciliacion.SinGestion[TenantB] = Ids(documentos);
 
         var pasada = () => Disparador(conciliacion).ProcesarAsync(Desde, parada.Token);
 
