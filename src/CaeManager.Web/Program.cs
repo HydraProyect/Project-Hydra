@@ -295,6 +295,8 @@ builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPrevi
 // cookie de Web (worker, herramientas) no tiene lente, y AlcanceDatosService la trata como opcional.
 builder.Services.Configure<CaeManager.Infrastructure.Autorizacion.VistaDemoOptions>(
     builder.Configuration.GetSection(CaeManager.Infrastructure.Autorizacion.VistaDemoOptions.SeccionConfiguracion));
+// Mi trabajo oculto para la demo del 2026-11-10 (MiTrabajo:Oculto=false lo devuelve): ver MiTrabajoVisibilidad.
+CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.RegistrarOpcion(builder.Services, builder.Configuration);
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.ISolicitudVistaDemo, CaeManager.Web.Services.VistaDemoCookie>();
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.IVistaDemoActual, CaeManager.Infrastructure.Autorizacion.VistaDemoActual>();
 builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();

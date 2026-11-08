@@ -223,7 +223,8 @@
             esAdministradorPlataforma, perfil, VariosTenants: organizaciones.Count > 1,
             ParticipaEnIncorporacionCartera: participaEnIncorporacionCartera,
             RotulosPrimeraPersona: rotulosPrimeraPersona,
-            HerramientasPdfDisponibles: herramientasPdfDisponibles);
+            HerramientasPdfDisponibles: herramientasPdfDisponibles,
+            MiTrabajoOculto: MiTrabajoVisibilidad.EstaOculto(Servicios));
     }
 
     // El usuario se relee en cada estado de autenticación en cascada, no solo al inicializar: en el

@@ -269,8 +269,17 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override void OnParametersSet() => AplicarFiltrosDeLaUrl();
 
+    [Inject] private IServiceProvider ServiciosMiTrabajo { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
+        // Mi trabajo oculto para la demo (MiTrabajoVisibilidad): la URL directa acaba en Gestiones.
+        if (MiTrabajoVisibilidad.EstaOculto(ServiciosMiTrabajo))
+        {
+            Navegacion.NavigateTo(MiTrabajoVisibilidad.RutaAlternativa, replace: true);
+            return;
+        }
+
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         if (EstadoAutenticacion is not null)
             _esCoordinadorCae = (await EstadoAutenticacion).User.IsInRole(Roles.CoordinadorCae);
