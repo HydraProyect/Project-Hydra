@@ -261,7 +261,9 @@ public class GestionesAutomaticasTests
         var fila = (await Listar(conLaEmpresa)).Filas.Should().ContainSingle().Subject;
         fila.TitularNombre.Should().Be("Construcciones Ebro S.L.");
         fila.EmpresaGestionadaId.Should().Be(_empresa.Id);
+        (await Detalle(fila.Id, conLaEmpresa))!.Documento.IdentificadorTitular.Should().Be("B87654323");
         (await Listar(sinLaEmpresa)).Filas.Should().BeEmpty();
+        (await Detalle(fila.Id, sinLaEmpresa)).Should().BeNull("ni el CIF ni la Empresa salen por el detalle");
     }
 
     [Fact]
@@ -434,6 +436,94 @@ public class GestionesAutomaticasTests
         fueraDeCartera!.SustituidaEnUtc.Should().Be(Ahora, "la sustitución en sí sí se ve: es de la Gestión visible");
         fueraDeCartera.SustituidaPorGestionId.Should().BeNull();
         conAccesoTotal!.SustituidaPorGestionId.Should().Be(gestionNueva.Id, "control positivo: quien la ve recibe el enlace");
+    }
+
+    [Fact]
+    public async Task El_detalle_no_revela_la_sustituta_derivada_sin_marca_si_queda_fuera_de_la_cartera()
+    {
+        // BAJO de la sexta ronda de Codex: la sustituta que la lectura deriva del Documento (la Gestión anterior no se
+        // marcó) pasa por el mismo filtro de cartera que la marcada.
+        var norte = Centro("Planta Norte");
+        var sur = Centro("Almacén Sur");
+        var anterior = DocumentoDelTrabajador();
+        var acreditacionAnterior = Acreditar(anterior, AccesoPlataforma(norte, "Nalanda"));
+        acreditacionAnterior.MarcarSubida();
+        acreditacionAnterior.MarcarAceptada(VigenciaEnPlataforma.SinConfirmar);
+        await Nacer(anterior);
+        var gestionAnterior = _gestiones.Lista.Single();
+        var nuevo = RenovacionDe(anterior);
+        Acreditar(nuevo, AccesoPlataforma(sur, "Dokify"));
+        await Nacer(nuevo, anterior);
+        gestionAnterior.EstaSustituida.Should().BeFalse("control: la renovación la leyó cerrada y no la marcó");
+        acreditacionAnterior.Rechazar(CausaRechazoAcreditacion.Ilegible, "Documento ilegible", Ahora.AddMinutes(1));
+        var gestionNueva = _gestiones.Lista.Single(g => g.DocumentoId == nuevo.Id);
+        var soloNorte = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [norte.Id]);
+
+        var fueraDeCartera = await Detalle(gestionAnterior.Id, soloNorte);
+        var conAccesoTotal = await Detalle(gestionAnterior.Id, new AlcanceDatosServiceFalso());
+
+        fueraDeCartera!.Resumen.Estado.Should().Be(EstadoGestionAutomatica.Sustituida, "control: es la sustitución derivada");
+        fueraDeCartera.SustituidaEnUtc.Should().Be(Ahora, "el instante sale del Documento, que es de la Gestión visible");
+        fueraDeCartera.SustituidaPorGestionId.Should().BeNull("la sustituta tiene todos sus pasos fuera de la cartera");
+        conAccesoTotal!.SustituidaPorGestionId.Should().Be(gestionNueva.Id, "control positivo: quien la ve recibe el enlace");
+    }
+
+    // ---------- Empresa gestionada de un Documento de Trabajador (MEDIOS de la sexta ronda de Codex) ----------
+
+    [Fact]
+    public async Task Un_Gestor_CAE_que_ve_al_Trabajador_pero_no_a_su_Empresa_empleadora_ve_la_gestion_sin_esa_Empresa()
+    {
+        var documento = DocumentoDelTrabajador();
+        var centro = Centro("Planta Norte");
+        Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
+        await Nacer(documento);
+        var sinLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [Guid.NewGuid()], centroIdsVisibles: [centro.Id]);
+        var conLaEmpresa = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [_trabajador.Id],
+            empresaIdsVisibles: [_empresa.Id], centroIdsVisibles: [centro.Id]);
+
+        var fila = (await Listar(sinLaEmpresa)).Filas.Should().ContainSingle("la Gestión es del Trabajador y del Centro visibles").Subject;
+        var detalle = await Detalle(_gestiones.Lista.Single().Id, sinLaEmpresa);
+        var filaConEmpresa = (await Listar(conLaEmpresa)).Filas.Single();
+
+        fila.TitularNombre.Should().Be("Laura Gil");
+        fila.EmpresaGestionadaId.Should().BeNull("ver al Trabajador no da a ver a quién emplea");
+        fila.EmpresaGestionadaNombre.Should().BeNull();
+        detalle!.Resumen.EmpresaGestionadaId.Should().BeNull();
+        detalle.Resumen.EmpresaGestionadaNombre.Should().BeNull();
+        detalle.Documento.EmpresaId.Should().BeNull();
+        filaConEmpresa.EmpresaGestionadaId.Should().Be(_empresa.Id, "control positivo: con la Empresa en cartera sí se nombra");
+        filaConEmpresa.EmpresaGestionadaNombre.Should().Be("Construcciones Ebro S.L.");
+    }
+
+    [Fact]
+    public async Task La_gestion_de_un_Trabajador_de_subcontrata_lleva_su_Empresa_empleadora_solo_si_esta_en_cartera()
+    {
+        var empleadora = new Empresa("Montajes Duero S.L.");
+        _empresas.ListaEmpresas.Add(empleadora);
+        var trabajador = Trabajador.DeSubcontrata(empleadora.Id, "Pedro", "Ruiz", "12345678Z");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipo.Id, Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)), "tenant/rm.pdf");
+        _documentos.ListaDocumentos.Add(documento);
+        var centro = Centro("Planta Norte");
+        Acreditar(documento, AccesoPlataforma(centro, "Nalanda"));
+        await Nacer(documento);
+        var conLaSubcontrata = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador.Id],
+            subcontrataIdsVisibles: [empleadora.Id], centroIdsVisibles: [centro.Id]);
+        var sinLaSubcontrata = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [trabajador.Id],
+            subcontrataIdsVisibles: [Guid.NewGuid()], centroIdsVisibles: [centro.Id]);
+
+        var fila = (await Listar(conLaSubcontrata)).Filas.Should().ContainSingle().Subject;
+        var detalle = await Detalle(_gestiones.Lista.Single().Id, conLaSubcontrata);
+        var filaSinEmpresa = (await Listar(sinLaSubcontrata)).Filas.Single();
+
+        fila.TitularNombre.Should().Be("Pedro Ruiz");
+        fila.EmpresaGestionadaId.Should().Be(empleadora.Id, "la Empresa empleadora es SubcontrataId cuando EmpresaId es nulo");
+        fila.EmpresaGestionadaNombre.Should().Be("Montajes Duero S.L.");
+        detalle!.Resumen.EmpresaGestionadaId.Should().Be(empleadora.Id);
+        filaSinEmpresa.EmpresaGestionadaId.Should().BeNull("la misma regla de cartera que con EmpresaId");
+        filaSinEmpresa.EmpresaGestionadaNombre.Should().BeNull();
     }
 
     // ---------- Montaje ----------

@@ -26,6 +26,11 @@ public sealed record PasoVisibleGestionAutomatica(
 /// una Gestión sin pasos visibles no aparece (nunca «hay pasos que no puedes ver»). Un acceso o Centro dado de
 /// baja deja de dar paso visible. Bajo RLS: no cruza Tenants.
 /// </para>
+/// <para>
+/// Ver al Trabajador titular no da a ver su Empresa empleadora: el universo admite su Gestión, pero la cabecera
+/// solo nombra a esa Empresa si está en algún alcance de cartera (<c>CabecerasGestionesAutomaticas</c>), la regla de
+/// la Semana por Empresa y del Mes.
+/// </para>
 /// </summary>
 public static class PasosVisiblesDeGestionesAutomaticas
 {

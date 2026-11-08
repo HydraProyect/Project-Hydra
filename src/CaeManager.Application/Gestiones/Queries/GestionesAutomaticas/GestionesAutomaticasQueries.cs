@@ -75,7 +75,8 @@ public class ObtenerGestionesAutomaticasQueryHandler(
             gestionId: null, request.DocumentoId, cancellationToken);
 
         var resumenes = await CabecerasGestionesAutomaticas.ResumirAsync(
-            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, cancellationToken);
+            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, alcanceDatos,
+            cancellationToken);
 
         var recuentos = Enum.GetValues<EstadoGestionAutomatica>()
             .ToDictionary(e => e, e => resumenes.Count(r => r.Estado == e));
@@ -107,7 +108,8 @@ public class ObtenerGestionAutomaticaQueryHandler(
             return null;
 
         var resumen = (await CabecerasGestionesAutomaticas.ResumirAsync(
-            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, cancellationToken))
+            pasos, gestionesContext, documentosContext, trabajadoresContext, empresasContext, tiposDocumentoContext, alcanceDatos,
+            cancellationToken))
             .Single();
 
         var gestion = await gestionesContext.GestionesAutomaticas
@@ -191,14 +193,19 @@ public class ObtenerGestionAutomaticaQueryHandler(
     }
 }
 
-/// <summary>Cabecera (título, Empresa gestionada, estado, avance) de las Gestiones que tienen pasos visibles.</summary>
+/// <summary>
+/// Cabecera (título, Empresa gestionada, estado, avance) de las Gestiones que tienen pasos visibles. La Empresa
+/// gestionada de un Documento de Trabajador es su Empresa empleadora y solo se informa si está en algún alcance de
+/// cartera de quien consulta (<see cref="AlcanceDatosServiceExtensions.EmpresaEnAlgunAlcanceDeCarteraAsync"/>); si
+/// no, llega null, id y nombre a la vez.
+/// </summary>
 internal static class CabecerasGestionesAutomaticas
 {
     public static async Task<List<GestionAutomaticaResumenDto>> ResumirAsync(
         IReadOnlyCollection<PasoVisibleGestionAutomatica> pasos, IGestionesQueryContext gestionesContext,
         IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext,
         IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext,
-        CancellationToken cancellationToken)
+        IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken)
     {
         if (pasos.Count == 0)
             return [];
@@ -226,12 +233,27 @@ internal static class CabecerasGestionesAutomaticas
         var trabajadorIds = cabeceras.Where(c => c.TrabajadorId != null).Select(c => c.TrabajadorId!.Value).Distinct().ToArray();
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
-            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, t.EmpresaId })
+            // La Empresa empleadora: EmpresaId ?? SubcontrataId, como RequisitosObligatoriosIncumplidos y
+            // CalculoEstadoCentroService (CK_Trabajadores_EmpresaXorSubcontrata: solo una de las dos). SubcontrataId es
+            // deuda terminológica legacy: aquí identifica la Empresa empleadora contraparte.
+            .Select(t => new { t.Id, Nombre = t.Nombre + " " + t.Apellidos, EmpresaEmpleadoraId = t.EmpresaId ?? t.SubcontrataId })
             .ToDictionaryAsync(t => t.Id, cancellationToken);
 
-        var empresaIds = cabeceras.Select(c => c.EmpresaId)
-            .Concat(trabajadores.Values.Select(t => t.EmpresaId))
-            .Where(e => e != null).Select(e => e!.Value).Distinct().ToArray();
+        // Ver al Trabajador no da a ver a quién emplea: la Empresa empleadora solo se nombra si está en algún alcance de
+        // cartera de quien consulta (la regla de la Semana por Empresa y del Mes). Si no, la Gestión sigue viéndose
+        // —su universo es el del Trabajador y el Centro— pero sin Empresa gestionada, como el Mes deja el vencimiento
+        // sin Empresa. La Empresa de un Documento de Empresa ya la filtró el universo (alcance de gestión).
+        var empleadorasEnAlcance = new HashSet<Guid>();
+        foreach (var empleadora in trabajadores.Values.Where(t => t.EmpresaEmpleadoraId != null)
+                     .Select(t => t.EmpresaEmpleadoraId!.Value).Distinct())
+        {
+            if (await alcanceDatos.EmpresaEnAlgunAlcanceDeCarteraAsync(empleadora, cancellationToken))
+                empleadorasEnAlcance.Add(empleadora);
+        }
+
+        var empresaIds = cabeceras.Where(c => c.EmpresaId != null).Select(c => c.EmpresaId!.Value)
+            .Concat(empleadorasEnAlcance)
+            .Distinct().ToArray();
         var empresas = await empresasContext.Empresas
             .Where(e => empresaIds.Contains(e.Id))
             .Select(e => new { e.Id, e.RazonSocial })
@@ -241,7 +263,10 @@ internal static class CabecerasGestionesAutomaticas
         return cabeceras.Select(c =>
             {
                 var trabajador = c.TrabajadorId is { } tId ? trabajadores.GetValueOrDefault(tId) : null;
-                var empresaGestionadaId = c.EmpresaId ?? trabajador?.EmpresaId;
+                var empleadoraVisible = trabajador?.EmpresaEmpleadoraId is { } empleadoraId && empleadorasEnAlcance.Contains(empleadoraId)
+                    ? empleadoraId
+                    : (Guid?)null;
+                var empresaGestionadaId = c.EmpresaId ?? empleadoraVisible;
                 var titular = trabajador?.Nombre
                               ?? (c.EmpresaId is { } eId ? empresas.GetValueOrDefault(eId) : null)
                               ?? string.Empty;
