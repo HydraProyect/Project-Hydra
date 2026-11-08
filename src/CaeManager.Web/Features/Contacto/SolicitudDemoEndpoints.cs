@@ -89,6 +89,17 @@ public static class SolicitudDemoEndpoints
 
     public static IReadOnlyList<string> OrigenesPermitidos { get; } = ["https://talveg.es", "https://www.talveg.es"];
 
+    /// <summary>
+    /// Códigos de <see cref="IEmailService"/> que demuestran que el mensaje no
+    /// salió: guarda de envío cerrada (<c>EnvioCorreoOptions.CodigoErrorEnvioCerrado</c>),
+    /// SMTP sin configurar y orden o credenciales rechazadas por el servidor
+    /// (<c>SmtpEmailService</c>). Solo con ellos vuelve la plaza del cupo.
+    /// <c>Email.ErrorRed</c> no está: un vencimiento o un corte durante
+    /// <c>SendAsync</c> puede llegar con el mensaje ya aceptado.
+    /// </summary>
+    public static IReadOnlySet<string> FallosSinEnvio { get; } =
+        new HashSet<string>(["Email.EnvioCerrado", "Email.NoConfigurado", "Email.ErrorApi"], StringComparer.Ordinal);
+
     private static readonly JsonSerializerOptions OpcionesJson = new()
     {
         UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
@@ -239,24 +250,21 @@ public static class SolicitudDemoEndpoints
                 responderA: solicitud.Correo,
                 cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Cancela quien llama (conexión cerrada): SmtpEmailService solo lanza esto
-            // antes de que el servidor acepte el mensaje, así que no salió nada.
-            cupoGlobal.Liberar(reserva);
-            throw;
-        }
-        catch (Exception ex)
-        {
+            // La plaza no vuelve: una excepción a mitad de SendAsync puede llegar
+            // después de que el servidor aceptara el mensaje. Igual con la
+            // cancelación de quien llama, que se propaga sin tocar el cupo.
             // Solo el tipo: el mensaje de una excepción de correo puede llevar direcciones.
-            cupoGlobal.Liberar(reserva);
-            logger.LogError("Solicitud de demo no enviada: excepción {Tipo} en el envío.", ex.GetType().FullName);
+            logger.LogError("Solicitud de demo con resultado incierto: excepción {Tipo} en el envío.", ex.GetType().FullName);
             return Error(StatusCodes.Status503ServiceUnavailable, "no-disponible");
         }
 
         if (resultado.EsFallido)
         {
-            cupoGlobal.Liberar(reserva);
+            if (FallosSinEnvio.Contains(resultado.Error.Codigo))
+                cupoGlobal.Liberar(reserva);
+
             logger.LogWarning("Solicitud de demo no enviada: {Codigo}.", resultado.Error.Codigo);
             return Error(StatusCodes.Status503ServiceUnavailable, "no-disponible");
         }
@@ -382,9 +390,12 @@ public static class SolicitudDemoEndpoints
 
 /// <summary>
 /// Techo de correos de solicitud de demo por hora para todo el proceso, venga
-/// de la IP que venga (ASVS 4.0.3 V11.1.4). Ventana deslizante de una hora que
-/// solo cuenta los correos que salen: un envío que falla devuelve su plaza, así
-/// que una caída del SMTP no deja el formulario cerrado al volver. En memoria:
+/// de la IP que venga (ASVS 4.0.3 V11.1.4). Ventana deslizante de una hora en la
+/// que cada intento de envío gasta una plaza, y solo la devuelve el que consta
+/// que no salió (<see cref="SolicitudDemoEndpoints.FallosSinEnvio"/>): con la
+/// guarda cerrada o el SMTP sin configurar el formulario no se cierra solo, y un
+/// resultado incierto cuenta como enviado para que el techo no se pueda saltar
+/// cortando conexiones. En memoria:
 /// suficiente con una réplica, igual que el resto de limitadores de la
 /// aplicación.
 /// </summary>

@@ -224,23 +224,55 @@ public class SolicitudDemoEndpointsTests
         servidor.Correo.Enviados.Should().HaveCount(1);
     }
 
-    [Fact]
-    public async Task Un_envio_que_falla_devuelve_su_plaza_del_cupo_global()
+    [Theory]
+    [InlineData("Email.EnvioCerrado")]
+    [InlineData("Email.NoConfigurado")]
+    [InlineData("Email.ErrorApi")]
+    public async Task Un_fallo_que_demuestra_que_no_salio_nada_devuelve_su_plaza(string codigo)
     {
         await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1);
-        servidor.Correo.Respuesta = Result.Fallo(Error.Crear("Email.ErrorRed", "sin red"));
+        servidor.Correo.Respuesta = Result.Fallo(Error.Crear(codigo, "no salió"));
         (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
 
         servidor.Correo.Respuesta = Result.Exito();
         using var respuesta = await servidor.PostAsync(CuerpoBueno());
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted,
-            "una caída del SMTP no puede dejar el formulario cerrado una hora cuando vuelve");
+            "con la guarda cerrada o el servidor rechazando la orden no salió nada");
         servidor.Correo.Enviados.Should().HaveCount(1);
     }
 
     [Fact]
-    public async Task Una_excepcion_del_envio_es_503_en_json_sin_detalle_y_devuelve_su_plaza()
+    public async Task Con_la_guarda_real_cerrada_la_plaza_vuelve()
+    {
+        // El código que devuelve la guarda de verdad, no uno escrito a mano en el test.
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1, guardaCerrada: true);
+
+        (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"no-disponible\"}",
+            "un 503 cupo-agotado aquí querría decir que la guarda cerrada gasta cupo");
+        EnvioCorreoOptions.CodigoErrorEnvioCerrado.Should().BeOneOf(SolicitudDemoEndpoints.FallosSinEnvio);
+    }
+
+    [Fact]
+    public async Task Un_resultado_incierto_del_smtp_conserva_la_plaza()
+    {
+        // Un vencimiento o un corte durante SendAsync puede llegar con el mensaje ya aceptado:
+        // devolver la plaza dejaría saltarse el techo de correo cortando conexiones.
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1);
+        servidor.Correo.Respuesta = Result.Fallo(Error.Crear("Email.ErrorRed", "sin respuesta"));
+        (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        servidor.Correo.Respuesta = Result.Exito();
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"cupo-agotado\"}");
+    }
+
+    [Fact]
+    public async Task Una_excepcion_del_envio_es_503_en_json_sin_detalle_y_conserva_la_plaza()
     {
         await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1);
         servidor.Correo.Excepcion = new InvalidOperationException("smtp interno: ana@empresa.es rechazada");
@@ -252,7 +284,9 @@ public class SolicitudDemoEndpointsTests
             "ASVS 4.0.3 V7.4.1: ni la página HTML de error de la aplicación ni el mensaje de la excepción");
 
         servidor.Correo.Excepcion = null;
-        (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.Accepted);
+        using var siguiente = await servidor.PostAsync(CuerpoBueno());
+        (await siguiente.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"cupo-agotado\"}",
+            "una excepción a mitad de SendAsync no demuestra que el mensaje no saliera");
     }
 
     [Fact]
@@ -327,7 +361,7 @@ public class SolicitudDemoEndpointsTests
     }
 
     [Fact]
-    public async Task Si_quien_llama_cancela_durante_el_envio_la_plaza_vuelve_al_cupo()
+    public async Task Si_quien_llama_cancela_durante_el_envio_la_cancelacion_se_propaga_y_la_plaza_no_vuelve()
     {
         var cupo = new CupoGlobalSolicitudDemo(1, TimeProvider.System);
         var correo = new CorreoFalso { Excepcion = new OperationCanceledException() };
@@ -341,7 +375,8 @@ public class SolicitudDemoEndpointsTests
             contexto, correo, cupo, NullLogger<SolicitudDemoPeticion>.Instance, CancellationToken.None);
 
         await recibir.Should().ThrowAsync<OperationCanceledException>();
-        cupo.IntentarReservar(out _, out _, out _).Should().BeTrue("la conexión cerrada no llegó a enviar nada");
+        cupo.IntentarReservar(out _, out _, out _).Should().BeFalse(
+            "el servidor SMTP pudo aceptar el mensaje antes de que se cortara la conexión");
     }
 
     [Theory]
