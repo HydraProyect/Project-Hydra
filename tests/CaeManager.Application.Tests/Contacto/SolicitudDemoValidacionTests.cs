@@ -198,6 +198,66 @@ public class SolicitudDemoValidacionTests
     }
 
     [Fact]
+    public void Un_texto_de_otra_que_no_aplica_no_tumba_el_envio_aunque_sea_largo()
+    {
+        // contacto.js conserva el texto al desmarcar «Otra»: la persona ya no lo ve.
+        var peticion = Buena();
+        peticion.Intereses = [1];
+        peticion.Otra = new string('x', ValidadorSolicitudDemo.OtraMaximo + 1) + "\r\n";
+
+        var (solicitud, campos) = ValidadorSolicitudDemo.Validar(peticion);
+
+        campos.Should().BeEmpty();
+        solicitud!.Otra.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("Ana\u2028Bcc: x@y.es")]
+    [InlineData("Ana\u2029B")]
+    [InlineData("Ana\u200BPérez")]
+    public void Rechaza_separadores_de_linea_y_caracteres_de_formato_invisibles(string nombre)
+    {
+        var peticion = Buena();
+        peticion.Nombre = nombre;
+
+        ValidadorSolicitudDemo.Validar(peticion).CamposNoValidos.Should().Equal("nombre");
+    }
+
+    [Theory]
+    [InlineData("\u0645\u06CC\u200C\u0646\u0627")]
+    [InlineData("\u0915\u094D\u200D\u0937")]
+    public void Admite_zwnj_y_zwj_que_forman_parte_de_la_escritura_de_un_nombre(string nombre)
+    {
+        var peticion = Buena();
+        peticion.Nombre = nombre;
+
+        ValidadorSolicitudDemo.Validar(peticion).CamposNoValidos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("añá@empresa.es")]
+    [InlineData("ana@empresá.es")]
+    public void Rechaza_un_correo_no_ascii(string correo)
+    {
+        var peticion = Buena();
+        peticion.Correo = correo;
+
+        ValidadorSolicitudDemo.Validar(peticion).CamposNoValidos.Should().BeEquivalentTo(["correo"],
+            "va a la cabecera Reply-To y una dirección no ASCII exige SMTPUTF8 al servidor de salida");
+    }
+
+    [Theory]
+    [InlineData("91 123 45 67 / 600 11 22 33")]
+    [InlineData("+34 (600) 11.22.33")]
+    public void Admite_los_separadores_habituales_del_telefono(string telefono)
+    {
+        var peticion = Buena();
+        peticion.Telefono = telefono;
+
+        ValidadorSolicitudDemo.Validar(peticion).CamposNoValidos.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Devuelve_todos_los_campos_que_fallan_a_la_vez()
     {
         var peticion = new SolicitudDemoPeticion();

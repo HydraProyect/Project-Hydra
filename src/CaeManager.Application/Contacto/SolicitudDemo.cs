@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Mail;
 using System.Text;
@@ -34,9 +35,11 @@ public sealed class SolicitudDemoPeticion
     /// Campo trampa: el formulario lo pinta oculto para personas, así que llega
     /// vacío salvo cuando lo rellena un robot. Con valor, la petición se descarta
     /// en silencio con la misma respuesta que un envío bueno, para no enseñarle
-    /// al robot qué lo delató.
+    /// al robot qué lo delató. El nombre no es «web», «url» ni «website» a
+    /// propósito: los gestores de contraseñas autocompletan esos y descartarían
+    /// a una persona real.
     /// </summary>
-    [JsonPropertyName("sitioWeb")] public string? SitioWeb { get; set; }
+    [JsonPropertyName("campoAdicional")] public string? CampoTrampa { get; set; }
 }
 
 /// <summary>Solicitud ya validada y normalizada (recortada); lo único que llega a componer el correo.</summary>
@@ -115,7 +118,9 @@ public static partial class ValidadorSolicitudDemo
     [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex PatronCorreo();
 
-    [GeneratedRegex(@"^\+?[0-9 ().-]{6,30}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
+    // Cifras con los separadores habituales (espacio, punto, guion, barra y
+    // paréntesis) y un + inicial. Una extensión («ext. 2») no cabe: va a «Otra».
+    [GeneratedRegex(@"^\+?[0-9 ()./-]{6,30}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 100)]
     private static partial Regex PatronTelefono();
 
     public static string TextoTramo(int perfil, int tramo) =>
@@ -169,11 +174,14 @@ public static partial class ValidadorSolicitudDemo
                 intereses = [.. recibidos.Order()];
             }
 
-            otra = string.IsNullOrWhiteSpace(peticion.Otra) ? null : peticion.Otra.Trim();
-            if (otra is not null && (otra.Length > OtraMaximo || TieneCaracteresNoPermitidos(otra)))
-                errores.Add("otra");
-            if (!intereses.Contains(InteresOtra))
-                otra = null;
+            // Solo cuenta con «Otra» marcada: contacto.js conserva el texto al
+            // desmarcarla, y un campo que la persona ya no ve no puede tumbar el envío.
+            if (intereses.Contains(InteresOtra) && !string.IsNullOrWhiteSpace(peticion.Otra))
+            {
+                otra = peticion.Otra.Trim();
+                if (otra.Length > OtraMaximo || TieneCaracteresNoPermitidos(otra))
+                    errores.Add("otra");
+            }
         }
 
         if (errores.Count > 0)
@@ -183,16 +191,28 @@ public static partial class ValidadorSolicitudDemo
     }
 
     /// <summary>
-    /// Sin controles (CR, LF, tabulador...) ni caracteres de formato invisibles
-    /// (marcas de dirección bidi, espacios de anchura cero): todos los campos de
-    /// texto del formulario son de una línea. Cierra la inyección de cabeceras
-    /// SMTP aunque ningún campo libre vaya a una cabecera (ASVS 4.0.3 V5.2.3).
+    /// Sin controles (CR, LF, tabulador...), sin separadores de línea o párrafo
+    /// (U+2028, U+2029) y sin caracteres de formato invisibles (marcas bidi,
+    /// espacio de anchura cero): todos los campos de texto del formulario son de
+    /// una línea. Se admiten ZWNJ y ZWJ (U+200C, U+200D), que forman parte de la
+    /// escritura correcta de nombres en persa o en lenguas índicas. Cierra la
+    /// inyección de cabeceras SMTP aunque ningún campo libre vaya a una cabecera
+    /// (ASVS 4.0.3 V5.2.3).
     /// </summary>
     private static bool TieneCaracteresNoPermitidos(string texto) =>
-        texto.Any(c => char.IsControl(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format);
+        texto.Any(c => char.IsControl(c) || char.GetUnicodeCategory(c) switch
+        {
+            UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator => true,
+            UnicodeCategory.Format => c is not ('\u200C' or '\u200D'),
+            _ => false,
+        });
 
     private static bool CorreoValido(string correo) =>
         correo.Length is > 0 and <= CorreoMaximo
+        // Solo ASCII: el correo va a la cabecera Reply-To, y una parte local no
+        // ASCII exige SMTPUTF8 al servidor de salida. Un dominio IDN se escribe en
+        // su forma xn--. Deja fuera a quien no pueda escribirlo así; se asume.
+        && Ascii.IsValid(correo)
         && !TieneCaracteresNoPermitidos(correo)
         && PatronCorreo().IsMatch(correo)
         // Dirección exacta: sin nombre visible ni formas que MailAddress reinterprete

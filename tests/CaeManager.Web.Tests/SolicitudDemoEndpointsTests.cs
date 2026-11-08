@@ -39,7 +39,7 @@ public class SolicitudDemoEndpointsTests
 {
     private const string OrigenTalveg = "https://talveg.es";
 
-    private static object CuerpoBueno(string? sitioWeb = null) => new
+    private static object CuerpoBueno(string? campoAdicional = null) => new
     {
         nombre = "Ana Pérez",
         correo = "ana@empresa.es",
@@ -48,7 +48,7 @@ public class SolicitudDemoEndpointsTests
         tramo = 3,
         intereses = new[] { 1, 2 },
         otra = "",
-        sitioWeb,
+        campoAdicional,
     };
 
     [Fact]
@@ -181,7 +181,7 @@ public class SolicitudDemoEndpointsTests
     {
         await using var servidor = await ServidorSolicitudDemo.ArrancarAsync();
 
-        using var respuesta = await servidor.PostAsync(CuerpoBueno(sitioWeb: "https://spam.example"));
+        using var respuesta = await servidor.PostAsync(CuerpoBueno(campoAdicional: "https://spam.example"));
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted);
         (await LeerJson(respuesta)).GetProperty("estado").GetString().Should().Be("recibida");
@@ -216,7 +216,75 @@ public class SolicitudDemoEndpointsTests
         (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.Accepted);
         using var respuesta = await servidor.PostAsync(CuerpoBueno());
 
-        respuesta.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        respuesta.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable,
+            "no es la IP la que se pasa: un 429 le diría a quien escribe que espere, y no le toca a él");
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"cupo-agotado\"}");
+        respuesta.Headers.RetryAfter!.Delta.Should().BePositive();
+        respuesta.Headers.CacheControl!.NoStore.Should().BeTrue();
+        servidor.Correo.Enviados.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Un_envio_que_falla_devuelve_su_plaza_del_cupo_global()
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1);
+        servidor.Correo.Respuesta = Result.Fallo(Error.Crear("Email.ErrorRed", "sin red"));
+        (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        servidor.Correo.Respuesta = Result.Exito();
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted,
+            "una caída del SMTP no puede dejar el formulario cerrado una hora cuando vuelve");
+        servidor.Correo.Enviados.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Una_excepcion_del_envio_es_503_en_json_sin_detalle_y_devuelve_su_plaza()
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limiteGlobalPorHora: 1);
+        servidor.Correo.Excepcion = new InvalidOperationException("smtp interno: ana@empresa.es rechazada");
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"no-disponible\"}",
+            "ASVS 4.0.3 V7.4.1: ni la página HTML de error de la aplicación ni el mensaje de la excepción");
+
+        servidor.Correo.Excepcion = null;
+        (await servidor.PostAsync(CuerpoBueno())).StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
+    public async Task Las_peticiones_de_un_origen_ajeno_no_gastan_la_cuota_de_la_ip()
+    {
+        // Una página cualquiera puede hacer fetch() al endpoint desde el navegador de quien la
+        // visita: si eso contara, le agotaría a esa persona el formulario de verdad.
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync(limitePorIp: 1);
+
+        for (var i = 0; i < 3; i++)
+            (await servidor.PostAsync(CuerpoBueno(), origen: "https://evil.example")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        using var respuesta = await servidor.PostAsync(CuerpoBueno());
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Accepted);
+    }
+
+    [Fact]
+    public async Task Un_cuerpo_chunked_sin_longitud_se_corta_en_el_maximo_y_no_antes()
+    {
+        await using var servidor = await ServidorSolicitudDemo.ArrancarAsync();
+        var justo = JsonSerializer.Serialize(CuerpoBueno());
+        justo += new string(' ', SolicitudDemoEndpoints.MaximoBytes - Encoding.UTF8.GetByteCount(justo));
+
+        using (var enElLimite = await servidor.PostSinLongitudAsync(Encoding.UTF8.GetBytes(justo)))
+            enElLimite.StatusCode.Should().Be(HttpStatusCode.Accepted, "8192 bytes exactos caben");
+
+        using var pasado = await servidor.PostSinLongitudAsync(Encoding.UTF8.GetBytes(justo + " "));
+
+        pasado.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge,
+            "sin Content-Length el tope lo pone la lectura, no lo que declare el remitente");
+        (await pasado.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"demasiado-grande\"}");
         servidor.Correo.Enviados.Should().HaveCount(1);
     }
 
@@ -246,14 +314,21 @@ public class SolicitudDemoEndpointsTests
         (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"no-disponible\"}");
     }
 
-    [Fact]
-    public async Task Solo_admite_post()
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("PUT")]
+    [InlineData("PATCH")]
+    [InlineData("DELETE")]
+    public async Task Otro_metodo_es_405_en_json_y_no_la_pagina_html_de_estado(string metodo)
     {
         await using var servidor = await ServidorSolicitudDemo.ArrancarAsync();
 
-        using var respuesta = await servidor.Cliente.GetAsync(SolicitudDemoEndpoints.Ruta);
+        using var respuesta = await servidor.Cliente.SendAsync(new HttpRequestMessage(new HttpMethod(metodo), SolicitudDemoEndpoints.Ruta));
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
+        (await respuesta.Content.ReadAsStringAsync()).Should().Be("{\"error\":\"metodo-no-permitido\"}");
+        respuesta.Content.Headers.Allow.Should().Equal("POST");
+        respuesta.Headers.CacheControl!.NoStore.Should().BeTrue();
     }
 
     [Theory]
@@ -264,6 +339,26 @@ public class SolicitudDemoEndpointsTests
     public void La_clave_del_limite_agrupa_ipv6_por_su_64(string ip, string clave)
     {
         SolicitudDemoEndpoints.ClaveIp(IPAddress.Parse(ip)).Should().Be(clave);
+    }
+
+    [Fact]
+    public void Dos_direcciones_del_mismo_64_comparten_cuota_y_un_origen_ajeno_no_cuenta()
+    {
+        // La partición que usa el limitador de verdad, no ClaveIp suelta: lee la IP de la conexión
+        // (ya resuelta por UseForwardedHeaders) y el Origin.
+        static HttpContext Peticion(string ip, string origen)
+        {
+            var contexto = new DefaultHttpContext();
+            contexto.Connection.RemoteIpAddress = IPAddress.Parse(ip);
+            contexto.Request.Headers.Origin = origen;
+            return contexto;
+        }
+
+        SolicitudDemoEndpoints.ClaveDeLimite(Peticion("2001:db8:1:2::1", OrigenTalveg))
+            .Should().Be(SolicitudDemoEndpoints.ClaveDeLimite(Peticion("2001:db8:1:2:ffff::9", "https://www.talveg.es")))
+            .And.Be("2001:db8:1:2::/64");
+        SolicitudDemoEndpoints.ClaveDeLimite(Peticion("2001:db8:1:3::1", OrigenTalveg)).Should().Be("2001:db8:1:3::/64");
+        SolicitudDemoEndpoints.ClaveDeLimite(Peticion("2001:db8:1:2::1", "https://evil.example")).Should().BeNull();
     }
 
     private static HttpRequestMessage Preflight(string origen)
@@ -311,10 +406,12 @@ public class SolicitudDemoEndpointsTests
                 : correo);
 
             var app = builder.Build();
+            app.UseExceptionHandler("/error");
             app.UseStatusCodePagesWithReExecute("/not-found");
             app.UseCors();
             app.UseRateLimiter();
             app.MapGet("/not-found", () => Results.Content("<html>pagina de estado</html>", "text/html"));
+            app.Map("/error", () => Results.Content("<html>pagina de error</html>", "text/html"));
             app.MapSolicitudDemoEndpoints();
             await app.StartAsync();
 
@@ -338,6 +435,18 @@ public class SolicitudDemoEndpointsTests
             return Cliente.SendAsync(peticion);
         }
 
+        /// <summary>Sin <c>Content-Length</c>: el contenido no sabe calcular su longitud y HttpClient lo manda chunked.</summary>
+        public Task<HttpResponseMessage> PostSinLongitudAsync(byte[] cuerpo)
+        {
+            var peticion = new HttpRequestMessage(HttpMethod.Post, SolicitudDemoEndpoints.Ruta)
+            {
+                Content = new ContenidoSinLongitud(cuerpo),
+            };
+            peticion.Content.Headers.TryAddWithoutValidation("Content-Type", "application/json");
+            peticion.Headers.Add("Origin", OrigenTalveg);
+            return Cliente.SendAsync(peticion);
+        }
+
         public async ValueTask DisposeAsync()
         {
             Cliente.Dispose();
@@ -352,13 +461,30 @@ public class SolicitudDemoEndpointsTests
 
         public Result Respuesta { get; set; } = Result.Exito();
 
+        public Exception? Excepcion { get; set; }
+
         public Task<Result> EnviarAsync(
             string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
             string? responderA = null, CancellationToken cancellationToken = default)
         {
+            if (Excepcion is not null)
+                throw Excepcion;
+
             if (Respuesta.EsExitoso)
                 Enviados.Add((destinatarioEmail, asunto, cuerpoHtml, responderA));
             return Task.FromResult(Respuesta);
+        }
+    }
+
+    private sealed class ContenidoSinLongitud(byte[] cuerpo) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            stream.WriteAsync(cuerpo).AsTask();
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
         }
     }
 }
