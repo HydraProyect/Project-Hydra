@@ -209,29 +209,7 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
     public async Task Una_importacion_con_Asignaciones_las_da_de_alta_y_las_acredita_con_el_candado_del_Tenant_tomado()
     {
         const string nombreCentro = "Planta Importación Serializada";
-        Guid canalId;
-        Guid documentoId;
-        await using (var siembra = CrearContexto())
-        {
-            var trabajador = await siembra.Trabajadores.SingleAsync(t => t.Id == _trabajadorId);
-            var cliente = Empresa.CrearComoCliente("Cliente Importación Serializada S.L.", "B10380194", false, null, null);
-            siembra.Empresas.Add(cliente);
-            await siembra.SaveChangesAsync();
-            var centro = new Centro(cliente.Id, trabajador.EmpresaId!.Value, nombreCentro);
-            siembra.Centros.Add(centro);
-            await siembra.SaveChangesAsync();
-            var proveedor = await siembra.ProveedoresPlataformaCae.FirstAsync();
-            var canal = CanalGestionDocumental.DePlataforma(
-                centro.Id, "Plataforma", proveedor.Id, "https://plataforma.test", "usuario", "clave");
-            var documento = Documento.DeTrabajador(
-                _trabajadorId, _tipoDocumentoId, new DateOnly(2026, 2, 1), VigenciaDocumento.VenceEl(new DateOnly(2031, 2, 1)));
-            siembra.CanalesGestionDocumental.Add(canal);
-            siembra.Documentos.Add(documento);
-            siembra.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoId, centro.Id));
-            await siembra.SaveChangesAsync();
-            canalId = canal.Id;
-            documentoId = documento.Id;
-        }
+        var (_, canalId, documentoId) = await SembrarCentroConPlataformaAsync(nombreCentro);
 
         var plan = new PlanImportacionDto(
             OperacionId: Guid.NewGuid(),
@@ -240,17 +218,17 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
 
         await using var contexto = CrearContexto();
         var serializacion = new SerializacionQueObservaElCandado(
-            new SerializacionAltasAcreditacionEmpresa(contexto, new TransaccionDeComando(contexto), _tenantActual), contexto);
+            new SerializacionAltasAcreditacionEmpresa(contexto, new TransaccionDeComando(contexto), _tenantActual), contexto, ClaveDelCandado);
         var resultado = await ConstruirHandler(contexto, serializacion: serializacion)
             .Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.AsignacionesCreadas.Should().Be(1);
         serializacion.Llamadas.Should().Be(1, "un plan con Asignaciones entra por la rama serializada");
-        serializacion.AlEntrar.Should().Be((1, 0),
-            "el candado del Tenant está tomado antes de leer las Asignaciones, y la hoja se recorre dentro de la operación serializada");
-        serializacion.CandadosDeAsesoramientoAlGuardar.Should().Be(1,
-            "la hoja de Asignaciones se guarda con el candado de asesoramiento del Tenant tomado en su transacción");
+        serializacion.CandadosDelTenantAlEntrar.Should().Be(1,
+            "la operación serializada empieza con el candado de este Tenant ya concedido en la sesión, no otro candado cualquiera");
+        serializacion.CandadosDelTenantAlGuardar.Should().Be(1,
+            "la hoja de Asignaciones se guarda con el candado de este Tenant concedido en su transacción");
 
         await using var verificacion = CrearContexto();
         (await verificacion.AcreditacionesDocumentoPlataforma.CountAsync(a => a.DocumentoId == documentoId && a.CanalGestionDocumentalId == canalId))
@@ -258,33 +236,111 @@ public class EjecutarImportacionConcurrenciaTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Delega en la serialización real y cuenta los candados de asesoramiento de la sesión al entrar en la operación (con
-    /// las Asignaciones ya rastreadas) y al terminarla.
+    /// Issue #2094 (BAJO de Codex en la PR #2101): la lectura de las Asignaciones existentes es una proyección sin rastreo,
+    /// así que contar entradas del <c>ChangeTracker</c> no detectaría que alguien la adelantara a antes del candado. Aquí otra
+    /// operación confirma la misma Asignación justo antes de que la importación pida el candado del Tenant: solo una lectura
+    /// hecha con el candado ya tomado la ve, la cuenta como existente y no da de alta un duplicado.
     /// </summary>
-    private sealed class SerializacionQueObservaElCandado(ISerializacionAltasAcreditacionEmpresa real, CaeManagerDbContext contexto)
+    [Fact]
+    public async Task Una_Asignacion_confirmada_por_otra_operacion_antes_del_candado_cuenta_como_existente()
+    {
+        const string nombreCentro = "Planta Importación Carrera";
+        var (centroId, _, _) = await SembrarCentroConPlataformaAsync(nombreCentro);
+
+        var plan = new PlanImportacionDto(
+            OperacionId: Guid.NewGuid(),
+            ClientesCentros: [], Empresas: [], Trabajadores: [], Documentos: [],
+            Asignaciones: [new AsignacionImportadaDto(Dni, nombreCentro, YaExiste: false)], Advertencias: [], Omitidos: []);
+
+        await using var contexto = CrearContexto();
+        var serializacion = new SerializacionQueObservaElCandado(
+            new SerializacionAltasAcreditacionEmpresa(contexto, new TransaccionDeComando(contexto), _tenantActual), contexto, ClaveDelCandado,
+            antesDelCandado: async () =>
+            {
+                // Otra conexión, confirmada antes de que la importación pida el candado: la carrera que este test fija.
+                await using var otraOperacion = CrearContexto();
+                otraOperacion.Asignaciones.Add(new CaeManager.Domain.Asignaciones.Asignacion(_trabajadorId, centroId, new DateOnly(2026, 1, 1)));
+                await otraOperacion.SaveChangesAsync();
+            });
+        var resultado = await ConstruirHandler(contexto, serializacion: serializacion)
+            .Handle(new EjecutarImportacionCommand(plan), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        serializacion.Llamadas.Should().Be(1, "un plan con Asignaciones entra por la rama serializada");
+        resultado.Valor.AsignacionesCreadas.Should().Be(0,
+            "la lectura de las Asignaciones existentes corre con el candado tomado y ve la que otra operación acaba de confirmar");
+        resultado.Valor.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("ya estaba asignado al centro"),
+            "la fila se omite con la causal de la Asignación aparecida entre analizar y confirmar");
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.Asignaciones.CountAsync(a => a.TrabajadorId == _trabajadorId && a.CentroId == centroId))
+            .Should().Be(1, "la importación no duplica la Asignación que otra operación confirmó mientras esta esperaba");
+    }
+
+    /// <summary>Un Centro de otro Cliente empresarial que exige el tipo de Documento, con su acceso de plataforma y un Documento vigente.</summary>
+    private async Task<(Guid CentroId, Guid CanalId, Guid DocumentoId)> SembrarCentroConPlataformaAsync(string nombreCentro)
+    {
+        await using var siembra = CrearContexto();
+        var trabajador = await siembra.Trabajadores.SingleAsync(t => t.Id == _trabajadorId);
+        var cliente = Empresa.CrearComoCliente("Cliente Importación Serializada S.L.", "B10380194", false, null, null);
+        siembra.Empresas.Add(cliente);
+        await siembra.SaveChangesAsync();
+        var centro = new Centro(cliente.Id, trabajador.EmpresaId!.Value, nombreCentro);
+        siembra.Centros.Add(centro);
+        await siembra.SaveChangesAsync();
+        var proveedor = await siembra.ProveedoresPlataformaCae.FirstAsync();
+        var canal = CanalGestionDocumental.DePlataforma(
+            centro.Id, "Plataforma", proveedor.Id, "https://plataforma.test", "usuario", "clave");
+        var documento = Documento.DeTrabajador(
+            _trabajadorId, _tipoDocumentoId, new DateOnly(2026, 2, 1), VigenciaDocumento.VenceEl(new DateOnly(2031, 2, 1)));
+        siembra.CanalesGestionDocumental.Add(canal);
+        siembra.Documentos.Add(documento);
+        siembra.TiposDocumentoCentros.Add(new TipoDocumentoCentro(_tipoDocumentoId, centro.Id));
+        await siembra.SaveChangesAsync();
+        return (centro.Id, canal.Id, documento.Id);
+    }
+
+    /// <summary>La misma clave que <see cref="SerializacionAltasAcreditacionEmpresa"/>: espacio propio más el Tenant.</summary>
+    private string ClaveDelCandado => "app.altas_acreditacion_empresa:" + _tenantActual.TenantId;
+
+    /// <summary>
+    /// Delega en la serialización real y cuenta, al entrar en la operación y al terminarla, los candados de asesoramiento
+    /// concedidos en la sesión cuya clave es la del Tenant. <paramref name="antesDelCandado"/> corre antes de delegar, es
+    /// decir, antes de que la serialización real pida el candado.
+    /// </summary>
+    private sealed class SerializacionQueObservaElCandado(
+        ISerializacionAltasAcreditacionEmpresa real, CaeManagerDbContext contexto, string claveDelCandado, Func<Task>? antesDelCandado = null)
         : ISerializacionAltasAcreditacionEmpresa
     {
-        public int Llamadas { get; private set; }
-        public (int Candados, int Asignaciones)? AlEntrar { get; private set; }
-        public int? CandadosDeAsesoramientoAlGuardar { get; private set; }
+        /// <summary>
+        /// Un candado de asesoramiento con clave bigint aparece en <c>pg_locks</c> partido en <c>classid</c> (32 bits altos)
+        /// y <c>objid</c> (32 bits bajos), con <c>objsubid = 1</c>; se recompone para compararlo con la clave esperada.
+        /// </summary>
+        private const string CandadosDelTenantConcedidosEnEstaSesion =
+            "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND objsubid = 1 " +
+            "AND ((classid::bigint << 32) | objid::bigint) = hashtextextended({0}, 0) AND granted AND pid = pg_backend_pid()";
 
-        public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
+        public int Llamadas { get; private set; }
+        public int? CandadosDelTenantAlEntrar { get; private set; }
+        public int? CandadosDelTenantAlGuardar { get; private set; }
+
+        public async Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default)
         {
             Llamadas++;
-            return real.EjecutarAsync(async ct =>
+            if (antesDelCandado is not null)
+                await antesDelCandado();
+
+            return await real.EjecutarAsync(async ct =>
             {
-                AlEntrar = (await ContarCandadosAsync(ct),
-                    contexto.ChangeTracker.Entries<CaeManager.Domain.Asignaciones.Asignacion>().Count());
+                CandadosDelTenantAlEntrar = await ContarCandadosDelTenantAsync(ct);
                 var resultado = await operacion(ct);
-                CandadosDeAsesoramientoAlGuardar = await ContarCandadosAsync(ct);
+                CandadosDelTenantAlGuardar = await ContarCandadosDelTenantAsync(ct);
                 return resultado;
             }, cancellationToken);
         }
 
-        private Task<int> ContarCandadosAsync(CancellationToken ct) =>
-            contexto.Database.SqlQueryRaw<int>(
-                    "SELECT count(*)::int AS \"Value\" FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()")
-                .SingleAsync(ct);
+        private Task<int> ContarCandadosDelTenantAsync(CancellationToken ct) =>
+            contexto.Database.SqlQueryRaw<int>(CandadosDelTenantConcedidosEnEstaSesion, claveDelCandado).SingleAsync(ct);
     }
 
     private static EjecutarImportacionCommandHandler ConstruirHandler(
