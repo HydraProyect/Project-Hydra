@@ -1,0 +1,20 @@
+@using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas
+
+@*
+    Barra de avance de dos tramos (§ 4.2, D-4): validados (éxito) y subidos pendientes de validar (primario claro).
+    Los porcentajes salen del AvanceGestionAutomatica de la consulta, nunca de un recuento propio de la pantalla.
+*@
+<div class="barra-avance-gestion @(Compacta ? "barra-avance-gestion-compacta" : "")" role="progressbar" aria-valuemin="0"
+     aria-valuemax="@Avance.Pasos" aria-valuenow="@Avance.Hechos" aria-label="@AriaLabel" data-barra-avance="">
+    <span class="tramo-validado" title="@Avance.Validados" style="width:@(Pct(Avance.Validados))%"></span>
+    <span class="tramo-subido" title="@Avance.PendientesDeValidar" style="width:@(Pct(Avance.PendientesDeValidar))%"></span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AvanceGestionAutomatica Avance { get; set; } = default!;
+    [Parameter] public bool Compacta { get; set; }
+    /// <summary>Nombre accesible de la barra, ya localizado por quien la pinta.</summary>
+    [Parameter, EditorRequired] public string AriaLabel { get; set; } = string.Empty;
+
+    private string Pct(int n) => Avance.Pasos == 0 ? "0" : (n * 100d / Avance.Pasos).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
