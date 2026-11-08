@@ -36,12 +36,15 @@ namespace CaeManager.Infrastructure.DataProtection;
 /// Operaciones abandonadas: una operación que no terminó en el límite sigue su curso
 /// hasta que el SDK atienda la cancelación. Una escritura en S3 ya enviada puede
 /// completarse después, y Data Protection, que la da por fallida, generará otra clave;
-/// las dos son válidas. Su excepción tardía se observa (no llega a
-/// <see cref="TaskScheduler.UnobservedTaskException"/>) y su resultado tardío pasa por
-/// <c>descartarResultadoTardio</c> para que quien llama pueda borrar material sensible.
-/// Como la cancelación solo se pide después de vencer la espera, un límite vencido
-/// siempre llega como <see cref="TimeoutException"/>, y cualquier otra excepción
-/// (incluida una <see cref="OperationCanceledException"/> del SDK) es de la operación.
+/// las dos son válidas. Cuando la operación abandonada termina, sea cual sea su estado,
+/// una continuación encolada en el pool (nunca en el hilo del llamante, tampoco si la
+/// operación terminó justo al vencer la espera) observa su excepción tardía (no llega a
+/// <see cref="TaskScheduler.UnobservedTaskException"/>), pasa su resultado tardío por
+/// <c>descartarResultadoTardio</c> y llama a <c>liberarEntrada</c>, para que quien llama
+/// pueda borrar material sensible. Como la cancelación solo se pide después de vencer la
+/// espera, un límite vencido siempre llega como <see cref="TimeoutException"/>, y
+/// cualquier otra excepción (incluida una <see cref="OperationCanceledException"/> del
+/// SDK) es de la operación.
 ///
 /// Esto elimina el interbloqueo, no el bloqueo: el hilo del llamante sigue esperando
 /// (hasta el límite), porque la interfaz de Data Protection es síncrona.
@@ -55,12 +58,25 @@ internal static class LlamadaSincronaAws
     /// </summary>
     internal static readonly TimeSpan LimitePorDefecto = TimeSpan.FromSeconds(30);
 
+    /// <param name="descartarResultadoTardio">
+    /// Recibe el resultado de una operación que terminó con éxito después del límite, que
+    /// ya nadie usará. Corre en el pool; si lanza, la excepción se observa y se descarta.
+    /// </param>
+    /// <param name="liberarEntrada">
+    /// Se llama una vez cuando la operación ya no puede usar lo que recibió, sea cual sea
+    /// su desenlace: al volver, si terminó dentro del plazo, o desde el pool cuando la
+    /// operación abandonada termina, o cuando el pool llega a una que no había arrancado y
+    /// la descarta por cancelada (con el pool saturado, eso ocurre al recuperarse). Es el
+    /// momento seguro para borrar una entrada que la operación aún podría estar enviando.
+    /// Si lanza, la excepción se observa y se descarta.
+    /// </param>
     internal static T Ejecutar<T>(
         Func<CancellationToken, Task<T>> operacion,
         TimeSpan limite,
         string descripcion,
-        Action<T>? descartarResultadoTardio = null) =>
-        Ejecutar(operacion, limite, descripcion, descartarResultadoTardio, TaskScheduler.Default);
+        Action<T>? descartarResultadoTardio = null,
+        Action? liberarEntrada = null) =>
+        Ejecutar(operacion, limite, descripcion, descartarResultadoTardio, liberarEntrada, TaskScheduler.Default);
 
     /// <param name="planificador">
     /// <see cref="TaskScheduler.Default"/> en producción (lo mismo que <c>Task.Run</c>);
@@ -71,6 +87,7 @@ internal static class LlamadaSincronaAws
         TimeSpan limite,
         string descripcion,
         Action<T>? descartarResultadoTardio,
+        Action? liberarEntrada,
         TaskScheduler planificador)
     {
         ArgumentNullException.ThrowIfNull(operacion);
@@ -97,8 +114,8 @@ internal static class LlamadaSincronaAws
 
         if (!((IAsyncResult)tarea).AsyncWaitHandle.WaitOne(limite))
         {
-            Abandonar(tarea, cancelacion, descartarResultadoTardio);
-            throw Agotado(descripcion, limite, causa: null);
+            Abandonar(tarea, cancelacion, descartarResultadoTardio, liberarEntrada);
+            throw Agotado(descripcion, limite);
         }
 
         // La tarea terminó dentro del plazo y el origen no se llegó a cancelar: una
@@ -112,10 +129,15 @@ internal static class LlamadaSincronaAws
             // Libera el evento del núcleo que creó AsyncWaitHandle.
             tarea.Dispose();
             cancelacion.Dispose();
+            InvocarSinLanzar(liberarEntrada);
         }
     }
 
-    internal static void Ejecutar(Func<CancellationToken, Task> operacion, TimeSpan limite, string descripcion)
+    internal static void Ejecutar(
+        Func<CancellationToken, Task> operacion,
+        TimeSpan limite,
+        string descripcion,
+        Action? liberarEntrada = null)
     {
         ArgumentNullException.ThrowIfNull(operacion);
 
@@ -126,48 +148,83 @@ internal static class LlamadaSincronaAws
                 return true;
             },
             limite,
-            descripcion);
+            descripcion,
+            descartarResultadoTardio: null,
+            liberarEntrada);
     }
 
     /// <summary>
-    /// Fuera del camino crítico del llamante: no espera a nada y no ejecuta callbacks
-    /// ajenos en su hilo. El origen no se dispone: no tiene temporizador que liberar, y
-    /// la operación o los callbacks de la cancelación pueden seguir usándolo.
+    /// Fuera del camino crítico del llamante: no espera a nada y no ejecuta en su hilo ni
+    /// callbacks ajenos ni la limpieza. El origen no se dispone: no tiene temporizador que
+    /// liberar, y la operación o los callbacks de la cancelación pueden seguir usándolo.
     /// </summary>
-    private static void Abandonar<T>(Task<T> tarea, CancellationTokenSource cancelacion, Action<T>? descartarResultadoTardio)
+    internal static void Abandonar<T>(
+        Task<T> tarea,
+        CancellationTokenSource cancelacion,
+        Action<T>? descartarResultadoTardio,
+        Action? liberarEntrada)
     {
         // Un callback del SDK que falle hace fallar esta tarea: se observa para que
         // no acabe en UnobservedTaskException.
         _ = cancelacion.CancelAsync().ContinueWith(
             static t => _ = t.Exception,
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskContinuationOptions.OnlyOnFaulted,
             TaskScheduler.Default);
 
-        // descartarResultadoTardio no debe lanzar: correría aquí, sin nadie que lo observe.
+        // Sin ExecuteSynchronously, a propósito: si la tarea terminó entre el vencimiento
+        // de la espera y este registro, ContinueWith la encola en el pool en vez de
+        // ejecutarla aquí, y el llamante recibe el TimeoutException sin esperar a la
+        // limpieza (que escribe en flujos y libera recursos que podrían bloquear).
         _ = tarea.ContinueWith(
             static (t, estado) =>
             {
-                if (t.IsFaulted)
+                var (descartar, liberar) = ((Action<T>?, Action?))estado!;
+                try
                 {
-                    // La excepción tardía se observa: el llamante ya recibió el
-                    // TimeoutException y no hay nadie más que la espere.
-                    _ = t.Exception;
+                    if (t.IsFaulted)
+                    {
+                        // La excepción tardía se observa: el llamante ya recibió el
+                        // TimeoutException y no hay nadie más que la espere.
+                        _ = t.Exception;
+                    }
+                    else if (t.IsCompletedSuccessfully && descartar is not null)
+                    {
+                        descartar(t.Result);
+                    }
                 }
-                else if (t.IsCompletedSuccessfully && estado is Action<T> descartar)
+                catch (Exception)
                 {
-                    descartar(t.Result);
+                    // Un descartador que falla no puede dejar esta continuación con una
+                    // excepción que nadie observaría.
                 }
+                finally
+                {
+                    InvocarSinLanzar(liberar);
 
-                // Libera el evento del núcleo que creó AsyncWaitHandle.
-                t.Dispose();
+                    // Libera el evento del núcleo que creó AsyncWaitHandle.
+                    t.Dispose();
+                }
             },
-            descartarResultadoTardio,
+            (descartarResultadoTardio, liberarEntrada),
             CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
+            TaskContinuationOptions.None,
             TaskScheduler.Default);
     }
 
-    private static TimeoutException Agotado(string descripcion, TimeSpan limite, Exception? causa) =>
-        new($"{descripcion} no respondió en {limite.TotalSeconds:0.###} s; se cancela para no retener el hilo del llamante.", causa);
+    private static void InvocarSinLanzar(Action? accion)
+    {
+        try
+        {
+            accion?.Invoke();
+        }
+        catch (Exception)
+        {
+            // Limpieza de mejor esfuerzo: no sustituye al resultado ni a la excepción de
+            // la operación, y en el pool no habría nadie que la observase.
+        }
+    }
+
+    private static TimeoutException Agotado(string descripcion, TimeSpan limite) =>
+        new($"{descripcion} no respondió en {limite.TotalSeconds:0.###} s; se cancela para no retener el hilo del llamante.");
 }

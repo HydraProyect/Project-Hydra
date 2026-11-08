@@ -59,7 +59,7 @@ public class KmsXmlDecryptor : IXmlDecryptor
             }, token),
             _limite,
             "El descifrado con KMS de una clave de Data Protection",
-            static tardia => BorrarFlujo(tardia.Plaintext));
+            static tardia => _ = BorrarFlujo(tardia.Plaintext));
 
         var textoPlano = respuesta.Plaintext.ToArray();
         try
@@ -71,41 +71,65 @@ public class KmsXmlDecryptor : IXmlDecryptor
             // El XElement devuelto es lo que Data Protection necesita; las copias
             // intermedias en bytes no tienen por qué sobrevivir a esta llamada.
             CryptographicOperations.ZeroMemory(textoPlano);
-            BorrarFlujo(respuesta.Plaintext);
+            _ = BorrarFlujo(respuesta.Plaintext);
         }
     }
 
     /// <summary>
-    /// Sobrescribe con ceros el contenido de un flujo en memoria si admite escritura y
-    /// desplazamiento, y lo libera. Que el SDK construya <c>Plaintext</c> como un
-    /// <see cref="MemoryStream"/> escribible sobre los bytes recibidos es una suposición
-    /// no verificada contra AWSSDK.KeyManagementService: si no lo fuera, el texto plano
-    /// no se borra (sin aviso) y solo se libera el flujo. No lanza: también se usa sobre
-    /// respuestas tardías, donde nadie observaría el fallo.
+    /// Sobrescribe con ceros el contenido de un flujo en memoria y lo libera. Primero
+    /// intenta el búfer subyacente (<see cref="MemoryStream.TryGetBuffer"/>), que se puede
+    /// borrar aunque el flujo sea de solo lectura; si no está expuesto, sobrescribe a
+    /// través del flujo cuando admite escritura y desplazamiento. El <c>Plaintext</c> que
+    /// construye AWSSDK.KeyManagementService 4.0.100.14 al deserializar la respuesta queda
+    /// a ceros por una de esas dos vías (lo comprueba un test contra el cliente real, con
+    /// un manejador HTTP de prueba). Un flujo de solo lectura cuyo búfer no esté expuesto
+    /// no se puede borrar sin reflexión: se libera y se devuelve <c>false</c>. Las copias
+    /// que el SDK o la pila HTTP hagan del cuerpo de la respuesta (el Base64) quedan fuera.
+    ///
+    /// No lanza, tampoco si falla <see cref="Stream.Dispose()"/>: se usa en un
+    /// <c>finally</c>, donde una excepción sustituiría al resultado de
+    /// <see cref="Decrypt"/>, y sobre respuestas tardías, donde nadie la observaría.
     /// </summary>
-    internal static void BorrarFlujo(MemoryStream? flujo)
+    /// <returns><c>true</c> si el contenido visible del flujo quedó a ceros.</returns>
+    internal static bool BorrarFlujo(MemoryStream? flujo)
     {
         if (flujo is null)
         {
-            return;
+            return true;
         }
 
+        var borrado = false;
         try
         {
-            if (flujo.CanWrite && flujo.CanSeek)
+            if (flujo.TryGetBuffer(out var bufer))
+            {
+                CryptographicOperations.ZeroMemory(bufer.AsSpan());
+                borrado = true;
+            }
+            else if (flujo.CanWrite && flujo.CanSeek)
             {
                 var longitud = checked((int)flujo.Length);
                 flujo.Position = 0;
                 flujo.Write(new byte[longitud]);
+                borrado = true;
             }
         }
-        catch (Exception ex) when (ex is NotSupportedException or ObjectDisposedException or IOException or OverflowException)
+        catch (Exception)
         {
-            // Un flujo que no se deja sobrescribir se libera igualmente.
+            // Borrado de mejor esfuerzo: la excepción se observa aquí y el flujo se
+            // libera igualmente.
+            borrado = false;
         }
-        finally
+
+        try
         {
             flujo.Dispose();
         }
+        catch (Exception)
+        {
+            // Liberar es de mejor esfuerzo: un fallo aquí no altera el resultado.
+        }
+
+        return borrado;
     }
 }

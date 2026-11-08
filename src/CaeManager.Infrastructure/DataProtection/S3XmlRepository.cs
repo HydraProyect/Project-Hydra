@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -61,16 +63,29 @@ public class S3XmlRepository : IXmlRepository
         return elementos;
     }
 
+    /// <remarks>
+    /// El XML puede llevar la clave maestra sin cifrar (cuando no hay KMS ni certificado,
+    /// en los entornos que lo permiten), así que lo que retiene la escritura son bytes que
+    /// se borran en cuanto S3 ya no puede leerlos: al volver, o, si la escritura queda
+    /// abandonada tras el límite, cuando termine o cuando el pool la descarte sin haberla
+    /// arrancado (ver <see cref="LlamadaSincronaAws"/>). Borrarlos
+    /// antes corrompería una petición aún en curso, que S3 podría llegar a guardar.
+    /// Lo que no se puede borrar: el <see cref="string"/> que produce
+    /// <see cref="XNode.ToString()"/> (inmutable; vive lo que tarde el recolector, y no lo
+    /// retiene la escritura), el propio <see cref="XElement"/>, que es de Data Protection,
+    /// y las copias que el SDK o la pila HTTP hagan al enviar.
+    /// </remarks>
     public void StoreElement(XElement element, string friendlyName)
     {
-        // La clausura solo retiene lo que viaja a S3, no el elemento de Data Protection.
         var clave = $"{_opciones.Prefijo}{friendlyName}.xml";
-        var contenido = element.ToString();
+        // Los mismos bytes que enviaba ContentBody (UTF-8 sin BOM del mismo texto).
+        var contenido = Encoding.UTF8.GetBytes(element.ToString());
 
         LlamadaSincronaAws.Ejecutar(
             token => AlmacenarAsync(clave, contenido, token),
             _limite,
-            "La escritura de una clave de Data Protection en S3");
+            "La escritura de una clave de Data Protection en S3",
+            liberarEntrada: () => CryptographicOperations.ZeroMemory(contenido));
     }
 
     private async Task<IReadOnlyList<string>> ListarClavesAsync(CancellationToken token)
@@ -96,13 +111,15 @@ public class S3XmlRepository : IXmlRepository
         return await lector.ReadToEndAsync(token).ConfigureAwait(false);
     }
 
-    private async Task AlmacenarAsync(string clave, string contenido, CancellationToken token)
+    private async Task AlmacenarAsync(string clave, byte[] contenido, CancellationToken token)
     {
+        // Sin copia: el flujo envuelve el array que borra liberarEntrada.
+        using var flujo = new MemoryStream(contenido, writable: false);
         await _cliente.PutObjectAsync(new PutObjectRequest
         {
             BucketName = _opciones.BucketName,
             Key = clave,
-            ContentBody = contenido
+            InputStream = flujo
         }, token).ConfigureAwait(false);
     }
 }
