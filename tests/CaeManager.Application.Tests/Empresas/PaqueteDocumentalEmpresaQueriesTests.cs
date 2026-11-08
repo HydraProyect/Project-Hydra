@@ -205,7 +205,8 @@ public class PaqueteDocumentalEmpresaQueriesTests
     [InlineData("aux.tar.gz", "aux_.tar.gz")]
     [InlineData("Informe.", "Informe")]
     [InlineData("Informe  ", "Informe")]
-    [InlineData("COM0", "COM0")]
+    [InlineData("COM0", "COM0_")]
+    [InlineData("lpt0", "lpt0_")]
     [InlineData("COM10", "COM10")]
     [InlineData("CONTRATO", "CONTRATO")]
     [InlineData("Mi CON", "Mi CON")]
@@ -230,6 +231,40 @@ public class PaqueteDocumentalEmpresaQueriesTests
 
         zip.Keys.Should().Contain(["Empresa/CON_.pdf", "Empresa/Seguro de obra.pdf"]);
         zip.Keys.Should().NotContain("Empresa/CON.pdf");
+    }
+
+    [Fact]
+    public async Task Un_nombre_que_se_queda_vacio_y_dos_nombres_que_chocan_tras_sanear_dan_entradas_distintas_y_con_nombre()
+    {
+        var vacio = NuevoTipo(".", AmbitoAplicacion.Empresa);
+        var reservado = NuevoTipo("CON", AmbitoAplicacion.Empresa);
+        var yaConGuion = NuevoTipo("CON_", AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.AddRange([vacio, reservado, yaConGuion]);
+        foreach (var tipo in new[] { vacio, reservado, yaConGuion })
+        {
+            _calculo.ExigirALaEmpresa(_centroDelCliente, _empresa, tipo);
+            DocumentoDeEmpresa(tipo, VigenciaDocumento.NoCaduca, tipo.Nombre);
+        }
+
+        var zip = LeerZip((await DescargarAsync(_cliente.Id)).Valor.Contenido);
+
+        zip.Keys.Should().Contain(["Empresa/_.pdf", "Empresa/CON_.pdf", "Empresa/CON_ (2).pdf"],
+            "un nombre vacío no deja una entrada sin nombre y «CON» y «CON_» no se pisan");
+        zip.Keys.Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task Si_la_transaccion_reintenta_cada_intento_abre_su_lote_y_solo_salen_las_senales_del_confirmado()
+    {
+        var senales = new SenalesEspia(_transaccion);
+        var servicio = RegistroReal(senales, _repositorioReal = new RepositorioQueFallaEnLaLlamada(null));
+        _transaccion.ReintentaTrasUnFalloTransitorio = true;
+
+        var resultado = await Mediador(servicio).DescargarAsync(new DescargarPaqueteEmpresaQuery(_empresa.Id, _cliente.Id));
+
+        resultado.EsFallido.Should().BeFalse();
+        _transaccion.Ejecutadas.Should().Be(2, "el primer intento falló después de registrar y se reintentó");
+        senales.Emitidas.Should().HaveCount(2, "las señales retenidas del intento deshecho no se arrastran al confirmado");
     }
 
     [Fact]
@@ -720,6 +755,8 @@ public class PaqueteDocumentalEmpresaQueriesTests
         public int Ejecutadas { get; private set; }
         public int Confirmadas { get; private set; }
         public int Deshechas { get; private set; }
+        public bool ReintentaTrasUnFalloTransitorio { get; set; }
+        private bool _yaReintento;
         public Func<int> Contar { get; set; } = () => 0;
         public Action<int> AlDeshacer { get; set; } = _ => { };
 
@@ -731,6 +768,14 @@ public class PaqueteDocumentalEmpresaQueriesTests
             try
             {
                 var resultado = await operacion(cancellationToken);
+                if (ReintentaTrasUnFalloTransitorio && !_yaReintento)
+                {
+                    // Un fallo transitorio al confirmar: se deshace todo y la estrategia de ejecución repite la operación entera.
+                    _yaReintento = true;
+                    Deshacer(antes);
+                    return await EjecutarAsync(operacion, cancellationToken);
+                }
+
                 if (resultado.EsFallido) Deshacer(antes);
                 else Confirmadas++;
                 return resultado;

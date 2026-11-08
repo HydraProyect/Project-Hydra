@@ -208,7 +208,7 @@ internal static class ArmadoPaqueteDocumental
     /// <summary>
     /// Nombres de dispositivo de Windows que no se pueden crear ni extraer como fichero o carpeta, con o sin extensión y sin
     /// distinguir mayúsculas: CON, PRN, AUX, NUL, COM1–COM9 y LPT1–LPT9 (también con los superíndices ¹ ² ³ que Windows
-    /// trata igual). Se mira el nombre base —lo anterior al primer punto— sin los espacios finales, que Windows ignora.
+    /// trata igual). COM0 y LPT0 se tratan como reservados por prudencia: algunas versiones y herramientas de Windows los rechazan y sanearlos no cuesta nada. Se mira el nombre base —lo anterior al primer punto— sin los espacios finales, que Windows ignora.
     /// </summary>
     internal static bool EsNombreReservado(string segmento)
     {
@@ -226,7 +226,7 @@ internal static class ArmadoPaqueteDocumental
         return baseDelNombre.Length == 4
             && (baseDelNombre.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
                 || baseDelNombre.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
-            && (baseDelNombre[3] is >= '1' and <= '9' or '¹' or '²' or '³');
+            && (baseDelNombre[3] is >= '0' and <= '9' or '¹' or '²' or '³');
     }
 
     /// <summary>

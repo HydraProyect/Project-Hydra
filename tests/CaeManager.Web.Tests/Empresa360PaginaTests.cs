@@ -822,6 +822,26 @@ public partial class Empresa360PaginaTests : BunitContext
             .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"))); // terminada la descarga, la siguiente apertura vuelve a elegir el primer Cliente empresarial
     }
 
+    [Fact]
+    public void Si_la_descarga_falla_con_el_dialogo_cerrado_el_motivo_se_ve_al_reabrirlo()
+    {
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 409, "El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo.") };
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog] .paquete-error-descarga[role=alert]").TextContent.Trim()
+            .Should().Be("El paquete pasa de 200 archivos. Elige un Cliente concreto para prepararlo."));
+    }
+
     /// <summary>
     /// El JS de bUnit, salvo la importación de <c>descarga-archivo.js</c>, que espera a <paramref name="modulo"/> (bUnit no
     /// deja retener un <c>SetupModule</c>).
@@ -842,6 +862,8 @@ public partial class Empresa360PaginaTests : BunitContext
     /// <summary>El módulo <c>descarga-archivo.js</c> con la importación retenida: anota cada ruta que se pide.</summary>
     private sealed class ModuloDescargaQueAnota : IJSObjectReference
     {
+        public BotonPaqueteEmpresa.RespuestaDescarga Respuesta { get; init; } = new(true, 200, null);
+
         public List<string> Rutas { get; } = [];
 
         public List<CancellationToken> Tokens { get; } = [];
@@ -854,7 +876,7 @@ public partial class Empresa360PaginaTests : BunitContext
             identifier.Should().Be("descargar");
             Tokens.Add(cancellationToken);
             Rutas.Add((string)args![0]!);
-            return ValueTask.FromResult((TValue)(object)new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
+            return ValueTask.FromResult((TValue)(object)Respuesta);
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

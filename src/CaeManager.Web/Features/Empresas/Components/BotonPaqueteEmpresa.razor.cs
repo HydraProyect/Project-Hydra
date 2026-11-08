@@ -30,6 +30,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private int _versionCarga;
     private bool _generando;
     private string? _errorDescarga;
+    private bool _errorDescargaSinVer;
     private IJSObjectReference? _modulo;
 
     /// <summary>
@@ -61,10 +62,14 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         // ZIP que sigue llegando (por ejemplo «Todo lo vigente»). Cuando termine, la próxima apertura sí reinicia.
         if (_generando) return;
 
+        // Si la descarga falló mientras el diálogo estaba cerrado, el motivo se enseña en esta apertura (el contrato del diálogo
+        // es que el rechazo del servidor se ve en él); se borra al elegir destino o al generar de nuevo.
+        var conservarError = _errorDescargaSinVer;
+        _errorDescargaSinVer = false;
         _destinoInicialElegido = false;
         _destinoId = null;
         _resumen = null;
-        _errorDescarga = null;
+        if (!conservarError) _errorDescarga = null;
         await CargarAsync();
     }
 
@@ -162,6 +167,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         }
         finally
         {
+            _errorDescargaSinVer = _errorDescarga is not null && !_abierto;
             _generando = false;
         }
     }
