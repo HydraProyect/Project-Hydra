@@ -627,6 +627,21 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
+        // Gestión automática (especificación de Gestión de varios pasos, § 4.1): agrupa las acreditaciones en
+        // plataforma de un Documento, así que sus consultas leen Documentos y accesos de Centro y resuelven además la
+        // cabecera (Tipo, titular, Empresa gestionada) y el nombre de la plataforma.
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionAutomaticaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ICentrosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IDocumentosQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IEmpresasQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Gestiones.ObtenerGestionesAutomaticasQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentrosQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "IEmpresaRepository"),

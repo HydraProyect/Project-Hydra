@@ -55,7 +55,8 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -200,7 +201,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), empresas, new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion);
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion, mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(null, null, empresa.Id, null, null, tipo.Id, Hoy, null, null, null),
@@ -225,7 +226,7 @@ public class CaminosDeAltaAcreditacionesTests
             new DocumentoRepositorioFalso(), mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion);
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), serializacion, mundo.GestionAutomatica());
         var crearAcceso = new CrearCanalGestionCommandHandler(
             new CanalesGestionEnMemoria(), new AlcanceDatosServiceFalso(), new ProveedoresPlataformaCaeQueryContextFalso(),
             mundo.CentrosContexto, mundo.Servicio(), new UnitOfWorkFalso(), serializacion);
@@ -314,7 +315,7 @@ public class CaminosDeAltaAcreditacionesTests
         MundoAcreditaciones mundo, DocumentoRepositorioFalso documentos, SerializacionAltasAcreditacionEmpresaFalsa serializacion) => new(
         documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
         new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones, mundo.Servicio(), serializacion,
-        new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
+        new PublisherFalso(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo(), mundo.GestionAutomatica());
 
     [Fact]
     public async Task Crear_un_acceso_de_plataforma_acredita_ante_el_solo_los_documentos_que_su_centro_exige()
@@ -799,7 +800,8 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             cola, new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo(), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, "apto.pdf", null),

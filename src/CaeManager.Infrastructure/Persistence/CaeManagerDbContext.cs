@@ -444,6 +444,10 @@ public class CaeManagerDbContext(
         InstantaneaDeLectura.EjecutarAsync(this, lectura, cancellationToken);
     public DbSet<Gestion> Gestiones => Set<Gestion>();
     IQueryable<Gestion> IGestionesQueryContext.Gestiones => Gestiones;
+    public DbSet<GestionAutomatica> GestionesAutomaticas => Set<GestionAutomatica>();
+    IQueryable<GestionAutomatica> IGestionesQueryContext.GestionesAutomaticas => GestionesAutomaticas;
+    public DbSet<PasoGestionAutomatica> PasosGestionAutomatica => Set<PasoGestionAutomatica>();
+    IQueryable<PasoGestionAutomatica> IGestionesQueryContext.PasosGestionAutomatica => PasosGestionAutomatica;
     public DbSet<RegistroTiempoGestion> RegistrosTiempoGestion => Set<RegistroTiempoGestion>();
     IQueryable<RegistroTiempoGestion> ITelemetriaQueryContext.RegistrosTiempoGestion => RegistrosTiempoGestion;
     public DbSet<ClaveApi> ClavesApi => Set<ClaveApi>();

@@ -145,7 +145,8 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             new DocumentoRepositorioFalso(), mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(trabajadorIdsVisibles: []), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(trabajadorIdsVisibles: []), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(NuevoCrear(trabajador.Id, tipo.Id, "tenant/ajeno.pdf"), CancellationToken.None);
 
@@ -166,7 +167,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(empresaIdsParaGestion: []),
             new ProyectosQueryContextFalso(), new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(),
             mundo.Acreditaciones, mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-            new VerificadorArchivoAlmacenado(almacen));
+            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica());
 
         var resultado = await handler.Handle(NuevoRenovar(documento.Id, "tenant/ajeno.pdf"), CancellationToken.None);
 
@@ -232,7 +233,8 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(),
-            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa());
+            new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenado(almacen), new CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa(),
+            mundo.GestionAutomatica());
         return (handler, documentos, almacen, trabajador, tipo);
     }
 
@@ -249,7 +251,7 @@ public class CrearRenovarDocumentoValidanArchivoAlmacenadoTests
             documentos, mundo.TiposDocumentoContexto, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
             new CaminosDeAltaAcreditacionesTests.ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Acreditaciones,
             mundo.Servicio(), new SerializacionAltasAcreditacionEmpresaFalsa(), new PublisherFalso(), new UnitOfWorkFalso(),
-            new VerificadorArchivoAlmacenado(almacen));
+            new VerificadorArchivoAlmacenado(almacen), mundo.GestionAutomatica());
         return (handler, documentos, almacen, documento);
     }
 

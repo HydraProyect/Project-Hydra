@@ -503,6 +503,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         services.AddScoped<CaeManager.Domain.Comunicaciones.IClasificacionRelevanciaCaeRepository, ClasificacionRelevanciaCaeRepository>();
         services.AddScoped<CaeManager.Domain.Gestiones.IGestionRepository, GestionRepository>();
+        services.AddScoped<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.IConexionIntegracionRepository, ConexionIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ICredencialIntegracionRepository, CredencialIntegracionRepository>();
         services.AddScoped<CaeManager.Domain.Integraciones.ISuscripcionWebhookRepository, SuscripcionWebhookRepository>();

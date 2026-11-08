@@ -204,6 +204,7 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
         // La importación da de alta sus Asignaciones bajo la serialización de A-1: el mismo registro que producción.
         servicios.AddSerializacionAltasAcreditacionEmpresa();
+        servicios.AddSingleton<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
 
         return servicios.BuildServiceProvider();
     }
