@@ -82,6 +82,9 @@ public class EjecutarImportacionMaestraCommandHandler(
 {
     private const string HojaEmpresas = "Empresas";
     private const string HojaClientes = "Clientes empresariales";
+
+    // La marca de la operación chocó en el índice único: otra confirmación de la misma operación ganó.
+    private bool operacionYaEjecutada;
     private const string HojaCentros = "Centros";
     private const string HojaTrabajadores = "Trabajadores";
 
@@ -126,9 +129,15 @@ public class EjecutarImportacionMaestraCommandHandler(
             var serializado = await serializacionAltas.EjecutarAsync(async ct =>
             {
                 procesado = await ProcesarAsync(plan, reemplazar, escribir, ct);
-                return procesado.EsExitoso ? Result.Exito() : Result.Fallo(procesado.Error);
+                if (procesado.EsFallido)
+                    return Result.Fallo(procesado.Error);
+                // La perdedora de dos confirmaciones de la misma operación devuelve «ya ejecutada», que es un éxito para
+                // quien llama, pero la transacción del candado tiene que deshacerse, igual que en EjecutarImportacion.
+                return operacionYaEjecutada
+                    ? Result.Fallo(Error.Crear("Importacion.YaEjecutada", "Esta importación ya se había ejecutado."))
+                    : Result.Exito();
             }, cancellationToken);
-            if (serializado.EsExitoso)
+            if (serializado.EsExitoso || operacionYaEjecutada)
                 return procesado!;
             return procesado is { EsFallido: true } ? procesado : Result.Fallo<ResultadoImportacionMaestraDto>(serializado.Error);
         }
@@ -613,8 +622,10 @@ public class EjecutarImportacionMaestraCommandHandler(
 
         // Todo lo pendiente junto con la marca de la operación en un único guardado: si dos confirmaciones de la
         // MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
-        return await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken)
-            ? resultado
-            : ResultadoImportacionMaestraDto.YaEjecutada();
+        if (await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+            return resultado;
+
+        operacionYaEjecutada = true;
+        return ResultadoImportacionMaestraDto.YaEjecutada();
     }
 }

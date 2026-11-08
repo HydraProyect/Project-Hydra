@@ -476,6 +476,103 @@ public class RestaurarEntidadesTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Un Documento de Empresa se restaura bajo el candado de la regla A-1 y se vuelve a cargar dentro: la segunda carga
+    /// relee (ReloadAsync) una fila eliminada que el contexto ya rastreaba, y tiene que encontrarla.
+    /// </summary>
+    [Fact]
+    public async Task Restaura_un_documento_de_empresa_eliminado_que_el_contexto_ya_rastreaba()
+    {
+        Guid documentoId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var empresa = new Empresa("Empresa del Documento S.L.", "B87654323");
+            var tipo = new TipoDocumento("Seguro de responsabilidad civil", 12, aplicaVencimientoAutomatico: true, orden: 1,
+                AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+            contexto.Empresas.Add(empresa);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(),
+                VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documento.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        // La Papelera del mismo circuito ya lo cargó con seguimiento.
+        (await contextoRestaurar.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeTrue();
+        var handler = new RestaurarDocumentoCommandHandler(
+            new DocumentoRepository(contextoRestaurar), new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(),
+            contextoRestaurar, contextoRestaurar, AltaAcreditacionesDePrueba.Con(contextoRestaurar), new SerializacionAltasSinBloqueo());
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documentoId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        await using var contextoComprobar = CrearContexto(_tenant);
+        (await contextoComprobar.Documentos.SingleAsync(d => d.Id == documentoId)).EstaEliminado.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Las lecturas «…Actualizado» de los repositorios reales, que deciden la regla A-1 bajo el candado, devuelven lo que
+    /// otra operación confirmó aunque el contexto (uno por circuito en Blazor Server) ya rastreara la instancia: EF no la
+    /// repone al materializar otra consulta (revisión Codex de la PR #2104, ronda 1, hallazgo MEDIO).
+    /// </summary>
+    [Fact]
+    public async Task Las_lecturas_actualizadas_de_centro_y_documento_ven_lo_confirmado_por_otra_operacion()
+    {
+        Guid centroId, centroEliminadoId, documentoId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente del Centro S.L.", "B12345674", false, null, null);
+            var empresa = new Empresa("Empresa del Centro S.L.", "B87654323");
+            var tipo = new TipoDocumento("Seguro de responsabilidad civil", 12, aplicaVencimientoAutomatico: true, orden: 1,
+                AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+            contexto.Empresas.AddRange(cliente, empresa);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+            var centro = new Centro(cliente.Id, empresa.Id, "Centro con gestión CAE");
+            var centroEliminado = new Centro(cliente.Id, empresa.Id, "Centro en la Papelera");
+            var documento = Documento.DeEmpresa(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(),
+                VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddYears(1)));
+            contexto.Centros.AddRange(centro, centroEliminado);
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            centroEliminado.MarcarComoEliminado(Guid.NewGuid());
+            documento.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            (centroId, centroEliminadoId, documentoId) = (centro.Id, centroEliminado.Id, documento.Id);
+        }
+
+        await using var circuito = CrearContexto(_tenant);
+        var rastreado = await circuito.Centros.SingleAsync(c => c.Id == centroId);
+        var eliminadoRastreado = await circuito.Centros.IgnoreQueryFilters().SingleAsync(c => c.Id == centroEliminadoId);
+        var documentoRastreado = await circuito.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId);
+        rastreado.GestionCae.Should().Be(CaeManager.Domain.Centros.ModalidadGestionCae.ConGestionCae);
+
+        await using (var otraOperacion = CrearContexto(_tenant))
+        {
+            (await otraOperacion.Centros.SingleAsync(c => c.Id == centroId)).EstablecerGestionCae(CaeManager.Domain.Centros.ModalidadGestionCae.SinGestionCae);
+            (await otraOperacion.Centros.IgnoreQueryFilters().SingleAsync(c => c.Id == centroEliminadoId)).Restaurar();
+            (await otraOperacion.Documentos.IgnoreQueryFilters().SingleAsync(d => d.Id == documentoId)).Restaurar();
+            await otraOperacion.SaveChangesAsync();
+        }
+
+        var centros = await new CentroRepository(circuito).ListarActualizadosAsync();
+        centros.Should().Contain(rastreado);
+        rastreado.GestionCae.Should().Be(CaeManager.Domain.Centros.ModalidadGestionCae.SinGestionCae, "la modalidad que decide es la de la base");
+        (await new CentroRepository(circuito).ObtenerIncluidoEliminadoActualizadoAsync(centroEliminadoId, _tenant))!
+            .EstaEliminado.Should().BeFalse();
+        eliminadoRastreado.EstaEliminado.Should().BeFalse();
+        (await new DocumentoRepository(circuito).ObtenerIncluidoEliminadoActualizadoAsync(documentoId, _tenant))!
+            .EstaEliminado.Should().BeFalse();
+        documentoRastreado.EstaEliminado.Should().BeFalse();
+        (await new DocumentoRepository(circuito).ObtenerIncluidoEliminadoActualizadoAsync(documentoId, _otroTenant))
+            .Should().BeNull("el Tenant se repone en la consulta");
+    }
+
+    /// <summary>
     /// EliminarProyecto no arrastra sus Documentos: desde la Papelera se restaura un Documento cuyo
     /// Proyecto ya está eliminado. La comprobación de cartera resuelve su Cliente empresarial sin el
     /// filtro de borrado lógico, tanto sin restricción como con una cartera que alcanza a ese Cliente.

@@ -400,6 +400,29 @@ public class EjecutarImportacionMaestraTests
     }
 
     [Fact]
+    public async Task La_perdedora_de_dos_confirmaciones_con_candado_responde_ya_ejecutada_y_deshace_la_transaccion()
+    {
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        e.CentroRepositorio.Centros.Add(centro);
+        var plan = Plan([FilaEmpresa() with { YaExiste = true }], [FilaCliente() with { YaExiste = true }],
+            [FilaCentro() with { YaExiste = true }]);
+        // La otra confirmación gana mientras esta espera el candado.
+        e.Serializacion.AlTomarElCandado = () => e.Operaciones.ConfirmarDesdeOtraEjecucion(plan.OperacionId);
+
+        var r = await e.EjecutarAsync(plan, reemplazar: true);
+
+        r.EsExitoso.Should().BeTrue("para quien llama es «ya ejecutada»");
+        r.Valor.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado");
+        e.Serializacion.UltimoResultado!.EsFallido.Should().BeTrue("la transacción del candado se deshace");
+    }
+
+    [Fact]
     public async Task Completar_vacios_no_cambia_la_modalidad_ni_toma_el_candado()
     {
         var e = new Escenario();
