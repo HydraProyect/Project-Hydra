@@ -447,11 +447,12 @@ public class CalculoEstadoCentroService(
     ///
     /// <para>
     /// Mismo contexto que el rechazo: solo accesos de tipo Plataforma de este Centro (un Centro sin plataforma nunca tiene
-    /// un Pendiente), un tipo que le aplique (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un propietario con
-    /// actividad allí — el Trabajador con Asignación activa, o la Empresa con algún Trabajador suyo con Asignación activa:
-    /// la acreditación sobrevive a la baja y a que el tipo deje de exigirse (<see cref="PendientesEnPlataformaDeCentros"/>, la
-    /// misma carga que usa el acceso por Centro). Una causa por Centro, sujeto y tipo, aunque el Centro tenga varios accesos
-    /// de plataforma o el sujeto copias duplicadas del documento.
+    /// un Pendiente), un tipo que le aplique (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un propietario que
+    /// cuente allí — el Trabajador con Asignación activa; la Empresa en los Centros de su Empresa (<c>Centro.EmpresaId</c>),
+    /// aunque no tenga Trabajadores asignados (decisión del 2026-11-08), o en cualquier Centro donde tenga algún Trabajador
+    /// suyo con Asignación activa: la acreditación sobrevive a la baja y a que el tipo deje de exigirse
+    /// (<see cref="PendientesEnPlataformaDeCentros"/>, la misma carga que usa el acceso por Centro). Una causa por Centro,
+    /// sujeto y tipo, aunque el Centro tenga varios accesos de plataforma o el sujeto copias duplicadas del documento.
     /// </para>
     /// </summary>
     private async Task AgregarCausasPendientesEnPlataformaAsync(
