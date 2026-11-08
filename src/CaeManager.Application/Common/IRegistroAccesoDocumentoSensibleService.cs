@@ -24,7 +24,7 @@ namespace CaeManager.Application.Common;
 /// registran una apertura por cada Documento que contiene, en
 /// <c>PaqueteDocumentalVisitaService.ConstruirAsync</c>. Y el «Preparar paquete» de Empresa 360
 /// (<c>DescargarPaqueteEmpresaQuery</c>), que registra una apertura por cada Documento que entró en el zip antes de
-/// entregarlo.
+/// entregarlo, todas en una sola transacción: si una falla, no queda ninguna y el zip no se entrega.
 /// </para>
 ///
 /// <para>

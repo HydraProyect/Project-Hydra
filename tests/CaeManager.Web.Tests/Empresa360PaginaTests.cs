@@ -28,6 +28,7 @@ using CaeManager.Web.Features.Empresas.Pages;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -734,6 +735,52 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".paquete-cuerpo").GetAttribute("aria-busy").Should().Be("false"));
         cut.Find(".paquete-recuento-incluye .paquete-cifra").TextContent.Trim().Should().Be("40",
             "la respuesta de Grupo Arbeko llegó tarde y se descarta: está pulsado «Todo lo vigente»");
+    }
+
+    [Fact]
+    public void Cambiar_de_destino_mientras_se_genera_no_cambia_el_paquete_que_se_descarga()
+    {
+        var mediador = Registrar(Empresa());
+        // La importación del módulo se queda pendiente: es la espera en la que, sin la corrección, se podía cambiar a «Todo lo
+        // vigente» y descargar un paquete más amplio que el anunciado.
+        var importacion = JSInterop.Setup<IJSObjectReference>("import", "./js/descarga-archivo.js");
+        var cut = AbrirPaquete(mediador);
+        var consultasAntes = mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Count();
+
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Generar ZIP").Click();
+
+        var todo = cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Todo lo vigente");
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => b.HasAttribute("disabled"), "mientras se genera, el destino no cambia");
+        todo.Click();
+
+        var modulo = new ModuloDescargaQueAnota();
+        importacion.SetResult(modulo);
+
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        modulo.Rutas.Single().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={ClientePaqueteId}",
+            "se descarga exactamente el paquete cuyo resumen se anunció al pulsar «Generar ZIP»");
+        mediador.Enviadas.OfType<ObtenerResumenPaqueteEmpresaQuery>().Should().HaveCount(consultasAntes, "el destino no cambió");
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false"));
+        cut.FindAll(".paquete-destino").Should().OnlyContain(b => !b.HasAttribute("disabled"), "al terminar se puede volver a elegir");
+    }
+
+    /// <summary>El módulo <c>descarga-archivo.js</c> con la importación retenida: anota cada ruta que se pide.</summary>
+    private sealed class ModuloDescargaQueAnota : IJSObjectReference
+    {
+        public List<string> Rutas { get; } = [];
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        {
+            identifier.Should().Be("descargar");
+            Rutas.Add((string)args![0]!);
+            return ValueTask.FromResult((TValue)(object)new BotonPaqueteEmpresa.RespuestaDescarga(true, 200, null));
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private BunitJSModuleInterop ModuloDescarga(BotonPaqueteEmpresa.RespuestaDescarga respuesta)

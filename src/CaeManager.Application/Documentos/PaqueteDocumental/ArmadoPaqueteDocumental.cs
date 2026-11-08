@@ -92,7 +92,8 @@ internal static class ArmadoPaqueteDocumental
     /// <paramref name="ubicar"/> da la carpeta (ya saneada; la decide quien llama) y el nombre sin extensión de cada copia.
     /// <para>
     /// Opcionales, solo para el paquete de Empresa (el de la Visita no los pasa y no cambia): <paramref name="maximoBytes"/>
-    /// corta con <see cref="PaqueteDocumentalDemasiadoPesadoException"/> en cuanto el zip en memoria lo supera, y
+    /// corta con <see cref="PaqueteDocumentalDemasiadoPesadoException"/> en cuanto un byte escrito del zip lo pasaría —también
+    /// durante la copia de un Documento, el índice y el directorio central— y se vuelve a comprobar sobre el zip cerrado, y
     /// <paramref name="anexoOmitidos"/> recibe, si algún documento entró, los grupos de los que no se pudo abrir ninguna copia
     /// y puede devolver un texto que se añade en la raíz del zip antes de cerrarlo.
     /// </para>
@@ -112,57 +113,77 @@ internal static class ArmadoPaqueteDocumental
         var nombresUsados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var agregados = new List<(Guid DocumentoId, Guid TipoDocumentoId)>();
 
-        using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
+        // Con tope, el zip se escribe a través de un flujo que corta en cuanto un byte lo pasaría: durante la copia de un
+        // Documento, al añadir el índice y al escribir el directorio central al cerrar. Así el tope es sobre los bytes que
+        // se entregan, y la memoria nunca crece por encima de él.
+        var conTope = maximoBytes is { } limite ? new FlujoConTope(memoria, limite) : null;
+        try
         {
-            foreach (var grupo in grupos)
-            {
-                var agregadosAntes = agregados.Count;
-                foreach (var documento in grupo)
-                {
-                    Stream contenido;
-                    try
-                    {
-                        contenido = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-                    }
-                    catch (Exception ex) when (ex is not PresupuestoMemoriaAgotadoException and not OperationCanceledException)
-                    {
-                        // Solo el tipo de la excepción: su mensaje arrastra la clave del fichero.
-                        logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental ({TipoExcepcion}).", documento.Id, ex.GetType().Name);
-                        continue;
-                    }
-
-                    await using (contenido)
-                    {
-                        var (carpeta, nombre) = ubicar(documento);
-                        var extension = Path.GetExtension(documento.ArchivoUrl);
-                        var nombreEntrada = SanearNombreEntrada(carpeta, nombre, extension, nombresUsados);
-
-                        var entrada = zip.CreateEntry(nombreEntrada, CompressionLevel.Fastest);
-                        await using var flujoEntrada = entrada.Open();
-                        await contenido.CopyToAsync(flujoEntrada, cancellationToken);
-                    }
-
-                    agregados.Add((documento.Id, documento.TipoDocumentoId));
-                    if (maximoBytes is { } tope && memoria.Length > tope)
-                        throw new PaqueteDocumentalDemasiadoPesadoException(tope);
-                    break; // uno por titular y tipo
-                }
-
-                if (agregados.Count == agregadosAntes)
-                    omitidos.Add(grupo);
-            }
-
-            if (anexoOmitidos is not null && agregados.Count > 0 && omitidos.Count > 0
-                && anexoOmitidos(omitidos) is { } anexo)
-            {
-                // En la raíz: las copias van siempre dentro de una carpeta, así que no puede chocar con ninguna.
-                var entradaAnexo = zip.CreateEntry(anexo.Nombre, CompressionLevel.Fastest);
-                await using var escritor = new StreamWriter(entradaAnexo.Open(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-                await escritor.WriteAsync(anexo.Contenido.AsMemory(), cancellationToken);
-            }
+            await EscribirZipAsync(conTope ?? (Stream)memoria);
+        }
+        catch (Exception) when (conTope is { Excedido: true })
+        {
+            // Pasado el tope, lo que lance después el cierre de la entrada o del zip (que intentan escribir más) no tapa el
+            // motivo.
+            throw new PaqueteDocumentalDemasiadoPesadoException(conTope.Tope);
         }
 
+        // El zip ya está cerrado (índice y directorio central incluidos): comprobación final sobre lo que se entrega.
+        if (maximoBytes is { } tope && memoria.Length > tope)
+            throw new PaqueteDocumentalDemasiadoPesadoException(tope);
+
         return agregados.Count > 0 ? (memoria.ToArray(), agregados) : null;
+
+        async Task EscribirZipAsync(Stream salida)
+        {
+            using (var zip = new ZipArchive(salida, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var grupo in grupos)
+                {
+                    var agregadosAntes = agregados.Count;
+                    foreach (var documento in grupo)
+                    {
+                        Stream contenido;
+                        try
+                        {
+                            contenido = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
+                        }
+                        catch (Exception ex) when (ex is not PresupuestoMemoriaAgotadoException and not OperationCanceledException)
+                        {
+                            // Solo el tipo de la excepción: su mensaje arrastra la clave del fichero.
+                            logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental ({TipoExcepcion}).", documento.Id, ex.GetType().Name);
+                            continue;
+                        }
+
+                        await using (contenido)
+                        {
+                            var (carpeta, nombre) = ubicar(documento);
+                            var extension = Path.GetExtension(documento.ArchivoUrl);
+                            var nombreEntrada = SanearNombreEntrada(carpeta, nombre, extension, nombresUsados);
+
+                            var entrada = zip.CreateEntry(nombreEntrada, CompressionLevel.Fastest);
+                            await using var flujoEntrada = entrada.Open();
+                            await contenido.CopyToAsync(flujoEntrada, cancellationToken);
+                        }
+
+                        agregados.Add((documento.Id, documento.TipoDocumentoId));
+                        break; // uno por titular y tipo
+                    }
+
+                    if (agregados.Count == agregadosAntes)
+                        omitidos.Add(grupo);
+                }
+
+                if (anexoOmitidos is not null && agregados.Count > 0 && omitidos.Count > 0
+                    && anexoOmitidos(omitidos) is { } anexo)
+                {
+                    // En la raíz: las copias van siempre dentro de una carpeta, así que no puede chocar con ninguna.
+                    var entradaAnexo = zip.CreateEntry(anexo.Nombre, CompressionLevel.Fastest);
+                    await using var escritor = new StreamWriter(entradaAnexo.Open(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+                    await escritor.WriteAsync(anexo.Contenido.AsMemory(), cancellationToken);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -205,3 +226,70 @@ internal static class ArmadoPaqueteDocumental
 /// <summary>El zip en memoria pasó de su tope de bytes: no se sigue armando.</summary>
 internal sealed class PaqueteDocumentalDemasiadoPesadoException(long maximoBytes)
     : Exception($"El paquete documental pasa de {maximoBytes} bytes.");
+
+/// <summary>
+/// Flujo de solo escritura sobre <paramref name="interior"/> que no deja que su longitud pase de <paramref name="tope"/>:
+/// la escritura que lo superaría lanza <see cref="PaqueteDocumentalDemasiadoPesadoException"/> sin escribir nada, y desde
+/// entonces todas lanzan (<see cref="Excedido"/>). Delega la posición, para que el zip pueda volver atrás a completar la
+/// cabecera local de cada entrada: lo que cuenta es hasta dónde llegaría el último byte, no cuántos se escriben. No cierra
+/// el interior.
+/// </summary>
+internal sealed class FlujoConTope(Stream interior, long tope) : Stream
+{
+    public long Tope => tope;
+
+    /// <summary>Alguna escritura habría pasado del tope.</summary>
+    public bool Excedido { get; private set; }
+
+    public override bool CanRead => false;
+    public override bool CanSeek => interior.CanSeek;
+    public override bool CanWrite => true;
+    public override long Length => interior.Length;
+
+    public override long Position
+    {
+        get => interior.Position;
+        set => interior.Position = value;
+    }
+
+    public override void Flush() => interior.Flush();
+    public override Task FlushAsync(CancellationToken cancellationToken) => interior.FlushAsync(cancellationToken);
+    public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    public override long Seek(long offset, SeekOrigin origin) => interior.Seek(offset, origin);
+
+    public override void SetLength(long value)
+    {
+        Comprobar(value);
+        interior.SetLength(value);
+    }
+
+    public override void Write(byte[] buffer, int offset, int count) => Write(buffer.AsSpan(offset, count));
+
+    public override void Write(ReadOnlySpan<byte> buffer)
+    {
+        Comprobar(interior.Position + buffer.Length);
+        interior.Write(buffer);
+    }
+
+    public override void WriteByte(byte value)
+    {
+        Comprobar(interior.Position + 1);
+        interior.WriteByte(value);
+    }
+
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+        WriteAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        Comprobar(interior.Position + buffer.Length);
+        return interior.WriteAsync(buffer, cancellationToken);
+    }
+
+    private void Comprobar(long finTrasEscribir)
+    {
+        if (!Excedido && finTrasEscribir <= tope) return;
+        Excedido = true;
+        throw new PaqueteDocumentalDemasiadoPesadoException(tope);
+    }
+}

@@ -125,7 +125,8 @@ public class ObtenerResumenPaqueteEmpresaQueryHandler(
 /// <summary>
 /// DEC-36: el zip entrega el contenido de cada Documento que contiene, así que cada uno cuenta como una
 /// <see cref="TipoAccesoDocumentoSensible.Apertura"/> y se registra si es sensible, antes de entregar nada y solo los que de
-/// verdad entraron. El registro falla en cerrado: sin constancia no hay zip.
+/// verdad entraron. El registro falla en cerrado: sin constancia no hay zip. Y es atómico: las aperturas del paquete se
+/// guardan en una sola transacción (<see cref="ITransaccionDeComando"/>), todas o ninguna.
 /// </summary>
 public class DescargarPaqueteEmpresaQueryHandler(
     IEmpresasQueryContext empresasContext,
@@ -133,7 +134,8 @@ public class DescargarPaqueteEmpresaQueryHandler(
     ICurrentUserService currentUserService,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     IPaqueteDocumentalEmpresaService paquete,
-    IRegistroAccesoDocumentoSensibleService registroAcceso)
+    IRegistroAccesoDocumentoSensibleService registroAcceso,
+    ITransaccionDeComando transaccion)
     : IRequestHandler<DescargarPaqueteEmpresaQuery, Result<PaqueteEmpresaDescargaDto>>
 {
     public async Task<Result<PaqueteEmpresaDescargaDto>> Handle(DescargarPaqueteEmpresaQuery request, CancellationToken cancellationToken)
@@ -168,8 +170,15 @@ public class DescargarPaqueteEmpresaQueryHandler(
         if (zip is null)
             return Result.Fallo<PaqueteEmpresaDescargaDto>(AutorizacionPaqueteEmpresa.SinDocumentos);
 
-        foreach (var documentoId in zip.DocumentoIds)
-            await registroAcceso.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        // Todas las aperturas o ninguna: cada registro guarda por su cuenta, así que van en una sola transacción. Si uno falla
+        // (la excepción de fallo en cerrado o cualquier otra), se deshacen los anteriores y la excepción sigue hacia arriba:
+        // no queda constancia de aperturas de un paquete que no se entregó, ni se entrega uno sin constancia.
+        await transaccion.EjecutarAsync(async ct =>
+        {
+            foreach (var documentoId in zip.DocumentoIds)
+                await registroAcceso.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura, ct);
+            return Result.Exito();
+        }, cancellationToken);
 
         return Result.Exito(new PaqueteEmpresaDescargaDto(zip.NombreArchivo, zip.Contenido));
     }

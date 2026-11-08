@@ -9,9 +9,10 @@ namespace CaeManager.Web.Features.Empresas.Components;
 /// «Preparar paquete» de Empresa 360: botón de la cabecera y su diálogo. Al abrir elige el primer Cliente empresarial (como la
 /// maqueta) o, sin ninguno, «Todo lo vigente». Cada cambio de destino vuelve a pedir el resumen sin retirar los botones de
 /// destino, para que el foco del teclado se quede donde estaba, y el resumen nuevo se anuncia (<c>aria-live</c>). «Generar
-/// ZIP» descarga por fetch (<c>wwwroot/js/descarga-archivo.js</c>) del endpoint autenticado con el destino elegido, que
-/// vuelve a autorizar y a seleccionar: el resumen es solo lo que se anuncia, y si el servidor rechaza la descarga el motivo
-/// se ve en el diálogo.
+/// ZIP» descarga por fetch (<c>wwwroot/js/descarga-archivo.js</c>) del endpoint autenticado con el destino del resumen
+/// anunciado —fijado antes de cualquier espera, y con los destinos deshabilitados mientras se genera—, que vuelve a
+/// autorizar y a seleccionar: el resumen es solo lo que se anuncia, y si el servidor rechaza la descarga el motivo se ve en
+/// el diálogo.
 /// </summary>
 public partial class BotonPaqueteEmpresa : IAsyncDisposable
 {
@@ -31,7 +32,12 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
     private string? _errorDescarga;
     private IJSObjectReference? _modulo;
 
-    internal string RutaDescarga => _destinoId is { } id
+    /// <summary>
+    /// La ruta del zip para el destino con el que se calculó el resumen que se está anunciando
+    /// (<see cref="ResumenPaqueteEmpresaDto.ClienteEmpresarialId"/>), no para el botón pulsado en este momento: lo que se
+    /// descarga es exactamente lo que el diálogo dijo que iba.
+    /// </summary>
+    internal string RutaDescargaDe(ResumenPaqueteEmpresaDto resumen) => resumen.ClienteEmpresarialId is { } id
         ? $"/empresas/{EmpresaId}/paquete-documental.zip?cliente={id}"
         : $"/empresas/{EmpresaId}/paquete-documental.zip";
 
@@ -52,6 +58,9 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
 
     private async Task ElegirAsync(Guid? destinoId)
     {
+        // Mientras se genera el zip el destino no cambia (los botones están deshabilitados): el resumen anunciado tiene que
+        // seguir siendo el del paquete que se está descargando.
+        if (_generando) return;
         _destinoId = destinoId;
         _errorDescarga = null;
         await CargarAsync();
@@ -113,14 +122,17 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
 
     private async Task GenerarAsync()
     {
-        if (_generando || _cargando || !OfreceGenerar) return;
+        if (_generando || _cargando || !OfreceGenerar || _resumen is not { } resumen) return;
 
+        // La ruta se fija antes de cualquier espera y sale del resumen anunciado: nada de lo que pase mientras se importa el
+        // módulo o se descarga cambia qué paquete se pide.
+        var ruta = RutaDescargaDe(resumen);
         _generando = true;
         _errorDescarga = null;
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/descarga-archivo.js");
-            var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", RutaDescarga, "paquete-documental.zip");
+            var respuesta = await _modulo.InvokeAsync<RespuestaDescarga>("descargar", ruta, "paquete-documental.zip");
             if (!respuesta.Ok)
                 _errorDescarga = MensajeDeDescarga(respuesta);
         }

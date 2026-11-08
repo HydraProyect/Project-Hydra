@@ -40,10 +40,10 @@
                         {
                             var elegido = destino.ClienteEmpresarialId == _destinoId;
                             <button @key="claves.De(destino.ClienteEmpresarialId)" type="button" class="paquete-destino @(elegido ? "paquete-destino-elegido" : null)" aria-pressed="@(elegido ? "true" : "false")"
-                                    @onclick="() => ElegirAsync(destino.ClienteEmpresarialId)">@destino.RazonSocial</button>
+                                    disabled="@_generando" @onclick="() => ElegirAsync(destino.ClienteEmpresarialId)">@destino.RazonSocial</button>
                         }
                         <button @key="claves.De(Guid.Empty)" type="button" class="paquete-destino @(_destinoId is null ? "paquete-destino-elegido" : null)" aria-pressed="@(_destinoId is null ? "true" : "false")"
-                                @onclick="() => ElegirAsync(null)">@Textos["TodoLoVigente"]</button>
+                                disabled="@_generando" @onclick="() => ElegirAsync(null)">@Textos["TodoLoVigente"]</button>
                     </div>
                 </div>
 
