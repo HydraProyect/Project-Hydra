@@ -188,6 +188,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.CrearCentroCommandHandler", "ITipoDocumentoCentroRepository"),
         ("Centros.CrearCentroCommandHandler", "ITiposDocumentoQueryContext"),
         ("Centros.EditarCanalGestionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
+        // Papel por Centro (2026-11-08): lee la Relación Empresarial que se ancla al Centro.
+        ("Centros.EstablecerRelacionDeEntradaCentroCommandHandler", "IEmpresasQueryContext"),
         ("Centros.EliminarCentroCommandHandler", "IAsignacionRepository"),
         ("Centros.EliminarCentrosCommandHandler", "IAsignacionRepository"),
         ("Centros.EliminarDocumentacionRequeridaCentroCommandHandler", "ITipoDocumentoCentroRepository"),

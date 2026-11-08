@@ -35,7 +35,8 @@ public record CentroDetalleDto(
     bool FichaVisible = false,
     string? Notas = null,
     bool NotaInternaVisible = false,
-    DateTime? CreadoEnUtc = null);
+    DateTime? CreadoEnUtc = null,
+    PapelDeEntradaDto? PapelDeEntrada = null);
 
 public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -54,7 +55,7 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
         var conFicha = conNotaInterna
             && await alcanceDatos.CentroParaGestionVisibleAsync(request.Id, cancellationToken);
 
-        return await (
+        var detalle = await (
             from centro in centrosContext.Centros
             // Centro.ClienteId repunta contra Empresas desde F3b (CentroConfiguration):
             // "Cliente" es una Empresa contraparte (Empresa.CrearComoCliente).
@@ -76,5 +77,11 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
                 conFicha ? centro.AtmosferasExplosivas : null, conFicha,
                 conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc))
             .FirstOrDefaultAsync(cancellationToken);
+        if (detalle is null) return null;
+
+        // Papel por Centro: se calcula del ancla, con X filtrado por los Clientes empresariales visibles.
+        var papel = await PapelDeEntradaEnCentro.CalcularAsync(
+            request.Id, centrosContext, empresasContext, alcanceDatos, cancellationToken);
+        return detalle with { PapelDeEntrada = papel };
     }
 }
