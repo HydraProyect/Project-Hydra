@@ -122,11 +122,24 @@ public class ProductoresDeA1SeSerializanTests
     [Fact]
     public async Task Importar_asignaciones_toma_el_candado_antes_de_calcular_las_acreditaciones()
     {
+        // El Centro es de otra Empresa y tiene acceso de plataforma; el Documento de la Empresa del Trabajador lo
+        // confirma otra alta mientras la importación espera el candado. Solo si las acreditaciones se calculan
+        // después de tomarlo, la importación lo ve y crea el par por la vía de la Asignación (revisión puente).
         var escenario = new EscenarioImportacion()
             .ConEmpresaExistente().ConTrabajadorExistente().ConCentroExistente().ConTipoDocumentoExistente();
-        var acreditacionesAlTomarElCandado = -1;
+        var tipoEmpresa = new TipoDocumento("Seguro de responsabilidad civil", 12, aplicaVencimientoAutomatico: true,
+            orden: 2, AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.Si);
+        escenario.TiposDocumentoContexto.ListaTiposDocumento.Add(tipoEmpresa);
+        var acceso = CanalGestionDocumental.DePlataforma(
+            escenario.CentroExistente!.Id, "Plataforma", Guid.NewGuid(), "https://plataforma.test", "usuario", "clave");
+        escenario.CentrosContexto.ListaCanalesGestionDocumental.Add(acceso);
+        Documento? concurrente = null;
         escenario.Serializacion.AlTomarElCandado = () =>
-            acreditacionesAlTomarElCandado = escenario.AcreditacionRepositorio.Acreditaciones.Count;
+        {
+            concurrente = Documento.DeEmpresa(escenario.TrabajadorExistente!.EmpresaId!.Value, tipoEmpresa.Id,
+                new DateOnly(2026, 1, 15), VigenciaDocumento.VenceEl(new DateOnly(2031, 1, 15)));
+            escenario.DocumentosContexto.ListaDocumentos.Add(concurrente);
+        };
 
         var resultado = await escenario.EjecutarAsync(EscenarioImportacion.Plan(asignaciones:
         [
@@ -135,7 +148,9 @@ public class ProductoresDeA1SeSerializanTests
 
         resultado.AsignacionesCreadas.Should().Be(1);
         escenario.Serializacion.Llamadas.Should().Be(1);
-        acreditacionesAlTomarElCandado.Should().Be(0, "las acreditaciones se calculan bajo el candado");
+        escenario.AcreditacionRepositorio.Acreditaciones
+            .Select(a => (a.DocumentoId, a.CanalGestionDocumentalId))
+            .Should().BeEquivalentTo([(concurrente!.Id, acceso.Id)], "las acreditaciones se calculan bajo el candado");
     }
 
     [Fact]
