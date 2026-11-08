@@ -43,10 +43,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     ///
     /// <para>
     /// Concurrencia con el cierre de la sesión, la revocación de la concesión y la retirada del
-    /// alcance: la comprobación que ampara el <c>UPDATE</c> se hace con las filas de la sesión, la
-    /// concesión y el alcance bloqueadas (<c>FOR SHARE</c>) y la de <c>ParametrosSistema</c> tomada
-    /// (<c>FOR UPDATE</c>), en una sentencia posterior a los candados y con la hora leída en ella,
-    /// como <c>app_registrar_actividad_soporte_por_sesion</c>. Un cierre o una revocación confirmados
+    /// alcance: la comprobación que ampara el <c>UPDATE</c> se hace con la fila de
+    /// <c>ParametrosSistema</c> tomada (<c>FOR UPDATE</c>, primero) y las de la sesión, la concesión y
+    /// el alcance bloqueadas (<c>FOR SHARE</c>), en una sentencia posterior a los candados y con la
+    /// hora leída en ella, como <c>app_registrar_actividad_soporte_por_sesion</c>, y solo en READ
+    /// COMMITTED (<c>aislamiento_no_admitido</c> en otro caso). Un cierre o una revocación confirmados
     /// antes se ven; uno posterior espera a que el acto se confirme. Una comprobación previa sin
     /// candados evita que una sesión que no podría ampararlo llegue a bloquear filas.
     /// </para>
@@ -117,6 +118,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'contexto_no_valido';
                   END IF;
 
+                  -- Solo READ COMMITTED, donde cada sentencia toma una instantánea nueva y la
+                  -- comprobación posterior a los candados ve el último estado confirmado. Como en
+                  -- app_registrar_actividad_soporte_por_sesion.
+                  IF current_setting('transaction_isolation') <> 'read committed' THEN
+                    RETURN 'aislamiento_no_admitido';
+                  END IF;
+
                   -- Recorta los mismos caracteres que string.Trim() de .NET (char.IsWhiteSpace) y
                   -- rechaza lo que string.IsNullOrWhiteSpace rechazaría: un motivo solo de
                   -- tabuladores, saltos de línea o espacios Unicode tampoco vale. La clase se escribe
@@ -170,13 +178,28 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN 'sesion_no_autorizada';
                   END IF;
 
-                  -- Candados, siempre en este orden: sesión y concesión (FOR SHARE OF s, c), la
-                  -- fila de alcance (FOR SHARE OF t) y la de ParametrosSistema (FOR UPDATE), como
-                  -- app_registrar_actividad_soporte_por_sesion. Un cierre o una revocación en curso
-                  -- se espera; uno posterior espera a que termine esta transacción. Los escritores
-                  -- (CerrarSesionPrivilegiadaCommand, RevocarConcesionPrivilegioCommand,
-                  -- ActualizarSeguridadAccesoCommand) actualizan una sola fila por transacción, así
-                  -- que este orden no cierra un ciclo con ninguno de ellos.
+                  -- Candados, siempre en este orden: la fila de ParametrosSistema del Tenant
+                  -- objetivo (FOR UPDATE), la sesión y la concesión (FOR SHARE OF s, c) y la fila
+                  -- de alcance (FOR SHARE OF t). ParametrosSistema va primero para que la espera a
+                  -- un cambio del Administrador del Tenant en curso no retenga la sesión ni la
+                  -- concesión: mientras tanto, un cierre o una revocación se confirman sin esperar
+                  -- y la comprobación definitiva los ve. Un cierre o una revocación en curso al
+                  -- llegar a s y c se espera; uno posterior espera a que termine esta transacción,
+                  -- que ya no espera a nadie. CerrarSesionPrivilegiadaCommand,
+                  -- RevocarConcesionPrivilegioCommand y ActualizarSeguridadAccesoCommand actualizan
+                  -- una sola fila por transacción, así que con ellos no hay ciclo. La única
+                  -- transacción que escribe varias de estas filas es la de RetiradaTenantDemoService
+                  -- (borra las de un Tenant de demo en un solo SaveChanges, en el orden que elige EF):
+                  -- si coincidiera con un ajuste sobre ese Tenant, PostgreSQL detecta el
+                  -- interbloqueo y aborta una de las dos, sin escritura parcial.
+                  SELECT p."Id", p."ExigeSegundoFactorTodosLosPerfiles" INTO v_parametros, v_antes
+                  FROM public."ParametrosSistema" p
+                  WHERE p."TenantId" = v_tenant
+                  FOR UPDATE;
+                  IF NOT FOUND THEN
+                    RETURN 'parametros_no_encontrados';
+                  END IF;
+
                   PERFORM 1
                   FROM public."SesionesPrivilegiadas" s
                   JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
@@ -190,16 +213,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   WHERE s."Id" = p_sesion
                     AND t."TenantId" = v_tenant
                   FOR SHARE OF t;
-
-                  -- La fila del Tenant objetivo, y solo esa. Tomarla serializa con un cambio del
-                  -- Administrador del Tenant hecho a la vez.
-                  SELECT p."Id", p."ExigeSegundoFactorTodosLosPerfiles" INTO v_parametros, v_antes
-                  FROM public."ParametrosSistema" p
-                  WHERE p."TenantId" = v_tenant
-                  FOR UPDATE;
-                  IF NOT FOUND THEN
-                    RETURN 'parametros_no_encontrados';
-                  END IF;
 
                   -- Comprobación definitiva, con las filas ya bloqueadas y una instantánea nueva
                   -- (READ COMMITTED toma una por sentencia): ve el último estado confirmado de la

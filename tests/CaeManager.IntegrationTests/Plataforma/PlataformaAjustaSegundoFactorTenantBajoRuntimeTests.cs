@@ -1,3 +1,4 @@
+using System.Data;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
 using CaeManager.Domain.Configuracion;
@@ -21,8 +22,9 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// Decisiones del 2026-11-08: un Actor de Plataforma TALVEG cambia la exigencia de segundo factor de
 /// un Tenant desde una Sesión Privilegiada con la capacidad <c>AjusteSegundoFactorTenant</c>, contra
 /// PostgreSQL real y con la identidad de producción, <c>cae_app_runtime</c>, que con la sesión
-/// adopta <c>cae_app_soporte</c>. El propietario solo siembra y lee (ASVS 4.0.3 V4.1.3, V4.2.1,
-/// V7.1.3).
+/// adopta <c>cae_app_soporte</c>. El propietario solo siembra, lee y hace de escritor concurrente
+/// (cierre, revocación, retirada del alcance, cambio del Administrador del Tenant) en los casos de
+/// concurrencia (ASVS 4.0.3 V4.1.3, V4.2.1, V7.1.3).
 ///
 /// <para>
 /// Lo que se ataca: la conexión de la sesión sigue siendo de solo lectura y la RLS no se ensancha.
@@ -239,6 +241,7 @@ public class PlataformaAjustaSegundoFactorTenantBajoRuntimeTests : IAsyncLifetim
     [InlineData("\t")]
     [InlineData("\r\n\t \v\f")]
     [InlineData("\u00A0\u2003\u3000\u2028")]
+    [InlineData("\u0085\u1680\u2029\u202F\u205F")]
     public async Task Sin_motivo_no_cambia(string motivo)
     {
         var sesion = await AbrirSesionConCapacidadAsync();
@@ -246,6 +249,16 @@ public class PlataformaAjustaSegundoFactorTenantBajoRuntimeTests : IAsyncLifetim
 
         (await CambiarComoPlataformaAsync(_tenantA, sesion, motivo: motivo)).Should().Be("motivo_no_valido");
         (await InstantaneaAsync()).Should().Be(antes);
+    }
+
+    // U+200B (espacio de anchura cero) no es blanco para char.IsWhiteSpace: Application lo admite
+    // como motivo, y la base tampoco lo recorta.
+    [Fact]
+    public async Task Un_caracter_que_no_es_blanco_para_NET_si_cuenta_como_motivo()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+
+        (await CambiarComoPlataformaAsync(_tenantA, sesion, motivo: "\u200B")).Should().Be("cambiado");
     }
 
     [Fact]
@@ -369,49 +382,113 @@ WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" 
         (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
     }
 
-    // El orden contrario: la función ya tiene la sesión y la concesión y espera la fila de
-    // ParametrosSistema (un cambio del Administrador del Tenant en curso). Una revocación que llega
-    // entonces espera a que el acto se confirme, y no se confirma entre la comprobación y el UPDATE.
+    // Mientras la función espera la fila de ParametrosSistema (un cambio del Administrador del
+    // Tenant en curso) no retiene la sesión ni la concesión: una revocación que llega entonces se
+    // confirma sin esperar, y la comprobación definitiva la ve. Con la sesión y la concesión
+    // bloqueadas antes que los parámetros, la revocación quedaría esperando al acto.
     [Fact]
-    public async Task Una_revocacion_que_llega_mientras_la_funcion_espera_los_parametros_espera_al_acto()
+    public async Task Una_revocacion_que_llega_mientras_la_funcion_espera_los_parametros_no_espera_y_se_respeta()
     {
         var sesion = await AbrirSesionConCapacidadAsync();
 
-        await using var retenedor = new NpgsqlConnection(_cadenaConexion);
-        await retenedor.OpenAsync();
-        await using var transaccion = await retenedor.BeginTransactionAsync();
-        await using (var orden = new NpgsqlCommand(
-            @"SELECT 1 FROM ""ParametrosSistema"" WHERE ""TenantId"" = @u FOR UPDATE;", retenedor, transaccion))
-        {
-            orden.Parameters.AddWithValue("u", _tenantA);
-            (await orden.ExecuteScalarAsync()).Should().Be(1);
-        }
-
+        await using var retenedor = await RetenerParametrosDeAAsync();
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         var pidFuncion = await PidAsync(contexto);
         var llamada = LlamarFuncionAsync(contexto, sesion, true, Motivo);
         (await QuedaEsperandoUnCandadoAsync(pidFuncion, llamada)).Should().BeTrue(
             "control positivo: la función espera la fila de ParametrosSistema");
 
-        await using var revocador = new NpgsqlConnection(_cadenaConexion);
-        await revocador.OpenAsync();
-        int pidRevocador;
-        await using (var consulta = new NpgsqlCommand("SELECT pg_backend_pid();", revocador))
-            pidRevocador = (int)(await consulta.ExecuteScalarAsync())!;
-        await using var revocacion = new NpgsqlCommand(
-            @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);",
-            revocador);
-        revocacion.Parameters.AddWithValue("u", sesion);
-        var revocar = revocacion.ExecuteNonQueryAsync();
-        (await QuedaEsperandoUnCandadoAsync(pidRevocador, revocar)).Should().BeTrue(
-            "la revocación espera al candado que la función tiene sobre la concesión");
+        await using (var revocador = new NpgsqlConnection(_cadenaConexion))
+        {
+            await revocador.OpenAsync();
+            await using var revocacion = new NpgsqlCommand(
+                @"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);",
+                revocador);
+            revocacion.Parameters.AddWithValue("u", sesion);
+            (await revocacion.ExecuteNonQueryAsync().WaitAsync(TimeSpan.FromSeconds(10))).Should().Be(1,
+                "la revocación no espera a una función que aún no ha bloqueado la concesión");
+        }
 
-        await transaccion.CommitAsync();
+        await retenedor.Transaccion.CommitAsync();
 
-        (await llamada).Should().Be("cambiado", "la revocación no se confirmó antes de la comprobación");
-        (await revocar).Should().Be(1, "y se confirma después del acto");
-        (await ExigeAsync(_tenantA)).Should().BeTrue();
-        (await LeerAuditoriaDeSesionAsync(sesion)).Should().ContainSingle();
+        (await llamada).Should().Be("sesion_no_autorizada");
+        (await ExigeAsync(_tenantA)).Should().BeFalse();
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
+    }
+
+    // La hora con la que se comprueba la ventana es la de después de los candados, no la de la
+    // llamada: una sesión que caduca mientras la función espera ya no ampara el acto.
+    [Fact]
+    public async Task Una_sesion_que_caduca_mientras_la_funcion_espera_los_parametros_no_cambia()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        DateTime expira;
+        await using (var conexion = new NpgsqlConnection(_cadenaConexion))
+        {
+            await conexion.OpenAsync();
+            await using var orden = new NpgsqlCommand(
+                @"UPDATE ""SesionesPrivilegiadas"" SET ""ExpiraEnUtc"" = clock_timestamp() + interval '3 seconds'
+WHERE ""Id"" = @u RETURNING ""ExpiraEnUtc"";", conexion);
+            orden.Parameters.AddWithValue("u", sesion);
+            expira = ((DateTime)(await orden.ExecuteScalarAsync())!).ToUniversalTime();
+        }
+
+        await using var retenedor = await RetenerParametrosDeAAsync();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        var pidFuncion = await PidAsync(contexto);
+        var llamada = LlamarFuncionAsync(contexto, sesion, true, Motivo);
+        (await QuedaEsperandoUnCandadoAsync(pidFuncion, llamada)).Should().BeTrue(
+            "control positivo: la primera comprobación pasó y la función espera la fila de ParametrosSistema");
+
+        var restante = expira - DateTime.UtcNow + TimeSpan.FromMilliseconds(500);
+        if (restante > TimeSpan.Zero)
+            await Task.Delay(restante);
+        await retenedor.Transaccion.CommitAsync();
+
+        (await llamada).Should().Be("sesion_no_autorizada");
+        (await ExigeAsync(_tenantA)).Should().BeFalse();
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(IsolationLevel.RepeatableRead)]
+    [InlineData(IsolationLevel.Serializable)]
+    public async Task Fuera_de_READ_COMMITTED_no_cambia(IsolationLevel aislamiento)
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+
+        await using (var transaccion = await contexto.Database.BeginTransactionAsync(aislamiento))
+        {
+            (await LlamarFuncionAsync(contexto, sesion, true, Motivo)).Should().Be("aislamiento_no_admitido");
+            await transaccion.CommitAsync();
+        }
+
+        (await ExigeAsync(_tenantA)).Should().BeFalse();
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
+    }
+
+    private sealed record Retencion(NpgsqlConnection Conexion, NpgsqlTransaction Transaccion) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            await Transaccion.DisposeAsync();
+            await Conexion.DisposeAsync();
+        }
+    }
+
+    // Un cambio del Administrador del Tenant en curso: la fila de ParametrosSistema de A tomada en
+    // una transacción abierta.
+    private async Task<Retencion> RetenerParametrosDeAAsync()
+    {
+        var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        var transaccion = await conexion.BeginTransactionAsync();
+        await using var orden = new NpgsqlCommand(
+            @"SELECT 1 FROM ""ParametrosSistema"" WHERE ""TenantId"" = @u FOR UPDATE;", conexion, transaccion);
+        orden.Parameters.AddWithValue("u", _tenantA);
+        (await orden.ExecuteScalarAsync()).Should().Be(1);
+        return new Retencion(conexion, transaccion);
     }
 
     // Deja la conexión del contexto abierta: si EF la cerrara entre consultas, la llamada podría
