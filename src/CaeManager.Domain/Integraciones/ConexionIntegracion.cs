@@ -62,19 +62,38 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>Default Microsoft365: todas las conexiones existentes antes del segundo proveedor (WhatsApp, 2026-08-04) eran de Graph.</summary>
     public ProveedorIntegracion Proveedor { get; private set; }
 
+    /// <summary>
+    /// Buzón compartido de Exchange abierto por delegación (permisos <c>Mail.Read.Shared</c> y
+    /// <c>Mail.Send.Shared</c>) en vez del buzón propio de quien consintió: <see cref="BuzonEmail"/> es
+    /// la dirección del compartido y las llamadas a Graph van por <c>/users/{BuzonEmail}</c>, no por
+    /// <c>/me</c>. Graph no admite suscripciones delegadas sobre él, así que no tiene
+    /// <c>SuscripcionWebhook</c>. El Tenant propietario de lo que entra es el de esta fila, como en
+    /// cualquier otra conexión. Nunca es el buzón personal de un Gestor CAE.
+    /// </summary>
+    public bool EsBuzonCompartido { get; private set; }
+
     private ConexionIntegracion()
     {
     }
 
     public ConexionIntegracion(
         string buzonEmail, string nombre, Guid? clienteId = null,
-        ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365, Guid? gestorPropietarioId = null)
+        ProveedorIntegracion proveedor = ProveedorIntegracion.Microsoft365, Guid? gestorPropietarioId = null,
+        bool esBuzonCompartido = false)
     {
         if (clienteId is not null && gestorPropietarioId is not null)
         {
             throw new ArgumentException(
                 "Un buzón personal de un gestor no puede pertenecer a la vez a un Cliente.", nameof(gestorPropietarioId));
         }
+
+        if (esBuzonCompartido && gestorPropietarioId is not null)
+            throw new ArgumentException("Un buzón compartido no puede ser el buzón personal de un gestor.", nameof(esBuzonCompartido));
+
+        if (esBuzonCompartido && proveedor != ProveedorIntegracion.Microsoft365)
+            throw new ArgumentException("Solo un buzón de Microsoft 365 puede ser compartido.", nameof(esBuzonCompartido));
+
+        EsBuzonCompartido = esBuzonCompartido;
 
         EstablecerBuzonEmail(buzonEmail);
         EstablecerNombre(nombre);

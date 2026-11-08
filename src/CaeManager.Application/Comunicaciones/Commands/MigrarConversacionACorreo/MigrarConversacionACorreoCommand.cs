@@ -104,7 +104,7 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(tokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, conexion.BuzonEmail, [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
+            tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
             adjuntos: null, cancellationToken);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);

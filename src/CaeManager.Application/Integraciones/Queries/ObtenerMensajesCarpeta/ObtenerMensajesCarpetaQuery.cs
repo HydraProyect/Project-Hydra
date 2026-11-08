@@ -41,7 +41,7 @@ public class ObtenerMensajesCarpetaQueryHandler(
 
         var skip = (Math.Max(1, request.Pagina) - 1) * TamanoPagina;
         var mensajesResultado = await graphClient.ListarMensajesAsync(
-            tokenResultado.Valor, request.CarpetaExternoId, TamanoPagina, skip, cancellationToken);
+            tokenResultado.Valor, BuzonGraph.De(conexion), request.CarpetaExternoId, TamanoPagina, skip, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

@@ -116,7 +116,7 @@ public class EnviarMensajeNuevoCommandHandler(
             return Result.Fallo<Guid>(tokenResultado.Error);
 
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, conexion.BuzonEmail, request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
+            tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 

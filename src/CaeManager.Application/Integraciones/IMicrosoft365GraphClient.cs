@@ -1,5 +1,6 @@
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Integraciones;
 
 namespace CaeManager.Application.Integraciones;
 
@@ -38,6 +39,18 @@ public record CarpetaGraphDto(
     string CarpetaExternoId, string Nombre, string? CarpetaPadreExternoId, int ElementosNoLeidos, int TotalElementos);
 
 public record MensajeEnviadoGraphDto(string MensajeExternoId, string HiloExternoId);
+
+/// <summary>
+/// Buzón sobre el que actúa una llamada a Graph. El propio de quien consintió
+/// (<see cref="EsCompartido"/> falso) va por <c>/me/...</c>, resuelto por el
+/// token; uno compartido va por <c>/users/{dirección}/...</c> con los permisos
+/// delegados <c>Mail.Read.Shared</c> y <c>Mail.Send.Shared</c>, y es Exchange
+/// quien comprueba en cada llamada que esa persona puede abrirlo.
+/// </summary>
+public readonly record struct BuzonGraph(string Direccion, bool EsCompartido)
+{
+    public static BuzonGraph De(ConexionIntegracion conexion) => new(conexion.BuzonEmail, conexion.EsBuzonCompartido);
+}
 
 public static class LimitesAdjuntosCorreo
 {
@@ -94,6 +107,14 @@ public interface IMicrosoft365GraphClient
     Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Comprueba, antes de dar de alta un buzón compartido, que quien consintió
+    /// puede leer su Bandeja de entrada. Graph no permite listar los buzones
+    /// compartidos a los que una persona tiene acceso, así que la dirección la
+    /// escribe quien conecta y esta sonda es la única prueba de acceso.
+    /// </summary>
+    Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Usa el endpoint /reply de Graph — preserva threading automáticamente,
     /// nunca reconstruye In-Reply-To/References a mano. <paramref name="adjuntos"/>
     /// va inline en base64 (sin sesión de subida) — respeta
@@ -101,7 +122,7 @@ public interface IMicrosoft365GraphClient
     /// del lado del llamador antes de invocar esto.
     /// </summary>
     Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken);
 
     /// <summary>
@@ -109,17 +130,17 @@ public interface IMicrosoft365GraphClient
     /// <paramref name="copia"/> son las direcciones en copia (<c>ccRecipients</c>); null o vacío = sin copia.
     /// </summary>
     Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
         IReadOnlyList<string>? copia = null);
 
     /// <summary>Incluye los adjuntos del mensaje (metadatos, no el contenido — ver <see cref="ObtenerContenidoAdjuntoAsync"/>).</summary>
     Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken);
+        string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken);
 
     /// <summary>Contenido binario de un adjunto ya listado en <see cref="MensajeGraphDto.Adjuntos"/> — llamada aparte porque Graph no lo trae en el GET del mensaje.</summary>
     Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken);
+        string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Estructura de carpetas del buzón — dos niveles (carpetas de primer
@@ -128,14 +149,19 @@ public interface IMicrosoft365GraphClient
     /// como mucho una subcarpeta propia) sin la complejidad de recorrer un
     /// árbol de profundidad arbitraria.
     /// </summary>
-    Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken);
+    Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken);
 
     /// <summary>Historial de una carpeta (más recientes primero) — para consultar cadenas antiguas sin salir a Outlook.</summary>
     Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken);
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Solo para el buzón propio: Graph no admite suscripciones delegadas sobre
+    /// un buzón compartido (los permisos <c>.Shared</c> no las cubren), así que
+    /// con <see cref="BuzonGraph.EsCompartido"/> devuelve un fallo sin llamar a Graph.
+    /// </summary>
     Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken);
+        string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken);
 
     Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken);
 

@@ -119,7 +119,7 @@ public class IngestaWebhookService(
         if (accessTokenResultado.EsFallido)
             throw new InvalidOperationException(accessTokenResultado.Error.Mensaje);
 
-        var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessTokenResultado.Valor, conexion.BuzonEmail, mensajeId, cancellationToken);
+        var mensajeResultado = await graphClient.ObtenerMensajeAsync(accessTokenResultado.Valor, BuzonGraph.De(conexion), mensajeId, cancellationToken);
         if (mensajeResultado.EsFallido)
         {
             // Un mensaje puntual que Graph ya no tiene (borrado entre la
@@ -193,7 +193,7 @@ public class IngestaWebhookService(
         }
 
         foreach (var adjunto in mensaje.Adjuntos)
-            await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, mensaje.MensajeExternoId, adjunto, cancellationToken);
+            await DescargarYGuardarAdjuntoAsync(mensajeCreado, accessTokenResultado.Valor, BuzonGraph.De(conexion), mensaje.MensajeExternoId, adjunto, cancellationToken);
 
         // Gate compartido por todos los patrones de ruido de esta ronda — solo Correo tiene
         // dominio en el remitente (WhatsApp es un teléfono). Se calcula una vez aquí y queda
@@ -292,7 +292,7 @@ public class IngestaWebhookService(
     /// esencial). Se registra y se sigue con el resto.
     /// </summary>
     private async Task DescargarYGuardarAdjuntoAsync(
-        Mensaje mensaje, string accessToken, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
+        Mensaje mensaje, string accessToken, BuzonGraph buzon, string mensajeExternoId, AdjuntoGraphDto adjunto, CancellationToken cancellationToken)
     {
         if (adjunto.TamanoBytes > LimitesAdjuntosCorreo.TamanoMaximoDescargaBytes)
         {
@@ -302,7 +302,7 @@ public class IngestaWebhookService(
             return;
         }
 
-        var contenidoResultado = await graphClient.ObtenerContenidoAdjuntoAsync(accessToken, mensajeExternoId, adjunto.AdjuntoExternoId, cancellationToken);
+        var contenidoResultado = await graphClient.ObtenerContenidoAdjuntoAsync(accessToken, buzon, mensajeExternoId, adjunto.AdjuntoExternoId, cancellationToken);
         if (contenidoResultado.EsFallido)
         {
             logger.LogWarning(

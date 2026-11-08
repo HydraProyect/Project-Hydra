@@ -26,6 +26,31 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
+    public void Por_defecto_no_es_un_buzon_compartido_y_se_puede_crear_como_tal()
+    {
+        new ConexionIntegracion("cae@cliente.com", "Buzón CAE").EsBuzonCompartido.Should().BeFalse();
+        new ConexionIntegracion("piloto@cliente.com", "Buzón piloto", esBuzonCompartido: true).EsBuzonCompartido.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Rechaza_un_buzon_compartido_con_Gestor_propietario()
+    {
+        var accion = () => new ConexionIntegracion(
+            "piloto@cliente.com", "Buzón piloto", gestorPropietarioId: Guid.NewGuid(), esBuzonCompartido: true);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Rechaza_un_buzon_compartido_de_un_proveedor_que_no_es_Microsoft365()
+    {
+        var accion = () => new ConexionIntegracion(
+            "34600000000", "Línea", proveedor: ProveedorIntegracion.WhatsApp, esBuzonCompartido: true);
+
+        accion.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public void Rechaza_un_nombre_vacio()
     {
         var accion = () => new ConexionIntegracion("cae@cliente.com", " ");

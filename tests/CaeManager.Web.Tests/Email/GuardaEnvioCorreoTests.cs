@@ -97,8 +97,8 @@ public class GuardaEnvioCorreoTests
         var interno = new EspiaGraph();
         var guarda = GuardaGraph(interno, Opciones(null));
 
-        var nuevo = await guarda.EnviarNuevoMensajeAsync("t", "b", [Tercero], "a", "c", null, default);
-        var respuesta = await guarda.EnviarRespuestaAsync("t", "b", "origen", "c", null, default);
+        var nuevo = await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Tercero], "a", "c", null, default);
+        var respuesta = await guarda.EnviarRespuestaAsync("t", new BuzonGraph("b", false), "origen", "c", null, default);
 
         nuevo.EsFallido.Should().BeTrue();
         nuevo.Error.Codigo.Should().Be(EnvioCorreoOptions.CodigoErrorEnvioCerrado);
@@ -113,12 +113,12 @@ public class GuardaEnvioCorreoTests
         var interno = new EspiaGraph();
         var guarda = GuardaGraph(interno, Opciones("SoloPermitidos", Permitido));
 
-        (await guarda.EnviarNuevoMensajeAsync("t", "b", [Permitido, Tercero], "a", "c", null, default)).EsFallido.Should().BeTrue();
-        (await guarda.EnviarNuevoMensajeAsync("t", "b", [Permitido], "a", "c", null, default, [Tercero])).EsFallido.Should().BeTrue();
-        (await guarda.EnviarNuevoMensajeAsync("t", "b", [], "a", "c", null, default)).EsFallido.Should().BeTrue();
+        (await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Permitido, Tercero], "a", "c", null, default)).EsFallido.Should().BeTrue();
+        (await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Permitido], "a", "c", null, default, [Tercero])).EsFallido.Should().BeTrue();
+        (await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [], "a", "c", null, default)).EsFallido.Should().BeTrue();
         interno.MensajesNuevos.Should().Be(0);
 
-        (await guarda.EnviarNuevoMensajeAsync("t", "b", [Permitido], "a", "c", null, default, [Permitido])).EsExitoso.Should().BeTrue();
+        (await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Permitido], "a", "c", null, default, [Permitido])).EsExitoso.Should().BeTrue();
         interno.MensajesNuevos.Should().Be(1);
     }
 
@@ -128,7 +128,7 @@ public class GuardaEnvioCorreoTests
         var interno = new EspiaGraph();
 
         var resultado = await GuardaGraph(interno, Opciones("SoloPermitidos", Permitido))
-            .EnviarRespuestaAsync("t", "b", "origen", "c", null, default);
+            .EnviarRespuestaAsync("t", new BuzonGraph("b", false), "origen", "c", null, default);
 
         resultado.EsFallido.Should().BeTrue();
         interno.Respuestas.Should().Be(0);
@@ -140,8 +140,8 @@ public class GuardaEnvioCorreoTests
         var interno = new EspiaGraph();
         var guarda = GuardaGraph(interno, Opciones("Abierto"));
 
-        (await guarda.EnviarNuevoMensajeAsync("t", "b", [Tercero], "a", "c", null, default)).EsExitoso.Should().BeTrue();
-        (await guarda.EnviarRespuestaAsync("t", "b", "origen", "c", null, default)).EsExitoso.Should().BeTrue();
+        (await guarda.EnviarNuevoMensajeAsync("t", new BuzonGraph("b", false), [Tercero], "a", "c", null, default)).EsExitoso.Should().BeTrue();
+        (await guarda.EnviarRespuestaAsync("t", new BuzonGraph("b", false), "origen", "c", null, default)).EsExitoso.Should().BeTrue();
         interno.MensajesNuevos.Should().Be(1);
         interno.Respuestas.Should().Be(1);
     }
@@ -153,7 +153,7 @@ public class GuardaEnvioCorreoTests
     [Fact]
     public async Task Cerrada_no_corta_lo_que_no_es_un_envio()
     {
-        var resultado = await GuardaGraph(new EspiaGraph(), Opciones(null)).ListarCarpetasAsync("t", default);
+        var resultado = await GuardaGraph(new EspiaGraph(), Opciones(null)).ListarCarpetasAsync("t", new BuzonGraph("b", false), default);
 
         resultado.EsExitoso.Should().BeTrue();
     }
@@ -372,7 +372,7 @@ public class GuardaEnvioCorreoTests
         public int Respuestas { get; private set; }
 
         public Task<Result> EnviarRespuestaAsync(
-            string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+            string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
         {
             Respuestas++;
@@ -380,7 +380,7 @@ public class GuardaEnvioCorreoTests
         }
 
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-            string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+            string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
             IReadOnlyList<string>? copia = null)
         {
@@ -388,17 +388,18 @@ public class GuardaEnvioCorreoTests
             return Task.FromResult(Result.Exito(new MensajeEnviadoGraphDto("mensaje", "hilo")));
         }
 
-        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken) =>
+        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito<IReadOnlyList<CarpetaGraphDto>>([]));
 
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();
         public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();

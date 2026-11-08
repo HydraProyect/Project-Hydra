@@ -96,6 +96,31 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         resultado.EsExitoso.Should().BeTrue();
     }
 
+    /// <summary>Un buzón compartido se lee como lo que es: la consulta pasa a Graph el buzón de la Conexión, no el de quien consintió.</summary>
+    [Fact]
+    public async Task Las_dos_consultas_leen_un_buzon_compartido_por_su_propia_direccion()
+    {
+        var conexion = new ConexionIntegracion("piloto@tenant.com", "Buzón piloto", esBuzonCompartido: true);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(credencialRepositorio, graphClient);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.EsExitoso.Should().BeTrue();
+        mensajes.EsExitoso.Should().BeTrue();
+        graphClient.BuzonesUsados.Should().HaveCount(2)
+            .And.OnlyContain(b => b == new BuzonGraph("piloto@tenant.com", true));
+    }
+
     [Fact]
     public async Task ObtenerEstructuraBuzonQuery_sigue_leyendo_el_buzon_general_del_tenant()
     {

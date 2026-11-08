@@ -340,7 +340,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
             Task.FromResult(Result.Exito(new TokensGraphDto("access", "refresh", DateTime.UtcNow.AddHours(1))));
 
         public Task<Result> EnviarRespuestaAsync(
-            string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+            string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
         {
             Respuestas.Add(mensajeExternoIdOrigen);
@@ -355,28 +355,31 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-            string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+            string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
             IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, IReadOnlyList<string>? copia = null) =>
             throw new NotSupportedException();
 
         public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-            string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
+            string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-            string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
+            string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken) =>
+        public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-            string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
+            string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-            string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
+            string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>

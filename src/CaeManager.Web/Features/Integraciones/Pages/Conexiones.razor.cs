@@ -75,16 +75,32 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
     private long _generacionInicializacion;
     private bool _dispuesto;
 
+    private string _buzonCompartido = string.Empty;
+
     private string UrlConectar
     {
         get
         {
             if (_gestorPropietarioSeleccionadoId is { } gestorId)
                 return $"/integraciones/conectar-microsoft365?gestorPropietarioId={gestorId}";
+
+            var parametros = new List<string>();
             if (_clienteSeleccionadoId is { } clienteId)
-                return $"/integraciones/conectar-microsoft365?clienteId={clienteId}";
-            return "/integraciones/conectar-microsoft365";
+                parametros.Add($"clienteId={clienteId}");
+            if (!string.IsNullOrWhiteSpace(_buzonCompartido))
+                parametros.Add($"buzonCompartido={Uri.EscapeDataString(_buzonCompartido.Trim())}");
+
+            return parametros.Count == 0
+                ? "/integraciones/conectar-microsoft365"
+                : $"/integraciones/conectar-microsoft365?{string.Join('&', parametros)}";
         }
+    }
+
+    /// <summary>Un buzón compartido nunca es el buzón personal de un Gestor CAE: escribir uno limpia esa elección.</summary>
+    private void FijarBuzonCompartido(string valor)
+    {
+        _buzonCompartido = valor;
+        if (!string.IsNullOrWhiteSpace(valor)) _gestorPropietarioSeleccionadoId = null;
     }
 
     /// <summary>Cliente y buzón personal son mutuamente excluyentes — elegir uno limpia el otro.</summary>
@@ -372,6 +388,10 @@ public partial class Conexiones : CaeManager.Web.Components.PaginaIntegrableConf
         CodigoCancelado => "Conexión cancelada. No se ha conectado ningún buzón.",
         "autenticacion" => "No pudimos autenticar con Microsoft — revisa Integraciones:Microsoft365 en la configuración.",
         "suscripcion" => "El buzón se autenticó pero no pudimos activar las notificaciones. Inténtalo de nuevo.",
+        "buzon-compartido" => "La dirección del buzón compartido no es válida.",
+        "sin-acceso-compartido" =>
+            "Tu cuenta de Microsoft no puede abrir ese buzón compartido. Comprueba la dirección y que tengas acceso total a él; " +
+            "si conectaste antes de esta opción, vuelve a conectar para conceder los permisos de buzones compartidos.",
         _ => "No pudimos completar la conexión."
     };
 

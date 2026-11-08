@@ -17,10 +17,19 @@ namespace CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft36
 /// (Web), antes de construir este Command, porque necesita el
 /// <c>redirectUri</c> exacto de la petición HTTP entrante. Este Command
 /// recibe los tokens ya obtenidos.
+///
+/// <para>
+/// Con <see cref="EsBuzonCompartido"/> el buzón es un compartido de Exchange
+/// que quien consintió abre por delegación: el endpoint ya comprobó su acceso
+/// y aquí no se crea <see cref="SuscripcionWebhook"/>, porque Graph no admite
+/// suscripciones delegadas sobre un compartido. La conexión, la credencial y
+/// la reclamación del buzón pertenecen al Tenant de la sesión, igual que con
+/// el buzón propio.
+/// </para>
 /// </summary>
 public record ConectarBuzonMicrosoft365Command(
     string BuzonEmail, string Nombre, Guid? ClienteId, string AccessToken, string RefreshToken, string NotificationUrlBase,
-    Guid? GestorPropietarioId = null)
+    Guid? GestorPropietarioId = null, bool EsBuzonCompartido = false)
     : ICommand<Guid>;
 
 public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<ConectarBuzonMicrosoft365Command>
@@ -34,6 +43,8 @@ public class ConectarBuzonMicrosoft365CommandValidator : AbstractValidator<Conec
         RuleFor(c => c.NotificationUrlBase).NotEmpty();
         RuleFor(c => c).Must(c => c.ClienteId is null || c.GestorPropietarioId is null)
             .WithMessage("Un buzón no puede ser a la vez de un Cliente y personal de un gestor.");
+        RuleFor(c => c).Must(c => !c.EsBuzonCompartido || c.GestorPropietarioId is null)
+            .WithMessage("Un buzón compartido no puede ser el buzón personal de un Gestor CAE.");
     }
 }
 
@@ -93,23 +104,29 @@ public class ConectarBuzonMicrosoft365CommandHandler(
                 "Ya tienes una conexión con este buzón en esta organización. Desconéctala antes de volver a conectarla."));
 
         var conexion = new ConexionIntegracion(
-            request.BuzonEmail, request.Nombre, request.ClienteId, gestorPropietarioId: request.GestorPropietarioId);
+            request.BuzonEmail, request.Nombre, request.ClienteId, gestorPropietarioId: request.GestorPropietarioId,
+            esBuzonCompartido: request.EsBuzonCompartido);
         conexionRepositorio.Agregar(conexion);
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, request.RefreshToken));
 
-        // Secreto propio de Hydra, nunca elegido por Graph — se guarda
-        // cifrado en SuscripcionWebhook y se compara en cada notificación
-        // entrante (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
-        var clientState = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        var notificationUrl = $"{request.NotificationUrlBase.TrimEnd('/')}/api/integraciones/webhooks/microsoft365/{conexion.Id}";
+        string? graphSubscriptionId = null;
+        if (!conexion.EsBuzonCompartido)
+        {
+            // Secreto propio de Hydra, nunca elegido por Graph — se guarda
+            // cifrado en SuscripcionWebhook y se compara en cada notificación
+            // entrante (ver Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
+            var clientState = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            var notificationUrl = $"{request.NotificationUrlBase.TrimEnd('/')}/api/integraciones/webhooks/microsoft365/{conexion.Id}";
 
-        var suscripcionResultado = await graphClient.CrearSuscripcionAsync(
-            request.AccessToken, request.BuzonEmail, notificationUrl, clientState, cancellationToken);
-        if (suscripcionResultado.EsFallido)
-            return Result.Fallo<Guid>(suscripcionResultado.Error);
+            var suscripcionResultado = await graphClient.CrearSuscripcionAsync(
+                request.AccessToken, BuzonGraph.De(conexion), notificationUrl, clientState, cancellationToken);
+            if (suscripcionResultado.EsFallido)
+                return Result.Fallo<Guid>(suscripcionResultado.Error);
 
-        suscripcionRepositorio.Agregar(new SuscripcionWebhook(
-            conexion.Id, suscripcionResultado.Valor.GraphSubscriptionId, clientState, suscripcionResultado.Valor.FechaExpiracionUtc));
+            graphSubscriptionId = suscripcionResultado.Valor.GraphSubscriptionId;
+            suscripcionRepositorio.Agregar(new SuscripcionWebhook(
+                conexion.Id, graphSubscriptionId, clientState, suscripcionResultado.Valor.FechaExpiracionUtc));
+        }
 
         // Unicidad global del buzón (incremento 1 de PROPUESTA-BUZONES-COMPARTIDOS-M365
         // § 5.4): sin esta reclamación, el mismo BuzonEmail podía conectarse
@@ -123,13 +140,13 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         }
         catch
         {
-            await CompensarSuscripcionHuerfanaAsync(suscripcionResultado.Valor.GraphSubscriptionId);
+            await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
             throw;
         }
 
         if (!buzonLibre)
         {
-            await CompensarSuscripcionHuerfanaAsync(suscripcionResultado.Valor.GraphSubscriptionId);
+            await CompensarSuscripcionHuerfanaAsync(graphSubscriptionId);
             return Result.Fallo<Guid>(Error.Crear(
                 "Integraciones.Microsoft365.BuzonYaConectado", "Este buzón ya está conectado en otra organización."));
         }
@@ -141,8 +158,11 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         // reclamado—, no dejar una suscripción huérfana en Graph que Hydra
         // nunca sabrá que existe — mismo criterio que el borrador huérfano de
         // EnviarNuevoMensajeAsync.
-        async Task CompensarSuscripcionHuerfanaAsync(string graphSubscriptionId)
+        async Task CompensarSuscripcionHuerfanaAsync(string? graphSubscriptionId)
         {
+            if (graphSubscriptionId is null)
+                return;
+
             try
             {
                 await graphClient.EliminarSuscripcionAsync(request.AccessToken, graphSubscriptionId, cancellationToken);

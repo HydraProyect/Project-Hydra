@@ -33,7 +33,7 @@ public static class ConectarMicrosoft365Endpoints
     public static IEndpointRouteBuilder MapConectarMicrosoft365Endpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/integraciones/conectar-microsoft365", async (
-            Guid? clienteId, Guid? gestorPropietarioId, IMicrosoft365GraphClient graphClient,
+            Guid? clienteId, Guid? gestorPropietarioId, string? buzonCompartido, IMicrosoft365GraphClient graphClient,
             IOptions<Microsoft365GraphOptions> opciones, ISolicitudConexionMicrosoft365Repository solicitudRepositorio,
             IUnitOfWork unitOfWork, ICurrentUserService currentUser, CancellationToken cancellationToken) =>
         {
@@ -44,7 +44,17 @@ public static class ConectarMicrosoft365Endpoints
             if (usuarioId is null)
                 return Results.Unauthorized();
 
-            var solicitud = new SolicitudConexionMicrosoft365(usuarioId.Value, clienteId, gestorPropietarioId, DateTime.UtcNow);
+            // Vacío = el buzón propio de quien va a consentir. Con dirección, un compartido: se
+            // valida la forma aquí y el acceso real en el callback, con el token ya canjeado.
+            string? compartido = null;
+            if (!string.IsNullOrWhiteSpace(buzonCompartido))
+            {
+                compartido = NormalizarDireccionBuzon(buzonCompartido);
+                if (compartido is null || gestorPropietarioId is not null)
+                    return Results.LocalRedirect("/integraciones?error=buzon-compartido");
+            }
+
+            var solicitud = new SolicitudConexionMicrosoft365(usuarioId.Value, clienteId, gestorPropietarioId, DateTime.UtcNow, compartido);
             solicitudRepositorio.Agregar(solicitud);
             await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -85,6 +95,7 @@ public static class ConectarMicrosoft365Endpoints
 
             var clienteId = solicitud.ClienteId;
             var gestorPropietarioId = solicitud.GestorPropietarioId;
+            var buzonCompartido = solicitud.BuzonCompartido;
 
             // Consumo de un solo uso ANTES de canjear el código: aunque el
             // resto del flujo falle a partir de aquí, este "state" nunca
@@ -101,9 +112,31 @@ public static class ConectarMicrosoft365Endpoints
             if (buzonResultado.EsFallido)
                 return Results.LocalRedirect("/integraciones?error=autenticacion");
 
+            // Escribir la propia dirección en el campo del compartido conecta el buzón propio: así
+            // conserva su suscripción webhook en vez de quedar como un compartido sin ella.
+            var esCompartido = buzonCompartido is not null &&
+                !string.Equals(buzonCompartido, buzonResultado.Valor, StringComparison.OrdinalIgnoreCase);
+            var buzonConectado = esCompartido ? buzonCompartido! : buzonResultado.Valor;
+
+            if (esCompartido)
+            {
+                // La única prueba de que esta persona puede abrir el compartido: Graph no lista los
+                // compartidos accesibles, y sin esta sonda se daría de alta una conexión que falla
+                // en la primera lectura.
+                var acceso = await graphClient.ComprobarAccesoBuzonAsync(
+                    tokensResultado.Valor.AccessToken, new BuzonGraph(buzonConectado, EsCompartido: true), cancellationToken);
+                if (acceso.EsFallido)
+                {
+                    return Results.LocalRedirect(acceso.Error.Codigo == "Integraciones.Microsoft365.SinAccesoBuzon"
+                        ? "/integraciones?error=sin-acceso-compartido"
+                        : "/integraciones?error=autenticacion");
+                }
+            }
+
             var comando = new ConectarBuzonMicrosoft365Command(
-                buzonResultado.Valor, buzonResultado.Valor, clienteId,
-                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId);
+                buzonConectado, buzonConectado, clienteId,
+                tokensResultado.Valor.AccessToken, tokensResultado.Valor.RefreshToken, opciones.Value.UrlPublicaBase, gestorPropietarioId,
+                EsBuzonCompartido: esCompartido);
 
             var resultado = await mediator.Send(comando, cancellationToken);
             return resultado.EsExitoso
@@ -113,6 +146,22 @@ public static class ConectarMicrosoft365Endpoints
         .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Dirección de buzón bien formada (solo la dirección, sin nombre visible) o null. Pública para poder
+    /// probarla (sin <c>InternalsVisibleTo</c> en CaeManager.Web).
+    /// </summary>
+    public static string? NormalizarDireccionBuzon(string valor)
+    {
+        var recortado = valor.Trim();
+        if (recortado.Length == 0 || recortado.Length > ConexionIntegracion.LongitudMaximaBuzonEmail)
+            return null;
+
+        return System.Net.Mail.MailAddress.TryCreate(recortado, out var direccion) &&
+            string.Equals(direccion.Address, recortado, StringComparison.OrdinalIgnoreCase)
+            ? direccion.Address
+            : null;
     }
 
     private static string ConstruirRedirectUriCallback(Microsoft365GraphOptions opciones) =>

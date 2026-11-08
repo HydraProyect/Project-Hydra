@@ -16,6 +16,8 @@
             Buzones de Microsoft 365 conectados para la bandeja de correo compartida (Comunicaciones).
             Cada conexión pertenece a una empresa sin rol CAE concreta, a la organización propia si se deja en blanco
             o al buzón personal de un Gestor CAE.
+            Para conectar un buzón compartido de Microsoft 365 al que tengas acceso total, escribe su dirección
+            antes de conectar; déjala vacía para conectar tu propio buzón.
             Para investigar una conexión en concreto —carpetas, mensajes en Graph que aún no llegaron por
             webhook—, usa el <a href="/comunicaciones/buzon">explorador técnico del buzón (diagnóstico)</a>.
         </Descripcion>
@@ -39,13 +41,17 @@
 
         <CampoSelect Etiqueta="Buzón personal de un Gestor CAE (opcional)"
                      Valor="@(_gestorPropietarioSeleccionadoId?.ToString() ?? string.Empty)"
-                     ValorChanged="SeleccionarGestorPropietario" Deshabilitado="@(_clienteSeleccionadoId is not null)">
+                     ValorChanged="SeleccionarGestorPropietario"
+                     Deshabilitado="@(_clienteSeleccionadoId is not null || !string.IsNullOrWhiteSpace(_buzonCompartido))">
             <option value="">—</option>
             @foreach (var gestor in _gestores)
             {
                 <option value="@gestor.Id">@gestor.NombreCompleto</option>
             }
         </CampoSelect>
+
+        <CampoTexto Etiqueta="Buzón compartido (opcional)" Valor="@_buzonCompartido" ValorChanged="FijarBuzonCompartido"
+                    Placeholder="nombre@dominio.es" Type="email" Deshabilitado="@(_gestorPropietarioSeleccionadoId is not null)" />
 
         <a class="enlace-conectar-microsoft" href="@UrlConectar">Conectar buzón de Microsoft 365 <span aria-hidden="true">↗</span></a>
     </div>
@@ -76,7 +82,13 @@
                 @foreach (var conexion in _conexiones)
                 {
                     <tr class="@ClaseFilaBuzon(conexion.Id)">
-                        <td>@conexion.BuzonEmail</td>
+                        <td>
+                            @conexion.BuzonEmail
+                            @if (conexion.EsBuzonCompartido)
+                            {
+                                <Badge Tono="TonoBadge.Neutro">Compartido</Badge>
+                            }
+                        </td>
                         <td>@DescribirPropietario(conexion)</td>
                         <td>
                             <Badge Tono="@ObtenerTonoEstado(conexion.Estado)">@ObtenerEtiquetaEstado(conexion.Estado)</Badge>

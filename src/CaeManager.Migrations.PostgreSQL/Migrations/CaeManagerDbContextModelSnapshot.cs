@@ -7829,6 +7829,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("EliminadoPorUsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EsBuzonCompartido")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
@@ -8576,6 +8579,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("BuzonCompartido")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
 
                     b.Property<Guid?>("ClienteId")
                         .HasColumnType("uuid");

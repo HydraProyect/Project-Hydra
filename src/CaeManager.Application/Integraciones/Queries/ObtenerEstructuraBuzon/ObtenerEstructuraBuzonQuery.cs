@@ -47,7 +47,7 @@ public class ObtenerEstructuraBuzonQueryHandler(
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(tokenResultado.Error);
 
-        var carpetasResultado = await graphClient.ListarCarpetasAsync(tokenResultado.Valor, cancellationToken);
+        var carpetasResultado = await graphClient.ListarCarpetasAsync(tokenResultado.Valor, BuzonGraph.De(conexion), cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

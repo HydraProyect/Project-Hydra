@@ -54,6 +54,48 @@ public class ConectarBuzonMicrosoft365CommandHandlerTests
     }
 
     /// <summary>
+    /// Un buzón compartido es su propia Conexión en el Tenant propietario donde se conecta: se reclama igual que
+    /// cualquier buzón, pero sin suscripción (Microsoft no admite notificaciones delegadas sobre él).
+    /// </summary>
+    [Fact]
+    public async Task Conecta_un_buzon_compartido_sin_suscripcion_y_con_reclamacion_global()
+    {
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
+        var suscripcionRepositorio = new SuscripcionWebhookRepositorioFalso();
+        var reclamacionRepositorio = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var graphClient = new Microsoft365GraphClientFalso();
+        var handler = CrearHandler(
+            conexionRepositorio, credencialRepositorio, suscripcionRepositorio, reclamacionRepositorio,
+            new EmpresaRepositorioFalso(), new AlcanceDatosServiceFalso(), graphClient);
+
+        var resultado = await handler.Handle(
+            new ConectarBuzonMicrosoft365Command(
+                "piloto@tenant.com", "Buzón piloto", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                EsBuzonCompartido: true),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexionRepositorio.Conexiones.Should().ContainSingle(c => c.BuzonEmail == "piloto@tenant.com" && c.EsBuzonCompartido);
+        credencialRepositorio.Credenciales.Should().ContainSingle(c => c.RefreshToken == "refresh-token");
+        suscripcionRepositorio.Suscripciones.Should().BeEmpty();
+        graphClient.VecesSuscrito.Should().Be(0);
+        reclamacionRepositorio.Reclamaciones.Should().ContainSingle(
+            r => r.BuzonEmail == "piloto@tenant.com" && r.TenantPropietarioId == TenantId);
+    }
+
+    [Fact]
+    public void El_validador_rechaza_un_buzon_compartido_con_Gestor_propietario()
+    {
+        var resultado = new ConectarBuzonMicrosoft365CommandValidator().Validate(
+            new ConectarBuzonMicrosoft365Command(
+                "piloto@tenant.com", "Buzón piloto", ClienteId: null, "access-token", "refresh-token", "https://hydra.local",
+                GestorPropietarioId: Guid.NewGuid(), EsBuzonCompartido: true));
+
+        resultado.IsValid.Should().BeFalse();
+    }
+
+    /// <summary>
     /// Hallazgo de la revisión puente (Codex sin cuota, 2026-09-23): el índice
     /// único global de <see cref="ReclamacionBuzonIntegracion"/> no distingue
     /// "otro Tenant" de "el mismo Tenant que ya lo tiene reclamado" — sin esta

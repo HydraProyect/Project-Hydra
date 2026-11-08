@@ -17,9 +17,11 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// 5/12) — flujo delegado (authorization code + offline_access), no
 /// client-credentials como <c>GraphEmailService</c>: aquí no hay "el propio
 /// buzón de Hydra", cada <c>ConexionIntegracion</c> es el buzón real de un
-/// cliente distinto, consentido por su propio administrador. Por eso todas
-/// las llamadas usan <c>/me/...</c> (resuelto por el token, no por un UPN
-/// en la URL) en vez de <c>/users/{upn}/...</c>.
+/// cliente distinto, consentido por su propio administrador. Las llamadas
+/// sobre el buzón propio de quien consintió usan <c>/me/...</c> (resuelto por
+/// el token, no por un UPN en la URL); las de un buzón compartido usan
+/// <c>/users/{dirección}/...</c> con los permisos delegados <c>.Shared</c>
+/// (ver <see cref="RutaBuzon"/>).
 /// </summary>
 public class Microsoft365GraphClient(
     HttpClient httpClient,
@@ -28,7 +30,15 @@ public class Microsoft365GraphClient(
 {
     private const string EndpointAutorizacion = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     private const string EndpointToken = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    private const string ScopesDelegados = "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send";
+    // Los dos .Shared permiten abrir por /users/{dirección} los buzones compartidos a los que la
+    // persona que consiente tiene acceso en Exchange (Full Access para leer, Send As o Send on Behalf
+    // para enviar). Una conexión consentida antes de añadirlos tiene un refresh token sin ellos: sigue
+    // sirviendo para su buzón propio, pero hay que reconectar para dar de alta un compartido.
+    internal const string ScopesDelegados =
+        "offline_access https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send " +
+        "https://graph.microsoft.com/Mail.Read.Shared https://graph.microsoft.com/Mail.Send.Shared";
+
+    private const string RaizGraph = "https://graph.microsoft.com/v1.0/";
 
     // Máximo permitido por Graph para suscripciones sobre mensajes de
     // correo (~2.94 días) — ver RenovacionSuscripcionWebhookHostedService,
@@ -181,8 +191,50 @@ public class Microsoft365GraphClient(
         }
     }
 
+    public async Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    {
+        using var peticion = NuevaPeticionGraph(
+            HttpMethod.Get, $"{RutaBuzon(buzon)}/mailFolders('Inbox')?$select=id", accessToken);
+
+        try
+        {
+            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
+            if (respuesta.IsSuccessStatusCode)
+                return Result.Exito();
+
+            var cuerpoError = await respuesta.Content.ReadAsStringAsync(cancellationToken);
+            logger.LogWarning(
+                "Microsoft Graph devolvió {StatusCode} al comprobar el acceso a un buzón (compartido: {EsCompartido}): {CodigoError}",
+                (int)respuesta.StatusCode, buzon.EsCompartido, CodigoErrorGraph.Extraer(cuerpoError));
+
+            // 403/404: la persona no tiene Full Access sobre ese buzón, la dirección no existe o el
+            // consentimiento no incluye los permisos .Shared (conexión anterior a su alta). Graph no
+            // distingue los tres casos de forma fiable, así que el mensaje los nombra a la vez.
+            return respuesta.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
+                ? Result.Fallo(Error.Crear(
+                    "Integraciones.Microsoft365.SinAccesoBuzon",
+                    "Tu cuenta de Microsoft no puede abrir ese buzón: comprueba la dirección y que tengas acceso total a él."))
+                : Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogError(ex, "Fallo de red al comprobar el acceso a un buzón vía Microsoft Graph.");
+            return Result.Fallo(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+    }
+
+    /// <summary>
+    /// Raíz de las llamadas sobre un buzón: <c>/me</c> para el propio de quien consintió (resuelto por
+    /// el token, sin depender de que <c>mail</c> coincida con el UPN) y <c>/users/{dirección}</c> para
+    /// uno compartido. La dirección se escapa: viene de lo que escribió quien conectó el buzón.
+    /// </summary>
+    internal static string RutaBuzon(BuzonGraph buzon) =>
+        buzon.EsCompartido
+            ? $"{RaizGraph}users/{Uri.EscapeDataString(buzon.Direccion)}"
+            : $"{RaizGraph}me";
+
     public async Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
         // /reply preserva conversationId/threading automáticamente — nunca
@@ -191,7 +243,7 @@ public class Microsoft365GraphClient(
         // "message" — es la forma en que Graph permite adjuntar algo más al
         // responder, en vez de solo el comentario de texto.
         using var peticion = NuevaPeticionGraph(
-            HttpMethod.Post, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/reply", accessToken);
+            HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoIdOrigen)}/reply", accessToken);
         peticion.Content = JsonContent.Create(new SolicitudRespuestaGraph(
             cuerpoHtml, ConstruirMensajeConAdjuntos(adjuntos)));
 
@@ -215,11 +267,14 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
         IReadOnlyList<string>? copia = null)
     {
-        using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, "https://graph.microsoft.com/v1.0/me/messages", accessToken);
+        // En un buzón compartido el borrador se crea en SUS Borradores: Exchange lo envía entonces
+        // como el compartido (Send As) o en su nombre (Send on Behalf), según el permiso que tenga
+        // quien consintió, sin necesidad de fijar "from" a mano.
+        using var peticionBorrador = NuevaPeticionGraph(HttpMethod.Post, $"{RutaBuzon(buzon)}/messages", accessToken);
 
         // Los Ids de mensaje de Graph NO son estables: al enviar el borrador,
         // el mensaje se mueve de Borradores a Elementos enviados y cambia de
@@ -262,7 +317,7 @@ public class Microsoft365GraphClient(
             var hiloExternoId = borrador.ConversationId!;
 
             using var peticionEnvio = NuevaPeticionGraph(
-                HttpMethod.Post, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}/send", accessToken);
+                HttpMethod.Post, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoId)}/send", accessToken);
             // La preferencia va también aquí: Graph solo interpreta un Id
             // inmutable en la URL si la petición la declara. Sin esto, un Id
             // inmutable se leería como Id normal y la llamada fallaría.
@@ -279,7 +334,7 @@ public class Microsoft365GraphClient(
                 try
                 {
                     using var peticionEliminar = NuevaPeticionGraph(
-                        HttpMethod.Delete, $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeExternoId)}", accessToken);
+                        HttpMethod.Delete, $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeExternoId)}", accessToken);
                     peticionEliminar.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
                     await httpClient.SendAsync(peticionEliminar, cancellationToken);
                 }
@@ -309,14 +364,14 @@ public class Microsoft365GraphClient(
             : null;
 
     public async Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken)
     {
         // $expand=attachments trae los metadatos de los adjuntos en el mismo
         // viaje — el contenido en sí (contentBytes) no, por eso
         // ObtenerContenidoAdjuntoAsync es una llamada aparte: descargar el
         // contenido de todos los adjuntos de un mensaje que quizás nadie
         // vaya a abrir sería desperdiciar ancho de banda en el caso común.
-        var url = $"https://graph.microsoft.com/v1.0/me/messages/{Uri.EscapeDataString(mensajeId)}" +
+        var url = $"{RutaBuzon(buzon)}/messages/{Uri.EscapeDataString(mensajeId)}" +
             "?$select=subject,from,replyTo,toRecipients,ccRecipients,body,receivedDateTime,conversationId,hasAttachments,internetMessageHeaders" +
             "&$expand=attachments($select=id,name,contentType,size)";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
@@ -370,7 +425,7 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken)
     {
         // $value devuelve el binario crudo — a diferencia de $select=contentBytes
         // (que envolvía el contenido en JSON como base64, con ~33% de
@@ -378,7 +433,7 @@ public class Microsoft365GraphClient(
         // empezar a decodificar nada), esto permite copiar con límite real
         // mientras se descarga en vez de confiar solo en el tamaño declarado
         // por el llamador (auditoría módulo 6).
-        var url = "https://graph.microsoft.com/v1.0/me/messages/" +
+        var url = $"{RutaBuzon(buzon)}/messages/" +
             $"{Uri.EscapeDataString(mensajeId)}/attachments/{Uri.EscapeDataString(adjuntoExternoId)}/$value";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
 
@@ -412,14 +467,14 @@ public class Microsoft365GraphClient(
         }
     }
 
-    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken)
+    public async Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
     {
         const string seleccion = "$select=id,displayName,parentFolderId,unreadItemCount,totalItemCount";
 
         try
         {
             var carpetasNivel1 = await ObtenerPaginaCarpetasAsync(
-                accessToken, $"https://graph.microsoft.com/v1.0/me/mailFolders?{seleccion}&$top=100", cancellationToken);
+                accessToken, $"{RutaBuzon(buzon)}/mailFolders?{seleccion}&$top=100", cancellationToken);
             if (carpetasNivel1.EsFallido)
                 return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(carpetasNivel1.Error);
 
@@ -431,7 +486,7 @@ public class Microsoft365GraphClient(
             {
                 var hijas = await ObtenerPaginaCarpetasAsync(
                     accessToken,
-                    $"https://graph.microsoft.com/v1.0/me/mailFolders/{Uri.EscapeDataString(carpeta.CarpetaExternoId)}/childFolders?{seleccion}&$top=100",
+                    $"{RutaBuzon(buzon)}/mailFolders/{Uri.EscapeDataString(carpeta.CarpetaExternoId)}/childFolders?{seleccion}&$top=100",
                     cancellationToken);
 
                 if (hijas.EsExitoso)
@@ -465,9 +520,9 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)
     {
-        var url = $"https://graph.microsoft.com/v1.0/me/mailFolders/{Uri.EscapeDataString(carpetaExternoId)}/messages" +
+        var url = $"{RutaBuzon(buzon)}/mailFolders/{Uri.EscapeDataString(carpetaExternoId)}/messages" +
             "?$select=id,subject,from,receivedDateTime,conversationId,hasAttachments" +
             $"&$orderby=receivedDateTime desc&$top={top}&$skip={skip}";
         using var peticion = NuevaPeticionGraph(HttpMethod.Get, url, accessToken);
@@ -500,8 +555,17 @@ public class Microsoft365GraphClient(
     }
 
     public async Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken)
+        string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
     {
+        // Microsoft Learn (outlook-change-notifications-overview, «Request permissions»): con permiso
+        // delegado solo se puede suscribir el buzón propio, y los permisos .Shared no admiten
+        // suscripciones. Se corta aquí en vez de dejar que Graph devuelva un 403 tras la llamada.
+        if (buzon.EsCompartido)
+        {
+            return Result.Fallo<SuscripcionGraphDto>(Error.Crear(
+                "Integraciones.Microsoft365.SuscripcionNoAdmitida", "Microsoft no permite activar notificaciones sobre un buzón compartido."));
+        }
+
         var expiracion = DateTime.UtcNow.Add(DuracionMaximaSuscripcion);
         var solicitud = new SolicitudSuscripcionGraph(
             "created,updated", notificationUrl, "me/mailFolders('Inbox')/messages", expiracion, clientState);

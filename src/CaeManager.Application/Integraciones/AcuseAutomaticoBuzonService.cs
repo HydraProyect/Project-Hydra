@@ -96,7 +96,7 @@ public class AcuseAutomaticoBuzonService(
 
         // Por el cliente del contenedor: lo envuelve la guarda de envío C-04, que aquí decide igual que para una respuesta.
         var envio = await graphClient.EnviarRespuestaAsync(
-            token.Valor, conexion.BuzonEmail, mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
+            token.Valor, BuzonGraph.De(conexion), mensajeExternoId, PlantillaAcuseBuzon.CuerpoHtml, adjuntos: null, cancellationToken);
 
         if (envio.EsFallido)
         {

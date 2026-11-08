@@ -49,10 +49,22 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito("buzon@cliente-falso.test"));
 
+    /// <summary>Cada buzón sobre el que se pidió algo a Graph, en orden: prueba que una conexión compartida no cae en /me.</summary>
+    public List<BuzonGraph> BuzonesUsados { get; } = [];
+
+    public int VecesSuscrito { get; private set; }
+
+    public Task<Result> ComprobarAccesoBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
+    {
+        BuzonesUsados.Add(buzon);
+        return Task.FromResult(Result.Exito());
+    }
+
     public Task<Result> EnviarRespuestaAsync(
-        string accessToken, string buzonEmail, string mensajeExternoIdOrigen, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, string mensajeExternoIdOrigen, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken)
     {
+        BuzonesUsados.Add(buzon);
         VecesEnviado++;
         UltimoMensajeExternoIdRespondido = mensajeExternoIdOrigen;
         UltimoCuerpoRespondido = cuerpoHtml;
@@ -62,10 +74,11 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     }
 
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
-        string accessToken, string buzonEmail, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
+        string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
         IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
         IReadOnlyList<string>? copia = null)
     {
+        BuzonesUsados.Add(buzon);
         VecesEnviado++;
         UltimaCopia = copia;
         return Task.FromResult(FallaEnvio
@@ -77,27 +90,36 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public IReadOnlyList<string>? UltimaCopia { get; private set; }
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
-        string accessToken, string buzonEmail, string mensajeId, CancellationToken cancellationToken) =>
-        Task.FromResult((MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
+        string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
+        Registrar(buzon, (MensajesPorId.GetValueOrDefault(mensajeId) ?? MensajeADevolver) is not { } mensaje
             ? Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "sin mensaje configurado"))
             : Result.Exito(mensaje));
 
     public Task<Result<byte[]>> ObtenerContenidoAdjuntoAsync(
-        string accessToken, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(ContenidoAdjuntoADevolver));
+        string accessToken, BuzonGraph buzon, string mensajeId, string adjuntoExternoId, CancellationToken cancellationToken) =>
+        Registrar(buzon, Result.Exito(ContenidoAdjuntoADevolver));
 
-    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(CarpetasADevolver));
+    public Task<Result<IReadOnlyList<CarpetaGraphDto>>> ListarCarpetasAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
+        Registrar(buzon, Result.Exito(CarpetasADevolver));
 
     public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(MensajesADevolver));
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
+        Registrar(buzon, Result.Exito(MensajesADevolver));
 
     public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
-        string accessToken, string buzonEmail, string notificationUrl, string clientState, CancellationToken cancellationToken) =>
-        Task.FromResult(FallaCreacionSuscripcion
+        string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
+    {
+        VecesSuscrito++;
+        return Registrar(buzon, FallaCreacionSuscripcion
             ? Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "fallo simulado"))
             : Result.Exito(new SuscripcionGraphDto("suscripcion-falsa", DateTime.UtcNow.AddDays(3))));
+    }
+
+    private Task<T> Registrar<T>(BuzonGraph buzon, T resultado)
+    {
+        BuzonesUsados.Add(buzon);
+        return Task.FromResult(resultado);
+    }
 
     public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
