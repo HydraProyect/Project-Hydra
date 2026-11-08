@@ -20,10 +20,11 @@ body {
   height: 100%;
 }
 
-/* La cabecera es fija (MainLayout): sin esto, el foco por Tab y las anclas dejan el elemento
-   enfocado debajo de ella (WCAG 2.4.11). */
-html {
-  scroll-padding-top: calc(var(--navbar-height) + var(--space-4));
+/* El que desplaza es main.contenido, que empieza bajo la cabecera fija (MainLayout.razor.css):
+   la cabecera ya no tapa lo enfocado, pero el foco por Tab y las anclas dejan un respiro arriba
+   (WCAG 2.4.11). En html ya no haría nada: el documento no desplaza. */
+.contenido {
+  scroll-padding-top: var(--space-4);
 }
 
 body {

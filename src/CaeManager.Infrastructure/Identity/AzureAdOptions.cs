@@ -73,7 +73,9 @@ public class AzureAdOptions : IOpcionesConGate
     /// <c>c1</c>) que acredita la MFA (decisión D-2 de 2026-10-25). Con valor, se pide
     /// a Microsoft en cada inicio y se acepta como segundo factor si vuelve en la
     /// notificación <c>acrs</c> del token. Vacío: no se pide ni se exige <c>acrs</c>,
-    /// y la MFA se acredita solo con <c>amr</c> = <c>mfa</c>. Sin ninguna de las dos,
+    /// y la MFA se acredita solo con un método de la lista cerrada de <c>amr</c>
+    /// (<c>mfa</c>, <c>ngcmfa</c>, <c>fido</c>; ver
+    /// <c>InicioSesionMicrosoft.MetodosAmrMultifactor</c>). Sin ninguna de las dos,
     /// se pide el TOTP de TALVEG antes de emitir la sesión.
     /// </summary>
     public string? ContextoAutenticacionMfa { get; set; }

@@ -36,6 +36,7 @@ using CaeManager.Web.Features.Gestiones;
 using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Features.Trabajadores;
+using CaeManager.Web.Features.Contacto;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -636,6 +637,11 @@ builder.Services.AddRateLimiter(opciones =>
             });
     });
 });
+
+// Formulario «Pedir una demo» de la web pública talveg.es: CORS solo para
+// sus dos orígenes, límite por IP y cupo global de correos (ver
+// SolicitudDemoEndpoints, con cada control y su requisito ASVS).
+builder.Services.AddSolicitudDemo(builder.Configuration);
 
 // CircuitOptions explícitas (ADR-008 en Project-Hydra-Negocio, Horizonte 2.1
 // del plan macro) — hasta esta medición la app corría con los defaults de
@@ -1404,6 +1410,11 @@ app.UsePresupuestoMemoriaAgotadoComo503();
 // Opciones registradas arriba (Configure<RequestLocalizationOptions>).
 app.UseRequestLocalization();
 
+// Tras el enrutado implícito y antes de autenticar: el preflight OPTIONS del
+// formulario de demo de talveg.es se contesta aquí. Sin política por defecto,
+// así que solo actúa en los endpoints con RequireCors (hoy, solo ese).
+app.UseCors();
+
 app.UseAuthentication();
 
 // Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado; el de
@@ -1508,6 +1519,7 @@ app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();
 app.MapWebhookStripeEndpoints();
+app.MapSolicitudDemoEndpoints();
 
 // API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
 // grupo con la política de auth/rate-limit aplicada una vez, en vez de por

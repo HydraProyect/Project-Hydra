@@ -187,7 +187,11 @@
             // nada (ASVS 4.0.3 V2.1): la primera vinculación de Microsoft lo da de alta aquí
             // antes (_altaTotp, que los dos caminos de verificación rechazan), y cualquier
             // otro caso vuelve al inicio. Va en la inicialización, que también corre en el POST.
-            if (await EsAltaTotpPendienteAsync())
+            // El alta solo sigue si la cuenta continúa sin activar (D-L6): si la invitación se
+            // activó, o entró con otro login, desde el callback, ya está en uso y no se le da de
+            // alta un TOTP desde una identidad hallada por correo (ASVS 4.0.3 V3.7.1).
+            if (await EsAltaTotpPendienteAsync()
+                && InicioSesionMicrosoft.CuentaSinActivar(_usuarioPendiente, await SignInManager.UserManager.GetLoginsAsync(_usuarioPendiente)))
             {
                 _altaTotp = true;
                 await PrepararAltaTotpAsync(_usuarioPendiente);

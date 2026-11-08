@@ -336,6 +336,30 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         cut.FindAll("#codigo-alta").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// D-L6 (revisión puente de la #2099): la cookie de dos pasos vive minutos. Si entre el callback y el alta
+    /// la invitación se activa con contraseña, o la cuenta entra con otro login, ya está en uso: no se le
+    /// reinicia la clave ni se le da de alta un TOTP desde la identidad hallada por correo.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Con_la_cuenta_activada_desde_el_callback_no_se_da_de_alta_el_TOTP(bool conContrasena, bool conOtroLogin)
+    {
+        _signIn.Usuarios.TotpActivado = false;
+        if (conContrasena)
+            _signIn.Pendiente.PasswordHash = "hash-de-una-contrasena";
+        if (conOtroLogin)
+            _signIn.Usuarios.Vinculos.Add(new UserLoginInfo("OtroProveedor", "clave-de-otro-proveedor", "OtroProveedor"));
+
+        var cut = RenderizarAlta("GET");
+
+        cut.FindAll("#codigo-alta").Should().BeEmpty();
+        cut.FindAll("#codigo").Should().BeEmpty();
+        _signIn.Usuarios.Reinicios.Should().Be(0, "no se toca la clave de una cuenta en uso");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/iniciar-sesion");
+    }
+
     [Fact]
     public void Si_no_se_puede_reiniciar_la_clave_no_se_ensena_ninguna()
     {
@@ -418,7 +442,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
     /// </summary>
     private sealed class SignInManagerFalso : SignInManager<ApplicationUser>
     {
-        private readonly ApplicationUser _pendiente = new() { Id = Guid.NewGuid() };
+        public ApplicationUser Pendiente { get; } = new() { Id = Guid.NewGuid() };
 
         public SignInManagerFalso() : this(new UsuariosConBloqueoFalso())
         {
@@ -459,7 +483,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         }
 
         public override Task<ApplicationUser?> GetTwoFactorAuthenticationUserAsync() =>
-            Task.FromResult<ApplicationUser?>(_pendiente);
+            Task.FromResult<ApplicationUser?>(Pendiente);
 
         public override Task<SignInResult> TwoFactorAuthenticatorSignInAsync(string code, bool isPersistent, bool rememberClient)
         {
