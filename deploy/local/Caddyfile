@@ -147,8 +147,10 @@ talveg.es {
 	# tdmrep.json, la reserva de minería de textos y datos, señal legal) y que
 	# `hide .*` ocultaría porque compara cada componente de la ruta. Se sirve en
 	# su propio `handle`, sin el hide; lo demás sigue oculto por defecto en vez
-	# de depender de una lista de nombres que siempre se queda corta. Los retos
-	# ACME no pasan por aquí: Caddy los atiende antes de las rutas del sitio.
+	# de depender de una lista de nombres que siempre se queda corta. Dentro de
+	# /.well-known/ no se oculta nada: se sirve entera, así que ahí se sube solo
+	# lo que se publica. Los retos ACME no pasan por aquí: Caddy los atiende
+	# antes de las rutas del sitio.
 	#
 	# file_server SIGUE los enlaces simbólicos, también los que apuntan fuera
 	# de la raíz, y dentro de este contenedor está /data con las claves
