@@ -83,8 +83,12 @@ public class LecturasBajoElCandadoVenLoConfirmadoTests
         releida.Should().BeSameAs(rastreo.Rastreada(fila));
         releida.Should().BeEquivalentTo(new
         {
-            Incluido = false, PeriodicidadEspecialMeses = (int?)6, BloqueaAcceso = true, ArchivoUrl = "t/otro.pdf",
-            NombreArchivoOriginal = "otro.pdf", ToleranciaDias = (int?)10
+            Incluido = false,
+            PeriodicidadEspecialMeses = (int?)6,
+            BloqueaAcceso = true,
+            ArchivoUrl = "t/otro.pdf",
+            NombreArchivoOriginal = "otro.pdf",
+            ToleranciaDias = (int?)10
         });
         (await rastreo.SaveChangesAsync()).Should().Be(0, "la copia releída coincide con lo confirmado");
     }
