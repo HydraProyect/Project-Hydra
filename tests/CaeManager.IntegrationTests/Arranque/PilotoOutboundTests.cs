@@ -781,6 +781,50 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     /// <summary>
+    /// Regla A-1 del 2026-11-08: un Documento de Empresa se acredita en los Centros de su Empresa (<c>Centro.EmpresaId</c>)
+    /// gestionados por plataforma aunque nadie esté asignado allí. Se vuelve a poner en juego el acceso de plataforma ya
+    /// sembrado con el servicio real, sin guardar: la Empresa del Centro no tiene ningún documento que la siembra no hubiera
+    /// acreditado, y el control comprueba que el Centro es de la Empresa propia. Es una guarda de no regresión de la
+    /// siembra («no deja nada por acreditar»): en todos los perfiles el Centro con plataforma ya tiene Trabajadores propios
+    /// asignados, así que no discrimina la regla nueva de la anterior. El caso sin Trabajadores lo fijan los tests
+    /// unitarios de <c>AltaAcreditacionesPlataformaServiceTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_poner_en_juego_el_acceso_de_plataforma_no_acredita_ningun_documento_de_la_Empresa_del_Centro_que_la_siembra_no_hubiera_acreditado()
+    {
+        var conPlataforma = CatalogoPilotoOutbound.Tenants.Where(t => t.CentroConPlataforma is not null).ToList();
+        conPlataforma.Should().NotBeEmpty("control: algún perfil tiene un Centro con plataforma");
+
+        foreach (var tenant in conPlataforma)
+        {
+            var (centroEsDeLaPropia, deEmpresaYaAcreditados, deEmpresaNuevos) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, sp) =>
+            {
+                var canal = await db.CanalesGestionDocumental.AsNoTracking().SingleAsync(c => c.Tipo == TipoCanalGestion.Plataforma);
+                var propia = await db.Empresas.AsNoTracking().Where(e => e.EsPropia).Select(e => e.Id).SingleAsync();
+                var empresaDelCentro = await db.Centros.AsNoTracking().Where(c => c.Id == canal.CentroId).Select(c => c.EmpresaId).SingleAsync();
+                var documentosDeEmpresa = await db.Documentos.AsNoTracking().Operativos()
+                    .Where(d => d.EmpresaId == empresaDelCentro && d.TrabajadorId == null).Select(d => d.Id).ToListAsync();
+                var yaAcreditados = await db.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                    .CountAsync(a => a.CanalGestionDocumentalId == canal.Id && documentosDeEmpresa.Contains(a.DocumentoId));
+
+                await sp.GetRequiredService<IAltaAcreditacionesPlataformaService>().AgregarPendientesAsync(
+                    new AltasConAcreditacion { Canales = [canal] });
+
+                // Sin SaveChanges: lo agregado se queda en el seguimiento de este ámbito y se descarta con él.
+                var nuevos = db.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+                    .Where(e => e.State == EntityState.Added && documentosDeEmpresa.Contains(e.Entity.DocumentoId))
+                    .Count();
+                return (empresaDelCentro == propia, yaAcreditados, nuevos);
+            });
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {deEmpresaYaAcreditados} documentos de la Empresa del Centro acreditados; volver a poner en juego el acceso añade {deEmpresaNuevos}");
+            centroEsDeLaPropia.Should().BeTrue($"control {tenant.Clave}: el Centro con plataforma es de la Empresa propia");
+            deEmpresaYaAcreditados.Should().BeGreaterThan(0, $"control {tenant.Clave}: la Empresa del Centro tiene documentos que acreditar allí");
+            deEmpresaNuevos.Should().Be(0, $"{tenant.Clave}: la siembra ya acreditó lo que la regla de alta exige para la Empresa del Centro");
+        }
+    }
+
+    /// <summary>
     /// Los tres tipos de #1363 llegan a cada Tenant del piloto por la copia del catálogo y se usan en sus perfiles —el REA
     /// y un Libro de Subcontratación por obra en D, el recibo de RETA en E— en vez de los sustitutos de antes. Escritos a mano.
     /// </summary>

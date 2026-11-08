@@ -18,6 +18,13 @@ public class TipoDocumentoCentroRepositorioFalso : ITipoDocumentoCentroRepositor
     public Task<TipoDocumentoCentro?> ObtenerPorParAsync(Guid tipoDocumentoId, Guid centroId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Relaciones.FirstOrDefault(r => r.TipoDocumentoId == tipoDocumentoId && r.CentroId == centroId));
 
+    /// <summary>Sin contexto que rastree, lo confirmado es la propia lista. Ver <c>RequisitosRastreadosComoEf</c>.</summary>
+    public Task<TipoDocumentoCentro?> ObtenerPorParActualizadoAsync(Guid tipoDocumentoId, Guid centroId, CancellationToken cancellationToken = default) =>
+        ObtenerPorParAsync(tipoDocumentoId, centroId, cancellationToken);
+
+    public Task<IReadOnlyList<TipoDocumentoCentro>> ObtenerPorTipoDocumentoActualizadoAsync(Guid tipoDocumentoId, CancellationToken cancellationToken = default) =>
+        ObtenerPorTipoDocumentoAsync(tipoDocumentoId, cancellationToken);
+
     public void Agregar(TipoDocumentoCentro tipoDocumentoCentro) => Relaciones.Add(tipoDocumentoCentro);
 
     public void Eliminar(TipoDocumentoCentro tipoDocumentoCentro) => Relaciones.Remove(tipoDocumentoCentro);

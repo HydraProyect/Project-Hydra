@@ -16,6 +16,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Importacion;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
@@ -201,6 +202,8 @@ public class AprovisionamientoDeExtremoAExtremoTests : IAsyncLifetime
         // La importación agrega las acreditaciones de plataforma de su alta
         // (IAltaAcreditacionesPlataformaService), igual que en producción.
         servicios.AddSingleton<IAcreditacionDocumentoPlataformaRepository, AcreditacionDocumentoPlataformaRepository>();
+        // La importación da de alta sus Asignaciones bajo la serialización de A-1: el mismo registro que producción.
+        servicios.AddSerializacionAltasAcreditacionEmpresa();
         servicios.AddSingleton<CaeManager.Domain.Gestiones.IGestionAutomaticaRepository, GestionAutomaticaRepository>();
 
         return servicios.BuildServiceProvider();

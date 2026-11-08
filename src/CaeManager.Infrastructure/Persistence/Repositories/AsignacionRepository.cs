@@ -8,6 +8,9 @@ public class AsignacionRepository(CaeManagerDbContext dbContext) : IAsignacionRe
     public Task<Asignacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.Asignaciones.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public async Task<Asignacion?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(dbContext.Asignaciones, a => a.Id == id, cancellationToken)).FirstOrDefault();
+
     public Task<bool> ExisteActivaAsync(Guid trabajadorId, Guid centroId, CancellationToken cancellationToken = default) =>
         dbContext.Asignaciones.AnyAsync(
             a => a.TrabajadorId == trabajadorId && a.CentroId == centroId && a.FechaBaja == null,

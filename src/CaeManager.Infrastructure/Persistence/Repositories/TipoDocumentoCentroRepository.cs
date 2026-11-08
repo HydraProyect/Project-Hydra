@@ -18,6 +18,15 @@ public class TipoDocumentoCentroRepository(CaeManagerDbContext dbContext) : ITip
         await dbContext.Set<TipoDocumentoCentro>().FirstOrDefaultAsync(
             tc => tc.TipoDocumentoId == tipoDocumentoId && tc.CentroId == centroId, cancellationToken);
 
+    public async Task<TipoDocumentoCentro?> ObtenerPorParActualizadoAsync(Guid tipoDocumentoId, Guid centroId, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(
+            dbContext.Set<TipoDocumentoCentro>(), tc => tc.TipoDocumentoId == tipoDocumentoId && tc.CentroId == centroId,
+            cancellationToken)).FirstOrDefault();
+
+    public async Task<IReadOnlyList<TipoDocumentoCentro>> ObtenerPorTipoDocumentoActualizadoAsync(Guid tipoDocumentoId, CancellationToken cancellationToken = default) =>
+        await dbContext.ListarActualesAsync(
+            dbContext.Set<TipoDocumentoCentro>(), tc => tc.TipoDocumentoId == tipoDocumentoId, cancellationToken);
+
     public void Agregar(TipoDocumentoCentro tipoDocumentoCentro) => dbContext.Set<TipoDocumentoCentro>().Add(tipoDocumentoCentro);
 
     public void Eliminar(TipoDocumentoCentro tipoDocumentoCentro) => dbContext.Set<TipoDocumentoCentro>().Remove(tipoDocumentoCentro);

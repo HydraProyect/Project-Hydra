@@ -131,12 +131,15 @@ public class RenovarDocumentoConcurrenciaTests : IAsyncLifetime
     private static ObtenerDocumentoPorIdQueryHandler ConstruirHandlerConsulta(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
 
+    // La concurrencia que mide este fichero es la optimista (la Version que cada persona vio en pantalla), con
+    // renovaciones secuenciales: ninguna espera a otra, así que el candado de A-1 no decide nada aquí. Lo mide
+    // SerializacionAltasAcreditacionEmpresaTests.
     private static RenovarDocumentoCommandHandler ConstruirHandlerRenovar(CaeManagerDbContext contexto) =>
         new(
             new DocumentoRepository(contexto), contexto, new AlcanceDatosServiceFalso(), contexto,
             new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
             new AcreditacionDocumentoPlataformaRepository(contexto), AltaAcreditacionesDePrueba.Con(contexto),
-            new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo(),
+            new SerializacionAltasSinBloqueo(), new PublisherFalso(), contexto, new VerificadorArchivoAlmacenadoPermisivo(),
             AltaAcreditacionesDePrueba.GestionAutomatica(contexto));
 
     /// <summary>Documento de la Empresa de la siembra con un archivo ya guardado (la clave vive en su fila).</summary>
