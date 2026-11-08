@@ -699,7 +699,8 @@ public class EjecutarImportacionCommandHandler(
         // se serializa con el alta de un Documento de Empresa, igual que CrearAsignacionCommand (revisión Codex de la
         // PR #2074, ronda 3, hallazgo 4). Un plan con Asignaciones toma el candado antes de leer las existentes, y lo
         // suelta al confirmar: dentro quedan esa lectura, el recorrido en memoria de la hoja, las acreditaciones y el
-        // guardado; lo demás de la importación corre antes, sin candado. Lo importado ya está agregado al contexto,
+        // guardado; lo demás de la importación corre antes, sin candado. Un plan cuya hoja acaba sin ninguna Asignación
+        // nueva (todas omitidas) también lo toma: solo se sabe después de leer. Lo importado ya está agregado al contexto,
         // así que la serialización no reintenta: un fallo transitorio falla la importación en vez de confirmar solo
         // una parte, y la hoja de Asignaciones no se recorre dos veces.
         if (plan.Asignaciones.Count > 0)

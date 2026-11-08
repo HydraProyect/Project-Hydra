@@ -179,6 +179,27 @@ public class ProductoresDeA1SeSerializanTests
     }
 
     [Fact]
+    public async Task Importar_asignaciones_que_otra_confirmacion_de_la_misma_operacion_ya_guardo_devuelve_ya_ejecutada()
+    {
+        // Contrato Importacion.YaEjecutada con la hoja de Asignaciones, que ahora guarda dentro del candado: la otra
+        // confirmación de la misma operación gana mientras esta espera, y esta no informa de nada creado.
+        var escenario = new EscenarioImportacion()
+            .ConEmpresaExistente().ConTrabajadorExistente().ConCentroExistente().ConTipoDocumentoExistente();
+        var operacionId = Guid.NewGuid();
+        escenario.Serializacion.AlTomarElCandado = () =>
+            escenario.OperacionImportacionRepositorio.ConfirmarDesdeOtraEjecucion(operacionId);
+
+        var resultado = await escenario.EjecutarAsync(EscenarioImportacion.Plan(operacionId: operacionId, asignaciones:
+        [
+            new AsignacionImportadaDto(EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false),
+        ]));
+
+        escenario.Serializacion.Llamadas.Should().Be(1);
+        resultado.AsignacionesCreadas.Should().Be(0);
+        resultado.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado antes");
+    }
+
+    [Fact]
     public async Task Importar_sin_asignaciones_no_toma_el_candado()
     {
         var escenario = new EscenarioImportacion()

@@ -25,6 +25,9 @@ internal sealed class OperacionImportacionRepositorioFalso : IOperacionImportaci
 
     public void Agregar(OperacionImportacion operacion) => _pendiente = operacion.OperacionId;
 
+    /// <summary>Otra confirmación de la misma operación ganó la carrera y ya la confirmó.</summary>
+    public void ConfirmarDesdeOtraEjecucion(Guid operacionId) => _confirmadas.Add(operacionId);
+
     public Task<bool> GuardarSiOperacionNuevaAsync(CancellationToken cancellationToken = default)
     {
         if (_pendiente is not { } operacionId || !_confirmadas.Add(operacionId))

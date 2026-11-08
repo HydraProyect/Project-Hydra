@@ -270,7 +270,10 @@ public static class ConcurrenciaContexto
     /// sacó del filtro, otra operación, y se desacoplan. Sin eso seguirían <c>Unchanged</c> con los valores de antes y un
     /// guardado posterior que las tocase chocaría con una fila que ya no existe (revisión puente de la PR #2074, previa a
     /// la ronda 5, hallazgo 1). El filtro solo puede leer propiedades escalares: se evalúa sobre la instancia rastreada,
-    /// sin cargar navegaciones.
+    /// sin cargar navegaciones. Desacoplar no saca la instancia de la colección de un principal rastreado, y el siguiente
+    /// DetectChanges la volvería a adjuntar: para un <typeparamref name="T"/> con navegación de colección inversa, usa
+    /// <see cref="RecargarColeccionAsync"/> desde el principal. Hoy ninguno de los llamadores la tiene
+    /// (<c>Asignacion</c>, <c>TipoDocumento</c> y <c>TipoDocumentoCentro</c>).
     /// </para>
     /// </summary>
     public static async Task<List<T>> ListarActualesAsync<T>(
@@ -278,13 +281,16 @@ public static class ConcurrenciaContexto
         CancellationToken cancellationToken = default)
         where T : class
     {
+        // Se relee toda rastreada sin cambios que la consulta devuelva, cumpla o no el filtro con sus valores viejos; el
+        // filtro en memoria solo decide qué rastreadas pertenecían al conjunto y, si la consulta ya no las trae, se
+        // desacoplan.
         var perteneceAlConjunto = filtro.Compile(preferInterpretation: true);
         var rastreadas = contexto.ChangeTracker.Entries<T>()
-            .Where(e => e.State == EntityState.Unchanged && perteneceAlConjunto(e.Entity))
+            .Where(e => e.State == EntityState.Unchanged)
             .Select(e => (object)e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
         var entidades = await fuente.Where(filtro).ToListAsync(cancellationToken);
         var devueltas = new HashSet<object>(entidades, ReferenceEqualityComparer.Instance);
-        foreach (var desaparecida in rastreadas.Where(e => !devueltas.Contains(e)).ToList())
+        foreach (var desaparecida in rastreadas.Where(e => !devueltas.Contains(e) && perteneceAlConjunto((T)e)).ToList())
             contexto.Entry(desaparecida).State = EntityState.Detached;
 
         var actuales = new List<T>(entidades.Count);

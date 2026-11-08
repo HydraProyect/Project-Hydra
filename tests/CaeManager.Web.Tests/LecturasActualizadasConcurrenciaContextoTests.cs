@@ -65,6 +65,26 @@ public sealed class LecturasActualizadasConcurrenciaContextoTests : IAsyncLifeti
     }
 
     [Fact]
+    public async Task La_lectura_actualizada_relee_la_rastreada_que_otro_contexto_metio_en_el_conjunto()
+    {
+        // Con sus valores viejos la rastreada no cumple el filtro, pero la fila confirmada sí: la consulta la devuelve
+        // y tiene que salir releída.
+        await using var circuito = CrearContexto();
+        var rastreada = await circuito.Filas.SingleAsync(f => f.Id == 3);
+        await using (var otra = CrearContexto())
+        {
+            (await otra.Filas.SingleAsync(f => f.Id == 3)).Grupo = 1;
+            await otra.SaveChangesAsync();
+        }
+
+        var actuales = await circuito.ListarActualesAsync(circuito.Filas, f => f.Grupo == 1);
+
+        actuales.Should().Contain(rastreada);
+        rastreada.Grupo.Should().Be(1);
+        circuito.Entry(rastreada).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task Recargar_la_coleccion_quita_el_hijo_que_otro_contexto_borro_y_reemplazarla_ya_no_choca()
     {
         await using var circuito = CrearContexto();
