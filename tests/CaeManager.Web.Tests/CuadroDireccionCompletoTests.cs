@@ -53,7 +53,19 @@ public partial class CuadroDireccionTests
         var kpis = cut.FindAll(".cuadro-kpi").Select(k => k.GetAttribute("data-kpi")).ToList();
         kpis.Should().Equal("facturacion", "extranjeros", "trabajadores", "centros", "revisar", "cumplimiento");
         cut.FindAll("[data-kpi=gestiones], [data-kpi=sintarifa]").Should().BeEmpty(
-            "«Gestiones del mes» vive en «Facturación y gestiones por mes» y los trabajadores sin tarifa en la pestaña Facturación");
+            "«Gestiones del mes» vive en «Cuota y gestiones por mes» y los trabajadores sin tarifa en la pestaña Facturación");
+    }
+
+    [Fact]
+    public void El_KPI_y_la_tarjeta_de_serie_hablan_de_Cuota_y_no_de_Facturacion_estimada()
+    {
+        // Decisión de Chris (2026-11-08, revisión 1:1 de la zona C, C16): el Cuadro Facturación es la cuota del Operador CAE.
+        var cut = PintarConSerie(Cuadro(EstadoCifraMensual.Parcial), LineasDeTarifa());
+
+        cut.Find("[data-kpi=facturacion] .cuadro-kpi-etiqueta").TextContent.Trim().Should().Be("Cuota del mes");
+        cut.Markup.Should().Contain("Cuota y gestiones por mes")
+            .And.NotContain("Facturación estimada").And.NotContain("Facturación y gestiones por mes")
+            .And.Contain("Barras: cuota.").And.NotContain("Barras: facturación estimada");
     }
 
     [Fact]
