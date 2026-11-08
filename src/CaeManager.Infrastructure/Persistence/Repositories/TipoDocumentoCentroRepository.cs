@@ -20,12 +20,12 @@ public class TipoDocumentoCentroRepository(CaeManagerDbContext dbContext) : ITip
 
     public async Task<TipoDocumentoCentro?> ObtenerPorParActualizadoAsync(Guid tipoDocumentoId, Guid centroId, CancellationToken cancellationToken = default) =>
         (await dbContext.ListarActualesAsync(
-            dbContext.Set<TipoDocumentoCentro>().Where(tc => tc.TipoDocumentoId == tipoDocumentoId && tc.CentroId == centroId),
+            dbContext.Set<TipoDocumentoCentro>(), tc => tc.TipoDocumentoId == tipoDocumentoId && tc.CentroId == centroId,
             cancellationToken)).FirstOrDefault();
 
     public async Task<IReadOnlyList<TipoDocumentoCentro>> ObtenerPorTipoDocumentoActualizadoAsync(Guid tipoDocumentoId, CancellationToken cancellationToken = default) =>
         await dbContext.ListarActualesAsync(
-            dbContext.Set<TipoDocumentoCentro>().Where(tc => tc.TipoDocumentoId == tipoDocumentoId), cancellationToken);
+            dbContext.Set<TipoDocumentoCentro>(), tc => tc.TipoDocumentoId == tipoDocumentoId, cancellationToken);
 
     public void Agregar(TipoDocumentoCentro tipoDocumentoCentro) => dbContext.Set<TipoDocumentoCentro>().Add(tipoDocumentoCentro);
 

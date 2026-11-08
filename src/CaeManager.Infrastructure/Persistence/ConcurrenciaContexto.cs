@@ -1,6 +1,7 @@
 ﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -263,15 +264,29 @@ public static class ConcurrenciaContexto
     /// (revisión Codex de la PR #2074, ronda 4, hallazgo 2). Una instancia con cambios de la operación en curso no se
     /// relee: la relectura los perdería en silencio. Las filas que desaparecieron entre la consulta y la relectura no se
     /// devuelven.
+    /// <para>
+    /// El filtro va aparte de la <paramref name="fuente"/> (con sus <c>Include</c>) porque también decide, en memoria,
+    /// qué instancias rastreadas sin cambios pertenecían al conjunto: las que la consulta ya no devuelve las borró, o las
+    /// sacó del filtro, otra operación, y se desacoplan. Sin eso seguirían <c>Unchanged</c> con los valores de antes y un
+    /// guardado posterior que las tocase chocaría con una fila que ya no existe (revisión puente de la PR #2074, previa a
+    /// la ronda 5, hallazgo 1). El filtro solo puede leer propiedades escalares: se evalúa sobre la instancia rastreada,
+    /// sin cargar navegaciones.
+    /// </para>
     /// </summary>
     public static async Task<List<T>> ListarActualesAsync<T>(
-        this DbContext contexto, IQueryable<T> consulta, CancellationToken cancellationToken = default)
+        this DbContext contexto, IQueryable<T> fuente, Expression<Func<T, bool>> filtro,
+        CancellationToken cancellationToken = default)
         where T : class
     {
+        var perteneceAlConjunto = filtro.Compile(preferInterpretation: true);
         var rastreadas = contexto.ChangeTracker.Entries<T>()
-            .Where(e => e.State == EntityState.Unchanged)
+            .Where(e => e.State == EntityState.Unchanged && perteneceAlConjunto(e.Entity))
             .Select(e => (object)e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
-        var entidades = await consulta.ToListAsync(cancellationToken);
+        var entidades = await fuente.Where(filtro).ToListAsync(cancellationToken);
+        var devueltas = new HashSet<object>(entidades, ReferenceEqualityComparer.Instance);
+        foreach (var desaparecida in rastreadas.Where(e => !devueltas.Contains(e)).ToList())
+            contexto.Entry(desaparecida).State = EntityState.Detached;
+
         var actuales = new List<T>(entidades.Count);
         foreach (var entidad in entidades)
         {
@@ -287,6 +302,43 @@ public static class ConcurrenciaContexto
         }
 
         return actuales;
+    }
+
+    /// <summary>
+    /// Complemento de <see cref="ListarActualesAsync"/> para una colección del agregado: <c>ReloadAsync</c> solo repone
+    /// los escalares del principal, y una consulta con <c>Include</c> añade a la colección las filas nuevas pero no quita
+    /// las que otra operación borró. Relee la colección: los elementos rastreados sin cambios que siguen existiendo se
+    /// releen, y los que ya no existen se desacoplan y salen de la colección, para que un guardado que la reemplace no
+    /// intente borrar una fila que ya no está (<see cref="DbUpdateConcurrencyException"/>). Los elementos con cambios
+    /// de la operación en curso no se tocan (revisión puente de la PR #2074, previa a la ronda 5, hallazgo 2).
+    /// </summary>
+    public static async Task RecargarColeccionAsync<T, THijo>(
+        this DbContext contexto, T principal, Expression<Func<T, IEnumerable<THijo>>> navegacion,
+        CancellationToken cancellationToken = default)
+        where T : class
+        where THijo : class
+    {
+        var coleccion = contexto.Entry(principal).Collection(navegacion);
+        var sinCambios = (coleccion.CurrentValue ?? [])
+            .Where(h => contexto.Entry(h).State == EntityState.Unchanged)
+            .ToList();
+        var existentes = new HashSet<object>(await coleccion.Query().ToListAsync(cancellationToken),
+            ReferenceEqualityComparer.Instance);
+        var accesor = coleccion.Metadata.GetCollectionAccessor()
+                      ?? throw new InvalidOperationException($"La navegación {coleccion.Metadata.Name} no admite cambios.");
+        foreach (var hijo in sinCambios)
+        {
+            var entrada = contexto.Entry(hijo);
+            if (existentes.Contains(hijo))
+            {
+                await entrada.ReloadAsync(cancellationToken);
+                if (entrada.State != EntityState.Detached)
+                    continue;
+            }
+
+            entrada.State = EntityState.Detached;
+            accesor.Remove(principal, hijo);
+        }
     }
 
     private static bool ArrastraGuardadoFallido(EntityEntry entrada)

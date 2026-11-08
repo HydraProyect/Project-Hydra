@@ -154,6 +154,31 @@ public class ProductoresDeA1SeSerializanTests
     }
 
     [Fact]
+    public async Task Importar_asignaciones_lee_las_existentes_bajo_el_candado_y_no_duplica_la_que_otra_operacion_confirmo()
+    {
+        // Revisión puente de la PR #2074, previa a la ronda 5, hallazgo 3: mientras la importación espera el candado,
+        // CrearAsignacion confirma la misma Asignación. Si las existentes se leen antes del candado, la importación no
+        // la ve y agrega otra activa para el mismo par.
+        var escenario = new EscenarioImportacion()
+            .ConEmpresaExistente().ConTrabajadorExistente().ConCentroExistente().ConTipoDocumentoExistente();
+        escenario.Serializacion.AlTomarElCandado = () =>
+        {
+            escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty("la hoja de Asignaciones se recorre bajo el candado");
+            escenario.ConAsignacionActivaExistente();
+        };
+
+        var resultado = await escenario.EjecutarAsync(EscenarioImportacion.Plan(asignaciones:
+        [
+            new AsignacionImportadaDto(EscenarioImportacion.DniConocido, EscenarioImportacion.CentroConocido, YaExiste: false),
+        ]));
+
+        escenario.Serializacion.Llamadas.Should().Be(1);
+        resultado.AsignacionesCreadas.Should().Be(0);
+        escenario.AsignacionRepositorio.Asignaciones.Should().BeEmpty();
+        resultado.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("ya estaba asignado al centro"));
+    }
+
+    [Fact]
     public async Task Importar_sin_asignaciones_no_toma_el_candado()
     {
         var escenario = new EscenarioImportacion()

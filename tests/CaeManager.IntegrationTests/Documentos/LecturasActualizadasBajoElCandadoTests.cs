@@ -88,6 +88,39 @@ public class LecturasActualizadasBajoElCandadoTests : IAsyncLifetime
         circuito.Entry(rastreada!).State.Should().Be(EntityState.Detached);
     }
 
+    [Fact]
+    public async Task Editar_el_tipo_tras_la_lectura_actualizada_no_choca_con_el_alias_que_otro_contexto_borro()
+    {
+        // Revisión puente de la PR #2074, previa a la ronda 5, hallazgo 2: ReloadAsync no repone la colección Aliases.
+        await using (var siembra = CrearContexto())
+        {
+            var tipo = await siembra.TiposDocumento.Include(t => t.Aliases).SingleAsync(t => t.Id == _tipoId);
+            tipo.EstablecerAliases(["RC general", "RC patronal"]);
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var circuito = CrearContexto();
+        var repositorio = new TipoDocumentoRepository(circuito);
+        var rastreado = (await repositorio.ObtenerPorIdAsync(_tipoId))!;
+        var aliasBorrado = rastreado.Aliases.Single(a => a.Texto == "RC general");
+        await using (var otra = CrearContexto())
+        {
+            otra.Set<TipoDocumentoAlias>().Remove(
+                await otra.Set<TipoDocumentoAlias>().SingleAsync(a => a.TipoDocumentoId == _tipoId && a.Texto == "RC general"));
+            await otra.SaveChangesAsync();
+        }
+
+        var actual = (await repositorio.ObtenerPorIdActualizadoAsync(_tipoId))!;
+
+        actual.Aliases.Select(a => a.Texto).Should().Equal("RC patronal");
+        circuito.Entry(aliasBorrado).State.Should().Be(EntityState.Detached);
+        actual.EstablecerAliases(["RC ampliado"]);
+        await circuito.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        await using var comprobacion = CrearContexto();
+        (await comprobacion.Set<TipoDocumentoAlias>().Where(a => a.TipoDocumentoId == _tipoId).Select(a => a.Texto).ToListAsync())
+            .Should().Equal("RC ampliado");
+    }
+
     private async Task ExigirDesdeOtroContextoAsync()
     {
         await using var otra = CrearContexto();
