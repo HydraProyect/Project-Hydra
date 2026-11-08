@@ -578,6 +578,7 @@ public partial class Proyecto360PaginaTests : BunitContext
     [Fact]
     public async Task Dar_de_baja_pide_confirmacion_y_envia_la_fecha_de_hoy()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar(AbiertoId);
 
         await BotonConTexto(cut, "[data-pieza=fila] button", "Dar de baja").ClickAsync(new MouseEventArgs());
@@ -597,6 +598,7 @@ public partial class Proyecto360PaginaTests : BunitContext
     [Fact]
     public async Task Asignar_sin_tecnico_avisa_y_con_tecnico_envia_el_alta_de_hoy()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar(AbiertoId);
         await BotonConTexto(cut, "[data-pieza=cabecera-identidad] button", "Asignar técnico").ClickAsync(new MouseEventArgs());
 
@@ -647,6 +649,7 @@ public partial class Proyecto360PaginaTests : BunitContext
     [Fact]
     public async Task Cerrar_muestra_el_aviso_de_facturacion_y_envia_la_fecha_de_hoy()
     {
+        using var reloj = RelojDePrueba.FijarEn(DateTimeOffset.UtcNow);
         var cut = Renderizar(AbiertoId);
         await ElegirDelMenuAsync(cut, "Cerrar proyecto…");
 

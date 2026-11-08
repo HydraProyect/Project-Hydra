@@ -53,8 +53,13 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     private Guid _centroId;
     private Guid _tipoDocumentoId;
 
+    // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
+    // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
+    private readonly DateTimeOffset _instante = DateTimeOffset.UtcNow;
+
     public async Task InitializeAsync()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using var contexto = CrearContexto();
         await contexto.Database.MigrateAsync();
 
@@ -91,6 +96,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_que_vence_en_2_meses_aparece_agrupado_bajo_su_cliente()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -120,6 +126,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_centro_sin_gestion_cae_no_ofrece_ni_acepta_reclamaciones()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -157,6 +164,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Filtrar_por_CentroId_acota_el_lote_a_ese_centro_aunque_el_cliente_tenga_otros_documentos_pendientes()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Disparo desde Centro 360: el mismo Cliente tiene un segundo Centro
         // con su propio documento pendiente — filtrar por CentroId no debe
         // arrastrar lo del otro Centro, solo lo que ese Centro concreto puede
@@ -210,6 +218,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Filtrar_por_TrabajadorId_acota_el_lote_a_ese_trabajador_aunque_el_cliente_tenga_otros_pendientes()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid otroTrabajadorId;
         await using (var contexto = CrearContexto())
         {
@@ -243,6 +252,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Filtrar_por_TipoDocumentoIds_excluye_documentos_de_otros_tipos_del_mismo_trabajador()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid otroTipoId;
         await using (var contexto = CrearContexto())
         {
@@ -282,6 +292,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task El_lote_por_filtro_no_incluye_clientes_fuera_de_la_cartera_del_gestor()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid clienteFueraDeCarteraId, trabajadorFueraDeCarteraId;
         await using (var contexto = CrearContexto())
         {
@@ -340,6 +351,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_vigente_que_vence_dentro_de_6_meses_no_aparece()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             contexto.Documentos.Add(Documento.DeTrabajador(
@@ -359,6 +371,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Sin_buzon_conectado_la_reclamacion_sale_por_email_y_no_deja_conversacion()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -411,6 +424,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_reintento_reanuda_el_envio_pendiente_y_registra_la_reclamacion_sin_volver_a_mandar_el_correo()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -466,6 +480,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_buzon_personal_de_un_gestor_nunca_se_usa_como_buzon_generico_de_la_reclamacion()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         // Regresión: el buzón personal de un gestor (GestorPropietarioId) tiene
         // ClienteId null igual que el buzón genérico del tenant — sin excluirlo
         // explícitamente, la reclamación podía salir desde el correo personal
@@ -510,6 +525,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Con_buzon_conectado_la_reclamacion_nace_como_conversacion_en_un_unico_envio()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         Guid conversacionEsperada;
         await using (var contexto = CrearContexto())
@@ -567,6 +583,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Sin_ningun_contacto_en_la_agenda_falla_al_enviar()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -597,6 +614,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_fuera_del_alcance_de_trabajadores_o_centros_no_es_reclamable_pero_dentro_si_llega_a_la_agenda()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -643,6 +661,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Resolver_destinatarios_del_lote_no_escala_en_consultas_sql_con_el_numero_de_clientes()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         var comandosCon2Clientes = await ContarComandosSqlDelLoteAsync(2);
         var comandosCon6Clientes = await ContarComandosSqlDelLoteAsync(6);
 
@@ -791,6 +810,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_documento_que_nunca_se_subio_se_ofrece_solo_cuando_se_piden_los_pendientes_sin_fecha()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
 
         await using var lectura = CrearContexto();
@@ -814,6 +834,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_sin_confirmar_sin_fecha_se_ofrece_como_pendiente_y_no_como_vencimiento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         Guid documentoId;
         await using (var contexto = CrearContexto())
         {
@@ -840,6 +861,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Pedir_un_documento_ausente_manda_el_correo_registra_una_linea_sin_documento_y_cuenta_como_reclamado()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
         var emailServiceFalso = new EmailServiceFalso();
 
@@ -871,6 +893,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Pedir_un_ausente_que_ya_se_subio_entre_la_vista_previa_y_el_envio_falla_sin_enviar_nada()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
         await using (var contexto = CrearContexto())
         {
@@ -893,6 +916,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_centro_sin_gestion_cae_no_ofrece_ni_acepta_pedir_lo_que_falta()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await using (var contexto = CrearContexto())
         {
             (await contexto.Centros.SingleAsync()).EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
@@ -916,6 +940,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task Un_trabajador_fuera_del_alcance_del_usuario_no_se_ofrece_ni_se_acepta_para_pedir()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
         // El Cliente empresarial sí está en su cartera: lo que queda fuera es el Trabajador (si no, fallaría antes por SinAcceso).
         var fuera = new AlcanceDatosServiceFalso(clienteIds: [_clienteId], trabajadorIds: [Guid.NewGuid()]);
@@ -936,6 +961,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
     [Fact]
     public async Task La_base_de_datos_rechaza_una_linea_de_documento_que_falta_con_Documento()
     {
+        using var reloj = RelojDePrueba.FijarEn(_instante);
         await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
         await using (var contexto = CrearContexto())
         {
