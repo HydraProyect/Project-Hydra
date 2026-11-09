@@ -690,16 +690,16 @@
     <value>Tipus arxivat: sense substitut. Passa'l a «S'exclou» per deixar d'exigir-lo.</value>
   </data>
   <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
-    <value>Tipus arxivat: només es pot desmarcar; el substitut és «{0}».</value>
+    <value>Tipus arxivat: només es pot excloure; el substitut és «{0}».</value>
   </data>
   <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
-    <value>Tipus arxivat: només es pot desmarcar.</value>
+    <value>Tipus arxivat: només es pot excloure.</value>
   </data>
   <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
-    <value>Aquest tipus de document està arxivat: només es pot desmarcar. Exigeix el seu substitut, «{0}».</value>
+    <value>Aquest tipus de document està arxivat: només es pot excloure. Exigeix el seu substitut, «{0}».</value>
   </data>
   <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
-    <value>Aquest tipus de document està arxivat: només es pot desmarcar.</value>
+    <value>Aquest tipus de document està arxivat: només es pot excloure.</value>
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
@@ -921,5 +921,14 @@
   </data>
   <data name="ReqErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="ReqDescartarTitulo" xml:space="preserve">
+    <value>Vols descartar els canvis?</value>
+  </data>
+  <data name="ReqDescartarMensaje" xml:space="preserve">
+    <value>Hi ha canvis que encara no s&apos;han desat. Si tanques, es perden.</value>
+  </data>
+  <data name="ReqDescartarConfirmar" xml:space="preserve">
+    <value>Descartar els canvis</value>
   </data>
 </root>

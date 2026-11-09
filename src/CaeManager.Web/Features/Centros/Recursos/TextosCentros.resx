@@ -696,16 +696,16 @@
     <value>Tipo archivado: sin sustituto. Pásalo a «Se excluye» para dejar de exigirlo.</value>
   </data>
   <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
-    <value>Tipo archivado: solo se puede desmarcar; el sustituto es «{0}».</value>
+    <value>Tipo archivado: solo se puede excluir; el sustituto es «{0}».</value>
   </data>
   <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
-    <value>Tipo archivado: solo se puede desmarcar.</value>
+    <value>Tipo archivado: solo se puede excluir.</value>
   </data>
   <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
-    <value>Este tipo de documento está archivado: solo se puede desmarcar. Exige su sustituto, «{0}».</value>
+    <value>Este tipo de documento está archivado: solo se puede excluir. Exige su sustituto, «{0}».</value>
   </data>
   <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
-    <value>Este tipo de documento está archivado: solo se puede desmarcar.</value>
+    <value>Este tipo de documento está archivado: solo se puede excluir.</value>
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisito guardado en este centro.</value>
@@ -927,5 +927,14 @@
   </data>
   <data name="ReqErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ReqDescartarTitulo" xml:space="preserve">
+    <value>¿Descartar cambios?</value>
+  </data>
+  <data name="ReqDescartarMensaje" xml:space="preserve">
+    <value>Hay cambios que todavía no se han guardado. Si cierras, se pierden.</value>
+  </data>
+  <data name="ReqDescartarConfirmar" xml:space="preserve">
+    <value>Descartar cambios</value>
   </data>
 </root>

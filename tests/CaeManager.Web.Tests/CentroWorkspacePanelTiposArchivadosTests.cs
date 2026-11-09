@@ -204,12 +204,12 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
             Fila(ArchivadoExigidoId, "Recibo de pago RLC/TC1", aplica: true, incluido: true, archivado: true, sustituto: "RLC (TC1)"));
 
         await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo archivado: solo se puede desmarcar; el sustituto es «RLC (TC1)»"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo archivado: solo se puede excluir; el sustituto es «RLC (TC1)»"));
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar ajustes").ClickAsync(new MouseEventArgs());
 
         _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().BeEmpty(
             "el Command rechaza Incluido = true de un archivado: se avisa sin enviarlo");
-        cut.Markup.Should().Contain("solo se puede desmarcar. Exige su sustituto, «RLC (TC1)»");
+        cut.Markup.Should().Contain("solo se puede excluir. Exige su sustituto, «RLC (TC1)»");
     }
 
     [Fact]

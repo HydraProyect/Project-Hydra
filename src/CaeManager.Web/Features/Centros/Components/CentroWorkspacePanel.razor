@@ -495,6 +495,14 @@ else
         OnConfirmar="ConfirmarEliminarCanalAsync" />
 
     <DialogoConfirmacion
+        Visible="_confirmarDescarteEdicion"
+        VisibleChanged="CerrarConfirmacionDescarteEdicion"
+        Titulo="@Textos["ReqDescartarTitulo"]"
+        Mensaje="@Textos["ReqDescartarMensaje"]"
+        TextoBotonConfirmar="@Textos["ReqDescartarConfirmar"]"
+        OnConfirmar="ConfirmarDescarteEdicion" />
+
+    <DialogoConfirmacion
         Visible="_ajusteAQuitar is not null"
         VisibleChanged="CerrarConfirmacionQuitarAjuste"
         Titulo="@Textos["QuitarAjusteTitulo", _ajusteAQuitar?.Nombre ?? string.Empty]"
@@ -865,15 +873,55 @@ else
         }
     }
 
-    private void AlternarEdicionRequisito(DocumentacionRequeridaCentroDto item)
+    private bool EdicionRequisitoConCambios => _edicionRequisitoAbierta && _instantaneaDoc.Difiere(ValoresDocumentacion());
+
+    private bool _confirmarDescarteEdicion;
+    private Action? _accionTrasDescartarEdicion;
+
+    /// <summary>El panel de una fila ya no es un drawer modal: lo que se editó sin guardar se descarta solo tras preguntar (D-05).</summary>
+    private void SiSePuedeDescartarEdicion(Action accion)
     {
-        if (EdicionAbiertaDe(item))
-            _edicionRequisitoAbierta = false;
+        if (EdicionRequisitoConCambios)
+        {
+            _accionTrasDescartarEdicion = accion;
+            _confirmarDescarteEdicion = true;
+        }
         else
-            AbrirConfigurar(item);
+        {
+            accion();
+        }
     }
 
-    private void CancelarEdicionRequisito() => _edicionRequisitoAbierta = false;
+    private void CerrarConfirmacionDescarteEdicion(bool visible)
+    {
+        if (visible)
+            return;
+
+        _confirmarDescarteEdicion = false;
+        _accionTrasDescartarEdicion = null;
+    }
+
+    private void ConfirmarDescarteEdicion()
+    {
+        var accion = _accionTrasDescartarEdicion;
+        _confirmarDescarteEdicion = false;
+        _accionTrasDescartarEdicion = null;
+        accion?.Invoke();
+    }
+
+    private void AlternarEdicionRequisito(DocumentacionRequeridaCentroDto item)
+    {
+        // Una subida en vuelo pertenece a la fila abierta: no se salta a otra hasta que termine.
+        if (_subiendoArchivoEdicion)
+            return;
+
+        if (EdicionAbiertaDe(item))
+            SiSePuedeDescartarEdicion(() => _edicionRequisitoAbierta = false);
+        else
+            SiSePuedeDescartarEdicion(() => AbrirConfigurar(item));
+    }
+
+    private void CancelarEdicionRequisito() => SiSePuedeDescartarEdicion(() => _edicionRequisitoAbierta = false);
 
     private RenderFragment BotonAnadirRequisito =>
         @<Boton Variante="VarianteBoton.Primario" OnClick="AbrirBuscadorRequisito"><Icono Nombre="mas" Tamano="TamanoIcono.Pequeno" />@Textos["ReqAnadir"]</Boton>;
@@ -885,7 +933,7 @@ else
             <input id="requisitos-busqueda" type="text" class="requisitos-buscador-entrada" autocomplete="off"
                    @ref="_entradaBusqueda" value="@_terminoBusqueda"
                    @oninput="e => _terminoBusqueda = e.Value?.ToString() ?? string.Empty"
-                   @onkeydown="TeclaBuscadorRequisito" />
+                   @onkeydown="TeclaBuscadorRequisito" @onkeydown:stopPropagation="true" />
             @if (!string.IsNullOrEmpty(_terminoBusqueda))
             {
                 <button type="button" class="requisitos-enlace" @onclick="BorrarBusquedaRequisito">@Textos["ReqBuscadorBorrar"]</button>
@@ -898,7 +946,7 @@ else
             if (resultados.Count > 0)
             {
                 <ul class="requisitos-resultados" aria-label="@Textos["ReqResultadosAria"]">
-                    <li class="requisitos-resultados-cabecera" role="status">@(resultados.Count == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", resultados.Count].Value)</li>
+                    <li class="requisitos-resultados-cabecera">@(resultados.Count == 1 ? Textos["ReqCoincidenciaUna"].Value : Textos["ReqCoincidencias", resultados.Count].Value)</li>
                     @foreach (var resultado in resultados)
                     {
                         <li @key="resultado.TipoDocumentoId">
@@ -1118,6 +1166,8 @@ else
         if (_anadiendoRequisito || tipo.Aplica || tipo.Incluido is not null || tipo.Archivado)
             return;
 
+        // Con ajustes de otra fila a medias no se pisan: el requisito se añade y sus ajustes se abren a mano con el lápiz.
+        var abrirAjustes = !EdicionRequisitoConCambios && !_subiendoArchivoEdicion;
         _anadiendoRequisito = true;
         try
         {
@@ -1134,7 +1184,7 @@ else
             CerrarBuscadorRequisito();
             await CargarDocumentacionAsync();
             await CargarEstadoAsync();
-            if (_documentacion?.FirstOrDefault(r => r.TipoDocumentoId == tipo.TipoDocumentoId) is { } incluido)
+            if (abrirAjustes && _documentacion?.FirstOrDefault(r => r.TipoDocumentoId == tipo.TipoDocumentoId) is { } incluido)
                 AbrirConfigurar(incluido);
         }
         catch (Exception)
@@ -1234,7 +1284,7 @@ else
         !_saliendoAConfigurarSegundoFactor
         && (HayCambiosEnLosDrawers
             || (_editandoInformacion && _instantaneaInformacion.Difiere(ValoresInformacion()))
-            || (_edicionRequisitoAbierta && _instantaneaDoc.Difiere(ValoresDocumentacion())));
+            || (PestanaActiva == "requisitos" && EdicionRequisitoConCambios));
 
     private object?[] ValoresInformacion() =>
         [_nombreInfo, _codigoCentroInfo, _direccionInfo, _contactoInfo, _contratoVigenteHastaInfo];
@@ -1621,6 +1671,7 @@ else
         }
 
         _subiendoArchivoEdicion = true;
+        var tipoDeLaSubida = _tipoDocumentoIdEditando;
         StateHasChanged();
 
         try
@@ -1645,7 +1696,15 @@ else
             }
 
             using var flujoOriginal = new MemoryStream(contenido);
-            _archivoUrlEdicion = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            var urlGuardada = await AlmacenamientoArchivos.GuardarAsync(flujoOriginal, archivo.Name);
+            if (!_edicionRequisitoAbierta || _tipoDocumentoIdEditando != tipoDeLaSubida)
+            {
+                // El panel se cerró o pasó a otra fila mientras subía: la plantilla no es de lo que hay abierto.
+                await AlmacenamientoArchivos.EliminarAsync(urlGuardada);
+                return;
+            }
+
+            _archivoUrlEdicion = urlGuardada;
             _nombreArchivoEdicion = archivo.Name;
             _sustituyendoArchivoEdicion = false;
         }
@@ -1791,6 +1850,8 @@ else
 
         ToastService.Mostrar($"\"{item.Nombre}\" vuelve a seguir el criterio global del tenant.", TonoToast.Exito);
         WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, EntidadId);
+        if (EdicionAbiertaDe(item))
+            _edicionRequisitoAbierta = false;
         await CargarDocumentacionAsync();
         await CargarEstadoAsync();
     }

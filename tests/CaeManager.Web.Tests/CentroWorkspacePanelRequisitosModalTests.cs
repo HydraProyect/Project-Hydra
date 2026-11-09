@@ -495,6 +495,113 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
         cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Añadir requisito");
     }
 
+    [Fact]
+    public async Task El_buscador_no_ofrece_un_archivado_aunque_el_Centro_todavia_lo_exija()
+    {
+        var archivadoExigido = Propio(ArchivadoId, "Recibo de pago RLC/TC1", AmbitoAplicacion.Empresa) with { Archivado = true };
+        var cut = Renderizar(archivadoExigido, Propio(RlcId, "RLC (TC1)", AmbitoAplicacion.Empresa));
+        await AbrirBuscadorAsync(cut);
+
+        await BuscarAsync(cut, "Recibo");
+
+        cut.FindAll(".requisitos-opcion").Should().BeEmpty("el filtro del buscador excluye los archivados por sí mismo, no solo la consulta");
+        cut.FindAll(".requisitos-sin-coincidencias").Should().ContainSingle();
+    }
+
+    // ------------------------------------------------ cambios sin guardar en el panel de una fila
+
+    private static async Task MarcarBloqueoAsync(IRenderedComponent<CentroWorkspacePanel> cut) =>
+        await cut.Find(".requisitos-casilla input").ChangeAsync(new ChangeEventArgs { Value = true });
+
+    [Fact]
+    public async Task Cancelar_con_cambios_pregunta_antes_de_descartar_y_seguir_editando_los_conserva()
+    {
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        await MarcarBloqueoAsync(cut);
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        cut.FindAll(".requisitos-edicion").Should().ContainSingle("hasta confirmar, el panel sigue abierto con lo editado");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".requisitos-edicion").Should().ContainSingle();
+        cut.Find(".requisitos-casilla input").HasAttribute("checked").Should().BeTrue();
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty();
+        _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().BeEmpty("descartar no guarda nada");
+    }
+
+    [Fact]
+    public async Task Saltar_a_otra_fila_con_cambios_pregunta_y_no_pisa_lo_editado_hasta_confirmar()
+    {
+        var cut = Renderizar(
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa),
+            Propio(RlcId, "RLC (TC1)", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "RLC (TC1)").ClickAsync(new MouseEventArgs());
+        await MarcarBloqueoAsync(cut);
+
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        Lapiz(cut, "RLC (TC1)").GetAttribute("aria-expanded").Should().Be("true");
+        Lapiz(cut, "Seguro de responsabilidad civil").GetAttribute("aria-expanded").Should().Be("false");
+
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+
+        Lapiz(cut, "Seguro de responsabilidad civil").GetAttribute("aria-expanded").Should().Be("true");
+        Lapiz(cut, "RLC (TC1)").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".requisitos-casilla input").HasAttribute("checked").Should().BeFalse("la fila nueva parte de sus propios valores");
+    }
+
+    [Fact]
+    public async Task Cancelar_sin_cambios_cierra_el_panel_sin_preguntar()
+    {
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+    }
+
+    [Fact]
+    public async Task Quitar_el_ajuste_desde_el_panel_cierra_el_panel()
+    {
+        var cut = Renderizar(Excluido(ExcluidoId, "Formación PRL específica"));
+        await Lapiz(cut, "Formación PRL específica").ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<EliminarDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Which.TipoDocumentoId.Should().Be(ExcluidoId);
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty("la fila vuelve al criterio del catálogo: su panel de ajustes no puede quedar abierto con «Se excluye»");
+    }
+
+    [Fact]
+    public async Task La_plantilla_se_puede_sustituir_o_quitar_desde_el_panel()
+    {
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa,
+            archivoUrl: "plantillas/seguro.pdf", archivoNombre: "seguro.pdf"));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".requisitos-edicion .zona-soltar-archivo, .requisitos-edicion input[type=file]").Should().BeEmpty("con plantilla, la subida solo aparece al sustituir");
+
+        await cut.FindAll(".requisitos-archivo button").Single(b => b.TextContent.Trim() == "Sustituir").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".requisitos-edicion input[type=file]").Should().NotBeEmpty();
+
+        await cut.FindAll(".requisitos-archivo button").Single(b => b.TextContent.Trim() == "Quitar plantilla").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".requisitos-archivo").Should().BeEmpty();
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar ajustes").ClickAsync(new MouseEventArgs());
+
+        var envio = _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Subject;
+        envio.ArchivoUrl.Should().BeNull();
+        envio.NombreArchivoOriginal.Should().BeNull();
+    }
+
     // ------------------------------------------------ estado vacío
 
     [Fact]
