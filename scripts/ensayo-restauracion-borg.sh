@@ -185,7 +185,12 @@ if ! NOMBRES_EN_HOST="$(docker ps -a --format '{{.Names}}' 2>/dev/null)"; then
         echo "       Comprueba que Docker responde y repite, o ejecuta el ensayo en otra máquina."
         exit 3
     fi
-elif grep -qxE 'caemanager-(app|db)' <<<"$NOMBRES_EN_HOST"; then
+    echo "AVISO: 'docker ps -a' falló y ENSAYO_PERMITIR_EN_SERVIDOR=1: se sigue sin saber si el stack real está en este host."
+# Nombre exacto comparado en bash, sin `grep <<<`: si no se pudiera crear el
+# fichero temporal del here-string, grep no correría y el 1 se leería como
+# «no está».
+elif [[ $'\n'"$NOMBRES_EN_HOST"$'\n' == *$'\n'caemanager-app$'\n'* \
+     || $'\n'"$NOMBRES_EN_HOST"$'\n' == *$'\n'caemanager-db$'\n'* ]]; then
     if [ "${ENSAYO_PERMITIR_EN_SERVIDOR:-}" != "1" ]; then
         echo "ERROR: en este host existe el stack real (caemanager-app / caemanager-db)."
         echo "       Ejecuta el ensayo en otra máquina (tu equipo con Docker, o un servidor temporal)."

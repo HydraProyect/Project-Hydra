@@ -67,8 +67,8 @@
 # consumidor que solo mire el prefijo `VEREDICTO:` no debe poder confundir
 # "no pude ni empezar a mirar" con uno de los desenlaces de arriba.
 # Eso vale para la PRIMERA lectura de la PR. Una vez empezada la vigilancia,
-# un fallo de lectura de `gh` (la PR, la protección de main o la cola de
-# fusión) se reintenta de forma acotada y, si persiste, SIEMPRE termina en
+# un fallo de lectura de `gh` (la PR, la protección de main, la cola de
+# fusión o el log de un despliegue a staging fallido) se reintenta de forma acotada y, si persiste, SIEMPRE termina en
 # `VEREDICTO: INDETERMINADO` (5) — nunca en 64 sin veredicto. Medido el
 # 2026-09-24: dos vigías de la PR #868 con --hasta merge murieron con 64 a
 # mitad de la espera, con la PR en cola, y la PR acabó MERGED; y lanzado

@@ -178,20 +178,15 @@ retener_imagenes() {
     conservar+="$(sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p" <<<"$en_uso")"$'\n'
 
     echo "Retención de imágenes: se conservan las $n últimas de cada entorno y las que usa un contenedor."
-    local estado
     while read -r etiqueta; do
         es_sha "$etiqueta" || continue
-        # `grep <<<`, no `printf | grep -q`: con pipefail, grep -q cierra la
-        # tubería al primer acierto y, con una lista larga, el SIGPIPE de printf
-        # convertía «se conserva» en «se retira». Un estado distinto de 0 y 1 es
-        # un error de grep: no se retira nada más.
-        estado=0
-        grep -qxF -- "$etiqueta" <<<"$conservar" || estado=$?
-        if [ "$estado" -eq 0 ]; then
+        # Línea exacta comparada en bash, sin proceso externo: con
+        # `printf | grep -q` bajo pipefail, el SIGPIPE de una lista larga
+        # convertía «se conserva» en «se retira»; con `grep <<<`, un fichero
+        # temporal que no se puede crear (disco lleno) daba 1, otra vez «se
+        # retira». `conservar` acaba siempre en salto de línea.
+        if [[ $'\n'"$conservar" == *$'\n'"$etiqueta"$'\n'* ]]; then
             continue
-        elif [ "$estado" -ne 1 ]; then
-            echo "::warning::retención de imágenes interrumpida: no se pudo comprobar ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta} (grep salió con $estado)." >&2
-            break
         fi
         echo "  retirando ${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}"
         docker image rm "${REPOSITORIO_IMAGEN_DESPLIEGUE}:${etiqueta}" > /dev/null \

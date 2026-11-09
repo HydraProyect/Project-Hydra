@@ -187,6 +187,11 @@ awk 'BEGIN { for (i = 0; i < 6000; i++) printf "public partial class M%05d : Mig
 salida="$(bash "$LISTAR" "$TMP/repo-largo" 2>&1)"; codigo=$?
 comprobar "inventario largo con un identificador con espacio falla" 1 "$codigo"
 comprobar "  y lo dice" si "$(contiene 'identificador de migración vacío o con coma o espacio' "$salida")"
+# Las otras dos ramas de la guarda, con las clases cuadrando: coma y vacío.
+inventario coma '[Migration("20260102000000_B,C")]' 'public partial class N : Migration { }'
+bash "$LISTAR" "$TMP/repo-coma" > /dev/null 2>&1; comprobar "un identificador con coma falla" 1 "$?"
+inventario vacio-id '[Migration("")]' 'public partial class N : Migration { }'
+bash "$LISTAR" "$TMP/repo-vacio-id" > /dev/null 2>&1; comprobar "un identificador vacío falla" 1 "$?"
 
 echo "imagenes-retenidas.sh"
 escenario produccion "$C"

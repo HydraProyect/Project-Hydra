@@ -86,6 +86,10 @@ comprobar "no llegó a crear la red" '! grep -q "^docker network" "$LOG_DOCKER"'
 # Una salida parcial con el stack dentro también se niega.
 ejecutar ps-falla-parcial ESC_CONTENEDORES="caemanager-db" ESC_PS_CODIGO=1
 comprobar "salida parcial y error: sale con 3" '[ "$CODIGO" -eq 3 ]'
+# Con el permiso explícito sigue, pero lo dice.
+ejecutar ps-falla-permitido ESC_CONTENEDORES="" ESC_PS_CODIGO=1 ENSAYO_PERMITIR_EN_SERVIDOR=1
+comprobar "con permiso: no sale con 3" '[ "$CODIGO" -ne 3 ]'
+comprobar "con permiso: avisa de que no sabe si está el stack" 'grep -q "se sigue sin saber si el stack real" <<<"$SALIDA"'
 
 echo "== nombres parecidos: no disparan la guarda"
 ejecutar parecidos ESC_CONTENEDORES="caemanager-app-staging caemanager-db2 xcaemanager-app"

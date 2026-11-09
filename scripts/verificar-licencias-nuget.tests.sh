@@ -201,8 +201,9 @@ assert_codigo "exceptuar un paquete no exceptúa a MediatR 13.0.0" 1 \
 
 # Si la lista de excepciones no se puede leer entera, la verificación falla y no
 # decide: un `tr` falso escribe la lista completa (con la excepción) y luego sale
-# con error, solo cuando lo que lee es esta lista (MARCA_TR_FALLA). Antes se
-# buscaba en esa salida parcial y la versión pasaba como REVISADA con código 0.
+# con error, solo cuando lo que lee es esta lista (MARCA_TR_FALLA). Con `tr |
+# grep` bajo pipefail salía PROBLEMA (1), un motivo equivocado; con la captura
+# sin comprobar el estado, se buscaba en la salida y pasaba como REVISADA (0).
 TR_REAL="$(command -v tr)"
 BIN_TR_FALLA="$TMP_ROOT/bin-tr-falla"; mkdir -p "$BIN_TR_FALLA"
 cat >"$BIN_TR_FALLA/tr" <<SH
