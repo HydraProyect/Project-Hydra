@@ -32,12 +32,6 @@ public class IngestaWebhookHostedService(
     /// <summary>Máximo de eventos que se procesan de un mismo tenant antes de pasar al siguiente dentro del mismo tick — ver el comentario del mismo nombre en <c>ProcesadorAnalisisDocumentoHostedService</c>.</summary>
     private const int LoteMaximoPorTenant = 50;
 
-    /// <summary>
-    /// Próxima vez que toca atender los huecos de correo pendientes (<see cref="RecuperacionCorreoBuzonService"/>). No en
-    /// cada tick de 10 s: un fallo de Graph suele ser una limitación de ritmo, y reintentarlo así la empeoraría.
-    /// </summary>
-    private DateTime _proximaRecuperacionHuecosUtc = DateTime.MinValue;
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // P41c: todo lo que haga este servicio de fondo lo hace la propia
@@ -77,10 +71,6 @@ public class IngestaWebhookHostedService(
                 .ToListAsync(stoppingToken);
         }
 
-        var recuperarHuecos = DateTime.UtcNow >= _proximaRecuperacionHuecosUtc;
-        if (recuperarHuecos)
-            _proximaRecuperacionHuecosUtc = DateTime.UtcNow + RecuperacionCorreoBuzonService.IntervaloReintento;
-
         foreach (var tenantId in tenantsActivos)
         {
             stoppingToken.ThrowIfCancellationRequested();
@@ -94,7 +84,7 @@ public class IngestaWebhookHostedService(
             // a los mismos siguientes.
             try
             {
-                await ProcesarPendientesDelTenantAsync(tenantId, recuperarHuecos, stoppingToken);
+                await ProcesarPendientesDelTenantAsync(tenantId, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -109,7 +99,7 @@ public class IngestaWebhookHostedService(
         }
     }
 
-    private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, bool recuperarHuecos, CancellationToken stoppingToken)
+    private async Task ProcesarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)
     {
         // El interruptor se comprueba una vez por tick de sondeo (no por
         // evento): apagarlo dentro de un lote en curso no interrumpe los
@@ -123,9 +113,6 @@ public class IngestaWebhookHostedService(
         }
 
         await RecuperarEstancadosAsync(tenantId, stoppingToken);
-
-        if (recuperarHuecos)
-            await RecuperarHuecosDeCorreoAsync(tenantId, stoppingToken);
 
         var huboActividad = false;
         var procesadosEnEsteTick = 0;
@@ -201,29 +188,6 @@ public class IngestaWebhookHostedService(
         // de Automatizaciones, solo ruido en la fecha.
         if (huboActividad)
             await RegistrarEjecucionAsync(tenantId, exitosa: true, stoppingToken, elementosAfectados: procesadosEnEsteTick);
-    }
-
-    /// <summary>
-    /// Lee el hueco de las conexiones del Tenant que dejaron de estar operativas y ya vuelven a estarlo. Lo que encuentra
-    /// queda encolado como un evento más, que el bucle de abajo ingiere por el camino de siempre. En su propio ámbito y
-    /// aislado: un fallo aquí no deja sin procesar la cola del Tenant, y la marca se queda para el siguiente intento.
-    /// </summary>
-    private async Task RecuperarHuecosDeCorreoAsync(Guid tenantId, CancellationToken stoppingToken)
-    {
-        try
-        {
-            using var ambito = ambitoFactory.CreateScope();
-            using var _ = AmbitoTenantExplicito.Establecer(tenantId);
-            await ambito.ServiceProvider.GetRequiredService<RecuperacionCorreoBuzonService>().RecuperarPendientesAsync(stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Falló la lectura de los huecos de correo del tenant {TenantId}; se reintentará.", tenantId);
-        }
     }
 
     private async Task RecuperarEstancadosAsync(Guid tenantId, CancellationToken stoppingToken)

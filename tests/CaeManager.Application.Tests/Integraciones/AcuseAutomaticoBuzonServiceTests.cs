@@ -64,7 +64,6 @@ public class AcuseAutomaticoBuzonServiceTests
         _unitOfWork.VecesGuardado.Should().Be(2, "uno por el token renovado y otro por el mensaje");
     }
 
-    /// <summary>Un buzón compartido no tiene credencial: el acuse sale por su dirección y con el token de aplicación de su directorio.</summary>
     /// <summary>
     /// Puerta justo antes de enviar: la conexión del acuse es la instancia que cargó la ingesta, y entre medias otro
     /// proceso la pasó a ConError (quizá otro Tenant ya reclamó el buzón). No sale nada.
@@ -81,6 +80,7 @@ public class AcuseAutomaticoBuzonServiceTests
         acuse.Conversacion.Mensajes.Should().NotContain(m => m.Direccion == DireccionMensaje.Saliente);
     }
 
+    /// <summary>Un buzón compartido no tiene credencial: el acuse sale por su dirección y con el token de aplicación de su directorio.</summary>
     [Fact]
     public async Task Con_un_buzon_compartido_el_acuse_sale_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
     {

@@ -43,26 +43,30 @@ public class AvisosCorreoConexionesTests
         Retenido(conexion.Id).Estado.Should().Be(EstadoEventoWebhook.Retenido);
 
         var avisos = await ObtenerConexionesIntegracionQueryHandler.AvisosDeEventosAsync(
-            _contexto, [conexion.Id], DateTime.UtcNow, CancellationToken.None);
+            _contexto, [conexion.Id], CancellationToken.None);
 
         avisos.Should().BeEquivalentTo([(conexion.Id, EstadoEventoWebhook.Retenido)]);
     }
 
-    /// <summary>La política de cinco intentos no cambia, pero el correo descartado ya no se pierde en silencio.</summary>
+    /// <summary>
+    /// La política de cinco intentos no cambia, pero el correo descartado ya no se pierde en silencio: el aviso dura
+    /// mientras exista el evento. Uno recibido hace semanas (retenido mucho tiempo y descartado después) también avisa.
+    /// </summary>
     [Fact]
-    public async Task Un_evento_descartado_definitivo_reciente_lleva_el_aviso_y_uno_antiguo_no()
+    public async Task Un_evento_descartado_definitivo_lleva_el_aviso_por_antiguo_que_sea()
     {
         var conReciente = Guid.NewGuid();
         var conAntiguo = Guid.NewGuid();
         Descartado(conReciente, TimeSpan.FromDays(1)).Estado.Should().Be(EstadoEventoWebhook.DescartadoDefinitivo);
-        Descartado(conAntiguo, ObtenerConexionesIntegracionQueryHandler.VentanaAvisoCorreoDescartado + TimeSpan.FromDays(1));
+        Descartado(conAntiguo, TimeSpan.FromDays(30)).Estado.Should().Be(EstadoEventoWebhook.DescartadoDefinitivo);
 
         var avisos = await ObtenerConexionesIntegracionQueryHandler.AvisosDeEventosAsync(
-            _contexto, [conReciente, conAntiguo], DateTime.UtcNow, CancellationToken.None);
+            _contexto, [conReciente, conAntiguo], CancellationToken.None);
 
-        avisos.Should().BeEquivalentTo([(conReciente, EstadoEventoWebhook.DescartadoDefinitivo)]);
+        avisos.Should().BeEquivalentTo([
+            (conReciente, EstadoEventoWebhook.DescartadoDefinitivo),
+            (conAntiguo, EstadoEventoWebhook.DescartadoDefinitivo)]);
     }
-
     [Fact]
     public async Task Los_eventos_de_otras_conexiones_o_en_otros_estados_no_dan_aviso()
     {
@@ -71,7 +75,7 @@ public class AvisosCorreoConexionesTests
         Retenido(Guid.NewGuid());
 
         var avisos = await ObtenerConexionesIntegracionQueryHandler.AvisosDeEventosAsync(
-            _contexto, [conexion], DateTime.UtcNow, CancellationToken.None);
+            _contexto, [conexion], CancellationToken.None);
 
         avisos.Should().BeEmpty();
     }

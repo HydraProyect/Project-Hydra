@@ -36,13 +36,14 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
 
     public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
-        IReadOnlyList<string>? copia = null)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
     {
         var config = opciones.Value;
 
         if (config.PermiteEnvioA([.. destinatarios, .. copia ?? []]))
-            return interno.EnviarNuevoMensajeAsync(accessToken, buzon, destinatarios, asunto, cuerpoHtml, adjuntos, cancellationToken, copia);
+            return interno.EnviarNuevoMensajeAsync(
+                accessToken, buzon, destinatarios, asunto, cuerpoHtml, adjuntos, puertaAntesDeEnviar, cancellationToken, copia);
 
         AnotarBloqueo(config, "mensaje nuevo");
         return Task.FromResult(Result.Fallo<MensajeEnviadoGraphDto>(config.ErrorEnvioCerrado()));
@@ -96,9 +97,6 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) =>
         interno.ExtraerMensajeIdsDeNotificacion(payloadJson);
-
-    public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) =>
-        interno.ConstruirNotificacionDeRecuperacion(mensajeIds);
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) =>
         interno.ExtraerClientStateDeNotificacion(payloadJson);

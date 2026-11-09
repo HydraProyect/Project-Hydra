@@ -92,6 +92,10 @@ public class ReactivarConexionCommandHandler(
         }
 
         var veniaSinVerificar = !conexion.OperativaVerificada(DateTime.UtcNow);
+
+        // Una Habilitada con la verificación ya caducada dejó de estar operativa en la caducidad: se registra antes de
+        // renovar la verificación, que ya no lo dejaría ver. Mismo criterio que el ciclo de verificación.
+        conexion.RegistrarCaducidadVerificacion(DateTime.UtcNow);
         conexion.Rehabilitar();
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
             conexion.MarcarIdentidadVerificada(DateTime.UtcNow);
@@ -99,9 +103,9 @@ public class ReactivarConexionCommandHandler(
         if (!necesitaReclamarBuzon)
         {
             // Desde ConError, o sin verificar: sus eventos retenidos vuelven a la cola. Aquí no se lee Graph: lo que
-            // la ingesta descartó mientras tanto queda en HuecoPendienteDesdeUtc, que se guarda con esta rehabilitación
-            // y lee RecuperacionCorreoBuzonService con reintentos. Desde Deshabilitada no: lo que llegó con la
-            // conexión desconectada a propósito no se ingiere.
+            // la ingesta descartó mientras tanto queda declarado en HuecoPendienteDesdeUtc, que esta rehabilitación no
+            // limpia, y Conexiones lo sigue avisando. Desde Deshabilitada no: lo que llegó con la conexión desconectada
+            // a propósito no se ingiere.
             if (conexion.Proveedor == ProveedorIntegracion.Microsoft365 && veniaSinVerificar)
             {
                 foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))

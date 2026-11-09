@@ -42,7 +42,7 @@ public class Microsoft365EnviarMensajeNuevoCopiaTests
             new HttpClient(handler), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
 
         var resultado = await cliente.EnviarNuevoMensajeAsync(
-            "token", new BuzonGraph("buzon@tenant.example", false), ["marta@refrielectric.example"], "Asunto", "<p>Hola</p>", null, CancellationToken.None, copia);
+            "token", new BuzonGraph("buzon@tenant.example", false), ["marta@refrielectric.example"], "Asunto", "<p>Hola</p>", null, _ => Task.FromResult(true), CancellationToken.None, copia);
 
         resultado.EsExitoso.Should().BeTrue();
         return JsonDocument.Parse(handler.CuerpoDelBorrador!).RootElement.Clone();

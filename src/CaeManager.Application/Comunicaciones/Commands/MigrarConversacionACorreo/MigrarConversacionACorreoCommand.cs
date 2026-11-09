@@ -116,9 +116,10 @@ public class MigrarConversacionACorreoCommandHandler(
         if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
             return Result.Fallo(ErroresBuzonSinVerificar.Crear());
 
+        // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
             tokenResultado.Valor, BuzonGraph.De(conexion), [request.EmailDestino], conversacion.Asunto, request.CuerpoHtml,
-            adjuntos: null, cancellationToken);
+            adjuntos: null, ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken);
         if (envioResultado.EsFallido)
             return Result.Fallo(envioResultado.Error);
 

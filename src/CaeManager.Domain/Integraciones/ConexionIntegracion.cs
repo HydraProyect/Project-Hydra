@@ -109,21 +109,20 @@ public class ConexionIntegracion : EntidadBase
     public DateTime? IdentidadVerificadaUtc { get; private set; }
 
     /// <summary>
-    /// Desde cuándo puede faltar correo de este buzón por leer: el momento en que la conexión dejó de estar operativa
-    /// (pasó a ConError o caducó su verificación), mientras la ingesta descartaba o no veía sus notificaciones. La fija
-    /// cada transición que deja la conexión no operativa, solo si estaba vacía o con una fecha posterior: una segunda
-    /// caída conserva la más antigua. Rehabilitar no la toca; la limpia solo la lectura del hueco
-    /// (<c>RecuperacionCorreoBuzonService</c>) cuando termina completa, o la convierte en
-    /// <see cref="CorreoNoRecuperadoDesdeUtc"/> si llega a su tope. Null: no hay hueco pendiente.
+    /// Desde cuándo puede faltar correo de este buzón: el momento en que la conexión dejó de estar operativa (pasó a
+    /// ConError o caducó su verificación), o antes si la ingesta descartó una notificación más antigua
+    /// (<see cref="RegistrarNotificacionDescartada"/>). Cada escritor solo la retrasa, nunca la adelanta: una segunda
+    /// caída conserva la fecha más antigua. Mientras esté puesta, Conexiones avisa de posible correo no recuperado desde
+    /// esa fecha. El hueco queda declarado, no recuperado: nada lee ese correo ni limpia la marca (ni rehabilitar, ni
+    /// Reactivar, ni Deshabilitar, ni el ciclo de verificación). Null: sin hueco.
     /// </summary>
     public DateTime? HuecoPendienteDesdeUtc { get; private set; }
 
     /// <summary>
-    /// Aviso visible en Conexiones: puede haber correo de este buzón, recibido desde esta fecha, que no se llegó a
-    /// recuperar (la lectura del hueco alcanzó su tope de antigüedad o de mensajes, o la conexión se desconectó con el
-    /// hueco pendiente). Nunca se limpia en silencio; desaparece con la conexión. Null: sin aviso.
+    /// Cuánto retrocede la marca del hueco desde la recepción de una notificación descartada: Graph reintenta la entrega
+    /// de una notificación hasta cuatro horas, así que su correo pudo llegar al buzón hasta ese tiempo antes.
     /// </summary>
-    public DateTime? CorreoNoRecuperadoDesdeUtc { get; private set; }
+    public static readonly TimeSpan RetrasoMaximoNotificacion = TimeSpan.FromHours(4);
 
     private ConexionIntegracion()
     {
@@ -179,44 +178,14 @@ public class ConexionIntegracion : EntidadBase
 
     /// <summary>
     /// La ingesta descarta una notificación recibida en <paramref name="recepcionUtc"/> porque la conexión está en
-    /// ConError. Pudo llegar antes de la caída y esperar en la cola (reintentos o espera de verificación): su correo es
-    /// anterior a la marca que fijó <see cref="MarcarConError"/>, y sin esto la lectura del hueco no lo cubriría. La
-    /// marca retrocede hasta esa recepción, nunca avanza. Deshabilitada no: lo que llega con la conexión desconectada a
-    /// propósito no se ingiere.
+    /// ConError. Pudo llegar antes de la caída y esperar en la cola (reintentos o espera de verificación), y Graph pudo
+    /// tardar hasta <see cref="RetrasoMaximoNotificacion"/> en entregarla: su correo puede ser anterior a la marca que
+    /// fijó <see cref="MarcarConError"/>. La marca retrocede hasta <paramref name="recepcionUtc"/> menos ese retraso,
+    /// nunca avanza. Deshabilitada no: lo que llega con la conexión desconectada a propósito no se ingiere.
     /// </summary>
     /// <returns>true si la marca cambió.</returns>
     public bool RegistrarNotificacionDescartada(DateTime recepcionUtc) =>
-        Estado == EstadoConexionIntegracion.ConError && RegistrarHuecoDesde(recepcionUtc);
-
-    /// <summary>
-    /// La lectura del hueco que empezó con <paramref name="marcaLeida"/> terminó completa: no queda nada por leer. Si
-    /// otra caída fijó entretanto una marca distinta, esa se conserva para la siguiente lectura.
-    /// </summary>
-    public void CerrarHuecoRecuperado(DateTime marcaLeida)
-    {
-        if (HuecoPendienteDesdeUtc == marcaLeida)
-            HuecoPendienteDesdeUtc = null;
-    }
-
-    /// <summary>
-    /// La lectura del hueco que empezó con <paramref name="marcaLeida"/> llegó a su tope: lo anterior no se va a leer.
-    /// La marca no se limpia en silencio: pasa a <see cref="CorreoNoRecuperadoDesdeUtc"/>, que conserva la fecha más
-    /// antigua si ya había un aviso.
-    /// </summary>
-    public void CerrarHuecoConCorreoNoRecuperado(DateTime marcaLeida)
-    {
-        if (HuecoPendienteDesdeUtc != marcaLeida)
-            return;
-
-        AvisarCorreoNoRecuperado(marcaLeida);
-        HuecoPendienteDesdeUtc = null;
-    }
-
-    private void AvisarCorreoNoRecuperado(DateTime desdeUtc)
-    {
-        if (CorreoNoRecuperadoDesdeUtc is null || desdeUtc < CorreoNoRecuperadoDesdeUtc)
-            CorreoNoRecuperadoDesdeUtc = desdeUtc;
-    }
+        Estado == EstadoConexionIntegracion.ConError && RegistrarHuecoDesde(recepcionUtc - RetrasoMaximoNotificacion);
 
     /// <returns>true si la marca cambió: estaba vacía o era posterior.</returns>
     private bool RegistrarHuecoDesde(DateTime desdeUtc)
@@ -326,9 +295,10 @@ public class ConexionIntegracion : EntidadBase
     }
 
     /// <summary>
-    /// Resultado definitivo (o fallo de la renovación): la ingesta descarta desde ahora sus notificaciones, así que se
-    /// fija <see cref="HuecoPendienteDesdeUtc"/> en el momento en que dejó de estar operativa, sin adelantar una marca
-    /// anterior.
+    /// Resultado definitivo (de la verificación de identidad o de la renovación de la suscripción): la ingesta descarta
+    /// desde ahora sus notificaciones, así que se fija <see cref="HuecoPendienteDesdeUtc"/> en el momento en que dejó de
+    /// estar operativa, sin adelantar una marca anterior. <paramref name="ahoraUtc"/> puede ser anterior a ahora cuando
+    /// se sabe que dejó de recibir notificaciones antes (la renovación pasa la expiración de su suscripción).
     /// </summary>
     public void MarcarConError(string mensaje, DateTime? ahoraUtc = null)
     {
@@ -343,20 +313,15 @@ public class ConexionIntegracion : EntidadBase
     }
 
     /// <summary>
-    /// Desconectar a propósito: lo que llegue mientras tanto no se ingiere, y un hueco que quedase pendiente ya no se
-    /// va a leer. No se limpia en silencio: pasa a <see cref="CorreoNoRecuperadoDesdeUtc"/>.
+    /// Desconectar a propósito: lo que llegue mientras tanto no se ingiere. Una marca de hueco que hubiera se conserva
+    /// tal cual (<see cref="HuecoPendienteDesdeUtc"/>): el correo de antes de desconectar puede seguir sin entrar.
     /// </summary>
     public void Deshabilitar()
     {
-        if (HuecoPendienteDesdeUtc is { } pendiente)
-        {
-            AvisarCorreoNoRecuperado(pendiente);
-            HuecoPendienteDesdeUtc = null;
-        }
-
         Estado = EstadoConexionIntegracion.Deshabilitada;
     }
 
+    /// <summary>Vuelve a Habilitada. No toca <see cref="HuecoPendienteDesdeUtc"/>: el hueco no se recupera al rehabilitar.</summary>
     public void Rehabilitar()
     {
         Estado = EstadoConexionIntegracion.Habilitada;

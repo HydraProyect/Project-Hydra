@@ -369,7 +369,8 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
 
         public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
             string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken, IReadOnlyList<string>? copia = null) =>
+            IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+            CancellationToken cancellationToken, IReadOnlyList<string>? copia = null) =>
             throw new NotSupportedException();
 
         public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
@@ -398,7 +399,6 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
             throw new NotSupportedException();
 
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();
-        public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) => throw new NotSupportedException();
 
         public string? ExtraerClientStateDeNotificacion(string payloadJson) => throw new NotSupportedException();
 

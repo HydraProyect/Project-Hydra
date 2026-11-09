@@ -12,37 +12,27 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<DateTime>(
-                name: "CorreoNoRecuperadoDesdeUtc",
-                table: "ConexionesIntegracion",
-                type: "timestamp with time zone",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
                 name: "HuecoPendienteDesdeUtc",
                 table: "ConexionesIntegracion",
                 type: "timestamp with time zone",
                 nullable: true);
 
-            // Solo dos columnas nullable nuevas, sin reescribir datos: la ranura anterior del despliegue azul/verde no
-            // las conoce y sigue funcionando. HuecoPendienteDesdeUtc null es "sin hueco por leer";
-            // CorreoNoRecuperadoDesdeUtc null es "sin aviso". Las conexiones que ya estaban en ConError antes de esta
-            // migración no tienen marca: su hueco no se lee.
+            // Una sola columna nullable nueva, sin reescribir datos: la ranura anterior del despliegue azul/verde no la
+            // conoce y sigue funcionando. HuecoPendienteDesdeUtc null es "sin hueco"; puesta, Conexiones avisa de posible
+            // correo no recuperado desde esa fecha. Las conexiones que ya estaban en ConError antes de esta migración no
+            // tienen marca ni aviso.
             //
             // Soporte TALVEG lee esta tabla columna a columna (SoporteSinColumnasSecretasRestantes): sin este grant,
-            // cargar la entidad bajo cae_app_soporte daría 42501. Son fechas, no secretos. Mismo patrón que
+            // cargar la entidad bajo cae_app_soporte daría 42501. Es una fecha, no un secreto. Mismo patrón que
             // 20261109200000_AnadeIdentidadVerificadaConexion.
             migrationBuilder.Sql("""
-                GRANT SELECT ("HuecoPendienteDesdeUtc", "CorreoNoRecuperadoDesdeUtc") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
+                GRANT SELECT ("HuecoPendienteDesdeUtc") ON TABLE public."ConexionesIntegracion" TO cae_app_soporte;
                 """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "CorreoNoRecuperadoDesdeUtc",
-                table: "ConexionesIntegracion");
-
             migrationBuilder.DropColumn(
                 name: "HuecoPendienteDesdeUtc",
                 table: "ConexionesIntegracion");

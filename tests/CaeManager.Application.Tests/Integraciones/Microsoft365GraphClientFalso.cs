@@ -91,8 +91,12 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     /// <summary>Tokens con los que se pidió la identidad, en orden: prueba que la sonda del compartido usa el de aplicación.</summary>
     public List<string> TokensDeIdentidad { get; } = [];
 
+    /// <summary>Se ejecuta durante la lectura de la identidad: simula lo que pasa mientras dura la llamada a Graph.</summary>
+    public Action? AlLeerIdentidad { get; set; }
+
     public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken)
     {
+        AlLeerIdentidad?.Invoke();
         BuzonesUsados.Add(buzon);
         TokensDeIdentidad.Add(accessToken);
         if (buzon.EsCompartido && DireccionesQueLanzanEnIdentidad.Contains(buzon.Direccion))
@@ -119,21 +123,38 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
             : Result.Exito());
     }
 
-    public Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
+    /// <summary>
+    /// Como el cliente real: crea el borrador, evalúa la puerta del llamador y solo si la pasa lo envía. Un borrador
+    /// que no pasa la puerta no cuenta como enviado y queda en <see cref="BorradoresNoEnviados"/>.
+    /// </summary>
+    public async Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
-        IReadOnlyList<string>? copia = null)
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null)
     {
         BuzonesUsados.Add(buzon);
+        BorradoresCreados++;
+        if (!await puertaAntesDeEnviar(cancellationToken))
+        {
+            BorradoresNoEnviados++;
+            return Result.Fallo<MensajeEnviadoGraphDto>(ErroresBuzonSinVerificar.Crear());
+        }
+
         VecesEnviado++;
         UltimaCopia = copia;
-        return Task.FromResult(FallaEnvio
+        return FallaEnvio
             ? Result.Fallo<MensajeEnviadoGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorEnvio", "fallo simulado"))
-            : Result.Exito(MensajeEnviadoADevolver));
+            : Result.Exito(MensajeEnviadoADevolver);
     }
 
     /// <summary>Las direcciones en copia con las que se llamó por última vez a <see cref="EnviarNuevoMensajeAsync"/>.</summary>
     public IReadOnlyList<string>? UltimaCopia { get; private set; }
+
+    /// <summary>Borradores de mensaje nuevo creados, se enviaran o no.</summary>
+    public int BorradoresCreados { get; private set; }
+
+    /// <summary>Borradores creados que no se enviaron porque la puerta del llamador dijo que no.</summary>
+    public int BorradoresNoEnviados { get; private set; }
 
     public Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
         string accessToken, BuzonGraph buzon, string mensajeId, CancellationToken cancellationToken) =>
@@ -199,9 +220,6 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
-
-    public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) =>
-        "recuperacion:" + string.Join(',', mensajeIds);
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
 

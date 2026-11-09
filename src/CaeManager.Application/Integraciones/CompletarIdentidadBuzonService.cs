@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -12,11 +13,11 @@ namespace CaeManager.Application.Integraciones;
 /// <list type="bullet">
 /// <item>Coincide (o se acaba de completar): fija <see cref="ConexionIntegracion.IdentidadVerificadaUtc"/>. Si la
 /// conexión estaba en ConError, se rehabilita aquí mismo, verificada en este ciclo; sus eventos
-/// <see cref="EstadoEventoWebhook.Retenido"/> vuelven a la cola. Aquí no se lee Graph: el hueco que dejó la caída
-/// queda en <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/> y lo lee, con reintentos,
-/// <see cref="RecuperacionCorreoBuzonService"/>.</item>
+/// <see cref="EstadoEventoWebhook.Retenido"/> vuelven a la cola. El hueco que dejó la caída queda declarado en
+/// <see cref="ConexionIntegracion.HuecoPendienteDesdeUtc"/>, que Conexiones avisa; aquí no se lee ni se limpia.</item>
 /// <item>Habilitada con la verificación ya caducada: se fija la marca del hueco en el momento en que caducó
-/// (<see cref="ConexionIntegracion.RegistrarCaducidadVerificacion"/>), antes de intentar nada.</item>
+/// (<see cref="ConexionIntegracion.RegistrarCaducidadVerificacion"/>), antes de intentar nada, y otra vez después de
+/// leer la identidad en Graph y antes de marcarla verificada: la ventana puede caducar durante la llamada.</item>
 /// <item>Sin identidad (dada de alta antes de que existiera): se completa en la conexión y en su
 /// <see cref="ReclamacionBuzonIntegracion"/>. Si choca con la de otra reclamación, el mismo buzón está conectado
 /// en otro Tenant con otra dirección: esta conexión pasa a ConError (<see cref="MensajeBuzonDuplicado"/>), su
@@ -60,15 +61,25 @@ public class CompletarIdentidadBuzonService(
         ultimoError is MensajeBuzonDuplicado or MensajeBuzonCambiado or MensajeSinAccesoBuzon;
 
     /// <summary>
-    /// ConError por un fallo de la renovación de la suscripción, sin sobrescribir el motivo de identidad (buzón
-    /// cambiado, duplicado o sin acceso) que ya tenga la conexión: ese es más concreto, y es el que hay que resolver.
+    /// Fallo al pedir el token o al renovar la suscripción de una conexión. Un fallo transitorio
+    /// (<see cref="CodigosErrorMicrosoft365.EsTransitorio"/>: 408, 429, 5xx, red, tiempo agotado, cuerpo ilegible) no
+    /// cambia nada: se reintenta en el siguiente ciclo. Uno definitivo la pasa a ConError, sin sobrescribir el motivo de
+    /// identidad (buzón cambiado, duplicado o sin acceso) que ya tenga: ese es más concreto, y es el que hay que
+    /// resolver. La marca del hueco se fija en la expiración de la suscripción si ya pasó, porque desde entonces no
+    /// llegan notificaciones, y si no, ahora.
     /// </summary>
-    public static void MarcarConErrorDeRenovacion(ConexionIntegracion conexion, string mensaje)
+    /// <returns>true si la conexión pasó a ConError.</returns>
+    public static bool MarcarConErrorDeRenovacion(
+        ConexionIntegracion conexion, Error error, DateTime expiracionSuscripcionUtc, DateTime ahoraUtc)
     {
-        if (conexion.Estado == EstadoConexionIntegracion.ConError && EsMotivoDeIdentidad(conexion.UltimoError))
-            return;
+        if (CodigosErrorMicrosoft365.EsTransitorio(error))
+            return false;
 
-        conexion.MarcarConError(mensaje);
+        if (conexion.Estado == EstadoConexionIntegracion.ConError && EsMotivoDeIdentidad(conexion.UltimoError))
+            return false;
+
+        conexion.MarcarConError(error.Mensaje, expiracionSuscripcionUtc < ahoraUtc ? expiracionSuscripcionUtc : ahoraUtc);
+        return true;
     }
 
     /// <returns>Las conexiones cuya identidad se leyó y coincide (o se acaba de completar) en este ciclo.</returns>
@@ -127,6 +138,11 @@ public class CompletarIdentidadBuzonService(
         }
 
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
+
+        // La ventana pudo caducar durante la llamada: se registra antes de volver a marcar la conexión verificada, que
+        // ya no lo detectaría. Se guarda con el resto de cambios de esta comprobación.
+        conexion.RegistrarCaducidadVerificacion(DateTime.UtcNow);
+
         if (identidad.EsFallido)
         {
             logger.LogWarning(
@@ -186,9 +202,8 @@ public class CompletarIdentidadBuzonService(
     }
 
     /// <summary>
-    /// Verificada en este ciclo: se rehabilita si estaba en ConError y sus eventos retenidos vuelven a la cola. No se
-    /// lee Graph: la marca del hueco, si la hay, se queda en la conexión y la atiende
-    /// <see cref="RecuperacionCorreoBuzonService"/>, en la misma transacción que esta rehabilitación.
+    /// Verificada en este ciclo: se rehabilita si estaba en ConError y sus eventos retenidos vuelven a la cola. La marca
+    /// del hueco, si la hay, se conserva: el correo de ese intervalo pudo no entrar y Conexiones lo sigue avisando.
     /// </summary>
     private async Task MarcarVerificadaAsync(ConexionIntegracion conexion, DateTime ahoraUtc, CancellationToken cancellationToken)
     {

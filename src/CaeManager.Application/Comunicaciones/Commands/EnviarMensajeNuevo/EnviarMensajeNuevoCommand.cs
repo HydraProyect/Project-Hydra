@@ -125,8 +125,10 @@ public class EnviarMensajeNuevoCommandHandler(
         if (!await conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, cancellationToken))
             return Result.Fallo<Guid>(Integraciones.ErroresBuzonSinVerificar.Crear());
 
+        // La misma puerta otra vez entre crear el borrador y enviarlo: son dos llamadas a Graph.
         var envioResultado = await graphClient.EnviarNuevoMensajeAsync(
-            tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos, cancellationToken, request.Copia);
+            tokenResultado.Valor, BuzonGraph.De(conexion), request.Destinatarios, request.Asunto, request.CuerpoHtml, request.Adjuntos,
+            ct => conexionRepositorio.SigueOperativaVerificadaAsync(conexion.Id, DateTime.UtcNow, ct), cancellationToken, request.Copia);
         if (envioResultado.EsFallido)
             return Result.Fallo<Guid>(envioResultado.Error);
 

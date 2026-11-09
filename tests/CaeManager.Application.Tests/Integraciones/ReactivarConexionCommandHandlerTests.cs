@@ -51,7 +51,7 @@ public class ReactivarConexionCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
         retenido.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
-        graph.ListadosPedidos.Should().BeEmpty("la rehabilitación no lee Graph en línea: lo hace la recuperación con reintentos");
+        graph.ListadosPedidos.Should().BeEmpty("la rehabilitación no lee el buzón: el hueco queda declarado y no se recupera");
         eventos.Eventos.Should().Equal(retenido);
         conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
     }
@@ -79,6 +79,30 @@ public class ReactivarConexionCommandHandlerTests
         conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
         graph.ListadosPedidos.Should().BeEmpty();
         eventos.Eventos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Reactivar una Habilitada cuya verificación ya caducó: dejó de estar operativa en la caducidad, y eso se registra
+    /// antes de renovar la verificación. Sin ello la verificación nueva taparía el intervalo.
+    /// </summary>
+    [Fact]
+    public async Task Reactivar_una_habilitada_con_la_verificacion_caducada_fija_la_marca_en_la_caducidad_antes_de_renovarla()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromHours(3));
+        var caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        unitOfWork.VecesGuardado.Should().BeGreaterThan(0);
     }
 
     [Fact]

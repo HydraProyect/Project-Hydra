@@ -54,14 +54,6 @@ public class ConversacionRepositorioFalso : IConversacionRepository
             .SelectMany(c => c.Mensajes)
             .Any(m => m.MensajeExternoId == mensajeExternoId));
 
-    public Task<DateTime?> ObtenerFechaUltimoMensajeEntranteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Conversaciones
-            .Where(c => c.ConexionIntegracionId == conexionIntegracionId)
-            .SelectMany(c => c.Mensajes)
-            .Where(m => m.Direccion == DireccionMensaje.Entrante)
-            .Select(m => (DateTime?)m.FechaUtc)
-            .Max());
-
     public Task<Conversacion?> ObtenerAbiertaPorTelefonoAsync(
         Guid conexionIntegracionId, string telefonoContacto, CancellationToken cancellationToken = default) =>
         Task.FromResult(Conversaciones

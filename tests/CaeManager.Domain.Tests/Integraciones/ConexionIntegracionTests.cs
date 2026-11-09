@@ -174,7 +174,6 @@ public class ConexionIntegracionTests
         conexion.MarcarConError("refresh token caducado", caida);
 
         conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
-        conexion.CorreoNoRecuperadoDesdeUtc.Should().BeNull();
     }
 
     [Fact]
@@ -238,48 +237,18 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void Cerrar_el_hueco_recuperado_solo_limpia_la_marca_que_se_leyo()
-    {
-        var caida = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
-        var conexion = Verificada(caida.AddHours(-1));
-        conexion.MarcarConError("caída", caida);
-
-        conexion.CerrarHuecoRecuperado(caida.AddMinutes(1));
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "otra caída fijó una marca distinta mientras se leía");
-
-        conexion.CerrarHuecoRecuperado(caida);
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
-        conexion.CorreoNoRecuperadoDesdeUtc.Should().BeNull();
-    }
-
-    [Fact]
-    public void Llegar_al_tope_convierte_la_marca_en_aviso_y_conserva_el_aviso_mas_antiguo()
-    {
-        var primera = new DateTime(2026, 11, 1, 10, 0, 0, DateTimeKind.Utc);
-        var conexion = Verificada(primera.AddHours(-1));
-        conexion.MarcarConError("caída", primera);
-        conexion.CerrarHuecoConCorreoNoRecuperado(primera);
-        conexion.Rehabilitar();
-        conexion.MarcarIdentidadVerificada(primera.AddDays(3).AddHours(-1));
-        conexion.MarcarConError("otra caída", primera.AddDays(3));
-
-        conexion.CerrarHuecoConCorreoNoRecuperado(primera.AddDays(3));
-
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
-        conexion.CorreoNoRecuperadoDesdeUtc.Should().Be(primera);
-    }
-
-    [Fact]
-    public void Desconectar_con_el_hueco_pendiente_lo_deja_como_aviso_visible()
+    public void Desconectar_y_volver_a_rehabilitar_conservan_la_marca_tal_cual()
     {
         var caida = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(caida.AddHours(-1));
         conexion.MarcarConError("caída", caida);
 
         conexion.Deshabilitar();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "desconectar no recupera el correo de antes");
 
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
-        conexion.CorreoNoRecuperadoDesdeUtc.Should().Be(caida);
+        conexion.Rehabilitar();
+        conexion.MarcarIdentidadVerificada(caida.AddDays(1));
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "el hueco queda declarado: nada lo limpia en esta versión");
     }
 
     [Fact]
@@ -294,16 +263,21 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void Una_notificacion_descartada_en_ConError_retrocede_la_marca_a_su_recepcion_y_nunca_la_adelanta()
+    public void Una_notificacion_descartada_en_ConError_retrocede_la_marca_a_su_recepcion_menos_cuatro_horas_y_nunca_la_adelanta()
     {
         var caida = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(caida.AddHours(-1));
         conexion.MarcarConError("caída", caida);
 
-        conexion.RegistrarNotificacionDescartada(caida.AddMinutes(-20)).Should().BeTrue();
-        conexion.RegistrarNotificacionDescartada(caida.AddMinutes(30)).Should().BeFalse();
+        // Graph reintenta la entrega hasta cuatro horas: una notificación recibida a las 10:30 puede ser de un correo
+        // llegado a las 6:30, antes de la caída.
+        conexion.RegistrarNotificacionDescartada(caida.AddMinutes(30)).Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida.AddMinutes(30) - ConexionIntegracion.RetrasoMaximoNotificacion);
 
-        conexion.HuecoPendienteDesdeUtc.Should().Be(caida.AddMinutes(-20));
+        conexion.RegistrarNotificacionDescartada(caida.AddHours(2)).Should().BeFalse("una recepción posterior no adelanta la marca");
+        conexion.RegistrarNotificacionDescartada(caida.AddHours(-1)).Should().BeTrue();
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida.AddHours(-5));
     }
 
     [Fact]

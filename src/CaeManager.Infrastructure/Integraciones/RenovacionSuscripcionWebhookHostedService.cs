@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Coordinacion;
@@ -159,7 +160,7 @@ public class RenovacionSuscripcionWebhookHostedService(
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, accessTokenResultado.Error.Mensaje);
-                MarcarConErrorSinPisarIdentidad(conexion, accessTokenResultado.Error.Mensaje);
+                MarcarConErrorSiDefinitivo(conexion, suscripcion, accessTokenResultado.Error);
                 continue;
             }
 
@@ -170,7 +171,7 @@ public class RenovacionSuscripcionWebhookHostedService(
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, renovacionResultado.Error.Mensaje);
-                MarcarConErrorSinPisarIdentidad(conexion, renovacionResultado.Error.Mensaje);
+                MarcarConErrorSiDefinitivo(conexion, suscripcion, renovacionResultado.Error);
                 continue;
             }
 
@@ -182,6 +183,11 @@ public class RenovacionSuscripcionWebhookHostedService(
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
 
-    private static void MarcarConErrorSinPisarIdentidad(ConexionIntegracion conexion, string mensaje) =>
-        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, mensaje);
+    /// <summary>
+    /// Un fallo transitorio (429, 5xx, red, tiempo agotado, cuerpo ilegible) solo queda en el registro y se reintenta en
+    /// el siguiente ciclo; uno definitivo pasa la conexión a ConError con la marca del hueco en min(ahora, expiración de
+    /// la suscripción). La regla vive en <see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>.
+    /// </summary>
+    private static void MarcarConErrorSiDefinitivo(ConexionIntegracion conexion, SuscripcionWebhook suscripcion, Error error) =>
+        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, error, suscripcion.FechaExpiracionUtc, DateTime.UtcNow);
 }

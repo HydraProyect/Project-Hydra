@@ -106,7 +106,7 @@
                             }
                             @if (conexion.CorreoRetenido)
                             {
-                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-retenido">@Textos["AvisoCorreoRetenido"]</span>
+                                <span class="texto-aviso-verificacion" data-testid="aviso-correo-retenido">@Textos[conexion.Estado == EstadoConexionIntegracion.Deshabilitada ? "AvisoCorreoRetenidoDesconectada" : "AvisoCorreoRetenido"]</span>
                             }
                             @if (conexion.CorreoDescartado)
                             {

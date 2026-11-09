@@ -145,11 +145,18 @@ public interface IMicrosoft365GraphClient
     /// <summary>
     /// Redactar un mensaje nuevo (no una respuesta a un hilo existente) — borrador + envío, devuelve los Ids externos (mensaje e hilo).
     /// <paramref name="copia"/> son las direcciones en copia (<c>ccRecipients</c>); null o vacío = sin copia.
+    /// <para>
+    /// Son dos llamadas a Graph, y entre ellas la conexión puede pasar a ConError o desconectarse.
+    /// <paramref name="puertaAntesDeEnviar"/> se evalúa después de crear el borrador y antes de enviarlo: el llamador
+    /// relee ahí el estado de la conexión (Habilitada y con la identidad verificada). Si devuelve false o lanza, el
+    /// borrador no se envía, se intenta borrar y el resultado es <see cref="ErroresBuzonSinVerificar"/>. Infrastructure
+    /// no lee repositorios: la regla sigue en Application y aquí solo se respeta el orden.
+    /// </para>
     /// </summary>
     Task<Result<MensajeEnviadoGraphDto>> EnviarNuevoMensajeAsync(
         string accessToken, BuzonGraph buzon, IReadOnlyList<string> destinatarios, string asunto, string cuerpoHtml,
-        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, CancellationToken cancellationToken,
-        IReadOnlyList<string>? copia = null);
+        IReadOnlyList<AdjuntoParaEnviarDto>? adjuntos, Func<CancellationToken, Task<bool>> puertaAntesDeEnviar,
+        CancellationToken cancellationToken, IReadOnlyList<string>? copia = null);
 
     /// <summary>Incluye los adjuntos del mensaje (metadatos, no el contenido — ver <see cref="ObtenerContenidoAdjuntoAsync"/>).</summary>
     Task<Result<MensajeGraphDto>> ObtenerMensajeAsync(
@@ -190,14 +197,6 @@ public interface IMicrosoft365GraphClient
     IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson);
 
     /// <summary>
-    /// Puro formato, sin llamada de red: un payload con la forma de una notificación de Graph que solo lleva los Ids
-    /// de <paramref name="mensajeIds"/>, para que la recuperación puntual de un buzón (<c>RecuperacionCorreoBuzonService</c>)
-    /// entre por la misma cola de ingesta que el webhook, con sus reintentos, su deduplicación y sus acuses.
-    /// <see cref="ExtraerMensajeIdsDeNotificacion"/> lo lee de vuelta.
-    /// </summary>
-    string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds);
-
-    /// <summary>
     /// Puro parseo, sin llamada de red — el <c>clientState</c> que Graph
     /// devuelve sin cambios en cada notificación (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
     /// tercer modo). El endpoint del webhook lo compara contra el secreto
@@ -233,4 +232,22 @@ public static class CodigosErrorMicrosoft365
 
     /// <summary>Graph rechazó con 403 la creación de un borrador: al token le falta Mail.ReadWrite sobre ese buzón.</summary>
     public const string SinPermisoEscritura = "Integraciones.Microsoft365.SinPermisoEscritura";
+
+    /// <summary>
+    /// Microsoft no rechazó nada, solo no pudo atender ahora: un 408, 429 o 5xx al pedir un token o renovar una
+    /// suscripción, o un 200 con un cuerpo de tokens ilegible.
+    /// </summary>
+    public const string Transitorio = "Integraciones.Microsoft365.Transitorio";
+
+    /// <summary>Fallo de red: la petición no llegó a Microsoft o no volvió respuesta.</summary>
+    public const string ErrorRed = "Integraciones.Microsoft365.ErrorRed";
+
+    /// <summary>Microsoft no respondió a tiempo (timeout del cliente HTTP, no una cancelación pedida).</summary>
+    public const string TiempoAgotado = "Integraciones.Microsoft365.TiempoAgotado";
+
+    /// <summary>
+    /// Un fallo que no dice nada de la conexión: se reintenta en el siguiente ciclo y no la pasa a ConError. El resto
+    /// (4xx de Entra o de Graph, directorio inválido, permiso sin acotar, sin credencial o sin certificado) es definitivo.
+    /// </summary>
+    public static bool EsTransitorio(Error error) => error.Codigo is Transitorio or ErrorRed or TiempoAgotado;
 }

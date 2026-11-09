@@ -109,10 +109,11 @@ public class IngestaWebhookService(
             // transitorio que deba reintentarse, es un descarte de negocio
             // deliberado que se resuelve reactivando la conexión.
             // ConError solo lo ponen ya resultados definitivos (CompletarIdentidadBuzonService) o un fallo de la
-            // renovación. Al pasar a ConError la conexión fijó HuecoPendienteDesdeUtc: lo que se descarte aquí lo
-            // lee RecuperacionCorreoBuzonService, con reintentos, cuando vuelva a estar operativa. Una notificación
-            // recibida antes de la caída (esperaba en la cola) lleva la marca hasta su recepción; se guarda con el
-            // evento.
+            // renovación. Al pasar a ConError la conexión fijó HuecoPendienteDesdeUtc, y Conexiones avisa de posible
+            // correo no recuperado desde esa fecha: el hueco queda declarado, no se lee (issue #2124). Graph reintenta
+            // la entrega hasta cuatro horas, así que el correo de una notificación descartada pudo llegar hasta cuatro
+            // horas antes de su recepción: la marca retrocede a recepción − 4 h, nunca se adelanta, y se guarda con el
+            // evento. Sobre una Deshabilitada no actúa.
             conexion.RegistrarNotificacionDescartada(evento.FechaRecepcionUtc);
             logger.LogWarning(
                 "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",

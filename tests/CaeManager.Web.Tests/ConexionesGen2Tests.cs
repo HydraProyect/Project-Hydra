@@ -347,6 +347,22 @@ public class ConexionesGen2Tests : BunitContext
         var avisoNoRecuperado = cut.FindAll("[data-testid=aviso-correo-no-recuperado]").Should().ContainSingle().Subject;
         avisoNoRecuperado.Closest("tr")!.TextContent.Should().Contain("norecuperado@ejemplo.test");
         avisoNoRecuperado.TextContent.Should().Contain("02/11/2026 10:30", "la fecha se muestra en hora peninsular");
+        avisoNoRecuperado.TextContent.Should().Contain("no se recupera solo", "el hueco queda declarado, no recuperado");
+        avisoRetenido.TextContent.Should().Contain("Se ingerirá en cuanto se compruebe");
+    }
+
+    /// <summary>
+    /// Una conexión Deshabilitada no ingiere nada: su aviso de correo retenido no promete que el correo vaya a entrar.
+    /// </summary>
+    [Fact]
+    public void El_aviso_de_correo_retenido_de_una_conexion_desconectada_no_promete_ingesta()
+    {
+        var desconectada = Buzon("desconectada") with { Estado = EstadoConexionIntegracion.Deshabilitada, CorreoRetenido = true };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [desconectada] });
+
+        var aviso = cut.FindAll("[data-testid=aviso-correo-retenido]").Should().ContainSingle().Subject;
+        aviso.TextContent.Should().Contain("mientras siga desconectado no se ingerirá");
+        aviso.TextContent.Should().NotContain("Se ingerirá en cuanto");
     }
 
     [Fact]

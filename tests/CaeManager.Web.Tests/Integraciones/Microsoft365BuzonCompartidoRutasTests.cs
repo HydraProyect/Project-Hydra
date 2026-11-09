@@ -38,6 +38,8 @@ public class Microsoft365BuzonCompartidoRutasTests
     private static Microsoft365GraphClient Cliente(HttpMessageHandler handler) =>
         new(new HttpClient(handler), Options.Create(new Microsoft365GraphOptions()), NullLogger<Microsoft365GraphClient>.Instance);
 
+    private static readonly Func<CancellationToken, Task<bool>> PuertaAbierta = _ => Task.FromResult(true);
+
     [Fact]
     public void La_ruta_de_un_buzon_compartido_escapa_la_direccion_y_la_del_propio_es_me()
     {
@@ -90,10 +92,38 @@ public class Microsoft365BuzonCompartidoRutasTests
         var handler = new AnotaPeticionesHandler(HttpStatusCode.Created, """{"id":"m1","conversationId":"c1"}""");
 
         var resultado = await Cliente(handler).EnviarNuevoMensajeAsync(
-            "token", buzon, ["contacto@empresa.example"], "Asunto", "<p>Hola</p>", null, CancellationToken.None);
+            "token", buzon, ["contacto@empresa.example"], "Asunto", "<p>Hola</p>", null, PuertaAbierta, CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         handler.Peticiones.Select(p => p.Url).Should().Equal($"{raiz}/messages", $"{raiz}/messages/m1/send");
+    }
+
+    /// <summary>
+    /// La conexión deja de estar operativa (o no se puede comprobar) mientras Graph crea el borrador: la puerta, que se
+    /// evalúa entre crear y enviar, lo impide. El borrador se borra y nunca llega a /send.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Si_la_puerta_no_pasa_entre_crear_y_enviar_el_borrador_se_borra_y_no_se_envia(bool puertaLanza)
+    {
+        var handler = new AnotaPeticionesHandler(HttpStatusCode.Created, """{"id":"m1","conversationId":"c1"}""");
+        var evaluaciones = 0;
+        Func<CancellationToken, Task<bool>> puerta = _ =>
+        {
+            evaluaciones++;
+            return puertaLanza ? throw new InvalidOperationException("la base no responde") : Task.FromResult(false);
+        };
+
+        var resultado = await Cliente(handler).EnviarNuevoMensajeAsync(
+            "token", Compartido, ["contacto@empresa.example"], "Asunto", "<p>Hola</p>", null, puerta, CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        evaluaciones.Should().Be(1);
+        handler.Peticiones.Select(p => (p.Metodo, p.Url)).Should().Equal(
+            (HttpMethod.Post, $"{RaizCompartido}/messages"),
+            (HttpMethod.Delete, $"{RaizCompartido}/messages/m1"));
     }
 
     [Fact]
@@ -374,13 +404,13 @@ public class Microsoft365BuzonCompartidoRutasTests
     [Theory]
     [InlineData("no es json", "application/json")]
     [InlineData("{}", "application/json; charset=no-existe")]
-    public async Task Un_200_ilegible_del_canje_de_tokens_es_un_fallo(string cuerpo, string tipo)
+    public async Task Un_200_ilegible_del_canje_de_tokens_es_un_fallo_transitorio(string cuerpo, string tipo)
     {
         var resultado = await ClienteConSecreto(new RespuestaFijaHandler(cuerpo, tipo))
             .IntercambiarCodigoPorTokensAsync("codigo", "https://app.test/callback", CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ErrorAutenticacion");
+        resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.Transitorio, "un cuerpo ilegible no es un rechazo de Entra");
     }
 
     /// <summary>Graph puede devolver nulos dentro de las listas: el mensaje se lee igual, sin esos elementos.</summary>
@@ -470,6 +500,43 @@ public class Microsoft365BuzonCompartidoRutasTests
         await accion.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    /// <summary>
+    /// Solo un rechazo de Microsoft es definitivo. Un 408, 429 o 5xx al pedir un token (de aplicación o delegado) o al
+    /// renovar una suscripción es transitorio: la renovación lo reintenta sin pasar la conexión a ConError.
+    /// </summary>
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests, true)]
+    [InlineData(HttpStatusCode.RequestTimeout, true)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    [InlineData(HttpStatusCode.BadRequest, false)]
+    [InlineData(HttpStatusCode.Unauthorized, false)]
+    [InlineData(HttpStatusCode.NotFound, false)]
+    public async Task Pedir_token_y_renovar_distinguen_el_fallo_transitorio_del_definitivo(HttpStatusCode estado, bool transitorio)
+    {
+        var aplicacion = await ClienteConSecreto(new AnotaPeticionesHandler(estado))
+            .ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
+        var delegado = await ClienteConSecreto(new AnotaPeticionesHandler(estado))
+            .RefrescarTokensAsync("refresh", CancellationToken.None);
+        var renovacion = await Cliente(new AnotaPeticionesHandler(estado))
+            .RenovarSuscripcionAsync("token", "suscripcion-1", CancellationToken.None);
+
+        foreach (var error in new[] { aplicacion.Error, delegado.Error, renovacion.Error })
+            CodigosErrorMicrosoft365.EsTransitorio(error).Should().Be(transitorio, $"{(int)estado} con código {error.Codigo}");
+        aplicacion.Error.Codigo.Should().Be(transitorio ? CodigosErrorMicrosoft365.Transitorio : "Integraciones.Microsoft365.ErrorAutenticacion");
+        renovacion.Error.Codigo.Should().Be(transitorio ? CodigosErrorMicrosoft365.Transitorio : "Integraciones.Microsoft365.ErrorSuscripcion");
+    }
+
+    [Fact]
+    public async Task Un_timeout_de_Graph_al_renovar_la_suscripcion_es_un_fallo_transitorio()
+    {
+        var resultado = await Cliente(new LanzaTimeoutHandler())
+            .RenovarSuscripcionAsync("token", "suscripcion-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        CodigosErrorMicrosoft365.EsTransitorio(resultado.Error).Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.NotFound, "Integraciones.Microsoft365.MensajeNoEncontrado")]
     [InlineData(HttpStatusCode.Forbidden, "Integraciones.Microsoft365.ErrorApi")]
@@ -493,7 +560,7 @@ public class Microsoft365BuzonCompartidoRutasTests
         var buzon = compartido ? Compartido : new BuzonGraph("propio@tenant.com", false);
 
         var resultado = await Cliente(new AnotaPeticionesHandler(estado))
-            .EnviarNuevoMensajeAsync("token", buzon, ["destino@otra.es"], "Asunto", "<p>Hola</p>", null, CancellationToken.None);
+            .EnviarNuevoMensajeAsync("token", buzon, ["destino@otra.es"], "Asunto", "<p>Hola</p>", null, PuertaAbierta, CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(codigo);

@@ -14,12 +14,13 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 public class EnviarMensajeNuevoCommandHandlerTests
 {
     private static (EnviarMensajeNuevoCommandHandler Handler, ConversacionRepositorioFalso Conversaciones, Microsoft365GraphClientFalso GraphClient) CrearHandler(
-        ConexionIntegracion conexion, bool noOperativaEnBase = false)
+        ConexionIntegracion conexion, bool noOperativaEnBase = false, Action<ConexionIntegracionRepositorioFalso>? configurarRepositorio = null)
     {
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         if (noOperativaEnBase)
             conexionRepositorio.NoOperativasEnBase.Add(conexion.Id);
+        configurarRepositorio?.Invoke(conexionRepositorio);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
@@ -88,6 +89,32 @@ public class EnviarMensajeNuevoCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        graphClient.VecesEnviado.Should().Be(0);
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Crear el borrador y enviarlo son dos llamadas a Graph: la conexión pasa la puerta antes de crear el borrador y otro
+    /// proceso la pasa a ConError mientras se crea. La segunda relectura, entre crear y enviar, lo ve y el borrador no sale.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_conexion_deja_de_estar_operativa_entre_crear_el_borrador_y_enviarlo_no_lo_envia()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
+        var (handler, conversaciones, graphClient) = CrearHandler(conexion, configurarRepositorio: repositorio =>
+            repositorio.AlReleer = vez =>
+            {
+                if (vez == 2)
+                    repositorio.NoOperativasEnBase.Add(conexion.Id);
+            });
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(conexion.Id, ["contacto@tenant.com"], "Bienvenida", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        graphClient.BorradoresCreados.Should().Be(1);
+        graphClient.BorradoresNoEnviados.Should().Be(1);
         graphClient.VecesEnviado.Should().Be(0);
         conversaciones.Conversaciones.Should().BeEmpty();
     }

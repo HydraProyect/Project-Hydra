@@ -283,6 +283,32 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.Eventos.Eventos.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// La ventana caduca mientras dura la lectura de la identidad en Graph: el ciclo vuelve a mirar la caducidad antes
+    /// de marcarla verificada, y la marca queda en la caducidad. Sin esa segunda comprobación, la verificación nueva
+    /// taparía el intervalo sin conexión operativa.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_verificacion_caduca_durante_la_llamada_a_Graph_la_marca_queda_en_la_caducidad()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada(
+            "cae@operador.test", "inbox-cae", ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromMinutes(5));
+        DateTime? caducidad = null;
+        escenario.Graph.AlLeerIdentidad = () =>
+        {
+            // El tiempo pasa durante la llamada: la verificación envejece hasta caducar.
+            conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromMinutes(10));
+            caducidad = conexion.IdentidadVerificadaUtc!.Value + ConexionIntegracion.VentanaVerificacionIdentidad;
+        };
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        caducidad.Should().NotBeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caducidad);
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue("la identidad coincide y se vuelve a verificar");
+    }
+
     /// <summary>La caducidad se guarda aunque el resto del ciclo falle de forma transitoria (sin token).</summary>
     [Fact]
     public async Task La_marca_de_caducidad_se_guarda_aunque_falle_el_token()
@@ -361,10 +387,14 @@ public class CompletarIdentidadBuzonServiceTests
         var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
         conexion.MarcarConError(motivo);
 
-        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, "No se pudo renovar la suscripción.");
+        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, FalloDefinitivo, DateTime.UtcNow.AddDays(1), DateTime.UtcNow)
+            .Should().BeFalse();
 
         conexion.UltimoError.Should().Be(motivo);
     }
+
+    private static readonly Error FalloDefinitivo =
+        Error.Crear("Integraciones.Microsoft365.ErrorSuscripcion", "No se pudo renovar la suscripción.");
 
     [Fact]
     public void Un_fallo_de_renovacion_marca_ConError_una_conexion_sin_motivo_de_identidad()
@@ -372,8 +402,54 @@ public class CompletarIdentidadBuzonServiceTests
         var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
         conexion.MarcarConError("motivo anterior cualquiera");
 
-        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, "No se pudo renovar la suscripción.");
+        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, FalloDefinitivo, DateTime.UtcNow.AddDays(1), DateTime.UtcNow)
+            .Should().BeTrue();
 
         conexion.UltimoError.Should().Be("No se pudo renovar la suscripción.");
+    }
+
+    /// <summary>
+    /// Un fallo transitorio del token o de la renovación (429, 5xx, red, tiempo agotado, cuerpo ilegible) no dice nada de
+    /// la conexión: no la pasa a ConError ni fija la marca. Se reintenta en el siguiente ciclo.
+    /// </summary>
+    [Theory]
+    [InlineData(CodigosErrorMicrosoft365.Transitorio)]
+    [InlineData(CodigosErrorMicrosoft365.ErrorRed)]
+    [InlineData(CodigosErrorMicrosoft365.TiempoAgotado)]
+    public void Un_fallo_transitorio_de_renovacion_no_pasa_la_conexion_a_ConError(string codigo)
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+
+        var marcada = CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(
+            conexion, Error.Crear(codigo, "transitorio"), DateTime.UtcNow.AddHours(-2), DateTime.UtcNow);
+
+        marcada.Should().BeFalse();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Un fallo definitivo con la suscripción ya expirada: desde la expiración no llegan notificaciones, así que la
+    /// marca del hueco va en la expiración y no en el momento del ciclo. Con la suscripción aún vigente, va en ahora.
+    /// </summary>
+    [Theory]
+    [InlineData(-3, -3)]
+    [InlineData(5, 0)]
+    public void Un_fallo_definitivo_de_renovacion_pasa_a_ConError_con_la_marca_en_la_expiracion_si_ya_paso(
+        int horasHastaExpiracion, int horasEsperadasDesdeAhora)
+    {
+        var ahora = new DateTime(2026, 11, 9, 12, 0, 0, DateTimeKind.Utc);
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("cae@operador.test", "Buzón CAE", Directorio, Guid.NewGuid());
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(ahora.AddHours(-4));
+
+        var marcada = CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(
+            conexion, FalloDefinitivo, ahora.AddHours(horasHastaExpiracion), ahora);
+
+        marcada.Should().BeTrue();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(horasEsperadasDesdeAhora));
     }
 }

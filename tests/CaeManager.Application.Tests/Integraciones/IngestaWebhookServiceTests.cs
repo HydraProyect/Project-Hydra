@@ -201,10 +201,11 @@ public class IngestaWebhookServiceTests
 
     /// <summary>
     /// Una notificación que esperaba en la cola cuando la conexión cayó se descarta (ConError), pero su correo es
-    /// anterior a la marca de la caída: la marca retrocede hasta su recepción para que la lectura del hueco lo cubra.
+    /// anterior a la marca de la caída, y Graph pudo tardar hasta cuatro horas en entregarla: la marca retrocede a su
+    /// recepción menos cuatro horas para que el aviso de Conexiones cubra ese correo.
     /// </summary>
     [Fact]
-    public async Task Descartar_una_notificacion_anterior_a_la_caida_retrocede_la_marca_hasta_su_recepcion()
+    public async Task Descartar_una_notificacion_anterior_a_la_caida_retrocede_la_marca_a_su_recepcion_menos_cuatro_horas()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE").Verificada();
         var evento = new EventoWebhook(conexion.Id, "{}");
@@ -220,7 +221,7 @@ public class IngestaWebhookServiceTests
 
         evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         conversaciones.Conversaciones.Should().BeEmpty();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(evento.FechaRecepcionUtc - ConexionIntegracion.RetrasoMaximoNotificacion);
     }
 
     [Fact]
@@ -648,6 +649,7 @@ public class IngestaWebhookServiceTests
 
         evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("una conexión desconectada a propósito no declara hueco");
     }
 
     /// <summary>
