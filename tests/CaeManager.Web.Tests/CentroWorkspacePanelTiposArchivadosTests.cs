@@ -138,20 +138,24 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
         var cut = Render<CentroWorkspacePanel>(p => p
             .Add(c => c.EntidadId, centroId)
             .Add(c => c.PestanaActiva, "requisitos"));
-        cut.WaitForAssertion(() => cut.FindAll(".workspace-tarjeta-requisito").Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll(".requisitos-centro").Should().NotBeEmpty());
         return cut;
     }
 
     [Fact]
-    public void Un_tipo_archivado_que_el_Centro_no_exige_no_se_ofrece_para_marcarlo()
+    public async Task Un_tipo_archivado_que_el_Centro_no_exige_no_se_ofrece_para_marcarlo()
     {
         var cut = Renderizar(
             Fila(Guid.NewGuid(), "RLC (TC1)", aplica: false, incluido: null),
             Fila(Guid.NewGuid(), "Recibo de pago RLC/TC1", aplica: false, incluido: null, archivado: true, sustituto: "RLC (TC1)"));
 
-        var tarjetas = cut.FindAll(".workspace-tarjeta-requisito-cabecera span:first-child").Select(s => s.TextContent.Trim());
-        tarjetas.Should().BeEquivalentTo(new[] { "RLC (TC1)" }, "control positivo: el tipo vigente sí se ofrece, el archivado no");
-        cut.Markup.Should().NotContain("Recibo de pago RLC/TC1");
+        // Lo ofrece el buscador de «Añadir requisito» (la única vía para marcar un tipo): el vigente sí, el archivado no.
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Añadir requisito").ClickAsync(new MouseEventArgs());
+        await cut.Find("#requisitos-busqueda").InputAsync(new ChangeEventArgs { Value = "R" });
+
+        var ofrecidos = cut.FindAll(".requisitos-opcion .requisitos-opcion-nombre").Select(s => s.TextContent.Trim());
+        ofrecidos.Should().BeEquivalentTo(new[] { "RLC (TC1)" }, "control positivo: el tipo vigente sí se ofrece, el archivado no");
+        cut.FindAll(".requisitos-resultados").Single().TextContent.Should().NotContain("Recibo de pago RLC/TC1");
     }
 
     [Fact]
@@ -181,10 +185,10 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
         var avisos = new List<(EntidadWorkspace Tipo, Guid Id)>();
         Services.GetRequiredService<ContextWorkspaceService>().OnEntidadGuardada += (tipo, id) => avisos.Add((tipo, id));
 
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Configurar").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.FindAll(".campo-checkbox").Should().NotBeEmpty());
-        cut.Find(".campo-checkbox input[type=checkbox]").Change(false);
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".requisitos-edicion input[type=radio]").Should().HaveCount(2));
+        await cut.FindAll(".requisitos-edicion input[type=radio]")[1].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar ajustes").ClickAsync(new MouseEventArgs());
 
         var envio = _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Subject;
         envio.TipoDocumentoId.Should().Be(ArchivadoExigidoId);
@@ -199,13 +203,13 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
         var cut = Renderizar(
             Fila(ArchivadoExigidoId, "Recibo de pago RLC/TC1", aplica: true, incluido: true, archivado: true, sustituto: "RLC (TC1)"));
 
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Configurar").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo archivado: solo se puede desmarcar; el sustituto es «RLC (TC1)»"));
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label^='Editar ajustes de']").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Tipo archivado: solo se puede excluir; el sustituto es «RLC (TC1)»"));
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Guardar ajustes").ClickAsync(new MouseEventArgs());
 
         _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().BeEmpty(
             "el Command rechaza Incluido = true de un archivado: se avisa sin enviarlo");
-        cut.Markup.Should().Contain("solo se puede desmarcar. Exige su sustituto, «RLC (TC1)»");
+        cut.Markup.Should().Contain("solo se puede excluir. Exige su sustituto, «RLC (TC1)»");
     }
 
     [Fact]
@@ -215,8 +219,8 @@ public class CentroWorkspacePanelTiposArchivadosTests : BunitContext
         var avisos = new List<(EntidadWorkspace Tipo, Guid Id)>();
         Services.GetRequiredService<ContextWorkspaceService>().OnEntidadGuardada += (tipo, id) => avisos.Add((tipo, id));
 
-        await cut.FindAll(".workspace-tarjeta-requisito-acciones button").Single(b => b.TextContent.Trim() == "Quitar ajuste")
-            .ClickAsync(new MouseEventArgs());
+        // Un tipo que solo exige este Centro: la papelera de la fila es «Quitar ajuste» (con su confirmación).
+        await cut.Find("button[aria-label='Quitar requisito Recibo de pago RLC/TC1']").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Quitar ajuste").ClickAsync(new MouseEventArgs());
 
         var envio = _mediador.Enviadas.OfType<EliminarDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Subject;
