@@ -12,7 +12,9 @@ namespace CaeManager.Application.Integraciones;
 /// cada Tenant con su ámbito explícito:
 /// <list type="bullet">
 /// <item><see cref="CompletarAsync"/>: el ciclo diario de la renovación de suscripciones, antes de renovar, sobre las que
-/// no están Deshabilitadas.</item>
+/// no están Deshabilitadas. Se salta las Habilitadas verificadas hace menos de
+/// <see cref="ConexionIntegracion.FrescuraSuficienteCicloDiario"/>: el reintento ya las cubre, y una conexión sana no se
+/// verifica dos veces al día. La renovación de su suscripción no se salta.</item>
 /// <item><see cref="ReintentarAsync"/>: el reintento acotado, cada pocos minutos, solo sobre las Habilitadas con la
 /// verificación de más de <see cref="ConexionIntegracion.UmbralReintentoVerificacion"/> o sin verificar, para que un
 /// fallo transitorio del ciclo diario no deje la conexión sin verificar hasta el día siguiente. Cada conexión se
@@ -103,8 +105,8 @@ public class CompletarIdentidadBuzonService(
         if (conexion.Estado == EstadoConexionIntegracion.ConError && EsMotivoDeIdentidad(conexion.UltimoError))
             return false;
 
-        conexion.MarcarConError(error.Mensaje, ahoraUtc);
-        return true;
+        // Una Deshabilitada no se mueve (ver ConexionIntegracion.MarcarConError).
+        return conexion.MarcarConError(error.Mensaje, ahoraUtc);
     }
 
     /// <returns>Las conexiones cuya identidad se leyó y coincide (o se acaba de completar) en este ciclo.</returns>
@@ -186,6 +188,16 @@ public class CompletarIdentidadBuzonService(
         }
     }
 
+    /// <summary>
+    /// El estado releído dentro del cerrojo sigue siendo uno que este recorrido debe tocar: el reintento, solo
+    /// Habilitada; el ciclo diario, Habilitada o ConError. Una Deshabilitada nunca: Desconectar liberó su reclamación
+    /// entre la selección y ahora, y solo Reactivar la saca de ahí, reclamándola de nuevo.
+    /// </summary>
+    internal static bool EstadoAComprobar(EstadoConexionIntegracion estado, bool esReintento) =>
+        esReintento
+            ? estado == EstadoConexionIntegracion.Habilitada
+            : estado is EstadoConexionIntegracion.Habilitada or EstadoConexionIntegracion.ConError;
+
     /// <returns>true si la identidad se leyó y coincide con la guardada, o se acaba de completar.</returns>
     private async Task<bool> ComprobarAsync(Guid conexionId, bool esReintento, CancellationToken cancellationToken)
     {
@@ -194,7 +206,20 @@ public class CompletarIdentidadBuzonService(
         if (conexion is null)
             return false;
 
+        // Lo que cambió desde la selección (Desconectar, un ConError) decide aquí: sin leer Graph ni mutar nada.
+        if (!EstadoAComprobar(conexion.Estado, esReintento))
+        {
+            logger.LogInformation(
+                "La conexión {ConexionId} pasó a {Estado} desde que se seleccionó: no se comprueba.", conexionId, conexion.Estado);
+            return false;
+        }
+
         var ahoraUtc = DateTime.UtcNow;
+
+        // Una Habilitada verificada hace poco (por el reintento o por Reactivar) no se vuelve a leer en el ciclo diario:
+        // el reintento la cubre cuando envejezca. Una ConError sí: esta lectura es su vía de vuelta.
+        if (!esReintento && conexion.Estado == EstadoConexionIntegracion.Habilitada && conexion.VerificadaRecientemente(ahoraUtc))
+            return false;
 
         // Ningún intento automático antes de lo programado: ni el ciclo diario se salta un Retry-After, ni dos intentos
         // de la misma conexión van a menos de IntervaloReintentoVerificacion.

@@ -308,8 +308,38 @@ public class ConexionIntegracionTests
         conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromMinutes(5));
         conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(2), "una espera más corta no la adelanta");
 
-        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromHours(6));
-        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(6));
+        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromMinutes(150));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddMinutes(150));
+    }
+
+    /// <summary>
+    /// Un Retry-After de días no aparca la verificación más allá de la ventana de 26 h: se respeta hasta
+    /// <see cref="ConexionIntegracion.EsperaMaximaRetryAfter"/> (3 h), que deja intentos antes de caducar.
+    /// </summary>
+    [Fact]
+    public void Aplazar_por_Retry_After_se_acota_a_tres_horas()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-21));
+
+        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromDays(5));
+
+        ConexionIntegracion.EsperaMaximaRetryAfter.Should().Be(TimeSpan.FromHours(3));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(3));
+
+        conexion.AplazarReintentoVerificacion(ahora, TimeSpan.FromHours(3) + TimeSpan.FromTicks(1));
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(ahora.AddHours(3), "el tope es exacto, no aproximado");
+    }
+
+    [Fact]
+    public void Verificada_recientemente_es_menos_de_veinte_horas_y_no_una_fecha_futura()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+
+        Verificada(ahora.AddHours(-19)).VerificadaRecientemente(ahora).Should().BeTrue();
+        Verificada(ahora.AddHours(-20)).VerificadaRecientemente(ahora).Should().BeFalse("el ciclo diario la vuelve a leer");
+        Verificada(ahora.AddHours(1)).VerificadaRecientemente(ahora).Should().BeFalse("una fecha adelantada no cuenta");
+        new ConexionIntegracion("cae@operador.test", "Buzón CAE").VerificadaRecientemente(ahora).Should().BeFalse();
     }
 
     [Fact]
@@ -327,15 +357,33 @@ public class ConexionIntegracionTests
         conexion.HuecoPendienteDesdeUtc.Should().Be(caida, "el hueco queda declarado: nada lo limpia en esta versión");
     }
 
+    /// <summary>
+    /// Desconectar liberó la reclamación del buzón y solo Reactivar la vuelve a reclamar: un ConError tardío (de un
+    /// recorrido que la seleccionó antes de desconectarla) no la saca de Deshabilitada, ni le pone motivo ni marca.
+    /// </summary>
     [Fact]
-    public void Una_conexion_deshabilitada_que_pasa_a_ConError_no_fija_marca()
+    public void MarcarConError_sobre_una_deshabilitada_la_deja_deshabilitada_sin_motivo_ni_marca()
     {
         var conexion = Verificada(DateTime.UtcNow.AddHours(-1));
         conexion.Deshabilitar();
 
-        conexion.MarcarConError("renovación fallida");
+        var cambio = conexion.MarcarConError("renovación fallida");
 
+        cambio.Should().BeFalse();
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        conexion.UltimoError.Should().BeNull();
         conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void MarcarConError_sobre_una_habilitada_devuelve_true_y_la_pasa_a_ConError()
+    {
+        var conexion = Verificada(DateTime.UtcNow.AddHours(-1));
+
+        conexion.MarcarConError("renovación fallida").Should().BeTrue();
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be("renovación fallida");
     }
 
     [Fact]

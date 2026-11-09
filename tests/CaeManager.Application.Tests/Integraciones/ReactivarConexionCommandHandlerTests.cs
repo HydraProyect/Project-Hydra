@@ -264,6 +264,99 @@ public class ReactivarConexionCommandHandlerTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
     }
 
+    /// <summary>
+    /// 403/404 es definitivo, con la misma clasificación que el ciclo: una Habilitada (la pantalla aún mostraba ConError,
+    /// pero el ciclo ya la había rehabilitado) pasa a ConError con el motivo del ciclo y la marca del hueco. No se pide
+    /// «inténtalo de nuevo».
+    /// </summary>
+    [Fact]
+    public async Task Sin_acceso_al_buzon_una_habilitada_pasa_a_ConError_con_el_motivo_del_ciclo_y_la_marca()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "403") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinAccesoBuzon);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        conexion.HuecoPendienteDesdeUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1), "pasar a ConError marca (disparador c)");
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Sin_acceso_al_buzon_conserva_el_motivo_de_identidad_mas_concreto()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "404") };
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinAccesoBuzon);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+    }
+
+    /// <summary>Desde Deshabilitada, un 403/404 no la mueve: sigue desconectada, sin reclamación ni marca.</summary>
+    [Fact]
+    public async Task Sin_acceso_al_buzon_una_deshabilitada_sigue_deshabilitada_sin_guardar()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "403") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, reclamaciones, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinAccesoBuzon);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        conexion.UltimoError.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        reclamaciones.Reclamaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Un transitorio (429, 5xx, 401, tiempo agotado) no dice nada del buzón: una Habilitada no cambia.</summary>
+    [Theory]
+    [InlineData("Integraciones.Microsoft365.TiempoAgotado")]
+    [InlineData("Integraciones.Microsoft365.ErrorApi")]
+    [InlineData("Integraciones.Microsoft365.Limitado")]
+    public async Task Un_transitorio_no_cambia_una_habilitada_y_pide_reintentar(string codigo)
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-1));
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { ErrorIdentidadBuzon = Error.Crear(codigo, "fallo") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     [Fact]
     public async Task Rechaza_una_conexion_que_no_existe()
     {

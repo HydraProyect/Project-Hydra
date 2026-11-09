@@ -12,12 +12,19 @@ public sealed class CerrojoVerificacionBuzonFalso : ICerrojoVerificacionBuzon
 
     public List<Guid> Pedidos { get; } = [];
 
+    /// <summary>
+    /// Corre al tomar el cerrojo, antes del trabajo: lo que otro proceso cambió entre la selección de la conexión y su
+    /// comprobación (Desconectar no toma este cerrojo).
+    /// </summary>
+    public Action<Guid>? AlTomar { get; set; }
+
     public async Task<bool> IntentarEjecutarAsync(Guid conexionId, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
     {
         Pedidos.Add(conexionId);
         if (Ocupadas.Contains(conexionId))
             return false;
 
+        AlTomar?.Invoke(conexionId);
         await trabajo(cancellationToken);
         return true;
     }

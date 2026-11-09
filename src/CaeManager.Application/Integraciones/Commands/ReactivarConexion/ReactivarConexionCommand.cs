@@ -82,16 +82,17 @@ public class ReactivarConexionCommandHandler(
         // Command.
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
         {
-            var (comprobacion, identidadCambiada) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
+            var (comprobacion, motivoDefinitivo) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
             if (comprobacion.EsFallido)
             {
-                // Resultado definitivo, igual que en el ciclo de verificación: la dirección responde con otro buzón.
-                // La conexión deja de estar operativa ya (su verificación anterior no la sostiene), con el mismo motivo
-                // que pone el ciclo. Solo esta mutación se guarda: es lo único que se ha tocado. Desde Deshabilitada
-                // no: sigue desconectada, sin suscripción que renovar.
-                if (identidadCambiada && conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
+                // Resultado definitivo, igual que en el ciclo de verificación (la dirección responde con otro buzón, o
+                // Microsoft dice 403/404): la conexión deja de estar operativa ya, porque su verificación anterior no la
+                // sostiene, con el mismo motivo que pone el ciclo y la marca del hueco (disparador c). Solo esta
+                // mutación se guarda: es lo único que se ha tocado. Desde Deshabilitada no: sigue desconectada, sin
+                // reclamación ni suscripción (MarcarConError tampoco la movería).
+                if (motivoDefinitivo is { } motivo && conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
                 {
-                    conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
+                    conexion.MarcarConError(motivo);
                     await unitOfWork.SaveChangesAsync(cancellationToken);
                 }
 
@@ -147,32 +148,49 @@ public class ReactivarConexionCommandHandler(
     /// ese campo, o una cuyo relleno chocó con la reclamación de otro Tenant, no la tiene y se vuelve a conectar,
     /// donde el índice único decide) y el buzón que hoy responde a su dirección debe seguir siendo el mismo. Si no
     /// se puede comprobar, no se reactiva.
+    /// <para>
+    /// La clasificación es la del ciclo de verificación (<see cref="CompletarIdentidadBuzonService"/>): solo la identidad
+    /// distinta y el 403/404 (<see cref="CodigosErrorMicrosoft365.SinAccesoBuzon"/>) son definitivos y devuelven su motivo
+    /// de ConError. Un fallo del token o cualquier otro de la lectura (429, 5xx, 401, tiempo agotado, red) es transitorio:
+    /// solo se pide volver a intentarlo.
+    /// </para>
     /// </summary>
-    /// <returns>El resultado y si el fallo es que la dirección responde hoy con otro buzón (definitivo).</returns>
-    private async Task<(Result Resultado, bool IdentidadCambiada)> ComprobarIdentidadBuzonAsync(
+    /// <returns>El resultado y, si el fallo es definitivo, el motivo de ConError que pone el ciclo.</returns>
+    private async Task<(Result Resultado, string? MotivoDefinitivo)> ComprobarIdentidadBuzonAsync(
         ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
         if (conexion.IdentidadBuzon is not { } guardada)
             return (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), false);
+                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), null);
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
-            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), false);
+            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null);
 
         var identidad = await graphClient.ObtenerIdentidadBuzonAsync(token.Valor, BuzonGraph.De(conexion), cancellationToken);
         if (identidad.EsFallido)
-            return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), false);
+        {
+            if (identidad.Error.Codigo != CodigosErrorMicrosoft365.SinAccesoBuzon)
+                return (Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos comprobar el buzón en Microsoft. Inténtalo de nuevo.")), null);
+
+            // Como en el ciclo: un motivo de identidad más concreto que ya tuviera la conexión se conserva.
+            var motivo = CompletarIdentidadBuzonService.EsMotivoDeIdentidad(conexion.UltimoError)
+                ? conexion.UltimoError
+                : CompletarIdentidadBuzonService.MensajeSinAccesoBuzon;
+            return (Result.Fallo(Error.Crear(CodigoSinAccesoBuzon, CompletarIdentidadBuzonService.MensajeSinAccesoBuzon)), motivo);
+        }
 
         return string.Equals(identidad.Valor, guardada, StringComparison.Ordinal)
-            ? (Result.Exito(), false)
+            ? (Result.Exito(), null)
             : (Result.Fallo(Error.Crear(
                 CodigoReconexionNecesaria,
-                "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones.")), true);
+                "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones.")),
+                CompletarIdentidadBuzonService.MensajeBuzonCambiado);
     }
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";
+    public const string CodigoSinAccesoBuzon = "Integraciones.Microsoft365.ReactivarSinAccesoBuzon";
     public const string CodigoSinComprobacion = "Integraciones.Microsoft365.BuzonSinComprobar";
     public const string CodigoVerificacionEnCurso = "Integraciones.Microsoft365.VerificacionEnCurso";
 }

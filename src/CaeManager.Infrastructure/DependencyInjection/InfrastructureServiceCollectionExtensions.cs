@@ -519,6 +519,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Integraciones.AccesoGraphService>();
         services.AddScoped<CaeManager.Application.Integraciones.AltaBuzonMicrosoft365Service>();
         services.AddScoped<CaeManager.Application.Integraciones.CompletarIdentidadBuzonService>();
+        services.AddScoped<CaeManager.Application.Integraciones.RenovacionSuscripcionesWebhookService>();
         services.AddSingleton<CaeManager.Application.Integraciones.ICerrojoVerificacionBuzon, CerrojoVerificacionBuzonPostgres>();
         services.AddScoped<CaeManager.Application.Integraciones.IngestaWebhookService>();
         services.AddScoped<CaeManager.Application.Integraciones.AcuseAutomaticoBuzonService>();

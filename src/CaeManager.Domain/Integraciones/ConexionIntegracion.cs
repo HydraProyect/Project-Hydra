@@ -143,6 +143,19 @@ public class ConexionIntegracion : EntidadBase
     public static readonly TimeSpan IntervaloReintentoVerificacion = TimeSpan.FromHours(2);
 
     /// <summary>
+    /// Tope de la espera que se respeta de un Retry-After (<see cref="AplazarReintentoVerificacion"/>): deja varios
+    /// intentos dentro de las seis horas entre <see cref="UmbralReintentoVerificacion"/> y
+    /// <see cref="VentanaVerificacionIdentidad"/>.
+    /// </summary>
+    public static readonly TimeSpan EsperaMaximaRetryAfter = TimeSpan.FromHours(3);
+
+    /// <summary>
+    /// El ciclo diario no vuelve a leer la identidad de una conexión verificada hace menos de esto: el reintento ya la
+    /// cubre cuando su verificación envejece. Es el mismo umbral, para que una conexión sana se verifique una vez al día.
+    /// </summary>
+    public static readonly TimeSpan FrescuraSuficienteCicloDiario = UmbralReintentoVerificacion;
+
+    /// <summary>
     /// Cuánto retrocede la marca del hueco desde la recepción de una notificación descartada: Graph reintenta la entrega
     /// de una notificación hasta cuatro horas, así que su correo pudo llegar al buzón hasta ese tiempo antes.
     /// </summary>
@@ -176,6 +189,15 @@ public class ConexionIntegracion : EntidadBase
         EstadoConexionIntegracion estado, ProveedorIntegracion proveedor, DateTime? identidadVerificadaUtc, DateTime ahoraUtc) =>
         estado == EstadoConexionIntegracion.Habilitada
         && (proveedor != ProveedorIntegracion.Microsoft365 || EsVerificacionVigente(identidadVerificadaUtc, ahoraUtc));
+
+    /// <summary>
+    /// Verificada hace menos de <see cref="FrescuraSuficienteCicloDiario"/> (una fecha futura no cuenta, como en
+    /// <see cref="IdentidadVerificadaVigente"/>): el ciclo diario no necesita volver a leer su identidad.
+    /// </summary>
+    public bool VerificadaRecientemente(DateTime ahoraUtc) =>
+        IdentidadVerificadaUtc is { } verificada
+        && verificada <= ahoraUtc.AddMinutes(5)
+        && ahoraUtc - verificada < FrescuraSuficienteCicloDiario;
 
     private static bool EsVerificacionVigente(DateTime? identidadVerificadaUtc, DateTime ahoraUtc) =>
         identidadVerificadaUtc is { } verificada
@@ -235,10 +257,15 @@ public class ConexionIntegracion : EntidadBase
     /// <summary>
     /// Microsoft respondió 429 con Retry-After: ninguna verificación automática vuelve a intentarlo antes de
     /// <paramref name="ahoraUtc"/> + <paramref name="esperaPedida"/>. Solo retrasa la espera ya programada, nunca la adelanta.
+    /// La espera se acota a <see cref="EsperaMaximaRetryAfter"/>: un Retry-After de días aparcaría la verificación más
+    /// allá de <see cref="VentanaVerificacionIdentidad"/>.
     /// </summary>
     public void AplazarReintentoVerificacion(DateTime ahoraUtc, TimeSpan esperaPedida)
     {
-        var noAntesDe = ahoraUtc + (esperaPedida < TimeSpan.Zero ? TimeSpan.Zero : esperaPedida);
+        var espera = esperaPedida < TimeSpan.Zero ? TimeSpan.Zero
+            : esperaPedida > EsperaMaximaRetryAfter ? EsperaMaximaRetryAfter
+            : esperaPedida;
+        var noAntesDe = ahoraUtc + espera;
         if (ReintentoVerificacionNoAntesDeUtc is not { } actual || actual < noAntesDe)
             ReintentoVerificacionNoAntesDeUtc = noAntesDe;
     }
@@ -350,17 +377,26 @@ public class ConexionIntegracion : EntidadBase
     /// verificación hubiera caducado antes, no se marca desde la caducidad: hasta el ConError el correo esperaba en la cola
     /// sin perderse, y lo que se descarte después lo marca (a) desde su recepción. La pérdida de la suscripción se marca
     /// aparte (<see cref="RegistrarPerdidaSuscripcion"/>).
+    /// <para>
+    /// Una conexión Deshabilitada no cambia: ni estado, ni motivo, ni marca. Desconectar liberó su
+    /// <see cref="ReclamacionBuzonIntegracion"/>, y la única salida de Deshabilitada es Reactivar, que la vuelve a
+    /// reclamar. Si un recorrido que la seleccionó antes de desconectarla pudiera dejarla en ConError, una verificación
+    /// posterior la rehabilitaría sin reclamación, con el buzón quizá ya conectado en otro Tenant propietario.
+    /// </para>
     /// </summary>
-    public void MarcarConError(string mensaje, DateTime? ahoraUtc = null)
+    /// <returns>true si la conexión queda en ConError con este motivo; false si estaba Deshabilitada.</returns>
+    public bool MarcarConError(string mensaje, DateTime? ahoraUtc = null)
     {
         if (string.IsNullOrWhiteSpace(mensaje))
             throw new ArgumentException("El error debe describir qué falló.", nameof(mensaje));
 
-        if (Estado != EstadoConexionIntegracion.Deshabilitada)
-            RegistrarHuecoDesde(ahoraUtc ?? DateTime.UtcNow);
+        if (Estado == EstadoConexionIntegracion.Deshabilitada)
+            return false;
 
+        RegistrarHuecoDesde(ahoraUtc ?? DateTime.UtcNow);
         Estado = EstadoConexionIntegracion.ConError;
         UltimoError = mensaje.Length > LongitudMaximaUltimoError ? mensaje[..LongitudMaximaUltimoError] : mensaje;
+        return true;
     }
 
     /// <summary>

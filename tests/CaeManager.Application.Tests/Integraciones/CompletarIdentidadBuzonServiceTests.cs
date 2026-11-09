@@ -557,20 +557,103 @@ public class CompletarIdentidadBuzonServiceTests
             .And.BeOnOrBefore(DateTime.UtcNow + ConexionIntegracion.IntervaloReintentoVerificacion + CompletarIdentidadBuzonService.MargenAleatorioMaximo);
     }
 
-    /// <summary>429 con Retry-After: ninguna verificación automática vuelve a intentarlo antes de lo que pidió Microsoft.</summary>
-    [Fact]
-    public async Task Un_429_con_Retry_After_aplaza_el_siguiente_intento_hasta_lo_pedido()
+    /// <summary>
+    /// 429 con Retry-After: ninguna verificación automática vuelve a intentarlo antes de lo que pidió Microsoft, hasta
+    /// el tope de <see cref="ConexionIntegracion.EsperaMaximaRetryAfter"/>; un Retry-After de días no la aparca más allá
+    /// de la ventana de 26 h.
+    /// </summary>
+    [Theory]
+    [InlineData(3.0, 3.0)]
+    [InlineData(6.0, 3.0)]
+    [InlineData(120.0, 3.0)]
+    public async Task Un_429_con_Retry_After_aplaza_el_siguiente_intento_hasta_lo_pedido_con_tope(double pedidaHoras, double esperadaHoras)
     {
         var escenario = new Escenario();
         var conexion = AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
         escenario.Graph.ErrorIdentidadBuzon =
-            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "429").ConReintentarTras(TimeSpan.FromHours(6));
+            Error.Crear(CodigosErrorMicrosoft365.Transitorio, "429").ConReintentarTras(TimeSpan.FromHours(pedidaHoras));
 
         await escenario.Servicio().ReintentarAsync(CancellationToken.None);
 
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
-        conexion.ReintentoVerificacionNoAntesDeUtc.Should().BeCloseTo(DateTime.UtcNow.AddHours(6), TimeSpan.FromMinutes(1));
-        conexion.PuedeReintentarVerificacion(DateTime.UtcNow.AddHours(5)).Should().BeFalse();
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().BeCloseTo(DateTime.UtcNow.AddHours(esperadaHoras), TimeSpan.FromMinutes(1));
+        conexion.PuedeReintentarVerificacion(DateTime.UtcNow.AddHours(esperadaHoras - 0.25)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Desconectar no toma el cerrojo de la verificación: entre la selección y la comprobación puede dejar la conexión
+    /// Deshabilitada y liberar su reclamación. La comprobación lo ve al releerla y sale sin leer Graph ni mutar nada; un
+    /// 403/404 posterior no la deja en ConError, desde donde una verificación la rehabilitaría sin reclamación.
+    /// </summary>
+    [Fact]
+    public async Task Desconectar_entre_la_seleccion_y_la_comprobacion_no_deja_ConError_ni_lee_Graph()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@operador.test", "inbox-cae", TimeSpan.FromHours(24));
+        escenario.Graph.ErrorIdentidadBuzon = Error.Crear(CodigosErrorMicrosoft365.SinAccesoBuzon, "403");
+        escenario.Cerrojo.AlTomar = _ => conexion.Deshabilitar();
+        var reintentoAntes = conexion.ReintentoVerificacionNoAntesDeUtc;
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEmpty();
+        escenario.Cerrojo.Pedidos.Should().Equal([conexion.Id], "control positivo: la conexión sí se seleccionó");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        conexion.UltimoError.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.ReintentoVerificacionNoAntesDeUtc.Should().Be(reintentoAntes);
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
+        escenario.Graph.DirectoriosConTokenDeAplicacion.Should().BeEmpty();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>El reintento solo toca Habilitadas: una que pasó a ConError tras la selección tampoco se comprueba.</summary>
+    [Theory]
+    [InlineData(EstadoConexionIntegracion.Deshabilitada)]
+    [InlineData(EstadoConexionIntegracion.ConError)]
+    public async Task El_reintento_no_comprueba_una_conexion_que_dejo_de_estar_Habilitada_tras_la_seleccion(EstadoConexionIntegracion estado)
+    {
+        var escenario = new Escenario();
+        var conexion = AgregarVencidaParaReintento(escenario, "cae@operador.test", "inbox-cae");
+        escenario.Cerrojo.AlTomar = _ =>
+        {
+            if (estado == EstadoConexionIntegracion.Deshabilitada)
+                conexion.Deshabilitar();
+            else
+                conexion.MarcarConError("caída de la renovación");
+        };
+
+        var verificadas = await escenario.Servicio().ReintentarAsync(CancellationToken.None);
+
+        verificadas.Should().Be(0);
+        escenario.Cerrojo.Pedidos.Should().Equal([conexion.Id]);
+        conexion.Estado.Should().Be(estado);
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Una Habilitada verificada hace menos de 20 h (por el reintento o por Reactivar) no se vuelve a leer en el ciclo
+    /// diario; una de 20 h o más, y una ConError reciente (esa lectura es su vía de vuelta), sí.
+    /// </summary>
+    [Fact]
+    public async Task El_ciclo_diario_salta_las_Habilitadas_verificadas_hace_menos_de_veinte_horas()
+    {
+        var escenario = new Escenario();
+        var reciente = escenario.AgregarVerificada("reciente@operador.test", "inbox-reciente", TimeSpan.FromHours(19));
+        var vieja = escenario.AgregarVerificada("vieja@operador.test", "inbox-vieja", TimeSpan.FromHours(20));
+        var caida = escenario.AgregarVerificada("caida@operador.test", "inbox-caida", TimeSpan.FromHours(1));
+        caida.MarcarConError("caída de la renovación");
+        var verificadaReciente = reciente.IdentidadVerificadaUtc;
+        var reintentoReciente = reciente.ReintentoVerificacionNoAntesDeUtc;
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEquivalentTo([vieja.Id, caida.Id]);
+        reciente.IdentidadVerificadaUtc.Should().Be(verificadaReciente);
+        reciente.ReintentoVerificacionNoAntesDeUtc.Should().Be(reintentoReciente, "ni siquiera se programa un intento");
+        caida.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        escenario.Graph.TokensDeIdentidad.Should().HaveCount(2);
     }
 
     /// <summary>Otra verificación de la misma conexión en curso (otra réplica, el ciclo diario o Reactivar): no se toca.</summary>

@@ -1,8 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tenants;
-using CaeManager.Domain.Common;
-using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Coordinacion;
 using Microsoft.EntityFrameworkCore;
@@ -130,65 +128,13 @@ public class RenovacionSuscripcionWebhookHostedService(
             logger.LogError(ex, "Falló la comprobación de identidad de los buzones del tenant {TenantId}; se renueva sin rehabilitar ninguno.", tenantId);
         }
 
+        // Cada conexión se guarda por separado y aislada, y una colisión de concurrencia se resuelve recargando y
+        // volviendo a aplicar lo observado: ver RenovacionSuscripcionesWebhookService. Un fallo transitorio (429, 5xx,
+        // red, tiempo agotado) se reintenta en el siguiente ciclo; uno definitivo marca el hueco y pasa la conexión a
+        // ConError (regla en CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion).
         using var ambito = ambitoFactory.CreateScope();
         using var _ = AmbitoTenantExplicito.Establecer(tenantId);
-
-        var suscripcionRepositorio = ambito.ServiceProvider.GetRequiredService<ISuscripcionWebhookRepository>();
-        var proximasAExpirar = await suscripcionRepositorio.ObtenerProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
-        if (proximasAExpirar.Count == 0) return;
-
-        var conexionRepositorio = ambito.ServiceProvider.GetRequiredService<IConexionIntegracionRepository>();
-        var accesoGraph = ambito.ServiceProvider.GetRequiredService<AccesoGraphService>();
-        var graphClient = ambito.ServiceProvider.GetRequiredService<IMicrosoft365GraphClient>();
-
-        foreach (var suscripcion in proximasAExpirar)
-        {
-            var conexion = await conexionRepositorio.ObtenerPorIdAsync(suscripcion.ConexionIntegracionId, stoppingToken);
-
-            // Deshabilitada por el usuario (Desconectar) o borrada: no hay
-            // nada que renovar ni ninguna razón para marcarla con error —
-            // antes de este fichero cablear salud de plataforma (A-07),
-            // este bucle ignoraba el estado de la conexión y lo intentaba
-            // igual, contradiciendo el comentario de DesconectarBuzonCommand
-            // que ya prometía este comportamiento.
-            if (conexion is null || conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
-                continue;
-
-            var accessTokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, stoppingToken);
-            if (accessTokenResultado.EsFallido)
-            {
-                logger.LogWarning(
-                    "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
-                    suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, accessTokenResultado.Error.Mensaje);
-                MarcarConErrorSiDefinitivo(conexion, suscripcion, accessTokenResultado.Error);
-                continue;
-            }
-
-            var renovacionResultado = await graphClient.RenovarSuscripcionAsync(
-                accessTokenResultado.Valor, suscripcion.GraphSubscriptionId, stoppingToken);
-            if (renovacionResultado.EsFallido)
-            {
-                logger.LogWarning(
-                    "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
-                    suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, renovacionResultado.Error.Mensaje);
-                MarcarConErrorSiDefinitivo(conexion, suscripcion, renovacionResultado.Error);
-                continue;
-            }
-
-            // Una conexión en ConError renueva igual su suscripción, pero no vuelve a Habilitada aquí: solo la
-            // rehabilita CompletarIdentidadBuzonService cuando verifica su identidad en el mismo ciclo.
-            suscripcion.ActualizarTrasRenovacion(renovacionResultado.Valor.GraphSubscriptionId, renovacionResultado.Valor.FechaExpiracionUtc);
-        }
-
-        await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
+        await ambito.ServiceProvider.GetRequiredService<RenovacionSuscripcionesWebhookService>()
+            .RenovarProximasAExpirarAsync(VentanaRenovacion, stoppingToken);
     }
-
-    /// <summary>
-    /// Un fallo transitorio (429, 5xx, red, tiempo agotado, cuerpo ilegible) queda en el registro y se reintenta en el
-    /// siguiente ciclo; si la suscripción ya expiró, además marca el hueco en su expiración (disparador b). Uno definitivo
-    /// marca el hueco en min(ahora, expiración de la suscripción) y pasa la conexión a ConError. La regla vive en
-    /// <see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>.
-    /// </summary>
-    private static void MarcarConErrorSiDefinitivo(ConexionIntegracion conexion, SuscripcionWebhook suscripcion, Error error) =>
-        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, error, suscripcion.FechaExpiracionUtc, DateTime.UtcNow);
 }

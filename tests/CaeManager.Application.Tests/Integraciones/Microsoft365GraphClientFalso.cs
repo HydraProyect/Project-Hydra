@@ -218,8 +218,19 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         return Task.FromResult(resultado);
     }
 
-    public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
+    public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
+    {
+        SuscripcionesRenovadas.Add(graphSubscriptionId);
+        return Task.FromResult(ErroresRenovacion.TryGetValue(graphSubscriptionId, out var error)
+            ? Result.Fallo<SuscripcionGraphDto>(error)
+            : Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
+    }
+
+    /// <summary>Cada renovación pedida a Graph, por id de suscripción.</summary>
+    public List<string> SuscripcionesRenovadas { get; } = [];
+
+    /// <summary>Renovaciones que fallan, por id de suscripción; las demás renuevan tres días.</summary>
+    public Dictionary<string, Error> ErroresRenovacion { get; } = [];
 
     public List<string> SuscripcionesEliminadas { get; } = [];
 
