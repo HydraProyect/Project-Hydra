@@ -614,9 +614,23 @@ public class Microsoft365GraphClient(
                     CodigosErrorMicrosoft365.BuzonNoEncontrado, "Microsoft 365 no encuentra el buzón de este mensaje."));
             }
 
-            var mensaje = await respuesta.Content.ReadFromJsonAsync<MensajeDetalleGraph>(cancellationToken);
+            // Un 200 cuyo JSON no es un objeto (`null`, una lista, un número) es JSON válido sin ninguno de los campos
+            // obligatorios: mensaje incompleto, como el que no trae remitente. Espera sin gastar intento (Retenido a las
+            // 72 h) en vez de agotar intentos hasta DescartadoDefinitivo. Solo un cuerpo que ni siquiera es JSON sigue
+            // siendo ilegible (ErrorApi, abajo).
+            using var documento = await JsonDocument.ParseAsync(
+                await respuesta.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            var mensaje = documento.RootElement.ValueKind == JsonValueKind.Object
+                ? documento.RootElement.Deserialize<MensajeDetalleGraph>(OpcionesJsonWeb)
+                : null;
             if (mensaje is null)
-                return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
+            {
+                logger.LogWarning(
+                    "Microsoft Graph devolvió el mensaje {MensajeId} como JSON {Tipo}, no como objeto: se reintentará sin darlo por procesado.",
+                    mensajeId, documento.RootElement.ValueKind);
+                return Result.Fallo<MensajeGraphDto>(Error.Crear(
+                    CodigosErrorMicrosoft365.MensajeIncompleto, "Microsoft 365 devolvió el mensaje incompleto."));
+            }
 
             // Campos obligatorios (CodigosErrorMicrosoft365.MensajeIncompleto): sin ellos no se inventa remitente, fecha
             // ni hilo; el evento espera sin gastar intento y sin marcarse procesado.
@@ -680,6 +694,9 @@ public class Microsoft365GraphClient(
             return Result.Fallo<MensajeGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el mensaje."));
         }
     }
+
+    /// <summary>Las mismas opciones que usa <c>ReadFromJsonAsync</c> (nombres en camelCase, sin distinguir mayúsculas).</summary>
+    private static readonly JsonSerializerOptions OpcionesJsonWeb = new(JsonSerializerDefaults.Web);
 
     /// <summary>El primer campo obligatorio que falta (ver <see cref="CodigosErrorMicrosoft365.MensajeIncompleto"/>), o null.</summary>
     private static string? CampoObligatorioAusente(MensajeDetalleGraph mensaje)

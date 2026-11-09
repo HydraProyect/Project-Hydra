@@ -22,11 +22,47 @@ public class ReclamacionBuzonIntegracionRepositorioFalso : IReclamacionBuzonInte
         _sinGuardar.Add(reclamacion);
     }
 
-    public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId));
+    /// <summary>
+    /// Como <see cref="ConexionIntegracionRepositorioFalso.SimularRastreo"/>, para las reclamaciones: con él,
+    /// <see cref="ObtenerPorConexionAsync"/> devuelve la instancia que ya devolvió antes aunque la «base»
+    /// (<see cref="Reclamaciones"/>) tenga otra, y solo <see cref="ObtenerActualPorConexionAsync"/> lee la de la base.
+    /// </summary>
+    public bool SimularRastreo { get; set; }
+
+    private readonly Dictionary<Guid, ReclamacionBuzonIntegracion> _rastreadas = [];
+
+    public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default)
+    {
+        if (SimularRastreo && _rastreadas.TryGetValue(conexionIntegracionId, out var rastreada))
+            return Task.FromResult<ReclamacionBuzonIntegracion?>(rastreada);
+
+        return Task.FromResult(Rastrear(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId)));
+    }
 
     public Task<ReclamacionBuzonIntegracion?> ObtenerActualPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId));
+        Task.FromResult(Rastrear(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId)));
+
+    private ReclamacionBuzonIntegracion? Rastrear(ReclamacionBuzonIntegracion? reclamacion)
+    {
+        if (SimularRastreo && reclamacion is not null)
+            _rastreadas[reclamacion.ConexionIntegracionId] = reclamacion;
+        return reclamacion;
+    }
+
+    /// <summary>
+    /// Otra operación guardó otra reclamación de la conexión (p. ej. Desconectar la liberó y Reactivar la volvió a
+    /// reclamar): la «base» pasa a tener otra instancia y la que el llamador tenía rastreada queda obsoleta.
+    /// </summary>
+    public ReclamacionBuzonIntegracion SustituirEnBase(Guid conexionIntegracionId)
+    {
+        var indice = Reclamaciones.FindIndex(r => r.ConexionIntegracionId == conexionIntegracionId);
+        var original = Reclamaciones[indice];
+        var nueva = new ReclamacionBuzonIntegracion(
+            original.BuzonEmail, original.IdentidadBuzon, original.TenantPropietarioId, conexionIntegracionId, DateTime.UtcNow,
+            esBuzonCompartido: original.EsBuzonCompartido);
+        Reclamaciones[indice] = nueva;
+        return nueva;
+    }
 
     public Task<IReadOnlyList<ReclamacionBuzonIntegracion>> ObtenerQueCuentanParaGuardaTransitoriaAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ReclamacionBuzonIntegracion>>(Reclamaciones.Where(r => r.CuentaParaGuardaTransitoria).ToList());

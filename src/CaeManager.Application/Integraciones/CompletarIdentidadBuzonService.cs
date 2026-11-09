@@ -79,35 +79,29 @@ public class CompletarIdentidadBuzonService(
         ultimoError is MensajeBuzonDuplicado or MensajeBuzonCambiado or MensajeSinAccesoBuzon;
 
     /// <summary>
-    /// Fallo al pedir el token o al renovar la suscripción de una conexión.
+    /// Fallo al pedir el token o al renovar la suscripción de una conexión, con <paramref name="ahoraUtc"/> tomada DESPUÉS
+    /// de la respuesta de Graph (una suscripción que expira durante la petición cuenta como expirada).
     /// <list type="bullet">
     /// <item>Transitorio (<see cref="CodigosErrorMicrosoft365.EsTransitorio"/>: 408, 429, 5xx, red, tiempo agotado, cuerpo
-    /// ilegible): no cambia el estado y se reintenta en el siguiente ciclo. Si la suscripción ya expiró, se perdió igual:
-    /// disparador (b), marca en la expiración.</item>
-    /// <item>Definitivo: la suscripción se pierde, disparador (b), marca en min(ahora, expiración) aunque la conexión ya
-    /// esté en ConError por un motivo de identidad. Después pasa a ConError (c), sin sobrescribir el motivo de identidad
-    /// (buzón cambiado, duplicado o sin acceso) que ya tenga: ese es más concreto, y es el que hay que resolver.</item>
+    /// ilegible): no cambia el estado y se reintenta en el siguiente ciclo.</item>
+    /// <item>Definitivo: pasa a ConError (c), sin sobrescribir el motivo de identidad (buzón cambiado, duplicado o sin
+    /// acceso) que ya tenga: ese es más concreto, y es el que hay que resolver.</item>
     /// </list>
-    /// Ninguna rama se salta la marca y ninguna la adelanta.
+    /// En las dos, después, la regla conservadora (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>),
+    /// la única fuente de la marca de la suscripción: con la conexión ya no Habilitada o la suscripción expirada,
+    /// min(marca, expiración, ahora). Ninguna rama se salta la marca y ninguna la adelanta.
     /// </summary>
     /// <returns>true si la conexión pasó a ConError.</returns>
     public static bool MarcarConErrorDeRenovacion(
         ConexionIntegracion conexion, Error error, DateTime expiracionSuscripcionUtc, DateTime ahoraUtc)
     {
-        if (CodigosErrorMicrosoft365.EsTransitorio(error))
-        {
-            if (expiracionSuscripcionUtc <= ahoraUtc)
-                conexion.RegistrarPerdidaSuscripcion(expiracionSuscripcionUtc, ahoraUtc);
-            return false;
-        }
-
-        conexion.RegistrarPerdidaSuscripcion(expiracionSuscripcionUtc, ahoraUtc);
-
-        if (conexion.Estado == EstadoConexionIntegracion.ConError && EsMotivoDeIdentidad(conexion.UltimoError))
-            return false;
-
         // Una Deshabilitada no se mueve (ver ConexionIntegracion.MarcarConError).
-        return conexion.MarcarConError(error.Mensaje, ahoraUtc);
+        var conError = !CodigosErrorMicrosoft365.EsTransitorio(error)
+            && !(conexion.Estado == EstadoConexionIntegracion.ConError && EsMotivoDeIdentidad(conexion.UltimoError))
+            && conexion.MarcarConError(error.Mensaje, ahoraUtc);
+
+        conexion.RegistrarHuecoAlObservarSuscripcion(expiracionSuscripcionUtc, ahoraUtc);
+        return conError;
     }
 
     /// <returns>Las conexiones cuya identidad se leyó y coincide (o se acaba de completar) en este ciclo.</returns>
@@ -237,6 +231,13 @@ public class CompletarIdentidadBuzonService(
             return false;
         }
 
+        // Regla conservadora del hueco antes de cualquier llamada a Graph: una conexión que no está Habilitada (aquí, en
+        // ConError) observa y quizá sustituye su suscripción al rehabilitarse (SuscripcionAlRehabilitarService). Se
+        // guarda ya, sin la cancelación del llamador; si el guardado choca por concurrencia, la excepción sale sin llamar
+        // a Graph (ComprobarAisladaAsync la registra) y se espera al siguiente ciclo, que relee el estado en el cerrojo.
+        if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
+            await suscripciones.GuardarMarcaAntesDeGraphAsync(conexion, cancellationToken);
+
         // Antes de llamar a Microsoft y guardado ya: el siguiente intento automático no va antes de ~2 h aunque este
         // proceso se caiga a mitad o la comprobación lance.
         conexion.ProgramarReintentoVerificacion(
@@ -283,8 +284,7 @@ public class CompletarIdentidadBuzonService(
                 return false;
             }
 
-            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await MarcarVerificadaYGuardarAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
             return true;
         }
 
@@ -298,8 +298,7 @@ public class CompletarIdentidadBuzonService(
         {
             // Ya confirmada la identidad: la rehabilitación y la cola van en un segundo guardado, para no tocar nada de
             // un buzón que acaba de chocar con otro.
-            await MarcarVerificadaAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await MarcarVerificadaYGuardarAsync(conexion, token.Valor, ahoraUtc, cancellationToken);
             return true;
         }
 
@@ -347,11 +346,33 @@ public class CompletarIdentidadBuzonService(
     /// si falla de forma transitoria, sigue en ConError y sus retenidos esperan al siguiente intento; si falla de forma
     /// definitiva, sigue en ConError con el motivo de la suscripción. Nunca vuelve a Habilitada sin suscripción vigente.
     /// </para>
-    private async Task MarcarVerificadaAsync(
+    private async Task MarcarVerificadaYGuardarAsync(
+        ConexionIntegracion conexion, string accessToken, DateTime ahoraUtc, CancellationToken cancellationToken)
+    {
+        var vigente = await MarcarVerificadaAsync(conexion, accessToken, ahoraUtc, cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // La rehabilitación no se guardó: lo rastreado se suelta, y la suscripción creada en esta llamada se borra en
+            // Graph para que no quede huérfana (la fila guardada sigue con la anterior). Una solo renovada sigue siendo
+            // la de esta conexión, que la renovación diaria mantiene.
+            descarteCambios.DescartarCambiosPendientes();
+            if (vigente is not null)
+                await suscripciones.CompensarAsync(accessToken, vigente, tambienRenovada: false, CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <returns>La suscripción que aseguró la rehabilitación (para compensarla si el guardado falla), o null.</returns>
+    private async Task<SuscripcionAlRehabilitarService.SuscripcionVigente?> MarcarVerificadaAsync(
         ConexionIntegracion conexion, string accessToken, DateTime ahoraUtc, CancellationToken cancellationToken)
     {
         conexion.MarcarIdentidadVerificada(ahoraUtc);
 
+        SuscripcionAlRehabilitarService.SuscripcionVigente? vigente = null;
         if (conexion.Estado == EstadoConexionIntegracion.ConError)
         {
             var suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken, cancellationToken);
@@ -363,15 +384,18 @@ public class CompletarIdentidadBuzonService(
                 AplazarSiMicrosoftPideEsperar(conexion, suscripcion.Error);
                 if (!CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error))
                     conexion.MarcarConError(suscripcion.Error.Mensaje, ahoraUtc);
-                return;
+                return null;
             }
 
             logger.LogInformation("La conexión {ConexionId} vuelve a estar verificada: se rehabilita.", conexion.Id);
             conexion.Rehabilitar();
+            vigente = suscripcion.Valor;
         }
 
         foreach (var retenido in await eventoRepositorio.ObtenerRetenidosAsync(conexion.Id, cancellationToken))
             retenido.Liberar();
+
+        return vigente;
     }
 
     /// <summary>

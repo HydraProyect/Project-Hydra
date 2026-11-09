@@ -226,31 +226,90 @@ public class ConexionIntegracionTests
     }
 
     [Fact]
-    public void La_perdida_de_la_suscripcion_marca_en_el_minimo_entre_ahora_y_su_expiracion_y_nunca_adelanta()
+    public void La_regla_conservadora_no_marca_una_Habilitada_con_la_suscripcion_vigente()
     {
         var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(ahora.AddHours(-1));
 
-        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(5), ahora).Should().BeTrue();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora, "aún no había expirado: deja de recibir desde ahora");
+        conexion.RegistrarHuecoAlObservarSuscripcion(ahora.AddHours(5), ahora).Should().BeFalse();
+        conexion.RegistrarHuecoAlObservarSuscripcion(null, ahora).Should().BeFalse("una Habilitada sin fila no observa ninguna expiración");
 
-        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(-3), ahora.AddHours(1)).Should().BeTrue();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3), "ya había expirado: desde su expiración");
-
-        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(2), ahora.AddHours(4)).Should().BeFalse();
-        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3));
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
     }
 
     [Fact]
-    public void La_perdida_de_la_suscripcion_retrocede_la_marca_aunque_la_conexion_ya_este_en_ConError()
+    public void La_regla_conservadora_marca_una_Habilitada_con_la_suscripcion_ya_expirada_en_su_expiracion()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-1));
+
+        conexion.RegistrarHuecoAlObservarSuscripcion(ahora.AddHours(-3), ahora).Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3));
+
+        conexion.RegistrarHuecoAlObservarSuscripcion(ahora, ahora).Should().BeFalse("expira justo al observarla: no adelanta");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-3));
+    }
+
+    [Theory]
+    [InlineData(5, 0)]
+    [InlineData(-20, -20)]
+    public void La_regla_conservadora_marca_una_ConError_en_el_minimo_entre_expiracion_y_observacion(
+        int horasHastaExpiracion, int horasEsperadas)
     {
         var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
         var conexion = Verificada(ahora.AddDays(-2));
-        conexion.MarcarConError("el buzón ya no es accesible", ahora);
+        conexion.MarcarConError("el buzón ya no es accesible", ahora.AddHours(1));
 
-        conexion.RegistrarPerdidaSuscripcion(ahora.AddHours(-20), ahora.AddHours(1)).Should().BeTrue();
+        conexion.RegistrarHuecoAlObservarSuscripcion(ahora.AddHours(horasHastaExpiracion), ahora).Should().BeTrue();
 
-        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(-20));
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora.AddHours(horasEsperadas));
+    }
+
+    [Fact]
+    public void La_regla_conservadora_marca_una_Deshabilitada_sin_suscripcion_en_la_observacion()
+    {
+        var ahora = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(ahora.AddHours(-1));
+        conexion.Deshabilitar();
+
+        conexion.RegistrarHuecoAlObservarSuscripcion(null, ahora).Should().BeTrue();
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(ahora);
+    }
+
+    /// <summary>
+    /// Condición 2 de la ronda 13: la marca solo retrocede. Una marca ya anterior a la expiración y a la observación no se
+    /// mueve, ni con la conexión en ConError ni con la suscripción expirada.
+    /// </summary>
+    [Fact]
+    public void La_regla_conservadora_no_mueve_una_marca_ya_anterior()
+    {
+        var caida = new DateTime(2026, 11, 9, 10, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(caida.AddHours(-1));
+        conexion.MarcarConError("caída", caida);
+
+        conexion.RegistrarHuecoAlObservarSuscripcion(caida.AddHours(3), caida.AddHours(5)).Should().BeFalse();
+        conexion.RegistrarHuecoAlObservarSuscripcion(caida.AddHours(8), caida.AddHours(2)).Should().BeFalse();
+        conexion.RegistrarHuecoAlObservarSuscripcion(null, caida.AddHours(9)).Should().BeFalse();
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(caida);
+    }
+
+    /// <summary>
+    /// Condición 1 de la ronda 13: la caducidad de la VERIFICACIÓN no es la de la suscripción. Una Habilitada sin
+    /// verificar hace más de 26 h, con la suscripción vigente, no se marca: bloquea y se muestra «sin verificar».
+    /// </summary>
+    [Fact]
+    public void La_regla_conservadora_no_marca_por_la_caducidad_de_la_verificacion()
+    {
+        var verificada = new DateTime(2026, 11, 8, 0, 0, 0, DateTimeKind.Utc);
+        var conexion = Verificada(verificada);
+        var ahora = verificada.AddHours(50);
+
+        conexion.OperativaVerificada(ahora).Should().BeFalse();
+        conexion.RegistrarHuecoAlObservarSuscripcion(ahora.AddDays(1), ahora).Should().BeFalse();
+
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
     }
 
     [Fact]
@@ -262,7 +321,7 @@ public class ConexionIntegracionTests
         conexion.Rehabilitar();
 
         conexion.RegistrarNotificacionDescartada(caida.AddHours(10)).Should().BeFalse();
-        conexion.RegistrarPerdidaSuscripcion(caida.AddHours(10), caida.AddHours(11)).Should().BeFalse();
+        conexion.RegistrarHuecoAlObservarSuscripcion(caida.AddHours(10), caida.AddHours(11)).Should().BeFalse();
         conexion.MarcarConError("otra caída", caida.AddHours(12));
 
         conexion.HuecoPendienteDesdeUtc.Should().Be(caida);

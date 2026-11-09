@@ -208,12 +208,22 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     {
         VecesSuscrito++;
         ClientStatesSuscritos.Add(clientState);
+        AlCrearSuscripcion?.Invoke();
+        if (ExcepcionCreacionSuscripcion is { } excepcion)
+            throw excepcion;
+
         return Registrar(buzon, ErrorCreacionSuscripcion is { } errorCreacion
             ? Result.Fallo<SuscripcionGraphDto>(errorCreacion)
             : FallaCreacionSuscripcion
             ? Result.Fallo<SuscripcionGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "fallo simulado"))
             : Result.Exito(new SuscripcionGraphDto("suscripcion-falsa", DateTime.UtcNow.AddDays(3))));
     }
+
+    /// <summary>Se invoca al pedir la creación de una suscripción, antes de responder (p. ej. para ver qué estaba guardado ya).</summary>
+    public Action? AlCrearSuscripcion { get; set; }
+
+    /// <summary>Excepción que lanza la creación de suscripción (p. ej. una cancelación del POST); null, no lanza.</summary>
+    public Exception? ExcepcionCreacionSuscripcion { get; set; }
 
     /// <summary>Fallo concreto de la creación de suscripción (p. ej. transitorio); null, el de <see cref="FallaCreacionSuscripcion"/>.</summary>
     public Error? ErrorCreacionSuscripcion { get; set; }
@@ -236,10 +246,17 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken)
     {
         SuscripcionesRenovadas.Add(graphSubscriptionId);
+        AlRenovarSuscripcion?.Invoke(graphSubscriptionId);
         return Task.FromResult(ErroresRenovacion.TryGetValue(graphSubscriptionId, out var error)
             ? Result.Fallo<SuscripcionGraphDto>(error)
             : Result.Exito(new SuscripcionGraphDto(graphSubscriptionId, DateTime.UtcNow.AddDays(3))));
     }
+
+    /// <summary>
+    /// Se invoca durante la renovación, antes de responder: simula lo que pasa mientras dura la petición (que la
+    /// suscripción expire) o fotografía qué estaba guardado ya cuando salió la llamada.
+    /// </summary>
+    public Action<string>? AlRenovarSuscripcion { get; set; }
 
     /// <summary>Cada renovación pedida a Graph, por id de suscripción.</summary>
     public List<string> SuscripcionesRenovadas { get; } = [];

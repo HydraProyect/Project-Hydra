@@ -176,6 +176,76 @@ public class DesconectarBuzonCommandHandlerTests
         interno.VecesGuardado.Should().Be(1, "solo la desconexión");
     }
 
+    /// <summary>Lanza <paramref name="excepcion"/> en el guardado número <paramref name="guardado"/> y delega el resto.</summary>
+    private sealed class UnitOfWorkQueFallaEn(UnitOfWorkFalso interno, int guardado, Exception excepcion) : IUnitOfWork
+    {
+        private int _llamadas;
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
+            ++_llamadas == guardado ? throw excepcion : interno.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Bajo B4 del revisor-puente (ronda 13): un fallo del guardado de la marca que no es de concurrencia se registra y
+    /// se descarta, pero no tapa el resultado de la desconexión, que ya está confirmada en la base.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_ajeno_a_la_concurrencia_al_guardar_la_marca_no_tapa_la_desconexion_confirmada()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var interno = new UnitOfWorkFalso();
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true },
+            new UnitOfWorkQueFallaEn(interno, 2, new InvalidOperationException("base caída")), descarte: descarte);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("la desconexión ya quedó guardada");
+        interno.VecesGuardado.Should().Be(1, "solo la desconexión");
+        descarte.Veces.Should().Be(1);
+    }
+
+    /// <summary>Ronda 13: con la suscripción ya expirada, la marca del borrado fallido queda en su expiración.</summary>
+    [Fact]
+    public async Task Con_la_suscripcion_ya_expirada_la_marca_del_borrado_fallido_queda_en_su_expiracion()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var expiracion = DateTime.UtcNow.AddHours(-3);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "404") };
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, new UnitOfWorkFalso());
+
+        await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+    }
+
+    /// <summary>Bajo B5 del revisor-puente (ronda 13): la visibilidad se vuelve a comprobar con el estado releído en el cerrojo.</summary>
+    [Fact]
+    public async Task La_visibilidad_se_vuelve_a_comprobar_dentro_del_cerrojo()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceQueRetiraLaConexion(consultasVisibles: 1);
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), alcance,
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        alcance.Consultas.Should().Be(2, "control: la segunda consulta es la del estado releído");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+        unitOfWork.VecesGuardado.Should().Be(0);
+        graph.SuscripcionesEliminadas.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_borrado_que_lanza_deja_la_marca()
     {

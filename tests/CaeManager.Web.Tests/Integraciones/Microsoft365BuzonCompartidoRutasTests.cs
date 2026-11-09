@@ -459,6 +459,32 @@ public class Microsoft365BuzonCompartidoRutasTests
         resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.MensajeIncompleto);
     }
 
+    /// <summary>
+    /// Ronda 13: un 200 cuyo JSON es <c>null</c> o no es un objeto no tiene ninguno de los campos obligatorios: es un
+    /// mensaje incompleto (espera, Retenido a las 72 h), no un error de la API que gasta intentos hasta descartarse.
+    /// </summary>
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("5")]
+    [InlineData("\"texto\"")]
+    public async Task Un_200_cuyo_json_no_es_un_objeto_es_un_mensaje_incompleto(string cuerpo)
+    {
+        var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CodigosErrorMicrosoft365.MensajeIncompleto);
+    }
+
+    [Fact]
+    public async Task Un_200_que_no_es_json_sigue_siendo_ilegible()
+    {
+        var resultado = await Cliente(new RespuestaFijaHandler("<html>no</html>", "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ErrorApi");
+    }
+
     [Fact]
     public async Task Un_200_completo_con_cuerpo_vacio_y_sin_adjuntos_se_lee()
     {

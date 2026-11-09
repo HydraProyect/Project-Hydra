@@ -18,6 +18,10 @@ namespace CaeManager.Application.Integraciones;
 /// vuelve a aplicar la misma observación, sin volver a llamar a Graph, hasta <see cref="IntentosGuardado"/> veces.
 /// Las transiciones son idempotentes: la marca del hueco solo retrocede, el ConError no sobrescribe un motivo de
 /// identidad y no mueve una Deshabilitada, y la renovación no rebaja una expiración ya posterior.</item>
+/// <item>Marca del hueco: la regla conservadora (<see cref="ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion"/>),
+/// guardada con <see cref="CancellationToken.None"/> antes de pedir el token y renovar, y otra vez tras la respuesta con
+/// la hora de después de la respuesta (<see cref="CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion"/>). Es la
+/// única fuente de la marca en este camino.</item>
 /// </list>
 /// Una conexión Deshabilitada (o borrada) no se renueva ni se marca, tampoco al reaplicar.
 /// </summary>
@@ -77,6 +81,39 @@ public class RenovacionSuscripcionesWebhookService(
         if (conexion is null || suscripcion is null || conexion.Estado == EstadoConexionIntegracion.Deshabilitada)
             return;
 
+        // Regla conservadora del hueco, guardada antes de llamar a Graph (ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion):
+        // si la conexión no está Habilitada o su suscripción ya expiró, la marca retrocede a min(marca, expiración, ahora)
+        // y llega a la base salga como salga la llamada. Solo se guarda si la marca cambia, así que una conexión sana
+        // (Habilitada con la suscripción vigente) no hace este guardado y no gana ninguna colisión nueva. Si choca por
+        // concurrencia, se recarga y se vuelve a aplicar como el guardado de la observación, hasta IntentosGuardado veces;
+        // agotados, la excepción sale sin llamar a Graph y la conexión espera al siguiente ciclo.
+        for (var intento = 1; ; intento++)
+        {
+            if (!conexion.RegistrarHuecoAlObservarSuscripcion(suscripcion.FechaExpiracionUtc, DateTime.UtcNow))
+                break;
+
+            try
+            {
+                await unitOfWork.SaveChangesAsync(CancellationToken.None);
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (intento < IntentosGuardado)
+            {
+                logger.LogWarning(
+                    "Colisión de concurrencia al guardar la marca de hueco de la conexión {ConexionId} antes de renovar (intento {Intento}): se recarga.",
+                    conexionId, intento);
+
+                descarteCambios.DescartarCambiosPendientes();
+                var recargada = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+                var suscripcionRecargada = await suscripcionRepositorio.ObtenerPorConexionAsync(conexionId, cancellationToken);
+                if (recargada is null || suscripcionRecargada is null || recargada.Estado == EstadoConexionIntegracion.Deshabilitada)
+                    return;
+
+                conexion = recargada;
+                suscripcion = suscripcionRecargada;
+            }
+        }
+
         var observacion = await ObservarAsync(conexion, suscripcion, cancellationToken);
         Aplicar(conexion, suscripcion, observacion);
 
@@ -84,7 +121,8 @@ public class RenovacionSuscripcionesWebhookService(
         {
             try
             {
-                await unitOfWork.SaveChangesAsync(cancellationToken);
+                // Sin la cancelación del llamador: lo que Graph ya respondió (también la marca) no se queda en memoria.
+                await unitOfWork.SaveChangesAsync(CancellationToken.None);
                 return;
             }
             catch (DbUpdateConcurrencyException) when (intento < IntentosGuardado)
@@ -104,29 +142,33 @@ public class RenovacionSuscripcionesWebhookService(
         }
     }
 
+    /// <summary>
+    /// La hora de la observación se toma DESPUÉS de la respuesta: una suscripción que expira mientras dura la petición y
+    /// termina en un fallo transitorio cuenta como expirada, y la marca no queda posterior a la pérdida.
+    /// </summary>
     private async Task<Observacion> ObservarAsync(
         ConexionIntegracion conexion, SuscripcionWebhook suscripcion, CancellationToken cancellationToken)
     {
-        var ahoraUtc = DateTime.UtcNow;
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
         {
             logger.LogWarning(
                 "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                 suscripcion.GraphSubscriptionId, conexion.Id, token.Error.Mensaje);
-            return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, ahoraUtc, token.Error, null);
+            return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, DateTime.UtcNow, token.Error, null);
         }
 
         var renovacion = await graphClient.RenovarSuscripcionAsync(token.Valor, suscripcion.GraphSubscriptionId, cancellationToken);
+        var observadaUtc = DateTime.UtcNow;
         if (renovacion.EsFallido)
         {
             logger.LogWarning(
                 "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                 suscripcion.GraphSubscriptionId, conexion.Id, renovacion.Error.Mensaje);
-            return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, ahoraUtc, renovacion.Error, null);
+            return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, observadaUtc, renovacion.Error, null);
         }
 
-        return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, ahoraUtc, null, renovacion.Valor);
+        return new Observacion(suscripcion.GraphSubscriptionId, suscripcion.FechaExpiracionUtc, observadaUtc, null, renovacion.Valor);
     }
 
     /// <summary>

@@ -105,8 +105,9 @@ public class RenovacionSuscripcionesWebhookServiceTests
     public async Task Una_colision_reaplica_el_ConError_y_la_marca_sobre_la_conexion_recargada_sin_tocar_las_demas()
     {
         var escenario = new Escenario();
-        var expiracion = DateTime.UtcNow.AddHours(-2);
-        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", expiracion);
+
+        // Aún vigente: la colisión cae en el guardado de la observación, no en el previo (que no hace falta).
+        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(2));
         var (sana, suscripcionSana) = escenario.Agregar("sana@operador.test", "sub-sana", DateTime.UtcNow.AddHours(10));
         escenario.Graph.ErroresRenovacion["sub-rota"] = FalloDefinitivo;
         escenario.ColisionesPendientes = 1;
@@ -120,7 +121,8 @@ public class RenovacionSuscripcionesWebhookServiceTests
         recargada.Should().NotBeSameAs(rota, "control: el descarte cargó la versión de la base");
         recargada.Estado.Should().Be(EstadoConexionIntegracion.ConError);
         recargada.UltimoError.Should().Be(FalloDefinitivo.Mensaje);
-        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion, "la suscripción se perdió en su expiración (disparador b)");
+        recargada.HuecoPendienteDesdeUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1),
+            "aún no había expirado: la marca va en la hora de la observación (ConError y regla conservadora)");
 
         sana.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
         suscripcionSana.FechaExpiracionUtc.Should().BeAfter(DateTime.UtcNow.AddDays(2));
@@ -151,7 +153,7 @@ public class RenovacionSuscripcionesWebhookServiceTests
     public async Task Colisiones_seguidas_agotan_los_intentos_de_una_conexion_y_no_impiden_renovar_las_demas()
     {
         var escenario = new Escenario();
-        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(-2));
+        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(2));
         var (_, suscripcionSana) = escenario.Agregar("sana@operador.test", "sub-sana", DateTime.UtcNow.AddHours(10));
         escenario.Graph.ErroresRenovacion["sub-rota"] = FalloDefinitivo;
         escenario.ColisionesPendientes = RenovacionSuscripcionesWebhookService.IntentosGuardado;
@@ -171,7 +173,7 @@ public class RenovacionSuscripcionesWebhookServiceTests
     public async Task Si_la_conexion_recargada_esta_Deshabilitada_no_se_reaplica_nada()
     {
         var escenario = new Escenario();
-        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(-2));
+        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(2));
         escenario.Graph.ErroresRenovacion["sub-rota"] = FalloDefinitivo;
         escenario.ColisionesPendientes = 1;
         escenario.VersionEnLaBase = actual =>
@@ -199,7 +201,7 @@ public class RenovacionSuscripcionesWebhookServiceTests
     public async Task Un_fallo_reaplicado_sobre_una_suscripcion_sustituida_se_descarta_sin_mutar_nada()
     {
         var escenario = new Escenario();
-        var (conexion, suscripcion) = escenario.Agregar("a@operador.test", "sub-vieja", DateTime.UtcNow.AddHours(-2));
+        var (conexion, suscripcion) = escenario.Agregar("a@operador.test", "sub-vieja", DateTime.UtcNow.AddHours(2));
         escenario.Graph.ErroresRenovacion["sub-vieja"] = FalloDefinitivo;
         escenario.ColisionesPendientes = 1;
         var expiracionNueva = DateTime.UtcNow.AddDays(3);
@@ -230,6 +232,122 @@ public class RenovacionSuscripcionesWebhookServiceTests
         suscripcion.FechaExpiracionUtc.Should().BeAfter(DateTime.UtcNow.AddDays(2));
         escenario.Graph.SuscripcionesRenovadas.Should().Equal(["sub-a"]);
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    // Ronda 13: regla conservadora guardada antes de Graph y hora de observación tomada tras la respuesta.
+
+    /// <summary>
+    /// La suscripción ya expiró: la marca va en su expiración y llega a la base, sin la cancelación del llamador, antes de
+    /// pedir la renovación a Graph. Lo que Graph responda después no puede dejarla posterior a la pérdida.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_suscripcion_ya_expirada_la_marca_se_guarda_antes_de_llamar_a_Graph()
+    {
+        var escenario = new Escenario();
+        var expiracion = DateTime.UtcNow.AddHours(-2);
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", expiracion);
+        escenario.Graph.ErroresRenovacion["sub-a"] = FalloDefinitivo;
+        var marcasGuardadas = new List<DateTime?>();
+        escenario.UnitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlRenovar = -1;
+        escenario.Graph.AlRenovarSuscripcion = _ => guardadasAlRenovar = marcasGuardadas.Count;
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        guardadasAlRenovar.Should().Be(1, "la marca ya estaba guardada cuando salió la renovación");
+        marcasGuardadas[0].Should().Be(expiracion);
+        escenario.UnitOfWork.TokensDeGuardado[0].Should().Be(CancellationToken.None);
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion, "el ConError posterior no la adelanta");
+    }
+
+    /// <summary>Una conexión en ConError con la suscripción viva: la marca retrocede a la observación antes de Graph.</summary>
+    [Fact]
+    public async Task Una_conexion_en_ConError_sin_marca_se_marca_antes_de_llamar_a_Graph()
+    {
+        var escenario = new Escenario();
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", DateTime.UtcNow.AddHours(10));
+        conexion.MarcarConError("caída");
+        typeof(ConexionIntegracion).GetProperty(nameof(ConexionIntegracion.HuecoPendienteDesdeUtc))!.SetValue(conexion, null);
+        var marcaAlRenovar = (DateTime?)null;
+        var guardadosAlRenovar = -1;
+        escenario.Graph.AlRenovarSuscripcion = _ => (guardadosAlRenovar, marcaAlRenovar) = (escenario.UnitOfWork.VecesGuardado, conexion.HuecoPendienteDesdeUtc);
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        guardadosAlRenovar.Should().Be(1);
+        marcaAlRenovar.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    /// <summary>
+    /// Caso (c) de Codex en la ronda 12: la suscripción expira mientras dura la petición y Graph responde con un fallo
+    /// transitorio. La hora de la observación es la de después de la respuesta, así que cuenta como expirada y la marca
+    /// va en su expiración, no queda sin poner hasta el ciclo siguiente.
+    /// </summary>
+    [Fact]
+    public async Task Una_suscripcion_que_expira_durante_la_peticion_con_fallo_transitorio_marca_en_su_expiracion()
+    {
+        var escenario = new Escenario();
+        var expiracion = DateTime.UtcNow.AddMilliseconds(300);
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", expiracion);
+        escenario.Graph.ErroresRenovacion["sub-a"] = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "503");
+        escenario.Graph.AlRenovarSuscripcion = _ =>
+        {
+            while (DateTime.UtcNow <= expiracion)
+                Thread.Sleep(10);
+        };
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada, "un fallo transitorio no pasa a ConError");
+        conexion.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "no había expirado antes de la llamada: solo el guardado de la observación");
+    }
+
+    /// <summary>
+    /// El guardado previo colisiona en todos los intentos: la conexión no llama a Graph (ninguna llamada sale sin la marca
+    /// guardada) y espera al ciclo siguiente; las demás se renuevan igual.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_previo_agota_las_colisiones_no_se_llama_a_Graph_y_las_demas_siguen()
+    {
+        var escenario = new Escenario();
+        var (rota, _) = escenario.Agregar("rota@operador.test", "sub-rota", DateTime.UtcNow.AddHours(-2));
+        var (_, suscripcionSana) = escenario.Agregar("sana@operador.test", "sub-sana", DateTime.UtcNow.AddHours(10));
+        escenario.ColisionesPendientes = RenovacionSuscripcionesWebhookService.IntentosGuardado;
+
+        // Cada recarga trae la versión de la base, sin la marca que no llegó a guardarse.
+        escenario.VersionEnLaBase = actual => actual.Id == rota.Id ? Compartida("rota@operador.test", rota.Id) : actual;
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        escenario.Graph.SuscripcionesRenovadas.Should().Equal(["sub-sana"]);
+        suscripcionSana.FechaExpiracionUtc.Should().BeAfter(DateTime.UtcNow.AddDays(2));
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1, "solo la sana");
+        escenario.Conexiones.Conexiones.Single(c => c.Id == rota.Id).Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
+    }
+
+    /// <summary>
+    /// Una colisión del guardado previo recarga la conexión, vuelve a aplicar la regla sobre la versión de la base y,
+    /// guardada ya la marca, sigue con Graph: no se pierde la renovación de este ciclo.
+    /// </summary>
+    [Fact]
+    public async Task Una_colision_del_guardado_previo_recarga_reaplica_y_sigue_con_Graph()
+    {
+        var escenario = new Escenario();
+        var expiracion = DateTime.UtcNow.AddHours(-2);
+        var (conexion, _) = escenario.Agregar("a@operador.test", "sub-a", expiracion);
+        escenario.Graph.ErroresRenovacion["sub-a"] = FalloDefinitivo;
+        escenario.ColisionesPendientes = 1;
+        escenario.VersionEnLaBase = actual => Compartida("a@operador.test", actual.Id);
+
+        await escenario.Servicio().RenovarProximasAExpirarAsync(Ventana, CancellationToken.None);
+
+        var recargada = escenario.Conexiones.Conexiones.Single(c => c.Id == conexion.Id);
+        recargada.Should().NotBeSameAs(conexion);
+        recargada.HuecoPendienteDesdeUtc.Should().Be(expiracion);
+        recargada.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        escenario.Graph.SuscripcionesRenovadas.Should().Equal(["sub-a"]);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(2, "la marca previa y la observación");
     }
 
     [Fact]

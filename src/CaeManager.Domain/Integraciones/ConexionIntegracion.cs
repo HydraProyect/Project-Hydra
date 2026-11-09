@@ -114,7 +114,8 @@ public class ConexionIntegracion : EntidadBase
     /// <item>(a) la ingesta descarta un evento (conexión en ConError o Deshabilitada, o el evento pasa a
     /// DescartadoDefinitivo): recepción − <see cref="RetrasoMaximoNotificacion"/>
     /// (<see cref="RegistrarNotificacionDescartada"/>);</item>
-    /// <item>(b) la suscripción expira o se pierde: min(ahora, expiración) (<see cref="RegistrarPerdidaSuscripcion"/>);</item>
+    /// <item>(b) al observar o sustituir la suscripción, con la conexión no Habilitada o la suscripción ya expirada:
+    /// min(marca, expiración, ahora), guardada antes de llamar a Graph (<see cref="RegistrarHuecoAlObservarSuscripcion"/>);</item>
     /// <item>(c) la conexión pasa a ConError: el momento del ConError (<see cref="MarcarConError"/>).</item>
     /// </list>
     /// La simple caducidad de la verificación no la fija: mientras la conexión está sin verificar su correo espera en la
@@ -217,13 +218,35 @@ public class ConexionIntegracion : EntidadBase
         RegistrarHuecoDesde(recepcionUtc - RetrasoMaximoNotificacion);
 
     /// <summary>
-    /// Disparador (b): la suscripción de la conexión expiró o se perdió (fallo definitivo de su renovación, o su
-    /// expiración ya pasó): desde min(<paramref name="ahoraUtc"/>, <paramref name="expiracionUtc"/>) no llegan
-    /// notificaciones. Retrocede la marca aunque la conexión ya esté en ConError por otro motivo; nunca la adelanta.
+    /// Disparador (b), regla conservadora única: la única fuente de la marca en los caminos que observan o sustituyen la
+    /// suscripción de Graph (Reactivar, la rehabilitación de <c>SuscripcionAlRehabilitarService</c>, la renovación diaria
+    /// y el borrado fallido de Desconectar). Si en <paramref name="observadaUtc"/> la conexión no está Habilitada
+    /// (ConError o Deshabilitada) o su suscripción guardada ya expiró, la marca pasa a min(marca,
+    /// <paramref name="expiracionSuscripcionUtc"/>, <paramref name="observadaUtc"/>). Sin suscripción guardada (null)
+    /// cuenta solo la observación. Puede avisar de más (una conexión en ConError cuya suscripción aún vivía), nunca de
+    /// menos. Retrocede la marca aunque la conexión ya esté en ConError por otro motivo; nunca la adelanta.
+    /// <para>
+    /// Los llamadores la aplican y la GUARDAN antes de llamar a Graph, porque lo que Graph responda (un 429, una
+    /// cancelación, un 404 tras expirar) no puede impedir que la marca llegue a la base. Un rechazo definitivo de la
+    /// renovación es la observación de que la suscripción ya no vive: el llamador pasa como expiración el mínimo entre la
+    /// guardada y la hora de la respuesta.
+    /// </para>
+    /// <para>
+    /// «No operativa» aquí es solo no Habilitada. La caducidad de la VERIFICACIÓN de identidad (ventana de
+    /// <see cref="VentanaVerificacionIdentidad"/>) no cuenta y no marca: bloquea y Conexiones la muestra «sin verificar»,
+    /// pero su correo espera en la cola (Pendiente o Retenido) sin perderse. Esto no contradice la ronda 8: esta regla
+    /// mira la expiración de la SUSCRIPCIÓN, que sí deja de entregar notificaciones.
+    /// </para>
     /// </summary>
     /// <returns>true si la marca cambió.</returns>
-    public bool RegistrarPerdidaSuscripcion(DateTime expiracionUtc, DateTime ahoraUtc) =>
-        RegistrarHuecoDesde(expiracionUtc < ahoraUtc ? expiracionUtc : ahoraUtc);
+    public bool RegistrarHuecoAlObservarSuscripcion(DateTime? expiracionSuscripcionUtc, DateTime observadaUtc)
+    {
+        var expirada = expiracionSuscripcionUtc is { } expiracion && expiracion <= observadaUtc;
+        if (Estado == EstadoConexionIntegracion.Habilitada && !expirada)
+            return false;
+
+        return RegistrarHuecoDesde(expirada ? expiracionSuscripcionUtc!.Value : observadaUtc);
+    }
 
     /// <summary>Ninguna verificación automática espera (<see cref="ReintentoVerificacionNoAntesDeUtc"/>) ya.</summary>
     public bool PuedeReintentarVerificacion(DateTime ahoraUtc) =>
@@ -376,7 +399,7 @@ public class ConexionIntegracion : EntidadBase
     /// momento del ConError (<paramref name="ahoraUtc"/>, ahora si no se da), sin adelantar una marca anterior. Aunque la
     /// verificación hubiera caducado antes, no se marca desde la caducidad: hasta el ConError el correo esperaba en la cola
     /// sin perderse, y lo que se descarte después lo marca (a) desde su recepción. La pérdida de la suscripción se marca
-    /// aparte (<see cref="RegistrarPerdidaSuscripcion"/>).
+    /// aparte (<see cref="RegistrarHuecoAlObservarSuscripcion"/>).
     /// <para>
     /// Una conexión Deshabilitada no cambia: ni estado, ni motivo, ni marca. Desconectar liberó su
     /// <see cref="ReclamacionBuzonIntegracion"/>, y la única salida de Deshabilitada es Reactivar, que la vuelve a

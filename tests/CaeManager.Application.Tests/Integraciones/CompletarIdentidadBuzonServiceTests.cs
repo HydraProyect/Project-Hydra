@@ -62,7 +62,7 @@ public class CompletarIdentidadBuzonServiceTests
             UnitOfWork,
             Descarte,
             Cerrojo,
-            new SuscripcionAlRehabilitarService(Suscripciones, Graph, NullLogger<SuscripcionAlRehabilitarService>.Instance),
+            new SuscripcionAlRehabilitarService(Suscripciones, Graph, UnitOfWork, Descarte, NullLogger<SuscripcionAlRehabilitarService>.Instance),
             NullLogger<CompletarIdentidadBuzonService>.Instance);
 
         public SuscripcionWebhookRepositorioFalso Suscripciones { get; } = new();
@@ -114,6 +114,88 @@ public class CompletarIdentidadBuzonServiceTests
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada);
         escenario.Graph.ClientStatesSuscritos.Should().Equal("estado-propio");
         escenario.Suscripciones.Suscripciones.Single().GraphSubscriptionId.Should().Be("suscripcion-falsa");
+    }
+
+    // Ronda 13: marca conservadora guardada antes de Graph, compensación de la sustituta y reclamación releída.
+
+    /// <summary>
+    /// Ciclo con una ConError cuya suscripción expiró hace 5 h: la marca en la expiración ya está en la base cuando sale
+    /// la renovación; tras el rechazo definitivo, el POST de la sustituta se cancela (caso (b) de Codex en la ronda 12) y
+    /// la base sigue teniendo la marca, que nunca queda más tarde que la pérdida.
+    /// </summary>
+    [Fact]
+    public async Task ConErrorConSuscripcionExpirada_LaMarcaSeGuardaAntesDeGraphYSobreviveAlPostCancelado()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        var expiracion = DateTime.UtcNow.AddHours(-5);
+        escenario.Suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracion));
+        escenario.Graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        escenario.Graph.ExcepcionCreacionSuscripcion = new OperationCanceledException();
+        DateTime? guardada = null;
+        DateTime? guardadaAlRenovar = null;
+        DateTime? guardadaAlCrear = null;
+        escenario.UnitOfWork.AlGuardar = () => guardada = conexion.HuecoPendienteDesdeUtc;
+        escenario.Graph.AlRenovarSuscripcion = _ => guardadaAlRenovar = guardada;
+        escenario.Graph.AlCrearSuscripcion = () => guardadaAlCrear = guardada;
+
+        try
+        {
+            await escenario.Servicio().CompletarAsync(CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            // Que el ciclo la registre o la propague no es lo que se fija aquí.
+        }
+
+        guardadaAlRenovar.Should().Be(expiracion);
+        guardadaAlCrear.Should().Be(expiracion);
+        escenario.UnitOfWork.TokensDeGuardado.Should().OnlyContain(t => t == CancellationToken.None);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+    }
+
+    /// <summary>
+    /// Bajo B3 del revisor-puente: si el guardado de la rehabilitación falla después de crear la sustituta en Graph, el
+    /// ciclo la borra en Graph para no dejar una suscripción huérfana sin fila local.
+    /// </summary>
+    [Fact]
+    public async Task ConErrorVerificada_SiFallaElGuardadoTrasCrearLaSuscripcion_LaBorraEnGraph()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@tenant.com", "inbox-1", TimeSpan.FromDays(3));
+        conexion.MarcarConError(CompletarIdentidadBuzonService.MensajeSinAccesoBuzon);
+        escenario.UnitOfWork.AlGuardar = () =>
+        {
+            if (escenario.Graph.VecesSuscrito > 0)
+                throw new InvalidOperationException("base caída");
+        };
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        escenario.Graph.VecesSuscrito.Should().Be(1, "control: la sustituta se creó");
+        escenario.Graph.SuscripcionesEliminadas.Should().Equal("suscripcion-falsa");
+        escenario.Descarte.Veces.Should().BeGreaterThan(0);
+    }
+
+    /// <summary>
+    /// Bajo B1 del revisor-puente: la identidad se fija en la reclamación releída de la base, no en la que el contexto
+    /// tenía rastreada de antes. Si otra operación sustituyó la reclamación, la nueva recibe la identidad.
+    /// </summary>
+    [Fact]
+    public async Task La_identidad_se_fija_en_la_reclamacion_releida_y_no_en_la_rastreada()
+    {
+        var escenario = new Escenario();
+        escenario.Reclamaciones.SimularRastreo = true;
+        var conexion = escenario.AgregarCompartida("cae@operador.test");
+        escenario.Graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-cae";
+        var rastreada = await escenario.Reclamaciones.ObtenerPorConexionAsync(conexion.Id);
+        var nueva = escenario.Reclamaciones.SustituirEnBase(conexion.Id);
+
+        await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        nueva.IdentidadBuzon.Should().Be("inbox-cae");
+        rastreada!.IdentidadBuzon.Should().BeNull("la rastreada ya no es la de la base");
     }
 
     [Fact]

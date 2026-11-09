@@ -64,13 +64,7 @@ public class DesconectarBuzonCommandHandler(
     public async Task<Result> Handle(DesconectarBuzonCommand request, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
-        if (conexion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
-
-        // Un buzón personal de OTRO gestor no se resuelve por cartera de
-        // Cliente (tiene ClienteId null, igual que el genérico del tenant) —
-        // mismo hallazgo y mismo fix que EnviarMensajeNuevoCommandHandler.
-        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
+        if (conexion is null || !await VisibleAsync(conexion, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
         if (conexion.Proveedor != ProveedorIntegracion.Microsoft365)
@@ -83,6 +77,15 @@ public class DesconectarBuzonCommandHandler(
 
         return resultado!;
     }
+
+    /// <summary>
+    /// La conexión es visible para el usuario por su cartera y, además, por sí misma: un buzón personal de OTRO gestor
+    /// no se resuelve por cartera (tiene el Cliente a null, igual que el genérico del tenant), mismo hallazgo y mismo
+    /// arreglo que EnviarMensajeNuevoCommandHandler.
+    /// </summary>
+    private async Task<bool> VisibleAsync(ConexionIntegracion conexion, CancellationToken cancellationToken) =>
+        await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken)
+        && await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken);
 
     /// <summary>
     /// Todo sale del estado releído aquí, ya con el cerrojo: la instancia cargada antes de tomarlo puede estar obsoleta
@@ -101,7 +104,10 @@ public class DesconectarBuzonCommandHandler(
     private async Task<Result> DesconectarBajoCerrojoAsync(Guid conexionId, CancellationToken cancellationToken)
     {
         var actual = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
-        if (actual is null)
+
+        // La visibilidad se vuelve a comprobar sobre el estado releído, como en Reactivar: la de fuera del cerrojo se
+        // decidió con la instancia cargada antes.
+        if (actual is null || !await VisibleAsync(actual, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
         if (actual.Estado == EstadoConexionIntegracion.Deshabilitada)
@@ -117,6 +123,7 @@ public class DesconectarBuzonCommandHandler(
         // El borrado va contra la suscripción que se guarda junto a la Deshabilitada, y solo contra ella: se fija aquí,
         // antes del guardado y dentro del cerrojo, donde nadie la sustituye.
         var graphSubscriptionId = suscripcion?.GraphSubscriptionId;
+        var expiracionSuscripcionUtc = suscripcion?.FechaExpiracionUtc;
 
         // El token se pide antes del primer guardado: AccesoGraphService no guarda, y el refresh token que rote viaja
         // en ese guardado.
@@ -175,15 +182,17 @@ public class DesconectarBuzonCommandHandler(
 
         // La desconexión y la liberación de la reclamación ya están guardadas: la marca se guarda siempre sin la
         // cancelación del llamador, en cualquier camino del fallo (error de Graph, sin token, excepción o borrado
-        // cancelado), y la cancelación pedida se propaga después. Con la cancelación pedida, un fallo de ese guardado se
-        // registra y no la tapa.
+        // cancelado), y la cancelación pedida se propaga después. Un fallo de ese guardado (sea cual sea, no solo una
+        // colisión) se registra, descarta lo rastreado y no tapa el resultado ya confirmado: la conexión está
+        // Deshabilitada y su reclamación liberada.
         try
         {
-            await RegistrarMarcaAsync(conexion, DateTime.UtcNow, CancellationToken.None);
+            await RegistrarMarcaAsync(conexion, expiracionSuscripcionUtc, DateTime.UtcNow, CancellationToken.None);
         }
-        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        catch (Exception ex)
         {
-            logger.LogError(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras un borrado cancelado.", conexion.Id);
+            logger.LogError(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras desconectar.", conexion.Id);
+            descarteCambios.DescartarCambiosPendientes();
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -202,17 +211,19 @@ public class DesconectarBuzonCommandHandler(
     }
 
     /// <summary>
-    /// Disparador (b) en el momento del borrado fallido. Si el guardado choca por concurrencia (la ingesta escribió la
-    /// conexión entre los dos guardados), se descarta lo pendiente, se recarga la conexión y se vuelve a poner la marca,
-    /// hasta <see cref="IntentosGuardadoMarca"/> guardados: no se cuenta con que otra notificación la reponga. La marca
-    /// solo retrocede, así que reaplicarla sobre la versión recargada es idempotente.
+    /// Disparador (b) en el momento del borrado fallido, con la regla conservadora sobre la conexión ya Deshabilitada:
+    /// min(marca, expiración de la suscripción que no se pudo borrar, ahora). Si el guardado choca por concurrencia (la
+    /// ingesta escribió la conexión entre los dos guardados), se descarta lo pendiente, se recarga la conexión y se
+    /// vuelve a poner la marca, hasta <see cref="IntentosGuardadoMarca"/> guardados: no se cuenta con que otra
+    /// notificación la reponga. La marca solo retrocede, así que reaplicarla sobre la versión recargada es idempotente.
     /// </summary>
-    private async Task RegistrarMarcaAsync(ConexionIntegracion conexion, DateTime ahoraUtc, CancellationToken cancellationToken)
+    private async Task RegistrarMarcaAsync(
+        ConexionIntegracion conexion, DateTime? expiracionSuscripcionUtc, DateTime ahoraUtc, CancellationToken cancellationToken)
     {
         var actual = conexion;
         for (var intento = 1; ; intento++)
         {
-            if (!actual.RegistrarPerdidaSuscripcion(ahoraUtc, ahoraUtc))
+            if (!actual.RegistrarHuecoAlObservarSuscripcion(expiracionSuscripcionUtc, ahoraUtc))
                 return;
 
             try

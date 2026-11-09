@@ -22,14 +22,15 @@ public class ReactivarConexionCommandHandlerTests
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
         eventos ??= new EventoWebhookRepositorioFalso();
+        descarte ??= new DescarteContado();
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
             alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
             new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
             eventos, cerrojo ?? new CerrojoVerificacionBuzonFalso(),
             new SuscripcionAlRehabilitarService(
-                suscripciones ?? new SuscripcionWebhookRepositorioFalso(), graph,
+                suscripciones ?? new SuscripcionWebhookRepositorioFalso(), graph, unitOfWork, descarte,
                 Microsoft.Extensions.Logging.Abstractions.NullLogger<SuscripcionAlRehabilitarService>.Instance),
-            descarte ?? new DescarteContado());
+            descarte);
     }
 
     private sealed class DescarteContado : IDescarteCambiosPendientes
@@ -37,6 +38,196 @@ public class ReactivarConexionCommandHandlerTests
         public int Veces { get; private set; }
 
         public void DescartarCambiosPendientes() => Veces++;
+    }
+
+    // Ronda 13: regla conservadora del hueco, guardada antes de cualquier llamada a Graph.
+
+    private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio, SuscripcionWebhookRepositorioFalso Suscripciones)
+        ConErrorConSuscripcion(DateTime caidaUtc, DateTime expiracionUtc)
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("caída", caidaUtc);
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", expiracionUtc));
+        return (conexion, repositorio, suscripciones);
+    }
+
+    /// <summary>
+    /// Caso (a) de Codex en la ronda 12: la suscripción expiró a las 10:00, la conexión pasó a ConError a las 12:00 y
+    /// Reactivar recibe un 429 al renovarla. La marca ya está guardada en las 10:00 cuando sale la renovación, sin la
+    /// cancelación del llamador; el 429 solo pide volver a intentarlo.
+    /// </summary>
+    [Fact]
+    public async Task Un_429_al_renovar_una_suscripcion_ya_expirada_deja_guardada_la_marca_en_su_expiracion()
+    {
+        var ahora = DateTime.UtcNow;
+        var expiracion = ahora.AddHours(-4);
+        var (conexion, repositorio, suscripciones) = ConErrorConSuscripcion(ahora.AddHours(-2), expiracion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear(CodigosErrorMicrosoft365.Transitorio, "429");
+        var unitOfWork = new UnitOfWorkFalso();
+        var marcasGuardadas = new List<DateTime?>();
+        unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlRenovar = -1;
+        graph.AlRenovarSuscripcion = _ => guardadasAlRenovar = marcasGuardadas.Count;
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        guardadasAlRenovar.Should().Be(1, "la marca ya estaba en la base cuando salió la renovación");
+        marcasGuardadas.Should().Equal(expiracion);
+        unitOfWork.TokensDeGuardado.Should().Equal(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Caso (b) de Codex en la ronda 12: tras un rechazo definitivo de la renovación, el POST de la sustituta se cancela.
+    /// La marca de la pérdida ya está guardada (en la expiración) antes del POST; la cancelación se propaga.
+    /// </summary>
+    [Fact]
+    public async Task Cancelar_el_POST_de_la_sustituta_tras_un_rechazo_definitivo_deja_guardada_la_marca()
+    {
+        var ahora = DateTime.UtcNow;
+        var expiracion = ahora.AddHours(-5);
+        var (conexion, repositorio, suscripciones) = ConErrorConSuscripcion(ahora.AddHours(-1), expiracion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        graph.ExcepcionCreacionSuscripcion = new OperationCanceledException();
+        var unitOfWork = new UnitOfWorkFalso();
+        var marcasGuardadas = new List<DateTime?>();
+        unitOfWork.AlGuardar = () => marcasGuardadas.Add(conexion.HuecoPendienteDesdeUtc);
+        var guardadasAlCrear = -1;
+        graph.AlCrearSuscripcion = () => guardadasAlCrear = marcasGuardadas.Count;
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var reactivar = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await reactivar.Should().ThrowAsync<OperationCanceledException>();
+        guardadasAlCrear.Should().BeGreaterThan(0);
+        marcasGuardadas.Last().Should().Be(expiracion, "la base ya tiene la pérdida cuando sale el POST");
+        unitOfWork.TokensDeGuardado.Should().OnlyContain(t => t == CancellationToken.None);
+        suscripciones.Suscripciones.Single().GraphSubscriptionId.Should().Be("sub-1", "la sustituta no llegó a guardarse");
+    }
+
+    /// <summary>
+    /// Reactivar de una Habilitada cuya suscripción aún vigente Graph rechaza de forma definitiva: el rechazo es la
+    /// observación de que ya no vive, y su marca (la hora de la respuesta) se guarda antes de crear la sustituta.
+    /// </summary>
+    [Fact]
+    public async Task Un_rechazo_definitivo_de_una_suscripcion_vigente_guarda_la_marca_antes_de_crear_la_sustituta()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow.AddHours(-30));
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var suscripciones = new SuscripcionWebhookRepositorioFalso();
+        suscripciones.Agregar(new SuscripcionWebhook(conexion.Id, "sub-1", "estado", DateTime.UtcNow.AddDays(1)));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        graph.ErroresRenovacion["sub-1"] = Error.Crear("Integraciones.Microsoft365.ErrorRenovacion", "no existe");
+        var unitOfWork = new UnitOfWorkFalso();
+        var marcaGuardadaAlCrear = (DateTime?)null;
+        var ultimaGuardada = (DateTime?)null;
+        unitOfWork.AlGuardar = () => ultimaGuardada = conexion.HuecoPendienteDesdeUtc;
+        graph.AlCrearSuscripcion = () => marcaGuardadaAlCrear = ultimaGuardada;
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        marcaGuardadaAlCrear.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        conexion.HuecoPendienteDesdeUtc.Should().Be(marcaGuardadaAlCrear);
+    }
+
+    /// <summary>
+    /// Condición 3: si el guardado de la marca previa choca por concurrencia, no sale ninguna llamada a Graph (ni el
+    /// token), se descarta lo rastreado y se pide volver a intentarlo.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_marca_previa_choca_por_concurrencia_no_se_llama_a_Graph_y_se_pide_reintentar()
+    {
+        var (conexion, repositorio, suscripciones) = ConErrorConSuscripcion(DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(-3));
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("colisión") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, suscripciones: suscripciones, descarte: descarte);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinComprobacion);
+        graph.VecesRefrescado.Should().Be(0);
+        graph.BuzonesUsados.Should().BeEmpty();
+        graph.SuscripcionesRenovadas.Should().BeEmpty();
+        descarte.Veces.Should().Be(1);
+    }
+
+    /// <summary>Bajo B2 del revisor-puente: un guardado fallido del ConError definitivo descarta lo rastreado.</summary>
+    [Fact]
+    public async Task Si_falla_el_guardado_del_ConError_de_identidad_se_descarta_lo_rastreado()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-original");
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-de-otro-buzon" };
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("fallo de guardado") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, descarte: descarte);
+
+        var reactivar = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await reactivar.Should().ThrowAsync<InvalidOperationException>();
+        descarte.Veces.Should().Be(1);
+    }
+
+    /// <summary>Bajo B2 del revisor-puente: un guardado fallido del ConError de la suscripción descarta lo rastreado.</summary>
+    [Fact]
+    public async Task Si_falla_el_guardado_del_ConError_de_la_suscripcion_se_descarta_lo_rastreado()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x", FallaCreacionSuscripcion = true };
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("fallo de guardado") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(repositorio, new AlcanceDatosServiceFalso(), unitOfWork, graph: graph, descarte: descarte);
+
+        var reactivar = () => handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        await reactivar.Should().ThrowAsync<InvalidOperationException>();
+        graph.VecesSuscrito.Should().Be(1, "control: el fallo es el guardado posterior a la creación fallida");
+        descarte.Veces.Should().Be(1);
+    }
+
+    /// <summary>
+    /// Bajo B5 del revisor-puente: la visibilidad se vuelve a comprobar con el estado releído dentro del cerrojo. Si el
+    /// alcance del usuario sobre la conexión cambió entre la carga y el cerrojo, no se toca Graph ni se guarda nada.
+    /// </summary>
+    [Fact]
+    public async Task La_visibilidad_se_vuelve_a_comprobar_dentro_del_cerrojo()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("caída");
+        var repositorio = new ConexionIntegracionRepositorioFalso();
+        repositorio.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        var unitOfWork = new UnitOfWorkFalso();
+        var alcance = new AlcanceQueRetiraLaConexion(consultasVisibles: 1);
+        var handler = CrearHandler(repositorio, alcance, unitOfWork, graph: graph);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ConexionIntegracion.NoEncontrada");
+        alcance.Consultas.Should().Be(2, "control: la segunda consulta es la del estado releído");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.ConError);
+        graph.BuzonesUsados.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     // Ronda 11, C2: la rehabilitación que sustituye una suscripción perdida registra antes su pérdida.
@@ -607,7 +798,10 @@ public class ReactivarConexionCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 
-    /// <summary>Desde Deshabilitada no: sigue desconectada y no se guarda nada.</summary>
+    /// <summary>
+    /// Desde Deshabilitada no: sigue desconectada y no pasa a ConError. Solo se guarda, antes de Graph, la marca de la
+    /// regla conservadora (una Deshabilitada no está operativa: avisa de más tras una desconexión deliberada, declarado).
+    /// </summary>
     [Fact]
     public async Task Reactivar_desde_Deshabilitada_con_el_buzon_cambiado_no_la_pasa_a_ConError()
     {
@@ -625,7 +819,9 @@ public class ReactivarConexionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
-        unitOfWork.VecesGuardado.Should().Be(0);
+        conexion.UltimoError.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(1, "solo la marca previa a Graph");
+        unitOfWork.TokensDeGuardado.Should().Equal(CancellationToken.None);
     }
 
     [Fact]
@@ -692,9 +888,12 @@ public class ReactivarConexionCommandHandlerTests
         conexion.UltimoError.Should().Be(CompletarIdentidadBuzonService.MensajeBuzonCambiado);
     }
 
-    /// <summary>Desde Deshabilitada, un 403/404 no la mueve: sigue desconectada, sin reclamación ni marca.</summary>
+    /// <summary>
+    /// Desde Deshabilitada, un 403/404 no la mueve: sigue desconectada, sin reclamación ni ConError. Solo queda la marca
+    /// de la regla conservadora, guardada antes de Graph (no Habilitada: avisa de más, nunca de menos).
+    /// </summary>
     [Fact]
-    public async Task Sin_acceso_al_buzon_una_deshabilitada_sigue_deshabilitada_sin_guardar()
+    public async Task Sin_acceso_al_buzon_una_deshabilitada_sigue_deshabilitada_y_solo_guarda_la_marca_previa()
     {
         var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
         conexion.FijarIdentidadBuzon("inbox-x");
@@ -711,9 +910,9 @@ public class ReactivarConexionCommandHandlerTests
         resultado.Error.Codigo.Should().Be(ReactivarConexionCommandHandler.CodigoSinAccesoBuzon);
         conexion.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
         conexion.UltimoError.Should().BeNull();
-        conexion.HuecoPendienteDesdeUtc.Should().BeNull();
+        conexion.HuecoPendienteDesdeUtc.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
         reclamaciones.Reclamaciones.Should().BeEmpty();
-        unitOfWork.VecesGuardado.Should().Be(0);
+        unitOfWork.VecesGuardado.Should().Be(1, "solo la marca previa a Graph");
     }
 
     /// <summary>Un transitorio (429, 5xx, 401, tiempo agotado) no dice nada del buzón: una Habilitada no cambia.</summary>

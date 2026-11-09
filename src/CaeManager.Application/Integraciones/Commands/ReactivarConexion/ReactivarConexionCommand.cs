@@ -3,6 +3,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Integraciones;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Integraciones.Commands.ReactivarConexion;
 
@@ -45,13 +46,7 @@ public class ReactivarConexionCommandHandler(
     public async Task<Result> Handle(ReactivarConexionCommand request, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(request.ConexionId, cancellationToken);
-        if (conexion is null || !await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken))
-            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
-
-        // Un buzón personal de OTRO gestor no se resuelve por cartera de
-        // Cliente (tiene ClienteId null, igual que el genérico del tenant) —
-        // mismo hallazgo y mismo fix que EnviarMensajeNuevoCommandHandler.
-        if (!await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken))
+        if (conexion is null || !await VisibleAsync(conexion, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
         if (conexion.Proveedor != ProveedorIntegracion.Microsoft365)
@@ -68,6 +63,15 @@ public class ReactivarConexionCommandHandler(
     }
 
     /// <summary>
+    /// La conexión es visible para el usuario por su cartera y, además, por sí misma: un buzón personal de OTRO gestor
+    /// no se resuelve por cartera (tiene el Cliente a null, igual que el genérico del tenant), mismo hallazgo y mismo
+    /// arreglo que EnviarMensajeNuevoCommandHandler.
+    /// </summary>
+    private async Task<bool> VisibleAsync(ConexionIntegracion conexion, CancellationToken cancellationToken) =>
+        await alcanceDatos.ClienteOpcionalVisibleAsync(conexion.ClienteId, cancellationToken)
+        && await alcanceDatos.ConexionIntegracionVisibleAsync(conexion.Id, cancellationToken);
+
+    /// <summary>
     /// Todo sale del estado releído aquí, ya con el cerrojo: la instancia cargada antes de tomarlo puede estar obsoleta
     /// (un Desconectar o otro Reactivar terminaron entre la carga y el cerrojo), y EF no comprueba la versión de una
     /// entidad que no cambia. Dentro del cerrojo nadie más pasa la conexión entre Habilitada y Deshabilitada (lo toman
@@ -77,10 +81,34 @@ public class ReactivarConexionCommandHandler(
     private async Task<Result> ReactivarBajoCerrojoAsync(Guid conexionId, CancellationToken cancellationToken)
     {
         var actual = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
-        if (actual is null)
+
+        // La visibilidad se vuelve a comprobar sobre el estado releído: la de fuera del cerrojo se decidió con la
+        // instancia cargada antes, y el alcance del usuario sobre esta conexión pudo cambiar entretanto.
+        if (actual is null || !await VisibleAsync(actual, cancellationToken))
             return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
 
         return await ReactivarAsync(actual, cancellationToken);
+    }
+
+    /// <summary>
+    /// El guardado de la marca previa a Graph chocó por concurrencia: ya se descartó lo rastreado y no se llamó a Graph.
+    /// Se pide volver a intentarlo, que relee el estado dentro del cerrojo.
+    /// </summary>
+    private static Result ConexionCambiadaEntretanto() => Result.Fallo(Error.Crear(
+        CodigoSinComprobacion, "Esta conexión acaba de cambiar. Inténtalo de nuevo en unos segundos."));
+
+    /// <summary>Un guardado fallido no deja lo rastreado para que lo guarde otra operación del circuito.</summary>
+    private async Task GuardarODescartarAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            descarteCambios.DescartarCambiosPendientes();
+            throw;
+        }
     }
 
     private async Task<Result> ReactivarAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
@@ -112,6 +140,23 @@ public class ReactivarConexionCommandHandler(
         SuscripcionAlRehabilitarService.SuscripcionVigente? vigente = null;
         if (conexion.Proveedor == ProveedorIntegracion.Microsoft365)
         {
+            // Sin identidad no se llama a Graph ni se reactiva (ComprobarIdentidadBuzonAsync): tampoco hay marca previa.
+            if (conexion.IdentidadBuzon is null)
+                return Result.Fallo(SinIdentidadDeBuzon());
+
+            // Regla conservadora del hueco (ConexionIntegracion.RegistrarHuecoAlObservarSuscripcion), guardada antes de
+            // cualquier llamada a Graph, token incluido: Reactivar observa y quizá sustituye la suscripción, y lo que
+            // Graph responda (un 429, un 404, una cancelación) no puede dejar en la base una marca posterior a la
+            // pérdida. Si el guardado choca, no se llama a Graph y se pide volver a intentarlo.
+            try
+            {
+                await suscripciones.GuardarMarcaAntesDeGraphAsync(conexion, cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ConexionCambiadaEntretanto();
+            }
+
             var (comprobacion, motivoDefinitivo, token) = await ComprobarIdentidadBuzonAsync(conexion, cancellationToken);
             accessToken = token;
             if (comprobacion.EsFallido)
@@ -124,7 +169,7 @@ public class ReactivarConexionCommandHandler(
                 if (motivoDefinitivo is { } motivo && conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
                 {
                     conexion.MarcarConError(motivo);
-                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                    await GuardarODescartarAsync(cancellationToken);
                 }
 
                 return Result.Fallo(comprobacion.Error);
@@ -132,18 +177,25 @@ public class ReactivarConexionCommandHandler(
 
             // Rehabilitar exige una suscripción vigente (SuscripcionAlRehabilitarService): sin ella la conexión
             // quedaría Habilitada y verificada pero sin notificaciones. Un fallo transitorio no rehabilita y pide volver
-            // a intentarlo; uno definitivo deja ConError (nunca a una Deshabilitada, que sigue desconectada). En las dos
-            // ramas se guarda la marca de una suscripción que ya se vio perdida (disparador b), aunque no se rehabilite.
-            var huecoAntes = conexion.HuecoPendienteDesdeUtc;
-            var suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken!, cancellationToken);
+            // a intentarlo; uno definitivo deja ConError (nunca a una Deshabilitada, que sigue desconectada). La marca
+            // ya la guardó AsegurarAsync antes de cada llamada a Graph.
+            Result<SuscripcionAlRehabilitarService.SuscripcionVigente> suscripcion;
+            try
+            {
+                suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken!, cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ConexionCambiadaEntretanto();
+            }
+
             if (suscripcion.EsFallido)
             {
                 var transitorio = CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error);
 
                 // MarcarConError no mueve una Deshabilitada.
-                var conError = !transitorio && conexion.MarcarConError(suscripcion.Error.Mensaje);
-                if (conError || conexion.HuecoPendienteDesdeUtc != huecoAntes)
-                    await unitOfWork.SaveChangesAsync(cancellationToken);
+                if (!transitorio && conexion.MarcarConError(suscripcion.Error.Mensaje))
+                    await GuardarODescartarAsync(cancellationToken);
 
                 return transitorio
                     ? Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos activar las notificaciones de este buzón. Inténtalo de nuevo."))
@@ -255,9 +307,7 @@ public class ReactivarConexionCommandHandler(
         ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
         if (conexion.IdentidadBuzon is not { } guardada)
-            return (Result.Fallo(Error.Crear(
-                CodigoReconexionNecesaria,
-                "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.")), null, null);
+            return (Result.Fallo(SinIdentidadDeBuzon()), null, null);
 
         var token = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (token.EsFallido)
@@ -283,6 +333,10 @@ public class ReactivarConexionCommandHandler(
                 "La dirección de esta conexión corresponde ahora a otro buzón: desconéctala y vuelve a conectarla desde Conexiones.")),
                 CompletarIdentidadBuzonService.MensajeBuzonCambiado, token.Valor);
     }
+
+    private static Error SinIdentidadDeBuzon() => Error.Crear(
+        CodigoReconexionNecesaria,
+        "Esta conexión no tiene la comprobación de buzón: desconéctala y vuelve a conectarla desde Conexiones.");
 
     public const string CodigoReconexionNecesaria = "Integraciones.Microsoft365.ReconexionNecesaria";
     public const string CodigoSinAccesoBuzon = "Integraciones.Microsoft365.ReactivarSinAccesoBuzon";
