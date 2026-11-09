@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
@@ -405,6 +406,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         _subcontratasAbiertas.PlegarTodos();
         _subcontratasCompletas.Clear();
         _requisitosCentro = [];
+        _filtroRequisitos = string.Empty;
+        _requisitosDesplegados.Clear();
         _lecturaDocumentacionCentro = null;
         _lecturaRequisitosCentro = null;
         _errorLecturasFase2 = false;
@@ -717,7 +720,50 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
             empresa.EmpresaId, empresa.Nombre, "documentacion");
     private void IrAEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
         NavigationManager.NavigateTo($"/{(empresa.DesdeRelacionSubcontrata ? "subcontratas" : "empresas")}/{empresa.EmpresaId}");
-    private void IrATipoDocumento(Guid id) => NavigationManager.NavigateTo($"/documentos/tipos/{id}");
+
+    // ---------- Pestaña «Requisitos»: dos bloques (Empresa / Trabajador), 5 a la vista, filtro ----------
+
+    /// <summary>Cuántos requisitos enseña cada bloque antes de «Ver los N restantes».</summary>
+    internal const int RequisitosVisiblesPorBloque = 5;
+
+    /// <summary>Texto de «Filtrar requisitos». Estado local de la pestaña: no viaja en la URL ni toca ninguna consulta.</summary>
+    private string _filtroRequisitos = string.Empty;
+
+    /// <summary>Bloques con el resto de sus requisitos desplegado. Estado local: se reinicia al cambiar de Centro.</summary>
+    private readonly HashSet<AmbitoAplicacion> _requisitosDesplegados = [];
+
+    private void FiltrarRequisitos(string valor) => _filtroRequisitos = valor ?? string.Empty;
+
+    private void AlternarRestantesRequisitos(AmbitoAplicacion ambito)
+    {
+        if (!_requisitosDesplegados.Remove(ambito)) _requisitosDesplegados.Add(ambito);
+    }
+
+    private void AbrirRequisitos() =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, CentroId, _detalle?.Nombre ?? string.Empty, "requisitos");
+
+    /// <summary>
+    /// Un tipo archivado ya exigido no bloquea: <c>EvaluacionDeAccesoPorCentroService</c> ignora los archivados aunque su
+    /// <c>BloqueaAcceso</c> siga marcado en el requisito. Por eso el bloqueo mostrado nunca sale solo del DTO.
+    /// </summary>
+    private static bool BloqueaElAcceso(DocumentacionRequeridaCentroDto requisito) => requisito.BloqueaAcceso && !requisito.Archivado;
+
+    /// <summary>Los requisitos de un ámbito que casan con «Filtrar requisitos» (sin distinguir mayúsculas ni tildes), con los que bloquean delante y los sustituidos al final; dentro de cada grupo, el orden de la lectura.</summary>
+    private IReadOnlyList<DocumentacionRequeridaCentroDto> RequisitosDelBloque(AmbitoAplicacion ambito)
+    {
+        var filtro = _filtroRequisitos.Trim();
+        return _requisitosCentro
+            .Where(r => r.AmbitoAplicacion == ambito
+                && (filtro.Length == 0 || CultureInfo.CurrentCulture.CompareInfo.IndexOf(r.Nombre, filtro, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0))
+            .OrderBy(r => BloqueaElAcceso(r) ? 0 : r.Archivado ? 2 : 1)
+            .ToList();
+    }
+
+    private string TextoToleranciaRequisito(DocumentacionRequeridaCentroDto requisito)
+    {
+        var dias = ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias);
+        return Textos[dias == 1 ? "RequisitoCentroToleranciaUnDia360" : "RequisitoCentroTolerancia360", dias].Value;
+    }
 
     // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------
 
