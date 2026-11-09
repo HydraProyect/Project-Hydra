@@ -79,7 +79,7 @@ public class EmpresaTrabajador360PulidoDemoTests : BunitContext
         var boton = cut.Find(".panel-doc-base-fila button");
         boton.TextContent.Trim().Should().Be("Gestionar");
         boton.ClassList.Should().Contain("boton-secundario").And.Contain("accion-gestionar-documento");
-        boton.HasAttribute("data-accion-fila").Should().BeTrue("las flechas de teclado de la fila lo alcanzan");
+        boton.HasAttribute("data-accion-fila").Should().BeTrue("queda marcado como acción de la fila, como el resto de «Gestionar»");
     }
 
     // ── Invariantes de hoja de estilos (maquetación a 375 px; bUnit no la calcula) ──

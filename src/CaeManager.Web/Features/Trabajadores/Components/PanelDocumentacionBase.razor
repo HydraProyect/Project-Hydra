@@ -109,7 +109,7 @@
                                     <SoloConEscritura>
                                         @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción de gestión, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
                                         @* «Gestionar» es siempre un botón secundario (patrón de Centro 360 › Trabajadores y de Documentos), nunca un enlace de texto;
-                                           data-accion-fila lo deja como acción de la fila para el atajo de teclado, que antes lo encontraba por la clase de enlace. *@
+                                           data-accion-fila lo marca como acción de la fila (selector de atajos-ficha.js; hoy estas filas no están en SELECTOR_FILA). *@
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                class="accion-gestionar-documento" data-accion-fila="true"
                                                aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
