@@ -583,6 +583,20 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void Generar_ZIP_lleva_el_icono_de_descarga_decorativo_como_la_maqueta_y_el_boton_de_la_cabecera_comparte_clase_con_sus_hermanos()
+    {
+        var cut = AbrirPaquete(Registrar(Empresa()));
+
+        var generar = cut.Find("[role=dialog] .paquete-generar");
+        generar.QuerySelectorAll("svg.icono-pequeno[aria-hidden=true]").Should().ContainSingle(
+            "la maqueta (§ C) pinta un icono de descarga de 16 px (TamanoIcono.Pequeno) delante del texto");
+        generar.TextContent.Trim().Should().Be("Generar ZIP", "el icono es decorativo: el nombre accesible no cambia");
+
+        // El CSS de cabecera (13/600/16 de «Detectar altas y bajas») se engancha por .boton.empresa360-accion-cabecera, sea <a> o <button>.
+        cut.Find(".cabecera-identidad-acciones button.empresa360-accion-cabecera").ClassList.Should().Contain("boton");
+    }
+
+    [Fact]
     public void Al_abrir_elige_el_primer_Cliente_empresarial_y_dice_que_va_que_falta_y_que_no_pide_antes_de_generar()
     {
         var mediador = Registrar(Empresa());

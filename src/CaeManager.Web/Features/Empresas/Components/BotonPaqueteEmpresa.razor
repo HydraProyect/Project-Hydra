@@ -104,7 +104,14 @@
             }
             @if (OfreceGenerar)
             {
-                <Boton Variante="VarianteBoton.Primario" class="paquete-generar" Cargando="_generando" Deshabilitado="_cargando" OnClick="GenerarAsync">@Textos["Generar"]</Boton>
+                <Boton Variante="VarianteBoton.Primario" class="paquete-generar" Cargando="_generando" Deshabilitado="_cargando" OnClick="GenerarAsync">
+                    @* Icono de 16 px a 8 px del texto, como la maqueta (§ C); con el zip en marcha lo sustituye el spinner de Boton. *@
+                    @if (!_generando)
+                    {
+                        <Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" />
+                    }
+                    @Textos["Generar"]
+                </Boton>
             }
         }
     </Pie>
