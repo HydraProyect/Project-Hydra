@@ -23,6 +23,12 @@ public interface IReclamacionBuzonIntegracionRepository
     Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Como <see cref="ObtenerPorConexionAsync"/>, pero con los valores de la base aunque el contexto ya tuviera rastreada
+    /// la fila (ver <see cref="IConexionIntegracionRepository.ObtenerActualPorIdAsync"/>).
+    /// </summary>
+    Task<ReclamacionBuzonIntegracion?> ObtenerActualPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Las reclamaciones del Tenant actual (RLS) que cuentan para la guarda transitoria
     /// (<see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>), rastreadas para poder sacarlas de ella.
     /// </summary>
@@ -41,6 +47,10 @@ public interface IReclamacionBuzonIntegracionRepository
     /// </summary>
     Task<ResultadoReclamacionBuzon> GuardarCambiosSiBuzonLibreAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Libera la reclamación de una conexión desconectada — deja el buzón disponible para cualquier Tenant.</summary>
+    /// <summary>
+    /// Libera la reclamación de una conexión desconectada — deja el buzón disponible para cualquier Tenant. Busca en la
+    /// base la que exista ahora (también la que otra operación creó después de cargar la conexión), no la que el contexto
+    /// tuviera rastreada.
+    /// </summary>
     Task LiberarAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
 }

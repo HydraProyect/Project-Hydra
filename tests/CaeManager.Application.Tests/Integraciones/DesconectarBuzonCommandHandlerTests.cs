@@ -102,6 +102,7 @@ public class DesconectarBuzonCommandHandlerTests
         var cerrojoTomadoAlGuardar = false;
         var cerrojoTomadoAlBorrar = false;
         cerrojo.AlTomar = _ => dentro = true;
+        cerrojo.AlSalir = _ => dentro = false;
         unitOfWork.AlGuardar = () => cerrojoTomadoAlGuardar = dentro;
         graph.AlEliminarSuscripcion = () => cerrojoTomadoAlBorrar = dentro;
         var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
@@ -211,6 +212,120 @@ public class DesconectarBuzonCommandHandlerTests
         await accion.Should().ThrowAsync<OperationCanceledException>();
         conexion.HuecoPendienteDesdeUtc.Should().NotBeNull();
         unitOfWork.VecesGuardado.Should().Be(2, "la desconexión y la marca, esta sin la cancelación del llamador");
+        unitOfWork.TokensDeGuardado.Should().Equal(cancelacion.Token, CancellationToken.None);
+    }
+
+    // Ronda 12, R3: la marca se guarda siempre sin la cancelación del llamador, sea cual sea el camino del fallo.
+
+    [Fact]
+    public async Task Un_borrado_fallido_guarda_la_marca_sin_el_token_del_llamador()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        using var vivo = new CancellationTokenSource();
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), vivo.Token);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.HuecoPendienteDesdeUtc.Should().NotBeNull();
+        unitOfWork.TokensDeGuardado.Should().Equal(vivo.Token, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Un_borrado_que_devuelve_fallo_con_la_cancelacion_ya_pedida_guarda_la_marca_y_propaga_la_cancelacion()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        using var cancelacion = new CancellationTokenSource();
+        var graph = new Microsoft365GraphClientFalso { ErrorEliminacion = CaeManager.Domain.Common.Error.Crear("x", "503") };
+        graph.AlEliminarSuscripcion = cancelacion.Cancel;
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork);
+
+        var accion = () => handler.Handle(new DesconectarBuzonCommand(conexion.Id), cancelacion.Token);
+
+        await accion.Should().ThrowAsync<OperationCanceledException>();
+        conexion.HuecoPendienteDesdeUtc.Should().NotBeNull();
+        unitOfWork.TokensDeGuardado.Should().Equal(cancelacion.Token, CancellationToken.None);
+    }
+
+    // Ronda 12, P2: un primer guardado fallido no deja la Deshabilitada rastreada ni toca Graph.
+
+    [Fact]
+    public async Task Si_el_guardado_de_la_desconexion_falla_descarta_lo_rastreado_y_no_borra_en_Graph()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new InvalidOperationException("base caída") };
+        var descarte = new DescarteContado();
+        var handler = CrearHandler(conexiones, suscripciones, new ReclamacionBuzonIntegracionRepositorioFalso(), new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork, descarte: descarte);
+
+        var accion = () => handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        await accion.Should().ThrowAsync<InvalidOperationException>();
+        descarte.Veces.Should().Be(1);
+        graph.SuscripcionesEliminadas.Should().BeEmpty();
+    }
+
+    // Ronda 12, R1: Desconectar decide con el estado releído dentro del cerrojo, no con el cargado antes.
+
+    [Fact]
+    public async Task Una_reactivacion_entre_la_carga_y_el_cerrojo_se_desconecta_entera_con_su_reclamacion_y_su_suscripcion()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion("sub-vieja");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.Deshabilitar();
+        conexiones.SimularRastreo = true;
+        suscripciones.SimularRastreo = true;
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        ConexionIntegracion? reactivada = null;
+        cerrojo.AlTomar = id =>
+        {
+            // Otro Reactivar terminó entre la carga (Deshabilitada) y el cerrojo: Habilitada, reclamada y con suscripción nueva.
+            reactivada = conexiones.SustituirEnBase(id, c => c.MarcarIdentidadVerificada(DateTime.UtcNow));
+            reclamaciones.Reclamar(new ReclamacionBuzonIntegracion(conexion.BuzonEmail, "inbox-x", Guid.NewGuid(), id, DateTime.UtcNow));
+            suscripciones.SustituirEnBase(id, "sub-nueva", DateTime.UtcNow.AddDays(2));
+        };
+        var handler = CrearHandler(conexiones, suscripciones, reclamaciones, new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork, cerrojo);
+        (await suscripciones.ObtenerPorConexionAsync(conexion.Id)).Should().NotBeNull("control: la suscripción vieja queda rastreada");
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        reactivada!.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada, "se desconecta la versión releída, no la obsoleta");
+        reclamaciones.Reclamaciones.Should().BeEmpty("la reclamación que existe ahora se libera junto a la Deshabilitada");
+        graph.SuscripcionesEliminadas.Should().Equal("sub-nueva");
+        unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Una_desconexion_entre_la_carga_y_el_cerrojo_no_deja_nada_que_hacer()
+    {
+        var (conexion, conexiones, suscripciones) = ConSuscripcion();
+        conexiones.SimularRastreo = true;
+        var reclamaciones = new ReclamacionBuzonIntegracionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var cerrojo = new CerrojoVerificacionBuzonFalso();
+        cerrojo.AlTomar = id => conexiones.SustituirEnBase(id, c => c.Deshabilitar());
+        var handler = CrearHandler(conexiones, suscripciones, reclamaciones, new AlcanceDatosServiceFalso(),
+            graph, new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, unitOfWork, cerrojo);
+
+        var resultado = await handler.Handle(new DesconectarBuzonCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        cerrojo.Pedidos.Should().Equal([conexion.Id], "control: el cerrojo sí se tomó");
+        unitOfWork.VecesGuardado.Should().Be(0);
+        graph.SuscripcionesEliminadas.Should().BeEmpty("quien la desconectó ya borró su suscripción");
+        conexion.Estado.Should().Be(EstadoConexionIntegracion.Habilitada, "la instancia obsoleta no se toca");
     }
 
     // Ronda 10, hallazgo medio: primero se guarda la desconexión y después se borra en Graph.

@@ -753,6 +753,29 @@ public class CompletarIdentidadBuzonServiceTests
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Ronda 12, R1: la comprobación relee la conexión de la base dentro del cerrojo aunque el contexto del ámbito ya la
+    /// tuviera rastreada; con la instancia rastreada vería la Habilitada de antes de un Desconectar y leería Graph.
+    /// </summary>
+    [Fact]
+    public async Task La_comprobacion_relee_de_la_base_la_conexion_que_el_contexto_ya_tenia_rastreada()
+    {
+        var escenario = new Escenario();
+        var conexion = escenario.AgregarVerificada("cae@operador.test", "inbox-cae", TimeSpan.FromHours(24));
+        escenario.Conexiones.SimularRastreo = true;
+        (await escenario.Conexiones.ObtenerPorIdAsync(conexion.Id)).Should().BeSameAs(conexion, "control: queda rastreada");
+        ConexionIntegracion? desconectada = null;
+        escenario.Cerrojo.AlTomar = id => desconectada = escenario.Conexiones.SustituirEnBase(id, c => c.Deshabilitar());
+
+        var verificadas = await escenario.Servicio().CompletarAsync(CancellationToken.None);
+
+        verificadas.Should().BeEmpty();
+        escenario.Graph.TokensDeIdentidad.Should().BeEmpty();
+        escenario.Graph.DirectoriosConTokenDeAplicacion.Should().BeEmpty();
+        desconectada!.Estado.Should().Be(EstadoConexionIntegracion.Deshabilitada);
+        desconectada.ReintentoVerificacionNoAntesDeUtc.Should().BeNull("no se programó ningún intento sobre ella");
+    }
+
     /// <summary>El reintento solo toca Habilitadas: una que pasó a ConError tras la selección tampoco se comprueba.</summary>
     [Theory]
     [InlineData(EstadoConexionIntegracion.Deshabilitada)]

@@ -25,7 +25,8 @@ public class DesconectarBuzonCommandValidator : AbstractValidator<DesconectarBuz
 /// Reactivar y de la verificación de identidad (ciclo diario y reintento): sin él, Reactivar podía entrar entre el
 /// guardado de la Deshabilitada y el DELETE de Graph, renovar la suscripción y dejar la conexión Habilitada, y después
 /// este borrado se llevaba esa suscripción viva. Si el cerrojo está ocupado no se espera: se pide volver a intentarlo,
-/// como Reactivar (<see cref="CodigoVerificacionEnCurso"/>).
+/// como Reactivar (<see cref="CodigoVerificacionEnCurso"/>). Ya con el cerrojo, la conexión, su suscripción y su
+/// reclamación se releen de la base y todas las decisiones salen de ahí (<see cref="DesconectarBajoCerrojoAsync"/>).
 /// </para>
 /// <para>
 /// Los demás escritores de la conexión o de su suscripción no toman el cerrojo y les basta la concurrencia optimista de
@@ -76,16 +77,42 @@ public class DesconectarBuzonCommandHandler(
             return await DesconectarAsync(conexion, cancellationToken);
 
         Result? resultado = null;
-        if (!await cerrojo.IntentarEjecutarAsync(conexion.Id, async ct => resultado = await DesconectarAsync(conexion, ct), cancellationToken))
+        if (!await cerrojo.IntentarEjecutarAsync(conexion.Id, async ct => resultado = await DesconectarBajoCerrojoAsync(conexion.Id, ct), cancellationToken))
             return Result.Fallo(Error.Crear(
                 CodigoVerificacionEnCurso, "Ya estamos comprobando este buzón en Microsoft. Inténtalo de nuevo en unos segundos."));
 
         return resultado!;
     }
 
+    /// <summary>
+    /// Todo sale del estado releído aquí, ya con el cerrojo: la instancia cargada antes de tomarlo puede estar obsoleta
+    /// (otro Reactivar o Desconectar terminó entre la carga y el cerrojo), y EF no comprueba la versión de una entidad
+    /// que no cambia, así que <c>Deshabilitar()</c> sobre una Deshabilitada obsoleta liberaba la reclamación y borraba la
+    /// suscripción que otra operación acababa de crear para una conexión ya Habilitada.
+    /// <list type="bullet">
+    /// <item>Releída Deshabilitada: no queda nada que hacer. Quien la desconectó liberó la reclamación en el mismo guardado
+    /// y borró la suscripción (o dejó la marca si no pudo). No se guarda ni se llama a Graph; la decisión es estable
+    /// mientras dure el cerrojo, porque solo Reactivar la saca de Deshabilitada y también lo toma.</item>
+    /// <item>Releída Habilitada o ConError: se deshabilita esa versión (siempre cambia el estado, así que el guardado
+    /// compara la versión releída y choca con cualquier escritor sin cerrojo posterior, como la renovación), se libera la
+    /// reclamación que hay ahora en la base y se borra la suscripción releída.</item>
+    /// </list>
+    /// </summary>
+    private async Task<Result> DesconectarBajoCerrojoAsync(Guid conexionId, CancellationToken cancellationToken)
+    {
+        var actual = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
+        if (actual is null)
+            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
+        if (actual.Estado == EstadoConexionIntegracion.Deshabilitada)
+            return Result.Exito();
+
+        return await DesconectarAsync(actual, cancellationToken);
+    }
+
     private async Task<Result> DesconectarAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
-        var suscripcion = await suscripcionRepositorio.ObtenerPorConexionAsync(conexion.Id, cancellationToken);
+        var suscripcion = await suscripcionRepositorio.ObtenerActualPorConexionAsync(conexion.Id, cancellationToken);
 
         // El borrado va contra la suscripción que se guarda junto a la Deshabilitada, y solo contra ella: se fija aquí,
         // antes del guardado y dentro del cerrojo, donde nadie la sustituye.
@@ -105,7 +132,17 @@ public class DesconectarBuzonCommandHandler(
         // transición automática a ConError: una conexión con error transitorio
         // sigue siendo dueña de su buzón.
         await reclamacionRepositorio.LiberarAsync(conexion.Id, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Como en Reactivar: la desconexión no se guardó, y la Deshabilitada y la baja de la reclamación rastreadas no
+            // deben guardarse con otra operación del circuito. Graph no se ha tocado.
+            descarteCambios.DescartarCambiosPendientes();
+            throw;
+        }
 
         if (graphSubscriptionId is null)
             return Result.Exito();
@@ -121,18 +158,7 @@ public class DesconectarBuzonCommandHandler(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // La cancelación pedida se propaga, pero el borrado quedó incierto: la marca se guarda antes, sin ella. Un
-            // fallo de ese guardado se registra y no tapa la cancelación.
-            try
-            {
-                await RegistrarMarcaAsync(conexion, DateTime.UtcNow, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras un borrado cancelado.", conexion.Id);
-            }
-
-            throw;
+            motivoFallo = "cancelado";
         }
         catch (Exception ex)
         {
@@ -146,7 +172,21 @@ public class DesconectarBuzonCommandHandler(
         logger.LogWarning(
             "No se pudo eliminar la suscripción {SubscriptionId} de Graph al desconectar {ConexionId}: {Error}",
             graphSubscriptionId, conexion.Id, motivoFallo);
-        await RegistrarMarcaAsync(conexion, DateTime.UtcNow, cancellationToken);
+
+        // La desconexión y la liberación de la reclamación ya están guardadas: la marca se guarda siempre sin la
+        // cancelación del llamador, en cualquier camino del fallo (error de Graph, sin token, excepción o borrado
+        // cancelado), y la cancelación pedida se propaga después. Con la cancelación pedida, un fallo de ese guardado se
+        // registra y no la tapa.
+        try
+        {
+            await RegistrarMarcaAsync(conexion, DateTime.UtcNow, CancellationToken.None);
+        }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "No se pudo guardar la marca de hueco de {ConexionId} tras un borrado cancelado.", conexion.Id);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
         return Result.Exito();
     }
 
@@ -194,7 +234,7 @@ public class DesconectarBuzonCommandHandler(
                 logger.LogWarning(
                     "Colisión de concurrencia al guardar la marca de hueco de {ConexionId} (intento {Intento}): se recarga y se vuelve a poner.",
                     conexion.Id, intento);
-                if (await conexionRepositorio.ObtenerPorIdAsync(conexion.Id, cancellationToken) is not { } recargada)
+                if (await conexionRepositorio.ObtenerActualPorIdAsync(conexion.Id, cancellationToken) is not { } recargada)
                     return;
 
                 actual = recargada;

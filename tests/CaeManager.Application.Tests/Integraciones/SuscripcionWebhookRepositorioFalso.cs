@@ -6,8 +6,37 @@ public class SuscripcionWebhookRepositorioFalso : ISuscripcionWebhookRepository
 {
     public List<SuscripcionWebhook> Suscripciones { get; } = [];
 
-    public Task<SuscripcionWebhook?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Suscripciones.FirstOrDefault(s => s.ConexionIntegracionId == conexionIntegracionId));
+    /// <summary>Como <see cref="ConexionIntegracionRepositorioFalso.SimularRastreo"/>, para las suscripciones.</summary>
+    public bool SimularRastreo { get; set; }
+
+    private readonly Dictionary<Guid, SuscripcionWebhook> _rastreadas = [];
+
+    public Task<SuscripcionWebhook?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default)
+    {
+        if (SimularRastreo && _rastreadas.TryGetValue(conexionIntegracionId, out var rastreada))
+            return Task.FromResult<SuscripcionWebhook?>(rastreada);
+
+        return Task.FromResult(Rastrear(Suscripciones.FirstOrDefault(s => s.ConexionIntegracionId == conexionIntegracionId)));
+    }
+
+    public Task<SuscripcionWebhook?> ObtenerActualPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Rastrear(Suscripciones.FirstOrDefault(s => s.ConexionIntegracionId == conexionIntegracionId)));
+
+    private SuscripcionWebhook? Rastrear(SuscripcionWebhook? suscripcion)
+    {
+        if (SimularRastreo && suscripcion is not null)
+            _rastreadas[suscripcion.ConexionIntegracionId] = suscripcion;
+        return suscripcion;
+    }
+
+    /// <summary>Otra operación sustituyó la suscripción de la conexión en la «base» (otra instancia, otro Id de Graph).</summary>
+    public SuscripcionWebhook SustituirEnBase(Guid conexionIntegracionId, string graphSubscriptionId, DateTime expiracionUtc)
+    {
+        Suscripciones.RemoveAll(s => s.ConexionIntegracionId == conexionIntegracionId);
+        var nueva = new SuscripcionWebhook(conexionIntegracionId, graphSubscriptionId, "estado", expiracionUtc);
+        Suscripciones.Add(nueva);
+        return nueva;
+    }
 
     public Task<IReadOnlyList<SuscripcionWebhook>> ObtenerProximasAExpirarAsync(TimeSpan dentroDe, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<SuscripcionWebhook>>(

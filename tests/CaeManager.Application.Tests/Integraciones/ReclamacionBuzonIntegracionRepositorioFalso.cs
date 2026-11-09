@@ -25,6 +25,9 @@ public class ReclamacionBuzonIntegracionRepositorioFalso : IReclamacionBuzonInte
     public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId));
 
+    public Task<ReclamacionBuzonIntegracion?> ObtenerActualPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Reclamaciones.FirstOrDefault(r => r.ConexionIntegracionId == conexionIntegracionId));
+
     public Task<IReadOnlyList<ReclamacionBuzonIntegracion>> ObtenerQueCuentanParaGuardaTransitoriaAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ReclamacionBuzonIntegracion>>(Reclamaciones.Where(r => r.CuentaParaGuardaTransitoria).ToList());
 

@@ -18,6 +18,9 @@ public sealed class CerrojoVerificacionBuzonFalso : ICerrojoVerificacionBuzon
     /// </summary>
     public Action<Guid>? AlTomar { get; set; }
 
+    /// <summary>Corre al soltar el cerrojo, cuando el trabajo termina (también si lanza).</summary>
+    public Action<Guid>? AlSalir { get; set; }
+
     public async Task<bool> IntentarEjecutarAsync(Guid conexionId, Func<CancellationToken, Task> trabajo, CancellationToken cancellationToken)
     {
         Pedidos.Add(conexionId);
@@ -25,7 +28,15 @@ public sealed class CerrojoVerificacionBuzonFalso : ICerrojoVerificacionBuzon
             return false;
 
         AlTomar?.Invoke(conexionId);
-        await trabajo(cancellationToken);
+        try
+        {
+            await trabajo(cancellationToken);
+        }
+        finally
+        {
+            AlSalir?.Invoke(conexionId);
+        }
+
         return true;
     }
 }

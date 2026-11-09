@@ -203,8 +203,9 @@ public class CompletarIdentidadBuzonService(
     /// <returns>true si la identidad se leyó y coincide con la guardada, o se acaba de completar.</returns>
     private async Task<bool> ComprobarAsync(Guid conexionId, bool esReintento, CancellationToken cancellationToken)
     {
-        // Ya dentro del cerrojo: lo que se lee aquí no lo cambia otra verificación a la vez.
-        var conexion = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+        // Ya dentro del cerrojo: lo que se lee aquí no lo cambia otra verificación a la vez. Releída de la base, aunque el
+        // contexto del ámbito ya la tuviera rastreada: todo lo que sigue decide con este estado.
+        var conexion = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
         if (conexion is null)
             return false;
 
@@ -288,7 +289,7 @@ public class CompletarIdentidadBuzonService(
         }
 
         conexion.FijarIdentidadBuzon(identidad.Valor);
-        var reclamacion = await reclamacionRepositorio.ObtenerPorConexionAsync(conexionId, cancellationToken);
+        var reclamacion = await reclamacionRepositorio.ObtenerActualPorConexionAsync(conexionId, cancellationToken);
         reclamacion?.FijarIdentidadBuzon(identidad.Valor);
         conexion.MarcarIdentidadVerificada(ahoraUtc);
 
@@ -314,7 +315,7 @@ public class CompletarIdentidadBuzonService(
         logger.LogError(
             "La conexión {ConexionId} tiene el mismo buzón que una reclamación de otro Tenant con otra dirección: pasa a ConError.",
             conexionId);
-        var duplicada = await conexionRepositorio.ObtenerPorIdAsync(conexionId, cancellationToken);
+        var duplicada = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
         if (duplicada is null)
             return false;
 

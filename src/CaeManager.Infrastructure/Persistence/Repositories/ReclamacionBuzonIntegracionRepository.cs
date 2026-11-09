@@ -12,6 +12,12 @@ public class ReclamacionBuzonIntegracionRepository(CaeManagerDbContext dbContext
     public Task<ReclamacionBuzonIntegracion?> ObtenerPorConexionAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
         dbContext.ReclamacionesBuzonIntegracion.FirstOrDefaultAsync(r => r.ConexionIntegracionId == conexionIntegracionId, cancellationToken);
 
+    public async Task<ReclamacionBuzonIntegracion?> ObtenerActualPorConexionAsync(
+        Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        (await dbContext.ListarActualesAsync(
+            dbContext.ReclamacionesBuzonIntegracion, r => r.ConexionIntegracionId == conexionIntegracionId, cancellationToken))
+        .FirstOrDefault();
+
     /// <summary>
     /// Restricción de exclusión de la guarda transitoria (ver
     /// <see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>): una reclamación de buzón compartido no

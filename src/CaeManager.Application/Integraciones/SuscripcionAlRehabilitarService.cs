@@ -15,14 +15,17 @@ namespace CaeManager.Application.Integraciones;
 /// renueva, está vigente.</item>
 /// <item>Sin ella, o con una renovación rechazada de forma definitiva (404 tras expirar, la que borró Desconectar): se
 /// crea una nueva, con el mismo <see cref="SuscripcionWebhook.ClientState"/> si ya había una, y se guarda en la misma
-/// fila. Antes de sustituirla se registra su pérdida (<see cref="ConexionIntegracion.RegistrarPerdidaSuscripcion"/>,
-/// disparador b): min(ahora, expiración anterior).</item>
+/// fila. En cuanto la renovación se rechaza de forma definitiva se registra la pérdida de la anterior
+/// (<see cref="ConexionIntegracion.RegistrarPerdidaSuscripcion"/>, disparador b): min(ahora, expiración anterior), salga
+/// como salga la creación.</item>
 /// <item>Un fallo transitorio (<see cref="CodigosErrorMicrosoft365.EsTransitorio"/>) de la renovación o de la creación se
-/// devuelve sin crear nada: el llamador no rehabilita y lo vuelve a intentar más tarde.</item>
+/// devuelve sin crear nada: el llamador no rehabilita y lo vuelve a intentar más tarde. La marca de una pérdida ya
+/// observada sí la guarda el llamador.</item>
 /// <item>Un fallo definitivo de la creación se devuelve tal cual: el llamador deja la conexión en ConError (nunca una
 /// Deshabilitada).</item>
 /// </list>
-/// No guarda: los cambios en la suscripción van en el mismo guardado que la rehabilitación.
+/// No guarda: los cambios en la suscripción y la marca van en el mismo guardado que la rehabilitación, o en el que haga el
+/// llamador cuando no rehabilita.
 /// </summary>
 public class SuscripcionAlRehabilitarService(
     ISuscripcionWebhookRepository suscripcionRepositorio,
@@ -35,8 +38,9 @@ public class SuscripcionAlRehabilitarService(
     public async Task<Result<SuscripcionVigente>> AsegurarAsync(
         ConexionIntegracion conexion, string accessToken, CancellationToken cancellationToken)
     {
-        var suscripcion = await suscripcionRepositorio.ObtenerPorConexionAsync(conexion.Id, cancellationToken);
-        DateTime? expiracionPerdidaUtc = null;
+        // Releída de la base: los llamadores ya están dentro del cerrojo por conexión, y qué Id se renueva o se sustituye
+        // sale de lo que hay ahora, no de una fila que el contexto rastreara desde antes.
+        var suscripcion = await suscripcionRepositorio.ObtenerActualPorConexionAsync(conexion.Id, cancellationToken);
         if (suscripcion is not null)
         {
             var renovacion = await graphClient.RenovarSuscripcionAsync(accessToken, suscripcion.GraphSubscriptionId, cancellationToken);
@@ -54,7 +58,11 @@ public class SuscripcionAlRehabilitarService(
                 "La suscripción {SubscriptionId} de la conexión {ConexionId} ya no se puede renovar ({Error}): se crea otra antes de rehabilitarla.",
                 suscripcion.GraphSubscriptionId, conexion.Id, renovacion.Error.Mensaje);
 
-            expiracionPerdidaUtc = suscripcion.FechaExpiracionUtc;
+            // Disparador (b) en cuanto se observa la pérdida, salga como salga la creación de la sustituta: en cuanto la
+            // fila lleve la expiración de la nueva nadie podrá deducir cuándo se perdió la anterior, y si la creación
+            // falla (también de forma transitoria) la pérdida ya es un hecho. La marca retrocede a min(ahora, expiración
+            // anterior), nunca avanza. El llamador la guarda en todas las ramas, también cuando no rehabilita.
+            conexion.RegistrarPerdidaSuscripcion(suscripcion.FechaExpiracionUtc, DateTime.UtcNow);
         }
 
         if (graphClient.UrlNotificacion(conexion.Id) is not { } urlNotificacion)
@@ -69,14 +77,6 @@ public class SuscripcionAlRehabilitarService(
         var clientState = suscripcion?.ClientState ?? Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         var creada = await graphClient.CrearSuscripcionAsync(
             accessToken, BuzonGraph.De(conexion), urlNotificacion, clientState, cancellationToken);
-
-        // Disparador (b) antes de sustituirla: la suscripción guardada se perdió, y en cuanto la fila lleve la expiración
-        // de la nueva nadie podrá deducir cuándo. La marca retrocede a min(ahora, expiración anterior), nunca avanza, y
-        // viaja en el mismo guardado que la rehabilitación (o que el ConError de una creación rechazada). Con un fallo
-        // transitorio no se toca: el llamador no guarda, y la fila conserva la expiración anterior para quien la mire
-        // después (la renovación diaria o el siguiente intento).
-        if (expiracionPerdidaUtc is { } expiracionPerdida && (creada.EsExitoso || !CodigosErrorMicrosoft365.EsTransitorio(creada.Error)))
-            conexion.RegistrarPerdidaSuscripcion(expiracionPerdida, DateTime.UtcNow);
 
         if (creada.EsFallido)
             return Result.Fallo<SuscripcionVigente>(creada.Error);

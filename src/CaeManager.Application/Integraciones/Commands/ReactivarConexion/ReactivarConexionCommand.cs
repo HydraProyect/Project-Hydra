@@ -60,18 +60,34 @@ public class ReactivarConexionCommandHandler(
         // Reactivar verifica la identidad del buzón: nunca a la vez que el ciclo diario o el reintento de la misma
         // conexión, en ninguna réplica. Si otra verificación está en curso, no se espera: se pide volver a intentarlo.
         Result? resultado = null;
-        if (!await cerrojo.IntentarEjecutarAsync(conexion.Id, async ct => resultado = await ReactivarAsync(conexion, ct), cancellationToken))
+        if (!await cerrojo.IntentarEjecutarAsync(conexion.Id, async ct => resultado = await ReactivarBajoCerrojoAsync(conexion.Id, ct), cancellationToken))
             return Result.Fallo(Error.Crear(
                 CodigoVerificacionEnCurso, "Ya estamos comprobando este buzón en Microsoft. Inténtalo de nuevo en unos segundos."));
 
         return resultado!;
     }
 
+    /// <summary>
+    /// Todo sale del estado releído aquí, ya con el cerrojo: la instancia cargada antes de tomarlo puede estar obsoleta
+    /// (un Desconectar o otro Reactivar terminaron entre la carga y el cerrojo), y EF no comprueba la versión de una
+    /// entidad que no cambia. Dentro del cerrojo nadie más pasa la conexión entre Habilitada y Deshabilitada (lo toman
+    /// Desconectar, Reactivar y la verificación); la renovación, que no lo toma, choca con la versión releída porque toda
+    /// rehabilitación modifica la conexión (estado o verificación) en el mismo guardado.
+    /// </summary>
+    private async Task<Result> ReactivarBajoCerrojoAsync(Guid conexionId, CancellationToken cancellationToken)
+    {
+        var actual = await conexionRepositorio.ObtenerActualPorIdAsync(conexionId, cancellationToken);
+        if (actual is null)
+            return Result.Fallo(Error.Crear("ConexionIntegracion.NoEncontrada", "No encontramos esta conexión."));
+
+        return await ReactivarAsync(actual, cancellationToken);
+    }
+
     private async Task<Result> ReactivarAsync(ConexionIntegracion conexion, CancellationToken cancellationToken)
     {
-        // Solo Deshabilitada libera la reclamación (ver DesconectarBuzonCommandHandler)
-        // — ConError nunca la libera, así que reactivar desde ConError no
-        // necesita reclamar de nuevo.
+        // Solo Deshabilitada libera la reclamación (ver DesconectarBuzonCommandHandler), en el mismo guardado que la deja
+        // Deshabilitada — ConError nunca la libera, así que reactivar desde ConError (o desde una Habilitada que otro
+        // Reactivar acaba de dejar así) no necesita reclamar de nuevo. Con el estado releído bajo el cerrojo.
         var necesitaReclamarBuzon = conexion.Estado == EstadoConexionIntegracion.Deshabilitada;
 
         // El Tenant de la reclamación se resuelve antes de tocar Graph ni rastrear nada: sin él no se crea ni se renueva
@@ -115,21 +131,23 @@ public class ReactivarConexionCommandHandler(
             }
 
             // Rehabilitar exige una suscripción vigente (SuscripcionAlRehabilitarService): sin ella la conexión
-            // quedaría Habilitada y verificada pero sin notificaciones. Un fallo transitorio no muta nada y pide volver
-            // a intentarlo; uno definitivo deja ConError (nunca a una Deshabilitada, que sigue desconectada).
+            // quedaría Habilitada y verificada pero sin notificaciones. Un fallo transitorio no rehabilita y pide volver
+            // a intentarlo; uno definitivo deja ConError (nunca a una Deshabilitada, que sigue desconectada). En las dos
+            // ramas se guarda la marca de una suscripción que ya se vio perdida (disparador b), aunque no se rehabilite.
+            var huecoAntes = conexion.HuecoPendienteDesdeUtc;
             var suscripcion = await suscripciones.AsegurarAsync(conexion, accessToken!, cancellationToken);
             if (suscripcion.EsFallido)
             {
-                if (CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error))
-                    return Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos activar las notificaciones de este buzón. Inténtalo de nuevo."));
+                var transitorio = CodigosErrorMicrosoft365.EsTransitorio(suscripcion.Error);
 
-                if (conexion.Estado != EstadoConexionIntegracion.Deshabilitada)
-                {
-                    conexion.MarcarConError(suscripcion.Error.Mensaje);
+                // MarcarConError no mueve una Deshabilitada.
+                var conError = !transitorio && conexion.MarcarConError(suscripcion.Error.Mensaje);
+                if (conError || conexion.HuecoPendienteDesdeUtc != huecoAntes)
                     await unitOfWork.SaveChangesAsync(cancellationToken);
-                }
 
-                return Result.Fallo(Error.Crear(CodigoSuscripcionImposible, suscripcion.Error.Mensaje));
+                return transitorio
+                    ? Result.Fallo(Error.Crear(CodigoSinComprobacion, "No pudimos activar las notificaciones de este buzón. Inténtalo de nuevo."))
+                    : Result.Fallo(Error.Crear(CodigoSuscripcionImposible, suscripcion.Error.Mensaje));
             }
 
             vigente = suscripcion.Valor;
