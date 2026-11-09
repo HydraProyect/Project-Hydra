@@ -75,6 +75,174 @@
 }
 
 
+/*
+  Pestaña «Requisitos» (maqueta Centro360.dc.html): barra con «Filtrar requisitos» y «Gestionar requisitos», y dos bloques
+  —Empresa y Trabajador— en dos columnas, o apilados cuando no caben dos de 20 rem. Ningún nombre se corta: se parte en líneas.
+*/
+.centro-requisitos-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.centro-requisitos-intro {
+    margin: var(--space-2) 0 var(--space-4);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    font-weight: 400;
+}
+
+.centro-requisitos-bloques {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.centro-requisitos-bloque {
+    min-width: 0;
+    overflow: hidden;
+    background: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.centro-requisitos-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 3.5rem;
+    padding: 0 var(--space-5);
+    cursor: pointer;
+    list-style: none;
+}
+
+.centro-requisitos-cabecera::-webkit-details-marker {
+    display: none;
+}
+
+.centro-requisitos-cabecera:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.centro-requisitos-titulo {
+    margin: 0;
+    font: var(--font-heading-sm);
+    overflow-wrap: anywhere;
+}
+
+.centro-requisitos-chevron {
+    margin-left: auto;
+    display: inline-flex;
+    color: var(--color-text-muted);
+    /* Regla de los chevrons de desplegar (2026-10-18): cerrado a la derecha, abierto hacia abajo. */
+    transition: transform var(--motion-transition) var(--ease-fluid);
+    transform: rotate(-90deg);
+}
+
+.centro-requisitos-bloque[open] > .centro-requisitos-cabecera .centro-requisitos-chevron {
+    transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .centro-requisitos-chevron {
+        transition: none;
+    }
+}
+
+.centro-requisito {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: 0.625rem var(--space-5);
+    border-top: var(--border-default);
+}
+
+.centro-requisito-texto {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.centro-requisito-nombre {
+    font: var(--font-body-md);
+    color: var(--color-text);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.centro-requisito-nombre-bloquea {
+    font-weight: 600;
+}
+
+.centro-requisito-nombre:hover {
+    color: var(--color-primary-500);
+    text-decoration: underline;
+}
+
+.centro-requisito-nombre:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+/* «Tolerancia: N días» siempre en su propia línea bajo el nombre. */
+.centro-requisito-meta {
+    display: block;
+    margin-top: 0.125rem;
+    font: var(--font-label-md);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.centro-requisito-estado {
+    flex: none;
+}
+
+.centro-requisito-no-bloquea {
+    font: var(--font-label-md);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    text-align: right;
+    max-width: 8rem;
+}
+
+.centro-requisitos-vacio {
+    margin: 0;
+    padding: var(--space-3) var(--space-5);
+    border-top: var(--border-default);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.centro-requisitos-mas {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0 var(--space-5);
+    border: 0;
+    border-top: var(--border-default);
+    background: none;
+    color: var(--color-primary-500);
+    font: var(--font-label-md);
+    text-align: left;
+    cursor: pointer;
+}
+
+.centro-requisitos-mas:hover {
+    text-decoration: underline;
+}
+
+.centro-requisitos-mas:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
 .centro-documentacion-intro {
     margin: 0 0 var(--space-3);
     color: var(--color-text-muted);

@@ -29,7 +29,7 @@ public partial class Centro360Gen2Tests
         mediador.Requisitos[id] = [RequisitoDeFormacion(tipo, bloquea: true)];
         Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=requisitos");
         var cut = Renderizar(id);
-        cut.FindComponents<FilaRelacion>().Single().Find(".fila-relacion-estado").TextContent.Should().Contain("Bloquea el acceso", "control positivo: carga inicial");
+        cut.Find(".centro-requisito [data-estado]").TextContent.Should().Contain("Bloquea el acceso", "control positivo: carga inicial");
         var antes = mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Count();
         var lecturasDeLaFicha = mediador.Enviadas.OfType<ObtenerCentroPorIdQuery>().Count();
 
@@ -38,7 +38,7 @@ public partial class Centro360Gen2Tests
         cut.InvokeAsync(() => Services.GetRequiredService<ContextWorkspaceService>()
             .NotificarEntidadGuardada(EntidadWorkspace.Centro, id));
 
-        cut.WaitForAssertion(() => cut.FindComponents<FilaRelacion>().Single().Find(".fila-relacion-estado").TextContent.Should().Contain("No bloquea el acceso"));
+        cut.WaitForAssertion(() => cut.Find(".centro-requisito [data-estado]").TextContent.Should().Contain("No bloquea el acceso"));
         mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Count().Should().Be(antes + 1);
         mediador.Enviadas.OfType<ObtenerCentroPorIdQuery>().Count().Should().Be(lecturasDeLaFicha,
             "la relectura es silenciosa: no rehace la ficha entera ni la sustituye por el esqueleto de carga");

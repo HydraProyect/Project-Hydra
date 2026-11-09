@@ -494,9 +494,21 @@
   <data name="DocumentacionCentroLista360" xml:space="preserve"><value>Documentación de {0} en el Centro</value></data>
   <data name="DocumentacionCentroRecuento360" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
   <data name="RequisitosCentroVacio360" xml:space="preserve"><value>Sin requisitos documentales aplicables</value></data>
-  <data name="RequisitoCentroEmpresa360" xml:space="preserve"><value>Empresa empleadora</value></data>
-  <data name="RequisitoCentroTrabajador360" xml:space="preserve"><value>Trabajador</value></data>
   <data name="RequisitoCentroTolerancia360" xml:space="preserve"><value>Tolerancia: {0} días</value></data>
+  <data name="RequisitoCentroToleranciaUnDia360" xml:space="preserve"><value>Tolerancia: 1 día</value></data>
+  <data name="RequisitoCentroSustituido360" xml:space="preserve"><value>Sustituido</value></data>
+  <data name="RequisitoCentroArchivado360" xml:space="preserve"><value>Archivado</value></data>
+  <data name="RequisitoSustituidoPor360" xml:space="preserve"><value>Sustituido por {0}</value></data>
+  <data name="FiltrarRequisitos360" xml:space="preserve"><value>Filtrar requisitos</value></data>
+  <data name="GestionarRequisitos360" xml:space="preserve"><value>Gestionar requisitos</value></data>
+  <data name="RequisitosCentroIntro360" xml:space="preserve"><value>Documentación que este Centro exige. En cada bloque, primero la que bloquea el acceso.</value></data>
+  <data name="RequisitosBloqueEmpresa360" xml:space="preserve"><value>Documentación de la Empresa</value></data>
+  <data name="RequisitosBloqueTrabajador360" xml:space="preserve"><value>Documentación del Trabajador</value></data>
+  <data name="RequisitosBloqueVacio360" xml:space="preserve"><value>Sin requisitos en este bloque</value></data>
+  <data name="RequisitosBloqueSinCoincidencias360" xml:space="preserve"><value>Ningún requisito coincide con el filtro</value></data>
+  <data name="RequisitosVerRestantes360" xml:space="preserve"><value>Ver los {0} restantes</value></data>
+  <data name="RequisitosVerRestanteUno360" xml:space="preserve"><value>Ver el 1 restante</value></data>
+  <data name="RequisitosVerMenos360" xml:space="preserve"><value>Ver menos</value></data>
   <data name="RequisitoCentroBloquea360" xml:space="preserve"><value>Bloquea el acceso</value></data>
   <data name="RequisitoCentroNoBloquea360" xml:space="preserve"><value>No bloquea el acceso</value></data>
   <data name="FichaContratoHasta360" xml:space="preserve"><value>Contrato vigente hasta</value></data>
