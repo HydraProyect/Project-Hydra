@@ -50,7 +50,8 @@ public class SelectorLoteDocumentalPreseleccionTests : BunitContext
 
     private static string? TextoDelCampoTrabajador(IRenderedComponent<SelectorLoteDocumental> cut) =>
         cut.FindAll("label").Single(l => l.TextContent.Trim() == "Trabajador")
-            .ParentElement!.QuerySelector("input")!.GetAttribute("value");
+            // El texto de la opción elegida en el combobox; sin elección se ve el marcador, que no cuenta.
+            .ParentElement!.QuerySelector(".csa-valor:not(.csa-marcador)")?.TextContent.Trim();
 
     [Fact]
     public void La_persona_preseleccionada_se_ve_en_el_campo_cuando_termina_la_carga()

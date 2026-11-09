@@ -273,6 +273,9 @@
   <data name="SelectorSinResultados" xml:space="preserve">
     <value>Cap opció coincideix amb la cerca.</value>
   </data>
+  <data name="SelectorSinCoincidencias" xml:space="preserve">
+    <value>Sense coincidències</value>
+  </data>
   <data name="SelectorResultados" xml:space="preserve">
     <value>{0} resultats</value>
   </data>

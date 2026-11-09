@@ -150,10 +150,9 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
-        await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
-        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
-        await page.WaitForTimeoutAsync(500);
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), nombreTipoDocumento);
 
         var hoy = Ayudas.HoyDeNegocio();
@@ -244,19 +243,15 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
         //
-        // CampoBuscarSelect resuelve por texto EXACTO de la opción — y la
-        // opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
+        // La opción de Centro no es solo el nombre: OpcionesCentrosParaAsignar
         // (Trabajadores.razor.cs) la construye como "{Nombre} ({Cliente})"
         // para poder distinguir centros del mismo nombre en clientes
-        // distintos. Rellenar solo con nombreCentro no coincidía con
-        // ninguna opción — _centroIdParaAsignar se quedaba vacío y
-        // "Asignar" fallaba en silencio con el toast "Selecciona un
-        // centro.", sin cerrar el modal (visto en CI: timeout esperando a
-        // que ".modal-pie" desapareciera).
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        // El debounce del servidor resuelve el Id del Centro; sin documentos faltantes no hay señal visible.
-        await page.WaitForTimeoutAsync(500);
+        // distintos. Se busca y se pulsa esa opción en el combobox
+        // (CampoBuscarSelect); sin elegirla, "Asignar" falla con el toast
+        // "Selecciona un centro." y el modal no se cierra.
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page,
+            page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true }),
+            $"{nombreCentro} ({razonSocialCliente})");
         // El botón de confirmar cambia de texto a "Asignar igualmente" si al
         // comprobarlo faltaba algún documento de los que se piden (ver
         // Trabajadores.razor.cs, ObtenerDocumentosFaltantesParaAsignacionQuery)
