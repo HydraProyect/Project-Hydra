@@ -719,6 +719,13 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 // de la conexión y la deja en el pool: ver la clase.
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
 
+// Coste de cada carga (pieza 0.1 del plan de rendimiento): cabecera Server-Timing en las respuestas SSR
+// y un registro Information por carga de página en el circuito. Apagado por defecto; ver OpcionesServerTiming.
+builder.Services.Configure<CaeManager.Web.Services.OpcionesServerTiming>(
+    builder.Configuration.GetSection(CaeManager.Web.Services.OpcionesServerTiming.Seccion));
+builder.Services.AddSingleton<CaeManager.Web.Services.PlantillasDeRutaDePagina>();
+builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.MedicionCargaCircuitoHandler>();
+
 // Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
 // cualquier uptime check externo veía un servicio sano que no podía servir
@@ -1401,6 +1408,11 @@ app.UseHttpsRedirection();
 // Antes de todo lo que produce respuesta (páginas, endpoints y estáticos):
 // las cabeceras han de ir en cualquier respuesta, incluidas las de error.
 app.UseCabecerasSeguridad();
+
+// Antes de todo lo que consulta la base, para que la cabecera recoja también el coste de los
+// middlewares. Solo registra un OnStarting: decide en ese momento (usuario ya autenticado, tipo
+// de respuesta ya fijado) si la añade. Apagado salvo Observabilidad:ServerTiming:Habilitado.
+app.UseServerTimingCosteCarga();
 
 // Detrás de las cabeceras de seguridad (el 503 las reaplica y conserva el HSTS; ver
 // PresupuestoMemoriaAgotadoExtensions): sin hueco en el presupuesto de memoria de
