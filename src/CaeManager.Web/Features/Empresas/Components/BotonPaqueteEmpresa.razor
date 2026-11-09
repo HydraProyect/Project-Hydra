@@ -91,7 +91,8 @@
 
                 @* Tarjeta de error de la maqueta (§ C, «Barra de lote y estados»): etiqueta, título, motivo y «Reintentar», que repite
                    la misma descarga con el destino del resumen anunciado. Mientras se reintenta la tarjeta sigue en el DOM con el
-                   botón en espera, para que el foco del teclado no se pierda; desaparece si la descarga sale bien. *@
+                   botón en espera (como «Generar ZIP»), para no retirar el elemento con el foco si vuelve a fallar; si la
+                   descarga sale bien, la tarjeta desaparece. *@
                 @if (_errorDescarga is not null)
                 {
                     <div class="paquete-error-descarga" role="alert">

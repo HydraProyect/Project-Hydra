@@ -73,6 +73,17 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
         _resumen = null;
         if (!conservarError) _errorDescarga = null;
         await CargarAsync();
+
+        // Si el destino de la descarga fallida ya no se puede consultar (por ejemplo, terminó la Relación Empresarial), el error
+        // de carga no daría salida: su «Reintentar» volvería a pedir ese mismo destino. Se abre como siempre, sin el motivo,
+        // porque ese paquete ya no se puede reintentar.
+        if (conservarError && _error && _abierto)
+        {
+            _destinoInicialElegido = false;
+            _destinoId = null;
+            _errorDescarga = null;
+            await CargarAsync();
+        }
     }
 
     private async Task ElegirAsync(Guid? destinoId)
@@ -143,7 +154,7 @@ public partial class BotonPaqueteEmpresa : IAsyncDisposable
 
     /// <summary>
     /// «Reintentar» de la tarjeta de error: la misma descarga, por la misma llamada y con el destino del resumen anunciado (el
-    /// de la descarga que falló). La tarjeta se queda hasta saber el resultado, para que su botón no salga del DOM con el foco.
+    /// de la descarga que falló). La tarjeta se queda hasta saber el resultado, para que su botón no salga del DOM si vuelve a fallar.
     /// </summary>
     private Task ReintentarAsync() => GenerarAsync(reintento: true);
 

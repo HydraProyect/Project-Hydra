@@ -985,6 +985,52 @@ public partial class Empresa360PaginaTests : BunitContext
         modulo.Rutas.Last().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip", "se reintenta «Todo lo vigente», lo que falló");
     }
 
+    private (IRenderedComponent<EmpresaDetalle> Cut, MediatorFalso Mediador, ModuloDescargaQueAnota Modulo) FallarArbekoConElDialogoCerrado()
+    {
+        var importacion = new TaskCompletionSource<IJSObjectReference>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Services.AddSingleton<IJSRuntime>(new JsConImportacionRetenida(JSInterop.JSRuntime, importacion.Task));
+        var mediador = Registrar(Empresa());
+        var cut = AbrirPaquete(mediador);
+        cut.FindAll(".paquete-destino").Single(b => b.TextContent.Trim() == "Grupo Arbeko").Click();
+        cut.Find("[role=dialog] .paquete-generar").Click();
+        cut.Find("[role=dialog] .modal-cerrar").Click();
+        var modulo = new ModuloDescargaQueAnota { Respuesta = new BotonPaqueteEmpresa.RespuestaDescarga(false, 0, null) };
+        importacion.SetResult(modulo);
+        cut.WaitForAssertion(() => modulo.Rutas.Should().ContainSingle());
+        return (cut, mediador, modulo);
+    }
+
+    [Fact]
+    public void Si_falla_un_Cliente_concreto_con_el_dialogo_cerrado_al_reabrir_se_ve_y_se_reintenta_ese_Cliente()
+    {
+        var (cut, _, modulo) = FallarArbekoConElDialogoCerrado();
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .paquete-error-motivo").Should().ContainSingle());
+        cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "false"), ("Grupo Arbeko", "true"), ("Todo lo vigente", "false"));
+        cut.Find("[role=dialog] .paquete-reintentar").Click();
+        cut.WaitForAssertion(() => modulo.Rutas.Should().HaveCount(2));
+        modulo.Rutas.Last().Should().Be($"/empresas/{EmpresaId}/paquete-documental.zip?cliente={OtroClientePaqueteId}");
+    }
+
+    [Fact]
+    public void Si_el_Cliente_que_fallo_ya_no_se_puede_consultar_al_reabrir_el_dialogo_abre_como_siempre()
+    {
+        var (cut, mediador, _) = FallarArbekoConElDialogoCerrado();
+        mediador.ResumenPaquete = q => q.ClienteEmpresarialId == OtroClientePaqueteId
+            ? Result.Fallo<ResumenPaqueteEmpresaDto>(Error.Crear("NoEncontrada", "No encontrada."))
+            : Result.Exito(ResumenPaqueteDe(q.ClienteEmpresarialId));
+
+        cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Preparar paquete").Click();
+
+        // Sin la vuelta a la apertura normal, el error de carga ofrecería un «Reintentar» que pide siempre el mismo destino.
+        cut.WaitForAssertion(() => cut.FindAll(".paquete-destino").Select(b => (b.TextContent.Trim(), b.GetAttribute("aria-pressed")))
+            .Should().Equal(("Refrielectric S.A.", "true"), ("Grupo Arbeko", "false"), ("Todo lo vigente", "false")));
+        cut.FindAll("[role=dialog] .paquete-error-descarga").Should().BeEmpty("ese paquete ya no se puede reintentar");
+    }
+
     /// <summary>
     /// El JS de bUnit, salvo la importación de <c>descarga-archivo.js</c>, que espera a <paramref name="modulo"/> (bUnit no
     /// deja retener un <c>SetupModule</c>).
