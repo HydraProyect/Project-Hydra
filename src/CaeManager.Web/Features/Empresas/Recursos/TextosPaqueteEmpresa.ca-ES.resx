@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AccionPreparar" xml:space="preserve">
+    <value>Preparar paquet</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Preparar paquet documental</value>
+  </data>
+  <data name="Para" xml:space="preserve">
+    <value>Per a</value>
+  </data>
+  <data name="TodoLoVigente" xml:space="preserve">
+    <value>Tot el que és vigent</value>
+  </data>
+  <data name="VanEnElPaquete" xml:space="preserve">
+    <value>van al paquet</value>
+  </data>
+  <data name="FaltanOVencidos" xml:space="preserve">
+    <value>falten o vençuts</value>
+  </data>
+  <data name="NoLosPide" xml:space="preserve">
+    <value>no els demana aquest Client</value>
+  </data>
+  <data name="Faltan" xml:space="preserve">
+    <value>Falten</value>
+  </data>
+  <data name="Falta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="VencidoEl" xml:space="preserve">
+    <value>Vençut {0}</value>
+  </data>
+  <data name="Formato" xml:space="preserve">
+    <value>Format</value>
+  </data>
+  <data name="FormatoZip" xml:space="preserve">
+    <value>ZIP amb carpetes per Treballador</value>
+  </data>
+  <data name="ResumenUno" xml:space="preserve">
+    <value>1 document</value>
+  </data>
+  <data name="ResumenVarios" xml:space="preserve">
+    <value>{0} documents</value>
+  </data>
+  <data name="Reclamar" xml:space="preserve">
+    <value>Reclamar el que falta</value>
+  </data>
+  <data name="Generar" xml:space="preserve">
+    <value>Generar ZIP</value>
+  </data>
+  <data name="Cargando" xml:space="preserve">
+    <value>Calculant el paquet…</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>No hem pogut calcular el paquet.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="NadaVigente" xml:space="preserve">
+    <value>Res del que demana aquest destí és vigent: no es genera el paquet.</value>
+  </data>
+  <data name="PasaDelLimite" xml:space="preserve">
+    <value>El paquet passa de {0} fitxers, el màxim que es prepara al moment. Tria un Client concret per generar-lo.</value>
+  </data>
+  <data name="SesionPrivilegiadaSinDescarga" xml:space="preserve">
+    <value>En una sessió privilegiada de plataforma pots veure el resum del paquet, però no descarregar-lo.</value>
+  </data>
+  <data name="ErrorDescarga" xml:space="preserve">
+    <value>No hem pogut generar el paquet. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorDescargaNoEncontrada" xml:space="preserve">
+    <value>L'empresa o el destí ja no estan disponibles per a tu.</value>
+  </data>
+</root>

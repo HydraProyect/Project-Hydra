@@ -425,7 +425,7 @@
                                             <li class="centro-pendiente-cliente" @key="centro.Id">
                                                 <span class="centro-pendiente-nombre">@centro.Nombre</span>
                                                 <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
-                                                <span class="centro-pendiente-detalle">@MotivosCentro(centro)</span>
+                                                <span class="centro-pendiente-detalle"><AvisosRecortados Avisos="MotivosCentro(centro)" Href="@($"/centros/{centro.Id}")" Nombre="@centro.Nombre" /></span>
                                                 @* Solo con escritura: «Gestionar» abre la vista rápida del Centro, donde se trabaja lo que le
                                                    falta; quien solo consulta ve el estado y el motivo, sin el verbo (decisión de 2026-10-18). *@
                                                 <SoloConEscritura>

@@ -760,17 +760,21 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <c>EstadosEntidad</c>, calculado con esa misma regla), así que lo que el estado cuenta aquí se nombra. «Todo validado en la plataforma» solo se afirma de un Centro Vigente sin ninguna causa: estado TALVEG ≠ estado
     /// en la plataforma. Vacío si no hay nada que decir.
     /// </summary>
-    private string MotivosCentro(CentroListaDto centro)
+    /// <remarks>
+    /// Del más grave al menos grave (2026-11-08): la fila muestra los dos primeros y el resto en «+N»
+    /// (<see cref="AvisosRecortados"/>), así que el orden decide qué se ve. Primero lo que impide el acceso.
+    /// </remarks>
+    private IReadOnlyList<string> MotivosCentro(CentroListaDto centro)
     {
         if (centro.Estado == EstadoCentro.SinGestionCae)
-            return string.Empty;
+            return [];
         var partes = new List<string>();
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueaAccesoUno", "DetalleBloqueanAccesoVarios"));
         if (centro.Recuentos.VencidasPorFecha.Count > 0)
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
             partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
-        if (centro.Recuentos.Bloqueos.Count > 0)
-            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueaAccesoUno", "DetalleBloqueanAccesoVarios"));
         if (centro.Recuentos.TotalPendientesEnPlataforma > 0)
             partes.Add(Plural(centro.Recuentos.TotalPendientesEnPlataforma, "DetallePendienteValidacionUno", "DetallePendientesValidacionVarios"));
         var bloqueados = _bloqueos.Where(b => b.CentroId == centro.Id).Select(b => b.TrabajadorId).Distinct().Count();
@@ -779,48 +783,57 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
         if (partes.Count > 0)
-            return string.Join(" · ", partes);
+            return partes;
         // Lista positiva: solo un Centro Vigente está validado. Cualquier otro estado sin causa en los recuentos se calla
         // en vez de afirmarlo.
-        return centro.Estado == EstadoCentro.Vigente ? Textos["CentroTodoValidado"].Value : string.Empty;
+        return centro.Estado == EstadoCentro.Vigente ? [Textos["CentroTodoValidado"].Value] : [];
     }
 
     /// <summary>
     /// Maqueta 21-10: Empresas y recuentos en líneas distintas; el bloqueo de la plataforma CAE se rotula junto al nombre.
-    /// Un Centro sin gestión CAE lleva solo «Sin gestión CAE».
+    /// Un Centro sin gestión CAE lleva solo «Sin gestión CAE». Los recuentos van recortados a dos más «+N» hacia el
+    /// Centro 360 (2026-11-08), para que la línea no se parta en dos.
     /// </summary>
-    private IReadOnlyList<string> LineasDetalleCentro(CentroListaDto centro)
-    {
-        var lineas = new List<string>();
-        if (centro.Estado == EstadoCentro.SinGestionCae)
-        {
-            lineas.Add(Textos["CentroSinGestionCaeLinea"].Value);
-            return lineas;
-        }
-        if (EmpresasDelCentro(centro) is { } contratista)
-            lineas.Add(contratista);
-        var motivos = MotivosCentro(centro);
-        if (motivos.Length > 0)
-            lineas.Add(motivos);
-        return lineas;
-    }
-
-    /// <summary>Sin líneas no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
     private RenderFragment? FragmentoDetalleCentro(CentroListaDto centro)
     {
-        var lineas = LineasDetalleCentro(centro);
-        if (lineas.Count == 0) return null;
+        if (centro.Estado == EstadoCentro.SinGestionCae)
+            return LineaDetalle(Textos["CentroSinGestionCaeLinea"].Value);
+        var contratista = EmpresasDelCentro(centro);
+        var motivos = MotivosCentro(centro);
+        // Sin líneas no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.
+        if (contratista is null && motivos.Count == 0) return null;
         return builder =>
         {
-            foreach (var linea in lineas)
+            if (contratista is not null)
+                builder.AddContent(0, LineaDetalle(contratista));
+            if (motivos.Count > 0)
             {
-                builder.OpenElement(0, "span");
-                builder.AddAttribute(1, "class", "cliente360-linea-detalle");
-                builder.AddContent(2, linea);
+                builder.OpenElement(1, "span");
+                builder.AddAttribute(2, "class", "cliente360-linea-detalle");
+                builder.OpenComponent<AvisosRecortados>(3);
+                builder.AddComponentParameter(4, nameof(AvisosRecortados.Avisos), motivos);
+                builder.AddComponentParameter(5, nameof(AvisosRecortados.Href), $"/centros/{centro.Id}");
+                builder.AddComponentParameter(6, nameof(AvisosRecortados.Nombre), centro.Nombre);
+                builder.CloseComponent();
                 builder.CloseElement();
             }
         };
     }
+
+    private static RenderFragment LineaDetalle(string texto) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "cliente360-linea-detalle");
+        builder.AddContent(2, texto);
+        builder.CloseElement();
+    };
+
+    /// <summary>
+    /// El rótulo «Bloqueo de la plataforma CAE» junto al nombre, solo si la pastilla de estado no dice ya lo mismo:
+    /// ningún aviso se repite en la misma fila (2026-11-08).
+    /// </summary>
+    private static bool RotularBloqueoJuntoAlNombre(CentroListaDto centro) =>
+        centro.Recuentos.Bloqueos.Count > 0 && centro.Estado != EstadoCentro.Bloqueado;
 
     /// <summary>Maqueta 17-10 (.fila-tinte-rojo / .fila-tinte-ambar): la fila se tiñe con el tono de su estado cuando hay problema.</summary>
     private static TonoFila? TonoDeFilaCentro(CentroListaDto centro) =>

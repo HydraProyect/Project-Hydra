@@ -1,9 +1,9 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
-using System.IO.Compression;
 using System.Net;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.PaqueteDocumental;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -33,20 +33,8 @@ public class PaqueteDocumentalVisitaService(
     // escribió ninguna persona, y el hilo debe dejarlo claro.
     private const string RemitenteAutomaticoEmail = "talveg-automatico@sistema.local";
 
-    private record DocumentoCandidatoDto(
-        Guid Id, Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl, DateOnly FechaEmision,
-        EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, DateTime CreadoEnUtc, bool EsRenuncia);
-    private record DocumentoParaZipDto(Guid Id, Guid? TrabajadorId, Guid TipoDocumentoId, string ArchivoUrl);
-    private record TrabajadorNombreDto(string Nombre, string Apellidos);
 
-    /// <summary>
-    /// Un grupo por (titular, tipo) con al menos una copia no vencida — sus copias en orden
-    /// de preferencia, de las que viajará UNA — y los pares que se quedan fuera por tener solo
-    /// copias vencidas.
-    /// </summary>
-    private record SeleccionPaquete(
-        IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> Enviar,
-        IReadOnlyList<(Guid? TrabajadorId, Guid TipoDocumentoId)> SoloVencidos);
+    private record TrabajadorNombreDto(string Nombre, string Apellidos);
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
@@ -113,7 +101,7 @@ public class PaqueteDocumentalVisitaService(
 
         var candidatos = await documentosContext.Documentos.Operativos()
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
-            .Select(d => new DocumentoCandidatoDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.EstadoVigencia, d.FechaVencimiento, d.CreadoEnUtc, d.EsRenuncia))
+            .Select(d => new ArmadoPaqueteDocumental.Candidato(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl!, d.FechaEmision, d.EstadoVigencia, d.FechaVencimiento, d.CreadoEnUtc, d.EsRenuncia))
             .ToListAsync(cancellationToken);
 
         if (candidatos.Count == 0)
@@ -122,7 +110,7 @@ public class PaqueteDocumentalVisitaService(
             return null;
         }
 
-        var seleccion = SeleccionarDocumentos(candidatos, DiaDeNegocio.Hoy());
+        var seleccion = ArmadoPaqueteDocumental.Seleccionar(candidatos, DiaDeNegocio.Hoy());
         var gruposAEnviar = seleccion.Enviar;
 
         if (seleccion.SoloVencidos.Count > 0)
@@ -189,171 +177,32 @@ public class PaqueteDocumentalVisitaService(
         return new PaqueteDocumentalZip(nombreZip, zipBytes, incluidos, centro.Nombre, visita.FechaInicio, visita.FechaFin);
     }
 
-    /// <summary>
-    /// Reglas del propietario (2026-09-20 y precisión del 2026-10-01): al Cliente empresarial
-    /// se le envían los documentos vigentes, uno por (titular, tipo) y el de emisión más
-    /// reciente; nunca los vencidos. El que viaja es el documento efectivo (<see cref="DocumentoEfectivo"/>), si es vigente.
-    ///
-    /// <para>
-    /// Entre las copias vigentes de un (titular, tipo) viaja la de <c>FechaEmision</c> más
-    /// reciente, aunque otra venza más tarde; el desempate es determinista y está en
-    /// <see cref="DocumentoEfectivo"/>. «Sin confirmar» y
-    /// <see cref="EstadoVigenciaDocumento.NoCaduca"/> (p. ej. Formación 60h) son vigentes y
-    /// compiten por su emisión como cualquier otra copia.
-    /// </para>
-    ///
-    /// <para>
-    /// Si la copia que acaba viajando está sin confirmar —nadie ha anotado hasta cuándo vale,
-    /// pero no está vencida—, <see cref="ConstruirAsync"/> lo deja en el log (una vez
-    /// construido el zip, para que conste lo que de verdad se envió).
-    /// </para>
-    ///
-    /// <para>
-    /// Vencido es <c>FechaVencimiento &lt; hoy</c> (el umbral ámbar/rojo no interviene:
-    /// Próximo y Urgente siguen vigentes), evaluado con
-    /// <see cref="DocumentoEfectivo.ValidoHoy"/> para no duplicar la regla. Si de
-    /// un (titular, tipo) solo hay copias vencidas no se envía ninguna y el par se devuelve en
-    /// <see cref="SeleccionPaquete.SoloVencidos"/>: nunca se manda el vencido «por si acaso».
-    /// </para>
-    ///
-    /// <para>
-    /// Los candidatos ya vienen filtrados a los que tienen archivo: un documento sin
-    /// archivo no puede viajar y no compite por el puesto. Cada grupo conserva todas sus
-    /// copias vigentes en orden de preferencia: si el archivo de la primera no se puede
-    /// abrir en el almacenamiento, <see cref="ConstruirZipAsync"/> prueba la siguiente —
-    /// sigue siendo un documento por titular y tipo, y nunca uno vencido. Sin hueco en el
-    /// presupuesto de memoria de documentos (<see cref="PresupuestoMemoriaAgotadoException"/>)
-    /// o con la operación cancelada no se prueba otra copia: el paquete entero falla, porque
-    /// saltarse documentos daría por completo un paquete al que le faltan.
-    /// </para>
-    ///
-    /// <para>
-    /// Este es el único punto que elige copia para el paquete de la Visita: lo usan el
-    /// adjunto automático al buzón (<see cref="GenerarYEnviarAsync"/>) y la descarga manual
-    /// del ZIP (<see cref="ConstruirAsync"/>), y los dos registran el acceso a lo sensible.
-    /// </para>
-    /// </summary>
-    private static SeleccionPaquete SeleccionarDocumentos(IReadOnlyList<DocumentoCandidatoDto> candidatos, DateOnly hoy)
-    {
-        var enviar = new List<IReadOnlyList<DocumentoParaZipDto>>();
-        var soloVencidos = new List<(Guid? TrabajadorId, Guid TipoDocumentoId)>();
-
-        foreach (var grupo in candidatos.GroupBy(d => (d.TrabajadorId, d.TipoDocumentoId)))
-        {
-            // El documento efectivo del grupo (entre los que tienen archivo: un documento sin archivo no se puede enviar,
-            // así que si el efectivo de las pantallas no lo tiene, viaja el siguiente) es el primero (DocumentoEfectivo, el mismo orden que el estado y el
-            // cumplimiento) y solo viaja si es vigente: los vencidos nunca se envían. Los válidos van antes que los
-            // vencidos, así que las copias vigentes son el prefijo del orden: el efectivo y, detrás, las de reserva por si
-            // su archivo no se puede abrir.
-            var vigentes = DocumentoEfectivo.Ordenar(
-                    grupo, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy)
-                .TakeWhile(d => DocumentoEfectivo.ValidoHoy(d.EstadoVigencia, d.FechaVencimiento, hoy, d.EsRenuncia))
-                .ToList();
-
-            if (vigentes.Count == 0)
-            {
-                soloVencidos.Add(grupo.Key);
-                continue;
-            }
-
-            enviar.Add(vigentes.Select(d => new DocumentoParaZipDto(d.Id, d.TrabajadorId, d.TipoDocumentoId, d.ArchivoUrl)).ToList());
-        }
-
-        return new SeleccionPaquete(enviar, soloVencidos);
-    }
 
     /// <summary>
-    /// Devuelve null si ningún documento pudo abrirse (storage inconsistente) — mejor no adjuntar
-    /// nada que adjuntar un zip vacío. De cada grupo entra UNA copia: la primera cuyo archivo se
-    /// pueda abrir; si ninguna se abre, el grupo queda fuera (con un aviso por cada intento).
-    /// Devuelve también qué documentos entraron de verdad: su cuenta es la cifra que anuncia el
-    /// correo, y cada uno es un acceso a su contenido que <see cref="ConstruirAsync"/> registra (DEC-36).
+    /// La regla de selección (vigentes, uno por titular y tipo, el de emisión más reciente, nunca vencidos) y el armado del
+    /// zip viven en <see cref="ArmadoPaqueteDocumental"/>, compartidos con el «Preparar paquete» de Empresa 360. Aquí solo se
+    /// decide dónde va cada copia: «Trabajadores/» o «Empresa/», con el nombre «Tipo - titular». Lo usan el adjunto automático
+    /// al buzón (<see cref="GenerarYEnviarAsync"/>) y la descarga manual del ZIP (<see cref="ConstruirAsync"/>), y los dos
+    /// registran el acceso a lo sensible.
     /// </summary>
     private async Task<(byte[] Bytes, IReadOnlyList<DocumentoEnPaquete> Documentos)?> ConstruirZipAsync(
-        IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> grupos,
+        IReadOnlyList<IReadOnlyList<ArmadoPaqueteDocumental.Copia>> grupos,
         IReadOnlyDictionary<Guid, string> nombresTipoDocumento,
         string? razonSocialEmpresa,
         IReadOnlyDictionary<Guid, TrabajadorNombreDto> trabajadoresPorId,
         CancellationToken cancellationToken)
     {
-        using var memoria = new MemoryStream();
-        // Sin distinguir mayúsculas: quien extrae el zip lo hace en Windows, donde «ANA» y «Ana» son
-        // el mismo fichero.
-        var nombresUsados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var agregados = new List<DocumentoEnPaquete>();
-
-        using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
+        var zip = await ArmadoPaqueteDocumental.ConstruirZipAsync(grupos, documento =>
         {
-            foreach (var grupo in grupos)
-            {
-                foreach (var documento in grupo)
-                {
-                    Stream contenido;
-                    try
-                    {
-                        contenido = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-                    }
-                    catch (Exception ex) when (ex is not PresupuestoMemoriaAgotadoException and not OperationCanceledException)
-                    {
-                        // Solo el tipo de la excepcion: su mensaje arrastra la clave del fichero.
-                        logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental de la visita ({TipoExcepcion}).", documento.Id, ex.GetType().Name);
-                        continue;
-                    }
+            var tipoNombre = nombresTipoDocumento.GetValueOrDefault(documento.TipoDocumentoId, "Documento");
+            var carpeta = documento.TrabajadorId is not null ? "Trabajadores" : "Empresa";
+            var titular = documento.TrabajadorId is not null && trabajadoresPorId.TryGetValue(documento.TrabajadorId.Value, out var trabajador)
+                ? $"{trabajador.Nombre} {trabajador.Apellidos}"
+                : razonSocialEmpresa ?? "Empresa";
+            return (carpeta, $"{tipoNombre} - {titular}");
+        }, almacenamiento, logger, cancellationToken);
 
-                    await using (contenido)
-                    {
-                        var tipoNombre = nombresTipoDocumento.GetValueOrDefault(documento.TipoDocumentoId, "Documento");
-                        var carpeta = documento.TrabajadorId is not null ? "Trabajadores" : "Empresa";
-                        var titular = documento.TrabajadorId is not null && trabajadoresPorId.TryGetValue(documento.TrabajadorId.Value, out var trabajador)
-                            ? $"{trabajador.Nombre} {trabajador.Apellidos}"
-                            : razonSocialEmpresa ?? "Empresa";
-
-                        var extension = Path.GetExtension(documento.ArchivoUrl);
-                        var nombreEntrada = SanearNombreEntrada(carpeta, $"{tipoNombre} - {titular}", extension, nombresUsados);
-
-                        var entrada = zip.CreateEntry(nombreEntrada, CompressionLevel.Fastest);
-                        await using var flujoEntrada = entrada.Open();
-                        await contenido.CopyToAsync(flujoEntrada, cancellationToken);
-                    }
-
-                    agregados.Add(new DocumentoEnPaquete(documento.Id, documento.TipoDocumentoId));
-                    break; // uno por titular y tipo
-                }
-            }
-        }
-
-        return agregados.Count > 0 ? (memoria.ToArray(), agregados) : null;
-    }
-
-    /// <summary>
-    /// Caracteres que Windows no admite en un nombre de fichero, junto con los de control (por
-    /// debajo del espacio). La lista es fija a propósito: <see cref="Path.GetInvalidFileNameChars"/>
-    /// depende del sistema donde corre el servidor —en Linux solo devuelve «\0» y «/»— y quien abre
-    /// el zip lo hace en Windows.
-    /// </summary>
-    private static readonly char[] CaracteresNoValidosEnNombre = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
-
-    /// <summary>
-    /// Nombre de una entrada del zip: «carpeta/nombre.ext». La carpeta la decide el servicio y es el
-    /// único nivel que existe dentro del zip. El nombre sale de datos que escribe el usuario (Tipo
-    /// de documento y titular), así que se sanea entero —barras incluidas, que de otro modo abrirían
-    /// una subcarpeta— y se le quitan los puntos y espacios del final, para que no queden pegados a
-    /// la extensión. A la extensión se le quitan también, porque Windows no admite un fichero que
-    /// acabe en punto o en espacio. Si dos documentos acaban con el mismo nombre —sin distinguir
-    /// mayúsculas—, el segundo lleva « (2)».
-    /// </summary>
-    private static string SanearNombreEntrada(string carpeta, string nombre, string extension, HashSet<string> nombresUsados)
-    {
-        var nombreLimpio = Sanear(nombre).TrimEnd('.', ' ');
-        var extensionLimpia = Sanear(extension).TrimEnd('.', ' ');
-
-        var candidato = $"{carpeta}/{nombreLimpio}{extensionLimpia}";
-        for (var contador = 2; !nombresUsados.Add(candidato); contador++)
-            candidato = $"{carpeta}/{nombreLimpio} ({contador}){extensionLimpia}";
-
-        return candidato;
-
-        static string Sanear(string texto) =>
-            string.Concat(texto.Select(c => c < ' ' || CaracteresNoValidosEnNombre.Contains(c) ? '_' : c));
+        if (zip is null) return null;
+        return (zip.Value.Bytes, zip.Value.Documentos.Select(d => new DocumentoEnPaquete(d.DocumentoId, d.TipoDocumentoId)).ToList());
     }
 }
