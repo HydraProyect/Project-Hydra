@@ -64,6 +64,46 @@ public sealed partial class FilaRespondeAlCursorTests
             @"@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.fila-relacion\s*\{\s*transition:\s*none;");
     }
 
+    /// <summary>
+    /// Segundo nivel (decisión de Chris del 2026-11-08): la subfila con problema dentro de una fila
+    /// desplegada —la de FilaRelacion o la de la tarjeta-fila-acordeon de los listados— no lleva
+    /// degradado, sino una raya lateral de 3 px; el nivel 1 conserva el tinte. Sin este test, borrar
+    /// las reglas anidadas o quitarles el ancestro deja la suite en verde.
+    /// </summary>
+    [Theory]
+    [InlineData("peligro", "--color-danger-500")]
+    [InlineData("advertencia", "--color-warning-500")]
+    public void La_subfila_desplegada_marca_el_estado_con_una_raya_y_no_con_fondo(string tono, string token)
+    {
+        foreach (var ancestro in new[] { @"\.fila-relacion-desplegado", @"\.tarjeta-fila-acordeon-contenido" })
+        {
+            Css.Should().MatchRegex(
+                ancestro + @"\s+\.fila-relacion\[data-tono\]\s*[,{][^}]*background-image:\s*none",
+                $"la subfila bajo {ancestro} no lleva el degradado del nivel 1");
+            Css.Should().MatchRegex(
+                ancestro + $@"\s+\.fila-relacion\[data-tono=""{tono}""\]\s*[,{{][^}}]*box-shadow:\s*inset 3px 0 0 var\({token}\)",
+                $"la subfila {tono} bajo {ancestro} lleva la raya lateral");
+        }
+    }
+
+    [Fact]
+    public void El_nivel_1_conserva_el_tinte()
+    {
+        // Una regla cuyo selector empiece por .fila-relacion[data-tono (sin ancestro) no puede anular el degradado.
+        SinAncestroQueAnulaElDegradado().IsMatch(Css).Should().BeFalse(
+            "solo la subfila desplegada pierde el degradado; la fila de nivel 1 lo conserva");
+    }
+
+    [Fact]
+    public void La_transicion_de_la_subfila_desplegada_se_apaga_con_movimiento_reducido()
+    {
+        Css.Should().MatchRegex(
+            @"@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.fila-relacion-desplegado \.fila-relacion\[data-tono\],\s*\.tarjeta-fila-acordeon-contenido \.fila-relacion\[data-tono\]\s*\{\s*transition:\s*none;");
+    }
+
+    [GeneratedRegex(@"(?m)^\.fila-relacion\[data-tono[^{]*\{[^}]*background-image:\s*none")]
+    private static partial Regex SinAncestroQueAnulaElDegradado();
+
     [GeneratedRegex(@"(?<selector>\.fila-relacion:hover[^{,]*)\{(?<declaraciones>[^}]*)\}")]
     private static partial Regex ReglaDeCursor();
 
