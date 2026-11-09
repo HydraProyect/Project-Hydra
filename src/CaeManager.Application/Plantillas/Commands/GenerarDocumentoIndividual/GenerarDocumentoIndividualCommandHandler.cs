@@ -311,16 +311,29 @@ public class GenerarDocumentoIndividualCommandHandler(
     // en los registros.
     private async Task EliminarPdfSiNingunDocumentoLoReferenciaAsync(string archivoUrl, Guid documentoId, Guid versionId)
     {
+        bool podriaExistir;
         try
         {
-            if (await documentoRepositorio.PodriaExistirAsync(documentoId, CancellationToken.None))
-            {
-                logger.LogWarning(
-                    "Se rechazó el alta generada desde la versión de plantilla {PlantillaDocumentoVersionId} pero su Documento consta en la base: se conserva el PDF.",
-                    versionId);
-                return;
-            }
+            podriaExistir = await documentoRepositorio.PodriaExistirAsync(documentoId, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                "No se pudo comprobar si consta el Documento generado desde la versión de plantilla {PlantillaDocumentoVersionId} tras rechazarse su alta ({TipoExcepcion}): se conserva el PDF.",
+                versionId, ex.GetType().Name);
+            return;
+        }
 
+        if (podriaExistir)
+        {
+            logger.LogWarning(
+                "Se rechazó el alta generada desde la versión de plantilla {PlantillaDocumentoVersionId} pero su Documento consta en la base, o no hay Tenant propietario para comprobarlo: se conserva el PDF.",
+                versionId);
+            return;
+        }
+
+        try
+        {
             await almacenamientoArchivos.EliminarAsync(archivoUrl, CancellationToken.None);
         }
         catch (Exception ex)

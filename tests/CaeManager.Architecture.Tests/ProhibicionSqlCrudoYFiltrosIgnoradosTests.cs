@@ -75,6 +75,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // El índice (TenantId, Dni) incluye a los Trabajadores de la Papelera; la importación los detecta antes de dar de alta
         // y repone explícitamente el Tenant propietario en la misma consulta, sin devolver más que los DNI pedidos.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/TrabajadorRepository.cs", "var enPapelera = await dbContext.Trabajadores.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        // Antes de compensar el PDF de un alta rechazada se pregunta si su Documento consta, también eliminado (conserva su
+        // archivo): solo responde sí o no por un Id, y repone explícitamente el Tenant propietario en la misma consulta.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/DocumentoRepository.cs", "|| await dbContext.Documentos.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
