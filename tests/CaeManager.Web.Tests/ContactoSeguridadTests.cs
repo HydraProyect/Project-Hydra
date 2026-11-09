@@ -85,6 +85,7 @@ public class ContactoSeguridadTests : BunitContext
     /// delay cancelado vuelve al dispatcher por el pool de hilos y lo ocupa un instante: un <c>Click()</c> sin esperar que llegue
     /// entonces se encola detrás y lo ejecuta ese hilo del pool. Con <c>WaitForAssertion</c> (1 s por defecto) y el pool
     /// saturado, el plazo vencía antes de que el envío ocurriera (#2111). Por eso el test espera a los manejadores, sin plazo.
+    /// El <c>CampoTextarea</c> del motivo de rechazo no rebota (avisa en cada <c>oninput</c>): con él el blur sobra, pero no estorba.
     /// </summary>
     private static async Task EscribirAsync(IElement campo, string valor)
     {
@@ -158,16 +159,16 @@ public class ContactoSeguridadTests : BunitContext
     }
 
     [Fact]
-    public void Validar_envia_el_comando_de_esa_propuesta_y_recarga()
+    public async Task Validar_envia_el_comando_de_esa_propuesta_y_recarga()
     {
         var propuesto = Propuesto();
         _mediador.Propuestos = [propuesto];
         var cut = Render<ContactosSeguridadPlataforma>();
         cut.WaitForAssertion(() => cut.Find("table").TextContent.Should().Contain("Norte Servicios").And.Contain("Marta Ruiz"));
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Validar").Click();
+        await PulsarAsync(cut, "Validar");
 
-        cut.WaitForAssertion(() => _mediador.Validados.Should().ContainSingle().Which.Should().Be(propuesto.Id));
+        _mediador.Validados.Should().ContainSingle().Which.Should().Be(propuesto.Id);
         _mediador.ConsultasDeLaCola.Should().Be(2);
     }
 
@@ -193,16 +194,16 @@ public class ContactoSeguridadTests : BunitContext
     }
 
     [Fact]
-    public void Un_fallo_al_validar_se_muestra_y_no_recarga()
+    public async Task Un_fallo_al_validar_se_muestra_y_no_recarga()
     {
         _mediador.Propuestos = [Propuesto()];
         _mediador.ResultadoResolver = Result.Fallo(ErroresContactoSeguridad.YaResuelto);
         var cut = Render<ContactosSeguridadPlataforma>();
         cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Validar").Click();
+        await PulsarAsync(cut, "Validar");
 
-        cut.WaitForAssertion(() => cut.Find(".contactos-seguridad-error").TextContent.Should().Be(ErroresContactoSeguridad.YaResuelto.Mensaje));
+        cut.Find(".contactos-seguridad-error").TextContent.Should().Be(ErroresContactoSeguridad.YaResuelto.Mensaje);
         _mediador.ConsultasDeLaCola.Should().Be(1);
     }
 
@@ -210,16 +211,16 @@ public class ContactoSeguridadTests : BunitContext
         "Propusiste tú este contacto: tiene que validarlo o rechazarlo otra persona con administración de plataforma.";
 
     [Fact]
-    public void Validar_la_propuesta_propia_muestra_los_cuatro_ojos_y_no_recarga()
+    public async Task Validar_la_propuesta_propia_muestra_los_cuatro_ojos_y_no_recarga()
     {
         _mediador.Propuestos = [Propuesto()];
         _mediador.ResultadoResolver = Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
         var cut = Render<ContactosSeguridadPlataforma>();
         cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
 
-        cut.FindAll("button").First(b => b.TextContent.Trim() == "Validar").Click();
+        await PulsarAsync(cut, "Validar");
 
-        cut.WaitForAssertion(() => cut.Find(".contactos-seguridad-error").TextContent.Should().Be(TextoMismaCuenta));
+        cut.Find(".contactos-seguridad-error").TextContent.Should().Be(TextoMismaCuenta);
         _mediador.ConsultasDeLaCola.Should().Be(1);
     }
 
