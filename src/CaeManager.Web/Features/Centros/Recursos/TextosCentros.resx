@@ -689,6 +689,24 @@
   <data name="ArchivoCentroAyuda" xml:space="preserve">
     <value>Modelo o instrucciones que el Centro entrega a las Empresas. Opcional.</value>
   </data>
+  <data name="RequisitoArchivadoConSustituto" xml:space="preserve">
+    <value>Tipo archivado: sustituido por {0}. Desmárcalo para dejar de exigirlo y exige {0}.</value>
+  </data>
+  <data name="RequisitoArchivadoSinSustituto" xml:space="preserve">
+    <value>Tipo archivado: sin sustituto. Desmárcalo para dejar de exigirlo.</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerConSustituto" xml:space="preserve">
+    <value>Tipo archivado: solo se puede desmarcar; el sustituto es «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoDrawerSinSustituto" xml:space="preserve">
+    <value>Tipo archivado: solo se puede desmarcar.</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarConSustituto" xml:space="preserve">
+    <value>Este tipo de documento está archivado: solo se puede desmarcar. Exige su sustituto, «{0}».</value>
+  </data>
+  <data name="RequisitoArchivadoGuardarSinSustituto" xml:space="preserve">
+    <value>Este tipo de documento está archivado: solo se puede desmarcar.</value>
+  </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisito guardado en este centro.</value>
   </data>

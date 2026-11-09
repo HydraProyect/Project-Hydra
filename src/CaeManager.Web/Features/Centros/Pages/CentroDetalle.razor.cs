@@ -268,7 +268,43 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         new[] { new BreadcrumbElemento("Centros"), new BreadcrumbElemento(_detalle?.Nombre ?? "…") };
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+    }
+
+    /// <summary>
+    /// El panel «Requisitos del Centro» vive en MainLayout y guarda sin pasar por esta página: avisa por
+    /// <see cref="ContextWorkspaceService.OnEntidadGuardada"/> (mismo patrón que los listados). Sin este aviso, las pestañas
+    /// «Requisitos» y «Documentación», y los bloqueos, seguían enseñando lo anterior hasta recargar la página.
+    /// </summary>
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Centro && id == CentroId)
+            _ = InvokeAsync(RecargarTrasGuardarEnPanelAsync);
+    }
+
+    /// <summary>
+    /// Relee en silencio (sin <c>CargarAsync</c>, que cambia la ficha entera por el esqueleto de carga y desmonta los
+    /// componentes hijos, con los borradores): las lecturas de las pestañas «Requisitos» y «Documentación» se invalidan y la
+    /// activa se vuelve a pedir ya; la otra se pide al abrirla. Hueco conocido: los contadores de la cabecera y los bloqueos
+    /// se actualizan en la siguiente carga de la página.
+    /// </summary>
+    private async Task RecargarTrasGuardarEnPanelAsync()
+    {
+        _lecturaRequisitosCentro = null;
+        _lecturaDocumentacionCentro = null;
+        try
+        {
+            await CargarLecturasFase2Async(silenciosa: true);
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: la pestaña conserva lo anterior y se vuelve a pedir al abrirla.
+        }
+        StateHasChanged();
+    }
 
     /// <summary>
     /// Solo recarga cuando cambia el centro. Los filtros de la barra de trabajo
@@ -510,6 +546,7 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     public void Dispose()
     {
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();
@@ -618,7 +655,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool _cargandoLecturasFase2;
     private bool _errorLecturasFase2;
 
-    private async Task CargarLecturasFase2Async()
+    /// <param name="silenciosa">
+    /// Relectura tras un guardado del panel: no enseña spinner ni tarjeta de error (la pestaña conserva lo que ya mostraba y
+    /// se vuelve a pedir al volver a ella si la relectura falla).
+    /// </param>
+    private async Task CargarLecturasFase2Async(bool silenciosa = false)
     {
         if (_detalle is null || _pestana is not (PestanaDocumentacionCentro or PestanaRequisitos)) return;
         var id = CentroId;
@@ -626,8 +667,11 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         var documentacion = _pestana == PestanaDocumentacionCentro;
         if ((documentacion ? _lecturaDocumentacionCentro : _lecturaRequisitosCentro) == id) return;
         if (documentacion) _lecturaDocumentacionCentro = id; else _lecturaRequisitosCentro = id;
-        _cargandoLecturasFase2 = true;
-        _errorLecturasFase2 = false;
+        if (!silenciosa)
+        {
+            _cargandoLecturasFase2 = true;
+            _errorLecturasFase2 = false;
+        }
         try
         {
             if (documentacion)
@@ -646,11 +690,14 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         catch (OperationCanceledException) { }
         catch (Exception)
         {
-            if (carga == _cargaDetalle) _errorLecturasFase2 = true;
+            if (carga != _cargaDetalle) return;
+            if (!silenciosa) _errorLecturasFase2 = true;
+            else if (documentacion) _lecturaDocumentacionCentro = null;
+            else _lecturaRequisitosCentro = null;
         }
         finally
         {
-            if (carga == _cargaDetalle) _cargandoLecturasFase2 = false;
+            if (carga == _cargaDetalle && !silenciosa) _cargandoLecturasFase2 = false;
         }
     }
 
