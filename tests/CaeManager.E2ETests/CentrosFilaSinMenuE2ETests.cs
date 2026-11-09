@@ -27,7 +27,9 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     // recorrido pulsa el desplegable: se toma la primera fila que lo tenga.
     private static ILocator PrimeraFila(IPage page) =>
         page.Locator(".lista-filas-acordeon .fila-pulsable").Filter(new() { Has = page.Locator(".boton-expandir-fila") }).First;
-    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-empresa-centro");
+    // Con una sola Empresa en los Centros visibles la columna «Empresa» no se pinta (MostrarColumnaEmpresa): entonces vale la de
+    // Cumplimiento, que tampoco lleva ningún control. En el DOM Empresa va antes, así que .First prefiere la de Empresa.
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(".columna-empresa-centro, .columna-cumplimiento-centro").First;
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)
     {

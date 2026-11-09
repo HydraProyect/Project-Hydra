@@ -29,6 +29,18 @@
     grid-template-columns: 28px 24px minmax(180px, 2fr) minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
 }
 
+/*
+  Sin la columna «Empresa» (una sola Empresa en los Centros visibles, ver MostrarColumnaEmpresa): mismas pistas sin la
+  tercera; Centro gana el ancho que dejaba.
+*/
+.rejilla-centros-sin-empresa {
+    grid-template-columns: 24px minmax(220px, 2.5fr) minmax(130px, 1fr) minmax(170px, 1.3fr) 40px;
+}
+
+.rejilla-centros-seleccion.rejilla-centros-sin-empresa {
+    grid-template-columns: 28px 24px minmax(200px, 2.5fr) minmax(130px, 1fr) minmax(150px, 1.3fr) 40px;
+}
+
 /* Casilla de selección: misma caja en la cabecera y en la fila (16 px). */
 .seleccion-centro {
     display: inline-flex;
