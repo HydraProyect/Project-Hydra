@@ -37,9 +37,16 @@ public class EjecutarImportacionMaestraTests
         public AltaAcreditacionesPlataformaServiceFalso Altas { get; } = new();
         public CaeManager.Application.Tests.Documentos.SerializacionAltasAcreditacionEmpresaFalsa Serializacion { get; } = new();
 
-        public EjecutarImportacionMaestraCommandHandler Handler() => new(
-            EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas, Trabajadores,
-            Operaciones, new Autorizacion(administrador), Altas, Serializacion);
+        public EjecutarImportacionMaestraCommandHandler Handler()
+        {
+            // El arnés siembra Empresas y Trabajadores en los contextos de consulta falsos; el handler los lee releídos
+            // por los repositorios.
+            EmpresaRepositorio.Existentes = () => Empresas.ListaEmpresas;
+            TrabajadorRepositorio.Existentes = () => Trabajadores.ListaTrabajadores;
+            return new(
+                EmpresaRepositorio, Relaciones, CentroRepositorio, TrabajadorRepositorio, Centros, Empresas,
+                Operaciones, new Autorizacion(administrador), Altas, Serializacion);
+        }
 
         public async Task<Result<ResultadoImportacionMaestraDto>> EjecutarAsync(PlanImportacionMaestraDto plan, bool reemplazar = false) =>
             await Handler().Handle(new EjecutarImportacionMaestraCommand(plan, reemplazar), CancellationToken.None);
@@ -397,6 +404,73 @@ public class EjecutarImportacionMaestraTests
         var alta = e.Altas.Recibidas.Should().ContainSingle().Subject;
         alta.Canales.Should().BeEquivalentTo([acceso]);
         alta.CentrosQueVuelvenAGestionCae.Should().BeEquivalentTo([centro.Id]);
+    }
+
+    [Fact]
+    public async Task Reemplazando_no_casa_una_fila_de_Centro_por_el_CIF_que_la_Empresa_tenia_antes_del_candado()
+    {
+        // Revisión Codex de la PR #2104, ronda 2, hallazgo MEDIO 1: el contexto (uno por circuito) ya rastreaba la Empresa
+        // gestionada con su CIF anterior y otra operación se lo cambió mientras esta esperaba el candado. Sin relectura,
+        // la fila de Centro casaría por el CIF viejo, devolvería el Centro a gestión CAE y acreditaría sus Documentos.
+        const string cifNuevo = "A28017895";
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        e.CentroRepositorio.Centros.Add(centro);
+        e.Centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma", Guid.NewGuid(), null, null, null));
+        e.Serializacion.AlTomarElCandado = () => e.EmpresaRepositorio.CambioEnLaBase = emp =>
+        {
+            if (emp.Id == gestionada.Id && emp.Cif != cifNuevo)
+                emp.Actualizar(emp.RazonSocial, cifNuevo, emp.Cnae, emp.ConvenioAplicable, emp.EsActividadAnexoI);
+        };
+
+        var r = await e.EjecutarAsync(Plan(centros: [FilaCentro() with { YaExiste = true }]), reemplazar: true);
+
+        r.EsExitoso.Should().BeTrue();
+        e.Serializacion.Llamadas.Should().Be(1);
+        r.Valor.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros", "el CIF de la fila ya no es el de ninguna Empresa gestionada");
+        centro.GestionCae.Should().Be(ModalidadGestionCae.SinGestionCae);
+        e.Altas.Recibidas.Should().BeEmpty("ningún Centro vuelve a gestión CAE");
+    }
+
+    [Fact]
+    public async Task Reemplazando_compara_cada_Trabajador_con_lo_releido_bajo_el_candado()
+    {
+        // Revisión Codex de la PR #2104, ronda 2, hallazgo MEDIO 1 (lectura de Trabajadores): otra operación cambió el
+        // correo mientras esta esperaba el candado. Sin relectura, el archivo coincidiría con el valor viejo, no se
+        // escribiría nada y el informe no avisaría de la sobrescritura.
+        var e = new Escenario();
+        var gestionada = GestionadaExistente();
+        var cliente = Empresa.CrearComoCliente("Distribuciones Ficticias, S.A.", CifCliente, esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        e.Empresas.ListaEmpresas.Add(gestionada);
+        e.Empresas.ListaEmpresas.Add(cliente);
+        var centro = new Centro(cliente.Id, gestionada.Id, "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        e.CentroRepositorio.Centros.Add(centro);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(
+            gestionada.Id, "Nombre Ficticio", "Apellido Ejemplo", Dni, new DateOnly(1985, 6, 15), "previo@ejemplo.invalid",
+            puesto: "Oficial 1ª");
+        e.Trabajadores.ListaTrabajadores.Add(trabajador);
+        e.Serializacion.AlTomarElCandado = () => e.TrabajadorRepositorio.CambioEnLaBase = t =>
+        {
+            if (t.Email == "previo@ejemplo.invalid")
+                t.Actualizar(t.Nombre, t.Apellidos, t.FechaNacimiento, "otro@ejemplo.invalid", t.Observaciones, t.Alias, t.Telefono, t.Puesto);
+        };
+
+        var r = await e.EjecutarAsync(
+            Plan(centros: [FilaCentro() with { YaExiste = true }],
+                trabajadores: [FilaTrabajador(correo: "previo@ejemplo.invalid") with { YaExiste = true }]), reemplazar: true);
+
+        r.EsExitoso.Should().BeTrue();
+        e.Serializacion.Llamadas.Should().Be(1);
+        trabajador.Email.Should().Be("previo@ejemplo.invalid", "el archivo reemplaza el valor que hay en la base");
+        r.Valor.TrabajadoresActualizados.Should().Be(1);
+        r.Valor.ValoresSobrescritos.Should().ContainSingle(v => v.Campo == "Correo")
+            .Which.ValorPrevio.Should().Be("otro@ejemplo.invalid");
     }
 
     [Fact]

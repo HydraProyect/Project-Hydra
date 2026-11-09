@@ -14,7 +14,8 @@ public record RestaurarDocumentoCommand(Guid Id) : ICommand;
 public class RestaurarDocumentoCommandHandler(
     IDocumentoRepository documentoRepositorio, ITenantActual tenantActual, IAlcanceDatosService alcanceDatos,
     IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork,
-    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas)
+    IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
+    IInvalidadorAlcance invalidadorAlcance)
     : IRequestHandler<RestaurarDocumentoCommand, Result>
 {
     public async Task<Result> Handle(RestaurarDocumentoCommand request, CancellationToken cancellationToken)
@@ -37,8 +38,12 @@ public class RestaurarDocumentoCommandHandler(
         // vuelve a decidir si sigue eliminado. Los Documentos de Trabajador no cambian.
         return await serializacionAltas.EjecutarAsync(async ct =>
         {
+            // La Asignación de Cartera también se vuelve a decidir: pudo revocarse mientras se esperaba el candado, y el
+            // alcance memoizado (en Blazor Server, el del circuito) es de antes; se descarta, igual que en
+            // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync. Revisión Codex de la PR #2104, ronda 2.
+            invalidadorAlcance.Invalidar();
             var actual = await CargarAsync(request.Id, ct);
-            if (actual is null || !actual.EstaEliminado)
+            if (actual is null || !actual.EstaEliminado || !await VisibleAsync(actual, ct))
                 return NoEncontrado();
 
             actual.Restaurar();

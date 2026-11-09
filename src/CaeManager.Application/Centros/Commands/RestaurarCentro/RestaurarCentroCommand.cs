@@ -14,7 +14,7 @@ public class RestaurarCentroCommandHandler(
     ICentrosQueryContext centrosContext, ITenantActual tenantActual,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
     IAltaAcreditacionesPlataformaService altaAcreditaciones, ISerializacionAltasAcreditacionEmpresa serializacionAltas,
-    ICentroRepository centroRepositorio)
+    ICentroRepository centroRepositorio, IInvalidadorAlcance invalidadorAlcance)
     : IRequestHandler<RestaurarCentroCommand, Result>
 {
     /// <summary>
@@ -29,7 +29,10 @@ public class RestaurarCentroCommandHandler(
     private async Task<Result> RestaurarAsync(RestaurarCentroCommand request, CancellationToken cancellationToken)
     {
         // Releído aunque el contexto (uno por circuito en Blazor Server) ya lo rastreara: si no, se decidiría con lo que
-        // había antes de esperar el candado.
+        // había antes de esperar el candado. Por la misma razón se descarta el alcance memoizado antes de comprobar la
+        // Asignación de Cartera (la autorización de escritura pudo memoizarlo antes de la espera), igual que en
+        // BloqueoRespuestaSugerida.ComprobarEnvioPorBuzonAsync. Revisión Codex de la PR #2104, ronda 2.
+        invalidadorAlcance.Invalidar();
         var centro = await centroRepositorio.ObtenerIncluidoEliminadoActualizadoAsync(
             request.Id, tenantActual.TenantId, cancellationToken);
 

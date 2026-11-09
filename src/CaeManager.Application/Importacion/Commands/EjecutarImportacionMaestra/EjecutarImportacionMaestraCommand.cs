@@ -72,7 +72,7 @@ public class EjecutarImportacionMaestraCommandHandler(
     IRelacionEmpresarialRepository relacionEmpresarialRepositorio,
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
-    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
     IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
@@ -223,7 +223,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         }
 
         // ---- Empresas gestionadas (CIF) ----
-        var todas = await empresasContext.Empresas.ToListAsync(cancellationToken);
+        // Releídas las que el contexto (uno por circuito en Blazor Server) ya rastreaba: una Empresa con el CIF de antes
+        // de esperar el candado casaría por él una fila de Centro y podría devolverlo a gestión CAE (regla A-1).
+        var todas = await empresaRepositorio.ListarActualizadasAsync(cancellationToken);
         var gestionadasPorCif = todas.Where(e => e.EsPropia && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var clientesPorCif = todas.Where(e => e.EsCritico != null && e.Cif != null).ToDictionary(e => e.Cif!, StringComparer.OrdinalIgnoreCase);
         var razonesEscritas = new HashSet<string>(StringComparer.Ordinal);
@@ -497,9 +499,9 @@ public class EjecutarImportacionMaestraCommandHandler(
         }
 
         // ---- Trabajadores (identidad) ----
-        var trabajadoresPorIdentidad = await trabajadoresContext.Trabajadores
-            .Where(t => t.Dni != null)
-            .ToDictionaryAsync(t => t.Dni!, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        // Releídos igual que las Empresas: bajo el candado, la identidad y la Empresa de cada Trabajador son las de la base.
+        var trabajadoresPorIdentidad = (await trabajadorRepositorio.ListarConIdentidadActualizadosAsync(cancellationToken))
+            .ToDictionary(t => t.Dni!, StringComparer.OrdinalIgnoreCase);
         var enPapelera = await DnisEnPapelera.ObtenerAsync(
             trabajadorRepositorio, plan.Trabajadores.Select(t => t.Identidad).Where(i => !trabajadoresPorIdentidad.ContainsKey(i)), cancellationToken);
         var trabajadoresCreados = 0;

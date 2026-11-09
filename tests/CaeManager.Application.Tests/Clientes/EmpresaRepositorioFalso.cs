@@ -22,6 +22,26 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
     public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.FirstOrDefault(e => e.Id == id));
 
+    /// <summary>
+    /// De dónde lee <see cref="ListarActualizadasAsync"/>: por defecto, <see cref="Empresas"/>; un arnés que siembra las
+    /// Empresas en un contexto de consulta falso lo apunta allí.
+    /// </summary>
+    public Func<IEnumerable<Empresa>>? Existentes { get; set; }
+
+    /// <summary>
+    /// Lo que otra operación confirma en la base mientras se espera el candado. Solo lo ve la lectura «…Actualizadas»,
+    /// igual que EF, que no repone una instancia ya rastreada salvo que se relea.
+    /// </summary>
+    public Action<Empresa>? CambioEnLaBase { get; set; }
+
+    public Task<IReadOnlyList<Empresa>> ListarActualizadasAsync(CancellationToken cancellationToken = default)
+    {
+        var existentes = (Existentes?.Invoke() ?? Empresas).ToList();
+        foreach (var empresa in existentes)
+            CambioEnLaBase?.Invoke(empresa);
+        return Task.FromResult<IReadOnlyList<Empresa>>(existentes.Where(e => !e.EstaEliminado).ToList());
+    }
+
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         // Como la consulta real: el filtro global deja fuera las bajas y compara sin distinguir mayúsculas.
         Task.FromResult(Empresas.Any(e => !e.EstaEliminado

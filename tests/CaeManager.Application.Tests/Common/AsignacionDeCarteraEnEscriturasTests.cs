@@ -101,7 +101,7 @@ public class AsignacionDeCarteraEnEscriturasTests
             tieneAccesoTotal: false, clienteIdsVisibles: [carteraDelCliente ? clienteEmpresarial : Guid.NewGuid()]);
         var handler = new RestaurarDocumentoCommandHandler(
             documentos, new TenantActualFijo(documento.TenantId), alcance, proyectos, unitOfWork,
-            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), new InvalidadorAlcanceInerte());
 
         var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
 
@@ -130,8 +130,83 @@ public class AsignacionDeCarteraEnEscriturasTests
         // test es ese mismo, para que solo decida la cartera.
         var handler = new RestaurarDocumentoCommandHandler(
             documentos, new TenantActualFijo(documento.TenantId), alcance, new ProyectosQueryContextFalso(), unitOfWork,
-            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), new InvalidadorAlcanceInerte());
         return (handler, documento, unitOfWork);
+    }
+
+    // ---- Cartera revocada mientras se espera el candado de la regla A-1 (revisión Codex de la PR #2104, ronda 2)
+
+    [Fact]
+    public async Task Restaurar_un_documento_de_empresa_cuya_cartera_se_revoca_mientras_espera_el_candado_no_lo_restaura()
+    {
+        var documento = Documento.DeEmpresa(Guid.NewGuid(), Guid.NewGuid(), Hoy, VigenciaDocumento.VenceEl(Hoy.AddYears(1)));
+        documento.MarcarComoEliminado(Guid.NewGuid());
+        var documentos = new CaeManager.Application.Tests.Documentos.DocumentoRepositorioFalso();
+        documentos.Documentos.Add(documento);
+        var unitOfWork = new UnitOfWorkFalso();
+        var altas = new AltaAcreditacionesPlataformaServiceFalso();
+        var alcance = new AlcanceMemoizadoFalso(AccesoTotal());
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa { AlTomarElCandado = () => alcance.Revocar() };
+        var handler = new RestaurarDocumentoCommandHandler(
+            documentos, new TenantActualFijo(documento.TenantId), alcance, new ProyectosQueryContextFalso(), unitOfWork,
+            altas, serializacion, alcance);
+
+        var resultado = await handler.Handle(new RestaurarDocumentoCommand(documento.Id), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1, "la primera comprobación, con la cartera aún vigente, deja pasar hasta el candado");
+        resultado.Error.Codigo.Should().Be("Documento.NoEncontrado");
+        documento.EstaEliminado.Should().BeTrue();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        altas.Recibidas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Quitar_la_documentacion_requerida_de_un_centro_cuya_cartera_se_revoca_mientras_espera_el_candado_no_borra_la_fila()
+    {
+        var (centro, tipo, _, _, filas) = MundoCentro();
+        filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, null, null, null));
+        var unitOfWork = new UnitOfWorkFalso();
+        var altas = new AltaAcreditacionesPlataformaServiceFalso();
+        var alcance = new AlcanceMemoizadoFalso(AccesoTotal());
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa { AlTomarElCandado = () => alcance.Revocar() };
+        var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(filas, alcance, unitOfWork, altas, serializacion, alcance);
+
+        var resultado = await handler.Handle(
+            new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1);
+        resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.CentroNoEncontrado");
+        filas.Relaciones.Should().ContainSingle();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        altas.Recibidas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Restaurar_un_centro_cuya_cartera_se_revoca_mientras_espera_el_candado_no_lo_restaura()
+    {
+        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta Norte", direccion: "Calle Ficticia 1, 28000 Ciudad");
+        centro.MarcarComoEliminado(Guid.NewGuid());
+        var centros = new CaeManager.Application.Tests.Centros.CentroRepositorioFalso();
+        centros.Centros.Add(centro);
+        var consultas = new CentrosQueryContextFalso();
+        consultas.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.DePlataforma(centro.Id, "Plataforma", Guid.NewGuid(), null, null, null));
+        var unitOfWork = new UnitOfWorkFalso();
+        var altas = new AltaAcreditacionesPlataformaServiceFalso();
+        var alcance = new AlcanceMemoizadoFalso(AccesoTotal());
+        // La autorización de escritura del pipeline memoiza el alcance antes de que el handler espere el candado.
+        await alcance.TieneAccesoTotalAsync();
+        var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa { AlTomarElCandado = () => alcance.Revocar() };
+        var handler = new CaeManager.Application.Centros.Commands.RestaurarCentro.RestaurarCentroCommandHandler(
+            consultas, new TenantActualFijo(centro.TenantId), alcance, unitOfWork, altas, serializacion, centros, alcance);
+
+        var resultado = await handler.Handle(
+            new CaeManager.Application.Centros.Commands.RestaurarCentro.RestaurarCentroCommand(centro.Id), CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1);
+        resultado.Error.Codigo.Should().Be("Centro.NoEncontrado");
+        centro.EstaEliminado.Should().BeTrue();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        altas.Recibidas.Should().BeEmpty();
     }
 
     // ---- CrearVehiculo
@@ -235,7 +310,7 @@ public class AsignacionDeCarteraEnEscriturasTests
         var (centro, tipo, _, _, filas) = MundoCentro();
         filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, null, null, null));
         var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
-            filas, SinCartera(), new UnitOfWorkFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
+            filas, SinCartera(), new UnitOfWorkFalso(), new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), new InvalidadorAlcanceInerte());
 
         var resultado = await handler.Handle(
             new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
@@ -251,7 +326,7 @@ public class AsignacionDeCarteraEnEscriturasTests
         filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, null, null, null));
         var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
             filas, new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso(),
-            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa());
+            new AltaAcreditacionesPlataformaServiceFalso(), new SerializacionAltasAcreditacionEmpresaFalsa(), new InvalidadorAlcanceInerte());
 
         var resultado = await handler.Handle(
             new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);

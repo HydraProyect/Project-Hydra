@@ -419,7 +419,7 @@ public class ProductoresDeA1SeSerializanTests
             }
         };
         var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
-            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion);
+            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
 
         var resultado = await handler.Handle(new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
 
@@ -441,7 +441,7 @@ public class ProductoresDeA1SeSerializanTests
         filas.Agregar(mundo.Requisito(tipo, centro, incluido: false));
         var serializacion = new SerializacionAltasAcreditacionEmpresaFalsa();
         var handler = new EliminarDocumentacionRequeridaCentroCommandHandler(
-            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion);
+            filas, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
 
         var resultado = await handler.Handle(new EliminarDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id), CancellationToken.None);
 
@@ -593,7 +593,7 @@ public class ProductoresDeA1SeSerializanTests
         }
 
         return new(documentos, new TenantActualFijo(documento.TenantId), new AlcanceDatosServiceFalso(),
-            new ProyectosQueryContextFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion);
+            new ProyectosQueryContextFalso(), new UnitOfWorkFalso(), mundo.Servicio(), serializacion, new InvalidadorAlcanceInerte());
     }
 
     private static RestaurarCentroCommandHandler RestaurarCentro(
@@ -607,6 +607,6 @@ public class ProductoresDeA1SeSerializanTests
         }
 
         return new(mundo.CentrosContexto, new TenantActualFijo(centro.TenantId), new AlcanceDatosServiceFalso(),
-            new UnitOfWorkFalso(), mundo.Servicio(), serializacion, centros);
+            new UnitOfWorkFalso(), mundo.Servicio(), serializacion, centros, new InvalidadorAlcanceInerte());
     }
 }
