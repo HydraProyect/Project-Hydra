@@ -371,6 +371,20 @@ services:
       # Caddy pasándole el Caddyfile del checkout por stdin. Escribible: ver
       # `command` abajo.
       - /var/lib/talveg/caddy-ranuras:/etc/caddy/ranuras
+      # Web pública estática de talveg.es (ver el Caddyfile). Fuera del
+      # checkout de /opt/talveg y del repositorio: se sube a mano. Solo
+      # lectura: Caddy solo la sirve. Si el directorio no existe en el host,
+      # Docker lo crea vacío y la web responde 404 hasta que se suba. Se sube
+      # escribiendo dentro del directorio, sin sustituirlo (un bind conserva el
+      # directorio con el que arrancó) y sin enlaces simbólicos (ver Caddyfile).
+      #
+      # Añadir, quitar o cambiar un montaje cambia la configuración del
+      # servicio: el siguiente `desplegar produccion` (relevo-app.sh, `up` de
+      # los servicios sin perfil) RECREA Caddy, con un corte breve de
+      # producción y staging a la vez y la reconexión de todos los circuitos
+      # Blazor. Arranca con el Caddyfile aprobado y la conmutación aplica luego
+      # el del checkout.
+      - /srv/talveg-web:/srv/talveg-web:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
