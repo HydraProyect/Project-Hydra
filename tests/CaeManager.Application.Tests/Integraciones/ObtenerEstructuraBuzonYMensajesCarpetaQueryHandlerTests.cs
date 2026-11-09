@@ -28,7 +28,7 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         var conexion = new ConexionIntegracion(
             "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
         conexionRepositorio = new ConexionIntegracionRepositorioFalso();
-        conexionRepositorio.Agregar(conexion);
+        conexionRepositorio.Agregar(conexion.Verificada());
         credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         return conexion;
@@ -103,7 +103,7 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
         var conexion = ConexionIntegracion.CrearBuzonCompartido(
             "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
-        conexionRepositorio.Agregar(conexion);
+        conexionRepositorio.Agregar(conexion.Verificada());
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();
@@ -122,12 +122,37 @@ public class ObtenerEstructuraBuzonYMensajesCarpetaQueryHandlerTests
             .And.OnlyContain(b => b == new BuzonGraph("piloto@tenant.com", true));
     }
 
+    /// <summary>Sin identidad verificada en la ventana, la dirección puede ser hoy otro buzón: ninguna consulta lo lee.</summary>
+    [Fact]
+    public async Task Las_dos_consultas_no_leen_un_buzon_sin_identidad_verificada()
+    {
+        var conexion = ConexionIntegracion.CrearBuzonCompartido(
+            "piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString(), Guid.NewGuid());
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var graphClient = new Microsoft365GraphClientFalso();
+        var accesoGraph = new AccesoGraphService(new CredencialIntegracionRepositorioFalso(), graphClient);
+
+        var estructura = await new ObtenerEstructuraBuzonQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerEstructuraBuzonQuery(conexion.Id), CancellationToken.None);
+        var mensajes = await new ObtenerMensajesCarpetaQueryHandler(
+                conexionRepositorio, accesoGraph, graphClient, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso())
+            .Handle(new ObtenerMensajesCarpetaQuery(conexion.Id, "carpeta-1"), CancellationToken.None);
+
+        estructura.EsFallido.Should().BeTrue();
+        estructura.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        mensajes.EsFallido.Should().BeTrue();
+        mensajes.Error.Codigo.Should().Be(ErroresBuzonSinVerificar.Codigo);
+        graphClient.BuzonesUsados.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task ObtenerEstructuraBuzonQuery_sigue_leyendo_el_buzon_general_del_tenant()
     {
         var conexion = new ConexionIntegracion("cae@tenant.com", "Buzón general");
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
-        conexionRepositorio.Agregar(conexion);
+        conexionRepositorio.Agregar(conexion.Verificada());
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
         var graphClient = new Microsoft365GraphClientFalso();

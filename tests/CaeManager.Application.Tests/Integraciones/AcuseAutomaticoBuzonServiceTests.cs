@@ -110,6 +110,25 @@ public class AcuseAutomaticoBuzonServiceTests
         _descarte.VecesDescartado.Should().Be(1);
     }
 
+    /// <summary>La verificación puede caducar entre la ingesta y el envío: sin ella, la dirección puede ser hoy otro buzón y no sale nada.</summary>
+    [Fact]
+    public async Task Sin_identidad_verificada_no_sale_el_acuse_ni_se_registra_salida()
+    {
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", Guid.NewGuid().ToString("D"), Guid.NewGuid());
+        var conversacion = new Conversacion("Asunto del correo");
+        conversacion.AsociarConexion(compartido.Id, "hilo-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);
+        _conversaciones.Agregar(conversacion);
+        var registro = new RegistroExportacionFalso();
+
+        await Servicio(registro).EnviarAsync([new AcusePendiente(compartido, conversacion, "msg-1", Destinatario)], CancellationToken.None);
+
+        _graph.VecesEnviado.Should().Be(0);
+        _graph.BuzonesUsados.Should().BeEmpty();
+        registro.Filas.Should().BeEmpty();
+        conversacion.Mensajes.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Sin_token_no_sale_nada_y_el_fallo_no_vuelve_a_la_ingesta()
     {

@@ -43,6 +43,10 @@ public class ObtenerEstructuraBuzonQueryHandler(
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(
                 Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
+        // Sin identidad verificada en la ventana, la dirección puede corresponder hoy a otro buzón: no se muestra.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(ErroresBuzonSinVerificar.Crear());
+
         var tokenResultado = await accesoGraph.ObtenerAccessTokenVigenteAsync(conexion, cancellationToken);
         if (tokenResultado.EsFallido)
             return Result.Fallo<IReadOnlyList<CarpetaGraphDto>>(tokenResultado.Error);
