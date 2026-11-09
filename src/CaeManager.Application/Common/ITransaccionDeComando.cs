@@ -14,6 +14,10 @@ namespace CaeManager.Application.Common;
 /// La implementación va envuelta en la estrategia de ejecución del contexto: con
 /// reintentos activados, una transacción abierta a mano sin ella se rechaza. Por eso la
 /// operación puede ejecutarse más de una vez y tiene que leer lo que necesite dentro.
+///
+/// Si ya hay una transacción abierta en el contexto, la operación se une a ella y no se
+/// confirma ni se deshace aquí: lo decide quien la abrió, que tiene que deshacer cuando
+/// la operación de dentro devuelva un fallo.
 /// </summary>
 public interface ITransaccionDeComando
 {

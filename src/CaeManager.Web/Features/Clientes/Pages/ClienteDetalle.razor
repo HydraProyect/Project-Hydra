@@ -5,7 +5,9 @@
     que esta página compone, lo que remite al panel y lo que no enseña.
 *@
 @page "/clientes/{ClienteId:guid}"
-@rendermode InteractiveServer
+@* Sin prerender (como Mi trabajo, M-23): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Centros.Queries.ObtenerCentros
@@ -22,6 +24,7 @@
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["Kicker"]) — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{(_detalle?.RazonSocial ?? Textos["Kicker"])} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["RutaNavegacion"]" />
@@ -167,7 +170,7 @@
                                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" NombreIcono="centros" Tono="TonoDeFilaCentro(centro)"
                                                       HrefFila="@($"/centros/{centro.Id}")" OnNombre="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
                                             <JuntoAlNombre>
-                                                @if (centro.Recuentos.Bloqueos.Count > 0)
+                                                @if (RotularBloqueoJuntoAlNombre(centro))
                                                 {
                                                     <span class="cliente360-bloqueo-plataforma">@Textos["RotuloBloqueoPlataforma"]</span>
                                                 }

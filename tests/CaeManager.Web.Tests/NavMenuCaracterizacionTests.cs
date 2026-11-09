@@ -165,6 +165,7 @@ public class NavMenuCaracterizacionTests
         auth.SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = true }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
         ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
             new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1)));
 
@@ -373,6 +374,7 @@ public class NavMenuCaracterizacionTests
         ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = true }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
         ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
             new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1)));
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("empresas");
@@ -421,6 +423,7 @@ public class NavMenuCaracterizacionTests
         ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(c.Rol);
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = c.Comunicaciones }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
         ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(c, orden));
         return ctx.Render<NavMenu>();
     }
@@ -448,6 +451,7 @@ public class NavMenuCaracterizacionTests
 
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = c.Comunicaciones }));
+        ctx.Services.AddScoped<ContextoMarcoDelAmbito>();
         ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(c));
         if (c.Vista is { } vista)
             ctx.Services.AddSingleton<IVistaDemoActual>(new VistaDemoFija(vista));
@@ -508,6 +512,9 @@ public class NavMenuCaracterizacionTests
                     .Select(i => new ClienteAutorizadoDto(Guid.NewGuid(), $"Tenant {i}", i == 0))
                     .ToList() as IReadOnlyList<ClienteAutorizadoDto>,
                 ObtenerOrdenMenuLateralQuery => orden,
+                // El contexto del marco se compone con el handler real sobre las respuestas de arriba (todas síncronas).
+                CaeManager.Application.Marco.Queries.ObtenerContextoMarco.ObtenerContextoMarcoQuery =>
+                    ContextoMarcoDePrueba.ComponerAsync(this, cancellationToken).GetAwaiter().GetResult(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             })!);
 

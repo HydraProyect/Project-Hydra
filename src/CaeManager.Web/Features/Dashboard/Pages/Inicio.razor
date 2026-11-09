@@ -52,7 +52,7 @@
         @* El Gestor CAE (o Coordinador CAE) de un Operador CAE externo en su propia
            organización: la pantalla al entrar es Inicio (2026-10-21, D-2 retirado),
            y aquí Inicio es su cartera, no un «sin cartera». *@
-        <InicioCarteraOperador Empresas="_empresasGestionadas" RutaMiTrabajo="@RutaMiTrabajo" />
+        <InicioCarteraOperador Empresas="_empresasGestionadas" RutaMiTrabajo="@(MiTrabajoOculto ? null : RutaMiTrabajo)" />
     }
     else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant)
     {
@@ -60,12 +60,20 @@
            Context Workspace que el usuario eligió con el selector. No se
            redirige: acaba de elegir este contexto y decirle que aquí no tiene
            cartera es información; llevárselo a otra pantalla, no. *@
-        <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
-                     Descripcion="@Textos["SinCarteraEnEsteContextoDescripcion"]">
-            <Accion>
-                <a class="enlace-ver-todas" href="/mi-trabajo">@Textos["EnlaceMiTrabajo"]</a>
-            </Accion>
-        </EstadoVacio>
+        @if (MiTrabajoOculto)
+        {
+            <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
+                         Descripcion="@Textos["SinCarteraEnEsteContextoDescripcion"]" />
+        }
+        else
+        {
+            <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
+                         Descripcion="@Textos["SinCarteraEnEsteContextoDescripcion"]">
+                <Accion>
+                    <a class="enlace-ver-todas" href="/mi-trabajo">@Textos["EnlaceMiTrabajo"]</a>
+                </Accion>
+            </EstadoVacio>
+        }
     }
     else if (_kpis.SinCarteraAsignada)
     {
@@ -140,7 +148,10 @@
             @* El mockup deja la salida a la cola completa siempre visible, también con la cola vacía:
                aquí se ven como mucho MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
                Mi trabajo tanto si son tres como si son treinta. *@
-            <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
+            @if (!MiTrabajoOculto)
+            {
+                <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
+            }
 
         }
 

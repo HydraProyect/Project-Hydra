@@ -1,5 +1,7 @@
 ﻿@page "/gestiones/automaticas"
-@rendermode InteractiveServer
+@* Sin prerender (como Gestiones y Mi trabajo): la página carga en el ciclo de vida y no persiste su estado; con prerender
+   corría dos veces en cada visita. *@
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Gestiones.Queries.GestionesAutomaticas
@@ -20,6 +22,7 @@
 *@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["AutoTituloPagina"] — @Marca.Nombre</PageTitle>
+<TituloDePaginaSinPrerender Titulo="@($"{Textos["AutoTituloPagina"]} — {Marca.Nombre}")" />
 
 <div class="contenedor-pagina ga-lista">
     <nav class="ga-migas" aria-label="@Textos["AutoAriaMigas"]">

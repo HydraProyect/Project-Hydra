@@ -197,7 +197,6 @@
   <data name="PlataformaCargando" xml:space="preserve"><value>Carregant la Plataforma CAE…</value></data>
   <data name="PlataformaErrorCarga" xml:space="preserve"><value>No s'ha pogut carregar la Plataforma CAE</value></data>
   <data name="PlataformaPrincipal" xml:space="preserve"><value>Principal</value></data>
-  <data name="PlataformaDelCentro" xml:space="preserve"><value>Centre: {0}</value></data>
   <data name="AutoAriaFiltroEstado" xml:space="preserve">
     <value>Filtrar per estat</value>
   </data>

@@ -50,7 +50,22 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private IReadOnlyDictionary<Guid, string> _empleadoresPorTrabajador = new Dictionary<Guid, string>();
 
     private string? EmpleadorDe(Guid trabajadorId) =>
-        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
+        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador)
+        && !MismoNombre(empleador, _trabajadores.FirstOrDefault(t => t.TrabajadorId == trabajadorId)?.TrabajadorNombre)
+            ? empleador : null;
+
+    /// <summary>
+    /// Un autónomo es su propia Empresa empleadora: «Ruiz Peña, Ana» y «Ana Ruiz Peña» son el mismo nombre y la fila no lo repite.
+    /// Compara las palabras sin acentos ni mayúsculas y sin importar el orden.
+    /// </summary>
+    internal static bool MismoNombre(string? a, string? b)
+    {
+        static string[] Palabras(string texto) => texto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Aggregate(new System.Text.StringBuilder(), (sb, c) => sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' '))
+            .ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries).Order().ToArray();
+        return !string.IsNullOrWhiteSpace(a) && !string.IsNullOrWhiteSpace(b) && Palabras(a).SequenceEqual(Palabras(b));
+    }
     /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
     [Parameter] public string? NombrePlataforma { get; set; }
     /// <summary>Barra de búsqueda de la página; recibe si la vista es «Vehículos» para rotular el buscador.</summary>
@@ -219,6 +234,68 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         return trabajador.Documentos
             .Where(d => MotivoBloqueoTrabajador.EsPendienteQueNoBloquea(d.Estado) && !tiposBloqueantes.Contains(d.TipoDocumentoId))
             .ToList();
+    }
+
+    /// <summary>
+    /// Centro 360, segundo nivel: a quién le abre «Gestionar» un documento de la tabla, con la MISMA regla que tenía el primer nivel
+    /// (<see cref="MotivoBloqueoTrabajador"/>): si su Tipo es un bloqueo de acceso, la entidad que ese bloqueo pide (solo Vencido o
+    /// Ausente); si no, un pendiente que no bloquea pero se puede reclamar. Null: nada que gestionar, la celda queda vacía.
+    /// </summary>
+    private MotivoBloqueoTrabajador.EntidadAPedir? EntidadAGestionar(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        var bloqueosDelTipo = BloqueosDe(trabajador.TrabajadorId).Where(b => b.TipoDocumentoId == documento.TipoDocumentoId).ToList();
+        if (bloqueosDelTipo.Count > 0)
+        {
+            var propio = bloqueosDelTipo.FirstOrDefault(b => b.Ambito == AmbitoAplicacion.Trabajador);
+            return propio is null ? null : MotivoBloqueoTrabajador.EntidadAReclamar(propio);
+        }
+
+        // Lo que falta o está vencido en TALVEG sin ser un bloqueo cubría el antiguo enlace «Actualizar en Trabajador 360»: no se queda sin acción.
+        var gestionable = GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado)
+            || (MotivoBloqueoTrabajador.EsPendienteQueNoBloquea(documento.Estado) && MotivoBloqueoTrabajador.EsReclamable(documento));
+        return gestionable
+            ? new MotivoBloqueoTrabajador.EntidadAPedir(AmbitoAplicacion.Trabajador, trabajador.TrabajadorId)
+            : null;
+    }
+
+    /// <summary>Bloqueos que ninguna fila de la tabla del Trabajador recoge (documentos de la Empresa o Tipos que no exige este Centro): su motivo y su «Gestionar» no se pierden.</summary>
+    private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosSinFilaDe(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId)
+            .Where(b => b.Ambito != AmbitoAplicacion.Trabajador || !trabajador.Documentos.Any(d => d.TipoDocumentoId == b.TipoDocumentoId))
+            .ToList();
+
+    /// <summary>
+    /// Primer nivel de Centro 360 (maqueta: «motivo» de una línea, sin botones): cuántos documentos bloquean el acceso, o el peor
+    /// documento si ninguno bloquea. El detalle y sus acciones viven solo en el desplegable.
+    /// </summary>
+    private string ResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count switch
+        {
+            0 when AlDia(trabajador) => string.Empty,
+            0 => MotivoDocumental(trabajador),
+            1 => Textos["ResumenBloqueoUno360", nombres[0]].Value,
+            _ => Textos["ResumenBloqueoVarios360", nombres[0], nombres.Count - 1].Value
+        };
+    }
+
+    /// <summary>Sin exigencias o con todo vigente: no hay nada que decir en la fila (la píldora ya dice «Vigente»).</summary>
+    private static bool AlDia(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        trabajador.Cumplimiento.Requeridos == 0
+        || EstadoDocumentoFicha360.Clave(trabajador.PeorEstado) == EstadoDocumentoFicha360.Clave(EstadoDocumento.Vigente);
+
+    /// <summary>Los Tipos que bloquean al Trabajador en este Centro (bloqueo de acceso o rechazo/pendiente en plataforma), sin repetir, en el orden en que llegan.</summary>
+    private List<string> NombresQueBloquean(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        BloqueosDe(trabajador.TrabajadorId).Select(b => (b.TipoDocumentoId, Nombre: b.TipoDocumentoNombre))
+            .Concat(trabajador.Documentos.Where(BloqueaPlataforma).Select(d => (d.TipoDocumentoId, Nombre: d.TipoDocumentoNombre)))
+            .DistinctBy(t => t.TipoDocumentoId).Select(t => t.Nombre).ToList();
+
+    /// <summary>Resumen completo para el <c>title</c> del primer nivel: con la línea cortada en pantalla estrecha, se lee entero al pasar el cursor.</summary>
+    private string TituloResumenPrimerNivel(TrabajadorAsignacionDocumentacionDto trabajador)
+    {
+        var nombres = NombresQueBloquean(trabajador);
+        return nombres.Count == 0 ? MotivoDocumental(trabajador) : string.Join(" · ", nombres);
     }
 
     private bool _pedirVisible;

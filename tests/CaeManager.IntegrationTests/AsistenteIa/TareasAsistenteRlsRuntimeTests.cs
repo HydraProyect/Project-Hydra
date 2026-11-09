@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.IntegrationTests.Arranque;
@@ -188,6 +189,90 @@ public class TareasAsistenteRlsRuntimeTests
         excepcion.Should().BeOfType<PostgresException>()
             .Which.MessageText.Should().Contain("no se modifica",
                 "sin la confirmación en la raíz, sus pasos ejecutados colgarían de un plan sin confirmar");
+    }
+
+    /// <summary>
+    /// Lo que hace cada paso de un plan de Vega (<c>EjecutarPlanTareaAsistenteCommandHandler</c>)
+    /// desde dos ventanas a la vez: cada una guarda su efecto y registra el paso con la versión
+    /// de la Tarea que leyó, todo en una <see cref="TransaccionDeComando"/>. Con PostgreSQL de
+    /// verdad confirma la primera; la segunda choca con el token de concurrencia y su efecto,
+    /// ya guardado dentro de su transacción, se deshace. El efecto es otra Tarea de la misma
+    /// persona: solo hace falta una fila que se pueda contar.
+    /// </summary>
+    [Fact]
+    public async Task De_dos_ventanas_que_ejecutan_el_mismo_paso_solo_queda_el_efecto_de_una()
+    {
+        await using var arnes = await CrearArnesAsync();
+        var tareaId = await CrearTareaDeLaGestoraAsync(arnes);
+        ComoPersona(_gestora, _tenantBeneficiario);
+        await using (var scope = arnes.Servicios.CreateAsyncScope())
+        {
+            var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var tarea = await contexto.TareasAsistente.Include(t => t.Pasos).SingleAsync(t => t.Id == tareaId);
+            tarea.ConfirmarPlan(_gestora, null, Ahora);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var ventanaA = arnes.Servicios.CreateAsyncScope();
+        await using var ventanaB = arnes.Servicios.CreateAsyncScope();
+        var contextoA = ventanaA.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var contextoB = ventanaB.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var tareaA = await contextoA.TareasAsistente.Include(t => t.Pasos).SingleAsync(t => t.Id == tareaId);
+        var tareaB = await contextoB.TareasAsistente.Include(t => t.Pasos).SingleAsync(t => t.Id == tareaId);
+
+        var primera = await EjecutarPasoAsync(contextoA, tareaA);
+        var segunda = await Record.ExceptionAsync(() => EjecutarPasoAsync(contextoB, tareaB));
+
+        primera.EsExitoso.Should().BeTrue();
+        segunda.Should().BeOfType<DbUpdateConcurrencyException>("la segunda registra con una versión que ya no es la de la Tarea");
+        (await ContarAsync(arnes)).Tareas.Should().Be(2, "la Tarea del plan y el efecto de la primera ventana; el de la segunda se deshizo");
+    }
+
+    /// <summary>
+    /// Un Command con transacción propia que guarda dentro de otra se une a ella: si la de fuera
+    /// falla después, lo que guardó el de dentro también se deshace.
+    /// </summary>
+    [Fact]
+    public async Task Lo_que_guarda_un_Command_dentro_de_otra_transaccion_se_deshace_si_la_de_fuera_falla()
+    {
+        await using var arnes = await CrearArnesAsync();
+        ComoPersona(_gestora, _tenantBeneficiario);
+        await using var scope = arnes.Servicios.CreateAsyncScope();
+        var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var transaccion = new TransaccionDeComando(contexto);
+
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            var interno = await transaccion.EjecutarAsync(async ctInterno =>
+            {
+                contexto.TareasAsistente.Add(NuevaTareaDeLaGestora());
+                await contexto.SaveChangesAsync(ctInterno);
+                return Result.Exito();
+            }, ct);
+            interno.EsExitoso.Should().BeTrue();
+            return Result.Fallo(Error.Crear("Prueba.FalloDeFuera", "Falla el paso después del efecto."));
+        });
+
+        resultado.EsFallido.Should().BeTrue();
+        (await ContarAsync(arnes)).Tareas.Should().Be(0, "la transacción de fuera deshace lo que guardó la de dentro");
+    }
+
+    private async Task<Result> EjecutarPasoAsync(CaeManagerDbContext contexto, TareaAsistente tarea) =>
+        await new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+        {
+            var efecto = NuevaTareaDeLaGestora();
+            contexto.TareasAsistente.Add(efecto);
+            await contexto.SaveChangesAsync(ct);
+            tarea.RegistrarPasoEjecutado(tarea.Pasos.Single().Id, efecto.Id, Ahora);
+            await contexto.SaveChangesAsync(ct);
+            return Result.Exito();
+        });
+
+    private TareaAsistente NuevaTareaDeLaGestora()
+    {
+        var tarea = new TareaAsistente(_gestora, null, _tenantOperador, TipoViaAccesoAuditoria.OperacionDelegada, _asignacionOperacion, Ahora);
+        tarea.AgregarTurnoDePersona("Efecto de un paso", null, Ahora);
+        return tarea;
     }
 
     [Theory]

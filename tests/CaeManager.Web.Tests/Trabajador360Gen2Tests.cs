@@ -518,8 +518,8 @@ public partial class Trabajador360Gen2Tests : BunitContext
         if (estado == EstadoIndicadorBase.ProximoAVencer)
             mediador.Documentos[id] = [DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 1, 1), new(2026, 1, 1)) with { Id = documentoId }];
         var cut = Renderizar(id);
-        var boton = cut.Find(".panel-doc-base-fila button");
-        boton.TextContent.Trim().Should().Be(accion);
+        // La fila lleva además «Ver» (visor del PDF): aquí se fija «Gestionar», que no cambió.
+        var boton = cut.FindAll(".panel-doc-base-fila button").Single(b => b.TextContent.Trim() == accion);
         await boton.ClickAsync(new MouseEventArgs());
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documentoId);
     }
@@ -532,10 +532,18 @@ public partial class Trabajador360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
-        mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, estado, existe ? Guid.NewGuid() : null, null)]);
+        var documentoId = existe ? Guid.NewGuid() : (Guid?)null;
+        mediador.BaseDocumental[id] = new([new(TipoDocumentoBase.AptitudMedica, estado, documentoId, null)]);
+        // El Documento del indicador llega también en la lista de la ficha, con archivo: de ahí sale «Ver».
+        if (documentoId is { } conId)
+            mediador.Documentos[id] = [DocumentoDelTrabajador("Aptitud médica", EstadoDocumento.Vigente, new(2025, 1, 1), new(2027, 1, 1), conId) with { ArchivoUrl = "trabajadores/doc.pdf" }];
         var cut = Renderizar(id);
         cut.FindAll(".panel-doc-base-fila").Should().ContainSingle();
-        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(botones, "el vigente no lleva botón (maqueta Trabajador 360)");
+        // «Ver» (visor) acompaña a todo documento que existe; «Gestionar» sigue solo donde hay Documento que pide trabajo.
+        cut.FindAll(".panel-doc-base-fila button").Count(b => b.TextContent.Trim() == "Gestionar")
+            .Should().Be(botones, "el vigente no lleva «Gestionar» (maqueta Trabajador 360)");
+        cut.FindAll(".panel-doc-base-fila button").Count(b => b.TextContent.Trim() == "Ver")
+            .Should().Be(existe ? 1 : 0, "«Ver» solo si hay Documento");
     }
 
     [Theory]
@@ -582,10 +590,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
         this.ConRolDeEscritura(Roles.Consulta);
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
-        mediador.Documentos[id] = [DocumentoDelTrabajador("Documento", EstadoDocumento.Vencido, new(2025, 1, 1), new(2026, 1, 1))];
+        var documentoId = Guid.NewGuid();
+        mediador.Documentos[id] = [DocumentoDelTrabajador("Documento", EstadoDocumento.Vencido, new(2025, 1, 1), new(2026, 1, 1), documentoId) with { ArchivoUrl = "trabajadores/doc.pdf" }];
+        mediador.BaseDocumental[id] = new(Enum.GetValues<TipoDocumentoBase>().Select((tipo, i) =>
+            new IndicadorDocumentacionBase(tipo, i == 0 ? EstadoIndicadorBase.Vencido : EstadoIndicadorBase.Falta, i == 0 ? documentoId : null, null)).ToList());
         var cut = Renderizar(id);
         cut.FindAll(".panel-doc-base-fila").Should().HaveCount(4);
-        cut.FindAll(".panel-doc-base-fila button").Should().BeEmpty();
+        cut.FindAll(".panel-doc-base-fila button").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Ver", "Consulta solo ve el PDF: ninguna acción de escritura");
+        cut.FindAll(".panel-doc-base-fila button").Should().OnlyContain(b => b.TextContent.Trim() == "Ver", "Consulta solo ve el PDF: ninguna acción de escritura");
         await AbrirPestanaAsync(cut, "Documentación");
         cut.FindAll(".trabajador360-documentos .fila-relacion-acciones button").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty();
@@ -1439,14 +1451,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var id = Guid.NewGuid();
         var vencidoId = Guid.NewGuid();
         var urgenteId = Guid.NewGuid();
+        var sinConfirmarBaseId = Guid.NewGuid();
+        var vigenteBaseId = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
         mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
         mediador.BaseDocumental[id] = new([
             new(TipoDocumentoBase.AptitudMedica, EstadoIndicadorBase.Vencido, vencidoId, null),
-            new(TipoDocumentoBase.FormacionArt19, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null),
-            new(TipoDocumentoBase.InformacionArt18, EstadoIndicadorBase.Vigente, Guid.NewGuid(), null)]);
+            new(TipoDocumentoBase.FormacionArt19, EstadoIndicadorBase.SinConfirmar, sinConfirmarBaseId, null),
+            new(TipoDocumentoBase.InformacionArt18, EstadoIndicadorBase.Vigente, vigenteBaseId, null)]);
         mediador.Documentos[id] =
         [
+            // Los Documentos de la documentación base, con archivo: de ahí sale «Ver» (no cuentan en la franja: Vencido/Vigente).
+            DocumentoDelTrabajador("Aptitud médica", EstadoDocumento.Vencido, new(2024, 1, 1), new(2025, 1, 1), vencidoId) with { ArchivoUrl = "trabajadores/a.pdf" },
+            DocumentoDelTrabajador("Formación Art. 19", EstadoDocumento.Vigente, new(2025, 1, 1), new(2027, 1, 1), sinConfirmarBaseId) with { ArchivoUrl = "trabajadores/b.pdf" },
+            DocumentoDelTrabajador("Información Art. 18", EstadoDocumento.Vigente, new(2025, 1, 1), new(2027, 1, 1), vigenteBaseId) with { ArchivoUrl = "trabajadores/c.pdf" },
             DocumentoDelTrabajador("Reconocimiento médico", EstadoDocumento.Urgente, new(2025, 10, 1), new(2026, 10, 1)) with { Id = urgenteId },
             DocumentoDelTrabajador("Entrega de EPI", EstadoDocumento.Proximo, new(2025, 10, 20), new(2026, 10, 20)),
             DocumentoDelTrabajador("Formación PRL — 20 h", EstadoDocumento.Vigente, new(2025, 3, 1), new(2027, 3, 1)),
@@ -1461,14 +1479,14 @@ public partial class Trabajador360Gen2Tests : BunitContext
             .Select(f => f.QuerySelectorAll(".fila-relacion-acciones button").Select(b => b.TextContent.Trim()).ToList()).ToList();
         if (escribe)
         {
-            botonesBase.Should().Equal(new List<string>[] { ["Gestionar"], ["Gestionar"], [] },
-                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo; lo vigente no lleva botón (maqueta Trabajador 360)");
+            botonesBase.Should().Equal(new List<string>[] { ["Ver", "Gestionar"], ["Ver", "Gestionar"], ["Ver"] },
+                (a, b) => a.SequenceEqual(b), "Vencido y Sin confirmar piden trabajo y se pueden ver; lo vigente solo se ve: no lleva «Gestionar» (maqueta Trabajador 360)");
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.SequenceEqual(new[] { "Gestionar" }),
                 "Por vencer, urgente o no, lleva «Gestionar»");
         }
         else
         {
-            botonesBase.Should().OnlyContain(b => b.Count == 0);
+            botonesBase.Should().OnlyContain(b => b.SequenceEqual(new[] { "Ver" }), "Consulta y Cliente solo ven el PDF, como en la lista de Documentos: ninguna acción de escritura");
             botonesFranja.Should().HaveCount(2).And.OnlyContain(b => b.Count == 0);
         }
     }
@@ -1633,6 +1651,39 @@ public partial class Trabajador360Gen2Tests : BunitContext
         filas["Reconocimiento médico"].ClassList.Should().Contain("celda-documento-vigencia-sin-confirmar");
         SinEspaciosDeMas(filas["Autorización de acceso"].TextContent).Should().Be("Falta la fecha de vencimiento");
         filas["Autorización de acceso"].ClassList.Should().NotContain("celda-documento-vigencia-sin-confirmar");
+    }
+
+    /// <summary>
+    /// Segundo nivel (decisión de Chris del 2026-11-08): el Centro desplegado no mete una tarjeta dentro de la fila.
+    /// Los requisitos van en la lista anidada, en la misma superficie, y el requisito con problema se marca con su
+    /// <c>data-tono</c> (acento lateral en el CSS), no con otra caja.
+    /// </summary>
+    [Fact]
+    public async Task El_centro_desplegado_lista_los_requisitos_sin_tarjeta_interior()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Paula", "Aguilar Cordero");
+        mediador.Centros[id] =
+        [
+            Centro("Plataforma logística de Illescas", "Logística Burcena, S.A.", EstadoDocumento.Faltante,
+                Documento("Entrega de EPI", EstadoDocumento.Faltante, existe: false),
+                Documento("Documento de identidad", EstadoDocumento.Vigente))
+        ];
+
+        var cut = Renderizar(id);
+        AbrirCentros(cut);
+        await cut.FindAll(".trabajador360-centros .fila-relacion-desplegar")[0].ClickAsync(new MouseEventArgs());
+
+        var desplegado = cut.Find(".trabajador360-centros .fila-relacion-desplegado");
+        desplegado.QuerySelectorAll(".lista-relaciones-tarjeta, [data-pieza='tarjeta']").Should().BeEmpty();
+        var lista = desplegado.QuerySelector("ul.lista-relaciones-anidada[data-pieza='lista-anidada']");
+        lista.Should().NotBeNull();
+        var tonos = lista!.QuerySelectorAll("li.fila-relacion-compacta")
+            .ToDictionary(f => SinEspaciosDeMas(f.QuerySelector(".fila-relacion-nombre")!.TextContent), f => f.GetAttribute("data-tono"));
+        tonos["Entrega de EPI"].Should().NotBeNull("el requisito con problema conserva su tono para el acento lateral");
+        tonos["Documento de identidad"].Should().BeNull();
     }
 
     /// <summary>

@@ -36,6 +36,7 @@ using CaeManager.Web.Features.Gestiones;
 using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Features.Trabajadores;
+using CaeManager.Web.Features.Contacto;
 using CaeManager.Web.Reportes;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -289,12 +290,19 @@ builder.Services.AddTransient<Microsoft.AspNetCore.Authorization.Policy.IPolicyE
 builder.Services.AddSingleton<CaeManager.Web.Services.IContadorPendientesSelectorTenant>(
     _ => new CaeManager.Web.Services.ContadorPendientesSelectorTenant(TimeProvider.System));
 builder.Services.AddScoped<CaeManager.Web.Services.ILectorRecientesSelectorTenant, CaeManager.Web.Services.LectorRecientesSelectorTenant>();
+// Contexto del marco (pieza 1.3): un despacho por ámbito, compartido por los componentes del marco. Scoped (petición o
+// circuito), nunca singleton, y también como IMemoPorContexto, la MISMA instancia, para que cada Command lo descarte.
+builder.Services.AddScoped<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>();
+builder.Services.AddScoped<CaeManager.Application.Common.IMemoPorContexto>(
+    sp => sp.GetRequiredService<CaeManager.Web.Components.Layout.ContextoMarcoDelAmbito>());
 builder.Services.AddScoped<CaeManager.Application.Tenants.IVistaVocabularioPreviewService, CaeManager.Web.Services.VistaVocabularioPreviewCookie>();
 // Lente de demo (selector Dirección / Coordinador CAE / Gestor CAE): APAGADA por defecto y solo
 // para cuentas y Tenants de demo. Vive aqui y no en AddInfrastructure a proposito: un host sin la
 // cookie de Web (worker, herramientas) no tiene lente, y AlcanceDatosService la trata como opcional.
 builder.Services.Configure<CaeManager.Infrastructure.Autorizacion.VistaDemoOptions>(
     builder.Configuration.GetSection(CaeManager.Infrastructure.Autorizacion.VistaDemoOptions.SeccionConfiguracion));
+// Mi trabajo oculto para la demo del 2026-11-10 (MiTrabajo:Oculto=false lo devuelve): ver MiTrabajoVisibilidad.
+CaeManager.Web.Components.Layout.MiTrabajoVisibilidad.RegistrarOpcion(builder.Services, builder.Configuration);
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.ISolicitudVistaDemo, CaeManager.Web.Services.VistaDemoCookie>();
 builder.Services.AddScoped<CaeManager.Application.VistaDemo.IVistaDemoActual, CaeManager.Infrastructure.Autorizacion.VistaDemoActual>();
 builder.Services.AddScoped<CaeManager.Web.Services.TemaCookie>();
@@ -635,6 +643,11 @@ builder.Services.AddRateLimiter(opciones =>
     });
 });
 
+// Formulario «Pedir una demo» de la web pública talveg.es: CORS solo para
+// sus dos orígenes, límite por IP y cupo global de correos (ver
+// SolicitudDemoEndpoints, con cada control y su requisito ASVS).
+builder.Services.AddSolicitudDemo(builder.Configuration);
+
 // CircuitOptions explícitas (ADR-008 en Project-Hydra-Negocio, Horizonte 2.1
 // del plan macro) — hasta esta medición la app corría con los defaults de
 // ASP.NET Core sin examinarlos. El VPS de producción (Hetzner CX22: 2 vCPU,
@@ -710,6 +723,12 @@ builder.Services.AddScoped<CircuitHandler>(sp => sp.GetRequiredService<CaeManage
 // conexión). Sin esto, un cierre a mitad de una consulta corrompe el protocolo
 // de la conexión y la deja en el pool: ver la clase.
 builder.Services.AddScoped<CircuitHandler, CaeManager.Web.Services.LiberacionDeAccesoADatosAlCerrarCircuito>();
+
+// Coste de cada carga (pieza 0.1 del plan de rendimiento): cabecera Server-Timing en las respuestas SSR
+// de página. Apagado por defecto; ver OpcionesServerTiming. Las cargas dentro del circuito interactivo
+// aún no se miden (issue #2136).
+builder.Services.Configure<CaeManager.Web.Services.OpcionesServerTiming>(
+    builder.Configuration.GetSection(CaeManager.Web.Services.OpcionesServerTiming.Seccion));
 
 // Health check real (P0-5 de Project-Hydra-Negocio/MATURITY_REVIEW.md): /salud
 // respondía "ok" incondicional — con PostgreSQL caído seguía dando 200 y
@@ -1394,6 +1413,11 @@ app.UseHttpsRedirection();
 // las cabeceras han de ir en cualquier respuesta, incluidas las de error.
 app.UseCabecerasSeguridad();
 
+// Antes de todo lo que consulta la base, para que la cabecera recoja también el coste de los
+// middlewares. Solo registra un OnStarting: decide en ese momento (usuario ya autenticado, tipo
+// de respuesta ya fijado) si la añade. Apagado salvo Observabilidad:ServerTiming:Habilitado.
+app.UseServerTimingCosteCarga();
+
 // Detrás de las cabeceras de seguridad (el 503 las reaplica y conserva el HSTS; ver
 // PresupuestoMemoriaAgotadoExtensions): sin hueco en el presupuesto de memoria de
 // documentos se responde 503 con Retry-After, no 500.
@@ -1401,6 +1425,11 @@ app.UsePresupuestoMemoriaAgotadoComo503();
 
 // Opciones registradas arriba (Configure<RequestLocalizationOptions>).
 app.UseRequestLocalization();
+
+// Tras el enrutado implícito y antes de autenticar: el preflight OPTIONS del
+// formulario de demo de talveg.es se contesta aquí. Sin política por defecto,
+// así que solo actúa en los endpoints con RequireCors (hoy, solo ese).
+app.UseCors();
 
 app.UseAuthentication();
 
@@ -1506,6 +1535,7 @@ app.MapConectarMicrosoft365Endpoints();
 app.MapWebhookMicrosoft365Endpoints();
 app.MapWebhookWhatsAppEndpoints();
 app.MapWebhookStripeEndpoints();
+app.MapSolicitudDemoEndpoints();
 
 // API pública v1 (P3-29) — solo lectura, no publicada todavía. Un único
 // grupo con la política de auth/rate-limit aplicada una vez, en vez de por
