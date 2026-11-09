@@ -35,7 +35,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Crea_una_conversacion_nueva_con_el_mensaje_saliente()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, _) = CrearHandler(conexion);
 
         var resultado = await handler.Handle(
@@ -52,12 +52,31 @@ public class EnviarMensajeNuevoCommandHandlerTests
         conversacion.Participantes.Should().ContainSingle(p => p.Email == "contacto@cliente.com" && p.Rol == RolParticipante.Para);
     }
 
+    /// <summary>
+    /// También cubre a quien elige el buzón por su cuenta (RegistroEnvioReclamacionService, PedirPrioridadValidacion):
+    /// todos envían por aquí, y un buzón sin verificar falla con un error claro en vez de cambiar de canal en silencio.
+    /// </summary>
+    [Fact]
+    public async Task Con_la_identidad_del_buzon_sin_verificar_no_envia_y_lo_dice()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        var (handler, conversaciones, _) = CrearHandler(conexion);
+
+        var resultado = await handler.Handle(
+            new EnviarMensajeNuevoCommand(conexion.Id, ["contacto@cliente.com"], "Bienvenida", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
     /// <summary>Un buzón compartido no tiene credencial: el mensaje sale por su dirección y con el token de aplicación de su directorio.</summary>
     [Fact]
     public async Task Con_un_buzon_compartido_envia_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
     {
         var directorio = Guid.NewGuid().ToString("D");
-        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var graphClient = new Microsoft365GraphClientFalso();
@@ -81,7 +100,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task La_copia_viaja_al_proveedor_y_queda_como_participante_Cc_del_hilo()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, graphClient) = CrearHandler(conexion);
 
         var resultado = await handler.Handle(
@@ -99,7 +118,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Con_conexion_deshabilitada_devuelve_fallo_y_no_crea_nada()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         conexion.Deshabilitar();
         var (handler, conversaciones, _) = CrearHandler(conexion);
 
@@ -114,7 +133,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Si_el_envio_por_Graph_falla_no_crea_la_conversacion()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, graphClient) = CrearHandler(conexion);
         graphClient.FallaEnvio = true;
 
@@ -128,7 +147,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Guarda_los_adjuntos_en_el_mensaje_creado()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, _) = CrearHandler(conexion);
         var adjuntos = new[] { new AdjuntoParaEnviarDto("bienvenida.pdf", "application/pdf", [9, 9]) };
 
@@ -144,7 +163,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Un_entrante_con_el_mismo_hilo_externo_se_suma_al_hilo_existente_en_vez_de_crear_uno_nuevo()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
@@ -204,7 +223,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Si_Graph_devuelve_un_HiloExternoId_existente_reutiliza_la_conversacion_en_vez_de_duplicarla()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, graphClient) = CrearHandler(conexion);
         graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-saliente-2", "hilo-existente-456");
 
@@ -225,7 +244,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
     [Fact]
     public async Task Ancla_el_hilo_nuevo_a_la_Empresa_cuando_se_pide_asi()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, _) = CrearHandler(conexion);
         var empresaId = Guid.NewGuid();
 
@@ -251,7 +270,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         // Sumarle el mensaje lo metería en la bandeja de quien tenga ESE
         // titular en cartera y lo escondería de quien tiene el nuestro: el
         // alcance comprobado al entrar se perdería en el último paso.
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var (handler, conversaciones, graphClient) = CrearHandler(conexion);
         graphClient.MensajeEnviadoADevolver = new MensajeEnviadoGraphDto("msg-3", "hilo-ajeno-789");
 
@@ -281,7 +300,7 @@ public class EnviarMensajeNuevoCommandHandlerTests
         // ConexionIntegracionId a mano — el Cliente-cartera no protege un
         // buzón personal, porque tiene ClienteId null.
         var conexionPersonal = new ConexionIntegracion(
-            "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid());
+            "gestor.otro@ejemplo.local", "Buzón personal", gestorPropietarioId: Guid.NewGuid()).Verificada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexionPersonal);
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();

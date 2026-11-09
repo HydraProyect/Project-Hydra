@@ -35,7 +35,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
 
     private ConexionIntegracion AgregarBuzonHabilitado(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId).Verificada();
         _conexiones.Agregar(conexion);
         _integraciones.ConexionesLista.Add(conexion);
         return conexion;
@@ -80,6 +80,23 @@ public class MigrarConversacionACorreoCommandHandlerTests
         var fila = _registro.Filas.Should().ContainSingle().Subject;
         fila.Criterios["origen"].Should().Be("MigracionACorreo");
         fila.Criterios["destinatarios"].Should().Be("c***@cliente.com");
+    }
+
+    [Fact]
+    public async Task Con_la_identidad_del_buzon_sin_verificar_no_migra_ni_deja_fila_de_salida()
+    {
+        var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        _conexiones.Agregar(conexion);
+        _integraciones.ConexionesLista.Add(conexion);
+
+        var resultado = await CrearHandler().Handle(
+            new MigrarConversacionACorreoCommand(conversacion.Id, "cliente@ejemplo.com", "<p>Hola</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        _registro.Filas.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
@@ -132,7 +149,7 @@ public class MigrarConversacionACorreoCommandHandlerTests
     {
         var conversacion = CrearConversacionWhatsAppConVentanaCerrada();
         var directorio = Guid.NewGuid().ToString("D");
-        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
         _conexiones.Agregar(compartido);
         _integraciones.ConexionesLista.Add(compartido);
         var handler = new MigrarConversacionACorreoCommandHandler(

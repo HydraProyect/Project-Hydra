@@ -21,6 +21,9 @@
   <data name="PlaceholderBuzonCompartido" xml:space="preserve">
     <value>nombre@dominio.es</value>
   </data>
+  <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
+    <value>Sin verificar: no hemos podido comprobar en el último día que esta dirección sigue siendo el mismo buzón. El correo entrante queda en espera, sin perderse, y no se envía nada desde este buzón hasta que se compruebe en la renovación diaria. Si el aviso sigue, desconecta el buzón y vuelve a conectarlo.</value>
+  </data>
   <data name="InsigniaCompartido" xml:space="preserve">
     <value>Compartido</value>
   </data>

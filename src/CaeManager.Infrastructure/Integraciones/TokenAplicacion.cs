@@ -40,6 +40,36 @@ internal static class TokenAplicacion
         }
     }
 
+    /// <summary>
+    /// Directorio Entra (claim <c>tid</c>) de un token que acaba de devolver el endpoint de tokens de Entra, en
+    /// formato GUID «D»; null si el token no se puede leer o el claim no es un GUID distinto de cero (por ejemplo,
+    /// el token opaco de una cuenta personal de Microsoft). Sin validar la firma, por el mismo motivo que
+    /// <see cref="TienePermisosDeEntraOEsIlegible"/>: el token llega directamente de Entra por TLS en respuesta a
+    /// nuestra petición. No sirve para un token que llegue por cualquier otro camino.
+    /// </summary>
+    public static string? LeerDirectorio(string accessToken)
+    {
+        var partes = accessToken.Split('.');
+        if (partes.Length != 3)
+            return null;
+
+        try
+        {
+            using var carga = JsonDocument.Parse(DecodificarBase64Url(partes[1]));
+            return carga.RootElement.ValueKind == JsonValueKind.Object
+                && carga.RootElement.TryGetProperty("tid", out var tid)
+                && tid.ValueKind == JsonValueKind.String
+                && Guid.TryParse(tid.GetString(), out var directorio)
+                && directorio != Guid.Empty
+                    ? directorio.ToString("D")
+                    : null;
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
     private static string DecodificarBase64Url(string valor)
     {
         var base64 = valor.Replace('-', '+').Replace('_', '/');

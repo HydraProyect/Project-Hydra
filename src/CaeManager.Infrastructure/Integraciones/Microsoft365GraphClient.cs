@@ -166,7 +166,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al pedir un token de aplicación.");
             return Result.Fallo<TokenAplicacionGraphDto>(ErrorTiempoAgotado);
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
         {
             return Result.Fallo<TokenAplicacionGraphDto>(Error.Crear(
                 "Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
@@ -238,12 +238,29 @@ public class Microsoft365GraphClient(
             // ante su ausencia se asume el mínimo típico de Graph (1 h) en vez
             // de fallar el canje por un campo que no es indispensable.
             var expiraUtc = DateTime.UtcNow.AddSeconds(cuerpo.ExpiresIn ?? 3600);
-            return Result.Exito(new TokensGraphDto(cuerpo.AccessToken, cuerpo.RefreshToken, expiraUtc));
+
+            // El directorio de quien inició sesión es el claim «tid» del access token que Entra devuelve en ESTA
+            // respuesta del endpoint de tokens (los scopes no piden openid, así que no hay id_token). Se lee sin
+            // validar la firma por el mismo motivo que TokenAplicacion: el token llega directamente de Entra por
+            // TLS en respuesta a nuestra petición. Nunca sale del navegador, de «state» ni de la query del callback.
+            return Result.Exito(new TokensGraphDto(
+                cuerpo.AccessToken, cuerpo.RefreshToken, expiraUtc, TokenAplicacion.LeerDirectorio(cuerpo.AccessToken)));
         }
         catch (HttpRequestException ex)
         {
             logger.LogError(ex, "Fallo de red al canjear tokens con Microsoft Entra ID.");
             return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Entra ID no respondió a tiempo al canjear tokens.");
+            return Result.Fallo<TokensGraphDto>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            // Un 200 con un cuerpo ilegible (JSON roto o charset inválido) es un fallo de autenticación más.
+            logger.LogError(ex, "Microsoft Entra ID devolvió una respuesta de tokens ilegible.");
+            return Result.Fallo<TokensGraphDto>(Error.Crear("Integraciones.Microsoft365.ErrorAutenticacion", "No pudimos autenticar con Microsoft."));
         }
     }
 
@@ -267,45 +284,6 @@ public class Microsoft365GraphClient(
         {
             logger.LogError(ex, "Fallo de red al leer el perfil de Microsoft Graph.");
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
-        }
-    }
-
-    public async Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken)
-    {
-        using var peticion = NuevaPeticionGraph(HttpMethod.Get, $"{RaizGraph}organization?$select=id", accessToken);
-
-        try
-        {
-            using var respuesta = await httpClient.SendAsync(peticion, cancellationToken);
-            if (!respuesta.IsSuccessStatusCode)
-                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el directorio de Microsoft."));
-
-            using var documento = await JsonDocument.ParseAsync(
-                await respuesta.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
-            // Una cuenta de trabajo pertenece a un único directorio: más de uno, o ninguno, no se adivina.
-            if (!documento.RootElement.TryGetProperty("value", out var organizaciones) ||
-                organizaciones.ValueKind != JsonValueKind.Array || organizaciones.GetArrayLength() != 1 ||
-                !organizaciones[0].TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
-                !Guid.TryParse(id.GetString(), out var directorio) || directorio == Guid.Empty)
-            {
-                return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
-            }
-
-            return Result.Exito(directorio.ToString("D"));
-        }
-        catch (HttpRequestException ex)
-        {
-            logger.LogError(ex, "Fallo de red al leer el directorio de Microsoft Graph.");
-            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
-        }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-        {
-            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el directorio.");
-            return Result.Fallo<string>(ErrorTiempoAgotado);
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
-        {
-            return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.DirectorioInvalido", "No pudimos leer el directorio de Microsoft."));
         }
     }
 
@@ -352,7 +330,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Graph no respondió a tiempo al comprobar el acceso a un buzón.");
             return Result.Fallo<string>(ErrorTiempoAgotado);
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
         {
             return Result.Fallo<string>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el buzón conectado."));
         }
@@ -552,18 +530,19 @@ public class Microsoft365GraphClient(
             var participantes = new List<ParticipanteGraphDto>();
             if (!string.IsNullOrWhiteSpace(mensaje.From?.EmailAddress?.Address))
                 participantes.Add(new ParticipanteGraphDto(mensaje.From.EmailAddress.Address, RolParticipante.De));
+            // Cada elemento de las listas puede venir null (`"toRecipients":[null]` es JSON válido): se salta, no rompe el lote.
             participantes.AddRange((mensaje.ToRecipients ?? [])
-                .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                .Select(r => new ParticipanteGraphDto(r.EmailAddress!.Address!, RolParticipante.Para)));
+                .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                .Select(r => new ParticipanteGraphDto(r!.EmailAddress!.Address!, RolParticipante.Para)));
             participantes.AddRange((mensaje.CcRecipients ?? [])
-                .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                .Select(r => new ParticipanteGraphDto(r.EmailAddress!.Address!, RolParticipante.Cc)));
+                .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                .Select(r => new ParticipanteGraphDto(r!.EmailAddress!.Address!, RolParticipante.Cc)));
 
             var asunto = string.IsNullOrWhiteSpace(mensaje.Subject) ? "(sin asunto)" : mensaje.Subject;
 
             var adjuntos = (mensaje.Attachments ?? [])
-                .Where(a => !string.IsNullOrWhiteSpace(a.Id) && !string.IsNullOrWhiteSpace(a.Name))
-                .Select(a => new AdjuntoGraphDto(a.Id!, a.Name!, a.ContentType ?? "application/octet-stream", a.Size ?? 0))
+                .Where(a => !string.IsNullOrWhiteSpace(a?.Id) && !string.IsNullOrWhiteSpace(a.Name))
+                .Select(a => new AdjuntoGraphDto(a!.Id!, a.Name!, a.ContentType ?? "application/octet-stream", a.Size ?? 0))
                 .ToList();
 
             return Result.Exito(new MensajeGraphDto(
@@ -575,10 +554,11 @@ public class Microsoft365GraphClient(
                 FechaUtc: mensaje.ReceivedDateTime ?? DateTime.UtcNow,
                 Participantes: participantes,
                 Adjuntos: adjuntos,
-                Cabeceras: mensaje.InternetMessageHeaders?.Select(c => new CabeceraCorreoDto(c.Name ?? string.Empty, c.Value ?? string.Empty)).ToList(),
+                Cabeceras: mensaje.InternetMessageHeaders?.Where(c => c is not null)
+                    .Select(c => new CabeceraCorreoDto(c!.Name ?? string.Empty, c.Value ?? string.Empty)).ToList(),
                 ResponderA: (mensaje.ReplyTo ?? [])
-                    .Where(r => !string.IsNullOrWhiteSpace(r.EmailAddress?.Address))
-                    .Select(r => r.EmailAddress!.Address!).ToList()));
+                    .Where(r => !string.IsNullOrWhiteSpace(r?.EmailAddress?.Address))
+                    .Select(r => r!.EmailAddress!.Address!).ToList()));
         }
         catch (HttpRequestException ex)
         {
@@ -590,7 +570,7 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Microsoft Graph no respondió a tiempo al leer el mensaje {MensajeId}.", mensajeId);
             return Result.Fallo<MensajeGraphDto>(ErrorTiempoAgotado);
         }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
         {
             // Un 200 con un cuerpo ilegible es un fallo de Graph como otro cualquiera: se devuelve, para que la ingesta
             // siga con los demás mensajes del lote y reintente este.
@@ -729,6 +709,16 @@ public class Microsoft365GraphClient(
             logger.LogError(ex, "Fallo de red al listar mensajes de la carpeta {CarpetaId} vía Microsoft Graph.", carpetaExternoId);
             return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(Error.Crear("Integraciones.Microsoft365.ErrorRed", "No pudimos conectar con Microsoft."));
         }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogError(ex, "Microsoft Graph no respondió a tiempo al listar mensajes de la carpeta {CarpetaId}.", carpetaExternoId);
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(ErrorTiempoAgotado);
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            logger.LogError(ex, "Microsoft Graph devolvió un historial ilegible de la carpeta {CarpetaId}.", carpetaExternoId);
+            return Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(Error.Crear("Integraciones.Microsoft365.ErrorApi", "No pudimos leer el historial de esta carpeta."));
+        }
     }
 
     public async Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
@@ -828,8 +818,8 @@ public class Microsoft365GraphClient(
         {
             var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
             return notificacion?.Value?
-                .Where(n => !string.IsNullOrWhiteSpace(n.ResourceData?.Id))
-                .Select(n => n.ResourceData!.Id!)
+                .Where(n => !string.IsNullOrWhiteSpace(n?.ResourceData?.Id))
+                .Select(n => n!.ResourceData!.Id!)
                 .ToList() ?? [];
         }
         catch (JsonException ex)
@@ -838,6 +828,9 @@ public class Microsoft365GraphClient(
             return [];
         }
     }
+
+    public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) =>
+        JsonSerializer.Serialize(new { value = mensajeIds.Select(id => new { resourceData = new { id } }) });
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson)
         => ExtraerNotificacionHomogenea(payloadJson)?.ClientState;

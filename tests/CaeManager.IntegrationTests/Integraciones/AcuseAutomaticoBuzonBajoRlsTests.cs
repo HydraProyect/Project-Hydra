@@ -68,6 +68,9 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(_tenantSesion))
         {
             var buzon = new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE");
+            // La ingesta y el acuse solo operan con la identidad del buzón verificada.
+            buzon.FijarIdentidadBuzon("inbox-propio");
+            buzon.MarcarIdentidadVerificada(DateTime.UtcNow);
             _propietario.ConexionesIntegracion.Add(buzon);
             _propietario.CredencialesIntegracion.Add(new CredencialIntegracion(buzon.Id, "refresh"));
             await _propietario.SaveChangesAsync();
@@ -77,6 +80,9 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(tenantAjeno.Id))
         {
             var buzon = new ConexionIntegracion("cae@ajeno.test", "Buzón ajeno");
+            // La ingesta y el acuse solo operan con la identidad del buzón verificada.
+            buzon.FijarIdentidadBuzon("inbox-ajeno");
+            buzon.MarcarIdentidadVerificada(DateTime.UtcNow);
             _propietario.ConexionesIntegracion.Add(buzon);
             await _propietario.SaveChangesAsync();
             _buzonAjeno = buzon.Id;
@@ -337,7 +343,6 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
         public List<string> Respuestas { get; } = [];
 
         public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito(new TokensGraphDto("access", "refresh", DateTime.UtcNow.AddHours(1))));
@@ -392,6 +397,7 @@ public class AcuseAutomaticoBuzonBajoRlsTests : IAsyncLifetime
             throw new NotSupportedException();
 
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();
+        public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) => throw new NotSupportedException();
 
         public string? ExtraerClientStateDeNotificacion(string payloadJson) => throw new NotSupportedException();
 

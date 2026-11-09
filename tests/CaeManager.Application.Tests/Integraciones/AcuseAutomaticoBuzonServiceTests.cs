@@ -16,7 +16,7 @@ public class AcuseAutomaticoBuzonServiceTests
 {
     private const string Destinatario = "persona@ejemplo.test";
 
-    private readonly ConexionIntegracion _conexion = new("cae@ejemplo.test", "Buzón CAE");
+    private readonly ConexionIntegracion _conexion = new ConexionIntegracion("cae@ejemplo.test", "Buzón CAE").Verificada();
     private readonly ConversacionRepositorioFalso _conversaciones = new();
     private readonly CredencialIntegracionRepositorioFalso _credenciales = new();
     private readonly Microsoft365GraphClientFalso _graph = new();
@@ -67,7 +67,7 @@ public class AcuseAutomaticoBuzonServiceTests
     public async Task Con_un_buzon_compartido_el_acuse_sale_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
     {
         var directorio = Guid.NewGuid().ToString("D");
-        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var compartido = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
         var conversacion = new Conversacion("Asunto del correo");
         conversacion.AsociarConexion(compartido.Id, "hilo-1");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, Destinatario, "Cuerpo del correo", DateTime.UtcNow);

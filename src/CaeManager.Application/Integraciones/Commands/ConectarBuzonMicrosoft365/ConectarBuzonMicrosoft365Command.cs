@@ -139,6 +139,9 @@ public class ConectarBuzonMicrosoft365CommandHandler(
         }
 
         conexion.FijarIdentidadBuzon(identidad);
+        // AltaBuzonMicrosoft365Service la acaba de leer en Microsoft 365 con el mismo token que abre el buzón: la
+        // conexión nace verificada y puede ingerir y enviar sin esperar a la renovación diaria.
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow);
 
         // Secreto propio de Hydra, nunca elegido por Graph — se guarda
         // cifrado en SuscripcionWebhook y se compara en cada notificación

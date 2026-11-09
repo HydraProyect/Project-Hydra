@@ -22,7 +22,7 @@ public record ObtenerConexionesIntegracionQuery(bool SoloPropiasYGenerales = fal
 public record ConexionIntegracionListaDto(
     Guid Id, string BuzonEmail, string Nombre, Guid? ClienteId, string? ClienteNombre, EstadoConexionIntegracion Estado,
     DateTime FechaConectadaUtc, Guid? GestorPropietarioId, string? UltimoError, Guid? ResponsableUsuarioId = null,
-    bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false);
+    bool AcuseAutomaticoActivo = false, bool EsBuzonCompartido = false, bool IdentidadSinVerificar = false);
 
 /// <remarks>
 /// <c>UltimoError</c> se lee en una consulta aparte y solo fuera de Sesión Privilegiada: es el texto que
@@ -47,6 +47,10 @@ public class ObtenerConexionesIntegracionQueryHandler(
             ? await currentUserService.ObtenerUsuarioActualIdAsync()
             : null;
 
+        // Misma regla que ConexionIntegracion.OperativaVerificada: Habilitada pero sin verificar en la ventana, la
+        // ingesta deja el correo entrante en espera y no se envía nada desde el buzón. Conexiones lo avisa.
+        var limiteVerificacion = DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad;
+
         var query =
             from conexion in integracionesContext.ConexionesIntegracion
             // Solo buzones M365: las líneas WhatsApp tienen su propia tabla en
@@ -61,7 +65,9 @@ public class ObtenerConexionesIntegracionQueryHandler(
             select new ConexionIntegracionListaDto(
                 conexion.Id, conexion.BuzonEmail, conexion.Nombre, conexion.ClienteId, cliente!.RazonSocial, conexion.Estado,
                 conexion.FechaConectadaUtc, conexion.GestorPropietarioId, null, conexion.ResponsableUsuarioId,
-                conexion.AcuseAutomaticoActivo, conexion.EsBuzonCompartido);
+                conexion.AcuseAutomaticoActivo, conexion.EsBuzonCompartido,
+                conexion.Proveedor == ProveedorIntegracion.Microsoft365 && conexion.Estado == EstadoConexionIntegracion.Habilitada &&
+                (conexion.IdentidadVerificadaUtc == null || conexion.IdentidadVerificadaUtc < limiteVerificacion));
 
         var conexiones = await query.ToListAsync(cancellationToken);
         if (conexiones.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)

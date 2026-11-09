@@ -394,7 +394,6 @@ public class GuardaEnvioCorreoTests
         public string ConstruirUrlAutorizacion(string redirectUri, string state) => throw new NotSupportedException();
         public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<TokenAplicacionGraphDto>> ObtenerTokenAplicacionAsync(string directorioId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Result<TokensGraphDto>> RefrescarTokensAsync(string refreshToken, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -406,6 +405,7 @@ public class GuardaEnvioCorreoTests
         public Task<Result<SuscripcionGraphDto>> RenovarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Result> EliminarSuscripcionAsync(string accessToken, string graphSubscriptionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => throw new NotSupportedException();
+        public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) => throw new NotSupportedException();
         public string? ExtraerClientStateDeNotificacion(string payloadJson) => throw new NotSupportedException();
         public string? ExtraerSubscriptionIdDeNotificacion(string payloadJson) => throw new NotSupportedException();
     }

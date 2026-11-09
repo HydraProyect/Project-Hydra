@@ -89,6 +89,11 @@ public class EnviarMensajeNuevoCommandHandler(
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
             return Result.Fallo<Guid>(Error.Crear("ConexionIntegracion.NoDisponible", "Este buzón no está disponible."));
 
+        // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada. Por
+        // aquí pasan también los que eligen buzón general (reclamación, prioridad de validación).
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<Guid>(Integraciones.ErroresBuzonSinVerificar.Crear());
+
         // El Cliente del mensaje es el que pida quien redacta si se indica
         // (p. ej. desde una pantalla de Cliente concreta); si no, el que ya
         // tenga la propia conexión (buzón dedicado a un Cliente Delegante).

@@ -92,8 +92,53 @@ public class ConexionIntegracion : EntidadBase
     /// </summary>
     public string? IdentidadBuzon { get; private set; }
 
+    /// <summary>
+    /// Cuánto vale una comprobación de <see cref="IdentidadBuzon"/>: el ciclo diario de la renovación de
+    /// suscripciones (24 h) más dos horas de margen para lo que tarde el propio ciclo y la elección de líder. Pasado
+    /// ese tiempo sin otra comprobación, la conexión deja de estar verificada: su correo entrante queda en espera y no
+    /// se envía nada desde ella.
+    /// </summary>
+    public static readonly TimeSpan VentanaVerificacionIdentidad = TimeSpan.FromHours(26);
+
+    /// <summary>
+    /// Última vez que se leyó en Microsoft 365 la identidad del buzón que responde a <see cref="BuzonEmail"/> y
+    /// coincidió con <see cref="IdentidadBuzon"/> (o se acababa de completar). Null: nunca verificada. Es una
+    /// medida de frescura, no un estado: un fallo transitorio de la lectura no la toca, solo la deja envejecer,
+    /// mientras que <see cref="EstadoConexionIntegracion.ConError"/> queda para los resultados definitivos.
+    /// </summary>
+    public DateTime? IdentidadVerificadaUtc { get; private set; }
+
     private ConexionIntegracion()
     {
+    }
+
+    /// <summary>Solo Microsoft 365 tiene identidad de buzón que verificar; una línea de WhatsApp no.</summary>
+    public bool RequiereVerificacionIdentidad => Proveedor == ProveedorIntegracion.Microsoft365;
+
+    /// <summary>
+    /// La identidad se comprobó dentro de <see cref="VentanaVerificacionIdentidad"/>. Una fecha futura (reloj
+    /// desajustado) tampoco cuenta: no se puede extender la vigencia escribiendo una fecha adelantada.
+    /// </summary>
+    public bool IdentidadVerificadaVigente(DateTime ahoraUtc) =>
+        IdentidadVerificadaUtc is { } verificada
+        && verificada <= ahoraUtc.AddMinutes(5)
+        && ahoraUtc - verificada < VentanaVerificacionIdentidad;
+
+    /// <summary>
+    /// Se puede leer correo del buzón y enviar desde él: Habilitada y, en Microsoft 365, con la identidad
+    /// verificada hace menos de <see cref="VentanaVerificacionIdentidad"/>.
+    /// </summary>
+    public bool OperativaVerificada(DateTime ahoraUtc) =>
+        Estado == EstadoConexionIntegracion.Habilitada
+        && (!RequiereVerificacionIdentidad || IdentidadVerificadaVigente(ahoraUtc));
+
+    /// <summary>La identidad leída hoy en Microsoft 365 coincide con <see cref="IdentidadBuzon"/>, que ya está fijada.</summary>
+    public void MarcarIdentidadVerificada(DateTime ahoraUtc)
+    {
+        if (IdentidadBuzon is null)
+            throw new InvalidOperationException("No se puede verificar una conexión sin identidad de buzón.");
+
+        IdentidadVerificadaUtc = ahoraUtc;
     }
 
     /// <summary>

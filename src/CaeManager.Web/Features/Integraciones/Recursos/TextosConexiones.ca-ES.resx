@@ -21,6 +21,9 @@
   <data name="PlaceholderBuzonCompartido" xml:space="preserve">
     <value>nom@domini.cat</value>
   </data>
+  <data name="AvisoIdentidadSinVerificar" xml:space="preserve">
+    <value>Sense verificar: no hem pogut comprovar en l'últim dia que aquesta adreça continua sent la mateixa bústia. El correu entrant queda en espera, sense perdre's, i no s'envia res des d'aquesta bústia fins que es comprovi en la renovació diària. Si l'avís continua, desconnecta la bústia i torna-la a connectar.</value>
+  </data>
   <data name="InsigniaCompartido" xml:space="preserve">
     <value>Compartida</value>
   </data>

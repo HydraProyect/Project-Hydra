@@ -140,6 +140,10 @@ public class ResponderConversacionCommandHandler(
             return Result.Fallo<Mensaje>(Error.Crear(
                 "Conversacion.ConexionNoDisponible", "El buzón conectado a esta conversación no está disponible."));
 
+        // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo<Mensaje>(ErroresBuzonSinVerificar.Crear());
+
         var ultimoMensajeEntrante = conversacion.Mensajes
             .Where(m => m.Direccion == DireccionMensaje.Entrante && m.MensajeExternoId is not null)
             .OrderByDescending(m => m.FechaUtc)

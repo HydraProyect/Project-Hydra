@@ -37,6 +37,14 @@
     max-width: 22rem;
 }
 
+.texto-aviso-verificacion {
+    display: block;
+    color: var(--color-warning-700);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    max-width: 22rem;
+}
+
 .acciones-conexion {
     display: flex;
     gap: 0.5rem;

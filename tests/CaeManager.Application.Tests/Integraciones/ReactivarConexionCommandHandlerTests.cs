@@ -16,12 +16,68 @@ public class ReactivarConexionCommandHandlerTests
     private static ReactivarConexionCommandHandler CrearHandler(
         ConexionIntegracionRepositorioFalso conexionRepositorio, AlcanceDatosServiceFalso alcanceDatos,
         UnitOfWorkFalso unitOfWork, ReclamacionBuzonIntegracionRepositorioFalso? reclamacionRepositorio = null,
-        ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null)
+        ITenantActual? tenantActual = null, Microsoft365GraphClientFalso? graph = null, EventoWebhookRepositorioFalso? eventos = null)
     {
         graph ??= new Microsoft365GraphClientFalso { IdentidadBuzonPropio = "inbox-x" };
+        eventos ??= new EventoWebhookRepositorioFalso();
         return new(conexionRepositorio, reclamacionRepositorio ?? new ReclamacionBuzonIntegracionRepositorioFalso(),
             alcanceDatos, tenantActual ?? new TenantActualFalso(TenantId), unitOfWork,
-            new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph);
+            new AccesoGraphService(new CredencialIntegracionRepositorioFalso { CredencialParaCualquierConexion = true }, graph), graph,
+            eventos,
+            new RecuperacionCorreoBuzonService(graph, new CaeManager.Application.Tests.Comunicaciones.ConversacionRepositorioFalso(), eventos,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<RecuperacionCorreoBuzonService>.Instance));
+    }
+
+    [Fact]
+    public async Task Reactivar_desde_ConError_marca_verificada_libera_los_retenidos_y_recupera_el_hueco()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.MarcarConError("El refresh token ha expirado.");
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var eventos = new EventoWebhookRepositorioFalso();
+        var retenido = new EventoWebhook(conexion.Id, "{}");
+        retenido.EsperarVerificacion("en espera", DateTime.UtcNow + EventoWebhook.TopeEsperaVerificacion + TimeSpan.FromMinutes(1));
+        eventos.Agregar(retenido);
+        var graph = new Microsoft365GraphClientFalso
+        {
+            IdentidadBuzonPropio = "inbox-x",
+            MensajesADevolver = [new MensajeResumenGraphDto("m-1", "h-1", "Asunto", "remitente@tenant.com", DateTime.UtcNow.AddMinutes(1), false)],
+        };
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph, eventos: eventos);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
+        retenido.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        eventos.Eventos.Should().Contain(e => e.PayloadCrudo == "recuperacion:m-1");
+    }
+
+    /// <summary>Lo que llegó con la conexión desconectada a propósito no se ingiere al reactivarla.</summary>
+    [Fact]
+    public async Task Reactivar_desde_Deshabilitada_marca_verificada_sin_recuperar_el_hueco()
+    {
+        var conexion = new ConexionIntegracion("cae@operador.test", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-x");
+        conexion.Deshabilitar();
+        var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
+        conexionRepositorio.Agregar(conexion);
+        var eventos = new EventoWebhookRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            IdentidadBuzonPropio = "inbox-x",
+            MensajesADevolver = [new MensajeResumenGraphDto("m-1", "h-1", "Asunto", "remitente@tenant.com", DateTime.UtcNow.AddMinutes(1), false)],
+        };
+        var handler = CrearHandler(conexionRepositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), graph: graph, eventos: eventos);
+
+        var resultado = await handler.Handle(new ReactivarConexionCommand(conexion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        conexion.OperativaVerificada(DateTime.UtcNow).Should().BeTrue();
+        graph.ListadosPedidos.Should().BeEmpty();
+        eventos.Eventos.Should().BeEmpty();
     }
 
     [Fact]

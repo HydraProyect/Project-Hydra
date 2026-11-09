@@ -111,12 +111,13 @@ public class RenovacionSuscripcionWebhookHostedService(
         // En su propio ámbito y antes de renovar: un choque de identidad descarta los cambios en memoria de su
         // DbContext, y no debe llevarse por delante los de la renovación. Un fallo aquí no salta la renovación
         // del Tenant (dos ciclos perdidos dejarían expirar una suscripción): solo deja sin verificar sus buzones.
-        IReadOnlySet<Guid> identidadVerificada = new HashSet<Guid>();
+        // La comprobación rehabilita por sí misma la conexión en ConError que verifica en este ciclo, esté o no su
+        // suscripción en la ventana de renovación: aquí ya no se rehabilita nada.
         try
         {
             using var ambitoIdentidad = ambitoFactory.CreateScope();
             using var __ = AmbitoTenantExplicito.Establecer(tenantId);
-            identidadVerificada = await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
+            await ambitoIdentidad.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
                 .CompletarAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -158,7 +159,7 @@ public class RenovacionSuscripcionWebhookHostedService(
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, accessTokenResultado.Error.Mensaje);
-                conexion.MarcarConError(accessTokenResultado.Error.Mensaje);
+                MarcarConErrorSinPisarIdentidad(conexion, accessTokenResultado.Error.Mensaje);
                 continue;
             }
 
@@ -169,23 +170,18 @@ public class RenovacionSuscripcionWebhookHostedService(
                 logger.LogWarning(
                     "No se pudo renovar la suscripción {SubscriptionId} (conexión {ConexionId}): {Error}",
                     suscripcion.GraphSubscriptionId, suscripcion.ConexionIntegracionId, renovacionResultado.Error.Mensaje);
-                conexion.MarcarConError(renovacionResultado.Error.Mensaje);
+                MarcarConErrorSinPisarIdentidad(conexion, renovacionResultado.Error.Mensaje);
                 continue;
             }
 
+            // Una conexión en ConError renueva igual su suscripción, pero no vuelve a Habilitada aquí: solo la
+            // rehabilita CompletarIdentidadBuzonService cuando verifica su identidad en el mismo ciclo.
             suscripcion.ActualizarTrasRenovacion(renovacionResultado.Valor.GraphSubscriptionId, renovacionResultado.Valor.FechaExpiracionUtc);
-
-            // Recuperación automática: si la conexión había quedado ConError
-            // por un ciclo anterior y esta renovación funcionó, no hace
-            // falta que un administrador pulse "Reactivar" a mano. Solo si su
-            // identidad de buzón se comprobó en este mismo ciclo: una conexión
-            // con el buzón de otro Tenant (choque de identidad) o con una
-            // dirección reasignada a otro buzón renueva igual su suscripción,
-            // pero no vuelve a Habilitada sola.
-            if (conexion.Estado == EstadoConexionIntegracion.ConError && identidadVerificada.Contains(conexion.Id))
-                conexion.Rehabilitar();
         }
 
         await ambito.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(stoppingToken);
     }
+
+    private static void MarcarConErrorSinPisarIdentidad(ConexionIntegracion conexion, string mensaje) =>
+        CompletarIdentidadBuzonService.MarcarConErrorDeRenovacion(conexion, mensaje);
 }

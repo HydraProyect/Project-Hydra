@@ -99,6 +99,10 @@ public class MigrarConversacionACorreoCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Conversacion.SinBuzonConectado", "No hay ningún buzón de correo conectado."));
 
+        // Sin la identidad del buzón verificada no se sabe qué buzón responde hoy a su dirección: no sale nada.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+            return Result.Fallo(ErroresBuzonSinVerificar.Crear());
+
         await registroSalida.RegistrarSalidaAsync(
             OrigenSalidaComunicacion.MigracionACorreo, conexion.Id, [request.EmailDestino], copia: null, adjuntos: null, cancellationToken);
 

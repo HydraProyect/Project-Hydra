@@ -7,7 +7,10 @@ namespace CaeManager.Application.Tests.Integraciones;
 
 public class AltaBuzonMicrosoft365ServiceTests
 {
-    private static readonly TokensGraphDto TokensDelegados = new("token-delegado", "refresh-delegado", DateTime.UtcNow.AddHours(1));
+    /// <summary>El «tid» del token del canje, tal como lo deja Microsoft365GraphClient (en mayúsculas para probar la normalización).</summary>
+    private const string DirectorioDeLaSesion = "AABBCCDD-0000-1111-2222-333344445555";
+
+    private static readonly TokensGraphDto TokensDelegados = new("token-delegado", "refresh-delegado", DateTime.UtcNow.AddHours(1), DirectorioDeLaSesion);
 
     private static (AltaBuzonMicrosoft365Service Servicio, Microsoft365GraphClientFalso Graph) Crear()
     {
@@ -47,19 +50,40 @@ public class AltaBuzonMicrosoft365ServiceTests
     public async Task El_compartido_usa_el_directorio_de_la_sesion_y_el_token_de_aplicacion_y_no_guarda_el_refresh_token()
     {
         var (servicio, graph) = Crear();
-        graph.DirectorioDevuelto = "directorio-de-la-sesion";
+        // Lo que devuelva el canje en el cliente falso no cuenta: el directorio es el del DTO del canje que recibe el alta.
+        graph.DirectorioDevuelto = "99999999-0000-1111-2222-333344445555";
         graph.IdentidadesPorDireccion["cae@operador.test"] = "inbox-compartido";
 
         var resultado = await servicio.PrepararAsync(TokensDelegados, "cae@operador.test", CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.Should().Be(new BuzonMicrosoft365Preparado(
-            "cae@operador.test", "token-aplicacion-falso", null, "directorio-de-la-sesion", "inbox-compartido"));
-        graph.DirectoriosConTokenDeAplicacion.Should().Equal("directorio-de-la-sesion");
+            "cae@operador.test", "token-aplicacion-falso", null, "aabbccdd-0000-1111-2222-333344445555", "inbox-compartido"));
+        graph.DirectoriosConTokenDeAplicacion.Should().Equal("aabbccdd-0000-1111-2222-333344445555");
 
         // La sonda de identidad del compartido va con el token de aplicación, nunca con el de la persona.
         graph.TokensDeIdentidad.Should().Equal("token-aplicacion-falso");
         graph.BuzonesUsados.Should().ContainSingle(b => b.EsCompartido && b.Direccion == "cae@operador.test");
+    }
+
+    /// <summary>
+    /// Sin un «tid» válido en el token del canje no hay compartido: el directorio no se adivina ni se toma de otro
+    /// sitio (navegador, «state», query), y no se pide ningún token de aplicación.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("no-es-un-guid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public async Task Sin_un_directorio_valido_en_el_canje_no_se_da_de_alta_el_compartido(string? directorio)
+    {
+        var (servicio, graph) = Crear();
+
+        var resultado = await servicio.PrepararAsync(TokensDelegados with { DirectorioEntraId = directorio }, "cae@operador.test", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(AltaBuzonMicrosoft365Service.ErrorAutenticacion);
+        graph.DirectoriosConTokenDeAplicacion.Should().BeEmpty();
     }
 
     [Fact]

@@ -96,7 +96,7 @@ public class IngestaWebhookServiceTests
 
     private static ConexionIntegracion ConexionHabilitada(Guid? clienteId = null)
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId);
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE", clienteId).Verificada();
         return conexion;
     }
 
@@ -126,6 +126,69 @@ public class IngestaWebhookServiceTests
         return conversaciones.Conversaciones.Single();
     }
 
+    /// <summary>
+    /// Habilitada pero sin la identidad verificada: el evento espera sin gastar intentos (con el backoff normal se
+    /// agotarían en minutos y el correo se perdería) y no se ingiere nada.
+    /// </summary>
+    [Fact]
+    public async Task Una_conexion_habilitada_sin_verificar_deja_el_evento_en_espera_sin_gastar_intentos()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["nuevo"],
+            MensajeADevolver = new MensajeGraphDto("nuevo", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        for (var i = 0; i < EventoWebhook.MaximoIntentos + 1; i++)
+        {
+            evento.MarcarEnProceso();
+            await servicio.ProcesarAsync(evento, CancellationToken.None);
+        }
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(IngestaWebhookService.MotivoEsperaVerificacion);
+        evento.SiguienteIntentoEnUtc.Should().BeAfter(DateTime.UtcNow.AddMinutes(10));
+        conversaciones.Conversaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_conexion_verificada_ingiere_el_evento_que_estaba_en_espera()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        var conversaciones = new ConversacionRepositorioFalso();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["nuevo"],
+            MensajeADevolver = new MensajeGraphDto("nuevo", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow);
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        conversaciones.Conversaciones.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task La_conversacion_nueva_nace_asignada_al_responsable_del_buzon()
     {
@@ -142,7 +205,7 @@ public class IngestaWebhookServiceTests
     public async Task La_conversacion_del_buzon_personal_nace_asignada_a_su_propietario()
     {
         var propietario = Guid.NewGuid();
-        var conexion = new ConexionIntegracion("gestor@ejemplo.test", "Personal", gestorPropietarioId: propietario);
+        var conexion = new ConexionIntegracion("gestor@ejemplo.test", "Personal", gestorPropietarioId: propietario).Verificada();
 
         var conversacion = await IngerirHiloNuevoAsync(conexion, new ConversacionRepositorioFalso(), DestinoActivo);
 
@@ -361,7 +424,7 @@ public class IngestaWebhookServiceTests
     private static (ConexionIntegracion Conexion, ConexionIntegracionRepositorioFalso Repositorio) ConexionCompartida()
     {
         var conexion = ConexionIntegracion.CrearBuzonCompartido(
-            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid());
+            "cae@operador.test", "Buzón CAE", "11111111-2222-3333-4444-555555555555", Guid.NewGuid()).Verificada();
         var repositorio = new ConexionIntegracionRepositorioFalso();
         repositorio.Agregar(conexion);
         return (conexion, repositorio);
@@ -587,7 +650,7 @@ public class IngestaWebhookServiceTests
     [InlineData("mx; dmarc=pass header.from=dokify.net||X-MS-Exchange-Organization-AuthAs: Anonymous", true)]
     public async Task Una_plataforma_solo_es_de_confianza_con_autenticacion_alineada(string? autenticacion, bool confiable)
     {
-        var conexion = new ConexionIntegracion("persona@empresa.test", "Personal", gestorPropietarioId: Guid.NewGuid());
+        var conexion = new ConexionIntegracion("persona@empresa.test", "Personal", gestorPropietarioId: Guid.NewGuid()).Verificada();
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var conversacionRepositorio = new ConversacionRepositorioFalso();

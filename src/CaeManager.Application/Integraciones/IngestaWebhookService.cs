@@ -61,12 +61,18 @@ public class IngestaWebhookService(
     /// </summary>
     public IReadOnlyList<AcusePendiente> AcusesPendientes => _acusesPendientes;
 
+    /// <summary>Motivo que queda en el evento mientras espera a que su conexión se verifique.</summary>
+    public const string MotivoEsperaVerificacion =
+        "En espera: la identidad del buzón de esta conexión no está verificada; se ingerirá cuando se verifique.";
+
     public async Task ProcesarAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         try
         {
-            await IngerirNotificacionAsync(evento, cancellationToken);
-            evento.MarcarProcesado();
+            if (await IngerirNotificacionAsync(evento, cancellationToken))
+                evento.MarcarProcesado();
+            else
+                evento.EsperarVerificacion(MotivoEsperaVerificacion, DateTime.UtcNow);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -83,11 +89,12 @@ public class IngestaWebhookService(
         }
     }
 
-    private async Task IngerirNotificacionAsync(EventoWebhook evento, CancellationToken cancellationToken)
+    /// <returns>false si el evento debe esperar a que su conexión se verifique; true si quedó resuelto.</returns>
+    private async Task<bool> IngerirNotificacionAsync(EventoWebhook evento, CancellationToken cancellationToken)
     {
         var conexion = await conexionRepositorio.ObtenerPorIdAsync(evento.ConexionIntegracionId, cancellationToken);
         if (conexion is null)
-            return; // se borró entre medias — se descarta sin reintentar, no es un fallo transitorio.
+            return true; // se borró entre medias — se descarta sin reintentar, no es un fallo transitorio.
 
         if (conexion.Estado != EstadoConexionIntegracion.Habilitada)
         {
@@ -101,10 +108,24 @@ public class IngestaWebhookService(
             // por qué. RegistrarFallo no encaja aquí: no es un fallo
             // transitorio que deba reintentarse, es un descarte de negocio
             // deliberado que se resuelve reactivando la conexión.
+            // ConError solo lo ponen ya resultados definitivos (CompletarIdentidadBuzonService) o un fallo de la
+            // renovación; lo que se descarte aquí lo recupera RecuperacionCorreoBuzonService cuando la conexión
+            // vuelva a verificarse.
             logger.LogWarning(
                 "Notificación de webhook {EventoId} descartada: la conexión {ConexionId} está en estado {Estado}.",
                 evento.Id, conexion.Id, conexion.Estado);
-            return;
+            return true;
+        }
+
+        // Habilitada pero sin la identidad del buzón verificada hace menos de VentanaVerificacionIdentidad: no se lee
+        // un buzón que quizá ya no es el conectado, pero tampoco se descarta lo que llegó. El evento espera, sin
+        // gastar intentos, hasta que la conexión se verifique o pase su tope y quede Retenido.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+        {
+            logger.LogWarning(
+                "Notificación de webhook {EventoId} en espera: la identidad del buzón de la conexión {ConexionId} no está verificada.",
+                evento.Id, conexion.Id);
+            return false;
         }
 
         var mensajeIds = graphClient.ExtraerMensajeIdsDeNotificacion(evento.PayloadCrudo);
@@ -121,6 +142,8 @@ public class IngestaWebhookService(
 
         if (noLeidos.Count > 0)
             throw new InvalidOperationException(string.Join(" | ", noLeidos));
+
+        return true;
     }
 
     /// <returns>El motivo, si el mensaje no se pudo leer por un fallo que no es un 404; null en otro caso.</returns>

@@ -114,7 +114,7 @@ public class ResponderConversacionCommandHandlerTests
     [Fact]
     public async Task Con_conexion_real_envia_por_Graph_y_persiste_el_mensaje_sin_mensajeExternoId()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
@@ -134,12 +134,37 @@ public class ResponderConversacionCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 
+    /// <summary>Sin la identidad del buzón verificada en la ventana no se sabe qué buzón responde hoy a su dirección: no sale nada.</summary>
+    [Fact]
+    public async Task Con_la_identidad_del_buzon_sin_verificar_no_responde_y_lo_dice()
+    {
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        conexion.FijarIdentidadBuzon("inbox-cae");
+        conexion.MarcarIdentidadVerificada(DateTime.UtcNow - ConexionIntegracion.VentanaVerificacionIdentidad - TimeSpan.FromMinutes(1));
+        var conversacion = new Conversacion("Duda sobre vigencia documental");
+        conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
+        conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
+        var repositorio = new ConversacionRepositorioFalso();
+        repositorio.Agregar(conversacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var graphClient = new Microsoft365GraphClientFalso();
+        var handler = CrearHandlerConConexion(repositorio, conexion, unitOfWork, graphClient);
+
+        var resultado = await handler.Handle(
+            new ResponderConversacionCommand(conversacion.Id, "<p>Respuesta</p>"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Integraciones.ErroresBuzonSinVerificar.Codigo);
+        graphClient.UltimoMensajeExternoIdRespondido.Should().BeNull();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     /// <summary>Un buzón compartido no tiene credencial: la respuesta sale por su dirección y con el token de aplicación de su directorio.</summary>
     [Fact]
     public async Task Con_un_buzon_compartido_responde_por_su_direccion_y_con_el_token_de_aplicacion_del_directorio()
     {
         var directorio = Guid.NewGuid().ToString("D");
-        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid());
+        var conexion = ConexionIntegracion.CrearBuzonCompartido("piloto@tenant.com", "Buzón piloto", directorio, Guid.NewGuid()).Verificada();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
@@ -167,7 +192,7 @@ public class ResponderConversacionCommandHandlerTests
     [Fact]
     public async Task Con_conexion_deshabilitada_devuelve_fallo_y_no_persiste_nada()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         conexion.Deshabilitar();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
@@ -189,7 +214,7 @@ public class ResponderConversacionCommandHandlerTests
     [Fact]
     public async Task Sin_mensaje_entrante_previo_devuelve_fallo()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
         var repositorio = new ConversacionRepositorioFalso();
@@ -208,7 +233,7 @@ public class ResponderConversacionCommandHandlerTests
     [Fact]
     public async Task Si_el_envio_por_Graph_falla_no_persiste_un_mensaje_fantasma()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");
@@ -235,7 +260,7 @@ public class ResponderConversacionCommandHandlerTests
     [Fact]
     public async Task Si_el_envio_por_Graph_tuvo_exito_pero_el_guardado_local_falla_no_devuelve_fallo()
     {
-        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE");
+        var conexion = new ConexionIntegracion("cae@cliente.com", "Buzón CAE").Verificada();
         var conversacion = new Conversacion("Duda sobre vigencia documental");
         conversacion.AsociarConexion(conexion.Id, "graph-thread-1");
         conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>hola</p>", mensajeExternoId: "graph-msg-1");

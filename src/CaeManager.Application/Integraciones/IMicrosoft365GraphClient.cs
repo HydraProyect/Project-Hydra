@@ -11,8 +11,12 @@ namespace CaeManager.Application.Integraciones;
 /// token aunque el access token vigente todavía sirviera, multiplicando sin
 /// necesidad la ventana en la que dos refrescos concurrentes pueden
 /// competir por la misma conexión.
+///
+/// <see cref="DirectorioEntraId"/> es el claim <c>tid</c> del token que devolvió el endpoint de tokens de Entra en
+/// ese mismo canje (GUID no nulo), o null si no se pudo leer: el directorio de un buzón compartido sale de ahí y
+/// nunca de nada que mande el navegador (ni <c>state</c> ni la query del callback).
 /// </summary>
-public record TokensGraphDto(string AccessToken, string RefreshToken, DateTime AccessTokenExpiraUtc);
+public record TokensGraphDto(string AccessToken, string RefreshToken, DateTime AccessTokenExpiraUtc, string? DirectorioEntraId = null);
 
 /// <summary>Token de aplicación de un directorio Entra: sin refresh token, se pide otro al caducar.</summary>
 public record TokenAplicacionGraphDto(string AccessToken, DateTime ExpiraUtc);
@@ -118,13 +122,6 @@ public interface IMicrosoft365GraphClient
     Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Directorio Entra (GUID) de la cuenta del token delegado <paramref name="accessToken"/>, leído de
-    /// <c>/organization</c>: el directorio de un buzón compartido sale de quien inició sesión, nunca de lo que
-    /// escriba alguien en un formulario.
-    /// </summary>
-    Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken);
-
-    /// <summary>
     /// Identidad estable del buzón: el Id inmutable de su Bandeja de entrada. Es la misma por
     /// cualquier dirección o alias que lo abra (correo principal, UPN, proxy) y por cualquier
     /// token (delegado o de aplicación), y por eso es la clave de la reclamación global del
@@ -191,6 +188,14 @@ public interface IMicrosoft365GraphClient
 
     /// <summary>Puro parseo del payload de notificación de Graph — sin llamada de red. Devuelve los Ids de mensaje a los que hay que ir a buscar el contenido real.</summary>
     IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson);
+
+    /// <summary>
+    /// Puro formato, sin llamada de red: un payload con la forma de una notificación de Graph que solo lleva los Ids
+    /// de <paramref name="mensajeIds"/>, para que la recuperación puntual de un buzón (<c>RecuperacionCorreoBuzonService</c>)
+    /// entre por la misma cola de ingesta que el webhook, con sus reintentos, su deduplicación y sus acuses.
+    /// <see cref="ExtraerMensajeIdsDeNotificacion"/> lo lee de vuelta.
+    /// </summary>
+    string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds);
 
     /// <summary>
     /// Puro parseo, sin llamada de red — el <c>clientState</c> que Graph

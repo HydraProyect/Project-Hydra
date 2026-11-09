@@ -14,8 +14,9 @@ public sealed record BuzonMicrosoft365Preparado(
 /// <c>ConectarMicrosoft365Endpoints</c>). Vive aquí, y no en el endpoint, para que sus garantías tengan test:
 /// <list type="bullet">
 /// <item>el buzón propio sale de <c>/me</c> y se abre con el token delegado, que se guarda;</item>
-/// <item>el compartido se abre con el token de aplicación del directorio de quien inició sesión, que sale de
-/// <c>/organization</c> con su token delegado y nunca de un campo; el refresh token de esa persona no se guarda;</item>
+/// <item>el compartido se abre con el token de aplicación del directorio de quien inició sesión, que sale del claim
+/// <c>tid</c> del token que Entra devolvió en el canje del código (<see cref="TokensGraphDto.DirectorioEntraId"/>) y
+/// nunca de un campo, de <c>state</c> ni de la query del callback; el refresh token de esa persona no se guarda;</item>
 /// <item>la identidad estable del buzón (que es la clave de la reclamación global) se lee con el mismo token
 /// que lo abre, y en el compartido esa lectura es además la sonda de que está dentro del ámbito de RBAC for
 /// Applications: si falla, no hay alta;</item>
@@ -50,11 +51,14 @@ public class AltaBuzonMicrosoft365Service(IMicrosoft365GraphClient graphClient)
                     propio.Valor, tokensDelegados.AccessToken, tokensDelegados.RefreshToken, null, identidadPropia.Valor));
         }
 
-        var directorio = await graphClient.ObtenerDirectorioAsync(tokensDelegados.AccessToken, cancellationToken);
-        if (directorio.EsFallido)
+        // El directorio es el «tid» del token que Entra devolvió en este mismo canje (TokensGraphDto.DirectorioEntraId),
+        // nunca algo que llegue del navegador. Solo un GUID distinto de cero: es el que va en la ruta del endpoint de
+        // tokens de aplicación y en DirectorioEntraId de la conexión.
+        if (!Guid.TryParse(tokensDelegados.DirectorioEntraId, out var directorioGuid) || directorioGuid == Guid.Empty)
             return Fallo(ErrorAutenticacion);
+        var directorio = directorioGuid.ToString("D");
 
-        var tokenAplicacion = await graphClient.ObtenerTokenAplicacionAsync(directorio.Valor, cancellationToken);
+        var tokenAplicacion = await graphClient.ObtenerTokenAplicacionAsync(directorio, cancellationToken);
         if (tokenAplicacion.EsFallido)
             return Fallo(ErrorSinAccesoCompartido);
 
@@ -64,7 +68,7 @@ public class AltaBuzonMicrosoft365Service(IMicrosoft365GraphClient graphClient)
             return Fallo(identidad.Error.Codigo == CodigosErrorMicrosoft365.SinAccesoBuzon ? ErrorSinAccesoCompartido : ErrorAutenticacion);
 
         return Result.Exito(new BuzonMicrosoft365Preparado(
-            buzonCompartido!, tokenAplicacion.Valor.AccessToken, null, directorio.Valor, identidad.Valor));
+            buzonCompartido!, tokenAplicacion.Valor.AccessToken, null, directorio, identidad.Valor));
     }
 
     private static Result<BuzonMicrosoft365Preparado> Fallo(string codigo) =>

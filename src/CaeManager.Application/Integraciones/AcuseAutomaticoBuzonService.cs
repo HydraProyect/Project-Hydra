@@ -67,6 +67,15 @@ public class AcuseAutomaticoBuzonService(
     {
         var (conexion, conversacion, mensajeExternoId, destinatario) = acuse;
 
+        // La ingesta solo deja acuses de una conexión verificada, pero la verificación puede caducar entre medias.
+        if (!conexion.OperativaVerificada(DateTime.UtcNow))
+        {
+            logger.LogWarning(
+                "La conversación {ConversacionId} no lleva acuse: la identidad del buzón de su conexión no está verificada.",
+                conversacion.Id);
+            return;
+        }
+
         var reservado = await conversacionRepositorio.ReservarAcuseAsync(
             conexion.TenantId, conexion.Id, destinatario, DateTime.UtcNow, IntervaloMinimoPorRemitente, cancellationToken);
         if (!reservado)

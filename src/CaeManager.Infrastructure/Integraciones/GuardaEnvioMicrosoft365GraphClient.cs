@@ -66,9 +66,6 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         interno.ObtenerBuzonEmailAsync(accessToken, cancellationToken);
 
-    public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) =>
-        interno.ObtenerDirectorioAsync(accessToken, cancellationToken);
-
     public Task<Result<string>> ObtenerIdentidadBuzonAsync(string accessToken, BuzonGraph buzon, CancellationToken cancellationToken) =>
         interno.ObtenerIdentidadBuzonAsync(accessToken, buzon, cancellationToken);
 
@@ -99,6 +96,9 @@ public sealed class GuardaEnvioMicrosoft365GraphClient(
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) =>
         interno.ExtraerMensajeIdsDeNotificacion(payloadJson);
+
+    public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) =>
+        interno.ConstruirNotificacionDeRecuperacion(mensajeIds);
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) =>
         interno.ExtraerClientStateDeNotificacion(payloadJson);

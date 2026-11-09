@@ -34,7 +34,10 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     public string ConstruirUrlAutorizacion(string redirectUri, string state) => $"https://login.microsoftonline.com/common/authorize?state={state}";
 
     public Task<Result<TokensGraphDto>> IntercambiarCodigoPorTokensAsync(string code, string redirectUri, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto)));
+        Task.FromResult(Result.Exito(new TokensGraphDto(AccessTokenDevuelto, RefreshTokenDevuelto, AccessTokenExpiraUtcDevuelto, DirectorioDevuelto)));
+
+    /// <summary>El claim «tid» del token que devuelve el canje; null, un token sin directorio legible.</summary>
+    public string? DirectorioDevuelto { get; set; } = "11111111-2222-3333-4444-555555555555";
 
     public int VecesRefrescado { get; private set; }
 
@@ -64,11 +67,6 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
 
     public Task<Result<string>> ObtenerBuzonEmailAsync(string accessToken, CancellationToken cancellationToken) =>
         Task.FromResult(Result.Exito(BuzonEmailPropio));
-
-    public string DirectorioDevuelto { get; set; } = "11111111-2222-3333-4444-555555555555";
-
-    public Task<Result<string>> ObtenerDirectorioAsync(string accessToken, CancellationToken cancellationToken) =>
-        Task.FromResult(Result.Exito(DirectorioDevuelto));
 
     /// <summary>Cada buzón sobre el que se pidió algo a Graph, en orden: prueba que una conexión compartida no cae en /me.</summary>
     public List<BuzonGraph> BuzonesUsados { get; } = [];
@@ -160,8 +158,19 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
         Registrar(buzon, Result.Exito(CarpetasADevolver));
 
     public Task<Result<IReadOnlyList<MensajeResumenGraphDto>>> ListarMensajesAsync(
-        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken) =>
-        Registrar(buzon, Result.Exito(MensajesADevolver));
+        string accessToken, BuzonGraph buzon, string carpetaExternoId, int top, int skip, CancellationToken cancellationToken)
+    {
+        ListadosPedidos.Add((carpetaExternoId, top, skip));
+        return Registrar(buzon, ErrorListado is { } error
+            ? Result.Fallo<IReadOnlyList<MensajeResumenGraphDto>>(error)
+            : Result.Exito<IReadOnlyList<MensajeResumenGraphDto>>(MensajesADevolver.Skip(skip).Take(top).ToList()));
+    }
+
+    /// <summary>Cada página pedida a <see cref="ListarMensajesAsync"/>: carpeta, tamaño y desplazamiento.</summary>
+    public List<(string Carpeta, int Top, int Skip)> ListadosPedidos { get; } = [];
+
+    /// <summary>Fallo del listado de una carpeta; null, éxito.</summary>
+    public Error? ErrorListado { get; set; }
 
     public Task<Result<SuscripcionGraphDto>> CrearSuscripcionAsync(
         string accessToken, BuzonGraph buzon, string notificationUrl, string clientState, CancellationToken cancellationToken)
@@ -190,6 +199,9 @@ public class Microsoft365GraphClientFalso : IMicrosoft365GraphClient
     }
 
     public IReadOnlyList<string> ExtraerMensajeIdsDeNotificacion(string payloadJson) => MensajeIdsADevolver;
+
+    public string ConstruirNotificacionDeRecuperacion(IReadOnlyList<string> mensajeIds) =>
+        "recuperacion:" + string.Join(',', mensajeIds);
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson) => ClientStateADevolver;
 

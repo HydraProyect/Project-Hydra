@@ -7855,6 +7855,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
+                    b.Property<DateTime?>("IdentidadVerificadaUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(200)

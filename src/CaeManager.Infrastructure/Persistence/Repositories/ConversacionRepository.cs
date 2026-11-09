@@ -36,6 +36,12 @@ public class ConversacionRepository(CaeManagerDbContext dbContext) : IConversaci
          where c.ConexionIntegracionId == conexionIntegracionId && m.MensajeExternoId == mensajeExternoId
          select m).AnyAsync(cancellationToken);
 
+    public Task<DateTime?> ObtenerFechaUltimoMensajeEntranteAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
+        (from m in dbContext.Mensajes
+         join c in dbContext.Conversaciones on m.ConversacionId equals c.Id
+         where c.ConexionIntegracionId == conexionIntegracionId && m.Direccion == DireccionMensaje.Entrante
+         select (DateTime?)m.FechaUtc).MaxAsync(cancellationToken);
+
     public async Task<bool> ReservarAcuseAsync(
         Guid tenantId, Guid conexionIntegracionId, string remitente, DateTime ahoraUtc, TimeSpan intervalo,
         CancellationToken cancellationToken = default)

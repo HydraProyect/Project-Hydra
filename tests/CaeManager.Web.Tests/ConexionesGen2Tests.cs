@@ -312,6 +312,22 @@ public class ConexionesGen2Tests : BunitContext
         new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), nombre, "+34600000000", $"pnid-{nombre}", $"waba-{nombre}",
             ModoAsignacionLinea.GestorFijo, null, [], null, null, null, EstadoConexionIntegracion.Habilitada, null);
 
+    /// <summary>
+    /// Habilitada pero sin identidad verificada en la ventana: la ingesta deja el correo en espera y no se envía nada
+    /// desde el buzón. Sin este aviso nadie lo vería, porque el estado sigue siendo Habilitada.
+    /// </summary>
+    [Fact]
+    public void Un_buzon_sin_identidad_verificada_muestra_el_aviso_y_uno_verificado_no()
+    {
+        var sinVerificar = Buzon("sinverificar") with { IdentidadSinVerificar = true };
+        var cut = Renderizar(new MediadorFalso { Conexiones = [sinVerificar, Buzon("verificado")] });
+
+        var avisos = cut.FindAll("[data-testid=aviso-identidad-sin-verificar]");
+        avisos.Should().ContainSingle();
+        avisos[0].TextContent.Should().Contain("en espera");
+        avisos[0].Closest("tr")!.TextContent.Should().Contain("sinverificar@ejemplo.test");
+    }
+
     [Fact]
     public void Sin_foco_previo_ninguna_fila_esta_enfocada()
     {

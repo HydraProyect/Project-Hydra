@@ -283,29 +283,116 @@ public class Microsoft365BuzonCompartidoRutasTests
         handler.Peticiones.Should().ContainSingle();
     }
 
+    private static string RespuestaTokensDelegados(string accessToken) =>
+        $"{{\"access_token\":\"{accessToken}\",\"refresh_token\":\"refresco\",\"expires_in\":3599}}";
+
+    /// <summary>
+    /// El directorio de quien inicia sesión es el claim «tid» del access token que devuelve el endpoint de tokens en
+    /// el canje del código, normalizado. Un «tid» distinto en el código o en la query del callback no se mira.
+    /// </summary>
     [Fact]
-    public async Task El_directorio_se_lee_de_organization_con_el_token_delegado()
+    public async Task El_directorio_es_el_tid_del_token_del_canje_y_no_lo_que_llegue_con_el_codigo()
     {
-        var handler = new AnotaPeticionesHandler(cuerpo: """{"value":[{"id":"AABBCCDD-0000-1111-2222-333344445555"}]}""");
+        var token = TokenJwtConCarga("""{"tid":"AABBCCDD-0000-1111-2222-333344445555"}""");
+        var handler = new CapturaCuerpoHandler(RespuestaTokensDelegados(token));
 
-        var resultado = await Cliente(handler).ObtenerDirectorioAsync("token", CancellationToken.None);
+        var resultado = await ClienteConSecreto(handler).IntercambiarCodigoPorTokensAsync(
+            "codigo&tid=99999999-0000-1111-2222-333344445555", "https://app.test/callback?tid=99999999-0000-1111-2222-333344445555",
+            CancellationToken.None);
 
-        resultado.Valor.Should().Be("aabbccdd-0000-1111-2222-333344445555");
-        handler.Peticiones.Should().ContainSingle().Which.Url.Should().StartWith($"{Raiz}organization");
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.DirectorioEntraId.Should().Be("aabbccdd-0000-1111-2222-333344445555");
+        handler.Url.Should().EndWith("/oauth2/v2.0/token");
     }
 
     [Theory]
-    [InlineData("""{"value":[]}""")]
-    [InlineData("""{"value":[{"id":"aabbccdd-0000-1111-2222-333344445555"},{"id":"11111111-0000-1111-2222-333344445555"}]}""")]
-    [InlineData("""{"value":[{"id":"no-es-un-guid"}]}""")]
-    [InlineData("""{"value":[{"id":"00000000-0000-0000-0000-000000000000"}]}""")]
-    [InlineData("no es json")]
-    public async Task Un_directorio_ausente_ambiguo_o_mal_formado_no_se_adivina(string cuerpo)
+    [InlineData("""{"aud":"graph"}""")]
+    [InlineData("""{"tid":"no-es-un-guid"}""")]
+    [InlineData("""{"tid":"00000000-0000-0000-0000-000000000000"}""")]
+    [InlineData("""{"tid":12345}""")]
+    [InlineData("""{"tid":["aabbccdd-0000-1111-2222-333344445555"]}""")]
+    public async Task Un_tid_ausente_o_mal_formado_deja_el_directorio_vacio_y_no_se_adivina(string carga)
     {
-        var resultado = await Cliente(new AnotaPeticionesHandler(cuerpo: cuerpo)).ObtenerDirectorioAsync("token", CancellationToken.None);
+        var handler = new CapturaCuerpoHandler(RespuestaTokensDelegados(TokenJwtConCarga(carga)));
+
+        var resultado = await ClienteConSecreto(handler).IntercambiarCodigoPorTokensAsync("codigo", "https://app.test/callback", CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el buzón propio no necesita el directorio; el alta del compartido sí lo exige");
+        resultado.Valor.DirectorioEntraId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_access_token_que_no_es_un_JWT_deja_el_directorio_vacio()
+    {
+        var handler = new CapturaCuerpoHandler(RespuestaTokensDelegados("opaco"));
+
+        var resultado = await ClienteConSecreto(handler).IntercambiarCodigoPorTokensAsync("codigo", "https://app.test/callback", CancellationToken.None);
+
+        resultado.Valor.DirectorioEntraId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Una_conexion_correcta_vuelve_a_Conexiones_con_el_aviso_de_conectado() =>
+        CaeManager.Web.Features.Integraciones.Endpoints.ConectarMicrosoft365Endpoints
+            .RedireccionTrasConectar(CaeManager.Domain.Common.Result.Exito(Guid.NewGuid()))
+            .Should().Be("/integraciones?conectado=true");
+
+    private sealed class RespuestaFijaHandler(string cuerpo, string tipo) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(cuerpo, Encoding.UTF8, "application/json")
+                {
+                    Headers = { ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(tipo) },
+                },
+            });
+    }
+
+    /// <summary>Un 200 con un cuerpo ilegible (JSON roto o un charset que no existe) es un fallo, nunca una excepción.</summary>
+    [Theory]
+    [InlineData("no es json", "application/json")]
+    [InlineData("{}", "application/json; charset=no-existe")]
+    public async Task Un_200_ilegible_del_token_de_aplicacion_es_un_fallo(string cuerpo, string tipo)
+    {
+        var resultado = await ClienteConSecreto(new RespuestaFijaHandler(cuerpo, tipo))
+            .ObtenerTokenAplicacionAsync(Guid.NewGuid().ToString(), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.DirectorioInvalido");
+    }
+
+    [Theory]
+    [InlineData("no es json", "application/json")]
+    [InlineData("{}", "application/json; charset=no-existe")]
+    public async Task Un_200_ilegible_de_un_mensaje_es_un_fallo(string cuerpo, string tipo)
+    {
+        var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, tipo)).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("no es json", "application/json")]
+    [InlineData("{}", "application/json; charset=no-existe")]
+    public async Task Un_200_ilegible_del_canje_de_tokens_es_un_fallo(string cuerpo, string tipo)
+    {
+        var resultado = await ClienteConSecreto(new RespuestaFijaHandler(cuerpo, tipo))
+            .IntercambiarCodigoPorTokensAsync("codigo", "https://app.test/callback", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.Microsoft365.ErrorAutenticacion");
+    }
+
+    /// <summary>Graph puede devolver nulos dentro de las listas: el mensaje se lee igual, sin esos elementos.</summary>
+    [Fact]
+    public async Task Un_mensaje_con_destinatarios_y_cabeceras_nulos_se_lee_sin_lanzar()
+    {
+        const string cuerpo = """{"id":"mensaje-1","conversationId":"hilo-1","subject":"Asunto","from":null,"toRecipients":[null],"ccRecipients":[null,{"emailAddress":null}],"replyTo":[null],"internetMessageHeaders":[null],"body":{"contentType":"html","content":"<p>hola</p>"},"receivedDateTime":"2026-11-09T10:00:00Z","hasAttachments":false}""";
+
+        var resultado = await Cliente(new RespuestaFijaHandler(cuerpo, "application/json")).ObtenerMensajeAsync("token", Compartido, "mensaje-1", CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.MensajeExternoId.Should().Be("mensaje-1");
     }
 
     private sealed class CapturaCuerpoHandler(string respuesta) : HttpMessageHandler
