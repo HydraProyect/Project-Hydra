@@ -74,7 +74,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
         await page.WaitForTimeoutAsync(500);
-        await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = "Formación PRL de convenio" });
+        await Ayudas.ElegirOpcionEnSelectorAvanzadoPorTextoAsync(page, drawer.GetByLabel("Tipo de documento"), "Formación PRL de convenio");
 
         var hoy = Ayudas.HoyDeNegocio();
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
