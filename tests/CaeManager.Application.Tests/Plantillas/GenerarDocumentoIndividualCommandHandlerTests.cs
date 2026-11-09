@@ -223,7 +223,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         // Revisión puente de la ronda 2 sobre la PR #2121: la compensación del PDF solo actúa ante el rechazo.
         entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
-        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl)) { }
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl!)) { }
         entorno.Serializacion.Llamadas.Should().Be(1, "el alta de un Documento de Empresa se serializa con la de un acceso de plataforma");
         alTomarElCandado.Should().Be((0, 0), "el Documento y sus acreditaciones se agregan dentro de la operación serializada");
         entorno.Documentos.Documentos.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor.DocumentoId);
@@ -677,7 +677,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.CamposObligatoriosVacios.Should().BeEmpty();
         entorno.Almacenamiento.ArchivosGuardados.Should().Be(archivosAntes + 1, "el PDF del Documento confirmado se conserva");
-        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl)) { }
+        await using (var _ = await entorno.Almacenamiento.AbrirAsync(entorno.Documentos.Documentos.Single().ArchivoUrl!)) { }
     }
 
     [Fact]
