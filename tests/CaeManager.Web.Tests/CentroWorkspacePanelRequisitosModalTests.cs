@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text;
 using Bunit;
 using CaeManager.Application.Centros.Commands.EliminarDocumentacionRequeridaCentro;
 using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
@@ -18,10 +20,12 @@ using CaeManager.Web.Features.Centros.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Tests;
 
@@ -76,9 +80,15 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
     {
         public List<object> Enviadas { get; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>Se espera antes de contestar a cada petición: deja una petición «en vuelo» hasta que el test la suelta.</summary>
+        public Func<object, Task>? AntesDeResponder { get; set; }
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (AntesDeResponder is { } gancho)
+                await gancho(request);
+
             object? valor = request switch
             {
                 ObtenerCentroPorIdQuery => detalle,
@@ -92,7 +102,7 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
                 EliminarDocumentacionRequeridaCentroCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
-            return Task.FromResult((TResponse)valor!);
+            return (TResponse)valor!;
         }
 
         /// <summary>Como la BD: lo guardado es lo que devuelve la siguiente lectura.</summary>
@@ -155,10 +165,42 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => throw NoDeberia();
     }
 
+    /// <summary>El guardado queda en vuelo hasta que el test lo suelta; anota lo que se borró (un huérfano).</summary>
+    private sealed class AlmacenEnVuelo : IFileStorageService
+    {
+        public TaskCompletionSource<string> Respuesta { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Iniciado { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> Eliminados { get; } = [];
+
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+        {
+            Iniciado.TrySetResult();
+            return Respuesta.Task;
+        }
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Este test no abre archivos.");
+
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
+        {
+            Eliminados.Add(identificador);
+            return Task.CompletedTask;
+        }
+    }
+
     private MediatorFalso _mediador = default!;
+
+    /// <summary>El <c>aside</c> con el panel dentro, si se montó con él: los elementos hay que buscarlos desde aquí para que el burbujeo lo alcance.</summary>
+    private IRenderedComponent<IComponent>? _contenedor;
+    private IFileStorageService _almacen = new AlmacenArchivosQueNadieDebeTocar();
     private readonly List<(EntidadWorkspace Tipo, Guid Id)> _avisos = [];
 
-    private IRenderedComponent<CentroWorkspacePanel> Renderizar(params DocumentacionRequeridaCentroDto[] filas)
+    private IRenderedComponent<CentroWorkspacePanel> Renderizar(params DocumentacionRequeridaCentroDto[] filas) =>
+        Renderizar(alContenedor: null, filas);
+
+    /// <param name="alContenedor">Si se da, el panel se monta dentro de un <c>aside</c> con ese manejador de <c>keydown</c>,
+    /// como lo monta el panel de contexto (ContextWorkspace.razor).</param>
+    private IRenderedComponent<CentroWorkspacePanel> Renderizar(Action<KeyboardEventArgs>? alContenedor, params DocumentacionRequeridaCentroDto[] filas)
     {
         var centroId = Guid.NewGuid();
         _mediador = new MediatorFalso(new CentroDetalleDto(
@@ -168,18 +210,63 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
-        Services.AddScoped<IFileStorageService, AlmacenArchivosQueNadieDebeTocar>();
+        Services.AddScoped(_ => _almacen);
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos { MaximoBytes = 100_000_000, EsperaMaxima = TimeSpan.FromSeconds(1) }),
+            TimeProvider.System));
         Services.AddScoped<IResolucionProveedorPlataformaCaeService, ResolucionProveedorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         Services.AddLocalization();
         Services.GetRequiredService<NavigationManager>().NavigateTo("/centros?ficha=norte&pestana=requisitos");
         Services.GetRequiredService<ContextWorkspaceService>().OnEntidadGuardada += (tipo, id) => _avisos.Add((tipo, id));
 
-        var cut = Render<CentroWorkspacePanel>(p => p
-            .Add(c => c.EntidadId, centroId)
-            .Add(c => c.PestanaActiva, "requisitos"));
+        IRenderedComponent<CentroWorkspacePanel> cut;
+        if (alContenedor is null)
+        {
+            cut = Render<CentroWorkspacePanel>(p => p
+                .Add(c => c.EntidadId, centroId)
+                .Add(c => c.PestanaActiva, "requisitos"));
+        }
+        else
+        {
+            var contenedor = Render(b =>
+            {
+                b.OpenElement(0, "aside");
+                b.AddAttribute(1, "onkeydown", EventCallback.Factory.Create(this, alContenedor));
+                b.OpenComponent<CentroWorkspacePanel>(2);
+                b.AddAttribute(3, nameof(CentroWorkspacePanel.EntidadId), centroId);
+                b.AddAttribute(4, nameof(CentroWorkspacePanel.PestanaActiva), "requisitos");
+                b.CloseComponent();
+                b.CloseElement();
+            });
+            _contenedor = contenedor;
+            cut = contenedor.FindComponent<CentroWorkspacePanel>();
+        }
+
         cut.WaitForAssertion(() => cut.FindAll(".requisitos-centro").Should().NotBeEmpty());
         return cut;
+    }
+
+    private static Task ElegirArchivoAsync(IRenderedComponent<CentroWorkspacePanel> cut, ArchivoNavegadorFalso archivo)
+    {
+        var manejador = typeof(CentroWorkspacePanel)
+            .GetMethod("ManejarArchivoDocumentacionSeleccionadoAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        return cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [new InputFileChangeEventArgs([archivo])])!);
+    }
+
+    private static ArchivoNavegadorFalso Plantilla()
+    {
+        var bytes = new byte[2_000];
+        Encoding.ASCII.GetBytes("%PDF-1.4\n").CopyTo(bytes, 0);
+        return new ArchivoNavegadorFalso("plantilla.pdf", bytes);
+    }
+
+    /// <summary>Empieza a subir una plantilla y deja el guardado en vuelo; devuelve la subida, aún sin terminar.</summary>
+    private static async Task<Task> EmpezarSubidaEnVueloAsync(IRenderedComponent<CentroWorkspacePanel> cut, AlmacenEnVuelo almacen)
+    {
+        var subida = ElegirArchivoAsync(cut, Plantilla());
+        await almacen.Iniciado.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        return subida;
     }
 
     private IRenderedComponent<CentroWorkspacePanel> RenderizarCatalogoCompleto() => Renderizar(
@@ -524,7 +611,9 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
 
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
         cut.FindAll(".requisitos-edicion").Should().ContainSingle("hasta confirmar, el panel sigue abierto con lo editado");
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal(["Seguir editando", "Descartar cambios"],
+            "la salida de la pregunta no puede llamarse «Cancelar»: es el nombre de la acción que la abrió");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
         cut.FindAll(".requisitos-edicion").Should().ContainSingle();
         cut.Find(".requisitos-casilla input").HasAttribute("checked").Should().BeTrue();
 
@@ -623,5 +712,207 @@ public class CentroWorkspacePanelRequisitosModalTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("#requisitos-busqueda").Should().ContainSingle());
         await BuscarAsync(cut, "aptitud");
         cut.FindAll(".requisitos-opcion").Should().ContainSingle().Which.TextContent.Should().Contain("Certificado de aptitud");
+    }
+
+    // ------------------------------------------------ Escape de la pregunta «¿Descartar cambios?»
+
+    [Fact]
+    public async Task Escape_dentro_de_la_pregunta_de_descartar_no_llega_al_panel_de_contexto()
+    {
+        var teclasEnElContenedor = new List<string>();
+        var cut = Renderizar(e => teclasEnElContenedor.Add(e.Key),
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        await MarcarBloqueoAsync(cut);
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        var pregunta = _contenedor!.FindAll(".modal-contenido").Single(m => m.QuerySelector("h2")?.TextContent.Trim() == "¿Descartar cambios?");
+
+        await pregunta.KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        teclasEnElContenedor.Should().BeEmpty("el aside del panel de contexto cierra el panel con Escape y abriría una segunda pregunta");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?", "Escape cierra la pregunta como «Seguir editando»");
+        cut.FindAll(".requisitos-edicion").Should().ContainSingle("lo editado sigue ahí");
+        cut.Find(".requisitos-casilla input").HasAttribute("checked").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Escape_fuera_de_la_pregunta_sigue_llegando_al_panel_de_contexto()
+    {
+        var teclasEnElContenedor = new List<string>();
+        var cut = Renderizar(e => teclasEnElContenedor.Add(e.Key),
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+
+        await _contenedor!.Find(".requisitos-edicion").KeyDownAsync(new KeyboardEventArgs { Key = "Escape" });
+
+        teclasEnElContenedor.Should().ContainSingle("el corte es solo de la pregunta; el instrumento sí ve el keydown del resto del panel");
+    }
+
+    // ------------------------------------------------ una subida en vuelo y las filas
+
+    [Fact]
+    public async Task Con_una_subida_en_vuelo_no_se_salta_a_otra_fila_y_la_plantilla_queda_en_la_suya()
+    {
+        var almacen = new AlmacenEnVuelo();
+        _almacen = almacen;
+        var cut = Renderizar(
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa),
+            Propio(RlcId, "RLC (TC1)", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        var subida = await EmpezarSubidaEnVueloAsync(cut, almacen);
+
+        await Lapiz(cut, "RLC (TC1)").ClickAsync(new MouseEventArgs());
+
+        Lapiz(cut, "Seguro de responsabilidad civil").GetAttribute("aria-expanded").Should().Be("true", "la subida pertenece a la fila abierta");
+        Lapiz(cut, "RLC (TC1)").GetAttribute("aria-expanded").Should().Be("false", "mientras sube no se salta a otra fila");
+
+        almacen.Respuesta.SetResult("plantillas/seguro.pdf");
+        await subida;
+        cut.Render();
+
+        cut.FindAll(".requisitos-fila").Single(f => Nombre(f) == "RLC (TC1)").QuerySelectorAll(".requisitos-archivo").Should().BeEmpty("la plantilla no se asigna a otra fila");
+        cut.FindAll(".requisitos-edicion .requisitos-archivo-nombre").Should().ContainSingle().Which.TextContent.Trim().Should().Be("plantilla.pdf");
+        almacen.Eliminados.Should().BeEmpty("la plantilla es de la fila que sigue abierta");
+    }
+
+    [Fact]
+    public async Task Si_el_panel_se_cierra_mientras_sube_la_plantilla_guardada_se_borra_y_no_queda_en_ninguna_fila()
+    {
+        var almacen = new AlmacenEnVuelo();
+        _almacen = almacen;
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        var subida = await EmpezarSubidaEnVueloAsync(cut, almacen);
+        await cut.FindAll(".requisitos-edicion-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty("sin cambios, Cancelar cierra el panel aunque la subida siga en vuelo");
+
+        almacen.Respuesta.SetResult("plantillas/huerfana.pdf");
+        await subida;
+
+        almacen.Eliminados.Should().Equal(["plantillas/huerfana.pdf"], "el archivo guardado no es de nada de lo que hay abierto: se borra");
+        cut.FindAll(".requisitos-edicion").Should().BeEmpty();
+        cut.FindAll(".requisitos-archivo").Should().BeEmpty();
+    }
+
+    // ------------------------------------------------ añadir un requisito: cuándo se abren sus ajustes
+
+    private static async Task BuscarEnElBuscadorAsync(IRenderedComponent<CentroWorkspacePanel> cut, string termino)
+    {
+        await AbrirBuscadorAsync(cut);
+        await BuscarAsync(cut, termino);
+    }
+
+    [Fact]
+    public async Task Anadir_un_requisito_abre_sus_ajustes_si_no_hay_otra_edicion_a_medias()
+    {
+        var cut = Renderizar(
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa),
+            NoConfigurado(CatalogoId, "Certificado de aptitud", AmbitoAplicacion.Trabajador));
+        await BuscarEnElBuscadorAsync(cut, "aptitud");
+
+        await cut.Find(".requisitos-opcion").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().ContainSingle().Which.TipoDocumentoId.Should().Be(CatalogoId);
+        Lapiz(cut, "Certificado de aptitud").GetAttribute("aria-expanded").Should().Be("true");
+    }
+
+    [Fact]
+    public async Task Anadir_un_requisito_no_pisa_la_edicion_que_se_empezo_mientras_se_recargaba()
+    {
+        var cut = Renderizar(
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa),
+            NoConfigurado(CatalogoId, "Certificado de aptitud", AmbitoAplicacion.Trabajador));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        await BuscarEnElBuscadorAsync(cut, "aptitud");
+        var recargando = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mediador.AntesDeResponder = async peticion =>
+        {
+            if (peticion is ObtenerEstadoCentroQuery)
+            {
+                recargando.TrySetResult();
+                await soltar.Task;
+            }
+        };
+
+        var anadir = cut.Find(".requisitos-opcion").ClickAsync(new MouseEventArgs());
+        await recargando.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await MarcarBloqueoAsync(cut);
+        soltar.SetResult();
+        await anadir;
+
+        _mediador.Enviadas.OfType<EstablecerDocumentacionRequeridaCentroCommand>().Should().ContainSingle("el requisito sí se añadió");
+        Lapiz(cut, "Seguro de responsabilidad civil").GetAttribute("aria-expanded").Should().Be("true", "su edición a medias no se pisa");
+        Lapiz(cut, "Certificado de aptitud").GetAttribute("aria-expanded").Should().Be("false", "sus ajustes se abren a mano con el lápiz");
+        cut.Find(".requisitos-casilla input").HasAttribute("checked").Should().BeTrue("lo marcado durante la recarga se conserva");
+    }
+
+    [Fact]
+    public async Task Anadir_un_requisito_con_una_subida_en_vuelo_no_abre_sus_ajustes()
+    {
+        var almacen = new AlmacenEnVuelo();
+        _almacen = almacen;
+        var cut = Renderizar(
+            Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa),
+            NoConfigurado(CatalogoId, "Certificado de aptitud", AmbitoAplicacion.Trabajador));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        var subida = await EmpezarSubidaEnVueloAsync(cut, almacen);
+        await BuscarEnElBuscadorAsync(cut, "aptitud");
+
+        await cut.Find(".requisitos-opcion").ClickAsync(new MouseEventArgs());
+
+        Lapiz(cut, "Seguro de responsabilidad civil").GetAttribute("aria-expanded").Should().Be("true", "la subida es de la fila abierta");
+        Lapiz(cut, "Certificado de aptitud").GetAttribute("aria-expanded").Should().Be("false");
+        almacen.Respuesta.SetResult("plantillas/seguro.pdf");
+        await subida;
+        almacen.Eliminados.Should().BeEmpty("la fila abierta sigue siendo la de la subida");
+    }
+
+    // ------------------------------------------------ cambios sin guardar: solo en la pestaña Requisitos
+
+    [Fact]
+    public async Task Salir_con_los_ajustes_de_un_requisito_a_medias_pregunta_en_la_pestana_Requisitos()
+    {
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        await MarcarBloqueoAsync(cut);
+
+        await cut.SalirYComprobarQuePreguntaAsync(Services.GetRequiredService<NavigationManager>());
+    }
+
+    [Fact]
+    public async Task Los_ajustes_a_medias_no_cuentan_como_cambios_si_la_pestana_activa_ya_no_es_Requisitos()
+    {
+        var cut = Renderizar(Propio(SeguroId, "Seguro de responsabilidad civil", AmbitoAplicacion.Empresa));
+        await Lapiz(cut, "Seguro de responsabilidad civil").ClickAsync(new MouseEventArgs());
+        await MarcarBloqueoAsync(cut);
+
+        cut.Render(p => p.Add(c => c.PestanaActiva, "informacion"));
+
+        await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(),
+            "el panel de ajustes solo se ve en la pestaña Requisitos: fuera de ella no hay edición que perder");
+    }
+
+    // ------------------------------------------------ región viva del buscador
+
+    [Fact]
+    public async Task El_buscador_anuncia_las_coincidencias_en_una_region_viva_fuera_de_la_lista()
+    {
+        var cut = RenderizarCatalogoCompleto();
+        await AbrirBuscadorAsync(cut);
+        var region = cut.Find(".requisitos-anuncio");
+        region.GetAttribute("role").Should().Be("status");
+        region.TextContent.Trim().Should().BeEmpty("sin término no hay nada que anunciar");
+
+        await BuscarAsync(cut, "de");
+
+        cut.FindAll(".requisitos-opcion").Count.Should().BeGreaterThan(1);
+        var total = cut.FindAll(".requisitos-opcion").Count;
+        cut.Find(".requisitos-anuncio").TextContent.Trim().Should().Be($"{total} tipos de documento coinciden");
+        cut.FindAll("ul.requisitos-resultados .requisitos-anuncio, ul.requisitos-resultados [role=status]").Should().BeEmpty("la región viva va fuera de la lista");
+        cut.Find(".requisitos-anuncio").ParentElement!.TagName.Should().NotBe("UL");
+
+        await BuscarAsync(cut, "aptitud");
+        cut.Find(".requisitos-anuncio").TextContent.Trim().Should().Be("1 tipo de documento coincide");
     }
 }
