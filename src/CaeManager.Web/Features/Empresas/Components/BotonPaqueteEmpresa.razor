@@ -14,6 +14,8 @@
    /empresas/{id}/paquete-documental.zip (DescargarPaqueteEmpresaQuery), como el de una Visita. *@
 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" OnClick="AbrirAsync">@Textos["AccionPreparar"]</Boton>
 
+@* Contenedor sin caja (display: contents) que da su atributo de aislamiento al CSS del ancho del diálogo (BotonPaqueteEmpresa.razor.css). *@
+<div class="paquete-dialogo">
 <Modal Visible="_abierto" VisibleChanged="v => _abierto = v" Titulo="@Textos["Titulo"]" Subtitulo="@RazonSocial" Ancho="AnchoModal.Grande">
     <ChildContent>
         @* Solo la primera carga sustituye el cuerpo: al cambiar de destino se queda el resumen anterior (aria-busy) y los
@@ -116,3 +118,4 @@
         }
     </Pie>
 </Modal>
+</div>

@@ -583,7 +583,7 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Generar_ZIP_lleva_el_icono_de_descarga_decorativo_como_la_maqueta_y_el_boton_de_la_cabecera_comparte_clase_con_sus_hermanos()
+    public void Generar_ZIP_lleva_el_icono_de_descarga_decorativo_como_la_maqueta()
     {
         var cut = AbrirPaquete(Registrar(Empresa()));
 
@@ -591,9 +591,39 @@ public partial class Empresa360PaginaTests : BunitContext
         generar.QuerySelectorAll("svg.icono-pequeno[aria-hidden=true]").Should().ContainSingle(
             "la maqueta (§ C) pinta un icono de descarga de 16 px (TamanoIcono.Pequeno) delante del texto");
         generar.TextContent.Trim().Should().Be("Generar ZIP", "el icono es decorativo: el nombre accesible no cambia");
+    }
 
-        // El CSS de cabecera (13/600/16 de «Detectar altas y bajas») se engancha por .boton.empresa360-accion-cabecera, sea <a> o <button>.
-        cut.Find(".cabecera-identidad-acciones button.empresa360-accion-cabecera").ClassList.Should().Contain("boton");
+    [Fact]
+    public void El_dialogo_cuelga_del_contenedor_al_que_el_CSS_del_componente_fija_los_600_px_de_la_maqueta()
+    {
+        var cut = AbrirPaquete(Registrar(Empresa()));
+
+        cut.Find(".paquete-dialogo [role=dialog]").Should().NotBeNull(
+            "la regla de ancho es `.paquete-dialogo ::deep .modal-contenido-grande`: sin este contenedor no casa con nada y el diálogo vuelve a 720 px");
+    }
+
+    // bUnit no aplica CSS: lo que sí se puede fijar es el texto de las hojas (revisión píxel a píxel de #2100, divergencias 1, 3 y 4).
+    [Fact]
+    public void Las_hojas_fijan_13_px_en_el_boton_de_la_cabecera_600_px_en_el_dialogo_y_la_familia_de_la_aplicacion()
+    {
+        var detalle = LeerHoja("Pages", "EmpresaDetalle.razor.css");
+        detalle.Should().Contain(".contenedor-pagina ::deep .boton.empresa360-accion-cabecera",
+            "el botón de «Preparar paquete» es un <button>: el selector no puede exigir `a.`");
+        detalle.Should().NotContain("a.boton.empresa360-accion-cabecera");
+
+        var paquete = LeerHoja("Components", "BotonPaqueteEmpresa.razor.css");
+        System.Text.RegularExpressions.Regex.IsMatch(paquete, @"\.paquete-dialogo ::deep \.modal-contenido-grande\s*\{\s*max-width:\s*600px;")
+            .Should().BeTrue("la maqueta (§ C) fija el diálogo en 600 px y Modal solo ofrece 420/520/720");
+        paquete.Should().NotContain("Inter", "la aplicación no carga Inter: la familia viene de --font-family");
+    }
+
+    private static string LeerHoja(string carpeta, string fichero)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        dir.Should().NotBeNull("se necesita la raíz del repositorio");
+        return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Features", "Empresas", carpeta, fichero));
     }
 
     [Fact]

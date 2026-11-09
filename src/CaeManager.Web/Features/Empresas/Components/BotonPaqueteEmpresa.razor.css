@@ -41,9 +41,11 @@ div.paquete-estado { display: flex; align-items: center; gap: 12px; flex-wrap: w
 .paquete-resumen { flex: 1; font: var(--font-caption); color: var(--color-text-muted); }
 
 /* Ancho del diálogo: 600 px, el de la maqueta (§ C). Modal solo ofrece 420/520/720 px; se fija en esta instancia con ::deep sobre
-   el contenedor de Modal, como RevisionSugerenciaModal, sin tocar el CSS compartido. La raíz de Modal (.modal-superposicion) lleva el
-   atributo de aislamiento de este componente; el selector con ella (0,3,0) gana a .modal-contenido-grande de Modal (0,2,0). */
-.modal-superposicion ::deep .modal-contenido-grande { max-width: 600px; }
+   el contenedor de Modal, como DetalleDia y AlertaCriticaModal (un contenedor propio, para no depender de qué atributo de aislamiento
+   hereda la raíz de Modal), sin tocar el CSS compartido. display: contents evita que el contenedor sea un elemento más, con su gap, de
+   la fila de acciones de la cabecera. El selector (0,3,0) gana a .modal-contenido-grande de Modal (0,2,0). */
+.paquete-dialogo { display: contents; }
+.paquete-dialogo ::deep .modal-contenido-grande { max-width: 600px; }
 
 @media (max-width: 600px) {
     .paquete-recuentos { grid-template-columns: minmax(0, 1fr); }
