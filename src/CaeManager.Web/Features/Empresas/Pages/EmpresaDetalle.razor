@@ -110,6 +110,11 @@
                 }
             </Datos>
             <Acciones>
+                @* «Preparar paquete» (maqueta, primera acción de la cabecera): el zip sale de TALVEG, así que solo con un rol que escribe,
+                   la misma lista blanca que aplica DescargarPaqueteEmpresaQuery. *@
+                <SoloConEscritura>
+                    <BotonPaqueteEmpresa EmpresaId="_detalle.Id" RazonSocial="@_detalle.RazonSocial" />
+                </SoloConEscritura>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                 <Boton Variante="VarianteBoton.Secundario" class="empresa360-accion-cabecera" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>
