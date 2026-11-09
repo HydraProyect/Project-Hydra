@@ -44,9 +44,14 @@ namespace CaeManager.IntegrationTests.Subcontratas;
 /// <item>C1 (Cliente A): «Ana», de S, con los dos al día y la Formación validada en la plataforma del Centro; y «Pepe», de
 /// la Empresa propia, sin documentos (no es de S: ni la consulta ni el lote lo cuentan).</item>
 /// <item>C2 (Cliente A): «Ana» otra vez, con la MISMA Formación pendiente de subir a la plataforma de C2 (bloqueado en
-/// plataforma: ahí no cuenta como al día); «Beto», de S, con la Formación vencida y sin Aptitud.</item>
+/// plataforma: ahí no cuenta como al día); «Beto», de S, con la Formación vencida. Este Centro NO exige la Aptitud
+/// (fila de Centro con «incluido» en falso): lo que se exige es distinto en cada Centro, y el lote no puede usar la unión.</item>
 /// <item>C3 (Cliente B, fuera de la cartera del Gestor): «Cleo», de S, con la Formación validada y sin Aptitud.</item>
 /// <item>C4 (Cliente A): sin ninguna Asignación activa.</item>
+/// <item>C5 (Cliente A): no exige ninguno de los dos tipos (filas de Centro «incluido» en falso); «Beto» tiene una
+/// Asignación allí. Es la rama «sin requisitos», que el lote mezcla con los Centros que sí los tienen.</item>
+/// <item>«Dora», de la Subcontrata S' (que solo trabaja para el Cliente B y está fuera de la cartera del Gestor), con una
+/// Asignación en C1: si el lote dejara de comprobar la visibilidad de la Subcontrata empleadora, la devolvería.</item>
 /// </list>
 /// Otro Tenant propietario tiene un Centro que ningún resultado puede nombrar. La siembra va como propietario de la base,
 /// porque no es lo que se mide.
@@ -67,11 +72,13 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
     private Guid _centro2;
     private Guid _centro3;
     private Guid _centro4;
+    private Guid _centro5;
     private Guid _centroAjeno;
     private Guid _ana;
     private Guid _beto;
     private Guid _cleo;
     private Guid _pepe;
+    private Guid _dora;
 
     // Instante único del test: la siembra y las superficies que se miden leen el mismo día de negocio aunque la ejecución cruce
     // la medianoche de Europe/Madrid (RelojDePrueba, issue #2073). Se fija dentro del cuerpo de cada test, no solo en InitializeAsync.
@@ -117,13 +124,13 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
         using var reloj = RelojDePrueba.FijarEn(_instante);
         (await _runtimeDeAdministrador.Centros.IgnoreQueryFilters().CountAsync(c => c.Id == _centroAjeno)).Should().Be(0,
             "sin filtro global de EF, solo RLS puede ocultar el Centro del Tenant ajeno");
-        (await _runtimeDeAdministrador.Centros.IgnoreQueryFilters().CountAsync()).Should().Be(4,
-            "control positivo: los cuatro Centros del Tenant de la sesión sí se ven");
+        (await _runtimeDeAdministrador.Centros.IgnoreQueryFilters().CountAsync()).Should().Be(5,
+            "control positivo: los cinco Centros del Tenant de la sesión sí se ven");
         (await _propietario.Centros.IgnoreQueryFilters().CountAsync(c => c.Id == _centroAjeno)).Should().Be(1);
     }
 
     /// <summary>
-    /// El caso principal: un Gestor CAE con cartera sobre el Cliente A pide el lote de los cuatro Centros (y uno repetido) de
+    /// El caso principal: un Gestor CAE con cartera sobre el Cliente A pide el lote de los cinco Centros (y uno repetido) de
     /// la Subcontrata S. Cada Centro que ve da lo mismo que su consulta propia; el de otro Cliente empresarial y el que no
     /// tiene Asignaciones no aparecen, igual que su consulta propia da una lista vacía.
     /// </summary>
@@ -132,31 +139,36 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
     {
         using var reloj = RelojDePrueba.FijarEn(_instante);
         var (lote, porCentro) = Handlers(_runtimeDelGestor, AlcanceDelGestor(), UsuarioGestor());
-        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4, _centro1];
+        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4, _centro5, _centro1];
 
         var delLote = await lote.Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(pedidos, _subcontrata), CancellationToken.None);
         var independientes = await CentroACentroAsync(porCentro, pedidos.Distinct(), _subcontrata);
 
-        delLote.Keys.Should().BeEquivalentTo([_centro1, _centro2], "solo los Centros de la cartera con Asignaciones de S");
+        delLote.Keys.Should().BeEquivalentTo([_centro1, _centro2, _centro5], "solo los Centros de la cartera con Asignaciones de S");
         independientes[_centro3].Should().BeEmpty("control: el Centro del Cliente B no es visible para el Gestor en su consulta propia");
         independientes[_centro4].Should().BeEmpty("control: sin Asignaciones activas no hay filas");
         foreach (var centro in pedidos.Distinct().Where(c => independientes[c].Count > 0))
             Proyectar(delLote[centro]).Should().Equal(independientes[centro], $"el lote de {centro} tiene que ser el de su consulta propia");
         delLote.Count.Should().Be(independientes.Count(par => par.Value.Count > 0));
 
-        // El oráculo, escrito a mano: la misma Formación de Ana cuenta en C1 (validada) y no en C2 (pendiente en su plataforma).
+        // El oráculo, escrito a mano: la misma Formación de Ana cuenta en C1 (validada) y no en C2 (pendiente en su plataforma),
+        // y C2 no exige la Aptitud (lo que se exige es propio de cada Centro, no la unión de los Centros del lote).
         Proyectar(delLote[_centro1]).Should().Equal(
             (_ana, EstadoDocumento.Vigente, new FraccionCumplimiento(2, 2)));
         var deC2 = delLote[_centro2].ToDictionary(t => t.TrabajadorId);
         deC2.Keys.Should().BeEquivalentTo([_ana, _beto]);
-        deC2[_ana].Cumplimiento.Should().Be(new FraccionCumplimiento(1, 2), "la Formación pendiente de subir a la plataforma de C2 no cuenta como al día");
-        deC2[_beto].Cumplimiento.Should().Be(new FraccionCumplimiento(0, 2), "Formación vencida y Aptitud sin documento");
+        deC2[_ana].Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1),
+            "C2 solo exige la Formación, y está pendiente de subir a la plataforma de C2: no cuenta como al día");
+        deC2[_beto].Cumplimiento.Should().Be(new FraccionCumplimiento(0, 1), "C2 solo exige la Formación, y la de Beto está vencida");
         deC2[_beto].PeorEstado.Should().Be(EstadoDocumento.Vencido);
+        // Sin requisitos en C5: la rama inmediata, mezclada en el mismo lote con los Centros que sí los tienen.
+        Proyectar(delLote[_centro5]).Should().Equal((_beto, EstadoDocumento.Vigente, FraccionCumplimiento.SinRequisitos));
 
         // Quien no es de S no entra aunque trabaje en un Centro visible: sin el filtro de S la consulta propia sí lo cuenta.
         var sinFiltro = await porCentro.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centro1), CancellationToken.None);
-        sinFiltro.Select(t => t.TrabajadorId).Should().BeEquivalentTo([_ana, _pepe], "control positivo: Pepe, de la Empresa propia, trabaja en C1");
-        delLote[_centro1].Select(t => t.TrabajadorId).Should().NotContain(_pepe);
+        sinFiltro.Select(t => t.TrabajadorId).Should().BeEquivalentTo([_ana, _pepe, _dora],
+            "control positivo: Pepe, de la Empresa propia, y Dora, de la otra Subcontrata, trabajan en C1");
+        delLote[_centro1].Select(t => t.TrabajadorId).Should().NotContain([_pepe, _dora]);
     }
 
     /// <summary>Pedir solo un Centro visible, o solo uno que no lo es, también coincide con la consulta propia.</summary>
@@ -186,13 +198,21 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
     {
         using var reloj = RelojDePrueba.FijarEn(_instante);
         var (lote, porCentro) = Handlers(_runtimeDelGestor, AlcanceDelGestor(), UsuarioGestor());
-        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4];
+        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4, _centro5];
 
         var delLote = await lote.Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(pedidos, _subcontrataDelClienteB), CancellationToken.None);
         var independientes = await CentroACentroAsync(porCentro, pedidos, _subcontrataDelClienteB);
 
-        delLote.Should().BeEmpty();
+        delLote.Should().BeEmpty("Dora, de esa Subcontrata, tiene una Asignación en C1 (visible): solo la visibilidad de la Subcontrata la deja fuera");
         independientes.Values.Should().OnlyContain(filas => filas.Count == 0);
+
+        // Control positivo: sin restricción de alcance, la misma petición sí devuelve a Dora en C1.
+        var administrador = new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion);
+        var (loteSinAlcance, _) = Handlers(_runtimeDeAdministrador, new AlcanceDatosServiceFalso(), administrador);
+        var conAlcanceTotal = await loteSinAlcance.Handle(
+            new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(pedidos, _subcontrataDelClienteB), CancellationToken.None);
+        conAlcanceTotal.Keys.Should().BeEquivalentTo([_centro1]);
+        conAlcanceTotal[_centro1].Select(t => t.TrabajadorId).Should().ContainSingle().Which.Should().Be(_dora);
     }
 
     /// <summary>
@@ -205,12 +225,12 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
         using var reloj = RelojDePrueba.FijarEn(_instante);
         var administrador = new CurrentUserServiceFalso(Guid.NewGuid(), Roles.Administrador, tenantOrigenId: _tenantSesion);
         var (lote, porCentro) = Handlers(_runtimeDeAdministrador, new AlcanceDatosServiceFalso(), administrador);
-        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4];
+        Guid[] pedidos = [_centro1, _centro2, _centro3, _centro4, _centro5];
 
         var delLote = await lote.Handle(new ObtenerCumplimientoDeAsignacionesPorCentrosQuery(pedidos, _subcontrata), CancellationToken.None);
         var independientes = await CentroACentroAsync(porCentro, pedidos, _subcontrata);
 
-        delLote.Keys.Should().BeEquivalentTo([_centro1, _centro2, _centro3]);
+        delLote.Keys.Should().BeEquivalentTo([_centro1, _centro2, _centro3, _centro5]);
         foreach (var centro in pedidos.Where(c => independientes[c].Count > 0))
             Proyectar(delLote[centro]).Should().Equal(independientes[centro]);
         Proyectar(delLote[_centro3]).Should().Equal((_cleo, EstadoDocumento.Faltante, new FraccionCumplimiento(1, 2)));
@@ -289,31 +309,39 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
         var centro2 = new Centro(clienteA.Id, propia.Id, "Almacén de Shelbyville");
         var centro3 = new Centro(clienteB.Id, propia.Id, "Sector 7G");
         var centro4 = new Centro(clienteA.Id, propia.Id, "Oficina sin asignaciones");
-        _propietario.Centros.AddRange(centro1, centro2, centro3, centro4);
+        var centro5 = new Centro(clienteA.Id, propia.Id, "Taller sin requisitos");
+        _propietario.Centros.AddRange(centro1, centro2, centro3, centro4, centro5);
         await _propietario.SaveChangesAsync();
 
         var canal1 = CanalGestionDocumental.DePlataforma(centro1.Id, "Acceso de prueba", proveedor.Id, null, null, null);
         var canal2 = CanalGestionDocumental.DePlataforma(centro2.Id, "Acceso de prueba", proveedor.Id, null, null, null);
         var canal3 = CanalGestionDocumental.DePlataforma(centro3.Id, "Acceso de prueba", proveedor.Id, null, null, null);
         _propietario.CanalesGestionDocumental.AddRange(canal1, canal2, canal3);
-        // La Formación se exige en los tres Centros y bloquea el acceso en todos; la Aptitud no tiene fila de Centro.
+        // La Formación se exige en C1, C2 y C3 y bloquea el acceso en los tres; la Aptitud (obligatoria por defecto, sin fila)
+        // se exige en C1 y C3 pero C2 la excluye, y C5 no exige ninguno de los dos: lo exigido es propio de cada Centro.
         _propietario.TiposDocumentoCentros.AddRange(
             new TipoDocumentoCentro(formacion.Id, centro1.Id, incluido: true, null, bloqueaAcceso: true),
             new TipoDocumentoCentro(formacion.Id, centro2.Id, incluido: true, null, bloqueaAcceso: true),
-            new TipoDocumentoCentro(formacion.Id, centro3.Id, incluido: true, null, bloqueaAcceso: true));
+            new TipoDocumentoCentro(formacion.Id, centro3.Id, incluido: true, null, bloqueaAcceso: true),
+            new TipoDocumentoCentro(aptitud.Id, centro2.Id, incluido: false, null, bloqueaAcceso: false),
+            new TipoDocumentoCentro(formacion.Id, centro5.Id, incluido: false, null, bloqueaAcceso: false),
+            new TipoDocumentoCentro(aptitud.Id, centro5.Id, incluido: false, null, bloqueaAcceso: false));
 
         var ana = Trabajador.DeSubcontrata(subcontrata.Id, "Ana", "Dentro", "77189989B");
         var beto = Trabajador.DeSubcontrata(subcontrata.Id, "Beto", "Dentro", "12345678Z");
         var cleo = Trabajador.DeSubcontrata(subcontrata.Id, "Cleo", "Fuera", "22334455Y");
         var pepe = Trabajador.DeEmpresa(propia.Id, "Pepe", "Propio", "33445566R");
-        _propietario.Trabajadores.AddRange(ana, beto, cleo, pepe);
+        var dora = Trabajador.DeSubcontrata(subcontrataDelB.Id, "Dora", "Otra", "99887766P");
+        _propietario.Trabajadores.AddRange(ana, beto, cleo, pepe, dora);
         await _propietario.SaveChangesAsync();
 
         _propietario.Asignaciones.AddRange(
             new Asignacion(ana.Id, centro1.Id, hoy.AddDays(-30)),
             new Asignacion(ana.Id, centro2.Id, hoy.AddDays(-20)),
             new Asignacion(pepe.Id, centro1.Id, hoy.AddDays(-30)),
+            new Asignacion(dora.Id, centro1.Id, hoy.AddDays(-30)),
             new Asignacion(beto.Id, centro2.Id, hoy.AddDays(-30)),
+            new Asignacion(beto.Id, centro5.Id, hoy.AddDays(-10)),
             new Asignacion(cleo.Id, centro3.Id, hoy.AddDays(-30)));
 
         var formacionDeAna = Documento.DeTrabajador(ana.Id, formacion.Id, hoy.AddDays(-5), VigenciaDocumento.VenceEl(hoy.AddYears(1)));
@@ -339,8 +367,8 @@ public class CumplimientoPorCentrosEnLoteBajoRlsTests : IAsyncLifetime
         await _propietario.SaveChangesAsync();
 
         (_subcontrata, _subcontrataDelClienteB) = (subcontrata.Id, subcontrataDelB.Id);
-        (_centro1, _centro2, _centro3, _centro4) = (centro1.Id, centro2.Id, centro3.Id, centro4.Id);
-        (_ana, _beto, _cleo, _pepe) = (ana.Id, beto.Id, cleo.Id, pepe.Id);
+        (_centro1, _centro2, _centro3, _centro4, _centro5) = (centro1.Id, centro2.Id, centro3.Id, centro4.Id, centro5.Id);
+        (_ana, _beto, _cleo, _pepe, _dora) = (ana.Id, beto.Id, cleo.Id, pepe.Id, dora.Id);
     }
 
     private async Task SembrarTenantAjenoAsync(Guid tenantAjenoId)
