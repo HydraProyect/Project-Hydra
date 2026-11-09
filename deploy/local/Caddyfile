@@ -86,14 +86,18 @@
 # - Un handshake de WebSocket (con Sec-WebSocket-Key) solo admite identity: el
 #   upgrade de /_blazor y los marcos del circuito no pasan por aquí. La
 #   compresión de esos marcos (permessage-deflate) la negocian el navegador y
-#   Kestrel, no este bloque. El negotiate de SignalR y el long polling son
-#   respuestas HTTP normales: se comprimen si su tipo y su tamaño entran.
+#   Kestrel, no este bloque, y está ACTIVA: es el valor por defecto de .NET 10
+#   (DisableWebSocketCompression = false) y Program.cs no lo cambia. La
+#   mitigación es la que pide Microsoft para ese caso, que la aplicación no se
+#   pueda incrustar: frame-ancestors 'none' y X-Frame-Options DENY
+#   (CabecerasSeguridadExtensions). El negotiate de SignalR y el long polling
+#   son respuestas HTTP normales: se comprimen si su tipo y su tamaño entran.
 # - Al comprimir, Caddy quita Content-Length y Accept-Ranges de la respuesta.
 #   Ningún código de la aplicación lee el Content-Length de su propia
 #   respuesta; los que lo miran son de PETICIONES (demo, webhooks), y encode
 #   no toca las peticiones.
-# - @sin_rango: una petición con Range (visor de PDF, reanudar una descarga)
-#   no se comprime. Encode no distingue un 206: comprimiría el trozo, y su
+# - @comprimible, primera condición: una petición con Range (visor de PDF,
+#   reanudar una descarga) no se comprime. Encode no distingue un 206: comprimiría el trozo, y su
 #   Content-Range, que cuenta bytes sin comprimir, dejaría de cuadrar. Afecta
 #   a un adjunto de Comunicaciones de tipo text/* o JSON, que se sirve con
 #   enableRangeProcessing.
@@ -109,12 +113,29 @@
 # antiabuso del alta autónoma (Protect con carga aleatoria). La cookie de
 # sesión SameSite=Lax es solo una defensa parcial: un subrecurso entre sitios
 # (img, script, fetch) no la lleva, pero una navegación de nivel superior sí.
+#
+# @comprimible, segunda condición: nada bajo /cuenta se comprime. Ahí SÍ hay
+# un secreto estable junto a entrada reflejada: /cuenta/configurar-2fa pinta
+# la clave TOTP del autenticador, que no cambia entre cargas
+# (GetAuthenticatorKeyAsync), y en la misma respuesta refleja el ReturnUrl de
+# la consulta; con autenticación reciente basta un GET, y una navegación de
+# nivel superior lleva la cookie Lax. Es el patrón de BREACH. Se excluye todo
+# /cuenta, y no solo esa página, porque es donde viven las pantallas de
+# credenciales; pesan poco y comprimirlas no compensa el riesgo. El path de
+# Caddy compara sin distinguir mayúsculas, igual que el enrutado de ASP.NET
+# Core, así que /Cuenta/... tampoco se comprime. La corrección en la pantalla
+# (no reflejar ReturnUrl junto a la clave, o no enseñarla en un GET) va
+# aparte, en su issue.
+#
 # CRIME, en sentido estricto, ataca la compresión de TLS o de cabeceras, que
 # Caddy no hace; el oráculo de compresión de los marcos del WebSocket
 # (permessage-deflate) es otra superficie, de Kestrel, que este bloque no toca.
 (comprimir) {
-	@sin_rango not header Range *
-	encode @sin_rango zstd gzip
+	@comprimible {
+		not header Range *
+		not path /cuenta /cuenta/*
+	}
+	encode @comprimible zstd gzip
 }
 
 {$DOMINIO} {

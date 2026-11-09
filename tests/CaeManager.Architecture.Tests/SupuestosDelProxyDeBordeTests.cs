@@ -44,28 +44,76 @@ public class SupuestosDelProxyDeBordeTests
 
     /// <summary>
     /// La compresión del borde (ver la cabecera del snippet <c>comprimir</c> en el
-    /// Caddyfile): un solo <c>encode</c>, el del snippet, con la excepción de las
-    /// peticiones con <c>Range</c>, importado en los tres sitios que sirven
-    /// contenido. Un <c>encode</c> suelto en otro bloque comprimiría también los
-    /// 206 parciales, cuyo <c>Content-Range</c> cuenta bytes sin comprimir.
+    /// Caddyfile): un solo <c>encode</c>, el del snippet, que no comprime las
+    /// peticiones con <c>Range</c> ni nada bajo <c>/cuenta</c>, importado en el
+    /// nivel del sitio de los tres que sirven contenido. Un <c>encode</c> suelto en
+    /// otro bloque comprimiría los 206 parciales, cuyo <c>Content-Range</c> cuenta
+    /// bytes sin comprimir, y la clave TOTP de <c>/cuenta/configurar-2fa</c>, que
+    /// convive con el <c>ReturnUrl</c> reflejado (BREACH).
     /// </summary>
     [Theory]
     [InlineData("{$DOMINIO} {")]
     [InlineData("staging.talveg.es {")]
     [InlineData("talveg.es {")]
-    public void El_sitio_comprime_con_el_snippet_que_excluye_Range(string cabeceraDelSitio)
+    public void El_sitio_comprime_con_el_snippet_que_excluye_Range_y_cuenta(string cabeceraDelSitio)
     {
         var lineas = File.ReadAllText(RutaDeDespliegue("Caddyfile")).Replace("\r\n", "\n").Split('\n');
 
         var snippet = BloqueDeNivelSuperior(lineas, "(comprimir) {");
-        snippet.Should().Contain("\t@sin_rango not header Range *")
-            .And.Contain("\tencode @sin_rango zstd gzip");
+        DirectivasDelNivel(snippet).Should().Contain("encode @comprimible zstd gzip",
+            "el encode del snippet tiene que ir condicionado por el matcher que excluye Range y /cuenta");
+        DirectivasDelNivel(SubBloque(snippet, "@comprimible {")).Should()
+            .Contain("not header Range *", "un 206 comprimido deja de cuadrar con su Content-Range")
+            .And.Contain("not path /cuenta /cuenta/*",
+                "/cuenta/configurar-2fa pinta la clave TOTP estable junto al ReturnUrl reflejado (BREACH)");
 
         lineas.Count(l => l.TrimStart().StartsWith("encode ", StringComparison.Ordinal)).Should().Be(1,
-            "el único encode es el del snippet: uno suelto en un sitio no llevaría la excepción de Range");
+            "el único encode es el del snippet: uno suelto en un sitio no llevaría las exclusiones");
 
-        BloqueDeNivelSuperior(lineas, cabeceraDelSitio).Should().Contain("\timport comprimir",
-            $"el sitio '{cabeceraDelSitio}' tiene que comprimir con el snippet");
+        DirectivasDelNivel(BloqueDeNivelSuperior(lineas, cabeceraDelSitio)).Should().Contain("import comprimir",
+            $"el sitio '{cabeceraDelSitio}' tiene que importar el snippet en su propio nivel: dentro de " +
+            "reverse_proxy o de un handle no vale (Caddy lo rechaza, o solo comprime esa rama)");
+    }
+
+    /// <summary>
+    /// Las directivas del primer nivel de un bloque (sin las de sus subbloques),
+    /// recortadas y sin comentarios. La profundidad se cuenta por llaves, no por
+    /// sangría: una línea mal sangrada dentro de <c>reverse_proxy</c> sigue
+    /// estando dentro.
+    /// </summary>
+    private static List<string> DirectivasDelNivel(string[] bloque)
+    {
+        var directivas = new List<string>();
+        var profundidad = 0;
+        foreach (var linea in bloque.Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#')))
+        {
+            if (profundidad == 0)
+                directivas.Add(linea);
+            profundidad += linea.Count(c => c == '{') - linea.Count(c => c == '}');
+        }
+        return directivas;
+    }
+
+    /// <summary>
+    /// El interior de un subbloque de primer nivel (p. ej. un matcher con nombre),
+    /// desde su cabecera exacta hasta la llave que lo cierra.
+    /// </summary>
+    private static string[] SubBloque(string[] bloque, string cabecera)
+    {
+        var inicio = Array.FindIndex(bloque, l => l.Trim() == cabecera);
+        inicio.Should().BeGreaterThan(-1, $"sin encontrar '{cabecera}' este trinquete no mira nada");
+
+        var profundidad = 0;
+        for (var i = inicio; i < bloque.Length; i++)
+        {
+            var linea = bloque[i].Trim();
+            if (linea.StartsWith('#'))
+                continue;
+            profundidad += linea.Count(c => c == '{') - linea.Count(c => c == '}');
+            if (profundidad == 0)
+                return bloque[(inicio + 1)..i];
+        }
+        throw new InvalidOperationException($"el subbloque '{cabecera}' no se cierra");
     }
 
     /// <summary>
