@@ -13,6 +13,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
+    /* Para las container queries de las tarjetas de riesgo. Implica contención de layout: un descendiente `position: fixed` (hoja móvil,
+       diálogo) se anclaría a esta sección y no a la ventana. Hoy ninguna de sus dos secciones lleva uno; no añadirlo dentro sin quitar esto. */
     container-type: inline-size;
 }
 
@@ -22,13 +24,14 @@
     color: var(--color-text);
 }
 
-/* Título y nota de una sección: en columna y a la izquierda; la nota solo va a la derecha del título cuando hay ancho de sobra
-   (más abajo, ≥ 1280 px). Antes iba siempre a la derecha y, al envolver, quedaba suelta sin motivo. */
+/* Título y nota de una sección, como la maqueta: la nota a la derecha del título mientras cabe; si no cabe, envuelve (flex-wrap) y
+   pasa a la izquierda, bajo el título. */
 .cabecera-seccion-cartera {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    flex-wrap: wrap;
 }
 
 .nota-seccion-cartera {
@@ -42,7 +45,9 @@
     color: var(--color-text-muted);
 }
 
-/* Cabecera: ámbito bajo el título, a la izquierda; a la derecha del título solo con ancho de sobra (≥ 1280 px, como la maqueta). */
+/* Cabecera: ámbito a la izquierda; a la derecha del título solo con ancho de sobra (≥ 1280 px). DECISIÓN de pulido, no lectura de la
+   maqueta: la maqueta lo alinea siempre a la derecha, pero a 1024 px envuelve bajo el título y las líneas quedaban alineadas a la
+   derecha entre sí, sin motivo (revisión 1:1 de la demo). A confirmar con Diseño. */
 .ambito-cartera {
     display: flex;
     flex-direction: column;
@@ -57,14 +62,6 @@
     .ambito-cartera {
         align-items: flex-end;
         text-align: right;
-    }
-
-    .cabecera-seccion-cartera {
-        flex-direction: row;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: var(--space-4);
-        flex-wrap: wrap;
     }
 }
 

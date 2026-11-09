@@ -68,11 +68,15 @@ public class VisionCarteraPulidoCssTests
         var ambito = Regla(css, ".ambito-cartera");
         ambito.Should().Contain("align-items: flex-start").And.Contain("text-align: left");
         ambito.Should().NotContain("flex-end").And.NotContain("text-align: right");
-        Regla(css, ".cabecera-seccion-cartera").Should().NotContain("justify-content: space-between");
 
-        var anchos = css.IndexOf("@media (min-width: 1280px)", StringComparison.Ordinal);
-        anchos.Should().BeGreaterThanOrEqualTo(0);
-        var bloque = css[anchos..];
-        bloque.Should().Contain("text-align: right").And.Contain("justify-content: space-between");
+        // La nota de sección sigue a la derecha del título mientras cabe (maqueta) y envuelve a la izquierda cuando no.
+        Regla(css, ".cabecera-seccion-cartera").Should().Contain("justify-content: space-between").And.Contain("flex-wrap: wrap");
+
+        var inicio = css.IndexOf("@media (min-width: 1280px) {", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThanOrEqualTo(0);
+        var apertura = css.IndexOf('{', inicio);
+        var fin = css.IndexOf("\n}", apertura, StringComparison.Ordinal);
+        var bloque = css[apertura..fin];
+        bloque.Should().Contain(".ambito-cartera").And.Contain("align-items: flex-end").And.Contain("text-align: right");
     }
 }

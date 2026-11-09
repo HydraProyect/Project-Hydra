@@ -175,12 +175,12 @@
 }
 
 /* «Eliminar»: destructivo de menor peso que el Primario (contorno, texto de peligro) y separado, al final del pie. */
-.pie-vista-rapida-gestion ::deep .eliminar-vista-rapida-gestion {
+.pie-vista-rapida-gestion ::deep .boton.eliminar-vista-rapida-gestion {
     margin-inline-start: auto;
     color: var(--color-danger-700);
 }
 
-.pie-vista-rapida-gestion ::deep .eliminar-vista-rapida-gestion:not(:disabled):hover {
+.pie-vista-rapida-gestion ::deep .boton.eliminar-vista-rapida-gestion:not(:disabled):hover {
     background-color: var(--color-danger-50);
     border-color: var(--color-danger-700);
 }
