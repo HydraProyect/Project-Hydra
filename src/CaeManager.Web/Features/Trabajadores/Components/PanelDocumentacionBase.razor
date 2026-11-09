@@ -108,8 +108,10 @@
                                 {
                                     <SoloConEscritura>
                                         @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción de gestión, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                               class="accion-fila-enlace"
+                                        @* «Gestionar» es siempre un botón secundario (patrón de Centro 360 › Trabajadores y de Documentos), nunca un enlace de texto;
+                                           data-accion-fila lo deja como acción de la fila para el atajo de teclado, que antes lo encontraba por la clase de enlace. *@
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               class="accion-gestionar-documento" data-accion-fila="true"
                                                aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
                                                OnClick="() => OnCorregirDocumento.InvokeAsync(documentoGestion)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                                     </SoloConEscritura>
@@ -118,7 +120,7 @@
                                 {
                                     @* El que falta no tiene documento que abrir: «Gestionar» lleva a la misma subida que usa la ficha (Nuevo documento con el Trabajador elegido). *@
                                     <SoloConEscritura>
-                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="accion-gestionar-documento" data-accion-fila="true"
                                                aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
                                                OnClick="() => OnSubirFaltante.InvokeAsync()">@EstadoDocumentoFicha360.TextoAccion</Boton>
                                     </SoloConEscritura>
@@ -231,10 +233,11 @@
     private string TextoDetalle(IndicadorDocumentacionBase indicador) => indicador.Estado switch
     {
         EstadoIndicadorBase.Vigente when indicador.Tipo == TipoDocumentoBase.InformacionArt18 => Textos["DocBaseSubPresente"],
-        EstadoIndicadorBase.Vigente when indicador.FechaVencimiento is { } vigenteHasta => Textos["DocBaseSubVigente", vigenteHasta.ToString("dd/MM/yyyy")],
+        // La fecha de vencimiento ya está en su columna: la línea de detalle no la repite (antes: «Vigente hasta el 12/03/2027» al lado de «12/03/2027»).
+        EstadoIndicadorBase.Vigente when indicador.FechaVencimiento is not null => Textos["DocBaseSubVigente"],
         EstadoIndicadorBase.Vigente => Textos["DocBaseSubVigenteSinFecha"],
-        EstadoIndicadorBase.ProximoAVencer when indicador.FechaVencimiento is { } vence => Textos["DocBaseSubProximoAVencer", vence.ToString("dd/MM/yyyy")],
-        EstadoIndicadorBase.Vencido when indicador.FechaVencimiento is { } venció => Textos["DocBaseSubVencido", venció.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.ProximoAVencer => Textos["DocBaseSubProximoAVencer"],
+        EstadoIndicadorBase.Vencido => Textos["DocBaseSubVencido"],
         EstadoIndicadorBase.SinConfirmar => Textos["DocBaseSubSinConfirmar"],
         EstadoIndicadorBase.Falta => Textos["DocBaseSubFalta"],
         _ => string.Empty

@@ -94,7 +94,7 @@ else if (EnPagina)
                     @if (EstadoDocumentoFicha360.PideGestionar(documento.Estado))
                     {
                         <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-fila-enlace")"
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="@EstadoDocumentoFicha360.ClaseGestionar(documento.Estado, "accion-gestionar-documento")"
                                    aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre)"
                                    OnClick="() => _correccion.AbrirAsync(documento.Id, null, null, null)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                         </SoloConEscritura>
