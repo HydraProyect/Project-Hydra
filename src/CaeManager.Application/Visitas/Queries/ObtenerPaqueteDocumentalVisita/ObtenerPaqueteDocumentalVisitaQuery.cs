@@ -82,8 +82,8 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
     {
         // RevalidarAsync y no ObtenerAsync: la sesión exime de la lista de roles, y en Blazor
         // Server la memo del circuito seguiría eximiendo tras revocar la concesión o cerrar la
-        // sesión en otra pestaña, hasta la siguiente revalidación periódica. Va antes del
-        // alcance para que este herede la memo ya revalidada.
+        // sesión en otra pestaña, hasta la siguiente revalidación periódica. El alcance de
+        // abajo no hereda esta revalidación: su caché de acceso total caduca por su cuenta.
         var sesion = await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken);
 
         var visita = await (
