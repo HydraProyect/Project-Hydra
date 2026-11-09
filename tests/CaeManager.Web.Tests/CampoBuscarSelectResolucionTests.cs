@@ -3,6 +3,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using static CaeManager.Web.Tests.AyudasCampoBuscarSelect;
 
@@ -111,7 +112,44 @@ public class CampoBuscarSelectResolucionTests : BunitContext
         await BuscarAsync(cut, "Pedro");
 
         Opciones(cut).Should().BeEmpty();
-        cut.FindAll("[role=status]").Should().NotBeEmpty("se anuncia que no hay resultados");
+        cut.Find(".csa-vacio").TextContent.Trim().Should().Be("Sin coincidencias");
+        _valores.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Revisión puente: si la lista se reduce con el combobox abierto y la opción activa era una de las que
+    /// desaparecen, Intro no lanza ni elige una fila que ya no existe: elige la primera que queda.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_lista_se_reduce_con_la_activa_fuera_Intro_elige_una_opcion_que_existe()
+    {
+        var cut = Renderizar(new OpcionBuscable("a", "Ana Ruiz"), new OpcionBuscable("b", "Ana Gil"), new OpcionBuscable("c", "Ana Sanz"));
+        await BuscarAsync(cut, "Ana");
+        var buscador = cut.Find("input.csa-buscador");
+        await buscador.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+        await buscador.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        cut.Render(p => p.Add(c => c.Opciones, [new OpcionBuscable("a", "Ana Ruiz")]));
+        Opciones(cut).Select(o => o.TextContent.Trim()).Should().Equal("Ana Ruiz");
+
+        await cut.Find("input.csa-buscador").KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
+        _valores.Should().Equal("a");
+    }
+
+    /// <summary>
+    /// Revisión puente: el padre puede deshabilitar el campo con la lista ya abierta (un guardado en curso); pulsar
+    /// una opción entonces no notifica nada.
+    /// </summary>
+    [Fact]
+    public async Task Deshabilitado_con_la_lista_abierta_pulsar_una_opcion_no_elige()
+    {
+        var cut = Renderizar(new OpcionBuscable("a", "Ana Ruiz"));
+        await BuscarAsync(cut, "Ana");
+        Opciones(cut).Should().ContainSingle("control: la lista está abierta");
+
+        cut.Render(p => p.Add(c => c.Deshabilitado, true));
+        await cut.Find("li[role=option]").ClickAsync(new MouseEventArgs());
+
         _valores.Should().BeEmpty();
     }
 

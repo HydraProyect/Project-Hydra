@@ -4,9 +4,15 @@
     tildes; se elige una opción de la lista, nunca un texto libre. Antes era un input con <datalist>, que solo elegía
     si el texto coincidía exactamente con una opción, dejaba sin elegir a dos homónimos y no decía «sin
     coincidencias». La API (Valor, ValorChanged, Opciones, Etiqueta, Marcador, Deshabilitado) no cambia.
+    Lo que no hace el combobox es vaciar la elección: el campo solo cambia de una opción a otra. La pantalla que
+    necesite «sin elección» pone su propio botón (Reportes, «Quitar filtro»).
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
 <CampoSelectAvanzado Etiqueta="@Etiqueta" Marcador="@Marcador" Valor="@Valor" ValorChanged="ValorChanged"
-                     Deshabilitado="@Deshabilitado" Buscable="true" Opciones="@_opciones" />
+                     Deshabilitado="@Deshabilitado" Buscable="true" Opciones="@_opciones"
+                     TextoSinResultados="@Comunes["SelectorSinCoincidencias"]" />
 
 @code {
     private IReadOnlyList<OpcionBuscable>? _origen;

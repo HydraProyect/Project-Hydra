@@ -544,6 +544,9 @@
 
     private async Task ElegirAsync(int posicion)
     {
+        // El padre puede deshabilitar el campo con la lista ya abierta (un guardado en curso): Abrir() no basta.
+        if (Deshabilitado) return;
+
         if (posicion == _visibles.Count && MostrarCrear)
         {
             await CrearAsync();

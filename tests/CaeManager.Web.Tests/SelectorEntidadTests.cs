@@ -7,8 +7,8 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Fase A4 — crear inline desde cualquier selector, sin tener que abandonar
-/// la pantalla. A diferencia de CampoBuscarSelect (que usa &lt;datalist&gt;),
-/// SelectorEntidad pinta su propia lista para poder ofrecer una fila de
+/// la pantalla. A diferencia de CampoBuscarSelect (el combobox del kit, sin
+/// creación), SelectorEntidad pinta su propia lista para poder ofrecer una fila de
 /// acción ("+ Crear «texto»"). El punto que este archivo protege de verdad:
 /// las opciones se seleccionan con @@onmousedown:preventDefault, así que el
 /// clic nunca se pierde por un blur de por medio — ver el comentario de
