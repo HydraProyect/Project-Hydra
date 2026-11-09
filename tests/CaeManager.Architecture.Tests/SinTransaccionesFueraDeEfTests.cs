@@ -765,25 +765,29 @@ public class SinTransaccionesFueraDeEfTests(ITestOutputHelper salida)
         cadenas.Infractoras.Should().BeEmpty("el BEGIN está dentro de un identificador entre comillas");
     }
 
-    public static TheoryData<string> FuentesRazorDeLosCasos() =>
-    [
-        RazorConMetodosYSql,
-        RazorConCrudas,
-        RazorConComillasTriplesEnElMarcado,
-        RazorConComillasTriplesQueParecenUnaCruda,
-    ];
+    /// <summary>
+    /// Cada caso con las líneas que detectaba el analizador de origin/main antes de esta PR, fijadas
+    /// a mano: si alguien cambia la expresión anterior o su decodificación, la referencia no se mueve
+    /// con el código.
+    /// </summary>
+    public static TheoryData<string, int[]> FuentesRazorDeLosCasos() => new()
+    {
+        { RazorConMetodosYSql, [10, 11] },
+        { RazorConCrudas, [11, 13] },
+        { RazorConComillasTriplesEnElMarcado, [3] },
+        { RazorConComillasTriplesQueParecenUnaCruda, [4] },
+    };
 
     /// <summary>
     /// La propiedad general: en cada caso, toda línea que detectaba el analizador anterior la detecta
-    /// también el nuevo. Que el caso no sea trivial lo fija que el anterior detecte algo.
+    /// también el nuevo.
     /// </summary>
     [Theory]
     [MemberData(nameof(FuentesRazorDeLosCasos))]
-    public void El_detector_de_razor_detecta_un_superconjunto_del_anterior(string fuente)
+    public void El_detector_de_razor_detecta_un_superconjunto_del_anterior(string fuente, int[] anteriores)
     {
-        var anteriores = InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).ToList();
-
-        anteriores.Should().NotBeEmpty("el caso tiene que tener algo que el analizador anterior detecta");
+        InfractorasEnRazorAnteriores(LimpiadorDeComentarios.Quitar(fuente, razor: true)).Should().Equal(
+            anteriores, "la expresión anterior y su decodificación son la referencia y no cambian");
         TransaccionesEnRazor(fuente).Cadenas.Infractoras.Should().Contain(anteriores);
     }
 
