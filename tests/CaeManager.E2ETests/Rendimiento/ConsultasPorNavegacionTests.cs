@@ -17,7 +17,8 @@ namespace CaeManager.E2ETests.Rendimiento;
 /// navegación; esta prueba cuenta el <c>count(*)</c> (en Subcontratas, el <c>SELECT</c>
 /// de la lista, que ya no lleva <c>count(*)</c>), que es <b>1 por pasada:
 /// 1 en el prerender y 2 en la navegación</b>, en las tres pantallas. Es el
-/// coste de hoy y la prueba lo fija como techo.
+/// coste de hoy y la prueba lo fija como techo. Empresas ya no se prerenderiza:
+/// 0 en el GET crudo y 1 en la navegación, y la prueba fija también ese 0.
 /// </para>
 ///
 /// <para>
@@ -51,9 +52,13 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
     private const string Email = Ayudas.EmailGestorRefrielectric;
 
     // Techos medidos: count(*) de la lista en un GET crudo (prerender) y en
-    // una navegación mejorada (prerender + circuito).
+    // una navegación mejorada (prerender + circuito). Una pantalla sin prerender
+    // (Empresas, desde que pasó a InteractiveServerRenderMode(prerender: false) para
+    // no cargar dos veces en cada navegación) no consulta la lista en el GET crudo y
+    // la consulta una sola vez, en el circuito.
     private const int TechoPrerender = 1;
     private const int TechoNavegacion = 2;
+    private const int TechoNavegacionSinPrerender = 1;
 
     public static TheoryData<string, string, string> Pantallas => new()
     {
@@ -65,6 +70,8 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         { "subcontratas", "SELECT e.\"Id\", e.\"RazonSocial\", e.\"Cif\", e.\"CreadoEnUtc\", e.\"NivelServicio\"", ".tarjeta-fila-acordeon" },
         { "incidencias", "SELECT count(*)::int FROM \"Incidencias\" AS i", "table.tabla-datos tbody tr" },
     };
+
+    private static readonly HashSet<string> PantallasSinPrerender = ["empresas"];
 
     [Theory]
     [MemberData(nameof(Pantallas))]
@@ -109,14 +116,32 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
         var consultasDeLaNavegacion = MedidorConsultasSql.Contar(medidor.ComandosDesde(marcaNavegacion), fragmentoSql);
 
+        await Assertions.Expect(page.Locator(selectorFila).First).ToBeVisibleAsync(
+            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+
+        if (PantallasSinPrerender.Contains(ruta))
+        {
+            // Control positivo en el circuito: el instrumento ve la consulta de la navegación.
+            Assert.True(
+                consultasDeLaNavegacion >= 1,
+                $"Control positivo: la navegación a /{ruta} no ejecutó ninguna consulta «{fragmentoSql}»: el instrumento no ve la lista.");
+            Assert.True(
+                consultasDelPrerender == 0,
+                $"/{ruta} no se prerenderiza, pero el GET crudo ejecutó {consultasDelPrerender} consultas «{fragmentoSql}»: " +
+                "ha vuelto el prerender y con él la carga doble en cada navegación.");
+            Assert.True(
+                consultasDeLaNavegacion <= TechoNavegacionSinPrerender,
+                $"/{ruta}: la navegación mejorada ejecutó {consultasDeLaNavegacion} consultas «{fragmentoSql}» y el techo sin prerender " +
+                $"es {TechoNavegacionSinPrerender}: la lista se consulta más de una vez.");
+            return;
+        }
+
         // Control positivo: el instrumento ve la consulta, y la pantalla tiene
         // filas (una lista vacía también ejecuta la consulta, pero no
         // demuestra que la pantalla llegó a pintar datos).
         Assert.True(
             consultasDelPrerender >= 1,
             $"Control positivo: el prerender de /{ruta} no ejecutó ninguna consulta «{fragmentoSql}»: el instrumento no ve la lista.");
-        await Assertions.Expect(page.Locator(selectorFila).First).ToBeVisibleAsync(
-            new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         Assert.True(
             consultasDelPrerender <= TechoPrerender,
