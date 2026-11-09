@@ -416,8 +416,16 @@ fase_checks() {
     # #2106, ronda 2). Una lectura fallida no da veredicto en ningún sentido: se
     # descarta entera y se espera a la siguiente vuelta, igual que cuando gh aún
     # no informa de ningún check; el plazo total sigue acotando la espera.
+    # Excepción: una fila `fail` o `cancel` es un ROJO cierto aunque la lectura
+    # esté incompleta, y no se degrada a TIMEOUT si gh sale con error al haber
+    # checks fallidos.
     local checks_tsv
     if ! checks_tsv="$(pr_checks_requeridos_tsv)"; then
+      while IFS=$'\t' read -r nombre bucket; do
+        if [[ -n "$nombre" && ( "$bucket" == "fail" || "$bucket" == "cancel" ) ]]; then
+          salir_rojo "check obligatorio '$nombre' del HEAD $head_vigilado: $bucket"
+        fi
+      done < <(printf '%s\n' "$checks_tsv")
       log "fase checks: 'gh pr checks' falló (o aún no informa de checks obligatorios) — se descarta esta lectura, sin decidir nada con ella"
       if tiempo_agotado; then
         salir_timeout checks "head=$head_vigilado sin una lectura completa de 'gh pr checks'"

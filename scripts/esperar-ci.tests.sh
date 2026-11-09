@@ -118,6 +118,15 @@ fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass' $'Check B\tpass' $'Che
 ejecutar 153 --hasta checks
 assert_veredicto "filas en pass seguidas de un fallo de gh -> TIMEOUT, no VERDE" TIMEOUT 3 "sin una lectura completa"
 
+# Un check en fail es un ROJO cierto aunque gh salga con error (revisión puente,
+# ronda 3): no se degrada a TIMEOUT.
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 "MOCK_PARCIAL_ERROR" $'Check A\tpass' $'Check B\tfail'
+ejecutar 155 --hasta checks
+assert_veredicto "fila fail con gh saliendo con error -> ROJO, no TIMEOUT" ROJO 1 "Check B"
+
 # Si la siguiente lectura sale entera, el vigía sigue y da VERDE.
 nueva_fixture_dir
 fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"

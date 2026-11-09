@@ -175,7 +175,16 @@ retener_imagenes() {
         podar_colgantes_de_despliegue
         return 0
     fi
-    conservar+="$(sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p" <<<"$en_uso")"$'\n'
+    # `printf | sed`, no `sed <<<`: si Bash no pudiera crear el fichero temporal
+    # del here-string, sed no correría y las imágenes en uso quedarían fuera de
+    # `conservar`. sed lee la entrada entera (sin SIGPIPE) y su estado se mira.
+    local en_uso_despliegue
+    if ! en_uso_despliegue="$(printf '%s\n' "$en_uso" | sed -n "s/^${REPOSITORIO_IMAGEN_DESPLIEGUE}://p")"; then
+        echo "::warning::retención de imágenes omitida: no se pudo filtrar la lista de contenedores. No se retira ninguna ${REPOSITORIO_IMAGEN_DESPLIEGUE}:<sha>." >&2
+        podar_colgantes_de_despliegue
+        return 0
+    fi
+    conservar+="$en_uso_despliegue"$'\n'
 
     echo "Retención de imágenes: se conservan las $n últimas de cada entorno y las que usa un contenedor."
     while read -r etiqueta; do

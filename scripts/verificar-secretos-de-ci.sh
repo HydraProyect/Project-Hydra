@@ -77,7 +77,9 @@ aparece() {
 
 LISTA_FICHEROS="$(find "$DIR" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)" \
   || fallar_lectura "no se pudo listar entero el directorio de workflows '$DIR'"
-mapfile -t FICHEROS < <(printf '%s\n' "$LISTA_FICHEROS" | sed '/^$/d')
+# Vacío = ningún elemento (no uno vacío); find no escribe líneas vacías.
+FICHEROS=()
+[ -z "$LISTA_FICHEROS" ] || mapfile -t FICHEROS < <(printf '%s\n' "$LISTA_FICHEROS")
 if [ "${#FICHEROS[@]}" -eq 0 ]; then
   echo "ERROR: '$DIR' no contiene ningún workflow — sin ficheros que leer no se comprobó nada." >&2
   exit 1
@@ -150,7 +152,10 @@ for fichero in "${FICHEROS[@]}"; do
 
   disparadores="$(disparadores_de "$fichero")" \
     || fallar_lectura "no se pudieron leer los disparadores de $nombre"
-  mapfile -t DISPARADORES < <(printf '%s\n' "$disparadores" | sed '/^$/d')
+  # Vacío = ningún disparador; el awk no escribe líneas vacías (split por
+  # espacios y claves con nombre).
+  DISPARADORES=()
+  [ -z "$disparadores" ] || mapfile -t DISPARADORES < <(printf '%s\n' "$disparadores")
   usa_restringidos=false
   if aparece "$sin_comentarios" -E -e "$SECRETOS_RESTRINGIDOS"; then
     usa_restringidos=true
