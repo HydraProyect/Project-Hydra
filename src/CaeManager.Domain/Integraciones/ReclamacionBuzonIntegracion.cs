@@ -53,7 +53,9 @@ public class ReclamacionBuzonIntegracion : Entity
     /// <para>
     /// Cuentan solo las heredadas sin identidad de una conexión que todavía puede completarla. Dejan de contar cuando
     /// el ciclo diario completa la identidad, o cuando ve su conexión en un estado terminal (ConError, incluido un
-    /// 403/404 del buzón, o de otro proveedor o ya sin conexión); Desconectar borra la reclamación. Ninguna reclamación
+    /// 403/404 del buzón, o de otro proveedor o ya sin conexión, o de un Tenant propietario que no está Activo, cuya
+    /// suscripción ya no se renueva); Desconectar borra la reclamación. El ciclo diario recorre para esto también los
+    /// Tenants no activos, cada uno en su ámbito, sin verificar ni renovar nada en ellos. Ninguna reclamación
     /// nueva cuenta: las de Microsoft 365 nacen con identidad, y una sin ella es de un proveedor que no la tiene.
     /// La guarda es transitoria y queda inerte cuando no hay ninguna que cuente.
     /// </para>
@@ -107,7 +109,8 @@ public class ReclamacionBuzonIntegracion : Entity
     }
 
     /// <summary>
-    /// El ciclo diario vio la conexión de esta reclamación heredada en un estado terminal: deja de contar para la guarda
+    /// El ciclo diario vio la conexión de esta reclamación heredada en un estado terminal, o su Tenant propietario no
+    /// está Activo: deja de contar para la guarda
     /// transitoria (<see cref="CuentaParaGuardaTransitoria"/>). No vuelve a contar: si la conexión completa más tarde su
     /// identidad, el índice único por identidad decide.
     /// </summary>

@@ -125,7 +125,7 @@ public class CompletarIdentidadBuzonService(
                 verificadas.Add(conexionId);
         }
 
-        await SacarTerminalesDeGuardaTransitoriaAsync(cancellationToken);
+        await SacarTerminalesDeGuardaTransitoriaAsync(tenantActivo: true, cancellationToken);
         return verificadas;
     }
 
@@ -375,18 +375,30 @@ public class CompletarIdentidadBuzonService(
 
     /// <summary>
     /// Condición de salida de la guarda transitoria (<see cref="ReclamacionBuzonIntegracion.CuentaParaGuardaTransitoria"/>):
-    /// una reclamación heredada sin identidad cuya conexión es terminal (no existe, no es de Microsoft 365 o no está
-    /// Habilitada: ConError, también la que dejó un 404, o Deshabilitada) deja de contar, para que la guarda nunca
-    /// bloquee para siempre. Solo lee las reclamaciones del Tenant del ámbito (RLS); el ciclo recorre cada Tenant.
+    /// una reclamación heredada sin identidad cuya conexión es terminal deja de contar, para que la guarda nunca bloquee
+    /// para siempre. Es terminal la conexión que no existe, no es de Microsoft 365 o no está Habilitada (ConError,
+    /// también la que dejó un 404, o Deshabilitada), y toda conexión de un Tenant propietario que no está Activo: la
+    /// renovación de suscripciones y la verificación de identidad solo recorren los Tenants activos, así que su
+    /// suscripción caduca y la conexión no es operativa de hecho, aunque siga Habilitada.
+    /// <para>
+    /// Solo lee las reclamaciones del Tenant del ámbito (RLS). El ciclo diario lo llama tras <see cref="CompletarAsync"/>
+    /// en cada Tenant activo, y lo llama solo, sin verificar ni renovar nada, en cada Tenant no activo, con
+    /// <paramref name="tenantActivo"/> a false. Una reclamación que sale no vuelve a contar aunque el Tenant se
+    /// reactive: si su conexión completa después la identidad, decide el índice único por identidad.
+    /// </para>
     /// </summary>
-    private async Task SacarTerminalesDeGuardaTransitoriaAsync(CancellationToken cancellationToken)
+    /// <param name="tenantActivo">El Tenant propietario del ámbito está Activo.</param>
+    public async Task SacarTerminalesDeGuardaTransitoriaAsync(bool tenantActivo, CancellationToken cancellationToken)
     {
         var ahoraUtc = DateTime.UtcNow;
         var cambiadas = 0;
         foreach (var reclamacion in await reclamacionRepositorio.ObtenerQueCuentanParaGuardaTransitoriaAsync(cancellationToken))
         {
-            var conexion = await conexionRepositorio.ObtenerPorIdAsync(reclamacion.ConexionIntegracionId, cancellationToken);
-            var terminal = conexion is null
+            var conexion = tenantActivo
+                ? await conexionRepositorio.ObtenerPorIdAsync(reclamacion.ConexionIntegracionId, cancellationToken)
+                : null;
+            var terminal = !tenantActivo
+                || conexion is null
                 || conexion.Proveedor != ProveedorIntegracion.Microsoft365
                 || conexion.Estado != EstadoConexionIntegracion.Habilitada;
             if (terminal && reclamacion.SacarDeGuardaTransitoria(ahoraUtc))

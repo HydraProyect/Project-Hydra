@@ -16,6 +16,8 @@ namespace CaeManager.Infrastructure.Integraciones;
 /// <c>Microsoft365GraphClient</c>) — un sondeo diario es de sobra frente a
 /// esa ventana. Envuelto en elección de líder (P3-30), igual que
 /// <see cref="IngestaWebhookHostedService"/>.
+/// Solo los Tenants propietarios activos verifican identidad y renuevan; los no activos pasan únicamente por el barrido
+/// de la guarda transitoria de buzones compartidos (ver <see cref="RecorrerTenantsAsync"/>).
 /// </summary>
 public class RenovacionSuscripcionWebhookHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<RenovacionSuscripcionWebhookHostedService> logger)
@@ -68,16 +70,39 @@ public class RenovacionSuscripcionWebhookHostedService(
 
     private async Task RenovarTodosLosTenantsAsync(CancellationToken stoppingToken)
     {
-        List<Guid> tenantsActivos;
+        List<TenantDelCiclo> tenants;
         using (var ambito = ambitoFactory.CreateScope())
         {
-            tenantsActivos = await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
-                .Tenants.Where(t => t.Estado == EstadoTenant.Activo)
-                .Select(t => t.Id)
-                .ToListAsync(stoppingToken);
+            tenants = (await ambito.ServiceProvider.GetRequiredService<ITenantsQueryContext>()
+                    .Tenants.Select(t => new { t.Id, t.Estado })
+                    .ToListAsync(stoppingToken))
+                .Select(t => new TenantDelCiclo(t.Id, t.Estado == EstadoTenant.Activo))
+                .ToList();
         }
 
-        foreach (var tenantId in tenantsActivos)
+        await RecorrerTenantsAsync(
+            tenants, RenovarPendientesDelTenantAsync, SacarDeGuardaTransitoriaTenantNoActivoAsync, logger, stoppingToken);
+    }
+
+    /// <summary>Un Tenant propietario que recorre el ciclo, y si está Activo.</summary>
+    internal readonly record struct TenantDelCiclo(Guid TenantId, bool Activo);
+
+    /// <summary>
+    /// Reparte el ciclo entre los Tenants propietarios. Los activos, primero, completan la identidad de sus buzones y
+    /// renuevan sus suscripciones (<paramref name="cicloTenantActivo"/>). Los no activos solo pasan por el barrido de la
+    /// guarda transitoria (<paramref name="barridoTenantNoActivo"/>): ni se verifica su identidad ni se renueva su
+    /// suscripción, que caduca. Sin ese barrido, una reclamación heredada de un Tenant no activo contaría para siempre y
+    /// el alta de buzones compartidos quedaría en pausa en toda la plataforma
+    /// (ver <see cref="CompletarIdentidadBuzonService.SacarTerminalesDeGuardaTransitoriaAsync"/>).
+    /// </summary>
+    internal static async Task RecorrerTenantsAsync(
+        IReadOnlyList<TenantDelCiclo> tenants,
+        Func<Guid, CancellationToken, Task> cicloTenantActivo,
+        Func<Guid, CancellationToken, Task> barridoTenantNoActivo,
+        ILogger logger,
+        CancellationToken stoppingToken)
+    {
+        foreach (var tenant in tenants.OrderByDescending(t => t.Activo))
         {
             stoppingToken.ThrowIfCancellationRequested();
 
@@ -90,7 +115,10 @@ public class RenovacionSuscripcionWebhookHostedService(
             // margen antes de Graph expirar la suscripción de verdad.
             try
             {
-                await RenovarPendientesDelTenantAsync(tenantId, stoppingToken);
+                if (tenant.Activo)
+                    await cicloTenantActivo(tenant.TenantId, stoppingToken);
+                else
+                    await barridoTenantNoActivo(tenant.TenantId, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -99,10 +127,22 @@ public class RenovacionSuscripcionWebhookHostedService(
             catch (Exception ex)
             {
                 logger.LogError(ex,
-                    "Falló la renovación de suscripciones de webhook del tenant {TenantId}; se continúa con el resto de tenants en este ciclo.",
-                    tenantId);
+                    "Falló el ciclo de suscripciones de webhook del tenant {TenantId} (activo: {Activo}); se continúa con el resto de tenants en este ciclo.",
+                    tenant.TenantId, tenant.Activo);
             }
         }
+    }
+
+    /// <summary>
+    /// Tenant propietario no activo: solo el barrido de la guarda transitoria, en su propio ámbito y bajo su RLS, con
+    /// toda conexión suya terminal. Sin CompletarAsync ni renovación.
+    /// </summary>
+    private async Task SacarDeGuardaTransitoriaTenantNoActivoAsync(Guid tenantId, CancellationToken stoppingToken)
+    {
+        using var ambito = ambitoFactory.CreateScope();
+        using var _ = AmbitoTenantExplicito.Establecer(tenantId);
+        await ambito.ServiceProvider.GetRequiredService<CompletarIdentidadBuzonService>()
+            .SacarTerminalesDeGuardaTransitoriaAsync(tenantActivo: false, stoppingToken);
     }
 
     private async Task RenovarPendientesDelTenantAsync(Guid tenantId, CancellationToken stoppingToken)

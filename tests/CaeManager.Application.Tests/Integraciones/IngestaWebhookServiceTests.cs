@@ -737,6 +737,106 @@ public class IngestaWebhookServiceTests
     }
 
     /// <summary>
+    /// Ronda 10: un 200 de Graph sin un campo obligatorio no se ingiere con datos inventados, no gasta intento y no da el
+    /// evento por procesado: espera como el 404 que puede ser del buzón, con su propio motivo.
+    /// </summary>
+    [Fact]
+    public async Task Un_mensaje_incompleto_deja_el_evento_en_espera_sin_gastar_intento_ni_marcarlo_procesado()
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(CodigosErrorMicrosoft365.MensajeIncompleto, "sin remitente")
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        for (var i = 0; i < EventoWebhook.MaximoIntentos + 1; i++)
+        {
+            evento.MarcarEnProceso();
+            await servicio.ProcesarAsync(evento, CancellationToken.None);
+        }
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente, "ni Completado ni descartado tras más pasadas que intentos");
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(IngestaWebhookService.MotivoEsperaMensajeIncompleto);
+        evento.SiguienteIntentoEnUtc.Should().BeAfter(DateTime.UtcNow.AddMinutes(10),
+            "vuelve a la cola de la ingesta tras IntervaloEsperaVerificacion, como el de BuzonNoEncontrado");
+        conversaciones.Conversaciones.Should().BeEmpty();
+        conexion.HuecoPendienteDesdeUtc.Should().BeNull("aún no se ha perdido nada");
+    }
+
+    /// <summary>
+    /// Tarea 4 de la ronda 10: el evento que espera por mensaje incompleto se reanuda igual que el de BuzonNoEncontrado,
+    /// porque los dos pasan por el mismo <see cref="EventoWebhook.EsperarVerificacion"/>: misma cola (Pendiente con
+    /// SiguienteIntentoEnUtc) y, cuando Graph ya devuelve el mensaje completo, se ingiere y queda Completado.
+    /// </summary>
+    [Theory]
+    [InlineData(CodigosErrorMicrosoft365.MensajeIncompleto, IngestaWebhookService.MotivoEsperaMensajeIncompleto)]
+    [InlineData(CodigosErrorMicrosoft365.BuzonNoEncontrado, IngestaWebhookService.MotivoEsperaBuzonNoEncontrado)]
+    public async Task La_espera_por_mensaje_incompleto_se_reanuda_igual_que_la_de_buzon_no_encontrado(string codigo, string motivo)
+    {
+        var conexion = ConexionHabilitada();
+        var conexiones = new ConexionIntegracionRepositorioFalso();
+        conexiones.Agregar(conexion);
+        var conversaciones = new ConversacionRepositorioFalso();
+        var graph = new Microsoft365GraphClientFalso
+        {
+            MensajeIdsADevolver = ["m-1"],
+            ErrorLecturaMensaje = Error.Crear(codigo, "transitorio"),
+            MensajeADevolver = new MensajeGraphDto("m-1", "hilo", "Asunto", "contacto@ejemplo.test", "Texto", DateTime.UtcNow, [], []),
+        };
+        var credenciales = new CredencialIntegracionRepositorioFalso();
+        credenciales.Agregar(new CredencialIntegracion(conexion.Id, "refresh"));
+        var evento = new EventoWebhook(conexion.Id, "{}");
+        var servicio = CrearServicio(conexiones, conversaciones, graph, credenciales);
+
+        evento.MarcarEnProceso();
+        var antes = DateTime.UtcNow;
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+        evento.ErrorProcesado.Should().Be(motivo);
+        evento.SiguienteIntentoEnUtc.Should().BeOnOrAfter(antes + EventoWebhook.IntervaloEsperaVerificacion);
+
+        graph.ErrorLecturaMensaje = null;
+        evento.MarcarEnProceso();
+        await servicio.ProcesarAsync(evento, CancellationToken.None);
+
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        evento.Intentos.Should().Be(0);
+        conversaciones.Conversaciones.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Tarea 4 de la ronda 10, el tope: el motivo no cambia la regla de <see cref="EventoWebhook.EsperarVerificacion"/>.
+    /// Pasadas <see cref="EventoWebhook.TopeEsperaVerificacion"/> desde la recepción, los dos quedan Retenido, nunca
+    /// descartados, y sin siguiente intento.
+    /// </summary>
+    [Theory]
+    [InlineData(IngestaWebhookService.MotivoEsperaMensajeIncompleto)]
+    [InlineData(IngestaWebhookService.MotivoEsperaBuzonNoEncontrado)]
+    public void A_las_72_horas_la_espera_por_mensaje_incompleto_queda_retenida_como_la_de_buzon_no_encontrado(string motivo)
+    {
+        var evento = new EventoWebhook(Guid.NewGuid(), "{}");
+
+        evento.EsperarVerificacion(motivo, evento.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion - TimeSpan.FromMinutes(1));
+        evento.Estado.Should().Be(EstadoEventoWebhook.Pendiente);
+
+        evento.EsperarVerificacion(motivo, evento.FechaRecepcionUtc + EventoWebhook.TopeEsperaVerificacion);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Retenido);
+        evento.SiguienteIntentoEnUtc.Should().BeNull();
+        evento.Intentos.Should().Be(0);
+        evento.ErrorProcesado.Should().Be(motivo);
+    }
+
+    /// <summary>
     /// Sesión nocturna 2026-09-02: hasta que N4 cablea <c>MarcarConError</c>
     /// desde la renovación de suscripción de Graph, este estado era
     /// inalcanzable en producción (solo lo ponía el seeder de demo) y el

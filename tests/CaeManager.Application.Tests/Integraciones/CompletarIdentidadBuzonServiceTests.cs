@@ -172,6 +172,45 @@ public class CompletarIdentidadBuzonServiceTests
         deViva.CuentaParaGuardaTransitoria.Should().BeTrue("una Habilitada sin identidad aún puede completarla y sigue contando");
     }
 
+    // Ronda 10, guarda transitoria: la renovación omite los Tenants propietarios no activos, así que su conexión no es
+    // operativa aunque siga Habilitada. Sin esto, su heredada contaría para siempre en toda la plataforma.
+
+    [Fact]
+    public async Task Barrido_TenantNoActivo_HeredadaDeConexionHabilitada_SaleDeLaGuardaSinVerificarNada()
+    {
+        var escenario = new Escenario();
+        var habilitada = ConexionIntegracion.CrearBuzonCompartido("viva@tenant.com", "Viva", Directorio, Guid.NewGuid());
+        escenario.Conexiones.Agregar(habilitada);
+        var heredada = escenario.Reclamaciones.AgregarHeredada("viva@tenant.com", habilitada.Id);
+
+        await escenario.Servicio().SacarTerminalesDeGuardaTransitoriaAsync(tenantActivo: false, CancellationToken.None);
+
+        heredada.CuentaParaGuardaTransitoria.Should().BeFalse();
+        heredada.FueraDeGuardaTransitoriaUtc.Should().NotBeNull();
+        heredada.IdentidadBuzon.Should().BeNull("el barrido no completa la identidad");
+        habilitada.Estado.Should().Be(EstadoConexionIntegracion.Habilitada, "el barrido no cambia la conexión");
+        habilitada.IdentidadVerificadaUtc.Should().BeNull();
+        escenario.Graph.BuzonesUsados.Should().BeEmpty("en un Tenant no activo no se llama a Microsoft");
+        escenario.Graph.VecesRefrescado.Should().Be(0);
+        escenario.Graph.SuscripcionesRenovadas.Should().BeEmpty();
+        escenario.Graph.VecesSuscrito.Should().Be(0);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Barrido_TenantActivo_HeredadaDeConexionHabilitada_SigueContando()
+    {
+        var escenario = new Escenario();
+        var habilitada = ConexionIntegracion.CrearBuzonCompartido("viva@tenant.com", "Viva", Directorio, Guid.NewGuid());
+        escenario.Conexiones.Agregar(habilitada);
+        var heredada = escenario.Reclamaciones.AgregarHeredada("viva@tenant.com", habilitada.Id);
+
+        await escenario.Servicio().SacarTerminalesDeGuardaTransitoriaAsync(tenantActivo: true, CancellationToken.None);
+
+        heredada.CuentaParaGuardaTransitoria.Should().BeTrue();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
     public sealed class DescarteQueSueltaElLote(UnitOfWorkFalso unitOfWork) : CaeManager.Application.Common.IDescarteCambiosPendientes
     {
         public int Veces { get; private set; }
