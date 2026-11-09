@@ -215,6 +215,32 @@ public class CarteraRevocadaBajoElCandadoTests
     }
 
     [Fact]
+    public async Task Crear_asignaciones_en_lote_cuya_cartera_se_revoca_mientras_espera_el_candado_no_guarda_ninguna()
+    {
+        var mundo = new MundoAcreditaciones();
+        var trabajador = mundo.Trabajador();
+        var acceso = mundo.AccesoPlataforma(mundo.Centro("Planta de otra Empresa"));
+        var repositorio = new AsignacionRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var (alcance, serializacion) = CarteraQueSeRevocaAlTomarElCandado();
+        var handler = new CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.CrearAsignacionesCommandHandler(
+            repositorio, mundo.AsignacionesContexto, new AutoridadPorCartera(alcance), mundo.Servicio(), unitOfWork,
+            serializacion, alcance);
+
+        var resultado = await handler.Handle(
+            new CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.CrearAsignacionesCommand(
+                [trabajador.Id], [acceso.CentroId], Hoy),
+            CancellationToken.None);
+
+        serializacion.Llamadas.Should().Be(1);
+        resultado.Valor.Creadas.Should().Be(0);
+        resultado.Valor.Errores.Should().Contain("1 centro(s) ya no existían.");
+        repositorio.Asignaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+        mundo.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Reabrir_una_asignacion_cuya_cartera_se_revoca_mientras_espera_el_candado_no_la_reabre()
     {
         var mundo = new MundoAcreditaciones();
